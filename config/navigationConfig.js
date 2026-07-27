@@ -1,0 +1,292 @@
+import {
+  LayoutGrid, Users, FlaskConical, FileText, Box, Wrench, Truck, CreditCard,
+  UserCheck, BarChart3, Layers, ShieldAlert, ClipboardList, PackageCheck,
+  UserPlus, Clock, Bell, ClipboardCheck, AlertTriangle, RefreshCw, Package, Shield, ShieldCheck,
+  Receipt, TrendingUp, Target, DollarSign, Percent, Calendar, Cpu, Activity,
+  CheckCircle, XCircle, Database, ArrowRightLeft, ArrowLeftRight, ArrowDownUp, ShoppingCart,
+  ListTodo, FileSignature, Car, UserCircle, Map, MapPin, History, Navigation, ArrowDownLeft,
+  ArrowUpRight, BookOpen, Wallet, Building, Book, Notebook, Library, Scale, Landmark,
+  Calculator, ShoppingBag, CalendarOff, Award, Files, MessageSquare, BellRing, Hash, Ruler, Grid,
+  RotateCcw, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2,
+  Archive, BadgeCheck, FileCheck
+} from 'lucide-react';
+
+export const navigationConfig = {
+  'Sales': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/sales/dashboard' },
+    { id: 'daily-task', label: 'Daily Tasks', icon: ClipboardList, path: '/sales/daily-task' },
+    { id: 'leads', label: 'Leads Directory', icon: Users, path: '/sales/leads', group: 'CRM' },
+    { id: 'samples', label: 'Sample Management', icon: FlaskConical, path: '/sales/samples', group: 'CRM' },
+    { id: 'quotations', label: 'Quotations', icon: FileText, path: '/sales/quotations', group: 'Sales' },
+    { id: 'orders', label: 'Orders', icon: Box, path: '/sales/orders', group: 'Sales' },
+    { id: 'production-status', label: 'Production Status', icon: Wrench, path: '/sales/production-status', group: 'Sales' },
+    { id: 'payment-followup', label: 'Payment Follow-up', icon: CreditCard, path: '/sales/payment-followup', group: 'Sales' },
+    { id: 'payment-history', label: 'Payment History', icon: History, path: '/sales/payment-history', group: 'Sales' },
+    { id: 'customers', label: 'Customers', icon: UserCheck, path: '/sales/customers', group: 'Sales' },
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/sales/customer-complaints', group: 'Sales' },
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/sales/reports' }
+  ],
+
+  'Production': [
+    { type: 'badge', label: 'PRODUCTION' },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/production/dashboard' },
+    { id: 'work-orders', label: 'Work Orders', icon: ClipboardList, path: '/production/work-orders' },
+    { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/production/incoming-orders' },
+    {
+      id: 'material-workflow',
+      label: 'Material Requests',
+      icon: Layers,
+      path: '/production/material-requests',
+      subItems: [
+        { id: 'material-requests', label: 'Material Requests', path: '/production/material-requests' },
+        { id: 'material-request-history', label: 'Material Request History', path: '/production/material-requests?tab=history' }
+      ]
+    },
+    { id: 'store-releases', label: 'Store Releases', icon: PackageCheck, path: '/production/store-releases' },
+    { id: 'floor', label: 'Production Floor', icon: Wrench, path: '/production/floor' },
+    { id: 'completed', label: 'Completed', icon: ClipboardCheck, path: '/production/completed' },
+    { id: 'qc-failed', label: 'QC Failed & Reproduction', icon: RefreshCw, path: '/production/qc-failed' },
+    { id: 'testing', label: 'Testing', icon: ClipboardCheck, path: '/production/testing' },
+    { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' },
+
+    { type: 'badge', label: 'QUALITY CONTROL' },
+    { id: 'qc-dashboard', label: 'QC Dashboard', icon: LayoutGrid, path: '/production/qc-dashboard' },
+    { id: 'qc-pending', label: 'Pending Inspections', icon: Clock, path: '/production/qc-pending' },
+    { id: 'qc-history', label: 'Inspected History', icon: ClipboardList, path: '/production/qc-history' }
+  ],
+
+  'Plant Head': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/plant-head/dashboard' },
+    { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/plant-head/incoming-orders', group: 'Planning Board' },
+    { id: 'product-approval', label: 'Product Approval', icon: FileCheck, path: '/plant-head/product-approval', group: 'Planning Board' },
+    { id: 'recruitment-request', label: 'Recruitment Request', icon: UserPlus, path: '/plant-head/recruitment-request', group: 'Planning Board' },
+    { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods', group: 'Planning Board' },
+    { id: 'planning', label: 'Planning', icon: Wrench, path: '/plant-head/planning', group: 'Planning Board' },
+    { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },
+    { id: 'material-indents', label: 'Material Indents', icon: ClipboardList, path: '/plant-head/material-indents' },
+    { id: 'indent-approvals', label: 'Indent Approvals (New)', icon: CheckCircle, path: '/plant-head/indent-approvals' },
+    { id: 'replacements', label: 'Replacement Requests', icon: RefreshCw, path: '/plant-head/replacements' },
+    { id: 'returns', label: 'Return Requests', icon: RefreshCw, path: '/plant-head/returns' },
+    {
+      id: 'analytics-and-reports',
+      label: 'Analytics & Reports',
+      icon: BarChart3,
+      path: '/plant-head/production-analytics',
+      subItems: [
+        { id: 'production-analytics', label: 'Production Analytics', path: '/plant-head/production-analytics' },
+        { id: 'material-analytics', label: 'Material Analytics', path: '/plant-head/material-analytics' },
+        { id: 'department-overview', label: 'Department Overview', path: '/plant-head/department-overview' },
+        { id: 'executive-reports', label: 'Executive Reports', path: '/plant-head/executive-reports' }
+      ]
+    },
+    { id: 'raw-inventory', label: 'Raw Inventory', icon: Layers, path: '/plant-head/raw-inventory' },
+    { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' }
+  ],
+
+  'Store': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/store/dashboard' },
+    { id: 'raw-inventory', label: 'Raw Inventory', icon: Layers, path: '/store/raw-inventory' },
+    { id: 'low-stock-alerts', label: 'Low Stock Alerts', icon: AlertTriangle, path: '/store/low-stock-alerts' },
+    { id: 'analysis-requests', label: 'Product & Brand Analysis', icon: ClipboardList, path: '/store/analysis-requests', group: 'Inward Quality & Returns' },
+    { id: 'material-requests', label: 'Material Requests', icon: ClipboardList, path: '/store/material-requests' },
+    { id: 'store-releases', label: 'Store Releases', icon: PackageCheck, path: '/store/store-releases' },
+    { id: 'issued-history', label: 'Material Issued History', icon: History, path: '/store/issued-history' },
+    {
+      id: 'purchase',
+      label: 'Purchase',
+      icon: FileText,
+      path: '/store/purchase',
+      subItems: [
+        { id: 'create-request', label: 'Create Request', path: '/store/purchase?tab=Create Request' },
+        { id: 'verify-delivery', label: 'Verify Delivery', path: '/store/purchase?tab=Verify Delivery' },
+        { id: 'delivery-history', label: 'Delivery History', path: '/store/purchase?tab=Delivery History' },
+        { id: 'grn-history', label: 'GRN History', path: '/store/purchase?tab=GRN History' },
+        { id: 'material-rejections', label: 'Material Rejections', path: '/store/purchase?tab=Material Rejections' },
+        { id: 'replacement-deliveries', label: 'Replacement Deliveries', path: '/store/purchase?tab=Replacement Deliveries' },
+        { id: 'indent-history', label: 'Indent History', path: '/store/purchase?tab=Indent History' }
+      ]
+    }
+  ],
+
+  'Dispatch': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch/dashboard' },
+    { id: 'tracking-overview', label: 'Dispatch Tracking', icon: Truck, path: '/dispatch' },
+    {
+      id: 'create-dispatch',
+      label: 'Create Dispatch',
+      icon: Truck,
+      path: '/dispatch/orders',
+      group: 'Logistics',
+      subItems: [
+        { id: 'pending-dispatch', label: 'Pending Dispatch', path: '/dispatch/orders' },
+        { id: 'new-dispatch', label: 'Create Dispatch', path: '/dispatch/create-dispatch' },
+        { id: 'in-transit', label: 'In Transit', path: '/dispatch/in-transit' },
+        { id: 'delivered', label: 'Delivered', path: '/dispatch/delivery' },
+      ],
+    },
+    {
+      id: 'sample-dispatch', label: 'Sample Dispatch', icon: FlaskConical, path: '/dispatch/sample-dispatch', group: 'Logistics',
+      subItems: [
+        { id: 'sample-pending', label: 'Pending Dispatch', path: '/dispatch/sample-dispatch?status=pending' },
+        { id: 'sample-transit', label: 'In Transit', path: '/dispatch/sample-dispatch?status=in-transit' },
+        { id: 'sample-delivered', label: 'Delivered', path: '/dispatch/sample-dispatch?status=delivered' },
+        { id: 'sample-all', label: 'All', path: '/dispatch/sample-dispatch?status=all' },
+      ],
+    },
+    {
+      id: 'replacements', label: 'Replacement Dispatch', icon: RefreshCw, path: '/dispatch/replacements', group: 'Logistics',
+      subItems: [
+        { id: 'replacement-pending', label: 'Pending Dispatch', path: '/dispatch/replacements?status=pending' },
+        { id: 'replacement-transit', label: 'In Transit', path: '/dispatch/replacements?status=in-transit' },
+        { id: 'replacement-delivered', label: 'Delivered', path: '/dispatch/replacements?status=delivered' },
+      ],
+    },
+    {
+      id: 'returns',
+      label: 'Return Dispatch',
+      icon: RotateCcw,
+      path: '/dispatch/returns',
+      group: 'Logistics',
+    },
+    { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch/remaining' },
+    { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch/history' }
+  ],
+
+  'Finance Executive': [
+    { id: 'payment-verification', label: 'Payment Verification', icon: BadgeCheck, path: '/finance-executive/payment-verification' },
+    { id: 'payment-history', label: 'Payment History Archive', icon: Archive, path: '/finance-executive/payment-history' },
+    { id: 'payment-receipts', label: 'Payment Receipts', icon: Receipt, path: '/finance-executive/payment-receipts' },
+    { id: 'outstanding-payments', label: 'Outstanding Payments', icon: CreditCard, path: '/finance-executive/outstanding-payments' },
+    { id: 'customers', label: 'Customers', icon: Users, path: '/finance-executive/customers' }
+  ],
+
+  'Finance': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
+    { id: 'daily-tasks', label: 'Daily Tasks', icon: ClipboardList, path: '/finance/daily-tasks' },
+    {
+      id: 'payment-verification',
+      label: 'Payment Verification',
+      icon: BadgeCheck,
+      path: '/finance/payment-verification',
+      subItems: [
+        { id: 'payment-verification', label: 'Payment Verification Queue', path: '/finance/payment-verification' },
+        { id: 'payment-history', label: 'Payment History Archive', path: '/finance/payment-history' },
+        { id: 'payment-receipts', label: 'Payment Receipts', path: '/finance/receipts' },
+        { id: 'outstanding-payments', label: 'Outstanding Payments', path: '/finance/outstanding' },
+        { id: 'customers', label: 'Customers', path: '/finance/customers' }
+      ]
+    },
+    {
+      id: 'billing',
+      label: 'Billing',
+      icon: FileText,
+      path: '/finance/invoices',
+      subItems: [
+        { id: 'invoices', label: 'Invoices Ledger', path: '/finance/invoices' },
+      ]
+    },
+    {
+      id: 'po-requests',
+      label: 'PO Requests',
+      icon: FileText,
+      path: '/finance/po-requests',
+      subItems: [
+        { id: 'pending-requests', label: 'Pending Requests', path: '/finance/po-requests?tab=Pending Requests' },
+        { id: 'create-po', label: 'Create PO', path: '/finance/po-requests?tab=Create PO' },
+        { id: 'draft-pos', label: 'Draft POs', path: '/finance/po-requests?tab=Draft POs' },
+        { id: 'pending-approval', label: 'Pending Approval', path: '/finance/po-requests?tab=Pending Approval' },
+        { id: 'approved-pos', label: 'Approved POs', path: '/finance/po-requests?tab=Approved POs' },
+        { id: 'delivery-audit', label: 'Delivery Audit', path: '/finance/po-requests?tab=Delivery Audit' },
+        { id: 'closed-pos', label: 'Closed POs', path: '/finance/po-requests?tab=Closed POs' },
+        { id: 'history', label: 'History', path: '/finance/po-requests?tab=History' }
+      ]
+    },
+    { id: 'rejection-management', label: 'Material Rejections', icon: AlertTriangle, path: '/finance/rejection-management' },
+    { id: 'replacement-management', label: 'Replacement Management', icon: RefreshCw, path: '/finance/replacement-management' },
+    {
+      id: 'vendor-invoices',
+      label: 'Vendor Invoices',
+      icon: Receipt,
+      path: '/finance/vendor-invoices'
+    },
+    {
+      id: 'credit-notes',
+      label: 'Credit Notes',
+      icon: FileText,
+      path: '/finance/credit-notes'
+    },
+    {
+      id: 'salary',
+      label: 'Salary & Payroll',
+      icon: CreditCard,
+      path: '/finance/salary/pending',
+      subItems: [
+        { id: 'pending-salary', label: 'Pending Salary Payments', path: '/finance/salary/pending' },
+        { id: 'processing-salary', label: 'Processing', path: '/finance/salary/processing' },
+        { id: 'paid-salary', label: 'Paid Salaries', path: '/finance/salary/paid' },
+        { id: 'salary-history', label: 'Salary History', path: '/finance/salary/history' }
+      ]
+    },
+
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance/reports' }
+  ],
+
+  'HR': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/hr/dashboard' },
+    { id: 'recruitment', label: 'Recruitment Requisitions', icon: UserPlus, path: '/hr/recruitment' },
+    { id: 'employees', label: 'Employees', icon: Users, path: '/hr/employees' },
+    { id: 'register-staff', label: 'Register Staff', icon: UserPlus, path: '/hr/register-staff' },
+    { id: 'attendance', label: 'Attendance & Clock', icon: Clock, path: '/hr/attendance' },
+    { id: 'shifts', label: 'Shift Schedule', icon: ClipboardList, path: '/hr/shifts' },
+    { id: 'leaves', label: 'Leave Workflows', icon: FileText, path: '/hr/leaves' },
+    { id: 'exit-clearance', label: 'Exit Clearance', icon: PackageCheck, path: '/hr/exit-clearance' },
+    {
+      id: 'salary',
+      label: 'Salary Management',
+      icon: CreditCard,
+      path: '/hr/salary/prepare',
+      subItems: [
+        { id: 'prepare-salary', label: 'Prepare Salary', path: '/hr/salary/prepare' },
+        { id: 'salary-status', label: 'Salary Approval Status', path: '/hr/salary/status' },
+        { id: 'salary-history', label: 'Salary History', path: '/hr/salary/history' }
+      ]
+    },
+    { id: 'notifications', label: 'HR Notifications', icon: Bell, path: '/hr/notifications' }
+  ],
+
+  'Super Admin': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
+
+    { type: 'badge', label: 'APPROVALS' },
+    { id: 'po-approvals', label: 'PO Approvals (New)', icon: ShieldCheck, path: '/super-admin/po-approvals' },
+    { id: 'po-requests', label: 'PO Approval Requests', icon: ShoppingBag, path: '/super-admin/po-requests' },
+    { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },
+    { id: 'salary-approval', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approval' },
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/super-admin/customer-complaints' },
+
+    { type: 'badge', label: 'BUSINESS MANAGEMENT' },
+    { id: 'users', label: 'Users & Roles', icon: Users, path: '/super-admin/users' },
+    { id: 'employees', label: 'Employees', icon: UserCheck, path: '/super-admin/employees' },
+    { id: 'companies', label: 'Companies', icon: Building, path: '/super-admin/companies' },
+    { id: 'sales-target', label: 'Sales Targets', icon: Target, path: '/super-admin/sales-target' },
+
+    { type: 'badge', label: 'MASTER DATA' },
+    { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
+    { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
+    { id: 'price-master', label: 'Price Master', icon: DollarSign, path: '/super-admin/price-master' },
+    { id: 'inventory', label: 'Inventory Master', icon: Database, path: '/super-admin/inventory' },
+
+    { type: 'badge', label: 'ANALYTICS & REPORTS' },
+    { id: 'analytics-business', label: 'Business Analytics', icon: BarChart3, path: '/super-admin/analytics/business' },
+    { id: 'analytics-sales', label: 'Sales Analytics', icon: TrendingUp, path: '/super-admin/analytics/sales' },
+    { id: 'analytics-finance', label: 'Finance Analytics', icon: Landmark, path: '/super-admin/analytics/finance' },
+    { id: 'analytics-production', label: 'Production Analytics', icon: Cpu, path: '/super-admin/analytics/production' },
+    { id: 'analytics-inventory', label: 'Inventory Analytics', icon: Database, path: '/super-admin/analytics/inventory' },
+    { id: 'analytics-hr', label: 'HR Analytics', icon: Users, path: '/super-admin/analytics/hr' },
+    { id: 'analytics-dispatch', label: 'Dispatch Analytics', icon: Truck, path: '/super-admin/analytics/dispatch' },
+    { id: 'analytics-profitability', label: 'Profitability Analytics', icon: DollarSign, path: '/super-admin/analytics/profitability' },
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' },
+
+  ]
+};

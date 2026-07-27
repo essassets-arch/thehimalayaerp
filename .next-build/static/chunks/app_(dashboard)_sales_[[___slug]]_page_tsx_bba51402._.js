@@ -1,0 +1,32 @@
+(globalThis.TURBOPACK_CHUNK_LISTS || (globalThis.TURBOPACK_CHUNK_LISTS = [])).push({
+    script: typeof document === "object" ? document.currentScript : undefined,
+    chunks: [
+  "static/chunks/node_modules_8232152d._.js",
+  "static/chunks/modules_sales_8f0c4396._.js",
+  "static/chunks/components_DashboardView_jsx_07fbe990._.js",
+  "static/chunks/components_LeadsView_jsx_81efc0de._.js",
+  "static/chunks/components_CreateLead_jsx_5c92394d._.js",
+  "static/chunks/components_SamplesView_jsx_36185ed0._.js",
+  "static/chunks/components_CreateQuotation_jsx_eed69662._.js",
+  "static/chunks/components_QuotationsView_jsx_ebf9a2bb._.js",
+  "static/chunks/components_OrdersView_jsx_3744d9be._.js",
+  "static/chunks/components_PaymentsView_jsx_4b145c88._.js",
+  "static/chunks/components_PaymentFollowupERPView_jsx_76862465._.js",
+  "static/chunks/components_ReportsView_jsx_52145a07._.js",
+  "static/chunks/components_CustomerComplaintManagement_jsx_494a749f._.js",
+  "static/chunks/components_bc2c56ea._.js",
+  "static/chunks/_aeaa9069._.js",
+  "static/chunks/node_modules_sweetalert2_dist_sweetalert2_all_8244646a.js",
+  "static/chunks/node_modules_es-toolkit_dist_6457d2de._.js",
+  "static/chunks/node_modules_recharts_es6_util_992f4f6a._.js",
+  "static/chunks/node_modules_recharts_es6_component_8e12cb58._.js",
+  "static/chunks/node_modules_recharts_es6_state_9c9dee92._.js",
+  "static/chunks/node_modules_recharts_es6_cartesian_a0660855._.js",
+  "static/chunks/node_modules_recharts_es6_06a7ea21._.js",
+  "static/chunks/node_modules_pako_dist_pako_esm_mjs_367e3765._.js",
+  "static/chunks/node_modules_jspdf_dist_jspdf_es_min_0d42d46a.js",
+  "static/chunks/node_modules_tailwind-merge_dist_bundle-mjs_mjs_56b6fd65._.js",
+  "static/chunks/node_modules_f475b131._.js"
+],
+    source: "dynamic"
+});

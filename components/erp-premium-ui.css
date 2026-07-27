@@ -1,0 +1,372 @@
+/* ── ERP PREMIUM UI DESIGN SYSTEM ── */
+
+.erp-page-container {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background-color: #F5FAFE;
+  min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+  .erp-page-container {
+    padding: 12px;
+    gap: 14px;
+  }
+}
+
+.erp-header-card {
+  background: #ffffff;
+  border: 1px solid #DCE5F0;
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .erp-header-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+  }
+}
+
+.erp-header-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.erp-header-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #24345C;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+@media (max-width: 640px) {
+  .erp-header-title {
+    font-size: 17px;
+  }
+}
+
+.erp-header-subtitle {
+  font-size: 12.5px;
+  color: #5E6B82;
+  font-weight: 500;
+  margin: 0;
+}
+
+/* ── SEARCH & FILTERS ── */
+.erp-search-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 280px;
+  width: 100%;
+  max-width: 380px;
+}
+
+@media (max-width: 640px) {
+  .erp-search-wrapper {
+    min-width: 100%;
+    max-width: 100%;
+  }
+}
+
+.erp-search-icon {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: #8893A7;
+  pointer-events: none;
+}
+
+.erp-search-input {
+  width: 100%;
+  height: 40px;
+  padding-left: 36px;
+  padding-right: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #24345C;
+  background: #ffffff;
+  border: 1px solid #D6E2F0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.erp-search-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.erp-search-clear {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #8893A7;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.erp-search-clear:hover {
+  color: #475569;
+}
+
+/* ── DATA TABLES ── */
+.erp-table-card {
+  background: #ffffff;
+  border: 1px solid #DCE5F0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+  width: 100%;
+}
+
+.erp-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Smooth custom scrollbars for tables */
+.erp-table-responsive::-webkit-scrollbar {
+  height: 6px;
+}
+.erp-table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.erp-table-responsive::-webkit-scrollbar-thumb {
+  background: #D6E2F0;
+  border-radius: 4px;
+}
+.erp-table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #8893A7;
+}
+
+.erp-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.erp-table thead {
+  background-color: #24345C;
+  color: #F5FAFE;
+}
+
+.erp-table th {
+  padding: 14px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 2px solid #1e293b;
+  white-space: nowrap;
+}
+
+.erp-table td {
+  padding: 14px 16px;
+  color: #334155;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.erp-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.erp-table tbody tr:hover {
+  background-color: #F5FAFE;
+}
+
+/* ── BUTTONS ── */
+.erp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 36px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.erp-btn-sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 11.5px;
+}
+
+.erp-btn-primary {
+  background-color: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+}
+.erp-btn-primary:hover {
+  background-color: #4338ca;
+}
+
+.erp-btn-success {
+  background-color: #059669;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.2);
+}
+.erp-btn-success:hover {
+  background-color: #047857;
+}
+
+.erp-btn-danger {
+  background-color: #dc2626;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+.erp-btn-danger:hover {
+  background-color: #b91c1c;
+}
+
+.erp-btn-warning {
+  background-color: #d97706;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.2);
+}
+.erp-btn-warning:hover {
+  background-color: #b45309;
+}
+
+.erp-btn-secondary {
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #D6E2F0;
+}
+.erp-btn-secondary:hover {
+  background-color: #DCE5F0;
+}
+
+/* ── STATUS BADGES ── */
+.erp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.erp-badge-gray {
+  background-color: #f1f5f9;
+  color: #475569;
+  border-color: #D6E2F0;
+}
+
+.erp-badge-blue {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.erp-badge-orange {
+  background-color: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.erp-badge-red {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.erp-badge-green {
+  background-color: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+/* ── CARDS & METRICS ── */
+.erp-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .erp-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.erp-metric-card {
+  background: #ffffff;
+  border: 1px solid #DCE5F0;
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.erp-metric-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #5E6B82;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.erp-metric-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #24345C;
+}
+
+/* ── TIMELINE HIDE SCROLLBAR ── */
+.erp-timeline-scroll {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -ms-overflow-style: none;
+}
+.erp-timeline-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.erp-timeline-scroll::-webkit-scrollbar-thumb {
+  background: #D6E2F0;
+  border-radius: 2px;
+}

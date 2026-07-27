@@ -1,0 +1,766 @@
+import React, { useState } from 'react';
+import { generateTasks, getTodayDateString } from '../utils/taskEngine';
+import TaskCard from './tasks/TaskCard';
+import { 
+  ClipboardList, 
+  Calendar, 
+  TrendingUp, 
+  CheckCircle, 
+  Clock, 
+  AlertCircle, 
+  Search, 
+  Grid, 
+  Check, 
+  X,
+  Plus
+} from 'lucide-react';
+import Swal from 'sweetalert2';
+
+export default function DailyTaskView({ state, dispatch, navigate, showToast, module = 'Sales' }) {
+  const [targetDate, setTargetDate] = useState('2026-06-15');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('All');
+  
+  // Modals state
+  const [rescheduleTask, setRescheduleTask] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+
+  const leads = state?.leads || [];
+  const quotations = state?.quotations || [];
+  const baseDateTime = new Date(targetDate + 'T00:00:00').getTime();
+
+  const atRiskLeads = leads.filter(l => {
+    if (!l.followUpDate) return false;
+    const fup = new Date(l.followUpDate).getTime();
+    return fup <= baseDateTime && l.status !== 'Converted' && l.status !== 'Lost';
+  });
+
+  const atRiskQuotes = quotations.filter(q => {
+    if (!q.validTill) return false;
+    const expiry = new Date(q.validTill).getTime();
+    return expiry <= baseDateTime + (86400000 * 2) && q.status !== 'Approved' && q.status !== 'Closed';
+  });
+
+  // 1. Generate tasks
+  let rawTasks = generateTasks(state, targetDate);
+
+  // Filter based on module before counting stats
+  if (module === 'Finance') {
+    rawTasks = rawTasks.filter(t => ['Payment', 'Order', 'Production'].includes(t.type));
+  } else if (module === 'Sales') {
+    rawTasks = rawTasks.filter(t => ['Lead', 'Quotation', 'Sample'].includes(t.type));
+  }
+
+  // 2. Count metrics for the selected target date
+  const totalTasks = rawTasks.length;
+  const overdueTasksCount = rawTasks.filter(t => t.status === 'Overdue').length;
+  
+  // Calculate completed tasks from raw data
+  // Completed leads have status 'Converted' or status 'Lost' or their followUpDate is cleared
+  // Let's also fetch completed samples/orders. To make it dynamic, let's keep a local mock/real counter of completed tasks during this session.
+  const [completedSessionTasks, setCompletedSessionTasks] = useState([]);
+  
+  const activeTasks = rawTasks.filter(t => !completedSessionTasks.includes(t.id));
+  const completedCount = completedSessionTasks.length;
+  
+  const highPriorityCount = activeTasks.filter(t => t.status === 'Overdue' || t.type === 'Payment').length;
+
+  // Filter tasks based on Search Query and Tab selection
+  const filteredTasks = activeTasks.filter(task => {
+    const sq = (searchQuery || '').toLowerCase();
+    const matchesSearch = (task.clientName?.toLowerCase().includes(sq) || false) || 
+                          (task.notes?.toLowerCase().includes(sq) || false);
+    
+    let matchesTab = false;
+    if (activeTab === 'All') {
+      matchesTab = true;
+    } else if (activeTab === 'Leads' && task.type === 'Lead') {
+      matchesTab = true;
+    } else if (activeTab === 'Quotations' && task.type === 'Quotation') {
+      matchesTab = true;
+    } else if (activeTab === 'Payments' && task.type === 'Payment') {
+      matchesTab = true;
+    } else if (activeTab === 'Orders' && (task.type === 'Order' || task.type === 'Production')) {
+      matchesTab = true;
+    } else if (activeTab === 'Samples' && task.type === 'Sample') {
+      matchesTab = true;
+    }
+    
+    return matchesSearch && matchesTab;
+  });
+
+  // Action: Mark task completed
+  const handleDone = (task) => {
+    Swal.fire({
+      title: 'Complete Task?',
+      text: `Mark this ${task.type} task for "${task.clientName}" as resolved?`,
+      icon: 'success',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Complete',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        htmlContainer: 'swal-premium-text',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      buttonsStyling: false
+    }).then((result) => {
+      if (result.isConfirmed) {
+        executeCompleteAction(task.id, 'Task marked completed');
+      }
+    });
+  };
+
+  const executeCompleteAction = (taskId, notes) => {
+    const prefix = taskId.split('-')[0];
+    const sourceId = taskId.replace(`${prefix}-`, '');
+
+    if (prefix === 'LD') {
+      // Clear lead follow-up date and log completion in timeline
+      const lead = (state.sales?.leads || []).find(l => String(l.id) === sourceId);
+      if (lead) {
+        const updatedTimeline = [
+          ...(lead.timeline || []),
+          { stage: 'Follow-up Completed', text: notes, date: targetDate, timestamp: Date.now() }
+        ];
+        dispatch({
+          type: 'UPDATE_LEAD',
+          payload: { id: Number(sourceId), followUpDate: null, timeline: updatedTimeline }
+        });
+      }
+    } else if (prefix === 'SMP') {
+      // Clear sample follow-up
+      dispatch({
+        type: 'UPDATE_SAMPLE',
+        payload: { id: Number(sourceId), followUpDate: null, status: 'Approved' }
+      });
+    } else if (prefix === 'QT') {
+      // Clear quotation follow-up
+      dispatch({
+        type: 'UPDATE_QUOTATION',
+        payload: { id: Number(sourceId), followUpDate: null, status: 'Sent' }
+      });
+    } else if (prefix === 'ORD') {
+      // Confirm the order
+      dispatch({
+        type: 'UPDATE_ORDER',
+        payload: { 
+          orderNo: sourceId, 
+          status: 'Created', 
+          salesStatus: 'Confirmed',
+          overallStage: 'Created',
+          currentDepartment: 'Plant Head',
+          timeline: [
+            { stage: 'Created', timestamp: Date.now(), remarks: 'Purchase order confirmed by Sales via Daily Tasks' }
+          ]
+        }
+      });
+    } else if (prefix === 'PROD') {
+      // Clear delivery date (marked completed)
+      dispatch({
+        type: 'UPDATE_ORDER',
+        payload: { orderNo: sourceId, deliveryDate: null, productionStatus: 'Completed', overallStage: 'Production Completed' }
+      });
+    } else if (prefix === 'PM') {
+      // Set payment status as paid
+      dispatch({
+        type: 'RECEIVE_PAYMENT',
+        payload: { 
+          paymentUpdate: { 
+            id: Number(sourceId), 
+            status: 'Paid',
+            verified: 'Verified',
+            paidAmount: state.payments.find(p => String(p.id) === String(sourceId))?.totalAmount || 0
+          } 
+        }
+      });
+    }
+
+    setCompletedSessionTasks([...completedSessionTasks, taskId]);
+    showToast(`Task ${taskId} completed successfully!`);
+  };
+
+  // Action: Reschedule task
+  const handleRescheduleClick = (task) => {
+    setRescheduleTask(task);
+    setRescheduleDate(task.followUpDate || targetDate);
+  };
+
+  const handleRescheduleSubmit = (e) => {
+    e.preventDefault();
+    if (!rescheduleDate || !rescheduleTask) return;
+
+    const taskId = rescheduleTask.id;
+    const prefix = taskId.split('-')[0];
+    const sourceId = taskId.replace(`${prefix}-`, '');
+
+    if (prefix === 'LD') {
+      dispatch({
+        type: 'UPDATE_LEAD',
+        payload: { id: Number(sourceId), followUpDate: rescheduleDate }
+      });
+    } else if (prefix === 'SMP') {
+      dispatch({
+        type: 'UPDATE_SAMPLE',
+        payload: { id: Number(sourceId), followUpDate: rescheduleDate }
+      });
+    } else if (prefix === 'QT') {
+      dispatch({
+        type: 'UPDATE_QUOTATION',
+        payload: { id: Number(sourceId), followUpDate: rescheduleDate }
+      });
+    } else if (prefix === 'ORD') {
+      dispatch({
+        type: 'UPDATE_ORDER',
+        payload: { orderNo: sourceId, date: rescheduleDate }
+      });
+    } else if (prefix === 'PROD') {
+      dispatch({
+        type: 'UPDATE_ORDER',
+        payload: { orderNo: sourceId, deliveryDate: rescheduleDate }
+      });
+    } else if (prefix === 'PM') {
+      dispatch({
+        type: 'RECEIVE_PAYMENT',
+        payload: { paymentUpdate: { id: Number(sourceId), dueDate: rescheduleDate } }
+      });
+    }
+
+    showToast(`Task rescheduled to ${rescheduleDate}`);
+    setRescheduleTask(null);
+  };
+
+
+
+
+
+  return (
+    <div className="daily-task-viewport" style={{ paddingBottom: '40px' }}>
+      
+      {/* ── STYLE OVERRIDES FOR PREMIUM DASHBOARD AESTHETICS ── */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .daily-task-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+        .daily-task-visuals-grid {
+          display: grid;
+          grid-template-columns: 1fr 1.5fr 1fr;
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+        .tasks-layout-row {
+          display: grid;
+          grid-template-columns: 2.2fr 1fr;
+          gap: 24px;
+        }
+        .task-grid-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+          gap: 16px;
+        }
+        .task-card {
+          max-width: 480px;
+          width: 100%;
+        }
+        .task-card-btn {
+          width: auto !important;
+          flex: 0 0 auto !important;
+          min-width: 85px !important;
+          padding: 5px 12px !important;
+          height: 30px !important;
+          font-size: 11px !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        @media (max-width: 1024px) {
+          .daily-task-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .daily-task-visuals-grid { grid-template-columns: 1fr; }
+          .tasks-layout-row { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+          .daily-task-viewport {
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+            padding-top: 16px !important;
+          }
+          .daily-task-viewport .hero-banner.compact {
+            margin: 0 0 16px 0 !important;
+            width: 100% !important;
+          }
+          .daily-task-stats-grid {
+            gap: 12px !important;
+          }
+          .stats-card {
+            padding: 12px 16px !important;
+          }
+          .hero-banner.compact .hero-top-row, .hero-top-row {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 16px !important;
+          }
+          .hero-top-row > div {
+            width: 100% !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .daily-task-stats-grid { 
+            grid-template-columns: repeat(2, 1fr) !important; 
+          }
+          .stats-card {
+            padding: 10px 14px !important;
+          }
+          .task-actions {
+            flex-direction: column !important;
+            gap: 6px !important;
+          }
+          .task-card-btn {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+            padding: 8px 12px !important;
+            height: 36px !important;
+            font-size: 12.5px !important;
+          }
+        }
+        .filter-tab-bar {
+          display: flex;
+          gap: 8px;
+          background: #f1f3f5;
+          padding: 6px;
+          border-radius: 12px;
+          overflow-x: auto;
+          margin-bottom: 16px;
+        }
+        .filter-tab-bar::-webkit-scrollbar { display: none; }
+        .filter-tab-btn {
+          padding: 8px 16px;
+          border-radius: 8px;
+          border: 1px solid transparent;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--color-text-secondary);
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+        .filter-tab-btn:hover {
+          color: var(--color-text-primary);
+          background: rgba(0, 0, 0, 0.04);
+        }
+        .filter-tab-btn.active {
+          box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .card-visual-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 10px 0;
+          min-height: 120px;
+        }
+        .heatmap-square {
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          position: relative;
+        }
+        .heatmap-square:hover {
+          transform: scale(1.1);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .tooltip-custom {
+          display: none;
+          position: absolute;
+          bottom: 34px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #000000;
+          color: #ffffff;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 9px;
+          white-space: nowrap;
+          z-index: 100;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .tooltip-custom::after {
+          content: '';
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          border-width: 4px;
+          border-style: solid;
+          border-color: #000000 transparent transparent transparent;
+        }
+        .heatmap-square:hover .tooltip-custom {
+          display: block;
+        }
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: .5; }
+        }
+      `}} />
+
+      {/* ── HEADER BANNER ── */}
+      <div className="hero-banner compact" style={{ minHeight: 'auto' }}>
+        <div className="hero-top-row">
+          <div>
+            <span style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-lime-brand)', letterSpacing: '1px' }}>
+              Sales Operations Hub
+            </span>
+            <h1 className="brand-title" style={{ fontSize: '26px', marginTop: '4px' }}>
+              🎯 Daily Action Center
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', marginTop: '4px', fontWeight: '500' }}>
+              Data-driven follow-ups, confirmation checks, sample feedback, and outstanding receipts.
+            </p>
+          </div>
+          
+          {/* Target Date Picker */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            background: 'rgba(255,255,255,0.15)', 
+            padding: '6px 12px', 
+            borderRadius: '12px', 
+            border: '1px solid rgba(255,255,255,0.2)',
+            width: 'fit-content'
+          }}>
+            <Calendar size={14} style={{ color: '#fff' }} />
+            <span style={{ color: '#fff', fontSize: '12.5px', fontWeight: '700' }}>Schedule Date:</span>
+            <input 
+              type="date" 
+              value={targetDate} 
+              onChange={(e) => {
+                setTargetDate(e.target.value);
+                setCompletedSessionTasks([]); // Reset completions for new date
+              }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#ffffff',
+                fontWeight: '800',
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                outline: 'none'
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── METRICS SUMMARY CARDS ── */}
+      <div className="daily-task-stats-grid">
+        <div className="app-card stats-card" style={{ padding: '16px 20px', borderRadius: '20px', background: '#ffffff', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Today's Tasks</span>
+            <div style={{ background: 'rgba(51, 122, 134, 0.1)', color: 'var(--color-accent-teal)', padding: '6px', borderRadius: '50%' }}>
+              <ClipboardList size={16} />
+            </div>
+          </div>
+          <div style={{ marginTop: '12px' }}>
+            <span style={{ fontSize: '28px', fontWeight: '800', color: 'var(--color-text-primary)', letterSpacing: '-1px' }}>
+              {totalTasks}
+            </span>
+          </div>
+        </div>
+
+        <div className="app-card stats-card" style={{ padding: '16px 20px', borderRadius: '20px', background: '#ffffff', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>High Priority</span>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', padding: '6px', borderRadius: '50%' }}>
+              <TrendingUp size={16} />
+            </div>
+          </div>
+          <div style={{ marginTop: '12px' }}>
+            <span style={{ fontSize: '28px', fontWeight: '800', color: '#dc2626', letterSpacing: '-1px' }}>
+              {highPriorityCount}
+            </span>
+          </div>
+        </div>
+
+        <div className="app-card stats-card" style={{ padding: '16px 20px', borderRadius: '20px', background: '#ffffff', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Overdue Action</span>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '6px', borderRadius: '50%' }}>
+              <Clock size={16} className={overdueTasksCount > 0 ? 'animate-pulse' : ''} />
+            </div>
+          </div>
+          <div style={{ marginTop: '12px' }}>
+            <span style={{ fontSize: '28px', fontWeight: '800', color: '#ef4444', letterSpacing: '-1px' }}>
+              {overdueTasksCount}
+            </span>
+          </div>
+        </div>
+
+        <div className="app-card stats-card" style={{ padding: '16px 20px', borderRadius: '20px', background: '#ffffff', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Completed Tasks</span>
+            <div style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#166534', padding: '6px', borderRadius: '50%' }}>
+              <CheckCircle size={16} />
+            </div>
+          </div>
+          <div style={{ marginTop: '12px' }}>
+            <span style={{ fontSize: '28px', fontWeight: '800', color: '#166534', letterSpacing: '-1px' }}>
+              {completedCount}
+            </span>
+          </div>
+        </div>
+      </div>
+
+
+
+      {/* ── TASKS GRID LAYOUT SECTION ── */}
+      <div className="tasks-layout-row">
+        
+        {/* Left Side: Tasks filter list */}
+        <div style={{ minWidth: 0 }}>
+          
+           {/* Tabs header row */}
+          <div className="filter-tab-bar">
+            {[
+              { id: 'All', label: 'All Tasks', bg: 'var(--color-accent-teal)', color: '#ffffff', border: '1px solid var(--color-accent-teal)' },
+              { id: 'Leads', label: '📞 Leads', bg: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' },
+              { id: 'Quotations', label: '📄 Quotations', bg: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' },
+              { id: 'Payments', label: '💰 Payments', bg: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' },
+              { id: 'Orders', label: '🏭 Orders & Prod.', bg: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' },
+              { id: 'Samples', label: '🧪 Samples', bg: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd' }
+            ].filter(tab => {
+              if (module === 'Finance') {
+                return ['All', 'Payments', 'Orders'].includes(tab.id);
+              } else if (module === 'Sales') {
+                return ['All', 'Leads', 'Quotations', 'Samples'].includes(tab.id);
+              }
+              return true;
+            }).map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  className={`filter-tab-btn ${isActive ? 'active' : ''}`}
+                  style={isActive ? { 
+                    backgroundColor: tab.bg, 
+                    color: tab.color, 
+                    border: tab.border
+                  } : {}}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search bar row */}
+          <div style={{ position: 'relative', marginBottom: '16px' }}>
+            <input 
+              type="text"
+              className="form-input"
+              placeholder="Search tasks by client or remarks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                paddingLeft: '40px',
+                height: '42px',
+                borderRadius: '12px',
+                background: '#ffffff',
+                border: '1px solid var(--color-border)',
+                fontSize: '13px'
+              }}
+            />
+            <Search 
+              size={16} 
+              style={{ 
+                position: 'absolute', 
+                left: '14px', 
+                top: '50%', 
+                transform: 'translateY(-50%)', 
+                color: 'var(--color-text-muted)' 
+              }} 
+            />
+          </div>
+
+          {/* Tasks listing cards */}
+          <div className="task-grid-container">
+            {filteredTasks.length === 0 ? (
+              <div 
+                className="app-card"
+                style={{ 
+                  padding: '40px 20px', 
+                  borderRadius: '20px', 
+                  textAlign: 'center', 
+                  color: 'var(--color-text-muted)',
+                  background: '#ffffff',
+                  border: '1px solid var(--color-border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+              >
+                <div style={{ background: '#F5FAFE', color: 'var(--color-text-muted)', padding: '16px', borderRadius: '50%', display: 'inline-flex' }}>
+                  <CheckCircle size={32} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-primary)' }}>All Tasks Cleared!</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+                    No pending items match this filter for {targetDate}.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              filteredTasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onDone={handleDone}
+                  onReschedule={handleRescheduleClick}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right Side: At Risk Deals */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+          <div className="app-card" style={{
+            background: '#ffffff',
+            border: '1px solid var(--color-border)',
+            borderRadius: '20px',
+            padding: '20px',
+            boxShadow: 'var(--shadow-premium)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
+              <AlertCircle size={18} />
+              <span style={{ fontSize: '14px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>At Risk Deals</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {atRiskLeads.map((lead) => (
+                <div key={lead.id} style={{
+                  background: '#fff5f5', border: '1px solid #fee2e2',
+                  borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px'
+                }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {lead.companyName}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
+                      Followup overdue since {lead.followUpDate}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => typeof navigate === 'function' ? navigate('/sales/leads') : navigate?.push?.('/sales/leads')}
+                    style={{
+                      background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px',
+                      borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Contact
+                  </button>
+                </div>
+              ))}
+              {atRiskQuotes.map((q) => (
+                <div key={q.id} style={{
+                  background: '#fff5f5', border: '1px solid #fee2e2',
+                  borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px'
+                }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {q.customerName}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
+                      Proposal expires on {q.validTill}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => typeof navigate === 'function' ? navigate('/sales/quotations') : navigate?.push?.('/sales/quotations')}
+                    style={{
+                      background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px',
+                      borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Renew
+                  </button>
+                </div>
+              ))}
+              {atRiskLeads.length === 0 && atRiskQuotes.length === 0 && (
+                <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: '600' }}>
+                  No immediate risks detected.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+{/* ── RESCHEDULE MODAL DIALOG ── */}
+      {rescheduleTask && (
+        <div className="modal-overlay active" onClick={() => setRescheduleTask(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '420px', borderRadius: '20px', padding: '24px' }}>
+            <div className="modal-header-row" style={{ borderBottom: '1px solid #eaeaea', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: '800' }}>
+                <Calendar size={18} style={{ color: '#d97706' }} />
+                <span>Reschedule Follow-up</span>
+              </h3>
+              <button className="modal-close-btn" onClick={() => setRescheduleTask(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{rescheduleTask.clientName}</p>
+              <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>Type: {rescheduleTask.type} | Current: {rescheduleTask.followUpDate}</p>
+            </div>
+
+            <form onSubmit={handleRescheduleSubmit}>
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '12px' }}>Choose New Date *</label>
+                <input 
+                  type="date"
+                  className="form-input"
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  style={{ borderRadius: '10px' }}
+                  required
+                />
+              </div>
+
+              <div className="form-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" className="btn-small btn-outline-small" onClick={() => setRescheduleTask(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-small btn-primary-small" style={{ background: '#d97706', border: 'none', color: '#fff', fontWeight: '700' }}>
+                  Save Date
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

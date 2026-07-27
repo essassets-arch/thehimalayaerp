@@ -1,0 +1,3 @@
+{
+  "/(dashboard)/plant-head/[[...slug]]/page": "app/(dashboard)/plant-head/[[...slug]]/page.js"
+}

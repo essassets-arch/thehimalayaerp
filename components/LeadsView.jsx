@@ -1,0 +1,949 @@
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Eye, Plus, Clipboard, Edit, ChevronLeft, ChevronRight, Bell, Trash2, FlaskConical, FileText, ShieldCheck } from 'lucide-react';
+import Swal from 'sweetalert2';
+import ReminderModal from '../shared/components/ReminderModal.jsx';
+import {
+  formatReminderDate,
+  formatReminderTime,
+  getNextPendingReminder,
+  getReminderTimingLabel,
+  filterRemindersByBucket
+} from '../shared/utils/reminderUtils.js';
+import { useRouter } from 'next/navigation';
+import { useERPStore, getLeadQuotationState, getLeadSampleState } from '../store/erpStore';
+import { displayEntityId } from '../store/idGenerator';
+
+export default function LeadsView({ 
+  leads, 
+  reminders = [],
+  samples = [],
+  quotations = [],
+  orders = [],
+  onAddLeadClick, 
+  onEditLeadClick,
+  onConvertToSample,
+  onGenerateQuotation,
+  onUpdateStatus, 
+  onUpdateLead,
+  onAddFollowup,
+  onDeleteLead,
+  onSaveReminder,
+  onUpdateReminder,
+  onCompleteReminder,
+  onOpenLead,
+  searchQuery,
+  setSearchQuery,
+  flat = false
+}) {
+  const router = useRouter();
+  const erpStore = useERPStore();
+  const [localSearch, setLocalSearch] = useState('');
+  const search = searchQuery !== undefined ? searchQuery : localSearch;
+  const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [followupText, setFollowupText] = useState('');
+  const [filter, setFilter] = useState('All');
+  const [reminderBucket, setReminderBucket] = useState('Today');
+  const [reminderModal, setReminderModal] = useState(null);
+
+  const [editingLead, setEditingLead] = useState(null);
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editContactPerson, setEditContactPerson] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editGroupName, setEditGroupName] = useState('');
+  const [editGstNumber, setEditGstNumber] = useState('');
+  const [editAddressLine1, setEditAddressLine1] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editPincode, setEditPincode] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+
+  const startEditing = (lead) => {
+    setEditingLead(lead);
+    setEditCompanyName(lead.companyName || '');
+    setEditContactPerson(lead.contactPerson || lead.siteInchargeName || '');
+    setEditPhone(lead.phone || lead.siteInchargeMobile || '');
+    setEditEmail(lead.email || '');
+    setEditProjectName(lead.projectName || '');
+    setEditGroupName(lead.groupName || '');
+    setEditGstNumber(lead.gstNumber || '');
+    setEditAddressLine1(lead.address?.line1 || '');
+    setEditCity(lead.address?.city || '');
+    setEditState(lead.address?.state || '');
+    setEditPincode(lead.address?.pincode || '');
+    setEditNotes(lead.notes || lead.requirements || '');
+  };
+
+  const handleEditSubmit = (e) => {
+    e.preventDefault();
+    if (!editCompanyName.trim() || !editContactPerson.trim() || !editPhone.trim()) {
+      alert('Please fill out Company Name, Contact Person, and Mobile.');
+      return;
+    }
+    const updatedData = {
+      companyName: editCompanyName.trim(),
+      contactPerson: editContactPerson.trim(),
+      phone: editPhone.trim(),
+      email: editEmail.trim(),
+      projectName: editProjectName.trim(),
+      groupName: editGroupName.trim(),
+      gstNumber: editGstNumber.trim(),
+      siteInchargeName: editContactPerson.trim(),
+      siteInchargeMobile: editPhone.trim(),
+      address: {
+        line1: editAddressLine1.trim(),
+        city: editCity.trim(),
+        state: editState.trim(),
+        pincode: editPincode.trim(),
+        country: 'India'
+      },
+      notes: editNotes.trim(),
+      requirements: editNotes.trim()
+    };
+    onUpdateLead(editingLead.id, updatedData);
+    setEditingLead(null);
+  };
+
+  const handleGenerateQuotationClick = (lead) => {
+    const res = erpStore.createOrResumeQuotationFromLead(lead.id || lead.leadId);
+    if (res.success) {
+      router.push(`/sales/create-quotation?quotationId=${res.quotationId}&leadId=${lead.id || lead.leadId}`);
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: res.message });
+    }
+  };
+
+  const handleGenerateSampleClick = (lead) => {
+    const res = erpStore.createOrResumeSampleFromLead(lead.id || lead.leadId);
+    if (res.success) {
+      router.push(`/sales/create-sample?sampleId=${res.sampleId}&leadId=${lead.id || lead.leadId}`);
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: res.message });
+    }
+  };
+
+  const handleMarkLostClick = (lead) => {
+    Swal.fire({
+      title: 'Mark as Lost?',
+      text: `Are you sure you want to mark "${lead.companyName}" as Lost?`,
+      input: 'text',
+      inputPlaceholder: 'Write reason...',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Mark Lost',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        htmlContainer: 'swal-premium-text',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      buttonsStyling: false,
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return 'You must write a reason for losing this lead!';
+        }
+      }
+    }).then((result) => {
+      if (result.isConfirmed && result.value) {
+        onUpdateStatus(lead.id, 'Lost', result.value);
+      }
+    });
+  };
+
+  const handleDeleteLeadClick = (lead) => {
+    const isConverted = lead.status === 'Converted';
+    Swal.fire({
+      title: 'Delete Lead?',
+      html: `
+        <div style="text-align:left;font-size:14px;line-height:1.5;">
+          <p style="margin:0 0 8px;"><strong>Lead:</strong> ${lead.companyName}</p>
+          ${isConverted ? '<p style="margin:0 0 8px;color:#b45309;">This lead has been converted. Deletion is only allowed if it is not linked to quotations or orders.</p>' : ''}
+          <p style="margin:0 0 12px;color:#5E6B82;">The lead will be archived (soft-deleted). Notes and timeline are preserved.</p>
+        </div>
+      `,
+      input: 'text',
+      inputPlaceholder: 'Reason for deletion (optional)',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        htmlContainer: 'swal-premium-text',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      buttonsStyling: false
+    }).then((result) => {
+      if (result.isConfirmed && onDeleteLead) {
+        onDeleteLead(lead.id, {
+          navigate: false,
+          reason: result.value?.trim() || 'Deleted from leads directory'
+        });
+      }
+    });
+  };
+
+  const leadReminders = useMemo(
+    () => (reminders || []).filter((r) => r.moduleType === 'Lead'),
+    [reminders]
+  );
+
+  const handleSaveReminder = async (formData) => {
+    if (!reminderModal) return;
+    if (reminderModal.reminder && onUpdateReminder) {
+      await onUpdateReminder(reminderModal.reminder.id, formData);
+    } else if (onSaveReminder) {
+      await onSaveReminder({
+        moduleType: 'Lead',
+        moduleId: reminderModal.lead.id,
+        customerName: reminderModal.lead.companyName,
+        ...formData
+      });
+    }
+    setReminderModal(null);
+  };
+
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset page when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filter, reminderBucket]);
+
+  const filteredLeads = leads.filter(lead => {
+    const companyName = lead.companyName || '';
+    const contactPerson = lead.contactPerson || '';
+    const salesperson = lead.salesperson || '';
+    const matchesSearch = companyName.toLowerCase().includes(search.toLowerCase()) ||
+                          contactPerson.toLowerCase().includes(search.toLowerCase()) ||
+                          salesperson.toLowerCase().includes(search.toLowerCase());
+    if (filter === 'Reminders') return false;
+    const matchesFilter = filter === 'All' || lead.status === filter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const filteredLeadReminders = useMemo(() => {
+    let list = leadReminders.filter((r) => {
+      const lead = leads.find((l) => String(l.id) === String(r.moduleId));
+      if (!lead) return false;
+      const companyName = lead.companyName || '';
+      const contactPerson = lead.contactPerson || '';
+      return companyName.toLowerCase().includes(search.toLowerCase()) ||
+        contactPerson.toLowerCase().includes(search.toLowerCase()) ||
+        (r.reminderType || '').toLowerCase().includes(search.toLowerCase());
+    });
+    return filterRemindersByBucket(list, reminderBucket);
+  }, [leadReminders, leads, search, reminderBucket]);
+
+  const ITEMS_PER_PAGE = 25;
+  const isRemindersView = filter === 'Reminders';
+  const activeList = isRemindersView ? filteredLeadReminders : filteredLeads;
+  const totalPages = Math.ceil(activeList.length / ITEMS_PER_PAGE) || 1;
+  const displayedLeads = flat ? filteredLeads : filteredLeads.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+  const displayedReminders = flat ? filteredLeadReminders : filteredLeadReminders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const renderNextReminder = (lead) => {
+    const next = getNextPendingReminder(leadReminders, 'Lead', lead.id);
+    if (!next) return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
+    const timing = getReminderTimingLabel(next);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <span style={{ fontSize: '12px', fontWeight: '700' }}>
+          {formatReminderDate(next.reminderDate)}
+          {next.reminderTime ? ` · ${formatReminderTime(next.reminderTime)}` : ''}
+        </span>
+        {timing && (
+          <span style={{
+            fontSize: '11px',
+            fontWeight: '700',
+            color: timing.tone === 'overdue' ? '#dc2626' : timing.tone === 'today' ? '#dc2626' : '#ca8a04'
+          }}>
+            {timing.tone === 'overdue' ? '🔴 ' : timing.tone === 'today' ? '🔴 ' : '🟡 '}
+            {timing.label}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const renderAddress = (addr) => {
+    if (!addr) return 'Not specified';
+    if (typeof addr === 'string') return addr;
+    const parts = [addr.line1, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+    return parts.join(', ') || 'Not specified';
+  };
+
+  const handleAddFollowupSubmit = (e) => {
+    e.preventDefault();
+    if (!followupText.trim() || !selectedLead) return;
+
+    onAddFollowup(selectedLead.id, followupText.trim());
+    setFollowupText('');
+  };
+
+  // Keep details updated if lead updates in props
+  const currentDetailsLead = selectedLead ? leads.find(l => l.id === selectedLead.id) : null;
+  const leadSamples = currentDetailsLead ? samples.filter((s) => String(s.leadId || s.lead_id) === String(currentDetailsLead.id)) : [];
+  const leadQuotations = currentDetailsLead ? quotations.filter((q) => String(q.leadId || q.lead_id) === String(currentDetailsLead.id)) : [];
+  const leadOrders = currentDetailsLead ? orders.filter((o) => o.customerName === currentDetailsLead.companyName || (currentDetailsLead.customerId && String(o.customerId) === String(currentDetailsLead.customerId))) : [];
+
+  return (
+    <div className="app-card" style={{ flex: 1 }}>
+      {/* Module Header */}
+      <div className="module-header-row">
+        <h2 className="module-title">Leads Directory</h2>
+        <div className="module-actions">
+          {/* Status filters */}
+          <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
+            {['All', 'New', 'Follow-up', 'Converted', 'Lost', 'Reminders'].map(st => (
+              <button 
+                key={st}
+                className={`filter-pill ${filter === st ? 'active' : ''}`}
+                onClick={() => setFilter(st)}
+                style={{ color: filter === st ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
+
+          <div className="search-box" style={{ background: '#f1f3f5', border: '1px solid #D6E2F0' }}>
+            <Search size={14} style={{ color: 'var(--color-text-secondary)' }} />
+            <input 
+              type="text" 
+              placeholder="Search leads..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ color: 'var(--color-text-primary)' }}
+            />
+          </div>
+          <button 
+            className="btn-small btn-primary-small"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={onAddLeadClick}
+          >
+            <Plus size={14} /> Add Lead
+          </button>
+        </div>
+      </div>
+
+      {isRemindersView && (
+        <div className="tab-filters-row" style={{ background: '#F5FAFE', marginBottom: '16px' }}>
+          {['Today', 'Tomorrow', 'This Week', 'Overdue', 'Completed'].map((bucket) => (
+            <button
+              key={bucket}
+              className={`filter-pill ${reminderBucket === bucket ? 'active' : ''}`}
+              onClick={() => setReminderBucket(bucket)}
+              style={{ color: reminderBucket === bucket ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+            >
+              {bucket}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="crm-table-container">
+        {isRemindersView ? (
+        <table className="crm-table responsive-table">
+          <thead>
+            <tr>
+              <th>Lead</th>
+              <th>Reminder</th>
+              <th>Date</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLeadReminders.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  No reminders found.
+                </td>
+              </tr>
+            ) : (
+              displayedReminders.map((reminder) => {
+                const lead = leads.find((l) => String(l.id) === String(reminder.moduleId));
+                return (
+                  <tr key={reminder.id}>
+                    <td data-label="Lead" style={{ fontWeight: '700' }}>{lead?.companyName || reminder.customerName || `Lead #${reminder.moduleId}`}</td>
+                    <td data-label="Reminder">{reminder.reminderType}</td>
+                    <td data-label="Date">
+                      {formatReminderDate(reminder.reminderDate)}
+                      {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
+                    </td>
+                    <td data-label="Priority">{reminder.priority}</td>
+                    <td data-label="Status">{reminder.status}</td>
+                    <td data-label="Action">
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {reminder.status === 'Pending' && onCompleteReminder && (
+                          <button className="btn-small btn-outline-small" onClick={() => onCompleteReminder(reminder.id)}>Complete</button>
+                        )}
+                        <button className="btn-small btn-outline-small" onClick={() => setReminderModal({ lead, reminder })}>Edit</button>
+                        {lead && (
+                          <button className="btn-small btn-outline-small" onClick={() => setSelectedLead(lead)}>Open Lead</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+        ) : (
+        <table className="crm-table responsive-table">
+          <thead>
+            <tr>
+              <th>Lead ID</th>
+              <th>Company Name</th>
+              <th>Contact Person</th>
+              <th>Phone / Email</th>
+              <th>Status</th>
+              <th>Next Reminder</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLeads.length === 0 ? (
+              <tr>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  <strong>No leads found.</strong>
+                  <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
+                    Create your first lead to begin the sales workflow.
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              displayedLeads.map((lead) => (
+                <tr key={lead.id}>
+                  <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{displayEntityId(lead.id)}</td>
+                  <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</td>
+                  <td data-label="Contact Person" style={{ whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.contactPerson || lead.siteInchargeName || 'N/A'}</td>
+                  <td data-label="Phone / Email">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</span>
+                      <span style={{ fontSize: '11px', color: '#5E6B82', whiteSpace: 'nowrap' }}>{lead.email || 'N/A'}</span>
+                    </div>
+                  </td>
+                  <td data-label="Status">
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      background: lead.status === 'New' || lead.status === 'New Lead' ? '#dbeafe'
+                        : lead.status === 'Follow-up' ? '#fef9c3'
+                        : lead.status === 'Converted' ? '#dcfce7'
+                        : lead.status === 'Lost' ? '#fee2e2'
+                        : lead.status === 'Quotation Draft' ? '#ffedd5'
+                        : lead.status === 'Quotation Generated' ? '#e0f2fe'
+                        : '#f1f5f9',
+                      color: lead.status === 'New' || lead.status === 'New Lead' ? '#1d4ed8'
+                        : lead.status === 'Follow-up' ? '#92400e'
+                        : lead.status === 'Converted' ? '#15803d'
+                        : lead.status === 'Lost' ? '#dc2626'
+                        : lead.status === 'Quotation Draft' ? '#ea580c'
+                        : lead.status === 'Quotation Generated' ? '#0369a1'
+                        : '#475569',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {lead.status}
+                    </span>
+                  </td>
+                  <td data-label="Next Reminder">{renderNextReminder(lead)}</td>
+                  <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                      {/* View Icon */}
+                      <button
+                        title="View Details"
+                        onClick={() => setSelectedLead(lead)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '32px', height: '32px',
+                          background: '#ffffff', border: '1px solid #D6E2F0',
+                          borderRadius: '8px', cursor: 'pointer',
+                          color: '#475569', flexShrink: 0
+                        }}
+                      >
+                        <Eye size={14} />
+                      </button>
+                      {/* Edit Icon */}
+                      <button
+                        title="Edit Details"
+                        onClick={() => onEditLeadClick(lead.id)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '32px', height: '32px',
+                          background: '#ffffff', border: '1px solid #D6E2F0',
+                          borderRadius: '8px', cursor: 'pointer',
+                          color: '#475569', flexShrink: 0
+                        }}
+                      >
+                        <Edit size={14} />
+                      </button>
+
+                      {lead.status !== 'Lost' ? (
+                        <>
+                          {/* 1. Generate / Continue Quotation */}
+                          {(() => {
+                            const quoState = getLeadQuotationState(erpStore.state, lead.id || lead.leadId);
+                            if (quoState.state === 'COMPLETED') return null;
+
+                            return (
+                              <button
+                                onClick={() => handleGenerateQuotationClick(lead)}
+                                title={quoState.state === 'DRAFT' ? "Continue Quotation" : "Generate Quotation"}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center',
+                                  padding: '6px 12px', height: '32px',
+                                  background: quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375',
+                                  border: `1px solid ${quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375'}`,
+                                  borderRadius: '8px', cursor: 'pointer',
+                                  fontSize: '11.5px', fontWeight: '800',
+                                  color: '#ffffff', whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                  boxShadow: `0 1px 4px ${quoState.state === 'DRAFT' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(47,67,117,0.3)'}`
+                                }}
+                              >
+                                {quoState.state === 'DRAFT' ? 'Continue Quotation →' : 'Generate Quotation →'}
+                              </button>
+                            );
+                          })()}
+                          {/* 2. Send / Continue Sample */}
+                          {(() => {
+                            const smpState = getLeadSampleState(erpStore.state, lead.id || lead.leadId);
+                            if (smpState.state === 'COMPLETED') return null;
+
+                            return (
+                              <button
+                                onClick={() => handleGenerateSampleClick(lead)}
+                                title={smpState.state === 'DRAFT' ? "Continue Sample" : "Send Sample"}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center',
+                                  padding: '6px 12px', height: '32px',
+                                  background: smpState.state === 'DRAFT' ? '#FEF3C7' : '#ffffff',
+                                  border: `1px solid ${smpState.state === 'DRAFT' ? '#FDE68A' : '#D6E2F0'}`,
+                                  borderRadius: '8px', cursor: 'pointer',
+                                  fontSize: '11.5px', fontWeight: '700',
+                                  color: smpState.state === 'DRAFT' ? '#92400E' : '#334155', whiteSpace: 'nowrap',
+                                  flexShrink: 0
+                                }}
+                              >
+                                {smpState.state === 'DRAFT' ? 'Continue Sample' : 'Send Sample'}
+                              </button>
+                            );
+                          })()}
+                          {/* 3. Reminder */}
+                          {onSaveReminder && lead.status !== 'Lost' && lead.status !== 'Converted' && (
+                            <button
+                              onClick={() => setReminderModal({ lead })}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                padding: '6px 12px', height: '32px',
+                                background: '#ffffff',
+                                border: '1px solid #D6E2F0',
+                                borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '11.5px', fontWeight: '700',
+                                color: '#334155', whiteSpace: 'nowrap',
+                                flexShrink: 0
+                              }}
+                            >
+                              <Bell size={12} /> Reminder
+                            </button>
+                          )}
+                          {/* 4. Mark Lost */}
+                          {lead.status !== 'Lost' && lead.status !== 'Converted' && (
+                            <button
+                              onClick={() => handleMarkLostClick(lead)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center',
+                                padding: '6px 12px', height: '32px',
+                                background: '#ffffff',
+                                border: '1.5px solid #fca5a5',
+                                borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '11.5px', fontWeight: '700',
+                                color: '#dc2626', whiteSpace: 'nowrap',
+                                flexShrink: 0
+                              }}
+                            >
+                              Lost
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            Swal.fire({
+                              title: 'Restore Lead?',
+                              text: `Are you sure you want to restore "${lead.companyName}" to New status?`,
+                              icon: 'question',
+                              showCancelButton: true,
+                              confirmButtonText: 'Yes, Restore',
+                              cancelButtonText: 'Cancel',
+                              customClass: {
+                                popup: 'swal-premium-popup',
+                                title: 'swal-premium-title',
+                                htmlContainer: 'swal-premium-text',
+                                confirmButton: 'swal-premium-confirm-btn',
+                                cancelButton: 'swal-premium-cancel-btn'
+                              },
+                              buttonsStyling: false
+                            }).then((result) => {
+                              if (result.isConfirmed) {
+                                onUpdateStatus(lead.id, 'New');
+                              }
+                            });
+                          }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center',
+                            padding: '4px 12px', height: '30px',
+                            background: '#dcfce7',
+                            border: '1px solid #86efac',
+                            borderRadius: '8px', cursor: 'pointer',
+                            fontSize: '12px', fontWeight: '700',
+                            color: '#15803d', whiteSpace: 'nowrap',
+                            flexShrink: 0
+                          }}
+                        >
+                          Restore Lead
+                        </button>
+                      )}
+
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+        )}
+      </div>
+
+      {/* Pagination controls */}
+      {!flat && totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+            Showing page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> (<strong>{activeList.length}</strong> total {isRemindersView ? 'reminders' : 'leads'})
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="btn-small btn-outline-small"
+              style={{ margin: 0, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+            >
+              <ChevronLeft size={14} /> Previous
+            </button>
+            <button
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              className="btn-small btn-outline-small"
+              style={{ margin: 0, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+
+
+      {/* Details Modal Overlay */}
+      {currentDetailsLead && (
+        <div className="modal-overlay active" onClick={() => setSelectedLead(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '560px' }}>
+            <div className="modal-header-row">
+              <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Lead Details {displayEntityId(currentDetailsLead.id)}</span>
+                <span className={`badge badge-${currentDetailsLead.status.toLowerCase().replace(' ', '-')}`}>
+                  {currentDetailsLead.status}
+                </span>
+              </h3>
+              <button className="modal-close-btn" onClick={() => setSelectedLead(null)}>✕</button>
+            </div>
+
+            <div className="details-grid">
+              <div className="details-row">
+                <span className="details-label">Company Name</span>
+                <span className="details-value">{currentDetailsLead.companyName}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Contact Person</span>
+                <span className="details-value">{currentDetailsLead.contactPerson}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Phone</span>
+                <span className="details-value">{currentDetailsLead.phone}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Email</span>
+                <span className="details-value">{currentDetailsLead.email}</span>
+              </div>
+              <div className="details-row details-full">
+                <span className="details-label">Address</span>
+                <span className="details-value">{renderAddress(currentDetailsLead.address)}</span>
+              </div>
+
+              {currentDetailsLead.projectName && (
+                <div className="details-row">
+                  <span className="details-label">Project Name</span>
+                  <span className="details-value">{currentDetailsLead.projectName}</span>
+                </div>
+              )}
+              {currentDetailsLead.groupName && (
+                <div className="details-row">
+                  <span className="details-label">Group/Parent Company</span>
+                  <span className="details-value">{currentDetailsLead.groupName}</span>
+                </div>
+              )}
+              {currentDetailsLead.gstNumber && (
+                <div className="details-row">
+                  <span className="details-label">GST Number</span>
+                  <span className="details-value" style={{ textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: 'bold' }}>{currentDetailsLead.gstNumber}</span>
+                </div>
+              )}
+              {currentDetailsLead.siteInchargeName && (
+                <div className="details-row">
+                  <span className="details-label">Site Incharge Contact</span>
+                  <span className="details-value">{currentDetailsLead.siteInchargeName} ({currentDetailsLead.siteInchargeMobile})</span>
+                </div>
+              )}
+              {currentDetailsLead.officeContact && (
+                <div className="details-row">
+                  <span className="details-label">Office Contact No</span>
+                  <span className="details-value">{currentDetailsLead.officeContact}</span>
+                </div>
+              )}
+              {currentDetailsLead.chiefDirector && (
+                <div className="details-row">
+                  <span className="details-label">Chief Director Assigned</span>
+                  <span className="details-value">{currentDetailsLead.chiefDirector}</span>
+                </div>
+              )}
+
+              {currentDetailsLead.industryType && (
+                <div className="details-row">
+                  <span className="details-label">Industry Type</span>
+                  <span className="details-value">{currentDetailsLead.industryType}</span>
+                </div>
+              )}
+              {currentDetailsLead.priority && (
+                <div className="details-row">
+                  <span className="details-label">Priority Level</span>
+                  <span className="details-value" style={{ 
+                    fontWeight: '700',
+                    color: currentDetailsLead.priority === 'High' ? '#dc2626' : currentDetailsLead.priority === 'Medium' ? '#d97706' : '#2563eb'
+                  }}>
+                    {currentDetailsLead.priority}
+                  </span>
+                </div>
+              )}
+
+              {currentDetailsLead.productInterested && (
+                <div className="details-row">
+                  <span className="details-label">Product Interested</span>
+                  <span className="details-value">{currentDetailsLead.productInterested}</span>
+                </div>
+              )}
+              {currentDetailsLead.estimatedQuantity > 0 && (
+                <div className="details-row">
+                  <span className="details-label">Est. Quantity</span>
+                  <span className="details-value">{currentDetailsLead.estimatedQuantity} units</span>
+                </div>
+              )}
+
+              {currentDetailsLead.budget > 0 && (
+                <div className="details-row">
+                  <span className="details-label">Budget ($)</span>
+                  <span className="details-value" style={{ fontWeight: '700', color: 'var(--color-accent-teal)' }}>
+                    ${currentDetailsLead.budget.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {currentDetailsLead.campaignName && (
+                <div className="details-row">
+                  <span className="details-label">Campaign Source</span>
+                  <span className="details-value">{currentDetailsLead.campaignName}</span>
+                </div>
+              )}
+
+              <div className="details-row details-full">
+                <span className="details-label">Notes & Requirements</span>
+                <span className="details-value" style={{ fontStyle: 'italic', fontWeight: '500' }}>
+                  "{currentDetailsLead.notes || currentDetailsLead.requirements || 'No special requirements listed.'}"
+                </span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Assigned Salesperson</span>
+                <span className="details-value">{currentDetailsLead.salesperson}</span>
+              </div>
+            </div>
+
+            <hr style={{ margin: '20px 0', borderColor: '#eaeaea' }} />
+
+            <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Bell size={14} /> Reminder History
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+              {leadReminders.filter((r) => String(r.moduleId) === String(currentDetailsLead.id)).length === 0 ? (
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No reminders scheduled yet.</p>
+              ) : (
+                leadReminders
+                  .filter((r) => String(r.moduleId) === String(currentDetailsLead.id))
+                  .sort((a, b) => `${b.reminderDate}`.localeCompare(`${a.reminderDate}`))
+                  .map((reminder) => (
+                    <div key={reminder.id} style={{ padding: '12px', border: '1px solid #DCE5F0', borderRadius: '10px', background: '#F5FAFE' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                        <strong style={{ fontSize: '13px' }}>
+                          {formatReminderDate(reminder.reminderDate)}
+                          {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
+                        </strong>
+                        <span style={{ fontSize: '12px', fontWeight: '700' }}>{reminder.status}</span>
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f766e' }}>{reminder.reminderType}</div>
+                      {reminder.remarks && (
+                        <p style={{ fontSize: '12.5px', color: '#475569', margin: '6px 0 0' }}>{reminder.remarks}</p>
+                      )}
+                    </div>
+                  ))
+              )}
+            </div>
+
+            {/* Connected Samples */}
+            <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
+              <FlaskConical size={14} /> Connected Samples
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              {leadSamples.length === 0 ? (
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>No sample requests created.</p>
+              ) : (
+                leadSamples.map((sample) => (
+                  <div key={sample.id} style={{ padding: '8px 12px', border: '1.5px solid #eaeaea', borderRadius: '10px', background: '#F5FAFE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: '12.5px', color: 'var(--color-text-primary)' }}>{sample.sample_number || sample.sampleNumber || `#${sample.id}`}</strong>
+                      <div style={{ fontSize: '11.5px', color: '#5E6B82', marginTop: '2px' }}>{sample.productName || sample.product || 'Prototype Sample'} (Qty: {sample.quantity || 1})</div>
+                    </div>
+                    <span style={{
+                      fontSize: '10px', fontWeight: '800',
+                      padding: '3px 8px', borderRadius: '6px',
+                      background: sample.status === 'Approved' ? '#dcfce7' : sample.status === 'Rejected' ? '#fee2e2' : '#e0f2fe',
+                      color: sample.status === 'Approved' ? '#15803d' : sample.status === 'Rejected' ? '#dc2626' : '#0369a1'
+                    }}>{sample.status}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Connected Quotations */}
+            <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
+              <FileText size={14} /> Connected Quotations
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              {leadQuotations.length === 0 ? (
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>No quotations generated.</p>
+              ) : (
+                leadQuotations.map((quote) => (
+                  <div key={quote.id} style={{ padding: '8px 12px', border: '1.5px solid #eaeaea', borderRadius: '10px', background: '#F5FAFE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: '12.5px', color: 'var(--color-text-primary)' }}>{quote.quotation_number || quote.quotationNumber || `#${quote.id}`}</strong>
+                      <div style={{ fontSize: '11.5px', color: '#5E6B82', marginTop: '2px' }}>Value: ₹{Number(quote.grand_total || quote.totalAmount || 0).toLocaleString('en-IN')}</div>
+                    </div>
+                    <span style={{
+                      fontSize: '10px', fontWeight: '800',
+                      padding: '3px 8px', borderRadius: '6px',
+                      background: quote.status === 'Approved' || quote.status === 'CONVERTED' ? '#dcfce7' : quote.status === 'Rejected' ? '#fee2e2' : '#fef9c3',
+                      color: quote.status === 'Approved' || quote.status === 'CONVERTED' ? '#15803d' : quote.status === 'Rejected' ? '#dc2626' : '#92400e'
+                    }}>{quote.status}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Connected Sales Orders */}
+            <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
+              <ShieldCheck size={14} /> Connected Orders
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              {leadOrders.length === 0 ? (
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>No sales orders created yet.</p>
+              ) : (
+                leadOrders.map((order) => (
+                  <div key={order.id} style={{ padding: '8px 12px', border: '1.5px solid #eaeaea', borderRadius: '10px', background: '#F5FAFE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: '12.5px', color: 'var(--color-text-primary)' }}>{order.order_number || order.orderNumber || `#${order.id}`}</strong>
+                      <div style={{ fontSize: '11.5px', color: '#5E6B82', marginTop: '2px' }}>Total: ₹{Number(order.grand_total || 0).toLocaleString('en-IN')} · Stage: {order.order_stage || order.orderStage || 'Pending'}</div>
+                    </div>
+                    <span style={{
+                      fontSize: '10px', fontWeight: '800',
+                      padding: '3px 8px', borderRadius: '6px',
+                      background: '#dcfce7',
+                      color: '#15803d'
+                    }}>{order.payment_status || order.paymentStatus || 'Awaiting'}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Timeline */}
+            <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
+              <Clipboard size={14} /> Activity Timeline
+            </h4>
+
+            <div className="timeline-container">
+              {(Array.isArray(currentDetailsLead.timeline) ? currentDetailsLead.timeline : []).map((item, index) => (
+                <div key={index} className="timeline-item">
+                  <div className="timeline-dot"></div>
+                  <span className="timeline-time">{item.date}</span>
+                  <span className="timeline-text">{item.text}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Follow-up input form */}
+            {currentDetailsLead.status !== 'Converted' && currentDetailsLead.status !== 'Lost' && (
+              <form onSubmit={handleAddFollowupSubmit} style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Log follow-up details (e.g. called client, set demo...)" 
+                  value={followupText}
+                  onChange={(e) => setFollowupText(e.target.value)}
+                  required
+                />
+                <button type="submit" className="btn-small btn-primary-small">Add log</button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ReminderModal
+        key={reminderModal?.reminder?.id || reminderModal?.lead?.id || 'new'}
+        open={!!reminderModal}
+        onClose={() => setReminderModal(null)}
+        onSave={handleSaveReminder}
+        customerName={reminderModal?.lead?.companyName || ''}
+        title={reminderModal?.reminder ? 'Edit Reminder' : 'Create Reminder'}
+        initialValues={reminderModal?.reminder || null}
+      />
+
+    </div>
+  );
+}
