@@ -2,11 +2,14 @@
 
 import React, { useEffect, useCallback } from 'react';
 import { useERPStore, getProcurementAnalytics } from '../../store/erpStore';
+
+// Re-export useERPStore for modules that import it via ERPContext (backward compatibility)
+export { useERPStore } from '../../store/erpStore';
 import { apiClient } from '../../lib/apiClient';
 import { deepEqual } from '../../lib/deepEqual';
 import { useNotifications } from './NotificationContext';
-
-export { useERPStore };
+import { customersReadRepository } from '../../services/customers/customersReadRepository';
+import { leadsReadRepository } from '../../services/leads/leadsReadRepository';
 
 let syncInFlight = false;
 let lastSyncStartedAt = 0;
@@ -27,6 +30,62 @@ export const useERP = () => {
     }
   };
 
+  const customersReadEnabled = process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_READ === 'true';
+  const leadsReadEnabled = process.env.NEXT_PUBLIC_BACKEND_LEADS_READ === 'true';
+
+  const replaceCustomerCache = store.replaceCustomerCache;
+  const replaceLeadCache = store.replaceLeadCache;
+
+  // 1. Initial hydration mount effect
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBackendReadData() {
+      if (customersReadEnabled && replaceCustomerCache) {
+        store.setCustomersLoading?.(true);
+        store.setCustomersError?.(null);
+        try {
+          const customersResult = await customersReadRepository.list({ page: 1, pageSize: 100 });
+          if (!cancelled) {
+            replaceCustomerCache(customersResult.data);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[ERPContext] Failed to load backend read customers', error);
+            store.setCustomersError?.(error.message || 'Failed to load customers');
+          }
+        } finally {
+          if (!cancelled) store.setCustomersLoading?.(false);
+        }
+      }
+      if (leadsReadEnabled && replaceLeadCache) {
+        store.setLeadsLoading?.(true);
+        store.setLeadsError?.(null);
+        try {
+          const leadsResult = await leadsReadRepository.list({ page: 1, pageSize: 100 });
+          if (!cancelled) {
+            replaceLeadCache(leadsResult.data);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[ERPContext] Failed to load backend read leads', error);
+            store.setLeadsError?.(error.message || 'Failed to load leads');
+          }
+        } finally {
+          if (!cancelled) store.setLeadsLoading?.(false);
+        }
+      }
+    }
+
+    if (customersReadEnabled || leadsReadEnabled) {
+      void loadBackendReadData();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [replaceCustomerCache, replaceLeadCache]);
+
   const syncData = useCallback(async () => {
     const now = Date.now();
     if (syncInFlight || now - lastSyncStartedAt < 250) return;
@@ -35,9 +94,14 @@ export const useERP = () => {
     try {
       const currentStore = useERPStore.getState();
       const currentState = currentStore.state;
-      const [customersRes] = await Promise.all([
-        apiClient.get('/admin-ops/customers').catch(() => ({ success: false })),
-      ]);
+      
+      let customersRes = { success: true, customers: [] };
+      if (!customersReadEnabled) {
+        const res = await apiClient.get('/admin-ops/customers').catch(() => ({ success: false }));
+        if (res.success) {
+          customersRes = res;
+        }
+      }
 
       const latestStore = useERPStore.getState();
       const latestState = latestStore.state;
@@ -82,7 +146,7 @@ export const useERP = () => {
 
       const nextState = {
         ...latestState,
-        customers: customersRes.success ? (customersRes.customers || customersRes.data || []) : latestState.customers || [],
+        customers: !customersReadEnabled && customersRes.success ? (customersRes.customers || customersRes.data || []) : latestState.customers || [],
         workOrders: latestState.workOrders || [],
         dispatches,
         notifications,
@@ -121,11 +185,24 @@ export const useERP = () => {
     } finally {
       syncInFlight = false;
     }
-  }, []);
+  }, [customersReadEnabled]);
+
+  const customState = {
+    ...store.state,
+    customers: customersReadEnabled
+      ? (store.state?.serverCache?.customers || [])
+      : (store.state?.customers || []),
+    sales: {
+      ...store.state?.sales,
+      leads: leadsReadEnabled
+        ? (store.state?.serverCache?.leads || [])
+        : (store.state?.sales?.leads || [])
+    }
+  };
 
   return {
     ...store,
-    state: store.state,
+    state: customState,
     setState: store.setState,
     hasHydrated: store.hasHydrated,
 

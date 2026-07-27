@@ -3,6 +3,7 @@
 
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { useSearchStore } from '@/store/searchStore';
 import { useERP } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';

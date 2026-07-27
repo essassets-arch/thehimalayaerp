@@ -13,6 +13,7 @@ import { useBadgeStore } from '@/store/badgeStore';
 import { ERPProvider } from '@/shared/context/ERPContext';
 import MockDataSeeder from '@/components/MockDataSeeder';
 import { getNavigationForPath } from '@/config/navigationHelpers';
+import AuthGuard from '@/shared/components/AuthGuard';
 
 import * as Lucide from 'lucide-react';
 import { Box, Wrench, ShieldAlert, Award, MoreHorizontal, LayoutGrid } from 'lucide-react';
@@ -130,6 +131,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     : user ? `role-${user.role.toLowerCase().replace(/\s+/g, '-')}` : '';
 
   return (
+    <AuthGuard>
     <ERPProvider>
       <div className={`app-container ${roleClass}`}>
       <MockDataSeeder />
@@ -164,8 +166,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           notifications={state.notifications || []}
           searchQuery={globalSearch}
           setSearchQuery={setGlobalSearch}
-          onNavigate={(id: string) => {
+          onNavigate={async (id: string) => {
             if (id === 'Logout') {
+              try {
+                await fetch('/api/backend/auth/logout', { method: 'POST' });
+              } catch { /* best effort */ }
+              useAuthStore.getState().logout();
               router.push('/login');
             }
           }}
@@ -302,5 +308,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
     </div>
     </ERPProvider>
+    </AuthGuard>
   );
 }

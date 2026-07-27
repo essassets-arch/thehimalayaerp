@@ -1,0 +1,3 @@
+{
+  "/(dashboard)/finance/payment-history/page": "app/(dashboard)/finance/payment-history/page.js"
+}

@@ -370,3 +370,193 @@
   background: #D6E2F0;
   border-radius: 2px;
 }
+
+/* ── MODALS & FORMS ── */
+.erp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.erp-modal-content {
+  background: #ffffff;
+  border: 1px solid #DCE5F0;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.erp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid #DCE5F0;
+  background: #F5FAFE;
+}
+
+.erp-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #24345C;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.erp-modal-close {
+  background: transparent;
+  border: none;
+  color: #8893A7;
+  cursor: pointer;
+  padding: 4px;
+}
+.erp-modal-close:hover {
+  color: #24345C;
+}
+
+.erp-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.erp-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+@media (max-width: 640px) {
+  .erp-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.erp-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.erp-form-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #24345C;
+}
+
+.erp-form-input {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #DCE5F0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #24345C;
+  transition: all 0.2s ease;
+}
+.erp-form-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.erp-form-hint {
+  font-size: 11px;
+  color: #5E6B82;
+  margin-top: 4px;
+}
+
+.erp-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.erp-panel-card {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #DCE5F0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.erp-panel-card:hover {
+  background: #F5FAFE;
+}
+.erp-panel-card.active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+}
+
+.erp-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.erp-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #24345C;
+}
+
+.erp-panel-desc {
+  font-size: 12px;
+  color: #5E6B82;
+  margin: 0;
+}
+
+.erp-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #DCE5F0;
+  background: #F5FAFE;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.flex-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.flex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background: #ffffff;
+  border: 1px solid #DCE5F0;
+  border-radius: 16px;
+  text-align: center;
+  gap: 12px;
+  width: 100%;
+}

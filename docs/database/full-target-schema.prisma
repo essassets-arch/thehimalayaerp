@@ -1,0 +1,443 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS (Across all modules)
+// ---------------------------------------------------------------------------
+enum UserStatus { ACTIVE, INACTIVE, LOCKED }
+enum LeadStatus { NEW, QUALIFIED, SAMPLE_PENDING, QUOTATION_CREATED, LOST, CONVERTED }
+enum QuotationStatus { DRAFT, SENT, CUSTOMER_ACCEPTED, CUSTOMER_REJECTED, CONVERTED_TO_ORDER, EXPIRED }
+enum OrderWorkflowStatus { DRAFT, ORDER_CONFIRMED, SENT_TO_PLANT_HEAD, PLANT_HEAD_ACCEPTED, PRODUCTION_PLANNED, ORDER_CLOSED, CANCELLED }
+enum ProductionStatus { NOT_PLANNED, WORK_ORDER_CREATED, PRODUCTION_STARTED, PRODUCTION_COMPLETED }
+enum QcStatus { NOT_REQUIRED, PENDING, PARTIALLY_APPROVED, APPROVED, REJECTED }
+enum DispatchStatus { NOT_READY, READY_FOR_DISPATCH, DISPATCH_CREATED, PARTIALLY_DISPATCHED, IN_TRANSIT, DELIVERED }
+enum PaymentStatus { NOT_DUE, DUE, PARTIALLY_PAID, FINANCE_VERIFICATION_PENDING, FULLY_PAID, OVERDUE }
+enum StockMovementType { OPENING, PURCHASE_GRN, MATERIAL_ISSUE, MATERIAL_RETURN, PRODUCTION_CONSUMPTION, FINISHED_GOODS_RECEIPT, SALES_DISPATCH, CUSTOMER_RETURN, STOCK_ADJUSTMENT, SCRAP }
+
+// ---------------------------------------------------------------------------
+// MILESTONE 1: FOUNDATION (Users, Roles, Permissions, Config)
+// ---------------------------------------------------------------------------
+
+model Company {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String
+  code      String     @unique
+  branches  Branch[]
+  users     User[]
+  customers Customer[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Branch {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  name      String
+  code      String
+  company   Company  @relation(fields: [companyId], references: [id])
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  name        String
+  users       User[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  name        String
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model RolePermission {
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  role Role @relation(
+    fields: [roleId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  permission Permission @relation(
+    fields: [permissionId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  @@id([roleId, permissionId])
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  companyId    String     @db.Uuid
+  branchId     String?    @db.Uuid
+  roleId       String     @db.Uuid
+  name         String
+  email        String     @unique
+  passwordHash String
+  status       UserStatus @default(ACTIVE)
+  company      Company    @relation(fields: [companyId], references: [id])
+  branch       Branch?    @relation(fields: [branchId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([roleId])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String?  @db.Uuid
+  actorUserId String?  @db.Uuid
+  action      String
+  entityType  String
+  entityId    String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model IdSequence {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @db.Uuid
+  entityType  String
+  lastValue   Int      @default(0)
+  prefix      String?
+  padding     Int      @default(6)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, entityType])
+}
+
+model IdempotencyRecord {
+  id             String    @id @default(uuid()) @db.Uuid
+  idempotencyKey String
+  actorUserId    String?   @db.Uuid
+  operation      String
+  requestHash    String
+  requestPath    String
+  requestMethod  String
+  responseBody   Json?
+  statusCode     Int?
+  lockedAt       DateTime  @default(now())
+  completedAt    DateTime?
+  expiresAt      DateTime
+
+  @@unique([operation, idempotencyKey])
+  @@index([actorUserId, requestPath])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// MASTER DATA (Customers, Products, Materials, Warehouses)
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  customerNo  String
+  name        String
+  gstNumber   String?
+  creditLimit Decimal      @default(0) @db.Decimal(18, 2)
+  creditDays  Int          @default(0)
+  company     Company      @relation(fields: [companyId], references: [id])
+  leads       Lead[]
+  quotations  Quotation[]
+  salesOrders SalesOrder[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([companyId, customerNo])
+  @@index([companyId])
+}
+
+model Product {
+  id          String          @id @default(uuid()) @db.Uuid
+  companyId   String          @db.Uuid
+  productCode String
+  name        String
+  unitCode    String
+  isActive    Boolean         @default(true)
+  quoteItems  QuotationItem[]
+  orderItems  SalesOrderItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([companyId, productCode])
+  @@index([companyId])
+}
+
+model Warehouse {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @db.Uuid
+  name        String
+  code        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([companyId, code])
+}
+
+// ---------------------------------------------------------------------------
+// SALES (Leads, Samples, Quotations, Orders)
+// ---------------------------------------------------------------------------
+
+model Lead {
+  id            String     @id @default(uuid()) @db.Uuid
+  companyId     String     @db.Uuid
+  branchId      String?    @db.Uuid
+  customerId    String?    @db.Uuid
+  leadNumber    String
+  companyName   String
+  contactPerson String
+  phone         String?
+  email         String?
+  status        LeadStatus @default(NEW)
+  customer      Customer?  @relation(fields: [customerId], references: [id])
+  quotations    Quotation[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([companyId, leadNumber])
+  @@index([companyId, status])
+  @@index([customerId])
+}
+
+model Quotation {
+  id              String          @id @default(uuid()) @db.Uuid
+  companyId       String          @db.Uuid
+  quotationNumber String
+  leadId          String?         @db.Uuid
+  customerId      String          @db.Uuid
+  status          QuotationStatus @default(DRAFT)
+  validUntil      DateTime?
+  subtotal        Decimal         @default(0) @db.Decimal(18, 2)
+  taxAmount       Decimal         @default(0) @db.Decimal(18, 2)
+  grandTotal      Decimal         @default(0) @db.Decimal(18, 2)
+  version         Int             @default(1)
+  lead            Lead?           @relation(fields: [leadId], references: [id])
+  customer        Customer        @relation(fields: [customerId], references: [id])
+  items           QuotationItem[]
+  salesOrder      SalesOrder?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([companyId, quotationNumber])
+  @@index([leadId])
+  @@index([customerId])
+  @@index([companyId, status])
+}
+
+model QuotationItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  quotationId String    @db.Uuid
+  productId   String    @db.Uuid
+  description String?
+  quantity    Decimal   @db.Decimal(18, 3)
+  unitPrice   Decimal   @db.Decimal(18, 2)
+  taxRate     Decimal   @default(0) @db.Decimal(5, 2)
+  lineTotal   Decimal   @db.Decimal(18, 2)
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@index([quotationId])
+  @@index([productId])
+}
+
+model SalesOrder {
+  id                  String              @id @default(uuid()) @db.Uuid
+  companyId           String              @db.Uuid
+  orderNumber         String
+  quotationId         String?             @unique @db.Uuid
+  customerId          String              @db.Uuid
+  customerPoNumber    String?
+  workflowStatus      OrderWorkflowStatus @default(DRAFT)
+  productionStatus    ProductionStatus    @default(NOT_PLANNED)
+  qcStatus            QcStatus            @default(NOT_REQUIRED)
+  dispatchStatus      DispatchStatus      @default(NOT_READY)
+  paymentStatus       PaymentStatus       @default(NOT_DUE)
+  orderDate           DateTime            @default(now())
+  requiredDeliveryDate DateTime?
+  subtotal            Decimal             @default(0) @db.Decimal(18, 2)
+  taxAmount           Decimal             @default(0) @db.Decimal(18, 2)
+  grandTotal          Decimal             @default(0) @db.Decimal(18, 2)
+  version             Int                 @default(1)
+  quotation           Quotation?          @relation(fields: [quotationId], references: [id])
+  customer            Customer            @relation(fields: [customerId], references: [id])
+  items               SalesOrderItem[]
+  history             OrderStatusHistory[]
+  workOrders          WorkOrder[]
+  dispatchOrders      DispatchOrder[]
+  invoices            Invoice[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@unique([companyId, orderNumber])
+  @@index([customerId])
+  @@index([companyId, workflowStatus])
+}
+
+model SalesOrderItem {
+  id            String     @id @default(uuid()) @db.Uuid
+  salesOrderId  String     @db.Uuid
+  productId     String     @db.Uuid
+  quantity      Decimal    @db.Decimal(18, 3)
+  unitPrice     Decimal    @db.Decimal(18, 2)
+  taxRate       Decimal    @default(0) @db.Decimal(5, 2)
+  lineTotal     Decimal    @db.Decimal(18, 2)
+  salesOrder    SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product       Product    @relation(fields: [productId], references: [id])
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+model OrderStatusHistory {
+  id           String     @id @default(uuid()) @db.Uuid
+  salesOrderId String     @db.Uuid
+  eventType    String
+  fromStatus   String?
+  toStatus     String
+  notes        String?
+  actorUserId  String?    @db.Uuid
+  metadata     Json?
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@index([salesOrderId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCTION (Work Orders, Material Requests)
+// ---------------------------------------------------------------------------
+
+model WorkOrder {
+  id           String     @id @default(uuid()) @db.Uuid
+  companyId    String     @db.Uuid
+  workOrderNo  String     @unique
+  salesOrderId String     @db.Uuid
+  targetDate   DateTime?
+  plannedQty   Decimal    @db.Decimal(18, 3)
+  status       String     // NOT_STARTED, IN_PROGRESS, COMPLETED
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+  materialReqs MaterialRequest[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([companyId])
+  @@index([salesOrderId])
+}
+
+model MaterialRequest {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @db.Uuid
+  workOrderId   String    @db.Uuid
+  productId     String    @db.Uuid
+  requestedQty  Decimal   @db.Decimal(18, 3)
+  status        String    // PENDING, APPROVED, ISSUED
+  workOrder     WorkOrder @relation(fields: [workOrderId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([workOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY (Ledger, Balances)
+// ---------------------------------------------------------------------------
+
+model InventoryBalance {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @db.Uuid
+  warehouseId  String   @db.Uuid
+  itemId       String   @db.Uuid
+  quantityOnHand Decimal @default(0) @db.Decimal(18, 3)
+  reservedQty    Decimal @default(0) @db.Decimal(18, 3)
+  version        Int     @default(1)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([companyId, warehouseId, itemId])
+}
+
+model StockLedger {
+  id              String            @id @default(uuid()) @db.Uuid
+  companyId       String            @db.Uuid
+  warehouseId     String            @db.Uuid
+  itemId          String            @db.Uuid
+  movementType    StockMovementType
+  quantityIn      Decimal           @default(0) @db.Decimal(18, 3)
+  quantityOut     Decimal           @default(0) @db.Decimal(18, 3)
+  balanceAfter    Decimal           @db.Decimal(18, 3)
+  referenceType   String
+  referenceId     String
+  idempotencyKey  String            @unique
+  createdAt       DateTime          @default(now())
+
+  @@index([companyId, itemId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+// ---------------------------------------------------------------------------
+// DISPATCH & LOGISTICS
+// ---------------------------------------------------------------------------
+
+model DispatchOrder {
+  id             String     @id @default(uuid()) @db.Uuid
+  companyId      String     @db.Uuid
+  salesOrderId   String     @db.Uuid
+  dispatchNo     String     @unique
+  vehicleNo      String?
+  lrNumber       String?
+  dispatchStatus String     // IN_TRANSIT, DELIVERED
+  salesOrder     SalesOrder @relation(fields: [salesOrderId], references: [id])
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([salesOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// FINANCE & PAYMENTS
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id           String     @id @default(uuid()) @db.Uuid
+  companyId    String     @db.Uuid
+  invoiceNo    String     @unique
+  salesOrderId String     @db.Uuid
+  totalAmount  Decimal    @db.Decimal(18, 2)
+  amountPaid   Decimal    @default(0) @db.Decimal(18, 2)
+  status       String     // UNPAID, PARTIAL, PAID
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([salesOrderId])
+}

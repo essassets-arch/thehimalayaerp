@@ -238,14 +238,25 @@ const persistToStorage = (state: any) => {
 
       window.localStorage.setItem('erp_procurement_data_version', '1');
 
+      // Check feature flags to strip data if backend write mode is enabled
+      const salesToPersist = { ...state.sales };
+      if (process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE === 'true') {
+        salesToPersist.leads = [];
+      }
+
+      if (process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_WRITE !== 'true') {
+        window.localStorage.setItem('erp_customers', JSON.stringify(state.customers || []));
+      }
+
       // Canonical persisted store snapshot under required key
       const unifiedStoreSnapshot = {
         state: {
           procurement: state.procurement,
-          sales: state.sales,
+          sales: salesToPersist,
           production: state.production || { finishedGoods: [], workOrders: [], qcRecords: [] },
           dispatch: state.dispatch || { dispatchOrders: [], consignments: [] },
           finance: state.finance || { customerPayments: [], paymentFollowUps: [], paymentReceipts: [] },
+          customRoles: state.customRoles || [],
           auditEvents: state.auditEvents || [],
           idSequences: state.idSequences || {},
         },
@@ -496,6 +507,16 @@ const migratePersistedState = (state: any) => {
 };
 // ─── Sales state migration helpers ───────────────────────────────────────────
 
+function upsertById<T extends { id: string }>(items: T[], item: T): T[] {
+  const index = items.findIndex((current) => current.id === item.id);
+  if (index === -1) {
+    return [...items, item];
+  }
+  const next = [...items];
+  next[index] = item;
+  return next;
+}
+
 function mergeById<T extends { id: string }>(current: T[] = [], legacy: T[] = []): T[] {
   const records = new Map<string, T>();
   for (const record of legacy) {
@@ -674,6 +695,7 @@ const getInitialStateFromStorage = () => {
         paymentFollowUps: [],
         paymentReceipts: [],
       },
+      customRoles: [],
       masterData: {
         departments: DEPARTMENTS
       }
@@ -900,6 +922,7 @@ const getInitialStateFromStorage = () => {
         ? null
         : window.localStorage.getItem('himalaya-erp-store');
       let finance: any = { customerPayments: [], paymentFollowUps: [], paymentReceipts: [] };
+      let customRoles: any[] = [];
       if (unified) {
         const parsed = JSON.parse(unified);
         const persisted = parsed.state || parsed;
@@ -909,6 +932,7 @@ const getInitialStateFromStorage = () => {
         if (persisted.dispatch) dispatch = persisted.dispatch;
         if (persisted.idSequences) idSequences = persisted.idSequences;
         if (persisted.finance) finance = normalizeFinanceState(persisted.finance);
+        if (persisted.customRoles) customRoles = persisted.customRoles;
         production = repairProductionWorkOrders(production, sales);
       }
       const browserSeedVersionKey = 'himalaya-ess-browser-seed-version';
@@ -973,6 +997,7 @@ const getInitialStateFromStorage = () => {
             production,
             dispatch,
             finance,
+            customRoles,
             auditEvents: [],
             idSequences,
           },
@@ -1004,7 +1029,18 @@ const getInitialStateFromStorage = () => {
       production,
       dispatch,
       finance,
+      customRoles,
       idSequences,
+      serverCache: {
+        customers: [],
+        customersLoaded: false,
+        customersLoading: false,
+        customersError: null,
+        leads: [],
+        leadsLoaded: false,
+        leadsLoading: false,
+        leadsError: null,
+      },
       masterData: {
         departments: DEPARTMENTS
       }
@@ -1020,6 +1056,16 @@ const getInitialStateFromStorage = () => {
       production: { finishedGoods: [], workOrders: [], qcRecords: [], materialRequests: [] },
       finance: { customerPayments: [], paymentFollowUps: [], paymentReceipts: [] },
       idSequences: {},
+      serverCache: {
+        customers: [],
+        customersLoaded: false,
+        customersLoading: false,
+        customersError: null,
+        leads: [],
+        leadsLoaded: false,
+        leadsLoading: false,
+        leadsError: null,
+      },
       masterData: {
         departments: DEPARTMENTS
       }
@@ -1213,6 +1259,136 @@ export const useERPStore = create((set: any, get: any) => ({
     persistToStorage(normalized);
     set({ state: normalized });
   },
+  replaceCustomerCache: (customers: any[]) => {
+    set((current: any) => ({
+      state: {
+        ...current.state,
+        serverCache: {
+          ...(current.state?.serverCache || {}),
+          customers,
+          customersLoaded: true
+        }
+      }
+    }));
+  },
+  replaceLeadCache: (leads: any[]) => {
+    set((current: any) => ({
+      state: {
+        ...current.state,
+        serverCache: {
+          ...(current.state?.serverCache || {}),
+          leads,
+          leadsLoaded: true
+        }
+      }
+    }));
+  },
+  upsertServerCustomer: (customer: any) => {
+    set((current: any) => {
+      const customers = current.state?.serverCache?.customers || [];
+      const updated = upsertById(customers, customer);
+      return {
+        state: {
+          ...current.state,
+          serverCache: {
+            ...(current.state?.serverCache || {}),
+            customers: updated,
+            customersLoaded: true
+          }
+        }
+      };
+    });
+  },
+  removeServerCustomer: (id: string) => {
+    set((current: any) => {
+      const customers = current.state?.serverCache?.customers || [];
+      const updated = customers.filter((c: any) => c.id !== id);
+      return {
+        state: {
+          ...current.state,
+          serverCache: {
+            ...(current.state?.serverCache || {}),
+            customers: updated
+          }
+        }
+      };
+    });
+  },
+  upsertServerLead: (lead: any) => {
+    set((current: any) => {
+      const leads = current.state?.serverCache?.leads || [];
+      const updated = upsertById(leads, lead);
+      return {
+        state: {
+          ...current.state,
+          serverCache: {
+            ...(current.state?.serverCache || {}),
+            leads: updated,
+            leadsLoaded: true
+          }
+        }
+      };
+    });
+  },
+  removeServerLead: (id: string) => {
+    set((current: any) => {
+      const leads = current.state?.serverCache?.leads || [];
+      const updated = leads.filter((l: any) => l.id !== id);
+      return {
+        state: {
+          ...current.state,
+          serverCache: {
+            ...(current.state?.serverCache || {}),
+            leads: updated
+          }
+        }
+      };
+    });
+  },
+  setCustomersLoading: (loading: boolean) => {
+    set((current: any) => ({
+      state: {
+        ...current.state,
+        serverCache: {
+          ...(current.state?.serverCache || {}),
+          customersLoading: loading
+        }
+      }
+    }));
+  },
+  setCustomersError: (error: string | null) => {
+    set((current: any) => ({
+      state: {
+        ...current.state,
+        serverCache: {
+          ...(current.state?.serverCache || {}),
+          customersError: error
+        }
+      }
+    }));
+  },
+  setLeadsLoading: (loading: boolean) => {
+    set((current: any) => ({
+      state: {
+        ...current.state,
+        serverCache: {
+          ...(current.state?.serverCache || {}),
+          leadsLoading: loading
+        }
+      }
+    }));
+  },
+  setLeadsError: (error: string | null) => {
+    set((current: any) => ({
+      state: {
+        ...current.state,
+        serverCache: {
+          ...(current.state?.serverCache || {}),
+          leadsError: error
+        }
+      }
+    }));
+  },
   generateEntityId: (type: EntityIdType) => {
     const prefix = ENTITY_ID_PREFIXES[type];
     let generatedId = '';
@@ -1336,10 +1512,48 @@ export const useERPStore = create((set: any, get: any) => ({
   hasHydrated: false,
   setHasHydrated: (value: boolean) => set({ hasHydrated: value }),
 
+  // ─── Custom Roles Actions ────────────────────────────────────────────────
+  customRolesActions: {
+    addCustomRole: (roleData: any) => {
+      const store: any = (useERPStore as any).getState();
+      const currentState = store.state;
+      const newRole = { ...roleData, id: `ROLE-${Date.now()}` };
+      const newState = {
+        ...currentState,
+        customRoles: [...(currentState.customRoles || []), newRole]
+      };
+      store.setState(newState);
+      return newRole.id;
+    },
+    updateCustomRole: (id: string, updates: any) => {
+      const store: any = (useERPStore as any).getState();
+      const currentState = store.state;
+      const customRoles = currentState.customRoles || [];
+      const newState = {
+        ...currentState,
+        customRoles: customRoles.map((r: any) => r.id === id ? { ...r, ...updates } : r)
+      };
+      store.setState(newState);
+    },
+    deleteCustomRole: (id: string) => {
+      const store: any = (useERPStore as any).getState();
+      const currentState = store.state;
+      const customRoles = currentState.customRoles || [];
+      const newState = {
+        ...currentState,
+        customRoles: customRoles.filter((r: any) => r.id !== id)
+      };
+      store.setState(newState);
+    }
+  },
+
   // ─── Sales domain actions (grouped namespace) ────────────────────────────
   // Usage: const createLead = useERPStore(s => s.salesActions.createLead);
   salesActions: {
     createLead: (payload: any, actorName = 'Sales User') => {
+      if (process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE === 'true') {
+        throw new Error('Legacy Lead mutation (createLead) was called while backend writes are enabled.');
+      }
       const actor = { id: actorName, name: actorName };
       const store: any = (useERPStore as any).getState();
       const [newState, id] = SalesActions.createLead(store.state, payload, actor);

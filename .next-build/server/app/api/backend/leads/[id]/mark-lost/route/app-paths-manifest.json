@@ -1,0 +1,3 @@
+{
+  "/api/backend/leads/[id]/mark-lost/route": "app/api/backend/leads/[id]/mark-lost/route.js"
+}

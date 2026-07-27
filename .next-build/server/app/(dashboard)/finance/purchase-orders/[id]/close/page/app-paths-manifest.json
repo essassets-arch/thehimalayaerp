@@ -1,0 +1,3 @@
+{
+  "/(dashboard)/finance/purchase-orders/[id]/close/page": "app/(dashboard)/finance/purchase-orders/[id]/close/page.js"
+}

@@ -1,10 +1,5 @@
 {
-  "/(dashboard)/plant-head/[[...slug]]/page": "app/(dashboard)/plant-head/[[...slug]]/page.js",
-  "/(dashboard)/plant-head/finished-goods/page": "app/(dashboard)/plant-head/finished-goods/page.js",
-  "/(dashboard)/plant-head/planning/page": "app/(dashboard)/plant-head/planning/page.js",
-  "/(dashboard)/plant-head/recruitment-request/page": "app/(dashboard)/plant-head/recruitment-request/page.js",
-  "/(dashboard)/sales/[[...slug]]/page": "app/(dashboard)/sales/[[...slug]]/page.js",
-  "/(dashboard)/store/[[...slug]]/page": "app/(dashboard)/store/[[...slug]]/page.js",
+  "/api/backend/auth/login/route": "app/api/backend/auth/login/route.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
   "/login/page": "app/login/page.js"
 }

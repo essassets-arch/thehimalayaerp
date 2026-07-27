@@ -1,0 +1,1 @@
+{"version":3,"sources":["turbopack:///[project]/app/page.tsx"],"sourcesContent":["import { redirect } from 'next/navigation';\n\nexport default function Home() {\n  redirect('/login');\n}\n"],"names":[],"mappings":"sQAAA,EAAA,CAAA,CAAA,QAAA,IAAA,EAAA,EAAA,CAAA,CAAA,QAEe,SAAS,IACtB,CAAA,EAAA,EAAA,QAAA,AAAQ,EAAC,SACX"}

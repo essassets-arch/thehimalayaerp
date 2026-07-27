@@ -5,16 +5,55 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { KeyRound, Mail, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import { delay } from '@/lib/delay';
+
+function getDefaultPath(role: string): string {
+  const map: Record<string, string> = {
+    'SALES': '/sales/dashboard',
+    'SALES_ADMIN': '/sales/dashboard',
+    'PLANT_HEAD': '/plant-head/dashboard',
+    'PRODUCTION': '/production/dashboard',
+    'STORE': '/store/dashboard',
+    'QC': '/qc/dashboard',
+    'DISPATCH': '/dispatch/dashboard',
+    'FINANCE': '/finance/dashboard',
+    'FINANCE_EXECUTIVE': '/finance-executive/dashboard',
+    'HR': '/hr/dashboard',
+    'ADMIN': '/admin/dashboard',
+    'SUPER_ADMIN': '/super-admin/dashboard',
+  };
+  // Also support friendly names from local roles
+  const friendly: Record<string, string> = {
+    'Sales': '/sales/dashboard',
+    'Sales Admin': '/sales/dashboard',
+    'Plant Head': '/plant-head/dashboard',
+    'Production': '/production/dashboard',
+    'Store': '/store/dashboard',
+    'QC': '/qc/dashboard',
+    'Dispatch': '/dispatch/dashboard',
+    'Finance': '/finance/dashboard',
+    'Finance Executive': '/finance-executive/dashboard',
+    'HR': '/hr/dashboard',
+    'Admin': '/admin/dashboard',
+    'Super Admin': '/super-admin/dashboard',
+  };
+  return map[role] || friendly[role] || '/sales/dashboard';
+}
+
+/** Map backend role codes to friendly display strings */
+function toFriendlyRole(code: string): string {
+  return code
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function LoginPage() {
-  const login = useAuthStore((state) => state.login);
+  const { login } = useAuthStore();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,29 +68,40 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await delay(800);
+      const res = await fetch('/api/backend/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+      });
 
-      let role: any = 'Sales';
-      let redirectPath = '/sales/dashboard';
+      const json = await res.json();
 
-      const emailLower = email.toLowerCase();
-      if (emailLower.includes('sales-admin')) { role = 'Sales Admin'; redirectPath = '/sales/dashboard'; }
-      else if (emailLower.includes('sales')) { role = 'Sales'; redirectPath = '/sales/dashboard'; }
-      else if (emailLower.includes('super-admin')) { role = 'Super Admin'; redirectPath = '/super-admin/dashboard'; }
-      else if (emailLower.includes('admin')) { role = 'Admin'; redirectPath = '/admin/dashboard'; }
-      else if (emailLower.includes('plant')) { role = 'Plant Head'; redirectPath = '/plant-head/dashboard'; }
-      else if (emailLower.includes('production')) { role = 'Production'; redirectPath = '/production/dashboard'; }
-      else if (emailLower.includes('store')) { role = 'Store'; redirectPath = '/store/dashboard'; }
-      else if (emailLower.includes('qc')) { role = 'QC'; redirectPath = '/qc/dashboard'; }
-      else if (emailLower.includes('dispatch')) { role = 'Dispatch'; redirectPath = '/dispatch/dashboard'; }
-      else if (emailLower.includes('finance-exec')) { role = 'Finance Executive'; redirectPath = '/finance-executive/dashboard'; }
-      else if (emailLower.includes('finance')) { role = 'Finance'; redirectPath = '/finance/dashboard'; }
-      else if (emailLower.includes('hr')) { role = 'HR'; redirectPath = '/hr/dashboard'; }
+      if (!res.ok) {
+        // NestJS sends 401 on bad credentials
+        if (res.status === 401) {
+          throw new Error('Invalid email or password.');
+        }
+        if (res.status === 403) {
+          throw new Error('Your account has been disabled. Please contact your administrator.');
+        }
+        if (res.status === 504 || res.status === 503) {
+          throw new Error('Backend service is unavailable. Please try again shortly.');
+        }
+        throw new Error(json?.message || 'Login failed. Please try again.');
+      }
 
-      login(role, { name: email.split('@')[0], email, role });
+      const { accessToken, user } = json.data;
+      if (!accessToken || !user) {
+        throw new Error('Unexpected response from server. Please try again.');
+      }
+
+      const friendlyRole = toFriendlyRole(user.role);
+      login(friendlyRole, { ...user, role: friendlyRole }, accessToken);
+
+      const redirectPath = getDefaultPath(user.role);
       router.push(redirectPath);
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password.');
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +127,6 @@ export default function LoginPage() {
           overflow: hidden;
         }
 
-        /* Decorative blobs */
         .login-root::before {
           content: '';
           position: fixed;
@@ -236,29 +285,6 @@ export default function LoginPage() {
           75%      { transform: translateX(6px); }
         }
 
-        .role-pills {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          justify-content: center;
-        }
-        .role-pill {
-          font-size: 10px;
-          font-weight: 600;
-          padding: 3px 9px;
-          border-radius: 20px;
-          background: #F0F9FF;
-          color: #0284C7;
-          border: 1px solid #BAE6FD;
-          cursor: pointer;
-          transition: all 0.15s;
-          font-family: 'Outfit', sans-serif;
-        }
-        .role-pill:hover {
-          background: #E0F2FE;
-          border-color: #7DD3FC;
-        }
-
         @media (max-width: 480px) {
           .login-card { padding: 32px 24px; }
         }
@@ -286,7 +312,6 @@ export default function LoginPage() {
                 priority
               />
             </div>
-
           </div>
 
           <div className="login-divider" />
@@ -304,8 +329,9 @@ export default function LoginPage() {
                 <Mail size={15} className="login-icon" />
                 <input
                   type="email"
+                  id="login-email"
                   className="login-input"
-                  placeholder="sales@himalayaerp.com"
+                  placeholder="user@himalayaerp.local"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
@@ -321,6 +347,7 @@ export default function LoginPage() {
                 <KeyRound size={15} className="login-icon" />
                 <input
                   type={showPass ? 'text' : 'password'}
+                  id="login-password"
                   className="login-input login-input-pr"
                   placeholder="••••••••••••"
                   value={password}
@@ -340,35 +367,12 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Remember / Forgot */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', color: '#64748B', userSelect: 'none' }}>
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  style={{ accentColor: '#3BAEEB', cursor: 'pointer', width: '14px', height: '14px' }}
-                />
-                Remember me
-              </label>
-              <a
-                href="#forgot"
-                style={{ color: '#3BAEEB', textDecoration: 'none', fontWeight: '600', fontSize: '12.5px' }}
-                onClick={(e) => e.preventDefault()}
-              >
-                Forgot Password?
-              </a>
-            </div>
-
             {/* Submit */}
-            <button type="submit" disabled={loading} className="login-btn">
+            <button type="submit" id="login-submit" disabled={loading} className="login-btn">
               <ShieldCheck size={16} />
               {loading ? 'Authenticating…' : 'Sign In'}
             </button>
           </form>
-
-
-
 
         </div>
       </div>

@@ -1,0 +1,3 @@
+{
+  "/api/backend/customers/[id]/deactivate/route": "app/api/backend/customers/[id]/deactivate/route.js"
+}

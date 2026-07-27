@@ -46,6 +46,35 @@ export function getNavigationForPath(pathname, role) {
     }
     
     const roleStr = String(role).toLowerCase();
+
+    // Check custom roles first
+    let customRoles = [];
+    try {
+      const erpStore = require('../store/erpStore').useERPStore;
+      if (erpStore) {
+        customRoles = erpStore.getState().state?.customRoles || [];
+      }
+    } catch (e) {
+      // Ignore if store is not accessible
+    }
+
+    const customRole = customRoles.find(r => r.name.toLowerCase() === roleStr);
+    if (customRole && customRole.allowedPanels && customRole.allowedPanels.length > 0) {
+      let stitchedNav = [];
+      customRole.allowedPanels.forEach(panel => {
+        if (navigationConfig[panel]) {
+          stitchedNav = [...stitchedNav, ...navigationConfig[panel]];
+        }
+      });
+      // Deduplicate by path
+      const seenPaths = new Set();
+      return stitchedNav.filter(item => {
+        if (seenPaths.has(item.path)) return false;
+        seenPaths.add(item.path);
+        return true;
+      });
+    }
+
     if (roleStr.includes('finance')) return navigationConfig[roleStr.includes('executive') ? 'Finance Executive' : 'Finance'] || [];
     if (roleStr.includes('sales')) return navigationConfig['Sales'] || [];
     if (roleStr.includes('hr')) return navigationConfig['HR'] || [];

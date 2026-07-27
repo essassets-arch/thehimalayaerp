@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,144319,e=>{"use strict";e.s(["default",()=>n]);var c=e.i(843476);function n(){return(0,c.jsxs)("div",{className:"p-6",children:[(0,c.jsx)("h2",{children:"finance / ledger"}),(0,c.jsx)("p",{children:"Page under construction"})]})}}]);

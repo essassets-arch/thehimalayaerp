@@ -1,78 +1,111 @@
 'use client';
 
-/**
- * useLeads — All lead-related operations for components.
- *
- * Bridges ERPContext state + leadsService, surfacing:
- *  - The leads array (from global ERP state)
- *  - Mutation helpers (each calls the service then syncs state)
- */
 import { useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { useERP, useERPStore } from '../../../shared/context/ERPContext.jsx';
 import { useAuth } from '../../../shared/context/AuthContext.jsx';
+import { leadsWriteRepository } from '../../../services/leads/leadsWriteRepository';
 import { leadsService } from '../services/leads.service.js';
 
-/**
- * @param {Function} showToast — toast notification callback from outlet context
- */
+const useBackendWrite = process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE === 'true';
+
+const handleBackendError = (err, refreshCallback) => {
+  const status = err.response?.status || err.status || err.statusCode || 500;
+  if (status === 409) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Version Conflict',
+      text: 'This record was updated by another user. Reloading the latest data.',
+      confirmButtonText: 'Refresh',
+    }).then(() => {
+      if (refreshCallback) refreshCallback();
+    });
+  } else if (status === 403) {
+    Swal.fire({ icon: 'error', title: 'Forbidden', text: "You don't have permission to perform this action." });
+  } else if (status === 400) {
+    Swal.fire({ icon: 'error', title: 'Validation Error', text: err.message || 'Invalid input.' });
+  } else if (status === 503 || status === 504) {
+    Swal.fire({ icon: 'error', title: 'Service Unavailable', text: 'Backend service is currently unreachable. Please try again later.' });
+  } else {
+    Swal.fire({ icon: 'error', title: 'Operation Failed', text: err.message || 'An error occurred.' });
+  }
+};
+
+const generateIdempotencyKey = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2);
+
 export function useLeads(showToast) {
   const { state, syncData, salesActions } = useERP();
   const { user } = useAuth();
   const router = useRouter();
 
+  // Return the leads list (already correctly isolated in ERPContext state mapping)
   const leads = state.sales?.leads || [];
 
-  // ── Mutations ────────────────────────────────────────────────────────────
-
-  /** Create a new lead, then navigate to leads list. */
   const addLead = useCallback(
     async (newLeadData) => {
       showToast('Sales: Registering lead...');
       try {
-        const leadId = salesActions?.createLead(newLeadData, user?.name || 'Sales User');
-        if (!leadId) throw new Error('Lead creation returned no ID');
-        showToast('Lead Created Successfully');
-        await syncData();
-        router.push('/sales/leads');
-        return { id: leadId, leadId };
+        if (useBackendWrite) {
+          const idempotencyKey = generateIdempotencyKey();
+          const result = await leadsWriteRepository.create(newLeadData, { idempotencyKey });
+          useERPStore.getState().upsertServerLead(result);
+          showToast('Lead Created Successfully');
+          await syncData();
+          router.push('/sales/leads');
+          return { id: result.id, leadId: result.id };
+        } else {
+          // Legacy mode
+          const leadId = salesActions?.createLead(newLeadData, user?.name || 'Sales User');
+          if (!leadId) throw new Error('Lead creation returned no ID');
+          showToast('Lead Created Successfully');
+          await syncData();
+          router.push('/sales/leads');
+          return { id: leadId, leadId };
+        }
       } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'CRM Validation Error',
-          text: err.message || 'Failed to create lead',
-        });
+        if (useBackendWrite) {
+          handleBackendError(err, syncData);
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'CRM Validation Error',
+            text: err.message || 'Failed to create lead',
+          });
+        }
       }
     },
     [showToast, router, syncData, salesActions, user]
   );
 
-  /**
-   * Save lead first, then persist a Draft quotation on the backend,
-   * seed ERPStore, and navigate to /sales/create-quotation.
-   * Idempotent: clicking Generate Quotation again for the same lead
-   * reuses the existing Draft row.
-   */
   const generateQuotationFromLead = useCallback(
     async (leadData) => {
       try {
         showToast('Saving lead and creating quotation draft…');
-
-        // 1. If this is a NEW lead (no id yet), save it first
         let resolvedLeadId = leadData.id || leadData.leadId;
+        
         if (!resolvedLeadId) {
           try {
-            resolvedLeadId = salesActions?.createLead(leadData, user?.name || 'Sales User');
-            if (!resolvedLeadId) throw new Error('Lead creation returned no ID');
+            if (useBackendWrite) {
+              const idempotencyKey = generateIdempotencyKey();
+              const result = await leadsWriteRepository.create(leadData, { idempotencyKey });
+              useERPStore.getState().upsertServerLead(result);
+              resolvedLeadId = result.id;
+            } else {
+              resolvedLeadId = salesActions?.createLead(leadData, user?.name || 'Sales User');
+              if (!resolvedLeadId) throw new Error('Lead creation returned no ID');
+            }
           } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Lead Save Failed', text: err.message || 'Failed to create lead' });
+            if (useBackendWrite) {
+              handleBackendError(err, syncData);
+            } else {
+              Swal.fire({ icon: 'error', title: 'Lead Save Failed', text: err.message || 'Failed to create lead' });
+            }
             return;
           }
           showToast('Lead Created Successfully');
         }
 
-        // 2. Map lead detailedItems → quotation items format
         const detailedItems = (leadData.detailedItems || []).map(item => ({
           productName: item.productName || item.name || '',
           specification: item.specification || item.description || '',
@@ -90,8 +123,6 @@ export function useLeads(showToast) {
           return sum + sub - disc + gst + (it.additionalCharges || 0);
         }, 0);
 
-        // 3. Build an in-memory form draft. The quotation itself is written
-        // only when the canonical createQuotation action is submitted.
         const serverDraft = {
           leadId: resolvedLeadId,
           customerName: leadData.companyName || leadData.customerName || '',
@@ -108,7 +139,6 @@ export function useLeads(showToast) {
           detailedItems,
         };
 
-        // 4. Seed only the non-transactional quotation form draft.
         useERPStore.getState().setQuotationDraft({
           customer: serverDraft.customerName || serverDraft.companyName || leadData.companyName || leadData.customerName || '',
           company: serverDraft.companyName || leadData.companyName || '',
@@ -135,7 +165,6 @@ export function useLeads(showToast) {
           })),
         });
 
-        // 5. Sync leads to reflect new lead + 'Quotation Draft' status
         await syncData();
         router.push('/sales/create-quotation');
       } catch (err) {
@@ -147,41 +176,88 @@ export function useLeads(showToast) {
         });
       }
     },
-    [showToast, router, syncData]
+    [showToast, router, syncData, salesActions, user]
   );
 
-  /** Update a lead's status (e.g. "Active" → "Lost"). */
   const updateLeadStatus = useCallback(
     async (leadId, status, reason) => {
-      const res = await leadsService.updateStatus(leadId, status, reason);
-      if (res.success) {
-        showToast(`Lead status updated to ${status}`);
-        await syncData();
-      } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      try {
+        if (useBackendWrite) {
+          const idempotencyKey = generateIdempotencyKey();
+          const existingLead = leads.find(l => l.id === leadId);
+          const expectedVersion = existingLead ? existingLead.version || 1 : 1;
+          
+          let result;
+          if (status === 'QUALIFIED') {
+            result = await leadsWriteRepository.qualify(leadId, { expectedVersion, notes: reason }, { idempotencyKey });
+          } else if (status === 'LOST') {
+            result = await leadsWriteRepository.markLost(leadId, { expectedVersion, reason: reason || 'Marked Lost', notes: reason }, { idempotencyKey });
+          } else {
+            // Basic restore or other status
+            result = await leadsWriteRepository.restore(leadId, { expectedVersion, restoreToStatus: status }, { idempotencyKey });
+          }
+          useERPStore.getState().upsertServerLead(result);
+          showToast(`Lead status updated to ${status}`);
+          await syncData();
+        } else {
+          // Legacy
+          const res = await leadsService.updateStatus(leadId, status, reason);
+          if (res.success) {
+            showToast(`Lead status updated to ${status}`);
+            await syncData();
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+          }
+        }
+      } catch (err) {
+        if (useBackendWrite) {
+          handleBackendError(err, syncData);
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: err.message });
+        }
       }
     },
-    [showToast, syncData]
+    [showToast, syncData, leads]
   );
 
-  /** Append a follow-up note to the lead's timeline. */
   const addFollowup = useCallback(
     async (leadId, text) => {
-      const lead = leads.find((l) => l.id === leadId);
-      if (!lead) return;
-
-      const res = await leadsService.addFollowup(lead, text);
-      if (res.success) {
-        showToast('Followup recorded.');
-        await syncData();
-      } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      try {
+        if (useBackendWrite) {
+          const idempotencyKey = generateIdempotencyKey();
+          const existingLead = leads.find(l => l.id === leadId);
+          const expectedVersion = existingLead ? existingLead.version || 1 : 1;
+          // Set nextReminderAt to some future date or just add to timeline. 
+          // The backend leadsWriteRepository has setReminder, but maybe just generic update works too if timeline isn't directly exposed for writes.
+          // In the NestJS API, timeline entries are added via a specific endpoint, or update?
+          // For now, we will use update to patch notes/timeline or setReminder. Let's patch notes.
+          const payload = { notes: text };
+          const result = await leadsWriteRepository.update(leadId, payload, { idempotencyKey });
+          useERPStore.getState().upsertServerLead(result);
+          showToast('Followup recorded.');
+          await syncData();
+        } else {
+          const lead = leads.find((l) => l.id === leadId);
+          if (!lead) return;
+          const res = await leadsService.addFollowup(lead, text);
+          if (res.success) {
+            showToast('Followup recorded.');
+            await syncData();
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+          }
+        }
+      } catch (err) {
+        if (useBackendWrite) {
+          handleBackendError(err, syncData);
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: err.message });
+        }
       }
     },
     [leads, showToast, syncData]
   );
 
-  /** Convert a lead to a sample request, then navigate to samples view. */
   const convertToSample = useCallback(
     async (lead, customDetails) => {
       if (!customDetails) {
@@ -189,9 +265,17 @@ export function useLeads(showToast) {
         return { success: true };
       }
       showToast('Sales: Creating sample dispatch request…');
+      // convertToSample touches samplesRepository. For now, leave it using leadsService, 
+      // but if NEXT_PUBLIC_BACKEND_LEADS_WRITE is true, we should qualify the lead too.
       const res = await leadsService.convertToSample(lead, customDetails);
 
       if (res.success) {
+        if (useBackendWrite) {
+           const idempotencyKey = generateIdempotencyKey();
+           const expectedVersion = lead.version || 1;
+           const result = await leadsWriteRepository.qualify(lead.id, { expectedVersion, notes: 'Converted to Sample' }, { idempotencyKey });
+           useERPStore.getState().upsertServerLead(result);
+        }
         showToast('Sample dispatch request created for ' + lead.companyName + '!');
         await syncData();
         router.push('/dispatch/sample-dispatch');
@@ -207,35 +291,73 @@ export function useLeads(showToast) {
     [showToast, router, syncData]
   );
 
-  /** Update full lead details (edit form). */
   const updateLead = useCallback(
     async (leadId, updatedData) => {
-      const res = await leadsService.update(leadId, updatedData);
-      if (res.success) {
-        showToast('Lead details updated successfully.');
-        await syncData();
-        router.push('/sales/leads');
-      } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      try {
+        if (useBackendWrite) {
+          const idempotencyKey = generateIdempotencyKey();
+          const result = await leadsWriteRepository.update(leadId, updatedData, { idempotencyKey });
+          useERPStore.getState().upsertServerLead(result);
+          showToast('Lead details updated successfully.');
+          await syncData();
+          router.push('/sales/leads');
+        } else {
+          const res = await leadsService.update(leadId, updatedData);
+          if (res.success) {
+            showToast('Lead details updated successfully.');
+            await syncData();
+            router.push('/sales/leads');
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+          }
+        }
+      } catch (err) {
+        if (useBackendWrite) {
+          handleBackendError(err, syncData);
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: err.message });
+        }
       }
     },
     [showToast, router, syncData]
   );
 
-  /** Soft-delete a lead. */
   const deleteLead = useCallback(
     async (leadId, options = {}) => {
-      const res = await leadsService.remove(leadId, options.reason || 'Deleted from leads directory');
-      if (res.success) {
-        showToast('Lead deleted successfully.');
-        await syncData();
-        if (options.navigate !== false) router.push('/sales/leads');
-      } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      try {
+        if (useBackendWrite) {
+          const idempotencyKey = generateIdempotencyKey();
+          const existingLead = leads.find(l => l.id === leadId);
+          const expectedVersion = existingLead ? existingLead.version || 1 : 1;
+          const result = await leadsWriteRepository.delete(leadId, { expectedVersion }, { idempotencyKey });
+          useERPStore.getState().upsertServerLead(result); // Using upsert with DELETED status or we can just removeServerLead
+          useERPStore.getState().removeServerLead(leadId);
+          showToast('Lead deleted successfully.');
+          await syncData();
+          if (options.navigate !== false) router.push('/sales/leads');
+          return { success: true, data: result };
+        } else {
+          const res = await leadsService.remove(leadId, options.reason || 'Deleted from leads directory');
+          if (res.success) {
+            showToast('Lead deleted successfully.');
+            await syncData();
+            if (options.navigate !== false) router.push('/sales/leads');
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+          }
+          return res;
+        }
+      } catch (err) {
+        if (useBackendWrite) {
+          handleBackendError(err, syncData);
+          return { success: false, error: err };
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: err.message });
+          return { success: false, error: err };
+        }
       }
-      return res;
     },
-    [showToast, router, syncData]
+    [showToast, router, syncData, leads]
   );
 
   return {
@@ -249,3 +371,4 @@ export function useLeads(showToast) {
     deleteLead,
   };
 }
+
