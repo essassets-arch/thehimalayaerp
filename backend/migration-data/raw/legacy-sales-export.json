@@ -1,0 +1,23 @@
+{
+  "exportedAt": "2026-07-27T12:00:00Z",
+  "sourceVersion": "legacy-zustand-sales",
+  "orders": [
+    {
+      "id": "ORD-HARSH-001",
+      "orderNo": "ORD-HARSH-001",
+      "customerName": "ESS Infrastructure Pvt Ltd",
+      "date": "2023-10-15",
+      "totalValue": 250000,
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productName": "Ready Mix Concrete M30",
+          "quantity": 50,
+          "unitPrice": 5000
+        }
+      ]
+    }
+  ],
+  "customers": [],
+  "products": []
+}

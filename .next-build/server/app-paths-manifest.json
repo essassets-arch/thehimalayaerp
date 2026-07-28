@@ -1,5 +1,0 @@
-{
-  "/api/backend/auth/login/route": "app/api/backend/auth/login/route.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/login/page": "app/login/page.js"
-}

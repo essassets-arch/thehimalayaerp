@@ -1,0 +1,23 @@
+[
+  {
+    "reason": "Transaction Failed",
+    "errors": [
+      "\nInvalid `tx.salesOrder.create()` invocation in\nD:\\prototype-next-main\\backend\\scripts\\migrate-legacy-sales-orders.ts:197:52\n\n  194 if (isApply) {\n  195   try {\n  196     await prisma.$transaction(async (tx) => {\n→ 197       const createdOrder = await tx.salesOrder.create({\n              data: {\n                orderNumber: \"ORD-HARSH-001\",\n                customerId: \"01d9ae4f-f38f-48b8-9c77-c29f793d5f3c\",\n                orderDate: new Date(\"2023-10-15T00:00:00.000Z\"),\n                subtotal: 250000,\n                taxableAmount: 250000,\n                taxAmount: 0,\n                freightAmount: 0,\n                discountAmount: 0,\n                totalAmount: 250000,\n                orderStatus: \"DELIVERED\",\n                creditStatus: \"PASSED\",\n                allocationStatus: \"FULLY_ALLOCATED\",\n                productionStatus: \"COMPLETED\",\n                qcStatus: \"NOT_REQUIRED\",\n                dispatchStatus: \"DELIVERED\",\n                paymentStatus: \"DUE\",\n                closureStatus: \"OPEN\",\n                createdById: \"fe46f858-5175-49e6-ac59-0fb9dd39578f\",\n                items: {\n                  create: [\n                    {\n                      productId: \"42d4c8ff-734a-4749-8fec-76eae5becf50\",\n                      productNameSnapshot: \"Ready Mix Concrete M30\",\n                      productCodeSnapshot: null,\n                      orderedQuantity: 50,\n                      unit: \"PCS\",\n                      unitPrice: 5000,\n                      lineTotal: 250000,\n                      taxableAmount: 250000\n                    }\n                  ]\n                },\n            +   invoiceStatus: InvoiceStatus\n              }\n            })\n\nArgument `invoiceStatus` is missing."
+    ],
+    "raw": {
+      "id": "ORD-HARSH-001",
+      "orderNo": "ORD-HARSH-001",
+      "customerName": "ESS Infrastructure Pvt Ltd",
+      "date": "2023-10-15",
+      "totalValue": 250000,
+      "status": "DELIVERED",
+      "items": [
+        {
+          "productName": "Ready Mix Concrete M30",
+          "quantity": 50,
+          "unitPrice": 5000
+        }
+      ]
+    }
+  }
+]

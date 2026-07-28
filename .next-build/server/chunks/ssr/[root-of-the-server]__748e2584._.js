@@ -1,3 +1,0 @@
-module.exports=[888079,a=>{a.v({className:"poppins_9708046f-module__3oRcMa__className",variable:"poppins_9708046f-module__3oRcMa__variable"})},233290,a=>{"use strict";a.s(["default",()=>f,"metadata",()=>e],233290);var b=a.i(907997),c=a.i(888079);let d={className:c.default.className,style:{fontFamily:"'Poppins', 'Poppins Fallback'",fontStyle:"normal"}};null!=c.default.variable&&(d.variable=c.default.variable);let e={title:"Himalaya ERP V2",description:"Enterprise Resource Planning Platform"};function f({children:a}){return(0,b.jsx)("html",{lang:"en",children:(0,b.jsx)("body",{className:d.variable,children:a})})}}];
-
-//# sourceMappingURL=%5Broot-of-the-server%5D__748e2584._.js.map

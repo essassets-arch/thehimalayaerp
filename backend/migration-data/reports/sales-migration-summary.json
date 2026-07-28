@@ -1,0 +1,13 @@
+{
+  "sourceOrders": 1,
+  "validOrders": 1,
+  "createdOrders": 1,
+  "updatedOrders": 0,
+  "skippedExistingOrders": 0,
+  "rejectedOrders": 0,
+  "ambiguousCustomers": 0,
+  "unresolvedProducts": 0,
+  "financialMismatches": 0,
+  "statusWarnings": 0,
+  "timelineEventsCreated": 1
+}

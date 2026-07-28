@@ -1,3 +1,0 @@
-{
-  "/(dashboard)/finance-executive/[[...slug]]/page": "app/(dashboard)/finance-executive/[[...slug]]/page.js"
-}
