@@ -18,6 +18,31 @@ const STANDARD_SPECIFICATIONS = [
   'Medium Duty'
 ];
 
+const normalizeQuotationItemIds = (items = []) => {
+  const seenIds = new Set();
+
+  return items.map((item, index) => {
+    const originalId = item?.id;
+    let id = originalId;
+    let normalizedId = String(id ?? '').trim();
+
+    if (!normalizedId || seenIds.has(normalizedId)) {
+      const baseId = normalizedId
+        ? `${normalizedId}-row-${index + 1}`
+        : `quotation-row-${index + 1}`;
+      normalizedId = baseId;
+      let suffix = 2;
+      while (seenIds.has(normalizedId)) {
+        normalizedId = `${baseId}-${suffix++}`;
+      }
+      id = normalizedId;
+    }
+
+    seenIds.add(normalizedId);
+    return id === originalId ? item : { ...item, id };
+  });
+};
+
 export default function CreateQuotation({ 
   leads = [],
   customers = [],
@@ -48,6 +73,14 @@ export default function CreateQuotation({
 
   useEffect(() => {
     if (targetLeadId && !targetQuotationId) {
+      const draftLeadId = legacyQuotationDraft?.leadId || legacyQuotationDraft?.sourceId;
+      if (
+        legacyQuotationDraft?.source === 'LEAD' &&
+        String(draftLeadId) === String(targetLeadId)
+      ) {
+        return;
+      }
+
       const allQuotations = erpState?.sales?.quotations || [];
       const leadQuotations = allQuotations.filter(q => (q.leadId === targetLeadId || q.sourceId === targetLeadId) && q.status !== 'CANCELLED' && q.status !== 'DELETED');
       
@@ -77,7 +110,7 @@ export default function CreateQuotation({
         }
       }
     }
-  }, [targetLeadId, targetQuotationId, erpState, router, erpStore, onCancel]);
+  }, [targetLeadId, targetQuotationId, legacyQuotationDraft, erpState, router, erpStore, onCancel]);
   
   const quotationDraft = targetQuotationId
     ? erpState?.sales?.quotations?.find((q) => q.id === targetQuotationId || q.quotationId === targetQuotationId)
@@ -143,8 +176,13 @@ export default function CreateQuotation({
   });
 
   const {
-    customerName, groupName, gstNumber, gstName, validTill, paymentTerms, items, transportCharge, notes
+    customerName, groupName, gstNumber, gstName, validTill, paymentTerms,
+    items: storedItems, transportCharge, notes
   } = formData;
+  const items = useMemo(
+    () => normalizeQuotationItemIds(storedItems),
+    [storedItems]
+  );
 
   const updateField = (field, value) => {
     setFormData(prev => ({
@@ -159,7 +197,13 @@ export default function CreateQuotation({
   const setGstName = (val) => updateField('gstName', val);
   const setValidTill = (val) => updateField('validTill', val);
   const setPaymentTerms = (val) => updateField('paymentTerms', val);
-  const setItems = (val) => updateField('items', val);
+  const setItems = (val) => updateField('items', currentItems => {
+    const normalizedCurrentItems = normalizeQuotationItemIds(currentItems);
+    const nextItems = typeof val === 'function'
+      ? val(normalizedCurrentItems)
+      : val;
+    return normalizeQuotationItemIds(nextItems);
+  });
   const setTransportCharge = (val) => updateField('transportCharge', val);
   const setNotes = (val) => updateField('notes', val);
 
@@ -302,23 +346,20 @@ export default function CreateQuotation({
     return `₹${Math.round(value).toLocaleString('en-IN')}`;
   };
 
-  const initialItemsCount = (quotationDraft && Array.isArray(quotationDraft.items)) ? quotationDraft.items.length : 1;
-  const itemIdCounter = useRef(initialItemsCount + 1);
-
-
+  const itemIdCounter = useRef(0);
 
   const handleAddItem = () => {
-    setItems([
-      ...items,
+    setItems(currentItems => [
+      ...currentItems,
       {
-        id: itemIdCounter.current++,
+        id: `quotation-row-${Date.now()}-${itemIdCounter.current++}`,
         productName: '',
         productDetails: '',
         quantity: 1,
         unitPrice: 100,
         discount: 0,
         tax: 18
-      }
+      },
     ]);
   };
 
@@ -456,7 +497,8 @@ export default function CreateQuotation({
       notes: notes.trim(),
       source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : undefined),
       sourceId: isSampleSource ? sourceId : (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : undefined)),
-      leadId: isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : undefined)
+      leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : undefined)),
+      customerId: selectedCustomerRecord?.type === 'Customer' ? selectedCustomerRecord.id : undefined
     };
     const submitResult = async () => {
       let success = false;

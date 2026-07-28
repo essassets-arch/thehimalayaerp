@@ -10,6 +10,7 @@ import { deepEqual } from '../../lib/deepEqual';
 import { useNotifications } from './NotificationContext';
 import { customersReadRepository } from '../../services/customers/customersReadRepository';
 import { leadsReadRepository } from '../../services/leads/leadsReadRepository';
+import { useAuthStore } from '../../store/authStore';
 
 let syncInFlight = false;
 let lastSyncStartedAt = 0;
@@ -17,6 +18,7 @@ let lastSyncStartedAt = 0;
 export const useERP = () => {
   const store = useERPStore();
   const notificationStore = useNotifications();
+  const currentRole = useAuthStore(auth => auth.role || auth.user?.role);
 
   const notify = (title, message, role) => {
     if (notificationStore?.addNotification) {
@@ -30,7 +32,9 @@ export const useERP = () => {
     }
   };
 
-  const customersReadEnabled = process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_READ === 'true';
+  const customersReadEnabled =
+    process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_READ === 'true' &&
+    currentRole !== 'PLANT_HEAD';
   const leadsReadEnabled = false; // Phase 4 strictly disables backend leads
 
   const replaceCustomerCache = store.replaceCustomerCache;
@@ -47,11 +51,11 @@ export const useERP = () => {
       const promises = [];
       
       const pCustomers = customersReadEnabled
-        ? customersReadRepository.list({ page: 1, pageSize: 100 }).catch(err => { throw err; })
+        ? customersReadRepository.list({ page: 1, pageSize: 100 })
         : Promise.resolve({ skipped: true, type: 'customers' });
         
       const pLeads = leadsReadEnabled
-        ? leadsReadRepository.list({ page: 1, pageSize: 100 }).catch(err => { throw err; })
+        ? leadsReadRepository.list({ page: 1, pageSize: 100 })
         : Promise.resolve({ skipped: true, type: 'leads' });
 
       const [customersResult, leadsResult] = await Promise.allSettled([
@@ -65,7 +69,7 @@ export const useERP = () => {
           replaceCustomerCache(customersResult.value.data);
           store.setCustomersError?.(null);
         } else if (customersResult.status === 'rejected' && !cancelled) {
-          console.error('[ERPContext] Customers backend load failed:', customersResult.reason);
+          console.warn('[ERPContext] Customers backend load failed:', customersResult.reason);
           store.setCustomersError?.(customersResult.reason?.message || 'Failed to load customers');
         }
       }
@@ -76,7 +80,7 @@ export const useERP = () => {
           replaceLeadCache(leadsResult.value.data);
           store.setLeadsError?.(null);
         } else if (leadsResult.status === 'rejected' && !cancelled) {
-          console.error('[ERPContext] Leads backend load failed:', leadsResult.reason);
+          console.warn('[ERPContext] Leads backend load failed:', leadsResult.reason);
           store.setLeadsError?.(leadsResult.reason?.message || 'Failed to load leads');
         }
       }
@@ -434,6 +438,8 @@ export const useSalesBackend = () => {
 
 export const ERPProvider = ({ children }) => {
   const { syncData, state } = useERP();
+  const currentRole = useAuthStore(auth => auth.role || auth.user?.role);
+  const shouldLoadSalesDirectory = currentRole !== 'PLANT_HEAD';
 
   const [salesOrders, setSalesOrders] = React.useState([]);
   const [salesOrdersPagination, setSalesOrdersPagination] = React.useState({
@@ -700,10 +706,10 @@ export const ERPProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (salesOrders.length === 0) loadSalesOrders();
-    if (leads.length === 0) loadLeads();
-    if (customers.length === 0) loadCustomers();
-    if (samples.length === 0) loadSamples();
+    if (salesOrders.length === 0) loadSalesOrders().catch(e => console.warn('Skipping salesOrders:', e.message));
+    if (shouldLoadSalesDirectory && leads.length === 0) loadLeads().catch(e => console.warn('Skipping leads:', e.message));
+    if (shouldLoadSalesDirectory && customers.length === 0) loadCustomers().catch(e => console.warn('Skipping customers:', e.message));
+    if (samples.length === 0) loadSamples().catch(e => console.warn('Skipping samples:', e.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -713,4 +719,3 @@ export const ERPProvider = ({ children }) => {
     </SalesBackendContext.Provider>
   );
 };
-

@@ -1567,6 +1567,12 @@ export const useERPStore = create((set: any, get: any) => ({
       store.setState(newState);
       return id;
     },
+    updateLeadStatus: (leadId: string, status: any, actorName = 'Sales User') => {
+      const actor = { id: actorName, name: actorName, department: 'Sales' };
+      const store: any = (useERPStore as any).getState();
+      const newState = SalesActions.updateLeadStatus(store.state, leadId, status, actor);
+      store.setState(newState);
+    },
     createQuotation: (payload: any, actorName = 'Sales User') => {
       const actor = { id: actorName, name: actorName };
       const store: any = (useERPStore as any).getState();
@@ -1639,6 +1645,12 @@ export const useERPStore = create((set: any, get: any) => ({
       const newState = SalesActions.approveQC(store.state, workOrderId, payload, actor);
       store.setState(newState);
     },
+    rejectQC: (workOrderId: string, payload: any, actorName = 'QC') => {
+      const actor = { id: actorName, name: actorName, department: 'QC' };
+      const store: any = (useERPStore as any).getState();
+      const newState = SalesActions.rejectQC(store.state, workOrderId, payload, actor);
+      store.setState(newState);
+    },
     createDispatch: (orderId: string, data: any, actorName = 'Dispatch') => {
       const actor = { id: actorName, name: actorName };
       const store: any = (useERPStore as any).getState();
@@ -1665,13 +1677,13 @@ export const useERPStore = create((set: any, get: any) => ({
       return id;
     },
     verifyFinancePayment: (confirmationId: string, actorName = 'Finance') => {
-      const actor = { id: actorName, name: actorName };
+      const actor = { id: actorName, name: actorName, department: 'Finance' };
       const store: any = (useERPStore as any).getState();
       const newState = SalesActions.verifyFinancePayment(store.state, confirmationId, actor);
       store.setState(newState);
     },
     rejectFinancePayment: (confirmationId: string, remarks: string, actorName = 'Finance') => {
-      const actor = { id: actorName, name: actorName };
+      const actor = { id: actorName, name: actorName, department: 'Finance' };
       const store: any = (useERPStore as any).getState();
       const newState = SalesActions.rejectFinancePayment(store.state, confirmationId, remarks, actor);
       store.setState(newState);
@@ -2172,6 +2184,10 @@ export const useERPStore = create((set: any, get: any) => ({
     const store: any = (useERPStore as any).getState();
     return store.salesActions.createLead(payload);
   },
+  updateLeadStatus: (leadId: string, status: any, actorName = 'Sales User') => {
+    const store: any = (useERPStore as any).getState();
+    return store.salesActions.updateLeadStatus(leadId, status, actorName);
+  },
   createQuotation: (payload: any, actorName = 'Sales User') => {
     const store: any = (useERPStore as any).getState();
     return store.salesActions.createQuotation(payload, actorName);
@@ -2341,7 +2357,7 @@ export const useERPStore = create((set: any, get: any) => ({
   },
   acceptQuotation: (quotationId: string, actorName = 'Sales User') => {
     const store: any = (useERPStore as any).getState();
-    return store.salesActions.updateQuotationStatus(quotationId, 'CUSTOMER_ACCEPTED', actorName);
+    return store.salesActions.updateQuotationStatus(quotationId, 'QUOTATION_APPROVED', actorName);
   },
   convertQuotationToOrder: (quotationId: string, actorName = 'Sales User') => {
     const store: any = (useERPStore as any).getState();
@@ -2378,6 +2394,10 @@ export const useERPStore = create((set: any, get: any) => ({
   approveQC: (workOrderId: string, payload?: any, actorName = 'QC') => {
     const store: any = (useERPStore as any).getState();
     return store.salesActions.approveQC(workOrderId, payload, actorName);
+  },
+  rejectQC: (workOrderId: string, payload: any, actorName = 'QC') => {
+    const store: any = (useERPStore as any).getState();
+    return store.salesActions.rejectQC(workOrderId, payload, actorName);
   },
   sendFinishedGoodsToDispatch: (finishedGoodsId: string, selectedItems?: any[]) => {
     const store: any = (useERPStore as any).getState();
@@ -5723,4 +5743,3 @@ export const selectCustomerOutstandingSummary = (state: any) => {
   });
   return Array.from(customerMap.values());
 };
-

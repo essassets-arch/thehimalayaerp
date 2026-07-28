@@ -15,6 +15,11 @@ export interface SalesOrderItem {
 export interface SalesOrder {
   id: string;
   orderId: string;
+  orderNo?: string;
+  orderNumber?: string;
+  status?: string;
+  productionPlanId?: string | null;
+  productionAssignedToId?: string | null;
   customerId: string;
   customerName: string;
   customerCode: string | null;

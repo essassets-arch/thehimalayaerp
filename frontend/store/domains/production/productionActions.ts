@@ -3,6 +3,7 @@ import {
   startProduction,
   completeProduction,
   approveQC,
+  rejectQC,
 } from '../sales/salesActions';
 
 export {
@@ -10,4 +11,5 @@ export {
   startProduction,
   completeProduction,
   approveQC,
+  rejectQC,
 };

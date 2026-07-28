@@ -103,4 +103,12 @@ export class SalesController {
     dto.action = 'SEND_TO_PLANT';
     return this.salesService.processAction(id, dto, req.user?.sub);
   }
+
+  @Post(':id/send-to-plant-head')
+  @Permissions('sales.orders.update')
+  @UseInterceptors(IdempotencyInterceptor)
+  async sendToPlantHead(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+    dto.action = 'SEND_TO_PLANT';
+    return this.salesService.processAction(id, dto, req.user?.sub);
+  }
 }

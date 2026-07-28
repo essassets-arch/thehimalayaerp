@@ -121,26 +121,27 @@ model RolePermission {
 }
 
 model User {
-  id               String            @id @default(uuid())
-  publicId         String            @unique
-  email            String            @unique
-  password         String
-  name             String
-  roleId           String
-  companyId        String
-  isActive         Boolean           @default(true)
-  version          Int               @default(1)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  createdById      String?
-  updatedById      String?
-  deletedAt        DateTime?
-  employee         Employee?
-  materialRequests MaterialRequest[]
-  purchaseIndents  PurchaseIndent[]
-  refreshSessions  RefreshSession[]
-  company          Company           @relation(fields: [companyId], references: [id])
-  role             Role              @relation(fields: [roleId], references: [id])
+  id                      String            @id @default(uuid())
+  publicId                String            @unique
+  email                   String            @unique
+  password                String
+  name                    String
+  roleId                  String
+  companyId               String
+  isActive                Boolean           @default(true)
+  version                 Int               @default(1)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  createdById             String?
+  updatedById             String?
+  deletedAt               DateTime?
+  employee                Employee?
+  materialRequests        MaterialRequest[]
+  purchaseIndents         PurchaseIndent[]
+  assignedProductionPlans ProductionPlan[]  @relation("ProductionPlanAssignee")
+  refreshSessions         RefreshSession[]
+  company                 Company           @relation(fields: [companyId], references: [id])
+  role                    Role              @relation(fields: [roleId], references: [id])
 }
 
 model RefreshSession {
@@ -201,12 +202,18 @@ model Lead {
   leadNumber String @unique
 
   companyName   String
+  groupName     String?
+  projectName   String?
   contactPerson String
   email         String?
   phone         String?
+  gstName       String?
+  gstNumber     String?
+  address       Json?
 
   source            LeadSource?
   productInterest   String?
+  detailedItems     Json?
   estimatedQuantity Decimal?    @db.Decimal(18, 3)
   unit              String?
 
@@ -875,6 +882,7 @@ enum SalesOrderStatus {
   PENDING_APPROVAL
   CONFIRMED
   SENT_TO_PLANT
+  SENT_TO_PLANT_HEAD
   PLANT_APPROVED
   READY_FOR_PRODUCTION
   IN_PRODUCTION
@@ -1256,6 +1264,7 @@ model WorkflowHistoryLegacy {
 }
 
 enum ProductionPlanStatus {
+  PENDING_PLANNING
   DRAFT
   UNDER_REVIEW
   APPROVED
@@ -1304,6 +1313,7 @@ model ProductionPlan {
   id               String               @id @default(uuid())
   planNumber       String               @unique
   salesOrderId     String
+  assignedToId     String?
   status           ProductionPlanStatus @default(DRAFT)
   plannedStartDate DateTime?
   plannedEndDate   DateTime?
@@ -1313,9 +1323,12 @@ model ProductionPlan {
   updatedAt        DateTime             @updatedAt
 
   salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  assignedTo    User?          @relation("ProductionPlanAssignee", fields: [assignedToId], references: [id])
   workOrders    WorkOrder[]
   workflowState WorkflowState? @relation("ProductionPlanWorkflow", fields: [workflowStateId], references: [id])
 
+  @@index([salesOrderId])
+  @@index([assignedToId])
   @@index([workflowStateId])
 }
 

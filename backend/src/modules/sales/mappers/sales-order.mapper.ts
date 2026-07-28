@@ -6,12 +6,19 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
     items: true;
     customer: true;
     workflowState: true;
+    productionPlans: true;
   };
 }>;
 
 export function mapSalesOrder(
   order: SalesOrderWithRelations,
 ): SalesOrderResponseDto {
+  const productionPlan = order.productionPlans[0];
+  const workflowStatus = order.workflowState?.code as typeof order.status | undefined;
+  const effectiveStatus =
+    order.status === 'SENT_TO_PLANT_HEAD'
+      ? order.status
+      : workflowStatus ?? order.status;
   return {
     id: order.id,
     orderId: order.orderNumber,
@@ -38,9 +45,13 @@ export function mapSalesOrder(
     totalAmount: Number(order.totalAmount),
 
     // Unified lifecycle status
-    status: order.status,
+    status: effectiveStatus,
+    productionPlanId: productionPlan?.id ?? null,
+    productionStatus: productionPlan?.status ?? null,
+    productionAssignedToId: productionPlan?.assignedToId ?? null,
 
     workflowStateId: order.workflowStateId,
+    workflowStateCode: order.workflowState?.code,
     workflowStateName: order.workflowState?.name,
 
     createdAt: order.createdAt.toISOString(),

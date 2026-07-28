@@ -166,6 +166,7 @@ const _selectPlantHeadIncomingOrders = (store: ERPStoreState) => {
       normalizeStatus(o.workflowStatus) === 'SENT_TO_PLANT_HEAD' ||
       normalizeStatus(o.plantHeadStatus) === 'PENDING' ||
       normalizeStatus(o.status) === 'SENT_TO_PLANT_HEAD' ||
+      normalizeStatus(o.productionStatus) === 'PENDING_PLANNING' ||
       normalizeStatus(o.planningStatus) === 'PENDING_ACCEPTANCE'
     )
     .filter((o: any) => !['ACCEPTED', 'REJECTED'].includes(normalizeStatus(o.plantHeadStatus)))
@@ -389,7 +390,7 @@ export const canRequestSample = (status: SalesLead['status']): boolean =>
   status === 'LEAD_CREATED' || status === 'SAMPLE_REQUESTED';
 
 export const canConvertQuotation = (status: SalesQuotation['status']): boolean =>
-  status === 'CUSTOMER_ACCEPTED';
+  status === 'QUOTATION_APPROVED' || status === 'CUSTOMER_ACCEPTED';
 
 export const canSendOrderToPlantHead = (order: SalesOrder): boolean =>
   order.commercialStatus === 'ORDER_CONFIRMED' && order.planningStatus === 'NOT_SENT';

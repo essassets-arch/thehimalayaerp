@@ -182,7 +182,36 @@ export default function OrdersView({
   const getOrderActionState = (order) => {
     if (!order) return { action: null, label: 'No Action' };
 
-    // Support both Legacy Zustand and Backend Enums
+    // The workflow state is authoritative for backend orders. Falling back to the
+    // legacy status fields keeps local/Zustand orders working without showing a
+    // stale submit action after the workflow has already moved on.
+    const backendStatus = String(
+      order.workflowStateCode ||
+      order.status ||
+      order.orderStatus ||
+      ''
+    ).trim().toUpperCase();
+
+    const nonSubmittableWorkflowLabels = {
+      SENT_TO_PLANT: 'Sent to Plant Head',
+      SENT_TO_PLANT_HEAD: 'Sent to Plant Head',
+      PLANT_APPROVED: 'Accepted by Plant Head',
+      READY_FOR_PRODUCTION: 'Ready for Production',
+      IN_PRODUCTION: 'In Production',
+      READY_FOR_DISPATCH: 'Ready for Dispatch',
+      COMPLETED: 'Completed',
+      CANCELLED: 'Cancelled',
+    };
+    if (nonSubmittableWorkflowLabels[backendStatus]) {
+      return { action: null, label: nonSubmittableWorkflowLabels[backendStatus] };
+    }
+
+    if (backendStatus === 'DRAFT') {
+      return { action: 'SEND_TO_PLANT_HEAD_DIRECT', label: 'Send to Plant Head' };
+    }
+    if (backendStatus === 'PENDING_APPROVAL') {
+      return { action: 'SEND_TO_PLANT_HEAD_DIRECT', label: 'Send to Plant Head' };
+    }
     const isConfirmed = order.commercialStatus === 'ORDER_CONFIRMED' || order.orderStatus === 'CONFIRMED';
     const isNotSent = order.planningStatus === 'NOT_SENT' || !order.planningStatus;
     const isFullyReserved = order.allocationStatus === 'FINISHED_GOODS_RESERVED';
@@ -239,10 +268,11 @@ export default function OrdersView({
 
   const validOrders = orders.filter(o => {
     if (!o) return false;
-    const isOrdId = typeof o.id === 'string' && o.id.startsWith('ORD-');
+    const orderReference = o.orderNo || o.orderNumber || o.orderId || o.id;
+    const hasOrderReference = typeof orderReference === 'string' && orderReference.length > 0;
     const hasCustomer = Boolean(o.customerName || o.customer?.name);
     const hasItems = (Array.isArray(o.items) && o.items.length > 0) || Boolean(o.products);
-    return isOrdId && hasCustomer && hasItems;
+    return hasOrderReference && hasCustomer && hasItems;
   });
 
   const filteredOrders = validOrders.filter(o => {
@@ -314,20 +344,36 @@ export default function OrdersView({
     return `₹${Math.round(num).toLocaleString('en-IN')}`;
   };
 
-  const orderGrandTotal = currentDetailsOrder ? (currentDetailsOrder.payment?.totalAmount || currentDetailsOrder.totalValue || 0) : 0;
+  const orderGrandTotal = currentDetailsOrder
+    ? (currentDetailsOrder.payment?.totalAmount || currentDetailsOrder.totalAmount || currentDetailsOrder.totalValue || 0)
+    : 0;
   const transportVal = currentDetailsOrder ? (currentDetailsOrder.transportCharge !== undefined ? currentDetailsOrder.transportCharge : 0) : 0;
 
   // Resolve detailed item rows
-  const itemsList = currentDetailsOrder ? (currentDetailsOrder.detailedItems || [
+  const sourceItems = currentDetailsOrder?.detailedItems?.length
+    ? currentDetailsOrder.detailedItems
+    : currentDetailsOrder?.items?.length
+      ? currentDetailsOrder.items
+      : null;
+  const fallbackProductName = currentDetailsOrder?.products || 'Product';
+  const itemsList = currentDetailsOrder ? (sourceItems || [
     {
-      productName: currentDetailsOrder.products,
-      code: `P-${(currentDetailsOrder.products.replace(/[^A-Za-z]/g, '').substring(0, 3) || 'PRD').toUpperCase()}-02`,
-      quantity: currentDetailsOrder.quantity || 1, // Fallback quantity
-      unitPrice: (orderGrandTotal - transportVal) / (currentDetailsOrder.quantity || 1), // Fallback price minus transport
+      productName: fallbackProductName,
+      code: `P-${(String(fallbackProductName).replace(/[^A-Za-z]/g, '').substring(0, 3) || 'PRD').toUpperCase()}-02`,
+      quantity: currentDetailsOrder.quantity || 1,
+      unitPrice: (orderGrandTotal - transportVal) / (currentDetailsOrder.quantity || 1),
       discount: 0,
       tax: currentDetailsOrder.tax !== undefined ? currentDetailsOrder.tax : (currentDetailsOrder.gst !== undefined ? currentDetailsOrder.gst : 18)
     }
-  ]) : [];
+  ]).map(item => ({
+    ...item,
+    productName: item.productName || item.name || 'Product',
+    code: item.code || item.productCode || '',
+    quantity: Number(item.quantity ?? item.orderedQuantity ?? 0),
+    unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+    discount: Number(item.discount ?? 0),
+    tax: Number(item.tax ?? item.taxRate ?? 0),
+  })) : [];
 
   const calculatedSubtotal = itemsList.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
   const discountAmt = itemsList.reduce((sum, item) => sum + ((item.quantity * item.unitPrice) * (item.discount || 0) / 100), 0);
@@ -578,6 +624,50 @@ export default function OrdersView({
                               <Eye size={13} />
                             </button>
 
+                            {actionState.action === 'SEND_TO_PLANT_HEAD_DIRECT' && (
+                              <button
+                                type="button"
+                                disabled={sendingOrderId === (o.id || o.orderNo)}
+                                onClick={async () => {
+                                  const orderId = o.id || o.orderNo;
+                                  if (sendingOrderId === orderId) return;
+                                  const confirmation = await Swal.fire({
+                                    title: 'Send Order to Plant Head?',
+                                    text: 'This order will be sent to the Plant Head incoming-orders queue.',
+                                    icon: 'question',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Yes, Send',
+                                    cancelButtonText: 'No',
+                                  });
+                                  if (!confirmation.isConfirmed) return;
+                                  setSendingOrderId(orderId);
+                                  try {
+                                    const sent = await onUpdateOrderStatus?.(orderId, 'SEND_TO_PLANT_HEAD_DIRECT');
+                                    if (sent !== false) {
+                                      await Swal.fire({
+                                        title: 'Order Sent',
+                                        text: 'The order is now available in Plant Head incoming orders.',
+                                        icon: 'success',
+                                      });
+                                    }
+                                  } finally {
+                                    setSendingOrderId(null);
+                                  }
+                                }}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center',
+                                  padding: '4px 12px', height: '30px',
+                                  background: '#2F4375', color: '#fff',
+                                  border: '1px solid #2F4375',
+                                  borderRadius: '8px', cursor: 'pointer',
+                                  fontSize: '12px', fontWeight: '700',
+                                  whiteSpace: 'nowrap', flexShrink: 0
+                                }}
+                              >
+                                {actionState.label}
+                              </button>
+                            )}
+
                             {actionState.action === 'SEND_TO_PLANT_HEAD' && (
                               <button
                                 type="button"
@@ -596,12 +686,14 @@ export default function OrdersView({
                                   if (!confirmation.isConfirmed) return;
                                   setSendingOrderId(orderId);
                                   try {
-                                    useERPStore.getState().sendOrderToPlantHead(orderId);
-                                    await Swal.fire({
-                                      title: 'Order Sent Successfully',
-                                      text: 'The order is now available in Plant Head Incoming Orders.',
-                                      icon: 'success',
-                                    });
+                                    const sent = await onUpdateOrderStatus?.(orderId, 'SEND_TO_PLANT');
+                                    if (sent !== false) {
+                                      await Swal.fire({
+                                        title: 'Order Sent Successfully',
+                                        text: 'The order is now available in Plant Head Incoming Orders.',
+                                        icon: 'success',
+                                      });
+                                    }
                                   } catch (err) {
                                     await Swal.fire({ icon: 'error', title: 'Unable to Send Order', text: err?.message || 'Unable to send order' });
                                   } finally {

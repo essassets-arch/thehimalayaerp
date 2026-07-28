@@ -5,7 +5,7 @@ import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
 import Swal from 'sweetalert2';
-import { useERP } from '../../../shared/context/ERPContext';
+import { useERP, useSalesBackend } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
 import { selectPlantHeadIncomingOrders, selectPlantHeadPlanningOrders } from '@/store/domains/sales/salesSelectors';
 import { STATUS } from '../../../shared/constants';
@@ -13,6 +13,7 @@ import { useAuth } from '../../../shared/context/AuthContext';
 import { productionService } from '../../../services/production.service';
 import { productService } from '../../../services/product.service';
 import { apiClient } from '../../../lib/apiClient';
+import { backendFetch } from '../../../lib/backendFetch';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import { ChevronLeft, ChevronRight, Search, Download, Edit3, Trash2, Box, Package, Plus, ShieldAlert, ArrowRight, X, User, BarChart2, Activity, Settings, Truck, ClipboardList, CheckCircle2, Clock, Upload, ArrowLeft, ClipboardCheck, AlertTriangle, Pencil, Layers, BarChart3, TrendingUp, Percent, AlertCircle, AlertOctagon, Loader2, FileText, DollarSign, RefreshCw, ShieldCheck } from 'lucide-react';
@@ -53,7 +54,7 @@ const normalizeIncomingOrder = (order, sourceQuotation) => {
     ...item,
     productName: item.productName || item.product_name || item.name || 'Item',
     productDetails: item.productDetails || item.product_details || item.description || '',
-    quantity: Number(item.quantity ?? item.qty ?? 0),
+    quantity: Number(item.quantity ?? item.orderedQuantity ?? item.qty ?? 0),
     unitPrice: Number(item.unitPrice ?? item.price ?? item.rate ?? 0),
     discount: Number(item.discount ?? item.discount_percent ?? 0),
     tax: Number(item.tax ?? item.gst_rate ?? 0)
@@ -64,19 +65,33 @@ const normalizeIncomingOrder = (order, sourceQuotation) => {
     return sum + discounted + (discounted * item.tax / 100);
   }, 0);
   const productNames = detailedItems.map((item) => item.productName).filter(Boolean).join(', ');
+  const workflowStatus = String(
+    order.workflowStateCode || order.status || order.workflowStatus || order.workflow_status || ''
+  ).toUpperCase();
+  const planningStatusByWorkflow = {
+    SENT_TO_PLANT: 'PENDING_ACCEPTANCE',
+    SENT_TO_PLANT_HEAD: 'PENDING_ACCEPTANCE',
+    PLANT_APPROVED: 'PLANT_HEAD_ACCEPTED',
+    READY_FOR_PRODUCTION: 'PRODUCTION_PLANNED',
+    IN_PRODUCTION: 'PRODUCTION_PLANNED',
+  };
 
   return {
     ...order,
-    orderNo: order.orderNo || order.order_no || order.public_id || order.id,
+    orderNo: order.orderNo || order.orderId || order.orderNumber || order.order_no || order.public_id || order.id,
     customerName: order.customerName || order.customer_name || order.customer?.name || sourceQuotation?.customerName || sourceQuotation?.customer_name || '',
     detailedItems,
     products: order.products || order.productItem || order.product_name || productNames,
+    quantity: Number(order.quantity ?? detailedItems.reduce((sum, item) => sum + item.quantity, 0)),
     grandTotal: Number(order.grandTotal ?? order.grand_total ?? order.totalAmount ?? order.total_amount ?? order.totalValue ?? sourceQuotation?.grandTotal ?? sourceQuotation?.totalAmount ?? calculatedTotal),
     totalAmount: Number(order.totalAmount ?? order.total_amount ?? order.grandTotal ?? order.grand_total ?? order.totalValue ?? sourceQuotation?.totalAmount ?? sourceQuotation?.grandTotal ?? calculatedTotal),
     deliveryAddress: order.deliveryAddress || order.delivery_address || order.shippingAddress || order.shipping_address || sourceQuotation?.deliveryAddress || sourceQuotation?.delivery_address || '',
     deliveryDate: order.deliveryDate || order.delivery_date || order.expectedDeliveryDate || order.expected_delivery_date || order.validTill || sourceQuotation?.deliveryDate || sourceQuotation?.validTill || '',
-    workflowStatus: order.workflowStatus || order.workflow_status || order.status,
-    status: order.status || order.workflowStatus || order.workflow_status
+    workflowStatus,
+    status: workflowStatus,
+    planningStatus: order.planningStatus || planningStatusByWorkflow[workflowStatus],
+    productionPlanId: order.productionPlanId || order.production_plan_id || null,
+    productionStatus: order.productionStatus || order.production_status || null
   };
 };
 
@@ -96,6 +111,7 @@ export default function PlantHeadPortal() {
   const orderNoParam = searchParams.get('orderNo');
 
   const { state, dispatch, syncData } = useERP();
+  const { salesOrders: backendSalesOrders, loadSalesOrders } = useSalesBackend();
   const { user } = useAuth();
   const showToast = useNotificationStore(s => s.showToast);
   const globalSearch = useSearchStore(s => s.globalSearch);
@@ -191,13 +207,32 @@ export default function PlantHeadPortal() {
   const storePlanningOrders = useERPStore(selectPlantHeadPlanningOrders) || [];
   const salesOrdersStore = useERPStore(s => s.state?.sales?.orders) || [];
   const canonicalWorkOrders = useERPStore(s => s.state?.production?.workOrders) || [];
-  const orders = useMemo(() => salesOrdersStore.map((order) => {
+  const [directBackendOrders, setDirectBackendOrders] = useState([]);
+  useEffect(() => {
+    if (currentView === 'incoming-orders' || currentView === 'planning') {
+      void loadSalesOrders();
+      void backendFetch('/api/backend/sales/orders?page=1&pageSize=100')
+        .then((result) => {
+          setDirectBackendOrders(Array.isArray(result) ? result : result?.data || []);
+        })
+        .catch((error) => {
+          console.error('[Plant Head] Unable to load incoming database orders', error);
+          setDirectBackendOrders([]);
+        });
+    }
+  }, [currentView, loadSalesOrders]);
+
+  const orders = useMemo(() => [...directBackendOrders, ...(backendSalesOrders || []), ...salesOrdersStore]
+    .filter((order, index, all) =>
+      index === all.findIndex(candidate => String(candidate.id || candidate.orderNo) === String(order.id || order.orderNo))
+    )
+    .map((order) => {
     const quotationRef = order.quotationId || order.quotation_id || order.source_quotation_ref || order.quotationRef;
     const sourceQuotation = (state.sales?.quotations || []).find((quotation) =>
       String(quotation.id) === String(quotationRef) || String(quotation.quotationNo) === String(quotationRef)
     );
     return normalizeIncomingOrder(order, sourceQuotation);
-  }), [salesOrdersStore, state.sales?.quotations]);
+  }), [directBackendOrders, backendSalesOrders, salesOrdersStore, state.sales?.quotations]);
   const mRequests = state.materialRequests || [];
 
   const [showPlanningModal, setShowPlanningModal] = useState(false);
@@ -215,10 +250,11 @@ export default function PlantHeadPortal() {
   const fetchPlanningOrders = async () => {
     setPlanningLoading(true);
     try {
-      const res = await apiClient.get('/plant-head/planning-orders');
-      if (res.success) setPlanningOrders(res.data || []);
+      const result = await backendFetch('/api/backend/production/plans');
+      setPlanningOrders(Array.isArray(result) ? result : result?.data || []);
     } catch (err) {
       console.error('Failed to fetch planning orders', err);
+      setPlanningOrders([]);
     } finally {
       setPlanningLoading(false);
     }
@@ -508,11 +544,11 @@ export default function PlantHeadPortal() {
     }
 
     Swal.fire({
-      title: 'Confirm Target Date?',
-      text: `Are you sure you want to set the Target Date for Order #${selectedOrderForPlanning.orderNo} to ${targetDate} with priority "${priority}"?`,
+      title: 'Send Order to Production?',
+      text: `Set ${targetDate} as the target date for Order #${selectedOrderForPlanning.orderNo} and release its work order to Production?`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Confirm Target Date',
+      confirmButtonText: 'Yes, Send to Production',
       cancelButtonText: 'Cancel',
       customClass: {
         popup: 'swal-premium-popup',
@@ -525,23 +561,93 @@ export default function PlantHeadPortal() {
       if (result.isConfirmed) {
         showToast("Plant Head: Logging planning metrics and scheduling order...");
           try {
-            if (selectedOrderForPlanning.planningStatus === 'PENDING_ACCEPTANCE' || selectedOrderForPlanning.commercialStatus === 'SENT_TO_PLANT_HEAD') {
-              try {
-                useERPStore.getState().acceptOrderByPlantHead(selectedOrderForPlanning.id, { remarks: 'Auto-accepted during production planning' }, user?.name || 'Plant Head');
-              } catch (e) {
-                console.log("Already accepted:", e);
+            const isBackendOrder = Boolean(
+              selectedOrderForPlanning.workflowStateCode ||
+              directBackendOrders.some(order => order.id === selectedOrderForPlanning.id)
+            );
+
+            if (isBackendOrder) {
+              let orderStatus = String(
+                selectedOrderForPlanning.workflowStateCode ||
+                selectedOrderForPlanning.status ||
+                ''
+              ).toUpperCase();
+
+              if (['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(orderStatus)) {
+                await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
+                  method: 'POST',
+                  body: { action: 'PLANT_APPROVE', remarks: 'Accepted during production planning' },
+                });
+                orderStatus = 'PLANT_APPROVED';
               }
+
+              let productionPlan = planningOrders.find(plan =>
+                plan.id === selectedOrderForPlanning.productionPlanId ||
+                plan.salesOrderId === selectedOrderForPlanning.id
+              );
+              if (!productionPlan) {
+                productionPlan = await backendFetch('/api/backend/production/plans', {
+                  method: 'POST',
+                  body: {
+                    salesOrderId: selectedOrderForPlanning.id,
+                    plannedEndDate: targetDate,
+                  },
+                });
+              }
+
+              await backendFetch(`/api/backend/production/plans/${productionPlan.id}`, {
+                method: 'PATCH',
+                body: {
+                  plannedStartDate: new Date().toISOString().split('T')[0],
+                  plannedEndDate: targetDate,
+                },
+              });
+
+              if (orderStatus === 'PLANT_APPROVED') {
+                await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
+                  method: 'POST',
+                  body: { action: 'PLAN_PRODUCTION', remarks: `Target date: ${targetDate}; priority: ${priority}` },
+                });
+              }
+
+              const planState = String(
+                productionPlan.workflowState?.code || productionPlan.status || 'DRAFT'
+              ).toUpperCase();
+              if (['DRAFT', 'PENDING_PLANNING'].includes(planState)) {
+                await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
+                  method: 'POST',
+                  body: { action: 'SUBMIT', remarks: `Target date: ${targetDate}` },
+                });
+              }
+              if (['DRAFT', 'PENDING_PLANNING', 'UNDER_REVIEW'].includes(planState)) {
+                await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
+                  method: 'POST',
+                  body: { action: 'APPROVE', remarks: 'Approved by Plant Head' },
+                });
+              }
+              if (['DRAFT', 'PENDING_PLANNING', 'UNDER_REVIEW', 'APPROVED'].includes(planState)) {
+                await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
+                  method: 'POST',
+                  body: { action: 'RELEASE', remarks: 'Released to Production' },
+                });
+              }
+            } else {
+              if (selectedOrderForPlanning.planningStatus === 'PENDING_ACCEPTANCE' || selectedOrderForPlanning.commercialStatus === 'SENT_TO_PLANT_HEAD') {
+                useERPStore.getState().acceptOrderByPlantHead(selectedOrderForPlanning.id, { remarks: 'Auto-accepted during production planning' }, user?.name || 'Plant Head');
+              }
+              useERPStore.getState().planOrder(selectedOrderForPlanning.id, { targetProductionDate: targetDate, priority }, user?.name || 'Plant Head');
+              useERPStore.getState().activateWorkOrder(selectedOrderForPlanning.id, user?.name || 'Plant Head');
             }
-            useERPStore.getState().planOrder(selectedOrderForPlanning.id, { targetProductionDate: targetDate, priority }, user?.name || 'Plant Head');
             
             await syncData();
-            if (currentView === 'planning') fetchPlanningOrders();
-            showToast(`Order ${selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber} planned successfully.`);
+            await fetchPlanningOrders();
+            await loadSalesOrders();
+            showToast(`Order ${selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber} sent to Production.`);
             setShowPlanningModal(false);
             setSelectedOrderForPlanning(null);
             setTargetDate('');
             if (orderNoParam) {
-              navigate.push('/plant-head/incoming-orders');
+              navigate.push('/plant-head/planning');
             }
           } catch (err) {
             Swal.fire({ icon: 'error', title: 'Planning Failed', text: err.message });
@@ -2391,12 +2497,25 @@ export default function PlantHeadPortal() {
 
   // 3. Order Planning tab
   const renderOrderPlanning = () => {
-    const createdOrders = orders.filter(o => ['PLANT_PENDING', 'Awaiting Plant Head', 'Plant Pending'].includes(o.status));
+    const sentToPlantStatuses = [
+      'SENT_TO_PLANT',
+      'PLANT_PENDING',
+      'Awaiting Plant Head',
+      'Plant Pending',
+      'PLANT_APPROVED',
+      'READY_FOR_PRODUCTION',
+      'IN_PRODUCTION',
+      'READY_FOR_DISPATCH',
+      'COMPLETED',
+    ];
+    const createdOrders = orders.filter(o => sentToPlantStatuses.includes(o.status));
+    const isAwaitingPlantHead = (order) =>
+      ['SENT_TO_PLANT', 'PLANT_PENDING', 'Awaiting Plant Head', 'Plant Pending'].includes(order.status);
 
     return (
       <div className="app-card">
         <div className="card-top-bar">
-          <h2 className="card-heading">Incoming Confirmed Orders</h2>
+          <h2 className="card-heading">Orders Sent to Plant Head</h2>
         </div>
         <DataTable
           columns={[
@@ -2409,7 +2528,7 @@ export default function PlantHeadPortal() {
           data={createdOrders}
           searchQuery={globalSearch}
           searchField="customer.name"
-          actions={(row) => (
+          actions={(row) => isAwaitingPlantHead(row) ? (
             <button
               className="action-btn"
               style={{ background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -2417,8 +2536,12 @@ export default function PlantHeadPortal() {
             >
               <Clock size={14} /> Plan Order
             </button>
+          ) : (
+            <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-secondary)' }}>
+              Already Processed
+            </span>
           )}
-          emptyMessage="No pending incoming orders to plan."
+          emptyMessage="No orders have been sent to Plant Head."
         />
       </div>
     );
@@ -2455,7 +2578,12 @@ export default function PlantHeadPortal() {
   };
 
   const renderIncomingOrders = () => {
-    const allIncomingOrders = incomingOrders;
+    const allIncomingOrders = orders.filter(order => {
+      const status = String(order.workflowStateCode || order.status || '').toUpperCase();
+      return ['SENT_TO_PLANT_HEAD', 'SENT_TO_PLANT'].includes(status) ||
+        (!order.workflowStateCode && order.productionStatus === 'PENDING_PLANNING' &&
+          order.planningStatus !== 'PLANT_HEAD_ACCEPTED');
+    });
     const filteredIncoming = allIncomingOrders.filter(o => {
       const q = incomingSearch.toLowerCase();
       return !q ||
@@ -2478,8 +2606,19 @@ export default function PlantHeadPortal() {
       if (remarks === undefined) return; // cancelled
       showToast('Accepting order…');
       try {
-        useERPStore.getState().acceptOrderByPlantHead(order.id, { remarks }, user?.name || 'Plant Head');
+        if (order.workflowStateCode || directBackendOrders.some(candidate => candidate.id === order.id)) {
+          await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
+            method: 'POST',
+            body: { action: 'PLANT_APPROVE', remarks },
+          });
+          await loadSalesOrders();
+          const refreshed = await backendFetch('/api/backend/sales/orders?page=1&pageSize=100');
+          setDirectBackendOrders(Array.isArray(refreshed) ? refreshed : refreshed?.data || []);
+        } else {
+          useERPStore.getState().acceptOrderByPlantHead(order.id, { remarks }, user?.name || 'Plant Head');
+        }
         showToast(`✅ Order ${order.orderNo || order.id} accepted! Moved to Planning.`);
+        navigate.push(`/plant-head/planning?orderNo=${encodeURIComponent(order.orderNo || order.id)}`);
       } catch (err) {
         Swal.fire({ icon: 'error', title: 'Accept Failed', text: err.message });
       }
@@ -2583,11 +2722,16 @@ export default function PlantHeadPortal() {
         const workOrder = canonicalWorkOrders.find(wo =>
           String(wo.orderId || wo.orderNo) === String(order.id || order.orderNo)
         );
+        const backendPlan = planningOrders.find(plan =>
+          plan.id === order.productionPlanId || plan.salesOrderId === order.id
+        );
         const items = Array.isArray(order.items) ? order.items : [];
         const product = items[0] || {};
         return {
           ...order,
           workOrder,
+          productionPlan: backendPlan,
+          targetDate: order.targetDate || order.productionTargetDate || backendPlan?.plannedEndDate,
           workOrderNo: workOrder?.workOrderNo || workOrder?.id || '—',
           products: order.products || order.productItem || product.productName || product.name || '—',
           orderedQuantity: items.reduce((sum, item) => sum + Number(item.quantity ?? item.qty ?? 0), 0),
@@ -2688,23 +2832,23 @@ export default function PlantHeadPortal() {
           data={filtered}
           searchQuery={''}
           searchField="customerName"
-          actions={(row) => (
+          actions={(row) => planningViewTab === 'pending' ? (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button
                 className="action-btn"
                 style={{ background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
                 onClick={() => {
-                  setSelectedOrderForPlanning({ id: row.id, orderNo: row.orderNo, customerName: row.customerName || row.customer, products: row.products || row.productItem });
+                  setSelectedOrderForPlanning(row);
                   const d = new Date(); d.setDate(d.getDate() + 7);
                   setTargetDate(d.toISOString().split('T')[0]);
                   setPriority(row.priority || 'Medium');
                   setShowPlanningModal(true);
                 }}
               >
-                <Plus size={13} /> Create Production Plan
+                <Plus size={13} /> Set Date &amp; Send to Production
               </button>
             </div>
-          )}
+          ) : null}
           emptyMessage="No orders in Plant Head planning board."
         />
       </div>
@@ -4047,7 +4191,7 @@ export default function PlantHeadPortal() {
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                 <button type="submit" className="form-submit-btn" style={{ margin: 0, padding: '12px 24px', flex: 1, background: 'var(--color-primary, #2F4375)', color: '#ffffff', border: 'none', fontWeight: '700', borderRadius: '10px', cursor: 'pointer' }}>
-                  Confirm Date
+                  Set Target Date &amp; Send to Production
                 </button>
                 <button 
                   type="button" 

@@ -56,15 +56,21 @@ export class LeadsService {
       data: {
         leadNumber,
         companyName: dto.companyName,
+        groupName: dto.groupName,
+        projectName: dto.projectName,
         contactPerson: dto.contactPerson,
         email: dto.email,
         phone: dto.phone,
+        gstName: dto.gstName || dto.companyName,
+        gstNumber: dto.gstNumber,
+        address: dto.address,
         source: dto.source || 'OTHER',
-        productInterest: dto.productInterest,
+        productInterest: dto.productInterest || dto.productInterested,
+        detailedItems: Array.isArray(dto.detailedItems) ? dto.detailedItems : undefined,
         estimatedQuantity: dto.estimatedQuantity,
         unit: dto.unit,
         assignedToId: dto.assignedToId,
-        remarks: dto.remarks,
+        remarks: dto.remarks || dto.notes,
         companyId: resolvedCompanyId,
         workflowStateId: initialState.id,
         createdById: userId
@@ -76,8 +82,9 @@ export class LeadsService {
   async updateLead(id: string, dto: any, userId: string, companyId?: string) {
     await this.getLead(id, companyId);
     const allowed = [
-      'companyName', 'contactPerson', 'email', 'phone', 'source',
-      'productInterest', 'estimatedQuantity', 'unit', 'assignedToId',
+      'companyName', 'groupName', 'projectName', 'contactPerson', 'email', 'phone',
+      'gstName', 'gstNumber', 'address', 'source',
+      'productInterest', 'detailedItems', 'estimatedQuantity', 'unit', 'assignedToId',
       'nextReminderAt', 'lostReason', 'remarks',
     ];
     const data = Object.fromEntries(

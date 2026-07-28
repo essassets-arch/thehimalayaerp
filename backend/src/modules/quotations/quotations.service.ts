@@ -22,7 +22,7 @@ export class QuotationsService {
       include: {
         workflowState: true,
         lead: true,
-        items: true,
+        items: { include: { product: true } },
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -83,7 +83,24 @@ export class QuotationsService {
         throw new BadRequestException('The latest required sample must be approved before quotation creation');
       }
     }
-    const totals = this.calculate(dto.items);
+    const resolvedItems = await Promise.all((dto.items || []).map(async (item: any) => {
+      const product = await this.prisma.product.findFirst({
+        where: {
+          isActive: true,
+          OR: [
+            ...(item.productId ? [{ id: item.productId }, { publicId: item.productId }] : []),
+            ...(item.productCode ? [{ sku: item.productCode }, { publicId: item.productCode }] : []),
+            ...(item.productName ? [{ name: { equals: item.productName, mode: 'insensitive' as const } }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+      if (!product) {
+        throw new BadRequestException(`Product "${item.productName || item.productCode || item.productId || 'Unknown'}" was not found in the product database.`);
+      }
+      return { ...item, productId: product.id };
+    }));
+    const totals = this.calculate(resolvedItems);
     if (!totals.processedItems.length) throw new BadRequestException('At least one quotation item is required');
     const quotationNumber = await this.sequenceService.generateNext('quotation_number', `QT-${new Date().getFullYear()}-`);
 
@@ -113,7 +130,7 @@ export class QuotationsService {
           }))
         }
       },
-      include: { workflowState: true, items: true }
+      include: { workflowState: true, items: { include: { product: true } }, lead: true }
     });
   }
 
@@ -285,9 +302,49 @@ export class QuotationsService {
       const existingOrder = await tx.salesOrder.findFirst({ where: { sourceQuotationId: id } });
       if (existingOrder) return existingOrder;
 
-      let customerId = quotation.customerId || quotation.lead?.convertedCustomerId;
+      let customerId = quotation.customerId || quotation.lead?.convertedCustomerId || quotation.lead?.customerId;
       if (!customerId) {
-        throw new BadRequestException('Quotation must be linked to a valid Customer before conversion.');
+        if (!quotation.lead) {
+          throw new BadRequestException('Quotation must be linked to a valid Customer before conversion.');
+        }
+        const existingCustomer = await tx.customer.findFirst({
+          where: {
+            companyId: quotation.companyId || quotation.lead.companyId || undefined,
+            deletedAt: null,
+            OR: [
+              ...(quotation.lead.email ? [{ email: quotation.lead.email }] : []),
+              ...(quotation.lead.phone ? [{ phone: quotation.lead.phone }] : []),
+              { companyName: { equals: quotation.lead.companyName, mode: 'insensitive' as const } },
+            ],
+          },
+        });
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+        } else {
+          const companyId = quotation.companyId || quotation.lead.companyId;
+          if (!companyId) throw new BadRequestException('Lead company is required for customer creation.');
+          const customerCode = await this.sequenceService.generateNextWithTx(tx, 'customer_number', 'CUST-');
+          const customer = await tx.customer.create({
+            data: {
+              customerCode,
+              companyId,
+              companyName: quotation.lead.companyName,
+              contactPerson: quotation.lead.contactPerson,
+              email: quotation.lead.email,
+              phone: quotation.lead.phone,
+              gstin: quotation.lead.gstNumber,
+              billingAddress: quotation.lead.address || undefined,
+              status: 'ACTIVE',
+              createdById: userId,
+            },
+          });
+          customerId = customer.id;
+        }
+        await tx.lead.update({
+          where: { id: quotation.lead.id },
+          data: { customerId, convertedCustomerId: customerId, convertedAt: new Date(), convertedById: userId },
+        });
+        await tx.quotation.update({ where: { id }, data: { customerId } });
       }
 
       const soInitialState = await tx.workflowState.findFirst({

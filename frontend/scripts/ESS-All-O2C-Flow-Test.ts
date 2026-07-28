@@ -109,6 +109,16 @@ async function main() {
     assert.equal(lead.mobile, '9876543210');
     assert.equal(lead.detailedItems.length, 1);
     assert.match(lead.deliveryAddress, /Nagpur/);
+    for (const status of [
+      'LEAD_ASSIGNED',
+      'CUSTOMER_CONTACTED',
+      'MEETING_COMPLETED',
+      'REQUIREMENT_RECEIVED',
+      'REQUIREMENT_APPROVED',
+      'NO_SAMPLE',
+    ]) {
+      action('updateLeadStatus')(ids.lead, status);
+    }
 
     action('createQuotation')({
       id: ids.quotation,
@@ -143,7 +153,7 @@ async function main() {
     assert.equal(quotation?.grandTotal, GRAND_TOTAL);
     action('sendQuotation')(ids.quotation);
     action('acceptQuotation')(ids.quotation);
-    assert.equal(byId(state().sales.quotations, ids.quotation)?.status, 'CUSTOMER_ACCEPTED');
+    assert.equal(byId(state().sales.quotations, ids.quotation)?.status, 'QUOTATION_APPROVED');
 
     action('convertQuotationToOrder')(ids.quotation);
     action('convertQuotationToOrder')(ids.quotation);

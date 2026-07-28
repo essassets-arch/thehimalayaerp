@@ -57,9 +57,29 @@ export type SalesLead = {
   sampleItems?: any[];
   sampleQuantity?: number;
   sampleExpectedDate?: string;
+  requirementSummary?: string;
+  requirementApprovedAt?: string;
+  requirementApprovedBy?: string;
   notes?: string;
   salesperson: string;
-  status: 'LEAD_CREATED' | 'SAMPLE_REQUESTED' | 'QUOTATION_CREATED' | 'LOST';
+  status:
+    | 'LEAD_CREATED'
+    | 'LEAD_ASSIGNED'
+    | 'CUSTOMER_CONTACTED'
+    | 'MEETING_COMPLETED'
+    | 'REQUIREMENT_RECEIVED'
+    | 'REQUIREMENT_APPROVED'
+    | 'SAMPLE_REQUIRED'
+    | 'SAMPLE_CREATED'
+    | 'SAMPLE_SENT'
+    | 'CUSTOMER_FEEDBACK'
+    | 'SAMPLE_REVISION'
+    | 'SAMPLE_APPROVED'
+    | 'NO_SAMPLE'
+    | 'QUOTATION_CREATED'
+    | 'LOST'
+    // Legacy persisted value retained for snapshot compatibility.
+    | 'SAMPLE_REQUESTED';
   createdAt: string;
   updatedAt?: string;
   createdBy?: string;
@@ -160,7 +180,7 @@ export type SalesQuotation = {
   
   grandTotal: number;
 
-  status: 'QUOTATION_DRAFT' | 'QUOTATION_SENT' | 'CUSTOMER_ACCEPTED' | 'CUSTOMER_REJECTED' | 'REVISION_REQUESTED' | 'CONVERTED_TO_ORDER';
+  status: 'QUOTATION_DRAFT' | 'INTERNAL_PRICING_REVIEW' | 'QUOTATION_SENT' | 'CUSTOMER_NEGOTIATION' | 'QUOTATION_REVISION' | 'QUOTATION_APPROVED' | 'CUSTOMER_ACCEPTED' | 'CUSTOMER_REJECTED' | 'REVISION_REQUESTED' | 'CONVERTED_TO_ORDER';
   createdAt: string;
 };
 
@@ -199,6 +219,10 @@ export type SalesOrder = {
   replacementStatus: 'NONE' | 'REQUESTED' | 'APPROVED' | 'IN_TRANSIT' | 'COMPLETED';
   returnStatus: 'NONE' | 'REQUESTED' | 'APPROVED' | 'IN_TRANSIT' | 'COMPLETED';
 
+  customerLedgerUpdatedAt?: string;
+  customerLedgerUpdatedBy?: string;
+  closedAt?: string;
+  closedBy?: string;
   createdAt: string;
 };
 
@@ -438,4 +462,3 @@ export type FinanceDomainState = {
   paymentFollowUps: PaymentFollowUp[];
   paymentReceipts: PaymentReceipt[];
 };
-

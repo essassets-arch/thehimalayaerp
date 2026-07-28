@@ -17,14 +17,27 @@ function toFiniteNumber(val: unknown): number {
 
 export function normalizeSalesOrder(order: unknown): SalesOrder {
   const source = isRecord(order) ? order : {};
+  const orderNumber = typeof source.orderId === 'string'
+    ? source.orderId
+    : typeof source.orderNumber === 'string'
+      ? source.orderNumber
+      : '';
+  const status = typeof source.status === 'string'
+    ? source.status
+    : typeof source.workflowStateCode === 'string'
+      ? source.workflowStateCode
+    : typeof source.orderStatus === 'string'
+      ? source.orderStatus
+      : 'DRAFT';
 
   return {
     id: typeof source.id === 'string' ? source.id : '',
-    orderId: typeof source.orderId === 'string'
-      ? source.orderId
-      : typeof source.orderNumber === 'string'
-        ? source.orderNumber
-        : '',
+    orderId: orderNumber,
+    orderNo: orderNumber,
+    orderNumber,
+    status,
+    productionPlanId: typeof source.productionPlanId === 'string' ? source.productionPlanId : null,
+    productionAssignedToId: typeof source.productionAssignedToId === 'string' ? source.productionAssignedToId : null,
     customerId: typeof source.customerId === 'string' ? source.customerId : '',
     customerName: typeof source.customerName === 'string' ? source.customerName : '',
     customerCode: typeof source.customerCode === 'string' ? source.customerCode : null,
@@ -35,7 +48,7 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     taxAmount: toFiniteNumber(source.taxAmount),
     totalAmount: toFiniteNumber(source.totalAmount),
 
-    orderStatus: typeof source.orderStatus === 'string' ? source.orderStatus : 'OPEN',
+    orderStatus: status,
     creditStatus: typeof source.creditStatus === 'string' ? source.creditStatus : 'PENDING',
     allocationStatus: typeof source.allocationStatus === 'string' ? source.allocationStatus : 'NOT_ALLOCATED',
     productionStatus: typeof source.productionStatus === 'string' ? source.productionStatus : 'NOT_REQUIRED',

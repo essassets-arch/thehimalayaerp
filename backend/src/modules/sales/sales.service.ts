@@ -47,7 +47,12 @@ export class SalesService {
       this.prisma.salesOrder.count({ where }),
       this.prisma.salesOrder.findMany({
         where,
-        include: { customer: true, items: true, workflowState: true },
+        include: {
+          customer: true,
+          items: true,
+          workflowState: true,
+          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
         orderBy: { createdAt: 'desc' },
         skip,
         take,
@@ -67,7 +72,12 @@ export class SalesService {
   async getOrder(id: string) {
     const order = await this.prisma.salesOrder.findUnique({
       where: { id },
-      include: { customer: true, items: true, workflowState: true },
+      include: {
+        customer: true,
+        items: true,
+        workflowState: true,
+        productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
     });
     if (!order) throw new NotFoundException(`SalesOrder with ID ${id} not found`);
     
@@ -174,7 +184,12 @@ export class SalesService {
             })),
           },
         },
-        include: { customer: true, items: true, workflowState: true },
+        include: {
+          customer: true,
+          items: true,
+          workflowState: true,
+          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
       });
 
       await tx.auditLog.create({
@@ -219,7 +234,7 @@ export class SalesService {
     const statusByAction: Partial<Record<string, SalesOrderStatus>> = {
       SUBMIT: SalesOrderStatus.PENDING_APPROVAL,
       CONFIRM: SalesOrderStatus.CONFIRMED,
-      SEND_TO_PLANT: SalesOrderStatus.SENT_TO_PLANT,
+      SEND_TO_PLANT: SalesOrderStatus.SENT_TO_PLANT_HEAD,
       PLANT_APPROVE: SalesOrderStatus.PLANT_APPROVED,
       PLAN_PRODUCTION: SalesOrderStatus.READY_FOR_PRODUCTION,
       START_PRODUCTION: SalesOrderStatus.IN_PRODUCTION,
@@ -235,13 +250,49 @@ export class SalesService {
            ...(dto.action === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
            version: { increment: 1 }
         },
-        include: { customer: true, items: true, workflowState: true }
+        include: {
+          customer: true,
+          items: true,
+          workflowState: true,
+          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+        }
+    });
+
+    if (dto.action === 'SEND_TO_PLANT' && updated.productionPlans.length === 0) {
+      const [initialPlanState, plantHead, planNumber] = await Promise.all([
+        this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
+        tx.user.findFirst({
+          where: { isActive: true, deletedAt: null, role: { code: 'PLANT_HEAD' } },
+          select: { id: true },
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.sequenceService.generateNextWithTx(tx, 'production_plan_number', 'PP-'),
+      ]);
+      await tx.productionPlan.create({
+        data: {
+          planNumber,
+          salesOrderId: order.id,
+          status: 'PENDING_PLANNING',
+          assignedToId: plantHead?.id,
+          workflowStateId: initialPlanState.id,
+        },
+      });
+    }
+
+    const orderWithPlan = await tx.salesOrder.findUniqueOrThrow({
+      where: { id },
+      include: {
+        customer: true,
+        items: true,
+        workflowState: true,
+        productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
     });
 
     return {
         success: true,
         message: `Action ${dto.action} processed successfully. New state: ${result.nextStateName}`,
-        order: mapSalesOrder(updated)
+        order: mapSalesOrder(orderWithPlan)
     };
     });
   }

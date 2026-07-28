@@ -405,10 +405,15 @@ export default function QuotationsView({
     });
   };
 
-  const isQuotationConverted = (status) =>
-    ['CONVERTED', 'CONVERTED_TO_ORDER'].includes(
-      String(status || '').trim().toUpperCase().replace(/[\s-]+/g, '_')
-    );
+  const normalizedQuotationStatus = (status) =>
+    String(status || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+
+  const canSendQuotation = (status) =>
+    ['DRAFT', 'INTERNAL_REVIEW'].includes(normalizedQuotationStatus(status));
+
+  const canConvertQuotation = (status) =>
+    ['SENT', 'NEGOTIATION', 'UNDER_NEGOTIATION', 'APPROVED']
+      .includes(normalizedQuotationStatus(status));
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -1085,8 +1090,7 @@ export default function QuotationsView({
                   <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                       {/* Sequential 2-Step Workflow with matching lime green pill buttons */}
-                      {!isQuotationConverted(q.status) && q.status !== 'Rejected' && (
-                        (q.status === 'Sent' || q.status === 'Approved') ? (
+                      {canConvertQuotation(q.status) ? (
                           <button
                             type="button"
                             onClick={() => handleConvertToOrderClick(q)}
@@ -1109,7 +1113,7 @@ export default function QuotationsView({
                           >
                             Convert to Order →
                           </button>
-                        ) : (
+                        ) : canSendQuotation(q.status) ? (
                           <button
                             type="button"
                             onClick={() => handleSendQuotationClick(q)}
@@ -1132,8 +1136,7 @@ export default function QuotationsView({
                           >
                             Send Quotation →
                           </button>
-                        )
-                      )}
+                        ) : null}
 
                       <button
                         title="View Quotation"
@@ -1375,7 +1378,7 @@ export default function QuotationsView({
                   </button>
                 </div>
                 
-                {(!isQuotationConverted(selectedQuotation.status) && selectedQuotation.status !== 'Rejected') && (
+                {canConvertQuotation(selectedQuotation.status) && (
                   <div>
                     <button 
                       type="button" 

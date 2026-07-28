@@ -31,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
-      <body className={poppins.variable}>
+    <html lang="en" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
+      <body className={poppins.variable} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

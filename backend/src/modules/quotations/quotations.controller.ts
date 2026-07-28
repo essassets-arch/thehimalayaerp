@@ -49,7 +49,7 @@ export class QuotationsController {
   }
 
   @Post(':id/convert')
-  @Permissions('crm.quotation.update', 'sales.order.create')
+  @Permissions('crm.quotation.update', 'sales.orders.create')
   async convertToSalesOrder(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.convertToSalesOrder(id, req.user?.sub || 'SYSTEM');
   }

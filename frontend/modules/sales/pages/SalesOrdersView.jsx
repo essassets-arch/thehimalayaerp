@@ -297,8 +297,15 @@ function AfterSalesRequestModal({ type, order, onClose, onSuccess }) {
 import { useOrders } from '@/modules/sales/hooks/useOrders';
 
 export default function SalesOrdersView() {
-  const { orders, sendToPlantHead } = useOrders();
+  const { orders: backendOrders, sendToPlantHead } = useOrders();
   const sales = useERPStore((store) => store.state?.sales);
+  const localOrders = Array.isArray(sales?.orders) ? sales.orders : [];
+  const orders = [...backendOrders, ...localOrders].filter((order, index, list) => {
+    const key = String(order.id || order.orderNo || order.orderNumber || '');
+    return list.findIndex((candidate) =>
+      String(candidate.id || candidate.orderNo || candidate.orderNumber || '') === key
+    ) === index;
+  });
   const replacementRequests = sales?.replacementRequests || [];
   const returnRequests = sales?.returnRequests || [];
   const showToast = useNotificationStore((state) => state.showToast);

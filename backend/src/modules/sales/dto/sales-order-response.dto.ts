@@ -31,8 +31,12 @@ export interface SalesOrderResponseDto {
 
   // Single unified lifecycle status (replaces the old roll-up fields)
   status: SalesOrderStatus;
+  productionPlanId?: string | null;
+  productionStatus?: string | null;
+  productionAssignedToId?: string | null;
 
   workflowStateId: string | null;
+  workflowStateCode?: string;
   workflowStateName?: string;
 
   // Computed summaries — derived from child documents, not stored

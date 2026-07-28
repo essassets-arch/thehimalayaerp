@@ -43,7 +43,7 @@ import { normalizeStatus } from '../shared/workflowUtils';
 import { generateEntityIdPure } from '../../idGenerator';
 
 // ─── ERPState shape (minimal inline type for portability) ───────────────────
-export type ActionActor = { id: string; name: string };
+export type ActionActor = { id: string; name: string; department?: string; role?: string };
 
 export interface ERPState {
   sales: SalesDomainState;
@@ -142,6 +142,7 @@ export type CreateLeadPayload = {
   sampleItems?: any[];
   sampleQuantity?: number;
   sampleExpectedDate?: string;
+  requirementSummary?: string;
 };
 
 export type RequestSamplePayload = {
@@ -320,6 +321,7 @@ export function createLead(
     sampleItems: Array.isArray(payload.sampleItems) ? payload.sampleItems : [],
     sampleQuantity: Number(payload.sampleQuantity) || 0,
     sampleExpectedDate: payload.sampleExpectedDate || '',
+    requirementSummary: payload.requirementSummary || '',
     notes: payload.notes || '',
     status: 'LEAD_CREATED',
     salesperson: actor.name,
@@ -348,7 +350,34 @@ export function updateLeadStatus(
   const lead = sales.leads.find((l) => l.id === leadId);
   if (!lead) throw new Error(`Lead ${leadId} not found`);
 
-  const updatedLead = { ...lead, status, updatedAt: new Date().toISOString() };
+  const allowedTransitions: Partial<Record<SalesLead['status'], SalesLead['status'][]>> = {
+    LEAD_CREATED: ['LEAD_ASSIGNED', 'LOST'],
+    LEAD_ASSIGNED: ['CUSTOMER_CONTACTED', 'LOST'],
+    CUSTOMER_CONTACTED: ['MEETING_COMPLETED', 'LOST'],
+    MEETING_COMPLETED: ['REQUIREMENT_RECEIVED', 'LOST'],
+    REQUIREMENT_RECEIVED: ['REQUIREMENT_APPROVED', 'LOST'],
+    REQUIREMENT_APPROVED: ['SAMPLE_REQUIRED', 'NO_SAMPLE', 'LOST'],
+    SAMPLE_REQUIRED: ['SAMPLE_CREATED', 'LOST'],
+    SAMPLE_CREATED: ['SAMPLE_SENT', 'LOST'],
+    SAMPLE_SENT: ['CUSTOMER_FEEDBACK', 'LOST'],
+    CUSTOMER_FEEDBACK: ['SAMPLE_REVISION', 'SAMPLE_APPROVED', 'LOST'],
+    SAMPLE_REVISION: ['SAMPLE_CREATED', 'LOST'],
+    SAMPLE_APPROVED: ['QUOTATION_CREATED', 'LOST'],
+    NO_SAMPLE: ['QUOTATION_CREATED', 'LOST'],
+    SAMPLE_REQUESTED: ['SAMPLE_SENT', 'CUSTOMER_FEEDBACK', 'SAMPLE_APPROVED', 'LOST'],
+  };
+  if (status !== lead.status && !(allowedTransitions[lead.status] || []).includes(status)) {
+    throw new SalesTransitionError(`Lead ${leadId} cannot transition from ${lead.status} to ${status}.`);
+  }
+  const now = new Date().toISOString();
+  const updatedLead = {
+    ...lead,
+    status,
+    updatedAt: now,
+    ...(status === 'REQUIREMENT_APPROVED'
+      ? { requirementApprovedAt: now, requirementApprovedBy: actor.name }
+      : {}),
+  };
   return withSales(
     state,
     { leads: sales.leads.map((l) => (l.id === leadId ? updatedLead : l)) },
@@ -366,6 +395,11 @@ export function requestSample(
   actor: ActionActor
 ): [ERPState, string] {
   const sales = normalizeSales(state.sales);
+  const lead = sales.leads.find((record) => record.id === payload.leadId);
+  if (!lead) throw new SalesTransitionError(`Lead ${payload.leadId} not found.`);
+  if (!['REQUIREMENT_APPROVED', 'SAMPLE_REQUIRED', 'SAMPLE_REVISION'].includes(lead.status)) {
+    throw new SalesTransitionError('A sample can be created only after the customer requirement is approved.');
+  }
 
   if (payload.id) {
     const existing = sales.samples.find((s) => s.id === payload.id);
@@ -395,10 +429,11 @@ export function requestSample(
     createdAt: new Date().toISOString(),
   };
 
-  // Update lead status to SAMPLE_REQUESTED
+  // SAMPLE_CREATED is the canonical lead milestone. SAMPLE_REQUESTED remains
+  // readable for legacy snapshots but is no longer written.
   const updatedLeads = sales.leads.map((l) =>
-    l.id === payload.leadId && l.status === 'LEAD_CREATED'
-      ? { ...l, status: 'SAMPLE_REQUESTED' as const, updatedAt: new Date().toISOString() }
+    l.id === payload.leadId
+      ? { ...l, status: 'SAMPLE_CREATED' as const, updatedAt: new Date().toISOString() }
       : l
   );
 
@@ -431,6 +466,20 @@ export function createQuotation(
   const sourceLead = payload.leadId
     ? sales.leads.find((lead) => lead.id === payload.leadId)
     : undefined;
+  if (payload.leadId && !sourceLead) {
+    throw new SalesTransitionError(`Lead ${payload.leadId} not found.`);
+  }
+  if (
+    sourceLead &&
+    !['REQUIREMENT_APPROVED', 'NO_SAMPLE', 'SAMPLE_APPROVED', 'QUOTATION_CREATED'].includes(sourceLead.status)
+  ) {
+    throw new SalesTransitionError(
+      'A quotation can be created only after requirement approval and, when required, sample approval.'
+    );
+  }
+  if (sourceLead?.sampleRequired && sourceLead.status !== 'SAMPLE_APPROVED' && sourceLead.status !== 'QUOTATION_CREATED') {
+    throw new SalesTransitionError('The approved sample is required before quotation creation.');
+  }
   const rawPayload = payload as any;
   const sourceItems = Array.isArray(payload.items)
     ? payload.items
@@ -839,7 +888,7 @@ export function startProduction(
   const workOrder = production.workOrders.find((wo: any) => wo.id === workOrderId);
   if (!workOrder) throw new Error(`Work order ${workOrderId} not found`);
   if (workOrder.status === 'PRODUCTION_STARTED') return state;
-  if (workOrder.status !== 'WORK_ORDER_CREATED') {
+  if (!['WORK_ORDER_CREATED', 'REWORK_PRODUCTION'].includes(workOrder.status)) {
     throw new SalesTransitionError(`Work order ${workOrderId} cannot be started from ${workOrder.status}`);
   }
   const sales = normalizeSales(state.sales);
@@ -1142,6 +1191,62 @@ export function approveQC(
   );
 }
 
+export function rejectQC(
+  state: ERPState,
+  workOrderId: string,
+  payload: { remarks: string; items?: any[] } = { remarks: '' },
+  actor: ActionActor
+): ERPState {
+  const production = state.production || { workOrders: [], qcRecords: [], finishedGoods: [] };
+  const workOrder = production.workOrders.find((record: any) =>
+    record.id === workOrderId || record.orderId === workOrderId
+  );
+  if (!workOrder) throw new Error(`Work order ${workOrderId} not found`);
+  if (!['PRODUCTION_COMPLETED', 'QC_PENDING'].includes(normalizeStatus(workOrder.status))) {
+    throw new SalesTransitionError(`QC cannot reject work order ${workOrder.id} from ${workOrder.status}.`);
+  }
+  if (!payload.remarks?.trim()) {
+    throw new SalesTransitionError('QC rejection remarks are required.');
+  }
+  const sales = normalizeSales(state.sales);
+  const order = sales.orders.find((record) => record.id === workOrder.orderId);
+  if (!order) throw new Error(`Order ${workOrder.orderId} not found`);
+  const now = new Date().toISOString();
+  const qcRecordId = `${workOrder.id.replace(/^WO-/, 'QC-')}-FAIL-${production.qcRecords.length + 1}`;
+  const updatedOrder: SalesOrder = {
+    ...order,
+    workflowStatus: 'QC_FAILED',
+    qcStatus: 'REWORK_REQUIRED',
+    productionStatus: 'IN_PROGRESS',
+  } as SalesOrder;
+
+  return withSales(
+    {
+      ...state,
+      production: {
+        ...production,
+        qcRecords: [...production.qcRecords, {
+          id: qcRecordId,
+          workOrderId: workOrder.id,
+          orderId: order.id,
+          items: payload.items || [],
+          status: 'QC_FAILED',
+          remarks: payload.remarks,
+          inspectedAt: now,
+          createdAt: now,
+        }],
+        workOrders: production.workOrders.map((record: any) =>
+          record.id === workOrder.id
+            ? { ...record, status: 'REWORK_PRODUCTION', qcStatus: 'FAILED', updatedAt: now }
+            : record
+        ),
+      },
+    },
+    { orders: sales.orders.map((record) => record.id === order.id ? updatedOrder : record) },
+    audit('ORDER', order.id, 'QC_FAILED', actor, 'QC', 'REWORK_PRODUCTION', order.qcStatus, payload.remarks)
+  );
+}
+
 export function createDispatch(
   state: ERPState,
   orderId: string,
@@ -1317,6 +1422,9 @@ export function verifyFinancePayment(
   const confirmation = sales.paymentConfirmations.find((p) => p.id === confirmationId);
   if (!confirmation) throw new Error(`Payment confirmation ${confirmationId} not found`);
   if (confirmation.status === 'FINANCE_VERIFIED') return state;
+  if (actor.department !== 'Finance' && actor.role !== 'Finance') {
+    throw new SalesTransitionError('Only Finance can verify a customer payment.');
+  }
 
   const order = sales.orders.find((o) => o.id === confirmation.orderId);
   if (!order) throw new Error(`Order ${confirmation.orderId} not found`);
@@ -1358,11 +1466,21 @@ export function verifyFinancePayment(
     verifiedTotalInPaise >= grandTotalInPaise ? 'FULLY_PAID' : 'PARTIALLY_PAID';
 
   let commercialStatus = order.commercialStatus;
+  const now = new Date().toISOString();
   if (order.dispatchStatus === 'DELIVERED' && verifiedTotalInPaise >= grandTotalInPaise) {
     commercialStatus = 'ORDER_CLOSED';
   }
 
-  const updatedOrder: SalesOrder = { ...order, paymentStatus, commercialStatus };
+  const updatedOrder: SalesOrder = {
+    ...order,
+    paymentStatus,
+    commercialStatus,
+    customerLedgerUpdatedAt: now,
+    customerLedgerUpdatedBy: actor.name,
+    ...(commercialStatus === 'ORDER_CLOSED'
+      ? { closedAt: now, closedBy: actor.name }
+      : {}),
+  };
 
   const extraAudit: AuditEvent[] =
     commercialStatus === 'ORDER_CLOSED' && order.commercialStatus !== 'ORDER_CLOSED'
@@ -1395,6 +1513,10 @@ export function rejectFinancePayment(
   const sales = normalizeSales(state.sales);
   const confirmation = sales.paymentConfirmations.find((p) => p.id === confirmationId);
   if (!confirmation) throw new Error(`Payment confirmation ${confirmationId} not found`);
+  if (actor.department !== 'Finance' && actor.role !== 'Finance') {
+    throw new SalesTransitionError('Only Finance can reject a customer payment.');
+  }
+  assertPaymentCanBeRejected(confirmation);
 
   const updatedConfirmation: PaymentConfirmation = {
     ...confirmation,

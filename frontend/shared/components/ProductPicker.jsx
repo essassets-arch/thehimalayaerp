@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useERPStore } from '../../store/erpStore';
+import { backendFetch } from '../../lib/backendFetch';
 
 /**
  * ProductPicker — Centralized, searchable product selector.
@@ -47,30 +47,21 @@ export default function ProductPicker({
   const search = useCallback(async (q) => {
     setLoading(true);
     try {
-      // Fetch from local Zustand store instead of API
-      const rawInventory = useERPStore.getState().state.rawInventory || [];
-      
-      let filtered = rawInventory;
-      if (q) {
-        const lowerQ = q.toLowerCase();
-        filtered = rawInventory.filter(p => 
-          (p.material && p.material.toLowerCase().includes(lowerQ)) || 
-          (p.code && p.code.toLowerCase().includes(lowerQ)) ||
-          (p.description && p.description.toLowerCase().includes(lowerQ))
-        );
-      }
-      
-      const mappedResults = filtered.map(p => ({
-        id: p.id || p.code,
-        product_name: p.material || p.name || 'Unknown Product',
-        product_code: p.code || 'N/A',
-        brand: p.brand || 'Acme',
-        gst_rate: p.gst || 18,
-        hsn_sac_code: p.hsn || '1234',
+      const response = await backendFetch(`/api/backend/products${q ? `?search=${encodeURIComponent(q)}` : ''}`);
+      const products = Array.isArray(response) ? response : response?.data || [];
+      const mappedResults = products.map(p => ({
+        id: p.id,
+        public_id: p.publicId,
+        product_name: p.name || 'Unknown Product',
+        product_code: p.sku || p.publicId || 'N/A',
+        brand: p.category || '',
+        gst_rate: p.gstRate || 18,
+        hsn_sac_code: p.hsnCode || '',
         unit_of_measure: p.unit || 'pcs',
-        dispatch_category: 'DISPATCH 1',
-        selling_price: p.price || p.selling_price || p.base_price || 1500,
-        price: p.price || p.selling_price || p.base_price || 1500
+        dispatch_category: p.dispatchCategory || 'NONE',
+        selling_price: Number(p.unitPrice || 0),
+        price: Number(p.unitPrice || 0),
+        description: p.description || ''
       }));
 
       setResults(mappedResults);

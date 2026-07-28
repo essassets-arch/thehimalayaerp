@@ -57,6 +57,37 @@ export class ProductionService {
     });
   }
 
+  async updatePlan(
+    id: string,
+    dto: {
+      plannedStartDate?: string;
+      plannedEndDate?: string;
+      productionLine?: string;
+    },
+  ) {
+    const plan = await this.prisma.productionPlan.findUnique({ where: { id } });
+    if (!plan) throw new NotFoundException('Production Plan not found');
+
+    return this.prisma.productionPlan.update({
+      where: { id },
+      data: {
+        ...(dto.plannedStartDate !== undefined
+          ? { plannedStartDate: dto.plannedStartDate ? new Date(dto.plannedStartDate) : null }
+          : {}),
+        ...(dto.plannedEndDate !== undefined
+          ? { plannedEndDate: dto.plannedEndDate ? new Date(dto.plannedEndDate) : null }
+          : {}),
+        ...(dto.productionLine !== undefined
+          ? { productionLine: dto.productionLine }
+          : {}),
+      },
+      include: {
+        salesOrder: { include: { items: true, customer: true } },
+        workflowState: true,
+      },
+    });
+  }
+
   async processAction(id: string, actionName: string, remarks?: string, userId?: string) {
     return this.prisma.$transaction(async (tx) => {
     const plan = await tx.productionPlan.findUnique({ where: { id } });
@@ -74,7 +105,18 @@ export class ProductionService {
 
     const updated = await tx.productionPlan.update({
       where: { id },
-      data: { workflowStateId: result.nextStateId },
+      data: {
+        workflowStateId: result.nextStateId,
+        status: {
+          SUBMIT: 'UNDER_REVIEW',
+          APPROVE: 'APPROVED',
+          RELEASE: 'RELEASED',
+          START: 'IN_PROGRESS',
+          COMPLETE: 'COMPLETED',
+          CANCEL: 'CANCELLED',
+          REJECT: 'CANCELLED',
+        }[actionName] as any,
+      },
       include: { salesOrder: { include: { items: true } } }
     });
 

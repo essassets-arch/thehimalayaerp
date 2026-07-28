@@ -43,30 +43,38 @@ async function main() {
   // ── 2. Permissions ──────────────────────────────────────────────────────────
   console.log('🔑 Seeding permissions...');
   const permissionCodes = [
-    // CRM
-    'lead.read', 'lead.create', 'lead.update', 'lead.delete', 'lead.convert',
+    'sales.customers.read', 'sales.customers.create', 'sales.customers.update',
+    'sales.leads.read', 'sales.leads.create', 'sales.leads.update', 'sales.leads.delete', 'sales.leads.convert',
+    'sales.dashboard.read',
+    'sales.orders.approve', 'sales.orders.create', 'sales.orders.read', 'sales.orders.update',
+
+    'crm.quotation.create', 'crm.quotation.read', 'crm.quotation.update',
+    'dispatch.create', 'dispatch.read', 'dispatch.update',
+    'finance.invoice.read', 'finance.invoice.update',
+    'finance.ledger.read',
+    'finance.payment.create', 'finance.payment.read', 'finance.payment.update',
+    'production.plan.approve', 'production.plan.create', 'production.plan.read', 'production.plan.release',
+    'production.workorder.complete', 'production.workorder.read', 'production.workorder.start',
+    'qc.inspection.approve', 'qc.inspection.read',
+
+    // Original CRM / Sales (legacy/misc)
     'sample.read', 'sample.create', 'sample.dispatch', 'sample.update',
-    'customer.read', 'customer.create', 'customer.update',
-    // Sales
     'quotation.read', 'quotation.create', 'quotation.update', 'quotation.send', 'quotation.accept',
-    'salesorder.read', 'salesorder.create', 'salesorder.update',
     'salesorder.confirm', 'salesorder.send_to_plant', 'salesorder.cancel',
     'salesorder.amend', 'salesorder.credit_override',
-    // Production
-    'production.plan.read', 'production.plan.create', 'production.plan.approve', 'production.plan.release',
-    'production.workorder.read', 'production.workorder.create', 'production.workorder.start', 'production.workorder.complete',
+    // Original Production
     'production.qc.read', 'production.qc.inspect', 'production.qc.approve', 'production.qc.reject',
-    // Dispatch
-    'dispatch.read', 'dispatch.create', 'dispatch.update', 'dispatch.confirm',
-    // Finance
+    // Original Dispatch
+    'dispatch.confirm',
+    // Original Finance
     'invoice.read', 'invoice.create', 'invoice.post', 'invoice.void',
     'payment.read', 'payment.create', 'payment.verify', 'payment.reject',
     'creditnote.read', 'creditnote.create',
-    // After Sales
+    // Original After Sales
     'return.read', 'return.create', 'return.approve', 'return.reject',
     'replacement.read', 'replacement.create', 'replacement.approve',
     'complaint.read', 'complaint.create', 'complaint.resolve',
-    // Admin
+    // Original Admin
     'user.read', 'user.create', 'user.update', 'user.deactivate',
     'role.read', 'role.assign',
     'approval.approve', 'approval.reject',
@@ -104,6 +112,67 @@ async function main() {
         where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
         update: {},
         create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  console.log('🔗 Assigning permissions to sales roles...');
+  const salesRoles = await prisma.role.findMany({
+    where: { code: { in: ['SALES_EXECUTIVE', 'SALES_MANAGER'] } },
+  });
+  const salesPerms = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'sales.customers.read', 'sales.customers.create', 'sales.customers.update',
+          'sales.leads.read', 'sales.leads.create', 'sales.leads.update', 'sales.leads.convert',
+          'sales.dashboard.read',
+          'sales.orders.read', 'sales.orders.create', 'sales.orders.update',
+          'crm.quotation.read', 'crm.quotation.create', 'crm.quotation.update'
+        ]
+      }
+    }
+  });
+
+  for (const role of salesRoles) {
+    for (const perm of salesPerms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  const plantHeadRole = await prisma.role.findUnique({ where: { code: 'PLANT_HEAD' } });
+  const plantHeadPermissions = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'sales.orders.read',
+          'sales.orders.update',
+          'production.plan.read',
+          'production.plan.create',
+          'production.plan.approve',
+          'production.plan.release',
+        ],
+      },
+    },
+  });
+  if (plantHeadRole) {
+    for (const permission of plantHeadPermissions) {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: plantHeadRole.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: {
+          roleId: plantHeadRole.id,
+          permissionId: permission.id,
+        },
       });
     }
   }

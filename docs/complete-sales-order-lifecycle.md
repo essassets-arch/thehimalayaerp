@@ -27,6 +27,7 @@ enterprise workflow defined here.
 
 ```text
 Lead
+  → Requirement Approval
   → Sample (optional)
   → Quotation
   → Customer Acceptance
@@ -49,47 +50,60 @@ The canonical master status chain is:
 
 ```text
 LEAD_CREATED
-  → SAMPLE_CREATED
-  → SAMPLE_DELIVERED
-  → SAMPLE_APPROVED
+  → LEAD_ASSIGNED
+  → CUSTOMER_CONTACTED
+  → MEETING_COMPLETED
+  → REQUIREMENT_RECEIVED
+  → REQUIREMENT_APPROVED
+  → SAMPLE_CREATED (optional)
+  → SAMPLE_SENT (optional)
+  → CUSTOMER_FEEDBACK (optional)
+  → SAMPLE_APPROVED (optional)
   → QUOTATION_DRAFT
   → QUOTATION_SENT
-  → CUSTOMER_ACCEPTED
-  → SALES_ORDER_DRAFT
+  → QUOTATION_APPROVED
+  → SALES_ORDER_CREATED
   → SALES_ORDER_CONFIRMED
-  → SENT_TO_PLANT_HEAD
-  → PLANT_HEAD_ACCEPTED
-  → PRODUCTION_PLANNED
+  → PLANT_HEAD_APPROVED
+  → PRODUCTION_INCOMING
   → WORK_ORDER_CREATED
   → MATERIAL_ISSUED
   → PRODUCTION_STARTED
   → PRODUCTION_COMPLETED
   → QC_PENDING
-  → QC_APPROVED
+  → QC_PASSED
   → FINISHED_GOODS_READY
   → READY_FOR_DISPATCH
   → DISPATCH_CREATED
   → IN_TRANSIT
   → DELIVERED
+  → PAYMENT_PENDING
+  → SALES_PAYMENT_RECORDED
   → FINANCE_VERIFICATION_PENDING
-  → FINANCE_VERIFIED
-  → FULLY_PAID
-  → ORDER_CLOSED
+  → PAYMENT_VERIFIED
+  → CUSTOMER_LEDGER_UPDATED
+  → SALES_ORDER_CLOSED
 ```
 
-## 1. CRM lead
+## 1. CRM lead and requirement approval
 
 Initial state: `LEAD_CREATED`.
 
-Supported actions:
+Mandatory progression:
 
-- Send sample
-- Generate quotation
-- Set reminder
-- Mark lost
+```text
+LEAD_CREATED
+  → LEAD_ASSIGNED
+  → CUSTOMER_CONTACTED
+  → MEETING_COMPLETED
+  → REQUIREMENT_RECEIVED
+  → REQUIREMENT_APPROVED
+```
 
 The lead retains customer information, product requirements, expected
 quantity, source, follow-ups, and remarks.
+
+No sample or quotation may be created before `REQUIREMENT_APPROVED`.
 
 ## 2. Sample management
 
@@ -121,14 +135,15 @@ Rules:
 - When sampling is required, only an approved sample unlocks quotation
   creation.
 - The sample stage may be skipped only when the lead/order policy explicitly
-  marks it as unnecessary.
+  marks it as `NO_SAMPLE`.
 
 ## 3. Quotation
 
 Workflow:
 
 ```text
-QUOTATION_DRAFT → QUOTATION_SENT → CUSTOMER_ACCEPTED
+QUOTATION_DRAFT → INTERNAL_PRICING_REVIEW → QUOTATION_SENT
+  → CUSTOMER_NEGOTIATION → QUOTATION_APPROVED
 ```
 
 Alternative outcomes:
@@ -139,7 +154,7 @@ Alternative outcomes:
 
 A quotation freezes product specifications, quantity, unit price, discount,
 tax, freight, payment terms, delivery terms, validity, and commercial notes.
-Only the latest `CUSTOMER_ACCEPTED` version can create a sales order.
+Only the latest `QUOTATION_APPROVED` version can create a sales order.
 
 ## 4. Sales order
 
@@ -286,12 +301,15 @@ reconcile for discount, tax, freight, rounding, debit, and credit.
 
 ## 13. Order closure
 
-An order can transition to `ORDER_CLOSED` only when:
+An order can transition to `SALES_ORDER_CLOSED` only when:
 
 - the complete ordered quantity has been delivered;
 - all invoice balances are fully paid by verified payments; and
+- Finance has successfully updated the customer ledger; and
 - no open return or replacement remains.
 
+Sales may record payment details but cannot verify them, update the customer
+ledger, or close an order. Finance is the sole owner of those commands.
 Closure is evaluated by backend policy and performed transactionally. A UI
 action cannot bypass these conditions.
 

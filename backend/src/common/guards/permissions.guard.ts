@@ -57,9 +57,18 @@ export class PermissionsGuard implements CanActivate {
     const userPermissions = userRole.rolePermissions.map(
       (rp: any) => rp.permission.code,
     );
+
     const hasPermission = requiredPermissions.every((perm) =>
       userPermissions.includes(perm),
     );
+
+    console.log('[PermissionsGuard]', {
+      email: user.email,
+      role: user.role,
+      required: requiredPermissions,
+      hasPermission,
+      missingPermissions: requiredPermissions.filter(p => !userPermissions.includes(p))
+    });
 
     if (!hasPermission) {
       throw new ForbiddenException('Insufficient permissions');

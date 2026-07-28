@@ -20,12 +20,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 
-@Controller('customers')
+@Controller('sales/customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  @Permissions('customer.create')
+  @Permissions('sales.customers.create')
   @UseInterceptors(IdempotencyInterceptor)
   create(
     @Body() createCustomerDto: CreateCustomerDto,
@@ -40,7 +40,7 @@ export class CustomersController {
   }
 
   @Get()
-  @Permissions('customer.read')
+  @Permissions('sales.customers.read')
   findAll(
     @CurrentUser() user: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -51,7 +51,7 @@ export class CustomersController {
   }
 
   @Get('check-duplicates')
-  @Permissions('customer.read')
+  @Permissions('sales.customers.read')
   checkDuplicates(
     @CurrentUser() user: any,
     @Query('gstin') gstin?: string,
@@ -69,13 +69,13 @@ export class CustomersController {
   }
 
   @Get(':id')
-  @Permissions('customer.read')
+  @Permissions('sales.customers.read')
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customersService.getById(id, user.companyId);
   }
 
   @Patch(':id')
-  @Permissions('customer.update')
+  @Permissions('sales.customers.update')
   update(
     @Param('id') id: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
@@ -92,7 +92,7 @@ export class CustomersController {
   }
 
   @Post(':id/deactivate')
-  @Permissions('customer.update')
+  @Permissions('sales.customers.update')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
   deactivate(
@@ -111,7 +111,7 @@ export class CustomersController {
   }
 
   @Post(':id/restore')
-  @Permissions('customer.update')
+  @Permissions('sales.customers.update')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
   restore(

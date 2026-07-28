@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Req } from '@nestjs/common';
 import { ProductionService } from './production.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
@@ -22,6 +22,19 @@ export class ProductionController {
   @Permissions('production.plan.create')
   async createPlan(@Body() dto: any) {
     return this.productionService.createPlan(dto);
+  }
+
+  @Patch(':id')
+  @Permissions('production.plan.approve')
+  async updatePlan(
+    @Param('id') id: string,
+    @Body() dto: {
+      plannedStartDate?: string;
+      plannedEndDate?: string;
+      productionLine?: string;
+    },
+  ) {
+    return this.productionService.updatePlan(id, dto);
   }
 
   @Post(':id/action')

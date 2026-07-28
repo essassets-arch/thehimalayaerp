@@ -63,8 +63,8 @@ export async function backendFetch<T = unknown>(
     }
   }
 
-  // If still 401, or 403 Forbidden, force logout by clearing token
-  if (res.status === 401 || res.status === 403) {
+  // If still 401, force logout by clearing token
+  if (res.status === 401) {
     useAuthStore.getState().logout?.();
   }
 
@@ -87,9 +87,17 @@ export async function backendFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    const error = new Error(envelope?.message || `Request failed: ${res.status}`);
+    const validationDetails = Array.isArray(envelope?.error?.details)
+      ? envelope.error.details.filter(Boolean).join(' ')
+      : '';
+    const backendMessage =
+      envelope?.error?.message ||
+      envelope?.message ||
+      validationDetails;
+    const error = new Error(backendMessage || `Request failed: ${res.status}`);
     (error as any).status = res.status;
-    (error as any).code = envelope?.code;
+    (error as any).code = envelope?.error?.code || envelope?.code;
+    (error as any).details = envelope?.error?.details;
     throw error;
   }
 
@@ -101,7 +109,7 @@ export async function backendFetch<T = unknown>(
   }
 
   if (envelope && !envelope.success) {
-    throw new Error(envelope.message || 'Operation failed.');
+    throw new Error(envelope?.error?.message || envelope.message || 'Operation failed.');
   }
 
   return (envelope?.data ?? envelope) as T;

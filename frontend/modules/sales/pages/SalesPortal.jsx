@@ -21,6 +21,7 @@ import Swal from 'sweetalert2';
 import { useERP, useERPStore, useSalesBackend } from '../../../shared/context/ERPContext.jsx';
 import { useAuth } from '../../../shared/context/AuthContext.jsx';
 import { apiClient } from '../../../lib/apiClient.js';
+import { backendFetch } from '../../../lib/backendFetch';
 
 // Feature hooks (new FSD layer)
 import { useLeads }      from '../hooks/useLeads.js';
@@ -78,16 +79,38 @@ export default function SalesPortal() {
   const [prefillQuotationData, setPrefillQuotationData] = useState(null);
 
   // ── Domain hooks ───────────────────────────────────────────────────────────
-  const { leads, addLead, generateQuotationFromLead, updateLeadStatus, addFollowup, convertToSample, updateLead, deleteLead } =
-    useLeads(showToast);
+  const {
+    leads,
+    addLead,
+    generateQuotationFromLead,
+    updateLeadStatus,
+    addFollowup,
+    convertToSample,
+    editLead: updateLead,
+    deleteLead,
+  } = useLeads(showToast);
 
   const { samples, updateSampleStatus, updateSample, createReplacementSample } = useSamples(showToast);
 
-  const { quotations, createQuotation, updateQuotation, confirmOrder } = useQuotations(showToast);
+  const { quotations, createQuotation, updateQuotation, confirmOrder } = useQuotations(
+    showToast,
+    currentView === 'quotations' || currentView === 'create-quotation'
+  );
 
   const { reminders, createReminder, updateReminder, completeReminder } = useReminders(showToast);
 
-  const { orders, deliveredOrders, createOrder, updateFollowup, loadOrders, requestReturn, requestReplacement, raiseCustomerComplaint } = useOrders(showToast, currentView);
+  const {
+    orders: backendOrders,
+    deliveredOrders,
+    createOrder,
+    updateFollowup,
+    loadOrders,
+    requestReturn,
+    requestReplacement,
+    raiseCustomerComplaint,
+  } = useOrders(showToast, currentView);
+
+  const orders = backendOrders;
 
   useEffect(() => {
     // Only load if on orders view and loadOrders is available
@@ -843,7 +866,11 @@ export default function SalesPortal() {
 
     case 'create-lead':
     case 'edit-lead': {
-      const leadToEdit = leadId ? leads.find((l) => l.id === Number(leadId)) : null;
+      // Prisma lead IDs are UUID strings. Converting them with Number(...)
+      // produces NaN and makes every existing lead look missing.
+      const leadToEdit = leadId
+        ? leads.find((lead) => String(lead.id ?? lead.leadId) === String(leadId))
+        : null;
       return (
         <CreateLead
           key={leadToEdit ? `edit-${leadToEdit.id}` : 'new'}
@@ -968,6 +995,80 @@ export default function SalesPortal() {
         const matchedOrder = orders.find((o) => o.orderNo === orderId || o.id === orderId);
         const orderDbId = matchedOrder ? matchedOrder.id || matchedOrder.dbId : orderId;
 
+        if (status === 'SEND_TO_PLANT_HEAD_DIRECT') {
+          try {
+            const serverOrder = await backendFetch(`/api/backend/sales/orders/${orderDbId}`);
+            const currentStatus = String(
+              serverOrder?.workflowStateCode ||
+              serverOrder?.status ||
+              matchedOrder?.workflowStateCode ||
+              matchedOrder?.status ||
+              matchedOrder?.orderStatus ||
+              ''
+            ).toUpperCase();
+
+            if (!['DRAFT', 'PENDING_APPROVAL', 'CONFIRMED'].includes(currentStatus)) {
+              throw new Error(
+                currentStatus === 'SENT_TO_PLANT' || currentStatus === 'SENT_TO_PLANT_HEAD'
+                  ? 'This order has already been sent to the Plant Head.'
+                  : `This order is already at ${currentStatus.replaceAll('_', ' ')} and cannot be submitted again.`
+              );
+            }
+
+            if (currentStatus === 'DRAFT') {
+              await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
+                method: 'POST',
+                body: { action: 'SUBMIT' },
+              });
+            }
+            if (currentStatus === 'DRAFT' || currentStatus === 'PENDING_APPROVAL') {
+              await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
+                method: 'POST',
+                body: { action: 'CONFIRM' },
+              });
+            }
+            await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
+              method: 'POST',
+              body: { action: 'SEND_TO_PLANT' },
+            });
+            showToast('Order sent to Plant Head.');
+            await loadOrders();
+            return true;
+          } catch (err) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Unable to Send Order',
+              text: err?.message || 'Unable to send order to Plant Head.',
+            });
+            return false;
+          }
+        }
+
+        if (['SUBMIT', 'CONFIRM', 'SEND_TO_PLANT'].includes(status)) {
+          try {
+            await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
+              method: 'POST',
+              body: { action: status },
+            });
+            showToast(
+              status === 'SUBMIT'
+                ? 'Order submitted for approval.'
+                : status === 'CONFIRM'
+                  ? 'Order confirmed.'
+                  : 'Order sent to Plant Head.'
+            );
+            await loadOrders();
+            return true;
+          } catch (err) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Order Action Failed',
+              text: err?.message || 'Unable to update the order.',
+            });
+            return false;
+          }
+        }
+
         if (status === 'ORDER_CONFIRMED') {
           showToast('Confirming order…');
           try {
@@ -1007,7 +1108,6 @@ export default function SalesPortal() {
               o2p.confirmSalesOrder({ orderId: orderDbId, actor: user?.name || 'Sales' });
               showToast('✅ Order confirmed and sent to Plant Head!');
               await syncData();
-              navigate.push('/plant-head/incoming-orders');
             } else {
               Swal.fire({ icon: 'error', title: 'Failed', text: res.message || 'Failed to send to Plant Head' });
             }

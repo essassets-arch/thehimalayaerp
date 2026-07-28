@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   return forwardBackendRequest({
     token,
-    path: '/customers',
+    path: '/sales/customers',
     method: 'GET',
     query: url.searchParams,
     requestId: request.headers.get('x-request-id') ?? undefined,
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   return forwardBackendRequest({
     token,
-    path: '/customers',
+    path: '/sales/customers',
     method: 'POST',
     body,
     headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,

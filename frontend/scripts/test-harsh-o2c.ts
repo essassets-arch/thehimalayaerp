@@ -8,7 +8,7 @@ const plantActor = { id: 'PLANT', name: 'Plant Head' };
 const productionActor = { id: 'PRODUCTION', name: 'Production' };
 const qcActor = { id: 'QC', name: 'QC' };
 const dispatchActor = { id: 'DISPATCH', name: 'Dispatch' };
-const financeActor = { id: 'FINANCE', name: 'Finance' };
+const financeActor = { id: 'FINANCE', name: 'Finance', department: 'Finance' };
 
 let state: sales.ERPState = {
   sales: {
@@ -47,6 +47,16 @@ const lead = {
   expectedTransportationCost: 2500,
 };
 [state] = sales.createLead(state, lead, salesActor);
+for (const status of [
+  'LEAD_ASSIGNED',
+  'CUSTOMER_CONTACTED',
+  'MEETING_COMPLETED',
+  'REQUIREMENT_RECEIVED',
+  'REQUIREMENT_APPROVED',
+  'NO_SAMPLE',
+] as const) {
+  state = sales.updateLeadStatus(state, lead.id, status, salesActor);
+}
 
 const quotation: any = {
   id: 'QTN-HARSH-001',
@@ -86,7 +96,7 @@ const quotation: any = {
 };
 [state] = sales.createQuotation(state, quotation, salesActor);
 state = sales.updateQuotationStatus(state, quotation.id, 'QUOTATION_SENT', salesActor);
-state = sales.updateQuotationStatus(state, quotation.id, 'CUSTOMER_ACCEPTED', salesActor);
+state = sales.updateQuotationStatus(state, quotation.id, 'QUOTATION_APPROVED', salesActor);
 
 let orderId: string;
 [state, orderId] = sales.convertQuotationToOrder(state, quotation.id, salesActor);
@@ -105,11 +115,13 @@ state = sales.planOrder(state, orderId, {
 
 state = production.activateWorkOrder(state, orderId, productionActor);
 state = production.activateWorkOrder(state, orderId, productionActor);
-state = production.startProduction(state, 'WO-HARSH-001', productionActor);
-state = production.completeProduction(state, 'WO-HARSH-001', {
+const workOrderId = state.production.workOrders.find((record: any) => record.orderId === orderId)?.id;
+assert.ok(workOrderId);
+state = production.startProduction(state, workOrderId, productionActor);
+state = production.completeProduction(state, workOrderId, {
   producedItems: [{ orderLineId: 'ORDER-LINE-HARSH-001', producedQuantity: 100 }],
 }, productionActor);
-state = production.approveQC(state, 'WO-HARSH-001', {
+state = production.approveQC(state, workOrderId, {
   items: [{
     orderLineId: 'ORDER-LINE-HARSH-001',
     producedQuantity: 100,
@@ -118,9 +130,13 @@ state = production.approveQC(state, 'WO-HARSH-001', {
   }],
 }, qcActor);
 
-state = dispatch.sendFinishedGoodsToDispatch(state, 'FG-HARSH-001', dispatchActor);
-state = dispatch.sendFinishedGoodsToDispatch(state, 'FG-HARSH-001', dispatchActor);
-state = dispatch.createDispatch(state, 'DORD-HARSH-001', {
+const finishedGoodsId = state.production.finishedGoods.find((record: any) => record.orderId === orderId)?.id;
+assert.ok(finishedGoodsId);
+state = dispatch.sendFinishedGoodsToDispatch(state, finishedGoodsId, dispatchActor);
+state = dispatch.sendFinishedGoodsToDispatch(state, finishedGoodsId, dispatchActor);
+const dispatchOrderId = state.dispatch.dispatchOrders.find((record: any) => record.orderId === orderId)?.id;
+assert.ok(dispatchOrderId);
+state = dispatch.createDispatch(state, dispatchOrderId, {
   vehicleNumber: 'MH-31-AB-1234',
   driverName: 'Ramesh Kumar',
   driverPhone: '9876543211',
@@ -128,8 +144,10 @@ state = dispatch.createDispatch(state, 'DORD-HARSH-001', {
   lrNumber: 'LR-HARSH-001',
   dispatchDate: '2026-08-11',
 }, dispatchActor);
-state = dispatch.startDispatchTransit(state, 'DSP-HARSH-001', dispatchActor);
-state = dispatch.confirmDelivery(state, 'DSP-HARSH-001', {
+const consignmentId = state.dispatch.consignments.find((record: any) => record.orderId === orderId)?.id;
+assert.ok(consignmentId);
+state = dispatch.startDispatchTransit(state, consignmentId, dispatchActor);
+state = dispatch.confirmDelivery(state, consignmentId, {
   deliveredAt: '2026-08-12T11:30:00+05:30',
   receivedBy: 'Harsh Sharma',
   remarks: 'Material received in good condition',

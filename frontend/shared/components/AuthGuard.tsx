@@ -23,7 +23,7 @@ import { useAuthStore } from '@/store/authStore';
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
   'super-admin':    ['Super Admin'],
   'admin':          ['Admin', 'Super Admin'],
-  'sales':          ['Sales', 'Sales Admin', 'Super Admin'],
+  'sales':          ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'Super Admin'],
   'plant-head':     ['Plant Head', 'Super Admin'],
   'production':     ['Production', 'Plant Head', 'Super Admin'],
   'store':          ['Store', 'Plant Head', 'Super Admin'],
@@ -137,6 +137,8 @@ function getDefaultPath(role: string): string {
   const map: Record<string, string> = {
     'Sales': '/sales/dashboard',
     'Sales Admin': '/sales/dashboard',
+    'Sales Executive': '/sales/dashboard',
+    'Sales Manager': '/sales/dashboard',
     'Plant Head': '/plant-head/dashboard',
     'Production': '/production/dashboard',
     'Store': '/store/dashboard',

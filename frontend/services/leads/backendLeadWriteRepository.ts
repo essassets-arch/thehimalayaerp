@@ -1,28 +1,13 @@
 import { LeadWriteRepository, CreateLeadInput, UpdateLeadInput, TransitionLeadInput, AddLeadFollowupInput, AddLeadReminderInput, MarkLeadLostInput, WriteRequestOptions } from './leadWriteRepository';
+import { backendFetch } from '@/lib/backendFetch';
 
 export class BackendLeadWriteRepository implements LeadWriteRepository {
   private async mutateApi(endpoint: string, method: string, body: any, options?: WriteRequestOptions) {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (options?.idempotencyKey) {
-      headers['Idempotency-Key'] = options.idempotencyKey;
-    }
-
-    const response = await fetch(endpoint, {
-      method,
-      headers,
-      body: JSON.stringify(body),
+    return backendFetch(endpoint, {
+      method: method as 'POST' | 'PATCH' | 'DELETE' | 'PUT',
+      body,
+      idempotencyKey: options?.idempotencyKey,
     });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      // The Next.js bridge forwards backend errors
-      throw error;
-    }
-
-    return response.json();
   }
 
   async createLead(input: CreateLeadInput, options?: WriteRequestOptions) {

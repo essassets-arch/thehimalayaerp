@@ -40,9 +40,9 @@ export const assertSampleTestingCanStart = (sample: SalesSample) => {
 };
 
 export const assertQuotationCanConvert = (quotation: SalesQuotation) => {
-  const allowed = ['CUSTOMER_ACCEPTED', 'QUOTATION_SHARED', 'Sent', 'Approved'];
+  const allowed = ['QUOTATION_APPROVED', 'CUSTOMER_ACCEPTED', 'QUOTATION_SHARED', 'Sent', 'Approved'];
   if (!allowed.includes(quotation.status)) {
-    throw new SalesTransitionError(`Quotation must be CUSTOMER_ACCEPTED or SHARED before conversion (current: ${quotation.status}).`);
+    throw new SalesTransitionError(`Quotation must be QUOTATION_APPROVED before conversion (current: ${quotation.status}).`);
   }
 };
 

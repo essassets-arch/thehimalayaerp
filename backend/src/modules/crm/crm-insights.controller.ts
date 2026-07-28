@@ -7,13 +7,13 @@ export class CrmInsightsController {
   constructor(private readonly insights: CrmInsightsService) {}
 
   @Get('customers/:id/360')
-  @Permissions('customer.read')
+  @Permissions('sales.customers.read')
   customer360(@Param('id') id: string, @Req() req: any) {
     return this.insights.customer360(id, req.user?.companyId);
   }
 
   @Get('sales/dashboard')
-  @Permissions('crm.lead.read')
+  @Permissions('sales.dashboard.read')
   salesDashboard(@Req() req: any) {
     return this.insights.salesDashboard(req.user?.companyId);
   }

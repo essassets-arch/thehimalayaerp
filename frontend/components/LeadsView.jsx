@@ -107,12 +107,34 @@ export default function LeadsView({
   };
 
   const handleGenerateQuotationClick = (lead) => {
-    const res = erpStore.createOrResumeQuotationFromLead(lead.id || lead.leadId);
-    if (res.success) {
-      router.push(`/sales/create-quotation?quotationId=${res.quotationId}&leadId=${lead.id || lead.leadId}`);
-    } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: res.message });
-    }
+    const leadId = lead.id || lead.leadId;
+    const leadItems = Array.isArray(lead.detailedItems) ? lead.detailedItems : [];
+
+    // Database-backed leads are not present in the legacy Zustand sales
+    // collection, so create the UI draft directly from the selected record.
+    erpStore.setQuotationDraft({
+      source: 'LEAD',
+      sourceId: leadId,
+      leadId,
+      customer: lead.companyName || lead.customerName || '',
+      company: lead.companyName || lead.customerName || '',
+      groupName: lead.groupName || '',
+      gstName: lead.gstName || lead.companyName || lead.customerName || '',
+      gstNumber: lead.gstNumber || '',
+      contactPerson: lead.contactPerson || lead.siteInchargeName || '',
+      notes: lead.remarks || lead.notes || '',
+      items: leadItems.map((item, index) => ({
+        productId: item.productId || item.productCode || `PRD-${index + 1}`,
+        name: item.productName || item.name || '',
+        description: item.specification || item.description || '',
+        qty: Number(item.quantity) || 1,
+        unitPrice: Number(item.unitPrice) || 0,
+        discount: Number(item.discount) || 0,
+        tax: item.tax !== undefined ? Number(item.tax) : 18,
+      })),
+    });
+
+    router.push(`/sales/create-quotation?leadId=${encodeURIComponent(String(leadId))}`);
   };
 
   const handleGenerateSampleClick = (lead) => {

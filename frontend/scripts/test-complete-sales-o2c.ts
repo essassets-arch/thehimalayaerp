@@ -10,6 +10,7 @@ import {
   selectCanRequestReturn,
   selectHasFullReturnCompleted,
 } from '../store/domains/sales/salesCalculations';
+import { verifyFinancePayment as verifyFinancePaymentPure } from '../store/domains/sales/salesActions';
 
 type Row = Record<string, any>;
 type Action = (...args: any[]) => any;
@@ -101,6 +102,17 @@ async function main() {
       status: 'LEAD_CREATED',
     });
     assert.ok(byId(getState().sales.leads, ids.lead));
+    for (const status of [
+      'LEAD_ASSIGNED',
+      'CUSTOMER_CONTACTED',
+      'MEETING_COMPLETED',
+      'REQUIREMENT_RECEIVED',
+      'REQUIREMENT_APPROVED',
+      'NO_SAMPLE',
+    ]) {
+      action('updateLeadStatus')(ids.lead, status);
+    }
+    assert.equal(byId(getState().sales.leads, ids.lead)?.status, 'NO_SAMPLE');
   });
 
   await stage('QUOTATION TO ORDER', () => {
@@ -176,6 +188,20 @@ async function main() {
     action('completeProduction')(ids.workOrder, {
       producedItems: [{ orderLineId: ids.orderLine, producedQuantity: totalQuantity }],
     });
+    action('rejectQC')(ids.workOrder, {
+      remarks: 'Surface finish requires rework',
+      items: [{ orderLineId: ids.orderLine, rejectedQuantity: totalQuantity }],
+    });
+    expectOrder({ productionStatus: 'IN_PROGRESS', qcStatus: 'REWORK_REQUIRED' });
+    assert.throws(
+      () => action('sendFinishedGoodsToDispatch')('FG-NOT-APPROVED'),
+      /not found/i
+    );
+    action('startProduction')(ids.workOrder);
+    action('completeProduction')(ids.workOrder, {
+      producedItems: [{ orderLineId: ids.orderLine, producedQuantity: totalQuantity }],
+      remarks: 'Rework completed',
+    });
     action('approveQC')(ids.workOrder, {
       id: 'QC-HARSH-FULL-001',
       batchId: 'BATCH-HARSH-FULL-001',
@@ -187,7 +213,11 @@ async function main() {
       }],
     });
     expectOrder({ productionStatus: 'PRODUCTION_COMPLETED', qcStatus: 'QC_APPROVED' });
-    assert.equal(forOrder(getState().production.qcRecords).length, 1);
+    assert.equal(forOrder(getState().production.qcRecords).length, 2, 'Failed and passed inspections must both remain auditable');
+    assert.deepEqual(
+      forOrder(getState().production.qcRecords).map((record) => record.status),
+      ['QC_FAILED', 'QC_APPROVED']
+    );
     assert.equal(forOrder(getState().production.finishedGoods).length, 1);
   });
 
@@ -227,9 +257,19 @@ async function main() {
     });
     const payment = forOrder(getState().sales.paymentConfirmations)[0];
     assert.equal(payment.status, 'FINANCE_VERIFICATION_PENDING');
+    assert.throws(
+      () => verifyFinancePaymentPure(
+        getState().state,
+        payment.id,
+        { id: 'SALES', name: 'Sales User', department: 'Sales' }
+      ),
+      /Only Finance/
+    );
     action('verifyFinancePayment')(payment.id);
     action('verifyFinancePayment')(payment.id);
     expectOrder({ dispatchStatus: 'DELIVERED', paymentStatus: 'FULLY_PAID', commercialStatus: 'ORDER_CLOSED' });
+    assert.ok(order().customerLedgerUpdatedAt, 'Finance verification must update the customer ledger milestone');
+    assert.ok(order().closedAt, 'Finance must timestamp order closure');
     const verified = forOrder(getState().sales.paymentConfirmations)
       .filter((row) => row.status === 'FINANCE_VERIFIED')
       .reduce((sum, row) => sum + Number(row.amount || 0), 0);

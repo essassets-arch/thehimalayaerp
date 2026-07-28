@@ -157,10 +157,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         additionalCharges: item.additionalCharges || 0
       }));
     }
-    if (editingLead && (editingLead.productInterested || editingLead.requirements)) {
+    if (editingLead && (editingLead.productInterest || editingLead.productInterested || editingLead.requirements)) {
       return [{
         id: 1,
-        productName: editingLead.productInterested || editingLead.requirements,
+        productName: editingLead.productInterest || editingLead.productInterested || editingLead.requirements,
         productCode: '',
         specification: '',
         quantity: editingLead.estimatedQuantity || 1,
@@ -178,7 +178,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     (editingLead?.sampleItems || []).forEach(si => { existingMap[si.id] = si; });
     const itms = editingLead?.detailedItems?.length > 0
       ? editingLead.detailedItems.map((it, idx) => ({ id: idx + 1, productName: it.productName || '' }))
-      : [{ id: 1, productName: editingLead?.productInterested || 'Uni Paver 60mm' }];
+      : [{ id: 1, productName: editingLead?.productInterest || editingLead?.productInterested || 'Uni Paver 60mm' }];
     return itms.map(it => existingMap[it.id] || {
       id: it.id,
       productName: it.productName,
@@ -337,6 +337,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
       projectName: projectName.trim(),
       groupName: groupName.trim(),
       companyName: companyName.trim(),
+      gstName: companyName.trim(),
       gstNumber: gstNumber.trim(),
       siteInchargeName: siteInchargeName.trim(),
       siteInchargeMobile: siteInchargeMobile.trim(),
@@ -360,6 +361,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
       contactPerson: siteInchargeName.trim(),
       phone: siteInchargeMobile.trim(),
+      productInterest: itemsDescription,
       productInterested: itemsDescription,
       estimatedQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
 
@@ -397,7 +399,9 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
           success = res?.success !== false;
         }
       } catch (err) {
-        console.error(err);
+        // The sales hook already presents the API error to the user.
+        // Avoid Next.js treating the same handled failure as an uncaught console error.
+        console.warn('Lead submission failed:', err instanceof Error ? err.message : err);
       } finally {
         setIsSubmitting(false);
       }
