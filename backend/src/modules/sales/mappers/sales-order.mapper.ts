@@ -5,6 +5,7 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
   include: {
     items: true;
     customer: true;
+    workflowState: true;
   };
 }>;
 
@@ -16,7 +17,7 @@ export function mapSalesOrder(
     orderId: order.orderNumber,
     customerId: order.customerId,
     customerName: order.customer.companyName,
-    customerCode: order.customer.publicId,
+    customerCode: order.customer.customerCode,
 
     items: order.items.map((item) => ({
       id: item.id,
@@ -27,24 +28,20 @@ export function mapSalesOrder(
       unit: item.unit,
       unitPrice: Number(item.unitPrice),
       lineTotal: Number(item.lineTotal),
-      deliveredQuantity: Number(item.deliveredQuantity),
-      returnedQuantity: Number(item.returnedQuantity),
-      replacedQuantity: Number(item.replacedQuantity),
+      // deliveredQuantity, returnedQuantity, replacedQuantity are now computed
+      // from DispatchItem, SalesReturnItem, ReplacementOrderItem respectively.
+      // They are not stored on SalesOrderItem; services can pass them as computed props.
     })),
 
     subtotal: Number(order.subtotal),
     taxAmount: Number(order.taxAmount),
     totalAmount: Number(order.totalAmount),
 
-    orderStatus: order.orderStatus,
-    creditStatus: order.creditStatus,
-    allocationStatus: order.allocationStatus,
-    productionStatus: order.productionStatus,
-    qcStatus: order.qcStatus,
-    dispatchStatus: order.dispatchStatus,
-    invoiceStatus: order.invoiceStatus,
-    paymentStatus: order.paymentStatus,
-    closureStatus: order.closureStatus,
+    // Unified lifecycle status
+    status: order.status,
+
+    workflowStateId: order.workflowStateId,
+    workflowStateName: order.workflowState?.name,
 
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),

@@ -16,13 +16,16 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto';
-import { AttachCustomerPoDto } from './dto/attach-customer-po.dto';
-import { RunCreditCheckDto } from './dto/run-credit-check.dto';
-import { ApproveCreditExceptionDto } from './dto/approve-credit-exception.dto';
-import { ConfirmSalesOrderDto } from './dto/confirm-sales-order.dto';
-import { SendOrderToPlantHeadDto } from './dto/send-order-to-plant-head.dto';
-import { CancelSalesOrderDto } from './dto/cancel-sales-order.dto';
-import { TransitionResponseDto } from './dto/transition-response.dto';
+import { IsOptional, IsString } from 'class-validator';
+
+export class WorkflowActionDto {
+  @IsString()
+  action: string;
+
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+}
 
 @Controller('sales/orders')
 export class SalesController {
@@ -38,14 +41,8 @@ export class SalesController {
 
   @Get(':id')
   @Permissions('sales.orders.read')
-  async getOrder(@Param('id') id: string): Promise<SalesOrderResponseDto> {
+  async getOrder(@Param('id') id: string): Promise<any> {
     return this.salesService.getOrder(id);
-  }
-
-  @Get(':id/timeline')
-  @Permissions('sales.orders.read')
-  async getOrderTimeline(@Param('id') id: string): Promise<any[]> {
-    return this.salesService.getOrderTimeline(id);
   }
 
   @Post()
@@ -68,69 +65,42 @@ export class SalesController {
     return this.salesService.convertQuotationToOrder(dto, req.user?.sub);
   }
 
-  @Post(':id/customer-po')
+  @Post(':id/action')
   @Permissions('sales.orders.update')
   @UseInterceptors(IdempotencyInterceptor)
-  async attachCustomerPo(
+  async processAction(
     @Param('id') id: string,
-    @Body() dto: AttachCustomerPoDto,
+    @Body() dto: WorkflowActionDto,
     @Req() req: any,
-  ): Promise<TransitionResponseDto> {
-    return this.salesService.attachCustomerPo(id, dto, req.user?.sub);
+  ) {
+    return this.salesService.processAction(id, dto, req.user?.sub);
   }
 
-  @Post(':id/credit-check')
+  @Post(':id/submit')
   @Permissions('sales.orders.update')
-  @UseInterceptors(IdempotencyInterceptor)
-  async runCreditCheck(
-    @Param('id') id: string,
-    @Body() dto: RunCreditCheckDto,
-    @Req() req: any,
-  ): Promise<TransitionResponseDto> {
-    return this.salesService.runCreditCheck(id, dto, req.user?.sub);
+  async submitOrder(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+    dto.action = 'SUBMIT';
+    return this.salesService.processAction(id, dto, req.user?.sub);
   }
 
-  @Post(':id/credit-exception/approve')
-  @Permissions('sales.credit.override')
-  @UseInterceptors(IdempotencyInterceptor)
-  async approveCreditException(
-    @Param('id') id: string,
-    @Body() dto: ApproveCreditExceptionDto,
-    @Req() req: any,
-  ): Promise<TransitionResponseDto> {
-    return this.salesService.approveCreditException(id, dto, req.user?.sub);
+  @Post(':id/approve')
+  @Permissions('sales.orders.approve')
+  async approveOrder(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+    dto.action = 'CONFIRM';
+    return this.salesService.processAction(id, dto, req.user?.sub);
   }
 
-  @Post(':id/confirm')
-  @Permissions('sales.orders.confirm')
-  @UseInterceptors(IdempotencyInterceptor)
-  async confirmOrder(
-    @Param('id') id: string,
-    @Body() dto: ConfirmSalesOrderDto,
-    @Req() req: any,
-  ): Promise<TransitionResponseDto> {
-    return this.salesService.confirmOrder(id, dto, req.user?.sub);
+  @Post(':id/reject')
+  @Permissions('sales.orders.approve')
+  async rejectOrder(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+    dto.action = 'REJECT';
+    return this.salesService.processAction(id, dto, req.user?.sub);
   }
 
-  @Post(':id/send-to-plant-head')
-  @Permissions('sales.orders.send_to_plant')
-  @UseInterceptors(IdempotencyInterceptor)
-  async sendToPlantHead(
-    @Param('id') id: string,
-    @Body() dto: SendOrderToPlantHeadDto,
-    @Req() req: any,
-  ): Promise<TransitionResponseDto> {
-    return this.salesService.sendToPlantHead(id, dto, req.user?.sub);
-  }
-
-  @Post(':id/cancel')
-  @Permissions('sales.orders.cancel')
-  @UseInterceptors(IdempotencyInterceptor)
-  async cancelOrder(
-    @Param('id') id: string,
-    @Body() dto: CancelSalesOrderDto,
-    @Req() req: any,
-  ): Promise<TransitionResponseDto> {
-    return this.salesService.cancelOrder(id, dto, req.user?.sub);
+  @Post(':id/send-to-plant')
+  @Permissions('sales.orders.update')
+  async sendToPlant(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+    dto.action = 'SEND_TO_PLANT';
+    return this.salesService.processAction(id, dto, req.user?.sub);
   }
 }

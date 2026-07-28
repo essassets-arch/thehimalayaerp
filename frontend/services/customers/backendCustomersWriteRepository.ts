@@ -5,7 +5,7 @@ type CustomerContext = { idempotencyKey: string; requestId?: string };
 
 export const backendCustomersWriteRepository = {
   create: async (input: any, ctx: CustomerContext): Promise<FrontendCustomer> => {
-    const data = await backendFetch<any>('/api/backend/customers', {
+    const data = await backendFetch<any>('/api/backend/sales/customers', {
       method: 'POST',
       body: input,
       idempotencyKey: ctx.idempotencyKey,
@@ -16,7 +16,7 @@ export const backendCustomersWriteRepository = {
 
   update: async (id: string, input: any, ctx: CustomerContext): Promise<FrontendCustomer> => {
     const safeId = encodeURIComponent(id);
-    const data = await backendFetch<any>(`/api/backend/customers/${safeId}`, {
+    const data = await backendFetch<any>(`/api/backend/sales/customers/${safeId}`, {
       method: 'PATCH',
       body: input,
       idempotencyKey: ctx.idempotencyKey,
@@ -27,7 +27,7 @@ export const backendCustomersWriteRepository = {
 
   deactivate: async (id: string, input: { expectedVersion: number; reason?: string }, ctx: CustomerContext): Promise<FrontendCustomer> => {
     const safeId = encodeURIComponent(id);
-    const data = await backendFetch<any>(`/api/backend/customers/${safeId}/deactivate`, {
+    const data = await backendFetch<any>(`/api/backend/sales/customers/${safeId}/deactivate`, {
       method: 'POST',
       body: input,
       idempotencyKey: ctx.idempotencyKey,
@@ -38,7 +38,7 @@ export const backendCustomersWriteRepository = {
 
   restore: async (id: string, input: { expectedVersion: number }, ctx: CustomerContext): Promise<FrontendCustomer> => {
     const safeId = encodeURIComponent(id);
-    const data = await backendFetch<any>(`/api/backend/customers/${safeId}/restore`, {
+    const data = await backendFetch<any>(`/api/backend/sales/customers/${safeId}/restore`, {
       method: 'POST',
       body: input,
       idempotencyKey: ctx.idempotencyKey,

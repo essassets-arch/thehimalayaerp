@@ -3,10 +3,12 @@
 import React, { useState, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { Search, ClipboardList } from 'lucide-react';
-import { useERPStore, selectCustomerOutstandingSummary } from '../../../store/erpStore';
+import { useERPStore } from '../../../store/erpStore';
+import { useSalesBackend } from '../../../shared/context/ERPContext';
 
 export default function CustomersView() {
   const state = useERPStore((s) => s.state);
+  const { customers = [] } = useSalesBackend();
   const [searchQuery, setSearchQuery] = useState('');
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -14,8 +16,33 @@ export default function CustomersView() {
 
   // Load dynamically calculated summaries
   const customerSummaries = useMemo(() => {
-    return selectCustomerOutstandingSummary(state);
-  }, [state]);
+    return customers.map((c) => {
+      // Find orders for this customer
+      const custOrders = (state.sales?.orders || []).filter(
+        (o) => (o.customer?.id || o.customerId || 'CUST-UNKNOWN') === c.id
+      );
+
+      // Find verified payments for this customer
+      const custPayments = (state.finance?.customerPayments || []).filter((p) => {
+        const o = (state.sales?.orders || []).find((ord) => ord.id === p.orderId);
+        const pCustId = o?.customer?.id || o?.customerId || p.customerId || 'CUST-UNKNOWN';
+        return pCustId === c.id && p.verificationStatus === 'FINANCE_VERIFIED';
+      });
+
+      const totalBilled = custOrders.reduce((sum, o) => sum + Number(o.grandTotal ?? o.totalAmount ?? 0), 0);
+      const totalPaid = custPayments.reduce((sum, p) => sum + Number(p.paymentAmount ?? 0), 0);
+      const outstanding = totalBilled - totalPaid;
+
+      return {
+        customerId: c.id,
+        customerName: c.companyName || c.name || 'Unknown',
+        totalBilled,
+        totalPaid,
+        outstanding: Math.max(0, outstanding),
+        status: outstanding > 0 ? 'DUE' : 'CLEARED'
+      };
+    });
+  }, [customers, state]);
 
   const filteredList = useMemo(() => {
     if (!searchQuery) return customerSummaries;

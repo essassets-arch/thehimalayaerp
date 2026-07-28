@@ -4,75 +4,79 @@
  * useSamples — Sample operations for components.
  */
 import { useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
-import { useERP } from '../../../shared/context/ERPContext.jsx';
-import { samplesService } from '../services/samples.service.js';
+import { useSalesBackend } from '../../../shared/context/ERPContext.jsx';
 
 /**
  * @param {Function} showToast
  */
 export function useSamples(showToast) {
-  const { state, syncData } = useERP();
+  const { 
+    samples, 
+    samplesPagination, 
+    loading: { samples: loadingSamples }, 
+    refreshSamples, 
+    createSample, 
+    updateSample: backendUpdateSample, 
+    updateSampleStatus: backendUpdateStatus 
+  } = useSalesBackend();
   const navigate = useRouter();
-
-  const samples = state.sales?.samples || [];
 
   /** Update a sample's workflow status. */
   const updateSampleStatus = useCallback(
-    async (sampleId, status) => {
-      const res = await samplesService.updateStatus(sampleId, status);
-      if (res.success) {
+    async (sampleId, status, expectedVersion) => {
+      try {
+        await backendUpdateStatus(sampleId, status, expectedVersion);
         showToast(`Sample status set to ${status}`);
-        await syncData();
-      } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+        await refreshSamples();
+      } catch (error) {
+        Swal.fire({ icon: 'error', title: 'Error', text: error?.message || String(error) });
       }
     },
-    [showToast, syncData]
+    [showToast, refreshSamples, backendUpdateStatus]
   );
 
   /** Save edited sample details. */
   const updateSample = useCallback(
     async (sampleId, updatedData) => {
-      const res = await samplesService.update(sampleId, updatedData);
-      if (res.success) {
+      try {
+        await backendUpdateSample(sampleId, updatedData);
         showToast('Sample details updated successfully.');
-        await syncData();
-      } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+        await refreshSamples();
+      } catch (error) {
+        Swal.fire({ icon: 'error', title: 'Error', text: error?.message || String(error) });
       }
     },
-    [showToast, syncData]
+    [showToast, refreshSamples, backendUpdateSample]
   );
 
   /** Create a replacement sample request. */
   const createReplacementSample = useCallback(
     async (sample) => {
-      const res = await samplesService.create({
-        customer_id: sample.customer_id,
-        product_id: sample.product_id,
-        quantity: sample.quantity,
-        status: 'Requested',
-        plant_approval_notes: JSON.stringify({
-          testing_parameters: sample.testing_parameters || '',
-          shipping_address: sample.shipping_address || '',
-          transporter: sample.transporter || '',
-          remarks: `Replacement for Sample ${sample.sample_number || sample.id}`
-        })
-      });
-      if (res.success) {
+      try {
+        await createSample({
+          customerId: sample.customerId || sample.customer_id,
+          expectedDeliveryDate: null,
+          items: [{
+            productId: sample.productId || sample.product_id || sample.items?.[0]?.productId,
+            quantity: sample.quantity || sample.items?.[0]?.quantity,
+            specifications: `Replacement for Sample ${sample.sampleNumber || sample.id}`
+          }]
+        });
         showToast('Replacement sample requested successfully.');
-        await syncData();
-      } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+        await refreshSamples();
+      } catch (error) {
+        Swal.fire({ icon: 'error', title: 'Error', text: error?.message || String(error) });
       }
     },
-    [showToast, syncData]
+    [showToast, refreshSamples, createSample]
   );
 
   return {
     samples,
+    samplesPagination,
+    loadingSamples,
     updateSampleStatus,
     updateSample,
     createReplacementSample

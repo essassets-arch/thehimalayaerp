@@ -1,0 +1,362 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { WorkflowService } from '../workflow/workflow.service';
+import { SequenceService } from '../../common/sequence/sequence.service';
+import { Decimal } from '@prisma/client/runtime/library';
+
+@Injectable()
+export class QuotationsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workflowService: WorkflowService,
+    private readonly sequenceService: SequenceService,
+  ) {}
+
+  async listQuotations(companyId?: string, search?: string) {
+    return this.prisma.quotation.findMany({
+      where: {
+        deletedAt: null,
+        ...(companyId ? { companyId } : {}),
+        ...(search ? { quotationNumber: { contains: search, mode: 'insensitive' } } : {}),
+      },
+      include: {
+        workflowState: true,
+        lead: true,
+        items: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async getQuotation(id: string, companyId?: string) {
+    const quotation = await this.prisma.quotation.findFirst({
+      where: { id, deletedAt: null, ...(companyId ? { companyId } : {}) },
+      include: {
+        workflowState: true,
+        items: true,
+        lead: true,
+        parentQuotation: true,
+        childQuotations: { include: { workflowState: true }, orderBy: { version: 'asc' } },
+        salesOrder: true,
+        sourceSalesOrders: true,
+      }
+    });
+    if (!quotation) throw new NotFoundException('Quotation not found');
+    return quotation;
+  }
+
+  private calculate(items: any[]) {
+    let subtotal = new Decimal(0);
+    let discount = new Decimal(0);
+    let tax = new Decimal(0);
+    const processedItems = (items || []).map((item) => {
+      const gross = new Decimal(item.quantity).mul(item.unitPrice);
+      const itemDiscount = new Decimal(item.discount || 0);
+      const taxable = gross.sub(itemDiscount);
+      const itemTax = new Decimal(item.tax || 0);
+      const lineTotal = taxable.add(itemTax);
+      subtotal = subtotal.add(gross);
+      discount = discount.add(itemDiscount);
+      tax = tax.add(itemTax);
+      return { ...item, lineTotal: lineTotal.toNumber() };
+    });
+    return {
+      processedItems,
+      subtotal: subtotal.toNumber(),
+      discount: discount.toNumber(),
+      tax: tax.toNumber(),
+      total: subtotal.sub(discount).add(tax).toNumber(),
+    };
+  }
+
+  async createQuotation(dto: any, userId: string, companyId?: string) {
+    const initialState = await this.workflowService.getInitialState('QUOTATION');
+    const resolvedCompanyId = companyId || dto.companyId || (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
+    if (!resolvedCompanyId) throw new BadRequestException('Company is required');
+    if (!dto.leadId && !dto.customerId) throw new BadRequestException('Lead or customer is required');
+    if (dto.leadId) {
+      const samples = await this.prisma.sampleRequest.findMany({
+        where: { leadId: dto.leadId, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (samples.length && samples[0].status !== 'APPROVED') {
+        throw new BadRequestException('The latest required sample must be approved before quotation creation');
+      }
+    }
+    const totals = this.calculate(dto.items);
+    if (!totals.processedItems.length) throw new BadRequestException('At least one quotation item is required');
+    const quotationNumber = await this.sequenceService.generateNext('quotation_number', `QT-${new Date().getFullYear()}-`);
+
+    return this.prisma.quotation.create({
+      data: {
+        quotationNumber,
+        companyId: resolvedCompanyId,
+        leadId: dto.leadId,
+        customerId: dto.customerId,
+        validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        tax: totals.tax,
+        total: totals.total,
+        remarks: dto.remarks,
+        workflowStateId: initialState.id,
+        createdById: userId,
+        items: {
+          create: totals.processedItems.map((item: any) => ({
+            productId: item.productId,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount || 0,
+            tax: item.tax || 0,
+            lineTotal: item.lineTotal,
+          }))
+        }
+      },
+      include: { workflowState: true, items: true }
+    });
+  }
+
+  async updateQuotation(id: string, dto: any, userId: string, companyId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const quotation = await tx.quotation.findFirst({
+        where: { id, deletedAt: null, ...(companyId ? { companyId } : {}) },
+        include: { workflowState: true },
+      });
+      if (!quotation) throw new NotFoundException('Quotation not found');
+      if (quotation.workflowState?.code !== 'DRAFT') {
+        throw new BadRequestException('Only DRAFT quotations can be edited');
+      }
+      const totals = dto.items ? this.calculate(dto.items) : null;
+      if (dto.items && !totals?.processedItems.length) throw new BadRequestException('At least one quotation item is required');
+      if (dto.items) await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+      return tx.quotation.update({
+        where: { id },
+        data: {
+          validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
+          remarks: dto.remarks,
+          updatedById: userId,
+          ...(totals ? {
+            subtotal: totals.subtotal,
+            discount: totals.discount,
+            tax: totals.tax,
+            total: totals.total,
+            items: {
+              create: totals.processedItems.map((item: any) => ({
+                productId: item.productId,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discount: item.discount || 0,
+                tax: item.tax || 0,
+                lineTotal: item.lineTotal,
+              })),
+            },
+          } : {}),
+        },
+        include: { workflowState: true, items: true },
+      });
+    });
+  }
+
+  async processAction(id: string, actionName: string, remarks?: string, userId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const quotation = await tx.quotation.findUnique({ where: { id }, include: { workflowState: true } });
+      if (!quotation) throw new NotFoundException('Quotation not found');
+
+      const result = await this.workflowService.processAction({
+        entityId: id,
+        entityType: 'QUOTATION',
+        workflowCode: 'QUOTATION',
+        currentStateId: quotation.workflowStateId!,
+        actionName,
+        userId: userId || 'SYSTEM',
+        remarks
+      }, tx);
+
+      return tx.quotation.update({
+        where: { id },
+        data: {
+          workflowStateId: result.nextStateId,
+          ...(actionName === 'APPROVE' ? { approvedById: userId || 'SYSTEM', approvedAt: new Date() } : {}),
+        },
+        include: { workflowState: true }
+      });
+    });
+  }
+
+  async duplicateVersion(id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const original = await tx.quotation.findUnique({
+        where: { id },
+        include: { items: true, workflowState: true }
+      });
+      
+      if (!original) throw new NotFoundException('Quotation not found');
+
+      const supersededState = await tx.workflowState.findFirst({
+        where: { workflow: { code: 'QUOTATION' }, code: 'SUPERSEDED' }
+      });
+
+      if (supersededState && original.workflowState?.code !== 'SUPERSEDED') {
+        // Log history of superseding
+        await tx.workflowHistory.create({
+          data: {
+            entityId: id,
+            entityType: 'QUOTATION',
+            fromStatus: original.workflowState?.name || 'Unknown',
+            toStatus: supersededState.name,
+            action: 'DUPLICATE',
+            remarks: 'Duplicated to create a new version',
+            userId: userId
+          }
+        });
+        await tx.quotation.update({
+          where: { id },
+          data: { workflowStateId: supersededState.id }
+        });
+      }
+
+      const initialState = await tx.workflowState.findFirst({
+        where: { workflow: { code: 'QUOTATION' }, isInitial: true }
+      });
+
+      const rootId = original.parentQuotationId || original.id;
+      const latest = await tx.quotation.findFirst({
+        where: { OR: [{ id: rootId }, { parentQuotationId: rootId }] },
+        orderBy: { version: 'desc' },
+      });
+      const newVersion = (latest?.version || original.version) + 1;
+      const baseNumber = original.quotationNumber.replace(/-V\d+$/, '');
+      const quotationNumber = `${baseNumber}-V${newVersion}`;
+
+      return tx.quotation.create({
+        data: {
+          quotationNumber,
+          version: newVersion,
+          parentQuotationId: rootId,
+          companyId: original.companyId,
+          leadId: original.leadId,
+          customerId: original.customerId,
+          validUntil: original.validUntil,
+          subtotal: original.subtotal,
+          discount: original.discount,
+          tax: original.tax,
+          total: original.total,
+          remarks: original.remarks,
+          workflowStateId: initialState?.id,
+          createdById: userId,
+          items: {
+            create: original.items.map(item => ({
+              productId: item.productId,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              tax: item.tax,
+              lineTotal: item.lineTotal
+            }))
+          }
+        },
+        include: { workflowState: true, items: true }
+      });
+    });
+  }
+
+  async convertToSalesOrder(id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const quotation = await tx.quotation.findUnique({
+        where: { id },
+        include: { items: true, workflowState: true, lead: true }
+      });
+
+      if (!quotation) throw new NotFoundException('Quotation not found');
+      if (quotation.workflowState?.code !== 'APPROVED') {
+        throw new BadRequestException('Only APPROVED quotations can be converted to Sales Orders');
+      }
+      const rootId = quotation.parentQuotationId || quotation.id;
+      const newerVersion = await tx.quotation.findFirst({
+        where: {
+          OR: [{ id: rootId }, { parentQuotationId: rootId }],
+          version: { gt: quotation.version },
+        },
+      });
+      if (newerVersion) throw new BadRequestException('Only the latest quotation version can be converted');
+      const existingOrder = await tx.salesOrder.findFirst({ where: { sourceQuotationId: id } });
+      if (existingOrder) return existingOrder;
+
+      let customerId = quotation.customerId || quotation.lead?.convertedCustomerId;
+      if (!customerId) {
+        throw new BadRequestException('Quotation must be linked to a valid Customer before conversion.');
+      }
+
+      const soInitialState = await tx.workflowState.findFirst({
+        where: { workflow: { code: 'SALES_ORDER' }, isInitial: true }
+      });
+
+      const count = await tx.salesOrder.count();
+      const orderNumber = await this.sequenceService.generateNextWithTx(tx, 'sales_order_number', `SO-${new Date().getFullYear()}-`);
+      const products = await tx.product.findMany({
+        where: { id: { in: quotation.items.map((item) => item.productId) } },
+        select: { id: true, name: true, sku: true, unit: true },
+      });
+      const productById = new Map(products.map((product) => [product.id, product]));
+
+      // Snapshot exactly from quotation items
+      const salesOrder = await tx.salesOrder.create({
+        data: {
+          orderNumber,
+          customerId,
+          sourceQuotationId: id,
+          workflowStateId: soInitialState?.id,
+          createdById: userId,
+          subtotal: quotation.subtotal,
+          discountAmount: quotation.discount,
+          taxAmount: quotation.tax,
+          taxableAmount: Number(quotation.subtotal) - Number(quotation.discount),
+          freightAmount: 0,
+          totalAmount: quotation.total,
+          items: {
+            create: quotation.items.map(item => ({
+              productId: item.productId,
+              productNameSnapshot: productById.get(item.productId)?.name || item.description || 'Unknown Product',
+              productCodeSnapshot: productById.get(item.productId)?.sku,
+              orderedQuantity: item.quantity,
+              unit: productById.get(item.productId)?.unit || 'NOS',
+              unitPrice: item.unitPrice,
+              discountAmount: item.discount,
+              taxableAmount: Number(item.lineTotal) - Number(item.tax),
+              taxRate: 0,
+              taxAmount: item.tax,
+              lineTotal: item.lineTotal
+            }))
+          }
+        }
+      });
+
+      const convertedState = await tx.workflowState.findFirst({
+        where: { workflow: { code: 'QUOTATION' }, code: 'CONVERTED_TO_SO' }
+      });
+
+      if (convertedState) {
+        await tx.workflowHistory.create({
+          data: {
+            entityId: id,
+            entityType: 'QUOTATION',
+            fromStatus: quotation.workflowState?.name || 'Unknown',
+            toStatus: convertedState.name,
+            action: 'CONVERT',
+            remarks: `Converted to Sales Order ${orderNumber}`,
+            userId: userId
+          }
+        });
+        await tx.quotation.update({
+          where: { id },
+          data: { workflowStateId: convertedState.id }
+        });
+      }
+
+      return salesOrder;
+    });
+  }
+}

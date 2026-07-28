@@ -19,12 +19,6 @@ export async function GET(request: NextRequest) {
   });
 }
 
-import { NextRequest } from 'next/server';
-import '@/lib/server/backendFeatureConfig';
-import { forwardBackendRequest } from '@/lib/server/backendApiClient';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('Authorization');

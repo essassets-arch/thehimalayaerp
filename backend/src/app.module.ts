@@ -21,7 +21,25 @@ import { SequenceModule } from './common/sequence/sequence.module';
 import { CustomerComplaintsModule } from './modules/customer-complaints/customer-complaints.module';
 import { SalesReturnsModule } from './modules/sales-returns/sales-returns.module';
 import { ReplacementsModule } from './modules/replacements/replacements.module';
-import { LeadsModule } from './modules/leads/leads.module';
+import { CrmModule } from './modules/crm/crm.module';
+import { QuotationsModule } from './modules/quotations/quotations.module';
+import { SamplesModule } from './modules/samples/samples.module';
+import { ProductsModule } from './modules/products/products.module';
+import { WarehousesModule } from './modules/warehouses/warehouses.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { ProcurementModule } from './modules/procurement/procurement.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
+import { AttachmentsModule } from './modules/attachments/attachments.module';
+import { CommentsModule } from './modules/comments/comments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ProductionModule } from './modules/production/production.module';
+import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
+import { QcModule } from './modules/qc/qc.module';
+import { DispatchModule } from './modules/dispatch/dispatch.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -41,9 +59,27 @@ import { LeadsModule } from './modules/leads/leads.module';
     CustomerComplaintsModule,
     SalesReturnsModule,
     ReplacementsModule,
-    LeadsModule,
+    CrmModule,
+    QuotationsModule,
+    SamplesModule,
+    ProductsModule,
+    WarehousesModule,
+    InventoryModule,
+    SuppliersModule,
+    ProcurementModule,
+    FinanceModule,
+    WorkflowModule,
+    AttachmentsModule,
+    CommentsModule,
+    NotificationsModule,
+    ProductionModule,
+    WorkOrdersModule,
+    QcModule,
+    DispatchModule,
   ],
+  controllers: [AppController],
   providers: [
+    AppService,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard, // Secured by default

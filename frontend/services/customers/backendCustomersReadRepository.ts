@@ -3,7 +3,7 @@ import { mapBackendCustomerToFrontend, FrontendCustomer } from './customerMapper
 
 export const backendCustomersReadRepository = {
   list: async (query: { page?: number; pageSize?: number; search?: string } = {}) => {
-    const url = new URL('/api/backend/customers', window.location.origin);
+    const url = new URL('/api/backend/sales/customers', window.location.origin);
     if (query.page) url.searchParams.append('page', String(query.page));
     if (query.pageSize) url.searchParams.append('pageSize', String(query.pageSize));
     if (query.search) url.searchParams.append('search', query.search);
@@ -33,7 +33,7 @@ export const backendCustomersReadRepository = {
   },
 
   getById: async (id: string): Promise<{ success: boolean; data: FrontendCustomer | null }> => {
-    const url = new URL(`/api/backend/customers/${id}`, window.location.origin);
+    const url = new URL(`/api/backend/sales/customers/${id}`, window.location.origin);
     try {
       const envelope = await backendFetch<any>(url.toString());
       if (envelope?.success && envelope.data) {

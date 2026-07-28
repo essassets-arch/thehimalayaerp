@@ -276,6 +276,10 @@
   grid-column: span 6;
 }
 
+.dashboard-span-7 {
+  grid-column: span 7;
+}
+
 .dashboard-span-8 {
   grid-column: span 8;
 }
@@ -1314,9 +1318,13 @@
 /* ── EXPENSE & DEPT COST GRID RESPONSIVENESS ── */
 .sa-expense-dept-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 24px;
   margin-bottom: 24px;
+}
+
+.sa-expense-dept-grid > * {
+  min-width: 0;
 }
 
 .sa-expense-breakdown-content {
@@ -1333,7 +1341,7 @@
 
   .sa-expense-dept-grid .dashboard-span-5,
   .sa-expense-dept-grid .dashboard-span-7 {
-    grid-column: span 12 / span 12 !important;
+    grid-column: 1 / -1 !important;
     width: 100% !important;
   }
 }
@@ -1749,5 +1757,4 @@
     min-width: 640px;
   }
 }
-
 

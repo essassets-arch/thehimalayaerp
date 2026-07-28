@@ -1,12 +1,6 @@
 import { IsOptional, IsInt, Min, Max, IsString, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
-import {
-  SalesOrderStatus,
-  ProductionStatus,
-  DispatchStatus,
-  PaymentStatus,
-  OrderClosureStatus,
-} from '@prisma/client';
+import { SalesOrderStatus } from '@prisma/client';
 
 export class ListSalesOrdersQueryDto {
   @IsOptional()
@@ -27,22 +21,11 @@ export class ListSalesOrdersQueryDto {
   search?: string;
 
   @IsOptional()
+  @IsString()
+  workflowStateId?: string;
+
+  // Filter by the new unified SalesOrderStatus (replaces the old per-module status fields)
+  @IsOptional()
   @IsEnum(SalesOrderStatus)
-  orderStatus?: SalesOrderStatus;
-
-  @IsOptional()
-  @IsEnum(ProductionStatus)
-  productionStatus?: ProductionStatus;
-
-  @IsOptional()
-  @IsEnum(DispatchStatus)
-  dispatchStatus?: DispatchStatus;
-
-  @IsOptional()
-  @IsEnum(PaymentStatus)
-  paymentStatus?: PaymentStatus;
-
-  @IsOptional()
-  @IsEnum(OrderClosureStatus)
-  closureStatus?: OrderClosureStatus;
+  status?: SalesOrderStatus;
 }

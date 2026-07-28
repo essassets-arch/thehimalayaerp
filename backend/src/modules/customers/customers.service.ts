@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -21,12 +21,42 @@ export class CustomersService {
     userId: string,
     requestId?: string,
   ) {
+    // Duplicate prevention logic
+    const { gstin, email, phone, companyName, companyId } = createDto;
+
+    const checks: Prisma.CustomerWhereInput[] = [];
+    if (gstin) checks.push({ gstin });
+    if (email) checks.push({ email });
+    if (phone) checks.push({ phone });
+    if (companyName) checks.push({ companyName });
+
+    if (checks.length > 0) {
+      const existing = await this.prisma.customer.findFirst({
+        where: {
+          companyId,
+          OR: checks,
+          deletedAt: null
+        }
+      });
+
+      if (existing) {
+        throw new ConflictException({
+          code: 'CUSTOMER_ALREADY_EXISTS',
+          message: 'A customer with matching details already exists.',
+          details: {
+            customerId: existing.id,
+            customerCode: existing.customerCode
+          }
+        });
+      }
+    }
+
     const customer = await this.prisma.$transaction(async (tx) => {
-      const publicId = await generatePublicId(tx, 'CUSTOMER', 'CUST');
+      const customerCode = await generatePublicId(tx, 'CUSTOMER', 'CUST');
       return tx.customer.create({
         data: {
-          publicId,
           ...createDto,
+          customerCode,
           createdById: userId,
         },
       });
@@ -46,6 +76,8 @@ export class CustomersService {
     return customer;
   }
 
+
+
   async list(
     companyId: string,
     page: number = 1,
@@ -61,7 +93,7 @@ export class CustomersService {
               { companyName: { contains: search, mode: 'insensitive' } },
               { email: { contains: search, mode: 'insensitive' } },
               { phone: { contains: search, mode: 'insensitive' } },
-              { publicId: { contains: search, mode: 'insensitive' } },
+              { customerCode: { contains: search, mode: 'insensitive' } },
             ],
           }
         : {}),
@@ -149,7 +181,7 @@ export class CustomersService {
       id,
       expectedVersion,
       {
-        isActive: false,
+        status: 'INACTIVE',
         deletedAt: new Date(),
         updatedById: userId,
       },
@@ -161,8 +193,8 @@ export class CustomersService {
       action: 'CUSTOMER_DEACTIVATED',
       entityType: 'Customer',
       entityId: id,
-      before: { isActive: true, deletedAt: null },
-      after: { isActive: false, deletedAt: (updated as any).deletedAt },
+      before: { status: 'ACTIVE', deletedAt: null },
+      after: { status: 'INACTIVE', deletedAt: (updated as any).deletedAt },
       requestId,
     });
 
@@ -186,7 +218,7 @@ export class CustomersService {
       id,
       expectedVersion,
       {
-        isActive: true,
+        status: 'ACTIVE',
         deletedAt: null,
         updatedById: userId,
       },
@@ -198,8 +230,8 @@ export class CustomersService {
       action: 'CUSTOMER_RESTORED',
       entityType: 'Customer',
       entityId: id,
-      before: { isActive: false, deletedAt: existing.deletedAt },
-      after: { isActive: true, deletedAt: null },
+      before: { status: 'INACTIVE', deletedAt: (existing as any).deletedAt },
+      after: { status: 'ACTIVE', deletedAt: null },
       requestId,
     });
 
@@ -239,7 +271,7 @@ export class CustomersService {
       },
       select: {
         id: true,
-        publicId: true,
+        customerCode: true,
         gstin: true,
         email: true,
         phone: true,
@@ -273,7 +305,7 @@ export class CustomersService {
 
       if (matchedFields.length > 0) {
         matches.push({
-          customerId: p.publicId,
+          customerId: p.customerCode,
           matchedFields,
           confidence,
         });

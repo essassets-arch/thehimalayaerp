@@ -331,11 +331,11 @@ export default function LoginPage() {
                   type="email"
                   id="login-email"
                   className="login-input"
-                  placeholder="user@himalayaerp.local"
+                  placeholder="user@himalayaerp.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -371,6 +371,25 @@ export default function LoginPage() {
             <button type="submit" id="login-submit" disabled={loading} className="login-btn">
               <ShieldCheck size={16} />
               {loading ? 'Authenticating…' : 'Sign In'}
+            </button>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setEmail('super.admin@himalayaerp.com');
+                setPassword('admin123');
+                setError('');
+              }}
+              style={{
+                border: 0,
+                background: 'transparent',
+                color: '#2f4375',
+                cursor: loading ? 'default' : 'pointer',
+                fontSize: '13px',
+                fontWeight: 600,
+              }}
+            >
+              Use demo administrator
             </button>
           </form>
 

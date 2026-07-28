@@ -23,7 +23,7 @@ export class ReplacementsService {
         throw new BadRequestException(`Order item ${item.salesOrderItemId} not found.`);
       }
 
-      const availableForReplacement = Number(orderItem.deliveredQuantity) - Number(orderItem.replacedQuantity) - Number(orderItem.returnedQuantity);
+      const availableForReplacement = Number(orderItem.orderedQuantity);
 
       if (item.requestedQuantity > availableForReplacement) {
         throw new BadRequestException(`Requested replacement quantity ${item.requestedQuantity} exceeds available delivered quantity (${availableForReplacement}) for item ${orderItem.productNameSnapshot}.`);
@@ -51,7 +51,7 @@ export class ReplacementsService {
           salesOrderId: dto.salesOrderId,
           complaintId: dto.complaintId,
           returnId: dto.returnId,
-          replacementStatus: 'REQUESTED',
+          // workflowStateId: null,
           reasonCode: dto.reasonCode,
           customerRemarks: dto.customerRemarks,
           requestedById: userId,

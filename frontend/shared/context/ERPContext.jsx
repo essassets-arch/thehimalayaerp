@@ -445,6 +445,36 @@ export const ERPProvider = ({ children }) => {
   const [salesOrdersLoading, setSalesOrdersLoading] = React.useState(false);
   const [salesOrdersError, setSalesOrdersError] = React.useState(null);
 
+  const [leads, setLeads] = React.useState([]);
+  const [leadsPagination, setLeadsPagination] = React.useState({
+    page: 1,
+    pageSize: 25,
+    total: 0,
+    totalPages: 0,
+  });
+  const [leadsLoading, setLeadsLoading] = React.useState(false);
+  const [leadsError, setLeadsError] = React.useState(null);
+
+  const [customers, setCustomers] = React.useState([]);
+  const [customersPagination, setCustomersPagination] = React.useState({
+    page: 1,
+    pageSize: 25,
+    total: 0,
+    totalPages: 0,
+  });
+  const [customersLoading, setCustomersLoading] = React.useState(false);
+  const [customersError, setCustomersError] = React.useState(null);
+
+  const [samples, setSamples] = React.useState([]);
+  const [samplesPagination, setSamplesPagination] = React.useState({
+    page: 1,
+    pageSize: 25,
+    total: 0,
+    totalPages: 0,
+  });
+  const [samplesLoading, setSamplesLoading] = React.useState(false);
+  const [samplesError, setSamplesError] = React.useState(null);
+
   const loadSalesOrders = useCallback(async (params = {}) => {
     setSalesOrdersLoading(true);
     setSalesOrdersError(null);
@@ -468,9 +498,89 @@ export const ERPProvider = ({ children }) => {
     }
   }, []);
 
+  const loadLeads = useCallback(async (params = {}) => {
+    setLeadsLoading(true);
+    setLeadsError(null);
+    try {
+      const { LeadRepositoryFactory } = await import('../../services/leads/leadRepositoryFactory');
+      const leadReadRepository = LeadRepositoryFactory.getReadRepository();
+      
+      const result = await leadReadRepository.listLeads(params);
+
+      setLeads(Array.isArray(result.data) ? result.data : []);
+      setLeadsPagination(result.pagination);
+      return result;
+    } catch (error) {
+      setLeads([]);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setLeadsError(errorMsg);
+      throw error;
+    } finally {
+      setLeadsLoading(false);
+    }
+  }, []);
+
+  const loadCustomers = useCallback(async (params = {}) => {
+    setCustomersLoading(true);
+    setCustomersError(null);
+    try {
+      const { customersReadRepository } = await import('../../services/customers/customersReadRepository');
+      const result = await customersReadRepository.list(params);
+
+      setCustomers(Array.isArray(result.data) ? result.data : []);
+      setCustomersPagination(result.meta || result.pagination || { page: 1, pageSize: 25, total: 0 });
+      return result;
+    } catch (error) {
+      setCustomers([]);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setCustomersError(errorMsg);
+      throw error;
+    } finally {
+      setCustomersLoading(false);
+    }
+  }, []);
+
+  const loadSamples = useCallback(async (params = {}) => {
+    setSamplesLoading(true);
+    setSamplesError(null);
+    try {
+      const { backendSamplesReadRepository } = await import('../../services/samples/backendSamplesReadRepository');
+      const result = await backendSamplesReadRepository.list(params);
+
+      setSamples(Array.isArray(result.data) ? result.data : []);
+      setSamplesPagination(result.meta || result.pagination || { page: 1, pageSize: 25, total: 0 });
+      return result;
+    } catch (error) {
+      setSamples([]);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setSamplesError(errorMsg);
+      throw error;
+    } finally {
+      setSamplesLoading(false);
+    }
+  }, []);
+
   const callWriteMethod = useCallback(async (methodName, ...args) => {
     const { getSalesWriteRepository } = await import('../../services/sales/salesRepositoryFactory');
     const repo = getSalesWriteRepository();
+    if (!repo[methodName]) {
+      throw new Error(`Write method ${methodName} not implemented in repository`);
+    }
+    return repo[methodName](...args);
+  }, []);
+
+  const callLeadWriteMethod = useCallback(async (methodName, ...args) => {
+    const { LeadRepositoryFactory } = await import('../../services/leads/leadRepositoryFactory');
+    const repo = LeadRepositoryFactory.getWriteRepository();
+    if (!repo[methodName]) {
+      throw new Error(`Write method ${methodName} not implemented in repository`);
+    }
+    return repo[methodName](...args);
+  }, []);
+
+  const callCustomerWriteMethod = useCallback(async (methodName, ...args) => {
+    const { customersWriteRepository } = await import('../../services/customers/customersWriteRepository');
+    const repo = customersWriteRepository;
     if (!repo[methodName]) {
       throw new Error(`Write method ${methodName} not implemented in repository`);
     }
@@ -490,17 +600,59 @@ export const ERPProvider = ({ children }) => {
   const requestReturn = useCallback((input, options) => callWriteMethod('requestReturn', input, options), [callWriteMethod]);
   const requestReplacement = useCallback((input, options) => callWriteMethod('requestReplacement', input, options), [callWriteMethod]);
 
+  const createLead = useCallback((input, options) => callLeadWriteMethod('createLead', input, options), [callLeadWriteMethod]);
+  const updateLead = useCallback((leadId, input, options) => callLeadWriteMethod('updateLead', leadId, input, options), [callLeadWriteMethod]);
+  const qualifyLead = useCallback((leadId, input, options) => callLeadWriteMethod('qualifyLead', leadId, input, options), [callLeadWriteMethod]);
+  const addLeadFollowup = useCallback((leadId, input, options) => callLeadWriteMethod('addFollowup', leadId, input, options), [callLeadWriteMethod]);
+  const addLeadReminder = useCallback((leadId, input, options) => callLeadWriteMethod('addReminder', leadId, input, options), [callLeadWriteMethod]);
+  const markLeadLost = useCallback((leadId, input, options) => callLeadWriteMethod('markLost', leadId, input, options), [callLeadWriteMethod]);
+  const restoreLead = useCallback((leadId, input, options) => callLeadWriteMethod('restoreLead', leadId, input, options), [callLeadWriteMethod]);
+
+  const createCustomer = useCallback((input, options) => callCustomerWriteMethod('create', input, options), [callCustomerWriteMethod]);
+  const updateCustomer = useCallback((customerId, input, options) => callCustomerWriteMethod('update', customerId, input, options), [callCustomerWriteMethod]);
+  const deactivateCustomer = useCallback((customerId, input, options) => callCustomerWriteMethod('deactivate', customerId, input, options), [callCustomerWriteMethod]);
+  const restoreCustomer = useCallback((customerId, input, options) => callCustomerWriteMethod('restore', customerId, input, options), [callCustomerWriteMethod]);
+
+  const callSampleWriteMethod = useCallback(async (methodName, ...args) => {
+    const { backendSamplesWriteRepository } = await import('../../services/samples/backendSamplesWriteRepository');
+    const repo = backendSamplesWriteRepository;
+    if (!repo[methodName]) {
+      throw new Error(`Write method ${methodName} not implemented in repository`);
+    }
+    return repo[methodName](...args);
+  }, []);
+
+  const createSample = useCallback((input, options) => callSampleWriteMethod('create', input, options), [callSampleWriteMethod]);
+  const updateSample = useCallback((sampleId, input, options) => callSampleWriteMethod('update', sampleId, input, options), [callSampleWriteMethod]);
+  const updateSampleStatus = useCallback((sampleId, status, expectedVersion, options) => callSampleWriteMethod('updateStatus', sampleId, status, expectedVersion, options), [callSampleWriteMethod]);
+
   const salesContextValue = React.useMemo(() => ({
     salesOrders,
     salesOrdersPagination,
+    leads,
+    leadsPagination,
+    customers,
+    customersPagination,
+    samples,
+    samplesPagination,
     loading: {
       salesOrders: salesOrdersLoading,
+      leads: leadsLoading,
+      customers: customersLoading,
+      samples: samplesLoading,
     },
     errors: {
       salesOrders: salesOrdersError,
+      leads: leadsError,
+      customers: customersError,
+      samples: samplesError,
     },
     loadSalesOrders,
     refreshSalesOrders: loadSalesOrders,
+    loadLeads,
+    refreshLeads: loadLeads,
+    loadCustomers,
+    refreshCustomers: loadCustomers,
     createOrder,
     convertQuotationToOrder,
     attachCustomerPo,
@@ -512,7 +664,31 @@ export const ERPProvider = ({ children }) => {
     raiseCustomerComplaint,
     requestReturn,
     requestReplacement,
-  }), [salesOrders, salesOrdersPagination, salesOrdersLoading, salesOrdersError, loadSalesOrders, createOrder, convertQuotationToOrder, attachCustomerPo, runCreditCheck, approveCreditException, confirmOrder, sendToPlantHead, cancelOrder, raiseCustomerComplaint, requestReturn, requestReplacement]);
+    createLead,
+    updateLead,
+    qualifyLead,
+    addLeadFollowup,
+    addLeadReminder,
+    markLeadLost,
+    restoreLead,
+    createCustomer,
+    updateCustomer,
+    deactivateCustomer,
+    restoreCustomer,
+    loadSamples,
+    refreshSamples: loadSamples,
+    createSample,
+    updateSample,
+    updateSampleStatus,
+  }), [
+    salesOrders, salesOrdersPagination, leads, leadsPagination, customers, customersPagination, samples, samplesPagination,
+    salesOrdersLoading, leadsLoading, customersLoading, samplesLoading, salesOrdersError, leadsError, customersError, samplesError,
+    loadSalesOrders, loadLeads, loadCustomers, loadSamples, createOrder, convertQuotationToOrder, attachCustomerPo, 
+    runCreditCheck, approveCreditException, confirmOrder, sendToPlantHead, cancelOrder, raiseCustomerComplaint, 
+    requestReturn, requestReplacement, createLead, updateLead, qualifyLead, addLeadFollowup, addLeadReminder, 
+    markLeadLost, restoreLead, createCustomer, updateCustomer, deactivateCustomer, restoreCustomer,
+    createSample, updateSample, updateSampleStatus
+  ]);
 
   useEffect(() => {
     // Only run initialization if data is missing, to prevent overwriting newly converted orders
@@ -520,6 +696,14 @@ export const ERPProvider = ({ children }) => {
     if (!orders || (Array.isArray(orders) && orders.length === 0)) {
       syncData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (salesOrders.length === 0) loadSalesOrders();
+    if (leads.length === 0) loadLeads();
+    if (customers.length === 0) loadCustomers();
+    if (samples.length === 0) loadSamples();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

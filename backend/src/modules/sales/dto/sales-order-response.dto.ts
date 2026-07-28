@@ -1,3 +1,5 @@
+import { SalesOrderStatus } from '@prisma/client';
+
 export interface SalesOrderItemResponseDto {
   id: string;
   productId: string;
@@ -7,9 +9,11 @@ export interface SalesOrderItemResponseDto {
   unit: string;
   unitPrice: number;
   lineTotal: number;
-  deliveredQuantity: number;
-  returnedQuantity: number;
-  replacedQuantity: number;
+  // Quantities are now computed from child documents (DispatchItem, SalesReturnItem, etc.)
+  // These are returned as computed summaries from the service, not stored DB fields.
+  deliveredQuantity?: number;
+  returnedQuantity?: number;
+  replacedQuantity?: number;
 }
 
 export interface SalesOrderResponseDto {
@@ -25,15 +29,17 @@ export interface SalesOrderResponseDto {
   taxAmount: number;
   totalAmount: number;
 
-  orderStatus: string;
-  creditStatus: string;
-  allocationStatus: string;
-  productionStatus: string;
-  qcStatus: string;
-  dispatchStatus: string;
-  invoiceStatus: string;
-  paymentStatus: string;
-  closureStatus: string;
+  // Single unified lifecycle status (replaces the old roll-up fields)
+  status: SalesOrderStatus;
+
+  workflowStateId: string | null;
+  workflowStateName?: string;
+
+  // Computed summaries — derived from child documents, not stored
+  productionSummary?: string;
+  dispatchSummary?: string;
+  paymentSummary?: string;
+  invoiceSummary?: string;
 
   createdAt: string;
   updatedAt: string;

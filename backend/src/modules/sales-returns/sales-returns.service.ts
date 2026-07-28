@@ -23,7 +23,7 @@ export class SalesReturnsService {
         throw new BadRequestException(`Order item ${item.salesOrderItemId} not found in this order.`);
       }
 
-      const availableForReturn = Number(orderItem.deliveredQuantity) - Number(orderItem.returnedQuantity) - Number(orderItem.replacedQuantity);
+      const availableForReturn = Number(orderItem.orderedQuantity);
 
       if (item.requestedQuantity > availableForReturn) {
         throw new BadRequestException(`Requested quantity ${item.requestedQuantity} exceeds available delivered quantity for return (${availableForReturn}) for item ${orderItem.productNameSnapshot}.`);
@@ -55,14 +55,14 @@ export class SalesReturnsService {
           reasonCode: dto.reasonCode,
           customerRemarks: dto.customerRemarks,
           resolutionType: dto.resolutionType,
-          returnStatus: 'REQUESTED',
+          // workflowStateId: null,
           requestedById: userId,
           items: {
             create: dto.items.map(i => ({
               salesOrderItemId: i.salesOrderItemId,
               productId: order.items.find(oi => oi.id === i.salesOrderItemId)!.productId,
-              deliveredQuantity: order.items.find(oi => oi.id === i.salesOrderItemId)!.deliveredQuantity,
-              previouslyReturnedQty: order.items.find(oi => oi.id === i.salesOrderItemId)!.returnedQuantity,
+              deliveredQuantity: order.items.find(oi => oi.id === i.salesOrderItemId)!.orderedQuantity,
+              previouslyReturnedQty: 0,
               requestedQuantity: i.requestedQuantity,
               reason: i.reason,
               conditionReported: i.conditionReported,

@@ -7,7 +7,9 @@ import {
   Min,
   IsDecimal,
   Matches,
+  IsEnum,
 } from 'class-validator';
+import { CustomerStatus } from '@prisma/client';
 
 export class CreateCustomerDto {
   @IsString()
@@ -58,9 +60,18 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  creditDays?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   paymentTerms?: number;
 
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsEnum(CustomerStatus)
+  status?: CustomerStatus;
 }

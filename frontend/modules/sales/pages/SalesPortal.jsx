@@ -18,7 +18,7 @@ import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import Swal from 'sweetalert2';
-import { useERP, useERPStore } from '../../../shared/context/ERPContext.jsx';
+import { useERP, useERPStore, useSalesBackend } from '../../../shared/context/ERPContext.jsx';
 import { useAuth } from '../../../shared/context/AuthContext.jsx';
 import { apiClient } from '../../../lib/apiClient.js';
 
@@ -108,6 +108,7 @@ export default function SalesPortal() {
     return result;
   };
 
+
   const handleConfirmOrder = async (quotationId, data) => {
     const result = await confirmOrder(quotationId, data);
     if (result?.orderId || result?.id) {
@@ -119,8 +120,9 @@ export default function SalesPortal() {
   };
 
 
+  const { customers } = useSalesBackend();
+
   const payments  = state.payments  || [];
-  const customers = state.customers || [];
 
   // ── Quick navigation helpers ───────────────────────────────────────────────
   const handleActionClick = (_actionName, message) => showToast(message);

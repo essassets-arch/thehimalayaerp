@@ -274,6 +274,10 @@
   grid-column: span 6;
 }
 
+.dashboard-span-7 {
+  grid-column: span 7;
+}
+
 .dashboard-span-8 {
   grid-column: span 8;
 }

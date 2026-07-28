@@ -1,5 +1,3 @@
-import { mockDB } from '@/lib/delay'; // wait, mockDB is imported from '@/lib/mockDB' in apiClient.js
-// Let's verify where mockDB is exported. It is exported from '@/lib/mockDB'
 import { mockDB } from '@/lib/mockDB';
 import { mapBackendCustomerToFrontend, FrontendCustomer } from './customerMapper';
 

@@ -7,10 +7,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// DocumentSequence: generates human-readable document numbers per type/year.
+// Example: SO-2025-000123, QT-2025-000456, INV-2025-000987
+model DocumentSequence {
+  id            String   @id @default(uuid())
+  companyId     String
+  documentType  String // SO, QT, WO, INV, DISP, PAY, RET, REPL, SAMP, PROD ...
+  prefix        String // SO, QT, etc.
+  year          Int
+  currentNumber Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@unique([companyId, documentType, year])
+  @@index([companyId, documentType])
+}
+
+// Legacy — kept for backward compat, superseded by DocumentSequence
 model IdSequence {
   key       String   @id
   nextValue Int      @default(1)
   updatedAt DateTime @updatedAt
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  CREDIT_HOLD
 }
 
 model Company {
@@ -34,6 +56,11 @@ model Company {
   suppliers             Supplier[]
   users                 User[]
   warehouses            Warehouse[]
+  SampleRequest         SampleRequest[]
+  PurchaseOrder         PurchaseOrder[]
+  GoodsReceiptNote      GoodsReceiptNote[]
+  VendorReturn          VendorReturn[]
+  SupplierPayable       SupplierPayable[]
 }
 
 model Branch {
@@ -129,12 +156,12 @@ model RefreshSession {
 }
 
 model Customer {
-  id              String       @id @default(uuid())
-  publicId        String       @unique
+  id              String            @id @default(uuid())
+  customerCode    String            @unique @default(uuid())
   companyId       String
-  version         Int          @default(1)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  version         Int               @default(1)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   createdById     String?
   updatedById     String?
   deletedAt       DateTime?
@@ -143,21 +170,26 @@ model Customer {
   branchId        String?
   companyName     String
   contactPerson   String?
-  creditLimit     Decimal?     @db.Decimal(14, 2)
+  creditLimit     Decimal?          @db.Decimal(14, 2)
+  creditDays      Int?
   email           String?
   gstin           String?
-  isActive        Boolean      @default(true)
+  status          CustomerStatus    @default(ACTIVE)
   notes           String?
   pan             String?
   paymentTerms    Int?
+  creditStatus    String            @default("GOOD") // GOOD, HOLD, BLOCKED
   phone           String?
   shippingAddress Json?
-  branch          Branch?      @relation(fields: [branchId], references: [id])
-  company         Company      @relation(fields: [companyId], references: [id])
+  branch          Branch?           @relation(fields: [branchId], references: [id])
+  company         Company           @relation(fields: [companyId], references: [id])
   salesOrders     SalesOrder[]
+  sampleRequests  SampleRequest[]
+  payments        CustomerPayment[]
+  ledgers         CustomerLedger[]
 
   @@unique([companyId, gstin])
-  @@index([companyId, isActive])
+  @@index([companyId, status])
   @@index([companyId, companyName])
   @@index([companyId, email])
   @@index([companyId, phone])
@@ -178,11 +210,15 @@ model Lead {
   estimatedQuantity Decimal?    @db.Decimal(18, 3)
   unit              String?
 
-  leadStatus          LeadStatus
-  qualificationStatus LeadQualificationStatus?
+  workflowStateId String?
+  workflowState   WorkflowState? @relation(fields: [workflowStateId], references: [id])
 
   assignedToId String?
   customerId   String?
+
+  convertedCustomerId String?
+  convertedAt         DateTime?
+  convertedById       String?
 
   nextReminderAt DateTime?
   lostReason     String?
@@ -196,47 +232,19 @@ model Lead {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  followups LeadFollowup[]
-  reminders LeadReminder[]
-  Company   Company?       @relation(fields: [companyId], references: [id])
-  companyId String?
+  companyId      String?
+  Company        Company?        @relation(fields: [companyId], references: [id])
+  sampleRequests SampleRequest[]
+  quotations     Quotation[]
+  activities     LeadActivity[]
+  followUps      FollowUp[]
 
-  @@index([leadStatus])
+  @@index([workflowStateId])
   @@index([assignedToId])
   @@index([companyName])
   @@index([email])
   @@index([phone])
   @@index([createdAt])
-}
-
-model LeadFollowup {
-  id     String @id @default(uuid())
-  leadId String
-  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
-
-  followupType String
-  notes        String
-  nextActionAt DateTime?
-  createdById  String
-  createdAt    DateTime  @default(now())
-
-  @@index([leadId])
-  @@index([nextActionAt])
-}
-
-model LeadReminder {
-  id     String @id @default(uuid())
-  leadId String
-  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
-
-  reminderAt  DateTime
-  message     String?
-  completedAt DateTime?
-  createdById String
-  createdAt   DateTime  @default(now())
-
-  @@index([leadId])
-  @@index([reminderAt])
 }
 
 model AuditLog {
@@ -288,9 +296,14 @@ model Product {
   company                 Company                  @relation(fields: [companyId], references: [id])
   purchaseIndentItems     PurchaseIndentItem[]
   salesOrderItems         SalesOrderItem[]
+  quotationItems          QuotationItem[]
   salesReturnItems        SalesReturnItem[]
   replacementRequestItems ReplacementRequestItem[]
   replacementOrderItems   ReplacementOrderItem[]
+  SampleItem              SampleItem[]
+  PurchaseOrderItem       PurchaseOrderItem[]
+  GoodsReceiptNoteItem    GoodsReceiptNoteItem[]
+  VendorReturnItem        VendorReturnItem[]
 }
 
 model Warehouse {
@@ -302,6 +315,7 @@ model Warehouse {
   inventoryTransactions InventoryTransaction[]
   branch                Branch?                @relation(fields: [branchId], references: [id])
   company               Company                @relation(fields: [companyId], references: [id])
+  GoodsReceiptNote      GoodsReceiptNote[]
 }
 
 model InventoryTransaction {
@@ -320,18 +334,21 @@ model InventoryTransaction {
 }
 
 model Supplier {
-  id        String   @id @default(uuid())
-  publicId  String   @unique
-  companyId String
-  name      String
-  contact   String?
-  email     String?
-  phone     String?
-  gstin     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  company   Company  @relation(fields: [companyId], references: [id])
+  id              String            @id @default(uuid())
+  publicId        String            @unique
+  companyId       String
+  name            String
+  contact         String?
+  email           String?
+  phone           String?
+  gstin           String?
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  company         Company           @relation(fields: [companyId], references: [id])
+  PurchaseOrder   PurchaseOrder[]
+  VendorReturn    VendorReturn[]
+  SupplierPayable SupplierPayable[]
 }
 
 model MaterialRequest {
@@ -422,67 +439,114 @@ model SalarySlip {
 }
 
 model Quotation {
-  id         String      @id @default(uuid())
-  publicId   String      @unique
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  salesOrder SalesOrder?
+  id              String    @id @default(uuid())
+  quotationNumber String    @unique
+  companyId       String?
+  workflowStateId String?
+  leadId          String?
+  customerId      String?
+  validUntil      DateTime?
+
+  subtotal Decimal @default(0) @db.Decimal(18, 2)
+  discount Decimal @default(0) @db.Decimal(18, 2)
+  tax      Decimal @default(0) @db.Decimal(18, 2)
+  total    Decimal @default(0) @db.Decimal(18, 2)
+
+  remarks           String?
+  version           Int     @default(1)
+  parentQuotationId String?
+
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  updatedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  lead              Lead?           @relation(fields: [leadId], references: [id])
+  parentQuotation   Quotation?      @relation("QuotationVersions", fields: [parentQuotationId], references: [id])
+  childQuotations   Quotation[]     @relation("QuotationVersions")
+  workflowState     WorkflowState?  @relation(fields: [workflowStateId], references: [id])
+  salesOrder        SalesOrder?     @relation("SalesOrderQuotation")
+  sourceSalesOrders SalesOrder[]    @relation("SalesOrderSourceQuotation")
+  items             QuotationItem[]
+
+  @@index([workflowStateId])
+  @@index([leadId])
+  @@index([customerId])
+  @@index([parentQuotationId])
+}
+
+model QuotationItem {
+  id          String    @id @default(uuid())
+  quotationId String
+  productId   String
+  description String?
+  quantity    Decimal   @db.Decimal(18, 3)
+  unitPrice   Decimal   @db.Decimal(18, 2)
+  discount    Decimal   @default(0) @db.Decimal(18, 2)
+  tax         Decimal   @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal   @db.Decimal(18, 2)
+  createdAt   DateTime  @default(now())
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
 }
 
 model SalesOrder {
-  id                           String                      @id @default(uuid())
-  orderNumber                  String                      @unique
+  id                           String           @id @default(uuid())
+  orderNumber                  String           @unique
   customerId                   String
-  quotationId                  String?                     @unique
+  quotationId                  String?          @unique
+  sourceQuotationId            String?
+  quotation                    Quotation?       @relation("SalesOrderQuotation", fields: [quotationId], references: [id])
+  sourceQuotation              Quotation?       @relation("SalesOrderSourceQuotation", fields: [sourceQuotationId], references: [id])
   customerPurchaseOrderNo      String?
   customerPurchaseOrderDate    DateTime?
   customerPurchaseOrderFileUrl String?
-  orderDate                    DateTime                    @default(now())
+  orderDate                    DateTime         @default(now())
   requestedDeliveryDate        DateTime?
   confirmedAt                  DateTime?
-  subtotal                     Decimal                     @db.Decimal(18, 2)
-  discountAmount               Decimal                     @default(0) @db.Decimal(18, 2)
-  taxableAmount                Decimal                     @db.Decimal(18, 2)
-  taxAmount                    Decimal                     @default(0) @db.Decimal(18, 2)
-  freightAmount                Decimal                     @default(0) @db.Decimal(18, 2)
-  totalAmount                  Decimal                     @db.Decimal(18, 2)
-  currency                     String                      @default("INR")
+  subtotal                     Decimal          @db.Decimal(18, 2)
+  discountAmount               Decimal          @default(0) @db.Decimal(18, 2)
+  taxableAmount                Decimal          @db.Decimal(18, 2)
+  taxAmount                    Decimal          @default(0) @db.Decimal(18, 2)
+  freightAmount                Decimal          @default(0) @db.Decimal(18, 2)
+  totalAmount                  Decimal          @db.Decimal(18, 2)
+  currency                     String           @default("INR")
   paymentTermsDays             Int?
   deliveryTerms                String?
   billingAddress               Json?
   shippingAddress              Json?
   remarks                      String?
-  orderStatus                  SalesOrderStatus
-  creditStatus                 CreditStatus
-  allocationStatus             AllocationStatus
-  productionStatus             ProductionStatus
-  qcStatus                     QcStatus
-  dispatchStatus               DispatchStatus
-  invoiceStatus                InvoiceStatus
-  paymentStatus                PaymentStatus
-  closureStatus                OrderClosureStatus
-  version                      Int                         @default(1)
+  workflowStateId              String?
+  workflowState                WorkflowState?   @relation(fields: [workflowStateId], references: [id])
+  status                       SalesOrderStatus @default(DRAFT)
+  version                      Int              @default(1)
   createdById                  String
   updatedById                  String?
-  createdAt                    DateTime                    @default(now())
-  updatedAt                    DateTime                    @updatedAt
+  createdAt                    DateTime         @default(now())
+  updatedAt                    DateTime         @updatedAt
   deletedAt                    DateTime?
-  paymentAllocations           CustomerPaymentAllocation[]
-  replacementOrders            ReplacementOrder[]
-  invoices                     SalesInvoice[]
-  customer                     Customer                    @relation(fields: [customerId], references: [id])
-  quotation                    Quotation?                  @relation(fields: [quotationId], references: [id])
-  allocations                  SalesOrderAllocation[]
-  creditReviews                SalesOrderCreditReview[]
-  histories                    SalesOrderHistory[]
-  items                        SalesOrderItem[]
-  returns                      SalesReturn[]
+
+  // Relations — statuses are computed from child documents, not stored
+  customer           Customer                    @relation(fields: [customerId], references: [id])
+  items              SalesOrderItem[]
+  productionPlans    ProductionPlan[]
+  dispatches         Dispatch[]
+  invoices           SalesInvoice[]
+  returns            SalesReturn[]
+  replacementOrders  ReplacementOrder[]
+  amendments         OrderAmendment[]
+  creditReviews      SalesOrderCreditReview[]
+  allocations        SalesOrderAllocation[]
+  histories          SalesOrderHistory[]
+  // Kept for backward-compat during migration; to be deprecated
+  paymentAllocations CustomerPaymentAllocation[]
 
   @@index([customerId])
-  @@index([orderStatus])
-  @@index([productionStatus])
-  @@index([dispatchStatus])
-  @@index([paymentStatus])
+  @@index([status])
+  @@index([workflowStateId])
   @@index([createdAt])
 }
 
@@ -501,18 +565,14 @@ model SalesOrderItem {
   taxRate                 Decimal                  @default(0) @db.Decimal(8, 3)
   taxAmount               Decimal                  @default(0) @db.Decimal(18, 2)
   lineTotal               Decimal                  @db.Decimal(18, 2)
-  reservedQuantity        Decimal                  @default(0) @db.Decimal(18, 3)
-  productionQuantity      Decimal                  @default(0) @db.Decimal(18, 3)
-  qcApprovedQuantity      Decimal                  @default(0) @db.Decimal(18, 3)
-  dispatchedQuantity      Decimal                  @default(0) @db.Decimal(18, 3)
-  deliveredQuantity       Decimal                  @default(0) @db.Decimal(18, 3)
-  returnedQuantity        Decimal                  @default(0) @db.Decimal(18, 3)
-  replacedQuantity        Decimal                  @default(0) @db.Decimal(18, 3)
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   product                 Product                  @relation(fields: [productId], references: [id])
   salesOrder              SalesOrder               @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   replacementRequestItems ReplacementRequestItem[]
+  dispatchItems           DispatchItem[]
+  invoiceItems            InvoiceItem[]
+  workOrders              WorkOrder[]
 
   @@index([salesOrderId])
   @@index([productId])
@@ -589,7 +649,8 @@ model SalesReturn {
   pickupRequired  Boolean              @default(true)
   pickupAddress   Json?
   resolutionType  ReturnResolutionType
-  returnStatus    ReturnStatus
+  workflowStateId String?
+  workflowState   WorkflowState?       @relation(fields: [workflowStateId], references: [id])
   requestedById   String
   reviewedById    String?
   approvedById    String?
@@ -608,7 +669,7 @@ model SalesReturn {
   items           SalesReturnItem[]
 
   @@index([salesOrderId])
-  @@index([returnStatus])
+  @@index([workflowStateId])
 }
 
 model SalesReturnItem {
@@ -664,7 +725,8 @@ model ReplacementRequest {
   complaintId       String?                  @unique
   salesOrderId      String
   returnId          String?
-  replacementStatus ReplacementRequestStatus
+  workflowStateId   String?
+  workflowState     WorkflowState?           @relation(fields: [workflowStateId], references: [id])
   reasonCode        ReplacementReasonCode
   customerRemarks   String?
   internalRemarks   String?
@@ -681,7 +743,7 @@ model ReplacementRequest {
   items             ReplacementRequestItem[]
 
   @@index([salesOrderId])
-  @@index([replacementStatus])
+  @@index([workflowStateId])
 }
 
 model ReplacementRequestItem {
@@ -704,11 +766,10 @@ model ReplacementOrder {
   originalSalesOrderId String
   replacementRequestId String                    @unique
   commercialValue      Decimal                   @default(0) @db.Decimal(18, 2)
-  replacementStatus    ReplacementOrderStatus
-  allocationStatus     AllocationStatus
-  productionStatus     ProductionStatus
-  qcStatus             QcStatus
-  dispatchStatus       DispatchStatus
+  workflowStateId      String?
+  workflowState        WorkflowState?            @relation(fields: [workflowStateId], references: [id])
+  // Statuses are computed from child ProductionPlan, Dispatch, QCInspection documents
+  status               ReplacementOrderStatus    @default(ORDER_CREATED)
   deliveryAddress      Json?
   remarks              String?
   createdById          String
@@ -723,7 +784,7 @@ model ReplacementOrder {
   items                ReplacementOrderItem[]
 
   @@index([originalSalesOrderId])
-  @@index([replacementStatus])
+  @@index([workflowStateId])
 }
 
 model ReplacementOrderItem {
@@ -744,10 +805,28 @@ model SalesOrderHistory {
 }
 
 model SalesInvoice {
-  id           String     @id @default(uuid())
-  salesOrderId String
-  createdAt    DateTime   @default(now())
-  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid())
+  invoiceNumber   String        @unique
+  salesOrderId    String
+  dispatchId      String?
+  status          InvoiceStatus @default(DRAFT)
+  workflowStateId String?
+  subtotal        Decimal       @default(0) @db.Decimal(18, 2)
+  discountAmount  Decimal       @default(0) @db.Decimal(18, 2)
+  taxableAmount   Decimal       @default(0) @db.Decimal(18, 2)
+  taxAmount       Decimal       @default(0) @db.Decimal(18, 2)
+  freightAmount   Decimal       @default(0) @db.Decimal(18, 2)
+  roundingAmount  Decimal       @default(0) @db.Decimal(18, 2)
+  totalAmount     Decimal       @default(0) @db.Decimal(18, 2)
+  createdAt       DateTime      @default(now())
+
+  dispatch           Dispatch?           @relation(fields: [dispatchId], references: [id])
+  items              InvoiceItem[]
+  paymentAllocations PaymentAllocation[]
+  salesOrder         SalesOrder          @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  workflowState      WorkflowState?      @relation("InvoiceWorkflow", fields: [workflowStateId], references: [id])
+
+  @@index([workflowStateId])
 }
 
 model CustomerPaymentAllocation {
@@ -793,76 +872,44 @@ model LegacyMigrationReference {
 
 enum SalesOrderStatus {
   DRAFT
-  CUSTOMER_PO_PENDING
-  CREDIT_CHECK_PENDING
-  CREDIT_HOLD
+  PENDING_APPROVAL
   CONFIRMED
-  SENT_TO_PLANT_HEAD
-  PRODUCTION_PLANNED
-  FULFILLMENT_IN_PROGRESS
+  SENT_TO_PLANT
+  PLANT_APPROVED
+  READY_FOR_PRODUCTION
+  IN_PRODUCTION
   READY_FOR_DISPATCH
-  PARTIALLY_DISPATCHED
-  FULLY_DISPATCHED
-  DELIVERED
+  COMPLETED
   CANCELLED
 }
 
-enum CreditStatus {
-  NOT_CHECKED
+enum QcStatus {
   PENDING
   PASSED
-  HOLD
-  APPROVED_EXCEPTION
-  REJECTED
-}
-
-enum AllocationStatus {
-  NOT_ALLOCATED
-  CHECKING
-  FINISHED_GOODS_RESERVED
-  PRODUCTION_REQUIRED
-  PARTIALLY_ALLOCATED
-  FULLY_ALLOCATED
-}
-
-enum ProductionStatus {
-  NOT_REQUIRED
-  NOT_STARTED
-  PLANNED
-  WORK_ORDER_CREATED
-  IN_PROGRESS
-  COMPLETED
-  REWORK_REQUIRED
-}
-
-enum QcStatus {
-  NOT_REQUIRED
-  PENDING
-  PARTIALLY_APPROVED
-  APPROVED
-  REJECTED
+  PARTIAL
+  FAILED
   REWORK
+  APPROVED
 }
 
 enum DispatchStatus {
-  NOT_READY
+  CREATED
   READY
-  DISPATCH_CREATED
-  PARTIALLY_DISPATCHED
   IN_TRANSIT
-  PARTIALLY_DELIVERED
   DELIVERED
+  PARTIALLY_DELIVERED
+  COMPLETED
 }
 
 enum PaymentStatus {
-  NOT_DUE
-  DUE
-  PARTIALLY_PAID
-  FINANCE_VERIFICATION_PENDING
-  FULLY_PAID
-  OVERPAID
-  REFUND_PENDING
-  REFUNDED
+  SUBMITTED
+  UNDER_VERIFICATION
+  VERIFIED
+  REJECTED
+  RECEIVED
+  PARTIALLY_ALLOCATED
+  ALLOCATED
+  BOUNCED
 }
 
 enum ReturnStatus {
@@ -903,14 +950,12 @@ enum ReplacementOrderStatus {
 }
 
 enum InvoiceStatus {
-  PENDING
-  ISSUED
+  DRAFT
+  POSTED
+  PARTIALLY_PAID
+  PAID
+  VOID
   CANCELLED
-}
-
-enum OrderClosureStatus {
-  OPEN
-  CLOSED
 }
 
 enum LeadSource {
@@ -919,26 +964,6 @@ enum LeadSource {
   COLD_CALL
   EXHIBITION
   OTHER
-}
-
-enum LeadStatus {
-  NEW
-  QUALIFIED
-  SAMPLE_REQUIRED
-  SAMPLE_IN_PROGRESS
-  SAMPLE_APPROVED
-  QUOTATION_DRAFT
-  QUOTATION_SENT
-  QUOTATION_ACCEPTED
-  CONVERTED
-  LOST
-  CANCELLED
-}
-
-enum LeadQualificationStatus {
-  NOT_REVIEWED
-  QUALIFIED
-  UNQUALIFIED
 }
 
 enum CreditReviewResult {
@@ -989,4 +1014,560 @@ enum ReplacementReasonCode {
   WRONG_ITEM
   DAMAGE_IN_TRANSIT
   OTHER
+}
+
+enum SampleStatus {
+  CREATED
+  PENDING_DISPATCH
+  DISPATCHED
+  DELIVERED
+  TESTING
+  APPROVED
+  REJECTED
+  RETURN_REQUIRED
+}
+
+model SampleRequest {
+  id           String @id @default(uuid())
+  sampleNumber String @unique
+  companyId    String
+
+  leadId     String?
+  customerId String?
+
+  status SampleStatus @default(CREATED)
+
+  requestedDate        DateTime  @default(now())
+  expectedDeliveryDate DateTime?
+  testingDeadline      DateTime?
+  returnDeadline       DateTime?
+
+  dispatchReference String?
+
+  customerFeedback String?
+  sampleResult     String?
+
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  lead     Lead?     @relation(fields: [leadId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  items     SampleItem[]
+  histories SampleHistory[]
+}
+
+model SampleItem {
+  id              String @id @default(uuid())
+  sampleRequestId String
+  productId       String
+
+  quantity       Decimal @db.Decimal(18, 3)
+  specifications String?
+
+  version   Int       @default(1)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sampleRequest SampleRequest @relation(fields: [sampleRequestId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+}
+
+model SampleHistory {
+  id              String   @id @default(uuid())
+  sampleRequestId String
+  action          String
+  details         Json?
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  sampleRequest SampleRequest @relation(fields: [sampleRequestId], references: [id], onDelete: Cascade)
+}
+
+model PurchaseOrder {
+  id              String              @id @default(uuid())
+  publicId        String              @unique
+  companyId       String
+  supplierId      String
+  workflowStateId String?
+  workflowState   WorkflowState?      @relation(fields: [workflowStateId], references: [id])
+  totalAmount     Decimal             @db.Decimal(14, 2)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  company         Company             @relation(fields: [companyId], references: [id])
+  supplier        Supplier            @relation(fields: [supplierId], references: [id])
+  items           PurchaseOrderItem[]
+  grns            GoodsReceiptNote[]
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Decimal       @db.Decimal(14, 2)
+  unitPrice       Decimal       @db.Decimal(14, 2)
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id])
+}
+
+model GoodsReceiptNote {
+  id              String                 @id @default(uuid())
+  publicId        String                 @unique
+  companyId       String
+  purchaseOrderId String
+  warehouseId     String
+  status          String // RECEIVED, AUDITED
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  company         Company                @relation(fields: [companyId], references: [id])
+  purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
+  warehouse       Warehouse              @relation(fields: [warehouseId], references: [id])
+  items           GoodsReceiptNoteItem[]
+}
+
+model GoodsReceiptNoteItem {
+  id                 String           @id @default(uuid())
+  goodsReceiptNoteId String
+  productId          String
+  acceptedQuantity   Decimal          @db.Decimal(14, 2)
+  rejectedQuantity   Decimal          @db.Decimal(14, 2)
+  goodsReceiptNote   GoodsReceiptNote @relation(fields: [goodsReceiptNoteId], references: [id], onDelete: Cascade)
+  product            Product          @relation(fields: [productId], references: [id])
+}
+
+model VendorReturn {
+  id         String             @id @default(uuid())
+  publicId   String             @unique
+  companyId  String
+  supplierId String
+  status     String // PENDING_PICKUP, COMPLETED
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  company    Company            @relation(fields: [companyId], references: [id])
+  supplier   Supplier           @relation(fields: [supplierId], references: [id])
+  items      VendorReturnItem[]
+}
+
+model VendorReturnItem {
+  id             String       @id @default(uuid())
+  vendorReturnId String
+  productId      String
+  quantity       Decimal      @db.Decimal(14, 2)
+  vendorReturn   VendorReturn @relation(fields: [vendorReturnId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id])
+}
+
+model SupplierPayable {
+  id              String   @id @default(uuid())
+  companyId       String
+  supplierId      String
+  purchaseOrderId String?
+  amount          Decimal  @db.Decimal(14, 2)
+  status          String // UNPAID, PAID
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  company         Company  @relation(fields: [companyId], references: [id])
+  supplier        Supplier @relation(fields: [supplierId], references: [id])
+}
+
+model WorkflowDefinition {
+  id          String               @id @default(uuid())
+  code        String               @unique
+  name        String
+  states      WorkflowState[]
+  transitions WorkflowTransition[]
+}
+
+model WorkflowState {
+  id         String             @id @default(uuid())
+  workflowId String
+  workflow   WorkflowDefinition @relation(fields: [workflowId], references: [id])
+  code       String
+  name       String
+  sequence   Int
+  isInitial  Boolean            @default(false)
+  isFinal    Boolean            @default(false)
+
+  // Relations to track entities currently in this state
+  salesOrders        SalesOrder[]
+  SalesReturn        SalesReturn[]
+  ReplacementRequest ReplacementRequest[]
+  ReplacementOrder   ReplacementOrder[]
+  PurchaseOrder      PurchaseOrder[]
+  ProductionPlan     ProductionPlan[]     @relation("ProductionPlanWorkflow")
+  WorkOrder          WorkOrder[]          @relation("WorkOrderWorkflow")
+  QCInspection       QCInspection[]       @relation("QCInspectionWorkflow")
+  Dispatch           Dispatch[]           @relation("DispatchWorkflow")
+  SalesInvoice       SalesInvoice[]       @relation("InvoiceWorkflow")
+  CustomerPayment    CustomerPayment[]    @relation("PaymentWorkflow")
+  Lead               Lead[]
+  Quotation          Quotation[]
+}
+
+model WorkflowTransition {
+  id               String             @id @default(uuid())
+  workflowId       String
+  workflow         WorkflowDefinition @relation(fields: [workflowId], references: [id])
+  fromStateId      String
+  toStateId        String
+  actionName       String
+  actionLabel      String
+  requiredRole     String?
+  requiresApproval Boolean            @default(false)
+  allowReject      Boolean            @default(false)
+}
+
+model WorkflowHistory {
+  id         String   @id @default(uuid())
+  companyId  String?
+  entityType String // SalesOrder, Quotation, ProductionPlan, Dispatch, Invoice, Return ...
+  entityId   String
+  fromStatus String
+  toStatus   String
+  action     String
+  remarks    String?
+  userId     String
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([companyId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Kept for backward compat — workflowCode maps to entityType
+model WorkflowHistoryLegacy {
+  id           String   @id @default(uuid())
+  workflowCode String
+  entityId     String
+  entityType   String
+  fromState    String
+  toState      String
+  action       String
+  remarks      String?
+  userId       String
+  createdAt    DateTime @default(now())
+}
+
+enum ProductionPlanStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED
+  RELEASED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkOrderStatus {
+  CREATED
+  MATERIAL_PENDING
+  READY
+  STARTED
+  PARTIALLY_COMPLETED
+  COMPLETED
+  QC_PENDING
+  CLOSED
+}
+
+model LeadActivity {
+  id           String    @id @default(uuid())
+  leadId       String
+  activityType String // e.g. NOTE, EMAIL, CALL, MEETING
+  notes        String?
+  scheduledAt  DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  createdById  String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model FollowUp {
+  id          String    @id @default(uuid())
+  leadId      String?
+  entityType  String?
+  entityId    String?
+  notes       String?
+  reminderAt  DateTime?
+  createdAt   DateTime  @default(now())
+  createdById String
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model ProductionPlan {
+  id               String               @id @default(uuid())
+  planNumber       String               @unique
+  salesOrderId     String
+  status           ProductionPlanStatus @default(DRAFT)
+  plannedStartDate DateTime?
+  plannedEndDate   DateTime?
+  productionLine   String?
+  workflowStateId  String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  workOrders    WorkOrder[]
+  workflowState WorkflowState? @relation("ProductionPlanWorkflow", fields: [workflowStateId], references: [id])
+
+  @@index([workflowStateId])
+}
+
+model WorkOrder {
+  id               String          @id @default(uuid())
+  workOrderNumber  String          @unique
+  productionPlanId String
+  salesOrderItemId String?
+  status           WorkOrderStatus @default(CREATED)
+  quantity         Decimal         @db.Decimal(18, 3)
+  workflowStateId  String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  productionPlan    ProductionPlan    @relation(fields: [productionPlanId], references: [id])
+  salesOrderItem    SalesOrderItem?   @relation(fields: [salesOrderItemId], references: [id])
+  qcInspections     QCInspection[]
+  productionBatches ProductionBatch[]
+  workflowState     WorkflowState?    @relation("WorkOrderWorkflow", fields: [workflowStateId], references: [id])
+
+  @@index([workflowStateId])
+  @@index([salesOrderItemId])
+}
+
+model ProductionBatch {
+  id          String    @id @default(uuid())
+  batchNumber String    @unique
+  workOrderId String
+  quantity    Decimal   @db.Decimal(18, 3)
+  createdAt   DateTime  @default(now())
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+}
+
+model QCInspection {
+  id              String   @id @default(uuid())
+  workOrderId     String
+  status          QcStatus @default(PENDING)
+  notes           String?
+  workflowStateId String?
+  createdAt       DateTime @default(now())
+
+  workOrder     WorkOrder      @relation(fields: [workOrderId], references: [id])
+  workflowState WorkflowState? @relation("QCInspectionWorkflow", fields: [workflowStateId], references: [id])
+
+  @@index([workflowStateId])
+}
+
+model Dispatch {
+  id              String         @id @default(uuid())
+  dispatchNo      String         @unique
+  salesOrderId    String
+  status          DispatchStatus @default(CREATED)
+  dispatchedAt    DateTime?
+  deliveredAt     DateTime?
+  workflowStateId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  items         DispatchItem[]
+  invoices      SalesInvoice[]
+  workflowState WorkflowState? @relation("DispatchWorkflow", fields: [workflowStateId], references: [id])
+
+  @@index([workflowStateId])
+}
+
+model DispatchItem {
+  id               String         @id @default(uuid())
+  dispatchId       String
+  salesOrderItemId String
+  quantity         Decimal        @db.Decimal(18, 3)
+  createdAt        DateTime       @default(now())
+  dispatch         Dispatch       @relation(fields: [dispatchId], references: [id])
+  salesOrderItem   SalesOrderItem @relation(fields: [salesOrderItemId], references: [id])
+}
+
+model InvoiceItem {
+  id               String         @id @default(uuid())
+  invoiceId        String
+  salesOrderItemId String
+  quantity         Decimal        @db.Decimal(18, 3)
+  unitPrice        Decimal        @default(0) @db.Decimal(18, 2)
+  discountAmount   Decimal        @default(0) @db.Decimal(18, 2)
+  taxableAmount    Decimal        @default(0) @db.Decimal(18, 2)
+  taxRate          Decimal        @default(0) @db.Decimal(8, 3)
+  taxAmount        Decimal        @default(0) @db.Decimal(18, 2)
+  lineTotal        Decimal        @default(0) @db.Decimal(18, 2)
+  amount           Decimal        @db.Decimal(18, 2)
+  createdAt        DateTime       @default(now())
+  invoice          SalesInvoice   @relation(fields: [invoiceId], references: [id])
+  salesOrderItem   SalesOrderItem @relation(fields: [salesOrderItemId], references: [id])
+}
+
+model CustomerPayment {
+  id              String        @id @default(uuid())
+  paymentNo       String        @unique
+  customerId      String
+  amount          Decimal       @db.Decimal(18, 2)
+  status          PaymentStatus @default(SUBMITTED)
+  workflowStateId String?
+  receivedAt      DateTime      @default(now())
+  verifiedAt      DateTime?
+  verifiedById    String?
+  createdAt       DateTime      @default(now())
+
+  customer      Customer            @relation(fields: [customerId], references: [id])
+  allocations   PaymentAllocation[]
+  workflowState WorkflowState?      @relation("PaymentWorkflow", fields: [workflowStateId], references: [id])
+
+  @@index([workflowStateId])
+}
+
+model PaymentAllocation {
+  id        String          @id @default(uuid())
+  paymentId String
+  invoiceId String
+  amount    Decimal         @db.Decimal(18, 2)
+  createdAt DateTime        @default(now())
+  payment   CustomerPayment @relation(fields: [paymentId], references: [id])
+  invoice   SalesInvoice    @relation(fields: [invoiceId], references: [id])
+
+  @@unique([paymentId, invoiceId])
+}
+
+model CustomerLedger {
+  id         String  @id @default(uuid())
+  customerId String
+  type       String // 'INVOICE' | 'PAYMENT' | 'REVERSAL'
+  amount     Decimal @db.Decimal(18, 2)
+  debit      Decimal @default(0) @db.Decimal(18, 2)
+  credit     Decimal @default(0) @db.Decimal(18, 2)
+
+  referenceType String // e.g. 'SalesInvoice', 'CustomerPayment'
+  referenceId   String
+  reversalOfId  String?
+
+  description String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model OrderAmendment {
+  id           String     @id @default(uuid())
+  salesOrderId String
+  amendmentNo  String     @unique
+  reason       String
+  changes      Json
+  approvedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+}
+
+// =============================================================================
+// CROSS-CUTTING INFRASTRUCTURE
+// These models are shared across all ERP modules (Sales, Production, Finance,
+// Procurement, HR). They are intentionally generic using entityType + entityId
+// to avoid coupling to specific domain models.
+// =============================================================================
+
+// Approval — multi-level approval engine shared across all modules.
+// Usage: Sales Order approval, Production Plan approval, Payment approval, etc.
+model Approval {
+  id           String         @id @default(uuid())
+  companyId    String
+  entityType   String // SalesOrder, ProductionPlan, Invoice, Payment, PurchaseOrder ...
+  entityId     String
+  level        Int            @default(1) // Supports multi-level approval chains
+  role         String? // Role required to approve at this level
+  status       ApprovalStatus @default(PENDING)
+  approvedById String?
+  rejectedById String?
+  remarks      String?
+  approvedAt   DateTime?
+  rejectedAt   DateTime?
+  createdAt    DateTime       @default(now())
+
+  @@index([entityType, entityId])
+  @@index([companyId, status])
+  @@index([approvedById])
+}
+
+// Attachment — generic file attachment shared across all modules.
+// Usage: Customer PO on SalesOrder, damage photos on Return, signed invoice, etc.
+model Attachment {
+  id           String   @id @default(uuid())
+  companyId    String
+  entityType   String // SalesOrder, Quotation, Return, Invoice, Lead, Complaint ...
+  entityId     String
+  fileName     String
+  fileUrl      String
+  mimeType     String?
+  fileSize     Int? // in bytes
+  uploadedById String
+  uploadedAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([companyId])
+  @@index([uploadedById])
+}
+
+// Comment — generic comment / notes thread shared across all modules.
+// Replaces ad-hoc `remarks` and `internalRemarks` fields on documents.
+model Comment {
+  id         String    @id @default(uuid())
+  companyId  String
+  entityType String // SalesOrder, Lead, Complaint, Return, Invoice ...
+  entityId   String
+  message    String
+  isInternal Boolean   @default(false) // Internal = staff only; false = customer visible
+  userId     String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([entityType, entityId])
+  @@index([companyId])
+  @@index([userId])
+}
+
+// Notification — in-app notification for every workflow action.
+// Created by services automatically on status transitions.
+model Notification {
+  id         String             @id @default(uuid())
+  companyId  String
+  userId     String // Recipient
+  title      String
+  message    String
+  entityType String? // Optional — links notification to a document
+  entityId   String?
+  status     NotificationStatus @default(UNREAD)
+  readAt     DateTime?
+  createdAt  DateTime           @default(now())
+
+  @@index([userId, status])
+  @@index([companyId])
+  @@index([entityType, entityId])
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
 }

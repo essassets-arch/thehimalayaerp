@@ -132,6 +132,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
   const [activeDropdownRow, setActiveDropdownRow] = useState(null);
   const [loginTime, setLoginTime] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -386,6 +387,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
     const proceedSubmit = async (dataPayload) => {
       let success = false;
+      setIsSubmitting(true);
       try {
         if (submitAction === 'quotation' && onGenerateQuotation) {
           const res = await onGenerateQuotation(dataPayload);
@@ -396,6 +398,8 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         }
       } catch (err) {
         console.error(err);
+      } finally {
+        setIsSubmitting(false);
       }
       if (success) {
         clearDraft();
@@ -853,15 +857,17 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
               type="submit"
               className="form-submit-btn"
               onClick={() => setSubmitAction('lead')}
+              disabled={isSubmitting}
             >
-              Submit Lead Details
+              {isSubmitting ? 'Processing...' : 'Submit Lead Details'}
             </button>
           )}
           <button
             type="button"
             className="btn-small btn-outline-small"
             onClick={onCancel}
-            style={{ flex: 'none', padding: '12px 20px' }}
+            disabled={isSubmitting}
+            style={{ flex: 'none', padding: '12px 20px', opacity: isSubmitting ? 0.5 : 1 }}
           >
             Cancel
           </button>

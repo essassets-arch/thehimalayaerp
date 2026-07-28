@@ -1,5 +1,10 @@
 # Functional Process & User Journey Documentation: Sales Order, Replacement & Return Flow
 
+> **Supporting document:** The canonical source of truth is
+> [Complete Sales Order Lifecycle ERP Workflow](../../../docs/complete-sales-order-lifecycle.md).
+> If this supporting journey conflicts with the canonical states, gates, or
+> acceptance rules, the canonical specification takes precedence.
+
 This document details the step-by-step business process, operational user journey, decision checkpoints, and documentation lifecycle for the complete **Sales & Customer Order Management** lifecycle.
 
 ---

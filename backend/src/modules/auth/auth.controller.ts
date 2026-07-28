@@ -35,7 +35,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/api/v1/auth',
+      path: '/',
     });
 
     return { accessToken, user };
@@ -62,12 +62,14 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/api/v1/auth',
+      path: '/',
     });
 
     return { accessToken: tokens.accessToken };
   }
 
+  @Public()
+  @UseGuards(JwtRefreshGuard)
   @Post('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const userId = (req as any).user['sub'];
@@ -81,7 +83,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/api/v1/auth',
+      path: '/',
     });
 
     return { success: true };

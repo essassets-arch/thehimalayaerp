@@ -1,3 +1,24 @@
+# Himalaya ERP
+
+## Sales lifecycle acceptance status
+
+The canonical process definition is the
+[Complete Sales Order Lifecycle ERP Workflow](docs/complete-sales-order-lifecycle.md).
+
+**Current status:** Specification approved; implementation and production
+acceptance pending.
+
+The application has a connected PostgreSQL-backed Lead-to-Cash happy-path
+foundation. That validation is not production sign-off for the complete Sales
+Order lifecycle.
+
+The official live implementation classification and blocker register are in
+[Sales Lifecycle Implementation Status](docs/sales-lifecycle-implementation-status.md):
+
+> **Unified Lead-to-Cash Lifecycle — Happy Path Implemented and Database
+> Validated; Complete Sales Order Lifecycle Implementation and Production
+> Acceptance Pending.**
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

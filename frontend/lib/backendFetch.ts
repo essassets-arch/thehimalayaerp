@@ -68,20 +68,49 @@ export async function backendFetch<T = unknown>(
     useAuthStore.getState().logout?.();
   }
 
+  const responseText = await res.text();
+  let envelope: any;
+
+  if (responseText) {
+    try {
+      envelope = JSON.parse(responseText);
+    } catch {
+      console.error('Invalid JSON returned by backend bridge', {
+        url,
+        status: res.status,
+        response: responseText.slice(0, 1000),
+      });
+      const error = new Error(`Invalid JSON returned by backend bridge (${res.status})`);
+      (error as any).status = res.status;
+      throw error;
+    }
+  }
+
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    const error = new Error(errBody.message || `Request failed: ${res.status}`);
+    const error = new Error(envelope?.message || `Request failed: ${res.status}`);
     (error as any).status = res.status;
-    (error as any).code = errBody.code;
+    (error as any).code = envelope?.code;
     throw error;
   }
 
-  const envelope = await res.json().catch(() => null);
+  if (!responseText) {
+    if (res.status === 204 || res.status === 205) {
+      return undefined as T;
+    }
+    throw new Error(`Empty response returned by backend bridge (${res.status})`);
+  }
+
   if (envelope && !envelope.success) {
     throw new Error(envelope.message || 'Operation failed.');
   }
 
   return (envelope?.data ?? envelope) as T;
+}
+
+export async function ensureAccessToken(): Promise<string | null> {
+  const current = useAuthStore.getState().accessToken;
+  if (current) return current;
+  return (await tryRefreshToken()) ? useAuthStore.getState().accessToken : null;
 }
 
 async function tryRefreshToken(): Promise<boolean> {

@@ -17,7 +17,37 @@ export type ForwardBackendRequestOptions = {
   idempotencyKey?: string;
   requestId?: string;
   token?: string;
+  headers?: Record<string, string>;
 };
+
+/**
+ * Node's fetch transparently decompresses upstream responses but may retain the
+ * original content-encoding/content-length headers. Returning that Response
+ * directly from a Next.js route makes the browser try to decompress the body a
+ * second time. Rebuild the response and forward only representation-safe
+ * headers.
+ */
+async function createBridgeResponse(upstream: Response): Promise<Response> {
+  const headers = new Headers();
+
+  for (const name of ['content-type', 'cache-control', 'location', 'retry-after', 'x-request-id']) {
+    const value = upstream.headers.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  }
+
+  const body =
+    upstream.status === 204 || upstream.status === 205 || upstream.status === 304
+      ? null
+      : await upstream.arrayBuffer();
+
+  return new Response(body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers,
+  });
+}
 
 export async function forwardBackendRequest(
   options: ForwardBackendRequestOptions,
@@ -36,6 +66,7 @@ export async function forwardBackendRequest(
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...(options.headers || {}),
       'X-Request-ID': requestId,
     };
 
@@ -72,7 +103,7 @@ export async function forwardBackendRequest(
   try {
     const { res, timeout } = await makeAttempt();
     clearTimeout(timeout);
-    return res;
+    return await createBridgeResponse(res);
   } catch (err: unknown) {
     if ((err as { name?: string }).name === 'AbortError') {
       return new Response(

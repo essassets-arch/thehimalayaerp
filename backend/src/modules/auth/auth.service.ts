@@ -33,7 +33,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.getTokens(user.id, user.email, user.role.code);
+    const tokens = await this.getTokens(user.id, user.email, user.role.code, user.companyId);
     await this.updateRefreshToken(
       user.id,
       tokens.refreshToken,
@@ -54,6 +54,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role.code,
+        companyId: user.companyId,
         permissions,
       },
     };
@@ -111,7 +112,7 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    const tokens = await this.getTokens(user.id, user.email, user.role.code);
+    const tokens = await this.getTokens(user.id, user.email, user.role.code, user.companyId);
     await this.updateRefreshToken(
       user.id,
       tokens.refreshToken,
@@ -122,10 +123,10 @@ export class AuthService {
     return tokens;
   }
 
-  async getTokens(userId: string, email: string, role: string) {
+  async getTokens(userId: string, email: string, role: string, companyId: string) {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
-        { sub: userId, email, role },
+        { sub: userId, email, role, companyId },
         {
           secret: this.configService.get<string>('jwt.accessSecret') as string,
           expiresIn: this.configService.get<string>(
@@ -134,7 +135,7 @@ export class AuthService {
         },
       ),
       this.jwtService.signAsync(
-        { sub: userId, email, role },
+        { sub: userId, email, role, companyId },
         {
           secret: this.configService.get<string>('jwt.refreshSecret') as string,
           expiresIn: this.configService.get<string>(

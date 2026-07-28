@@ -1,0 +1,3 @@
+ALTER TABLE "CustomerPayment"
+  ADD COLUMN IF NOT EXISTS "verifiedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "verifiedById" TEXT;
