@@ -5,6 +5,7 @@ backend/node_modules/
 
 # Next.js
 frontend/.next/
+frontend/.next-build/
 frontend/out/
 
 # NestJS
