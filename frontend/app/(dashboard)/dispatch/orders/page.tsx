@@ -23,14 +23,21 @@ import styles from "./orders.module.css";
 interface Customer {
   id: string;
   companyName: string;
-  address?: string;
+  billingAddress?: ShippingAddress | string | null;
+  shippingAddress?: ShippingAddress | string | null;
 }
 
 interface ShippingAddress {
+  addressLine1?: string;
+  addressLine2?: string;
   line1?: string;
   line2?: string;
+  street?: string;
   city?: string;
   state?: string;
+  pincode?: string;
+  pinCode?: string;
+  zipCode?: string;
   postalCode?: string;
   country?: string;
 }
@@ -39,7 +46,7 @@ interface SalesOrder {
   id: string;
   orderNumber: string;
   requestedDeliveryDate?: string;
-  shippingAddress?: ShippingAddress;
+  shippingAddress?: ShippingAddress | string | null;
   customer?: Customer;
 }
 
@@ -61,22 +68,49 @@ interface WorkOrder {
   sentToDispatchAt: string | null;
   productionPlan?: ProductionPlan;
   salesOrderItem?: SalesOrderItem;
+  qcInspections?: QCInspection[];
+}
+
+interface QCInspection {
+  id: string;
+  status: string;
+  approvedQuantity: string | number | null;
+  approvedAt: string | null;
+  createdAt: string;
+}
+
+function formatAddressValue(value?: ShippingAddress | string | null): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    try {
+      return formatAddressValue(JSON.parse(value) as ShippingAddress);
+    } catch {
+      return value.trim();
+    }
+  }
+
+  const parts = [
+    value.line1 || value.addressLine1 || value.street,
+    value.line2 || value.addressLine2,
+    value.city,
+    value.state,
+    value.postalCode ||
+      value.pincode ||
+      value.pinCode ||
+      value.zipCode,
+    value.country,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.join(", ");
 }
 
 function formatAddress(salesOrder?: SalesOrder, customer?: Customer): string {
-  const addrObj = salesOrder?.shippingAddress;
-  if (addrObj && typeof addrObj === "object") {
-    const parts = [
-      addrObj.line1,
-      addrObj.line2,
-      addrObj.city,
-      addrObj.state,
-      addrObj.postalCode,
-      addrObj.country,
-    ].filter(Boolean);
-    if (parts.length) return parts.join(", ");
-  }
-  return customer?.address || "N/A";
+  return (
+    formatAddressValue(salesOrder?.shippingAddress) ||
+    formatAddressValue(customer?.shippingAddress) ||
+    formatAddressValue(customer?.billingAddress) ||
+    "N/A"
+  );
 }
 
 export default function DispatchOrdersPage() {
@@ -231,6 +265,7 @@ export default function DispatchOrdersPage() {
                       const salesOrder = wo.productionPlan?.salesOrder;
                       const customer = salesOrder?.customer;
                       const address = formatAddress(salesOrder, customer);
+                      const qcInspection = wo.qcInspections?.[0];
                       return (
                         <tr
                           key={wo.id}
@@ -262,14 +297,18 @@ export default function DispatchOrdersPage() {
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
                             <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg border border-emerald-100">
-                              {wo.quantity}
+                              {qcInspection?.approvedQuantity ?? wo.quantity}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
                             <span className="text-xs text-gray-500">
-                              {wo.sentToDispatchAt
+                              {qcInspection?.approvedAt ||
+                              qcInspection?.createdAt ||
+                              wo.sentToDispatchAt
                                 ? new Date(
-                                    wo.sentToDispatchAt,
+                                    qcInspection?.approvedAt ||
+                                      qcInspection?.createdAt ||
+                                      wo.sentToDispatchAt!,
                                   ).toLocaleDateString("en-IN", {
                                     day: "2-digit",
                                     month: "short",
@@ -324,6 +363,7 @@ export default function DispatchOrdersPage() {
                 const salesOrder = wo.productionPlan?.salesOrder;
                 const customer = salesOrder?.customer;
                 const address = formatAddress(salesOrder, customer);
+                const qcInspection = wo.qcInspections?.[0];
                 return (
                   <div
                     key={wo.id}
@@ -381,7 +421,7 @@ export default function DispatchOrdersPage() {
                             Qty
                           </p>
                           <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg border border-emerald-100 mt-0.5">
-                            {wo.quantity}
+                            {qcInspection?.approvedQuantity ?? wo.quantity}
                           </span>
                         </div>
                       </div>
@@ -412,9 +452,13 @@ export default function DispatchOrdersPage() {
                               QC Date
                             </p>
                             <p className="text-xs text-gray-600">
-                              {wo.sentToDispatchAt
+                              {qcInspection?.approvedAt ||
+                              qcInspection?.createdAt ||
+                              wo.sentToDispatchAt
                                 ? new Date(
-                                    wo.sentToDispatchAt,
+                                    qcInspection?.approvedAt ||
+                                      qcInspection?.createdAt ||
+                                      wo.sentToDispatchAt!,
                                   ).toLocaleDateString("en-IN", {
                                     day: "2-digit",
                                     month: "short",

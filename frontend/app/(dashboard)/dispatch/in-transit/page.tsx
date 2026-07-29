@@ -28,6 +28,7 @@ interface Customer {
 
 interface SalesOrder {
   orderNumber: string;
+  requestedDeliveryDate: string | null;
   customer: Customer;
 }
 
@@ -51,6 +52,9 @@ export default function InTransitPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  const getExpectedDelivery = (dispatch: Dispatch) =>
+    dispatch.eta || dispatch.salesOrder?.requestedDeliveryDate || null;
 
   const {
     data: dispatches = [],
@@ -218,9 +222,6 @@ export default function InTransitPage() {
                         Customer
                       </th>
                       <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
-                        Transporter
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
                         Driver
                       </th>
                       <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
@@ -259,11 +260,6 @@ export default function InTransitPage() {
                           </span>
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap">
-                          <span className="text-gray-600">
-                            {dispatch.transporterName || "—"}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
                           <div className="flex flex-col">
                             <span className="text-gray-700 font-medium text-xs">
                               {dispatch.driverName || "—"}
@@ -294,14 +290,14 @@ export default function InTransitPage() {
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span
                             className={`text-xs font-mono font-semibold ${
-                              dispatch.eta &&
-                              new Date(dispatch.eta) < new Date()
+                              getExpectedDelivery(dispatch) &&
+                              new Date(getExpectedDelivery(dispatch)!) < new Date()
                                 ? "text-red-500"
                                 : "text-gray-600"
                             }`}
                           >
-                            {dispatch.eta
-                              ? new Date(dispatch.eta).toLocaleDateString(
+                            {getExpectedDelivery(dispatch)
+                              ? new Date(getExpectedDelivery(dispatch)!).toLocaleDateString(
                                   "en-IN",
                                   {
                                     day: "2-digit",
@@ -392,20 +388,17 @@ export default function InTransitPage() {
                       </div>
                     )}
 
-                    {/* Transporter + Driver */}
+                    {/* Driver + Vehicle */}
                     <div className="flex items-start gap-3">
                       <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
                         <Truck className="h-3.5 w-3.5 text-gray-400" />
                       </div>
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                          Transporter / Driver
-                        </p>
-                        <p className="text-sm text-gray-700 font-medium">
-                          {dispatch.transporterName || "—"}
+                          Driver / Vehicle
                         </p>
                         {dispatch.driverName && (
-                          <p className="text-xs text-gray-500">
+                          <p className="text-sm text-gray-700 font-medium">
                             {dispatch.driverName} ·{" "}
                             {dispatch.driverPhone || "No phone"}
                           </p>
@@ -443,15 +436,16 @@ export default function InTransitPage() {
                       <div className="flex items-start gap-2.5">
                         <div
                           className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                            dispatch.eta && new Date(dispatch.eta) < new Date()
+                            getExpectedDelivery(dispatch) &&
+                            new Date(getExpectedDelivery(dispatch)!) < new Date()
                               ? "bg-red-50"
                               : "bg-gray-100"
                           }`}
                         >
                           <Clock
                             className={`h-3.5 w-3.5 ${
-                              dispatch.eta &&
-                              new Date(dispatch.eta) < new Date()
+                              getExpectedDelivery(dispatch) &&
+                              new Date(getExpectedDelivery(dispatch)!) < new Date()
                                 ? "text-red-400"
                                 : "text-gray-400"
                             }`}
@@ -459,18 +453,18 @@ export default function InTransitPage() {
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            ETA
+                            Expected Delivery
                           </p>
                           <p
                             className={`text-xs font-semibold font-mono ${
-                              dispatch.eta &&
-                              new Date(dispatch.eta) < new Date()
+                              getExpectedDelivery(dispatch) &&
+                              new Date(getExpectedDelivery(dispatch)!) < new Date()
                                 ? "text-red-500"
                                 : "text-gray-700"
                             }`}
                           >
-                            {dispatch.eta
-                              ? new Date(dispatch.eta).toLocaleDateString(
+                            {getExpectedDelivery(dispatch)
+                              ? new Date(getExpectedDelivery(dispatch)!).toLocaleDateString(
                                   "en-IN",
                                   {
                                     day: "2-digit",

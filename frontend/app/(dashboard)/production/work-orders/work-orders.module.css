@@ -222,6 +222,8 @@
 
 .dispatchButton {
   display: inline-flex;
+  width: max-content;
+  max-width: 100%;
   min-width: 154px;
   min-height: 40px;
   padding: 9px 15px;
@@ -380,11 +382,13 @@
   }
 
   .table :global(td:last-child button) {
-    width: auto;
+    width: 100%;
     min-height: 38px;
   }
 
   .dispatchButton {
+    max-width: none;
+    min-width: 0;
     width: 100% !important;
   }
 

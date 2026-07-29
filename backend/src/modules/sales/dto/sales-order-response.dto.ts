@@ -28,6 +28,9 @@ export interface SalesOrderResponseDto {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  verifiedPaidAmount: number;
+  balanceAmount: number;
+  paymentStatus: string;
 
   // Single unified lifecycle status (replaces the old roll-up fields)
   status: SalesOrderStatus;

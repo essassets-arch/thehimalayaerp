@@ -56,6 +56,8 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     dispatchStatus: typeof source.dispatchStatus === 'string' ? source.dispatchStatus : 'NOT_READY',
     invoiceStatus: typeof source.invoiceStatus === 'string' ? source.invoiceStatus : 'PENDING',
     paymentStatus: typeof source.paymentStatus === 'string' ? source.paymentStatus : 'NOT_DUE',
+    verifiedPaidAmount: toFiniteNumber(source.verifiedPaidAmount),
+    balanceAmount: toFiniteNumber(source.balanceAmount),
     closureStatus: typeof source.closureStatus === 'string' ? source.closureStatus : 'OPEN',
     replacementStatus: typeof source.replacementStatus === 'string' ? source.replacementStatus : undefined,
     returnStatus: typeof source.returnStatus === 'string' ? source.returnStatus : undefined,

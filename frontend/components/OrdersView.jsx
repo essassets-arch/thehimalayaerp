@@ -169,8 +169,9 @@ export default function OrdersView({
   const canAskForPayment = (order) => {
     const isDelivered = isDeliveredOrder(order);
     const paymentSt = String(order?.paymentStatus || '').toUpperCase();
-    const isPaymentPending = paymentSt !== 'FULLY_PAID' && paymentSt !== 'PAID';
-    return isDelivered && isPaymentPending && !hasPendingFinanceConfirmation(order);
+    const isFinanceApprovedAndPaid =
+      paymentSt === 'FULLY_PAID' || paymentSt === 'PAID';
+    return isDelivered && !isFinanceApprovedAndPaid;
   };
 
   const canSendToPlantHead = (order) => {
@@ -538,7 +539,7 @@ export default function OrdersView({
                           >
                             <Eye size={13} />
                           </button>
-                          {isDeliveredOrder(o) && (
+                          {canAskForPayment(o) && (
                             <button
                               type="button"
                               onClick={() => navigate.push('/sales/payment-followup')}
@@ -747,7 +748,7 @@ export default function OrdersView({
 
                             {isDeliveredOrder(o) && (
                               <>
-                                {isDeliveredOrder(o) && (
+                                {canAskForPayment(o) && (
                                   <button
                                     type="button"
                                     onClick={() => navigate.push('/sales/payment-followup')}
@@ -1022,7 +1023,7 @@ export default function OrdersView({
                     ✓ Send to Plant Head
                   </button>
                 )}
-                {isDeliveredOrder(currentDetailsOrder) && (
+                {canAskForPayment(currentDetailsOrder) && (
                   <button
                     type="button"
                     onClick={() => { setSelectedOrder(null); navigate.push('/sales/payment-followup'); }}

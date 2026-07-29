@@ -12,6 +12,7 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
   dispatches?: Prisma.DispatchGetPayload<{ include: { items: true } }>[];
   returns?: Prisma.SalesReturnGetPayload<Record<string, never>>[];
   replacementRequests?: Prisma.ReplacementRequestGetPayload<Record<string, never>>[];
+  customerPayments?: Prisma.CustomerPaymentGetPayload<Record<string, never>>[];
 };
 
 export function mapSalesOrder(
@@ -47,6 +48,25 @@ export function mapSalesOrder(
   )?.podUrl;
   const latestReturn = order.returns?.[0];
   const latestReplacement = order.replacementRequests?.[0];
+  const financeApprovedStatuses = new Set([
+    'VERIFIED',
+    'PARTIALLY_ALLOCATED',
+    'ALLOCATED',
+  ]);
+  const verifiedPaidAmount = (order.customerPayments ?? [])
+    .filter((payment) => financeApprovedStatuses.has(payment.status))
+    .reduce((total, payment) => total + Number(payment.amount), 0);
+  const balanceAmount = Math.max(0, Number(order.totalAmount) - verifiedPaidAmount);
+  const paymentStatus =
+    verifiedPaidAmount >= Number(order.totalAmount)
+      ? 'FULLY_PAID'
+      : verifiedPaidAmount > 0
+        ? 'PARTIALLY_PAID'
+        : (order.customerPayments ?? []).some((payment) =>
+              ['SUBMITTED', 'UNDER_VERIFICATION', 'RECEIVED'].includes(payment.status),
+            )
+          ? 'FINANCE_VERIFICATION_PENDING'
+          : 'NOT_DUE';
   const returnStatus = latestReturn
     ? latestReturn.status === 'CLOSED'
       ? 'COMPLETED'
@@ -90,6 +110,9 @@ export function mapSalesOrder(
     subtotal: Number(order.subtotal),
     taxAmount: Number(order.taxAmount),
     totalAmount: Number(order.totalAmount),
+    verifiedPaidAmount,
+    balanceAmount,
+    paymentStatus,
 
     // Unified lifecycle status
     status: effectiveStatus,

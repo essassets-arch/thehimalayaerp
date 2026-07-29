@@ -38,6 +38,8 @@ export interface SalesOrder {
   dispatchStatus: string;
   invoiceStatus: string;
   paymentStatus: string;
+  verifiedPaidAmount?: number;
+  balanceAmount?: number;
   closureStatus: string;
   replacementStatus?: string;
   returnStatus?: string;

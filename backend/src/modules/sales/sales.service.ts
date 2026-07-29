@@ -58,6 +58,7 @@ export class SalesService {
           },
           returns: { orderBy: { requestedAt: 'desc' } },
           replacementRequests: { orderBy: { requestedAt: 'desc' } },
+          customerPayments: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -89,6 +90,7 @@ export class SalesService {
         },
         returns: { orderBy: { requestedAt: 'desc' } },
         replacementRequests: { orderBy: { requestedAt: 'desc' } },
+        customerPayments: true,
       },
     });
     if (!order) throw new NotFoundException(`SalesOrder with ID ${id} not found`);

@@ -55,7 +55,12 @@ export class DispatchService {
     expectedDeliveryDate?: string;
     invoiceNumber?: string;
     ewayBillNumber?: string;
-    items: { salesOrderItemId: string; quantity: number }[];
+    freightAmount?: number;
+    items: {
+      salesOrderItemId: string;
+      quantity: number;
+      workOrderIds?: string[];
+    }[];
   }) {
     if (!dto.items?.length) throw new BadRequestException('At least one dispatch item is required');
     if (dto.items.some((item) => Number(item.quantity) <= 0)) {
@@ -189,6 +194,7 @@ export class DispatchService {
           driverName: dto.driverName,
           driverPhone: dto.driverPhone,
           driverLicence: dto.driverLicence,
+          freightAmount: dto.freightAmount,
           eta: dto.expectedDeliveryDate ? new Date(dto.expectedDeliveryDate) : null,
           invoiceNumber: dto.invoiceNumber,
           ewayBillNumber: dto.ewayBillNumber,
@@ -206,7 +212,13 @@ export class DispatchService {
       // Update WorkOrder status to DISPATCHED
       for (const item of dto.items) {
         const wos = await tx.workOrder.findMany({
-          where: { salesOrderItemId: item.salesOrderItemId }
+          where: {
+            salesOrderItemId: item.salesOrderItemId,
+            status: 'READY_FOR_DISPATCH',
+            ...(item.workOrderIds?.length
+              ? { id: { in: item.workOrderIds } }
+              : {}),
+          }
         });
         for (const wo of wos) {
           await tx.workOrder.update({

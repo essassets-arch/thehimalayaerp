@@ -20,7 +20,13 @@ export class WorkOrdersService {
         productionPlan: {
           include: { salesOrder: { include: { customer: true, items: true } } }
         },
-        salesOrderItem: true,
+        salesOrderItem: {
+          include: { dispatchItems: true }
+        },
+        qcInspections: {
+          where: { status: 'APPROVED' },
+          orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }]
+        },
         workflowState: true
       },
       orderBy: { createdAt: 'desc' }

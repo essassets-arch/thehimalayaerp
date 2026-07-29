@@ -130,6 +130,7 @@ export default function WorkOrderListPage() {
               type="button"
               onClick={() => handleStartWork(row.original)}
               disabled={startingId === row.original.id}
+              className={styles.dispatchButton}
             >
               {startingId === row.original.id ? 'Starting…' : 'Start Work'}
             </Button>
