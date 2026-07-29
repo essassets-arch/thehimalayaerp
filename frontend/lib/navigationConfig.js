@@ -179,24 +179,6 @@ export const navigationConfig = {
 
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance/reports' }
   ],
-  'Finance Executive': [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance-executive/dashboard' },
-    { id: 'payment-verification', label: 'Payment Verification', icon: FileCheck, path: '/finance-executive/payment-verification' },
-    { id: 'receipts', label: 'Payment Receipts', icon: Receipt, path: '/finance-executive/receipts' },
-    { id: 'invoices', label: 'Invoices', icon: FileText, path: '/finance-executive/invoices' },
-    { id: 'outstanding', label: 'Outstanding Payments', icon: AlertTriangle, path: '/finance-executive/outstanding' },
-    { id: 'customers', label: 'Customers', icon: Users, path: '/finance-executive/customers' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance-executive/reports' }
-  ],
-  'finance-executive': [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance-executive/dashboard' },
-    { id: 'payment-verification', label: 'Payment Verification', icon: FileCheck, path: '/finance-executive/payment-verification' },
-    { id: 'receipts', label: 'Payment Receipts', icon: Receipt, path: '/finance-executive/receipts' },
-    { id: 'invoices', label: 'Invoices', icon: FileText, path: '/finance-executive/invoices' },
-    { id: 'outstanding', label: 'Outstanding Payments', icon: AlertTriangle, path: '/finance-executive/outstanding' },
-    { id: 'customers', label: 'Customers', icon: Users, path: '/finance-executive/customers' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance-executive/reports' }
-  ],
   'HR': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/hr/dashboard' },
     { id: 'employees', label: 'Employees', icon: Users, path: '/hr/employees' },

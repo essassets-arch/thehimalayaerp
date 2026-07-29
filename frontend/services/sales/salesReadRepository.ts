@@ -39,6 +39,8 @@ export interface SalesOrder {
   invoiceStatus: string;
   paymentStatus: string;
   closureStatus: string;
+  replacementStatus?: string;
+  returnStatus?: string;
 
   createdAt: string;
   updatedAt: string;

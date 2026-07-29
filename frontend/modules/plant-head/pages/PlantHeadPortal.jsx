@@ -240,6 +240,8 @@ export default function PlantHeadPortal() {
   const [targetDate, setTargetDate] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
+  const [isPlanningSubmitting, setIsPlanningSubmitting] = useState(false);
+  const planningSubmitLock = useRef(false);
 
   const [overrideQty, setOverrideQty] = useState({});
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
@@ -537,11 +539,13 @@ export default function PlantHeadPortal() {
 
   const handlePlanningSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedOrderForPlanning) return;
+    if (!selectedOrderForPlanning || planningSubmitLock.current) return;
     if (!targetDate) {
       showToast('Please select a Target Date.');
       return;
     }
+    planningSubmitLock.current = true;
+    setIsPlanningSubmitting(true);
 
     Swal.fire({
       title: 'Send Order to Production?',
@@ -567,10 +571,11 @@ export default function PlantHeadPortal() {
             );
 
             if (isBackendOrder) {
+              let latestOrder = await backendFetch(
+                `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
+              );
               let orderStatus = String(
-                selectedOrderForPlanning.workflowStateCode ||
-                selectedOrderForPlanning.status ||
-                ''
+                latestOrder.workflowStateCode || latestOrder.status || ''
               ).toUpperCase();
 
               if (['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(orderStatus)) {
@@ -578,7 +583,12 @@ export default function PlantHeadPortal() {
                   method: 'POST',
                   body: { action: 'PLANT_APPROVE', remarks: 'Accepted during production planning' },
                 });
-                orderStatus = 'PLANT_APPROVED';
+                latestOrder = await backendFetch(
+                  `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
+                );
+                orderStatus = String(
+                  latestOrder.workflowStateCode || latestOrder.status || ''
+                ).toUpperCase();
               }
 
               let productionPlan = planningOrders.find(plan =>
@@ -604,28 +614,55 @@ export default function PlantHeadPortal() {
               });
 
               if (orderStatus === 'PLANT_APPROVED') {
-                await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
-                  method: 'POST',
-                  body: { action: 'PLAN_PRODUCTION', remarks: `Target date: ${targetDate}; priority: ${priority}` },
-                });
+                try {
+                  await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
+                    method: 'POST',
+                    body: { action: 'PLAN_PRODUCTION', remarks: `Target date: ${targetDate}; priority: ${priority}` },
+                  });
+                } catch (transitionError) {
+                  latestOrder = await backendFetch(
+                    `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
+                  );
+                  const refreshedStatus = String(
+                    latestOrder.workflowStateCode || latestOrder.status || ''
+                  ).toUpperCase();
+                  if (!['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(refreshedStatus)) {
+                    throw transitionError;
+                  }
+                }
               }
 
-              const planState = String(
-                productionPlan.workflowState?.code || productionPlan.status || 'DRAFT'
+              let latestPlan = await backendFetch(
+                `/api/backend/production/plans/${productionPlan.id}`
+              );
+              let planState = String(
+                latestPlan.workflowState?.code || latestPlan.status || 'DRAFT'
               ).toUpperCase();
               if (['DRAFT', 'PENDING_PLANNING'].includes(planState)) {
                 await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
                   method: 'POST',
                   body: { action: 'SUBMIT', remarks: `Target date: ${targetDate}` },
                 });
+                latestPlan = await backendFetch(
+                  `/api/backend/production/plans/${productionPlan.id}`
+                );
+                planState = String(
+                  latestPlan.workflowState?.code || latestPlan.status
+                ).toUpperCase();
               }
-              if (['DRAFT', 'PENDING_PLANNING', 'UNDER_REVIEW'].includes(planState)) {
+              if (planState === 'UNDER_REVIEW') {
                 await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
                   method: 'POST',
                   body: { action: 'APPROVE', remarks: 'Approved by Plant Head' },
                 });
+                latestPlan = await backendFetch(
+                  `/api/backend/production/plans/${productionPlan.id}`
+                );
+                planState = String(
+                  latestPlan.workflowState?.code || latestPlan.status
+                ).toUpperCase();
               }
-              if (['DRAFT', 'PENDING_PLANNING', 'UNDER_REVIEW', 'APPROVED'].includes(planState)) {
+              if (planState === 'APPROVED') {
                 await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
                   method: 'POST',
                   body: { action: 'RELEASE', remarks: 'Released to Production' },
@@ -651,7 +688,13 @@ export default function PlantHeadPortal() {
             }
           } catch (err) {
             Swal.fire({ icon: 'error', title: 'Planning Failed', text: err.message });
+          } finally {
+            planningSubmitLock.current = false;
+            setIsPlanningSubmitting(false);
           }
+      } else {
+        planningSubmitLock.current = false;
+        setIsPlanningSubmitting(false);
       }
     });
   };
@@ -4190,8 +4233,8 @@ export default function PlantHeadPortal() {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                <button type="submit" className="form-submit-btn" style={{ margin: 0, padding: '12px 24px', flex: 1, background: 'var(--color-primary, #2F4375)', color: '#ffffff', border: 'none', fontWeight: '700', borderRadius: '10px', cursor: 'pointer' }}>
-                  Set Target Date &amp; Send to Production
+                <button type="submit" disabled={isPlanningSubmitting} className="form-submit-btn" style={{ margin: 0, padding: '12px 24px', flex: 1, background: 'var(--color-primary, #2F4375)', color: '#ffffff', border: 'none', fontWeight: '700', borderRadius: '10px', cursor: isPlanningSubmitting ? 'wait' : 'pointer', opacity: isPlanningSubmitting ? 0.7 : 1 }}>
+                  {isPlanningSubmitting ? 'Sending to Production...' : 'Set Target Date & Send to Production'}
                 </button>
                 <button 
                   type="button" 

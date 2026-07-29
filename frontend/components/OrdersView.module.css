@@ -1,0 +1,55 @@
+.ordersTable {
+  table-layout: fixed;
+}
+
+.actionsCell {
+  min-width: 0;
+}
+
+.actionsGrid {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.actionsGrid button {
+  min-height: 30px;
+  padding-inline: 9px !important;
+  font-size: 11px !important;
+  line-height: 1.1;
+}
+
+@media (min-width: 1280px) {
+  .actionsGrid {
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .ordersTable {
+    table-layout: auto;
+  }
+
+  .ordersTable colgroup {
+    display: none;
+  }
+
+  .actionsCell {
+    width: 100%;
+  }
+
+  .actionsGrid {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .actionsGrid button {
+    width: 100% !important;
+    min-height: 42px;
+    justify-content: center !important;
+  }
+}

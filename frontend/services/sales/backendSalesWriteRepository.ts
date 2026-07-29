@@ -1,5 +1,6 @@
 import { SalesWriteRepository, WriteRequestOptions } from './salesWriteRepository';
 import { apiClient } from '../../lib/apiClient';
+import { backendFetch } from '../../lib/backendFetch';
 
 export const backendSalesWriteRepository: SalesWriteRepository = {
   async createOrder(input, options) {
@@ -66,16 +67,18 @@ export const backendSalesWriteRepository: SalesWriteRepository = {
   },
 
   async requestReturn(input, options) {
-    const res = await apiClient.post(`/sales-returns`, input, {
-      headers: { 'Idempotency-Key': options.idempotencyKey },
+    return backendFetch('/api/backend/sales-returns', {
+      method: 'POST',
+      body: input,
+      idempotencyKey: options.idempotencyKey,
     });
-    return res.data;
   },
 
   async requestReplacement(input, options) {
-    const res = await apiClient.post(`/replacements`, input, {
-      headers: { 'Idempotency-Key': options.idempotencyKey },
+    return backendFetch('/api/backend/replacements', {
+      method: 'POST',
+      body: input,
+      idempotencyKey: options.idempotencyKey,
     });
-    return res.data;
   },
 };

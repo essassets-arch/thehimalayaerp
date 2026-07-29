@@ -8,12 +8,19 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const { path } = await context.params;
   const method = request.method as 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
   const authorization = request.headers.get('authorization');
+  const requestedPath = `/${path.join('/')}`;
+  // Keep older Dispatch dashboard bundles working after the replacement API
+  // was promoted from the logistics namespace to its canonical endpoint.
+  const backendPathAliases: Record<string, string> = {
+    '/logistics/dispatches/replacements': '/replacements',
+  };
+  const backendPath = backendPathAliases[requestedPath] || requestedPath;
   const body = method === 'GET' || method === 'DELETE'
     ? undefined
     : await request.json().catch(() => undefined);
 
   return forwardBackendRequest({
-    path: `/${path.join('/')}`,
+    path: backendPath,
     method,
     body,
     query: new URL(request.url).searchParams,

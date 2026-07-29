@@ -1,55 +1,77 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import Swal from 'sweetalert2';
-import { Search, ClipboardList } from 'lucide-react';
-import { useERPStore } from '../../../store/erpStore';
-import { useSalesBackend } from '../../../shared/context/ERPContext';
+import { Search, ClipboardList, RefreshCw } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { backendFetch } from '../../../lib/backendFetch';
 
 export default function CustomersView() {
-  const state = useERPStore((s) => s.state);
-  const { customers = [] } = useSalesBackend();
   const [searchQuery, setSearchQuery] = useState('');
-
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const {
+    data: customerResponse,
+    isLoading: customersLoading,
+    error: customersError,
+    refetch: refetchCustomers,
+    isFetching: customersFetching,
+  } = useQuery({
+    queryKey: ['finance-all-customers'],
+    queryFn: () => backendFetch('/api/backend/sales/customers?page=1&pageSize=1000'),
+  });
+  const { data: orders = [], refetch: refetchOrders } = useQuery({
+    queryKey: ['finance-customer-delivered-orders'],
+    queryFn: async () => {
+      const response = await backendFetch('/api/backend/finance/payments/delivered-orders');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+  const { data: payments = [], refetch: refetchPayments } = useQuery({
+    queryKey: ['finance-customer-payments'],
+    queryFn: async () => {
+      const response = await backendFetch('/api/backend/finance/payments');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+  const customers = Array.isArray(customerResponse)
+    ? customerResponse
+    : (Array.isArray(customerResponse?.items) ? customerResponse.items : []);
 
   // Load dynamically calculated summaries
   const customerSummaries = useMemo(() => {
     return customers.map((c) => {
-      // Find orders for this customer
-      const custOrders = (state.sales?.orders || []).filter(
-        (o) => (o.customer?.id || o.customerId || 'CUST-UNKNOWN') === c.id
+      const custOrders = orders.filter((order) => String(order.customerId || order.customer?.id) === String(c.id));
+      const custPayments = payments.filter((payment) =>
+        String(payment.customerId || payment.customer?.id) === String(c.id) &&
+        ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(payment.status || '').toUpperCase())
       );
-
-      // Find verified payments for this customer
-      const custPayments = (state.finance?.customerPayments || []).filter((p) => {
-        const o = (state.sales?.orders || []).find((ord) => ord.id === p.orderId);
-        const pCustId = o?.customer?.id || o?.customerId || p.customerId || 'CUST-UNKNOWN';
-        return pCustId === c.id && p.verificationStatus === 'FINANCE_VERIFIED';
-      });
-
-      const totalBilled = custOrders.reduce((sum, o) => sum + Number(o.grandTotal ?? o.totalAmount ?? 0), 0);
-      const totalPaid = custPayments.reduce((sum, p) => sum + Number(p.paymentAmount ?? 0), 0);
+      const totalBilled = custOrders.reduce((sum, order) => sum + Number(order.totalAmount ?? order.grandTotal ?? 0), 0);
+      const totalPaid = custPayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
       const outstanding = totalBilled - totalPaid;
 
       return {
         customerId: c.id,
+        customerCode: c.customerCode || c.publicId || c.id,
         customerName: c.companyName || c.name || 'Unknown',
-        totalBilled,
+        phoneEmail: [c.phone, c.email].filter(Boolean).join(' / ') || '—',
+        totalBusiness: totalBilled,
         totalPaid,
-        outstanding: Math.max(0, outstanding),
-        status: outstanding > 0 ? 'DUE' : 'CLEARED'
+        outstandingAmount: Math.max(0, outstanding),
+        paymentRisk: outstanding <= 0 ? 'LOW' : outstanding > 100000 ? 'HIGH' : outstanding > 50000 ? 'MEDIUM' : 'LOW',
       };
     });
-  }, [customers, state]);
+  }, [customers, orders, payments]);
 
   const filteredList = useMemo(() => {
     if (!searchQuery) return customerSummaries;
     const q = searchQuery.toLowerCase();
     return customerSummaries.filter((c) =>
       c.customerName?.toLowerCase().includes(q) ||
-      c.customerId?.toLowerCase().includes(q)
+      c.customerId?.toLowerCase().includes(q) ||
+      c.customerCode?.toLowerCase().includes(q) ||
+      c.phoneEmail?.toLowerCase().includes(q)
     );
   }, [customerSummaries, searchQuery]);
 
@@ -58,40 +80,35 @@ export default function CustomersView() {
     if (!selectedCustomer) return [];
 
     const custId = selectedCustomer.customerId;
-    const orders = (state.sales?.orders || []).filter((o) => {
-      const oCustId = o.customer?.id || o.customerId || 'CUST-UNKNOWN';
-      return oCustId === custId;
-    });
-
-    const payments = (state.finance?.customerPayments || []).filter((p) => {
-      const o = (state.sales?.orders || []).find((ord) => ord.id === p.orderId);
-      const pCustId = o?.customer?.id || o?.customerId || p.customerId || 'CUST-UNKNOWN';
-      return pCustId === custId && p.verificationStatus === 'FINANCE_VERIFIED';
-    });
+    const customerOrders = orders.filter((order) => String(order.customerId || order.customer?.id) === String(custId));
+    const customerPayments = payments.filter((payment) =>
+      String(payment.customerId || payment.customer?.id) === String(custId) &&
+      ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(payment.status || '').toUpperCase())
+    );
 
     const entries = [];
 
     // Add orders as Debits
-    orders.forEach((o) => {
+    customerOrders.forEach((o) => {
       entries.push({
         id: `DEB-${o.id}`,
-        created_at: o.createdAt || new Date().toISOString(),
+        created_at: o.deliveredAt || o.createdAt || new Date().toISOString(),
         entry_type: 'Invoice',
-        reference: o.invoiceNo || `Order #${o.id}`,
+        reference: o.invoiceNo || `INV-${o.orderNo || o.orderId || o.id}`,
         debit: Number(o.grandTotal ?? o.totalAmount ?? 0),
         credit: 0
       });
     });
 
     // Add payments as Credits
-    payments.forEach((p) => {
+    customerPayments.forEach((p) => {
       entries.push({
         id: `CRE-${p.id}`,
-        created_at: p.verifiedAt || p.recordedAt || new Date().toISOString(),
+        created_at: p.verifiedAt || p.receivedAt || p.createdAt || new Date().toISOString(),
         entry_type: 'Payment',
-        reference: p.transactionReference || p.chequeNumber || `Receipt ${p.id}`,
+        reference: p.paymentNo || p.referenceNo || `Receipt ${p.id}`,
         debit: 0,
-        credit: p.paymentAmount
+        credit: Number(p.amount || 0)
       });
     });
 
@@ -107,7 +124,7 @@ export default function CustomersView() {
         balance: running
       };
     });
-  }, [selectedCustomer, state]);
+  }, [selectedCustomer, orders, payments]);
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('en-IN', {
@@ -135,8 +152,16 @@ export default function CustomersView() {
 
       <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         
+        {customersError && (
+          <div style={{ padding: '12px 14px', borderRadius: 8, background: '#FEF2F2', color: '#B91C1C' }}>
+            {customersError.message || 'Unable to load customers.'}
+          </div>
+        )}
+
         {/* Search */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <strong style={{ color: '#475569', alignSelf: 'center' }}>{customerSummaries.length} Customers</strong>
+          <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ position: 'relative', width: '280px' }}>
             <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '14px', height: '14px', color: '#94A3B8' }} />
             <input 
@@ -146,6 +171,15 @@ export default function CustomersView() {
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
             />
+          </div>
+          <button
+            onClick={() => { refetchCustomers(); refetchOrders(); refetchPayments(); }}
+            disabled={customersFetching}
+            className="btn-small btn-outline-small"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            <RefreshCw size={13} /> Refresh
+          </button>
           </div>
         </div>
 
@@ -165,7 +199,13 @@ export default function CustomersView() {
               </tr>
             </thead>
             <tbody style={{ fontSize: '13.5px' }}>
-              {filteredList.length === 0 ? (
+              {customersLoading ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>
+                    Loading all customers...
+                  </td>
+                </tr>
+              ) : filteredList.length === 0 ? (
                 <tr>
                   <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>
                     No customers found.
@@ -174,7 +214,7 @@ export default function CustomersView() {
               ) : (
                 filteredList.map((cust) => (
                   <tr key={cust.customerId} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{cust.customerId}</td>
+                    <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{cust.customerCode}</td>
                     <td style={{ padding: '12px 16px', fontWeight: '600' }}>{cust.customerName}</td>
                     <td style={{ padding: '12px 16px', color: '#64748B' }}>{cust.phoneEmail}</td>
                     <td style={{ padding: '12px 16px', fontWeight: '600' }}>{formatCurrency(cust.totalBusiness)}</td>

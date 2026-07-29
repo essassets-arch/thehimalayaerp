@@ -10,13 +10,21 @@ function getDefaultPath(role: string): string {
   const map: Record<string, string> = {
     'SALES': '/sales/dashboard',
     'SALES_ADMIN': '/sales/dashboard',
+    'SALES_EXECUTIVE': '/sales/dashboard',
+    'SALES_MANAGER': '/sales/dashboard',
     'PLANT_HEAD': '/plant-head/dashboard',
     'PRODUCTION': '/production/dashboard',
+    'PRODUCTION_PLANNER': '/production/dashboard',
+    'PRODUCTION_OPERATOR': '/production/dashboard',
     'STORE': '/store/dashboard',
+    'STORE_MANAGER': '/store/dashboard',
     'QC': '/qc/dashboard',
+    'QC_INSPECTOR': '/qc/dashboard',
     'DISPATCH': '/dispatch/dashboard',
+    'DISPATCH_EXECUTIVE': '/dispatch/dashboard',
     'FINANCE': '/finance/dashboard',
     'FINANCE_EXECUTIVE': '/finance-executive/dashboard',
+    'FINANCE_MANAGER': '/finance/dashboard',
     'HR': '/hr/dashboard',
     'ADMIN': '/admin/dashboard',
     'SUPER_ADMIN': '/super-admin/dashboard',
@@ -27,17 +35,34 @@ function getDefaultPath(role: string): string {
     'Sales Admin': '/sales/dashboard',
     'Plant Head': '/plant-head/dashboard',
     'Production': '/production/dashboard',
+    'Production Planner': '/production/dashboard',
+    'Production Operator': '/production/dashboard',
     'Store': '/store/dashboard',
+    'Store Manager': '/store/dashboard',
     'QC': '/qc/dashboard',
     'Dispatch': '/dispatch/dashboard',
+    'Dispatch Executive': '/dispatch/dashboard',
     'Finance': '/finance/dashboard',
     'Finance Executive': '/finance-executive/dashboard',
+    'Finance Manager': '/finance/dashboard',
     'HR': '/hr/dashboard',
     'Admin': '/admin/dashboard',
     'Super Admin': '/super-admin/dashboard',
   };
   return map[role] || friendly[role] || '/sales/dashboard';
 }
+
+const DEMO_ACCOUNTS = [
+  { role: 'Super Admin', email: 'super.admin@himalayaerp.com' },
+  { role: 'Sales Executive', email: 'sales.executive@himalayaerp.com' },
+  { role: 'Plant Head', email: 'plant.head@himalayaerp.com' },
+  { role: 'Production Operator', email: 'production.operator@himalayaerp.com' },
+  { role: 'Dispatch Executive', email: 'dispatch.executive@himalayaerp.com' },
+  { role: 'Finance Executive', email: 'finance.executive@himalayaerp.com' },
+  { role: 'Finance Manager', email: 'finance.manager@himalayaerp.com' },
+  { role: 'Store Manager', email: 'store.manager@himalayaerp.com' },
+  { role: 'HR', email: 'hr@himalayaerp.com' },
+] as const;
 
 /** Map backend role codes to friendly display strings */
 function toFriendlyRole(code: string): string {
@@ -372,111 +397,42 @@ export default function LoginPage() {
               <ShieldCheck size={16} />
               {loading ? 'Authenticating…' : 'Sign In'}
             </button>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '16px' }}>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('super.admin@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Super Admin
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('admin@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('sales.executive@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Sales Executive
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('sales.manager@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Sales Manager
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('plant.head@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Plant Head
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('production.planner@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Production Planner
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('production.operator@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Production Operator
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('qc.inspector@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                QC Inspector
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('dispatch.executive@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Dispatch Executive
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('finance.executive@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Finance Executive
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('finance.manager@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Finance Manager
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('store.manager@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s' }}
-              >
-                Store Manager
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => { setEmail('hr@himalayaerp.com'); setPassword('admin123'); setError(''); }}
-                style={{ border: '1px solid #E2E8F0', background: '#F8FAFD', borderRadius: '8px', padding: '8px', color: '#1E293B', cursor: loading ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s', gridColumn: 'span 2' }}
-              >
-                HR
-              </button>
+            <div>
+              <div className="login-label" style={{ marginBottom: '8px' }}>
+                Quick login — password for all accounts: admin123
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {DEMO_ACCOUNTS.map((account) => (
+                  <button
+                    key={account.role}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword('admin123');
+                      setError('');
+                    }}
+                    title={`Login as ${account.role}`}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      background: '#F8FAFD',
+                      borderRadius: '8px',
+                      padding: '8px',
+                      color: '#1E293B',
+                      cursor: loading ? 'default' : 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      textAlign: 'left',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <span style={{ display: 'block' }}>{account.role}</span>
+                    <span style={{ display: 'block', color: '#64748B', fontSize: '9px', marginTop: '2px' }}>
+                      {account.email}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </form>
 

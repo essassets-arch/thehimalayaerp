@@ -33,6 +33,14 @@ export class RequestReplacementDto {
   @IsOptional()
   customerRemarks?: string;
 
+  @IsString()
+  @IsOptional()
+  internalRemarks?: string;
+
+  @IsObject()
+  @IsOptional()
+  evidence?: Record<string, any>;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReplacementItemDto)

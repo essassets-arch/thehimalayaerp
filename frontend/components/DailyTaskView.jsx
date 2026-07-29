@@ -17,7 +17,7 @@ import {
 import Swal from 'sweetalert2';
 
 export default function DailyTaskView({ state, dispatch, navigate, showToast, module = 'Sales' }) {
-  const [targetDate, setTargetDate] = useState('2026-06-15');
+  const [targetDate, setTargetDate] = useState(() => getTodayDateString());
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   

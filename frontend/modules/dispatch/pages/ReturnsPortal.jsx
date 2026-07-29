@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock, Eye, Search, Truck } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { useERPStore } from '../../../store/erpStore';
+import { backendFetch } from '../../../lib/backendFetch';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { normalizeStatus } from '../../../store/domains/shared/workflowUtils';
 import { returnTabs } from '../../../store/domains/dispatch/dispatchSelectors';
@@ -15,26 +15,61 @@ const statusColors = {
   RETURN_RECEIVED: ['#ecfdf5', '#047857'],
 };
 
+const STATUS_TAB_MAP = {
+  pending: 'approved',
+  'in-transit': 'in-transit',
+  delivered: 'received',
+};
+
 export default function ReturnsPortal() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const sales = useERPStore((store) => store.state?.sales);
-  const assignReturnPickup = useERPStore((store) => store.salesActions?.assignReturnPickup);
-  const startReturnTransit = useERPStore((store) => store.salesActions?.startReturnTransit);
-  const confirmReturnReceipt = useERPStore((store) => store.salesActions?.confirmReturnReceipt);
-  const [activeTab, setActiveTab] = useState(searchParams?.get('tab') || 'all');
+  const initialStatusTab = STATUS_TAB_MAP[searchParams?.get('status')];
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(initialStatusTab || searchParams?.get('tab') || 'all');
   const [search, setSearch] = useState(searchParams?.get('search') || '');
   const [viewRequest, setViewRequest] = useState(null);
 
-  const rows = useMemo(() => (sales?.returnRequests || [])
+  const loadRequests = async () => {
+    setLoading(true);
+    try {
+      setRequests(await backendFetch('/api/backend/sales-returns'));
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Unable to load returns', text: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { loadRequests(); }, []);
+
+  useEffect(() => {
+    const statusTab = STATUS_TAB_MAP[searchParams?.get('status')];
+    setActiveTab(statusTab || searchParams?.get('tab') || 'all');
+  }, [searchParams]);
+
+  const statusMap = {
+    REQUESTED: 'RETURN_REQUESTED',
+    UNDER_REVIEW: 'RETURN_REQUESTED',
+    APPROVED: 'RETURN_APPROVED',
+    PICKUP_ASSIGNED: 'RETURN_PICKUP_ASSIGNED',
+    IN_TRANSIT: 'RETURN_IN_TRANSIT',
+    CLOSED: 'RETURN_RECEIVED',
+    REJECTED: 'REJECTED',
+  };
+  const rows = useMemo(() => requests
     .map((request) => {
-      const order = (sales?.orders || []).find((candidate) => candidate.id === request.orderId);
       return {
         ...request,
-        customerName: order?.customerName || 'Unknown customer',
-        deliveryAddress: order?.deliveryAddress || '',
+        id: request.id,
+        displayId: request.returnNumber,
+        orderId: request.salesOrderId,
+        status: statusMap[request.status] || request.status,
+        customerName: request.salesOrder?.customer?.companyName || request.salesOrder?.customer?.name || 'Unknown customer',
+        deliveryAddress: request.salesOrder?.shippingAddress || '',
+        ...request.dispatchDetails,
       };
-    }), [sales]);
+    }), [requests]);
 
   const selectedTab = returnTabs.find(tab => tab.key === activeTab) || returnTabs[0];
   const filtered = rows.filter((request) => {
@@ -84,7 +119,10 @@ export default function ReturnsPortal() {
         };
       },
     });
-    if (result.isConfirmed) assignReturnPickup(request.id, result.value, 'Dispatch Team');
+    if (result.isConfirmed) {
+      await backendFetch(`/api/backend/sales-returns/${request.id}/dispatch`, { method: 'PATCH', body: result.value });
+      await loadRequests();
+    }
   };
 
   const beginTransit = async (request) => {
@@ -94,7 +132,10 @@ export default function ReturnsPortal() {
       showCancelButton: true,
       confirmButtonText: 'Start Transit',
     });
-    if (result.isConfirmed) startReturnTransit(request.id, 'Dispatch Team');
+    if (result.isConfirmed) {
+      await backendFetch(`/api/backend/sales-returns/${request.id}/in-transit`, { method: 'PATCH' });
+      await loadRequests();
+    }
   };
 
   const receiveReturn = async (request) => {
@@ -111,6 +152,8 @@ export default function ReturnsPortal() {
             <option value="GOOD">Good</option><option value="DAMAGED">Damaged</option><option value="REWORKABLE">Reworkable</option>
           </select>
         </div>
+        <label style="display:block;text-align:left;font-weight:800;margin-top:12px">Delivery proof image *</label>
+        <input id="ret-proof" type="file" accept="image/jpeg,image/png,image/webp" style="display:block;width:100%;margin-top:6px">
         <textarea id="ret-inspection" class="swal2-textarea" placeholder="Inspection notes"></textarea>
         <textarea id="ret-receipt-remarks" class="swal2-textarea" placeholder="Receipt remarks"></textarea>
       `,
@@ -123,6 +166,11 @@ export default function ReturnsPortal() {
           Swal.showValidationMessage(`Receiver and quantity from 1 to ${approved} are required.`);
           return false;
         }
+        const proofFile = document.getElementById('ret-proof')?.files?.[0];
+        if (!proofFile) {
+          Swal.showValidationMessage('Delivery proof image is required.');
+          return false;
+        }
         return {
           receivedDate: document.getElementById('ret-received-date')?.value,
           receivedTime: document.getElementById('ret-received-time')?.value,
@@ -131,10 +179,23 @@ export default function ReturnsPortal() {
           materialCondition: document.getElementById('ret-condition')?.value,
           inspectionNotes: document.getElementById('ret-inspection')?.value.trim(),
           remarks: document.getElementById('ret-receipt-remarks')?.value.trim(),
+          proofFile,
         };
       },
     });
-    if (result.isConfirmed) confirmReturnReceipt(request.id, result.value, 'Dispatch Team');
+    if (result.isConfirmed) {
+      const upload = new FormData();
+      upload.append('file', result.value.proofFile);
+      upload.append('category', 'pod');
+      const response = await fetch('/api/upload', { method: 'POST', body: upload });
+      if (!response.ok) throw new Error((await response.json()).message || 'Delivery proof upload failed');
+      const uploaded = await response.json();
+      await backendFetch(`/api/backend/sales-returns/${request.id}/deliver`, {
+        method: 'PATCH',
+        body: { ...result.value, proofFile: undefined, proofUrl: uploaded.url },
+      });
+      await loadRequests();
+    }
   };
 
   return (
@@ -159,6 +220,7 @@ export default function ReturnsPortal() {
             <button key={tab.key} onClick={() => {
               setActiveTab(tab.key);
               const query = new URLSearchParams(searchParams?.toString() || '');
+              query.delete('status');
               query.set('tab', tab.key);
               router.replace(`/dispatch/returns?${query.toString()}`, { scroll: false });
             }} style={{
@@ -178,16 +240,18 @@ export default function ReturnsPortal() {
           <table className="crm-table responsive-table">
             <thead><tr><th>Return ID</th><th>Order ID</th><th>Customer</th><th>Products / Qty</th><th>Pickup</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan="7" style={{ textAlign: 'center', padding: 34 }}>Loading return records…</td></tr>
+              ) : filtered.length === 0 ? (
                 <tr><td colSpan="7" style={{ textAlign: 'center', padding: 34, color: '#5E6B82' }}>No return records in this tab.</td></tr>
               ) : filtered.map((request) => {
                 const colors = statusColors[request.status] || ['#f1f5f9', '#475569'];
                 return (
                   <tr key={request.id}>
-                    <td style={{ fontFamily: 'monospace', fontWeight: 800 }}>{request.id}</td>
+                    <td style={{ fontFamily: 'monospace', fontWeight: 800 }}>{request.displayId}</td>
                     <td style={{ fontFamily: 'monospace' }}>{request.orderId}</td>
                     <td>{request.customerName}</td>
-                    <td>{(Array.isArray(request.items) ? request.items : request.items ? [request.items] : []).map((item) => `${item.productName || item.productId || 'Item'} (${item.approvedQuantity ?? item.requestedQuantity})`).join(', ')}</td>
+                    <td>{(Array.isArray(request.items) ? request.items : request.items ? [request.items] : []).map((item) => `${item.product?.name || item.productId || 'Item'} (${item.approvedQuantity || item.requestedQuantity})`).join(', ')}</td>
                     <td>{request.vehicleNumber || 'Not assigned'}</td>
                     <td><span style={{ padding: '5px 9px', borderRadius: 20, background: colors[0], color: colors[1], fontSize: 11, fontWeight: 900 }}>{request.status.replaceAll('_', ' ')}</span></td>
                     <td>
@@ -262,7 +326,7 @@ function ReturnHistoryDialog({ request, onClose }) {
         </div>
         <div style={{ padding: '0 20px 20px' }}>
           <h3>Products</h3>
-          {request.items.map((item) => <div key={item.orderLineId} style={{ padding: 12, marginTop: 8, border: '1px solid #DCE5F0', borderRadius: 9 }}>{item.productName || item.productId}: requested {item.requestedQuantity}, approved {item.approvedQuantity ?? '—'}, received {item.receivedQuantity ?? request.receivedQuantity ?? '—'} — {item.condition || 'Condition not recorded'}</div>)}
+          {(Array.isArray(request.items) ? request.items : []).map((item, index) => <div key={item.id || item.salesOrderItemId || item.orderLineId || `${item.productId || 'return-item'}-${index}`} style={{ padding: 12, marginTop: 8, border: '1px solid #DCE5F0', borderRadius: 9 }}>{item.productName || item.productId}: requested {item.requestedQuantity}, approved {item.approvedQuantity ?? '—'}, received {item.receivedQuantity ?? request.receivedQuantity ?? '—'} — {item.condition || 'Condition not recorded'}</div>)}
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 20 }}><button className="btn-small btn-outline-small" onClick={onClose}>Close</button></div>
       </div>

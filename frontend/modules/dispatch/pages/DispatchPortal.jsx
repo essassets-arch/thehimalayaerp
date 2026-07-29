@@ -18,9 +18,14 @@ import StatusBadge from '../../../shared/components/StatusBadge';
 import { PlusCircle, Box, Truck, ClipboardList, FlaskConical, ArrowRight, X, FileCheck, FileText } from 'lucide-react';
 import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
+import { backendFetch } from '../../../lib/backendFetch';
 
 export default function DispatchPortal() {
-  const params = useParams(); const view = params?.slug?.[0]; const orderId = params?.slug?.[1];
+  const params = useParams();
+  const pathname = usePathname();
+  const pathSegments = pathname?.split('/').filter(Boolean) || [];
+  const view = params?.slug?.[0] || (pathSegments[0] === 'dispatch' ? pathSegments[1] : undefined);
+  const orderId = params?.slug?.[1];
   const currentView = view || (orderId ? 'partial' : 'dashboard');
   const navigate = useRouter();
   const searchParams = useSearchParams();
@@ -38,8 +43,19 @@ export default function DispatchPortal() {
   const fetchReplacementDispatches = async () => {
     setReplacementLoading(true);
     try {
-      const res = await apiClient.get('/dispatch/replacements');
-      setReplacementDispatches(res.data || []);
+      const records = await backendFetch('/api/backend/replacements');
+      setReplacementDispatches((records || [])
+        .filter((record) => record.status === 'APPROVED')
+        .map((record) => ({
+          ...record,
+          request_no: record.requestNumber,
+          order_number: record.salesOrder?.orderNumber || record.salesOrderId,
+          customer_name: record.salesOrder?.customer?.companyName || record.salesOrder?.customer?.name || '—',
+          product_name: record.items?.map((item) => item.product?.name).filter(Boolean).join(', ') || '—',
+          approved_qty: record.items?.reduce((sum, item) => sum + Number(item.requestedQuantity || 0), 0),
+          dispatch_status: record.dispatchStatus || 'APPROVED',
+          vehicle_number: record.dispatchDetails?.trackingNumber || record.dispatchDetails?.vehicleNumber,
+        })));
     } catch (err) {
       console.error('Failed to load replacement dispatches', err);
       showToast?.('Failed to load replacement dispatch queue.');
@@ -171,7 +187,7 @@ export default function DispatchPortal() {
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Canonical Dispatch Queue (from Finished Goods ΓåÆ Send to Dispatch)
-  const dispatchQueueOrders = useERPStore(s => s.dispatch?.dispatchOrders || s.state?.dispatch?.dispatchOrders || []);
+  const dispatchQueueOrders = useERPStore(s => s.dispatch?.dispatchOrders || s.state?.dispatch?.dispatchOrders) || [];
 
   // Legacy selector-based orders (for existing QC-passed records compatibility)
   const orders = useERPStore(selectDispatchOrders);
@@ -2784,7 +2800,7 @@ export default function DispatchPortal() {
       })
     });
     if (!value) return;
-    await apiClient.put(`/dispatch/replacements/${row.id}/ship`, value);
+    await backendFetch(`/api/backend/replacements/${row.id}/dispatch`, { method: 'PATCH', body: value });
     showToast?.('Replacement dispatched.');
     fetchReplacementDispatches();
   };
@@ -2796,8 +2812,8 @@ export default function DispatchPortal() {
         <div style="text-align:left; display:flex; flex-direction:column; gap:10px; font-size:13px;">
           <label style="font-weight:800;">Receiver *</label>
           <input id="rep-receiver" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">POD URL</label>
-          <input id="rep-pod" class="swal2-input" style="margin:0; width:100%;" />
+          <label style="font-weight:800;">Delivery proof image *</label>
+          <input id="rep-pod" type="file" accept="image/jpeg,image/png,image/webp" style="width:100%;" />
           <label style="font-weight:800;">Signature URL</label>
           <input id="rep-signature" class="swal2-input" style="margin:0; width:100%;" />
           <label style="font-weight:800;">Remarks</label>
@@ -2812,18 +2828,45 @@ export default function DispatchPortal() {
           Swal.showValidationMessage('Receiver is required.');
           return false;
         }
+        const proofFile = document.getElementById('rep-pod').files?.[0];
+        if (!proofFile) {
+          Swal.showValidationMessage('Delivery proof image is required.');
+          return false;
+        }
         return {
           receiverName,
-          podUrl: document.getElementById('rep-pod').value.trim() || null,
+          proofFile,
           signatureUrl: document.getElementById('rep-signature').value.trim() || null,
           remarks: document.getElementById('rep-delivery-remarks').value.trim()
         };
       }
     });
     if (!value) return;
-    await apiClient.put(`/dispatch/replacements/${row.id}/deliver`, value);
+    const upload = new FormData();
+    upload.append('file', value.proofFile);
+    upload.append('category', 'pod');
+    const uploadResponse = await fetch('/api/upload', { method: 'POST', body: upload });
+    if (!uploadResponse.ok) throw new Error((await uploadResponse.json()).message || 'Delivery proof upload failed');
+    const uploaded = await uploadResponse.json();
+    await backendFetch(`/api/backend/replacements/${row.id}/deliver`, {
+      method: 'PATCH',
+      body: { ...value, proofFile: undefined, proofUrl: uploaded.url },
+    });
     showToast?.('Replacement delivered.');
     fetchReplacementDispatches();
+  };
+
+  const handleStartReplacementDelivery = async (row) => {
+    try {
+      await backendFetch(`/api/backend/replacements/${row.id}/in-transit`, {
+        method: 'PATCH',
+      });
+      showToast?.('Replacement delivery started.');
+      navigate.push('/dispatch/replacements?status=delivered');
+    } catch (err) {
+      console.error('Failed to start replacement delivery', err);
+      showToast?.(err?.message || 'Failed to start replacement delivery.');
+    }
   };
 
   const renderReplacementDispatch = () => {
@@ -2831,7 +2874,7 @@ export default function DispatchPortal() {
     const filteredReplacementDispatches = replacementDispatches.filter(row => {
       if (replacementFilter === 'all') return true;
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
-      if (replacementFilter === 'delivered') return status === 'DELIVERED';
+      if (replacementFilter === 'delivered') return status === 'IN TRANSIT' || status === 'DELIVERED';
       if (replacementFilter === 'in-transit') return status === 'DISPATCHED' || status === 'IN TRANSIT';
       return status !== 'DISPATCHED' && status !== 'IN TRANSIT' && status !== 'DELIVERED';
     });
@@ -2874,10 +2917,13 @@ export default function DispatchPortal() {
                       <td><StatusBadge status={row.dispatch_status || row.status} /></td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '8px' }}>
-                          {row.status !== 'DISPATCHED' && row.status !== 'DELIVERED' && (
-                            <button className="btn-small btn-outline-small" onClick={() => handleShipReplacement(row)}>Ship</button>
+                          {replacementFilter === 'pending' && !['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(row.dispatch_status) && (
+                            <button className="btn-small btn-outline-small" onClick={() => handleShipReplacement(row)}>Create Dispatch</button>
                           )}
-                          {row.status === 'DISPATCHED' && (
+                          {replacementFilter === 'in-transit' && row.dispatch_status === 'DISPATCHED' && (
+                            <button className="btn-small btn-outline-small" onClick={() => handleStartReplacementDelivery(row)}>Start Delivery</button>
+                          )}
+                          {replacementFilter === 'delivered' && row.dispatch_status === 'IN_TRANSIT' && (
                             <button className="btn-small btn-outline-small" onClick={() => handleDeliverReplacement(row)}>Confirm Delivery</button>
                           )}
                         </div>

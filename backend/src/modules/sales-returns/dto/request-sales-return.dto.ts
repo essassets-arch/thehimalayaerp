@@ -37,6 +37,10 @@ export class RequestSalesReturnDto {
   @IsOptional()
   customerRemarks?: string;
 
+  @IsString()
+  @IsOptional()
+  internalRemarks?: string;
+
   @IsEnum(ReturnResolutionType)
   resolutionType: ReturnResolutionType;
 

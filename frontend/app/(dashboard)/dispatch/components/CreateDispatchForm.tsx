@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { toast } from 'sonner';
+import { backendFetch } from '@/lib/backendFetch';
 
 import { EntityHeader } from '@/components/erp/common/EntityHeader';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Truck } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+
+type SalesOrderItem = {
+  id: string;
+  productId: string;
+  unit: string;
+  orderedQuantity: number | string;
+};
+
+type SalesOrder = {
+  id: string;
+  orderNumber: string;
+  customer?: { companyName?: string };
+  workflowState?: { code?: string };
+  items?: SalesOrderItem[];
+};
+
+type Dispatch = {
+  id: string;
+};
 
 export function CreateDispatchForm() {
   const router = useRouter();
@@ -28,21 +47,21 @@ export function CreateDispatchForm() {
   const { data: salesOrders, isLoading: loadingOrders } = useQuery({
     queryKey: ['sales-orders-for-dispatch'],
     queryFn: async () => {
-      const res = await axios.get('/api/backend/sales/orders');
+      const orders = await backendFetch<SalesOrder[]>('/api/backend/sales/orders');
       // For prototype, just use all confirmed or sent to plant
-      return res.data.data.filter((so: any) => so.workflowState?.code !== 'DRAFT');
+      return orders.filter((so) => so.workflowState?.code !== 'DRAFT');
     }
   });
 
   const selectedSO = React.useMemo(() => {
-    return salesOrders?.find((so: any) => so.id === salesOrderId);
+    return salesOrders?.find((so) => so.id === salesOrderId);
   }, [salesOrders, salesOrderId]);
 
   React.useEffect(() => {
     if (selectedSO && selectedSO.items) {
       // Auto-populate dispatch quantities with remaining order quantities
       setDispatchItems(
-        selectedSO.items.map((item: any) => ({
+        selectedSO.items.map((item) => ({
           salesOrderItemId: item.id,
           quantity: Number(item.orderedQuantity) // Assuming no partial dispatch tracking in prototype
         }))
@@ -60,19 +79,21 @@ export function CreateDispatchForm() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await axios.post('/api/backend/logistics/dispatches', {
-        salesOrderId,
-        items: dispatchItems.filter(i => i.quantity > 0)
+      return backendFetch<Dispatch>('/api/backend/logistics/dispatches', {
+        method: 'POST',
+        body: {
+          salesOrderId,
+          items: dispatchItems.filter(i => i.quantity > 0)
+        }
       });
-      return res.data;
     },
     onSuccess: (data) => {
       toast.success('Dispatch created successfully');
       queryClient.invalidateQueries({ queryKey: ['dispatch-list'] });
       router.push(`/dispatch/${data.id}`);
     },
-    onError: (err: any) => {
-      toast.error(`Failed to create dispatch: ${err.response?.data?.message || err.message}`);
+    onError: (err: Error) => {
+      toast.error(`Failed to create dispatch: ${err.message || 'Unknown error'}`);
     }
   });
 
@@ -114,12 +135,12 @@ export function CreateDispatchForm() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Source Sales Order</Label>
-                <Select value={salesOrderId} onValueChange={setSalesOrderId}>
+                <Select value={salesOrderId} onValueChange={(value) => setSalesOrderId(value || '')}>
                   <SelectTrigger>
                     <SelectValue placeholder={loadingOrders ? "Loading orders..." : "Select Sales Order"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {salesOrders?.map((so: any) => (
+                    {salesOrders?.map((so) => (
                       <SelectItem key={so.id} value={so.id}>
                         {so.orderNumber} - {so.customer?.companyName}
                       </SelectItem>
@@ -149,7 +170,7 @@ export function CreateDispatchForm() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedSO.items?.map((item: any) => {
+                    {selectedSO.items?.map((item) => {
                       const dispatchItem = dispatchItems.find(di => di.salesOrderItemId === item.id);
                       return (
                         <TableRow key={item.id}>

@@ -50,6 +50,17 @@ export async function backendFetch<T = unknown>(
 
   let res = await fetch(url, fetchOpts);
 
+  // Development backend restarts can briefly interrupt the Next.js bridge.
+  // Retry only safe read requests and keep write operations single-attempt.
+  if (method === 'GET') {
+    const retryDelays = [300, 700];
+    for (const delay of retryDelays) {
+      if (![502, 503, 504].includes(res.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      res = await fetch(url, fetchOpts);
+    }
+  }
+
   // If 401 — attempt silent token refresh once, then retry
   if (res.status === 401) {
     const refreshed = await tryRefreshToken();

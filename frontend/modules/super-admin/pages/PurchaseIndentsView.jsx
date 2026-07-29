@@ -6,6 +6,7 @@ import StatusBadge from '../../../shared/components/StatusBadge';
 import { useToast } from '../../../shared/context/ToastContext';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useERPStore } from '@/store/erpStore';
+import styles from './PurchaseIndentsView.module.css';
 
 const EMPTY_PURCHASE_ORDERS = [];
 
@@ -203,23 +204,10 @@ export default function PurchaseIndentsView() {
               rejectedPOs
             }
             actions={(row) => (
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={styles.actionButtons}>
                 <button 
                   onClick={() => setSelectedPO(row)}
-                  style={{
-                    padding: '7px 14px',
-                    border: '1.5px solid #D6E2F0',
-                    background: '#ffffff',
-                    color: '#334155',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.15s'
-                  }}
+                  className={`${styles.actionButton} ${styles.viewButton}`}
                   title="View Details"
                 >
                   <Eye size={15} /> View
@@ -229,21 +217,7 @@ export default function PurchaseIndentsView() {
                   <>
                     <button 
                       onClick={() => handleApprove(row)}
-                      style={{
-                        padding: '7px 16px',
-                        border: 'none',
-                        background: '#22C55E',
-                        color: '#ffffff',
-                        borderRadius: '8px',
-                        fontWeight: 800,
-                        fontSize: '13px',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 6px rgba(200, 241, 53, 0.3)',
-                        transition: 'all 0.15s'
-                      }}
+                      className={`${styles.actionButton} ${styles.approveButton}`}
                       title="Approve Draft PO"
                     >
                       <CheckCircle size={15} /> Approve
@@ -251,21 +225,7 @@ export default function PurchaseIndentsView() {
 
                     <button 
                       onClick={() => handleReject(row)}
-                      style={{
-                        padding: '7px 16px',
-                        border: 'none',
-                        background: '#ef4444',
-                        color: '#ffffff',
-                        borderRadius: '8px',
-                        fontWeight: 800,
-                        fontSize: '13px',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 6px rgba(239, 68, 68, 0.2)',
-                        transition: 'all 0.15s'
-                      }}
+                      className={`${styles.actionButton} ${styles.rejectButton}`}
                       title="Reject Draft PO"
                     >
                       <XCircle size={15} /> Reject

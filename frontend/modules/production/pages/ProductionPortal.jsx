@@ -10,6 +10,7 @@ import { useERPStore } from '@/store/erpStore';
 import { STATUS } from '../../../shared/constants';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { productionService } from '../../../services/production.service';
+import { backendFetch } from '../../../lib/backendFetch';
 import { useMaterialRequestStore } from '../../../store/materialRequestStore';
 import { getProductionWorkOrders } from '../utils/getProductionWorkOrders';
 import { selectProductionIncomingOrders, selectProductionWorkOrders } from '../../../store/domains/sales/salesSelectors';
@@ -439,11 +440,27 @@ export default function ProductionPortal() {
   const [activeTab, setActiveTab] = useState('Planned');
   const [woFilter, setWoFilter] = useState('Current');
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
+  const [backendWorkOrders, setBackendWorkOrders] = useState([]);
   const [mrTab, setMrTab] = useState(searchParams.get('tab') === 'history' ? 'Past' : 'Raise');
 
   useEffect(() => {
     setMrTab(searchParams.get('tab') === 'history' ? 'Past' : 'Raise');
   }, [searchParams]);
+
+  const loadBackendWorkOrders = useCallback(async () => {
+    try {
+      const result = await backendFetch('/api/backend/production/work-orders');
+      setBackendWorkOrders(Array.isArray(result) ? result : result?.data || []);
+    } catch (error) {
+      console.error('[Production] Unable to load backend work orders', error);
+      setBackendWorkOrders([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
+    void loadBackendWorkOrders();
+  }, [view, loadBackendWorkOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
   const [reworkTab, setReworkTab] = useState('failed-list');
@@ -579,6 +596,90 @@ export default function ProductionPortal() {
   };
 
   const storeOrders = useERPStore(s => s.sales?.orders || s.state?.sales?.orders) || [];
+  const backendIncomingOrders = useMemo(() => {
+    const grouped = new Map();
+    backendWorkOrders
+      .filter(workOrder => String(workOrder.workflowState?.code || workOrder.status).toUpperCase() === 'CREATED')
+      .forEach(workOrder => {
+      const plan = workOrder.productionPlan || {};
+      const salesOrder = plan.salesOrder || {};
+      const orderId = salesOrder.id || plan.salesOrderId || workOrder.id;
+      const existing = grouped.get(orderId) || {
+        id: salesOrder.id || orderId,
+        orderNo: salesOrder.orderNumber || salesOrder.orderNo || orderId,
+        customerName: salesOrder.customer?.companyName || 'N/A',
+        detailedItems: [],
+        products: '',
+        estimatedQuantity: 0,
+        totalQuantity: 0,
+        targetDate: plan.plannedEndDate || '',
+        priority: 'Medium',
+        status: plan.status || workOrder.status || 'RELEASED',
+        workflowStatus: plan.workflowState?.code || plan.status || 'RELEASED',
+        productionPlanId: plan.id,
+        workOrderIds: [],
+        hasBackendWorkOrder: true,
+      };
+      const salesItem = salesOrder.items?.find(item => item.id === workOrder.salesOrderItemId);
+      const productName = salesItem?.productNameSnapshot || 'Production Item';
+      const itemQuantity = Number(workOrder.quantity || salesItem?.orderedQuantity || 0);
+      existing.detailedItems.push({
+        productName,
+        quantity: itemQuantity,
+        unit: salesItem?.unit || 'Units',
+      });
+      existing.products = [...new Set(existing.detailedItems.map(item => item.productName))].join(', ');
+      existing.estimatedQuantity += itemQuantity;
+      existing.totalQuantity += itemQuantity;
+      existing.workOrderIds.push(workOrder.id);
+      grouped.set(orderId, existing);
+    });
+    return Array.from(grouped.values());
+  }, [backendWorkOrders]);
+
+  const handleBackendIncomingDecision = async (order, action) => {
+    const isAccept = action === 'ACCEPT';
+    const confirmation = await Swal.fire({
+      title: isAccept ? 'Accept Incoming Order?' : 'Reject Incoming Order?',
+      text: isAccept
+        ? `Accept ${order.orderNo} and move its work orders to the production queue?`
+        : `Reject ${order.orderNo}? It will be removed from Incoming Orders.`,
+      input: isAccept ? undefined : 'textarea',
+      inputLabel: isAccept ? undefined : 'Rejection reason',
+      inputPlaceholder: isAccept ? undefined : 'Enter a reason for rejection...',
+      inputValidator: isAccept ? undefined : value => !value?.trim() ? 'A rejection reason is required.' : undefined,
+      icon: isAccept ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonText: isAccept ? 'Accept & Continue' : 'Reject Order',
+      confirmButtonColor: isAccept ? '#16a34a' : '#dc2626',
+    });
+    if (!confirmation.isConfirmed) return;
+
+    try {
+      await Promise.all((order.workOrderIds || []).map(workOrderId =>
+        backendFetch(`/api/backend/production/work-orders/${workOrderId}/action`, {
+          method: 'POST',
+          body: {
+            action,
+            remarks: isAccept ? 'Accepted by Production' : confirmation.value,
+          },
+        })
+      ));
+      await loadBackendWorkOrders();
+      showToast(
+        isAccept
+          ? `${order.orderNo} accepted and moved to Work Orders.`
+          : `${order.orderNo} rejected.`
+      );
+      if (isAccept) navigate.push('/production/work-orders');
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: `${isAccept ? 'Acceptance' : 'Rejection'} Failed`,
+        text: error?.message || 'Unable to update the work order.',
+      });
+    }
+  };
   const orders = useMemo(() => {
     const combinedState = {
       ...state,
@@ -1747,7 +1848,13 @@ export default function ProductionPortal() {
   // ── 2. Incoming Orders ──
   const renderIncomingOrders = () => {
     // Show orders approved by Plant Head waiting to be activated into Work Orders
-    const planned = orders;
+    const plannedMap = new Map();
+    backendIncomingOrders.forEach(order => plannedMap.set(order.id || order.orderNo, order));
+    orders.forEach(order => {
+      const key = order.id || order.orderNo;
+      if (!plannedMap.has(key)) plannedMap.set(key, order);
+    });
+    const planned = Array.from(plannedMap.values());
     return (
       <div className="app-card">
         <div className="card-top-bar"><h2 className="card-heading">Incoming Production Orders</h2></div>
@@ -1781,8 +1888,36 @@ export default function ProductionPortal() {
           searchQuery={globalSearch}
           searchField="customer.name"
           actions={(row) => {
+            if (row.hasBackendWorkOrder) {
+              return (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
+                    style={{ minHeight: '36px', padding: '7px 13px', border: 0, borderRadius: '8px', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
+                    style={{ minHeight: '36px', padding: '7px 13px', border: '1px solid #fecaca', borderRadius: '8px', background: '#fff5f5', color: '#dc2626', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderDetails(row)}
+                    style={{ minHeight: '36px', padding: '7px 13px', border: '1px solid #d5e0ea', borderRadius: '8px', background: '#fff', color: '#334155', fontWeight: 750, cursor: 'pointer' }}
+                  >
+                    View
+                  </button>
+                </div>
+              );
+            }
             // Check if this order already has work orders
-            const hasWO = workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction;
+            const hasWO = row.hasBackendWorkOrder ||
+              (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
             const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
             return (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

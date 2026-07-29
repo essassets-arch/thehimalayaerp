@@ -52,6 +52,20 @@ import CreateOrder                from '../../../components/CreateOrder.jsx';
 import O2PWorkflowBanner          from '../../../shared/components/O2PWorkflowBanner';
 import { useO2PWorkflow }         from '../../../shared/hooks/useO2PWorkflow';
 
+async function uploadAfterSalesEvidence(files = []) {
+  const urls = [];
+  for (const file of files) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('category', 'attachments');
+    const response = await fetch('/api/upload', { method: 'POST', body: form });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || `Could not upload ${file.name}`);
+    urls.push({ name: file.name, url: result.url, mime: result.mime, size: result.size });
+  }
+  return urls;
+}
+
 export default function SalesPortal() {
   const pathname = usePathname();
   const params = useParams();
@@ -426,7 +440,7 @@ export default function SalesPortal() {
     const itemOptions = realItems.map((item, index) => {
       const itemId = item.id || item.order_item_id || item.orderItemId;
       const productName = item.product_name || item.productName || order.products || `Item ${index + 1}`;
-      const deliveredQty = Number(item.quantity_dispatched ?? item.delivered_qty ?? item.quantity ?? item.quantity_ordered ?? 0) || 0;
+      const deliveredQty = Number(item.deliveredQuantity ?? item.quantity_dispatched ?? item.delivered_qty ?? item.quantity ?? item.orderedQuantity ?? item.quantity_ordered ?? 0) || 0;
       const alreadyApproved = Number(item.already_replaced_qty ?? item.alreadyReplacedQty ?? 0) || 0;
       const availableQty = item.replacement_available_qty !== undefined || item.replacementAvailableQty !== undefined
         ? Number(item.replacement_available_qty ?? item.replacementAvailableQty ?? 0) || 0
@@ -471,8 +485,22 @@ export default function SalesPortal() {
             <textarea id="replacement-reason" placeholder="Broken during unloading" style="width:100%; min-height:82px; border:1px solid var(--color-border); border-radius:8px; padding:10px; resize:vertical;"></textarea>
           </div>
           <div>
-            <label style="display:block; font-weight:800; margin-bottom:6px;">Upload Images / PDF</label>
-            <input id="replacement-files" type="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" style="width:100%;" />
+            <label style="display:block; font-weight:800; margin-bottom:6px;">Description *</label>
+            <textarea id="replacement-description" placeholder="Describe the issue and expected replacement" style="width:100%; min-height:72px; border:1px solid var(--color-border); border-radius:8px; padding:10px; resize:vertical;"></textarea>
+          </div>
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px;">Remarks</label>
+            <textarea id="replacement-remarks" placeholder="Additional remarks for Plant Head" style="width:100%; min-height:62px; border:1px solid var(--color-border); border-radius:8px; padding:10px; resize:vertical;"></textarea>
+          </div>
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px;">Upload Images</label>
+            <label for="replacement-files" style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px dashed #93c5fd;border-radius:10px;background:#f8fbff;cursor:pointer;">
+              <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:#e0efff;color:#2563eb;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+              </span>
+              <span><strong style="display:block;color:#1e3a5f;">Choose delivery evidence</strong><small id="replacement-file-name" style="color:#64748b;">JPG, PNG or WebP · maximum 5 MB each</small></span>
+            </label>
+            <input id="replacement-files" type="file" multiple accept="image/jpeg,image/png,image/webp" style="display:none;" />
           </div>
         </div>
       `,
@@ -503,6 +531,10 @@ export default function SalesPortal() {
           qtyInput.placeholder = availableQty > 0 ? `Max ${availableQty}` : 'No quantity available';
         };
         select.addEventListener('change', syncSelectedItem);
+        document.getElementById('replacement-files')?.addEventListener('change', (event) => {
+          const names = Array.from(event.target.files || []).map((file) => file.name);
+          document.getElementById('replacement-file-name').textContent = names.length ? names.join(', ') : 'JPG, PNG or WebP · maximum 5 MB each';
+        });
         syncSelectedItem();
       },
       preConfirm: () => {
@@ -510,15 +542,13 @@ export default function SalesPortal() {
         const selected = select.options[select.selectedIndex];
         const qty = Number(document.getElementById('replacement-qty').value);
         const reason = document.getElementById('replacement-reason').value.trim();
+        const description = document.getElementById('replacement-description').value.trim();
+        const remarks = document.getElementById('replacement-remarks').value.trim();
         const availableQty = Number(selected.dataset.available || 0);
         const files = Array.from(document.getElementById('replacement-files').files || []);
 
-        if (!select.value || !qty || qty <= 0 || !reason) {
-          Swal.showValidationMessage('Product, replacement quantity, and reason are required.');
-          return false;
-        }
-        if (reason.length < 10) {
-          Swal.showValidationMessage('Reason must be at least 10 characters.');
+        if (!select.value || !qty || qty <= 0 || !reason || !description) {
+          Swal.showValidationMessage('Product, quantity, reason, and description are required.');
           return false;
         }
         if (availableQty <= 0) {
@@ -531,9 +561,11 @@ export default function SalesPortal() {
         }
 
         return {
-          orderItemId: Number(select.value),
+          orderItemId: String(select.value),
           requestedQty: qty,
           reason,
+          description,
+          remarks,
           files
         };
       }
@@ -543,37 +575,25 @@ export default function SalesPortal() {
 
     try {
       showToast('Submitting replacement request...');
-      if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'backend') {
-        const res = await requestReplacement(order.id || order.orderNo, {
-          reasonCode: 'DAMAGED_IN_TRANSIT', // Maps to backend enum, can enhance UI later
-          customerRemarks: value.reason,
-          items: [{
-            salesOrderItemId: String(value.orderItemId),
-            requestedQuantity: value.requestedQty,
-            reason: value.reason
-          }]
-        });
-        if (!res.success) throw new Error(res.error);
-      } else {
-        useERPStore.getState().requestReplacement({
-          orderId: order.id || order.orderNo,
-          items: [{
-            productId: value.orderItemId,
-            quantity: value.requestedQty,
-            reason: value.reason,
-            condition: 'Damaged / Defective'
-          }],
-          reason: value.reason,
-          actorName: user?.name || 'Sales User'
-        });
-      }
+      const evidence = await uploadAfterSalesEvidence(value.files);
+      const res = await requestReplacement(order.id || order.orderNo, {
+        reasonCode: 'DAMAGE_IN_TRANSIT',
+        customerRemarks: value.description,
+        internalRemarks: value.remarks || value.reason,
+        evidence: { files: evidence },
+        items: [{
+          salesOrderItemId: String(value.orderItemId),
+          requestedQuantity: value.requestedQty,
+          reason: value.reason
+        }]
+      });
+      if (!res?.success) throw new Error(res?.error || 'The replacement request was not saved.');
 
       Swal.fire({
         icon: 'success',
         title: 'Replacement Requested',
-        text: `Replacement request submitted successfully and is pending Plant Head approval.`,
-        timer: 2500,
-        showConfirmButton: false
+        text: 'The request was submitted successfully and is now visible to Plant Head for approval.',
+        confirmButtonText: 'OK'
       });
       if (typeof loadOrders === 'function') await loadOrders();
       else await syncData();
@@ -600,7 +620,7 @@ export default function SalesPortal() {
     const itemOptions = realItems.length > 0 ? realItems.map((item, index) => {
       const itemId = item.id || item.order_item_id || item.orderItemId || index + 1;
       const productName = item.product_name || item.productName || order.products || `Item ${index + 1}`;
-      const deliveredQty = Number(item.quantity_dispatched ?? item.delivered_qty ?? item.quantity ?? item.quantity_ordered ?? 0) || 0;
+      const deliveredQty = Number(item.deliveredQuantity ?? item.quantity_dispatched ?? item.delivered_qty ?? item.quantity ?? item.orderedQuantity ?? item.quantity_ordered ?? 0) || 0;
       return `<option value="${itemId}" data-delivered="${deliveredQty}" data-product="${escapeHtml(productName)}">${escapeHtml(productName)} (Delivered: ${deliveredQty})</option>`;
     }).join('') : `<option value="all" data-delivered="${order.quantity || order.totalQty || 10}" data-product="${escapeHtml(order.products || 'Overall Order')}">${escapeHtml(order.products || 'Overall Order')}</option>`;
 
@@ -638,8 +658,22 @@ export default function SalesPortal() {
             <textarea id="return-reason" placeholder="Explain details regarding reverse pickup requirement..." style="width:100%; min-height:75px; border:1.5px solid var(--color-border); border-radius:8px; padding:10px; resize:vertical; font-size:13px; font-family:inherit;"></textarea>
           </div>
           <div>
-            <label style="display:block; font-weight:800; margin-bottom:6px; color:#334155;">Upload Photos / Supporting Documents</label>
-            <input id="return-files" type="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" style="width:100%; font-size:12px;" />
+            <label style="display:block; font-weight:800; margin-bottom:6px; color:#334155;">Description *</label>
+            <textarea id="return-description" placeholder="Describe the product condition and return requirement" style="width:100%; min-height:70px; border:1.5px solid var(--color-border); border-radius:8px; padding:10px; resize:vertical; font-size:13px; font-family:inherit;"></textarea>
+          </div>
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px; color:#334155;">Remarks</label>
+            <textarea id="return-remarks" placeholder="Additional remarks for Plant Head" style="width:100%; min-height:62px; border:1.5px solid var(--color-border); border-radius:8px; padding:10px; resize:vertical; font-size:13px; font-family:inherit;"></textarea>
+          </div>
+          <div>
+            <label style="display:block; font-weight:800; margin-bottom:6px; color:#334155;">Upload Images</label>
+            <label for="return-files" style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px dashed #93c5fd;border-radius:10px;background:#f8fbff;cursor:pointer;">
+              <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:#e0efff;color:#2563eb;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+              </span>
+              <span><strong style="display:block;color:#1e3a5f;">Choose return evidence</strong><small id="return-file-name" style="color:#64748b;">JPG, PNG or WebP · maximum 5 MB each</small></span>
+            </label>
+            <input id="return-files" type="file" multiple accept="image/jpeg,image/png,image/webp" style="display:none;" />
           </div>
         </div>
       `,
@@ -670,6 +704,10 @@ export default function SalesPortal() {
           }
         };
         select.addEventListener('change', syncSelectedItem);
+        document.getElementById('return-files')?.addEventListener('change', (event) => {
+          const names = Array.from(event.target.files || []).map((file) => file.name);
+          document.getElementById('return-file-name').textContent = names.length ? names.join(', ') : 'JPG, PNG or WebP · maximum 5 MB each';
+        });
         syncSelectedItem();
       },
       preConfirm: () => {
@@ -677,14 +715,12 @@ export default function SalesPortal() {
         const qty = Number(document.getElementById('return-qty').value);
         const condition = document.getElementById('return-condition').value;
         const reason = document.getElementById('return-reason').value.trim();
+        const description = document.getElementById('return-description').value.trim();
+        const remarks = document.getElementById('return-remarks').value.trim();
         const files = Array.from(document.getElementById('return-files').files || []);
 
-        if (!qty || qty <= 0 || !reason) {
-          Swal.showValidationMessage('Return quantity and detailed reason are required.');
-          return false;
-        }
-        if (reason.length < 8) {
-          Swal.showValidationMessage('Please enter a more detailed reason for the return (at least 8 characters).');
+        if (!qty || qty <= 0 || !reason || !description) {
+          Swal.showValidationMessage('Return quantity, reason, and description are required.');
           return false;
         }
 
@@ -693,6 +729,8 @@ export default function SalesPortal() {
           requestedQty: qty,
           condition,
           reason,
+          description,
+          remarks,
           files
         };
       }
@@ -702,48 +740,37 @@ export default function SalesPortal() {
 
     try {
       showToast('Submitting return request...');
-      if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'backend') {
-        const itemsToReturn = value.orderItemId === 'all' 
-          ? realItems.map(item => ({
-              salesOrderItemId: String(item.id || item.order_item_id || item.orderItemId),
-              requestedQuantity: value.requestedQty,
-              reason: value.reason,
-              conditionReported: value.condition
-            }))
-          : [{
-              salesOrderItemId: String(value.orderItemId),
-              requestedQuantity: value.requestedQty,
-              reason: value.reason,
-              conditionReported: value.condition
-            }];
-
-        const res = await requestReturn(order.id || order.orderNo, {
-          reasonCode: 'DAMAGED_IN_TRANSIT',
-          customerRemarks: value.reason,
-          resolutionType: 'CREDIT_NOTE',
-          items: itemsToReturn
-        });
-        if (!res.success) throw new Error(res.error);
-      } else {
-        useERPStore.getState().requestReturn({
-          orderId: order.id || order.orderNo,
-          items: [{
-            productId: value.orderItemId,
-            quantity: value.requestedQty,
+      const evidence = await uploadAfterSalesEvidence(value.files);
+      const itemsToReturn = value.orderItemId === 'all'
+        ? realItems.map(item => ({
+            salesOrderItemId: String(item.id || item.order_item_id || item.orderItemId),
+            requestedQuantity: value.requestedQty,
             reason: value.reason,
-            condition: value.condition || 'Customer Rejected'
-          }],
-          reason: value.reason,
-          actorName: user?.name || 'Sales User'
-        });
-      }
+            conditionReported: value.condition,
+            evidence: { files: evidence }
+          }))
+        : [{
+            salesOrderItemId: String(value.orderItemId),
+            requestedQuantity: value.requestedQty,
+            reason: value.reason,
+            conditionReported: value.condition,
+            evidence: { files: evidence }
+          }];
+
+      const res = await requestReturn(order.id || order.orderNo, {
+        reasonCode: 'DAMAGE_IN_TRANSIT',
+        customerRemarks: value.description,
+        internalRemarks: value.remarks || value.reason,
+        resolutionType: 'CREDIT_NOTE',
+        items: itemsToReturn
+      });
+      if (!res?.success) throw new Error(res?.error || 'The return request was not saved.');
 
       Swal.fire({
         icon: 'success',
-        title: 'Return Pick-Up Requested',
-        text: `Reverse pickup request submitted successfully. Dispatch & Logistics department has been notified to schedule take-back collection.`,
-        timer: 3000,
-        showConfirmButton: false
+        title: 'Return Requested',
+        text: 'The request was submitted successfully and is now visible to Plant Head for approval.',
+        confirmButtonText: 'OK'
       });
       if (typeof loadOrders === 'function') await loadOrders();
       else await syncData();

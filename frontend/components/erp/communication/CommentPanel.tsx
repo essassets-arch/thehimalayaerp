@@ -37,10 +37,19 @@ export function CommentPanel({ entityType, entityId, includeInternal = true, cla
   const { data: comments = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      const res = await axios.get<Comment[]>(`/api/backend/comments`, {
+      const res = await axios.get<any>(`/api/backend/comments`, {
         params: { entityType, entityId, includeInternal }
       });
-      return res.data;
+      const body = res.data;
+      return Array.isArray(body) 
+        ? body 
+        : Array.isArray(body?.data) 
+          ? body.data 
+          : Array.isArray(body?.comments)
+            ? body.comments
+            : Array.isArray(body?.items)
+              ? body.items
+              : [];
     }
   });
 

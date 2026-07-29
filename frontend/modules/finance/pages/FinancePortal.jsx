@@ -7,7 +7,6 @@ import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigat
 import Swal from 'sweetalert2';
 import { useERP } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
-import { useShallow } from 'zustand/react/shallow';
 import { issuePurchaseOrder } from '../../../store/procurementActions';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { financeService } from '../../../services/finance.service';
@@ -76,8 +75,13 @@ const financeMenu = {
     "history"
   ],
   "finance-executive": [
+    "dashboard",
     "payment-verification",
-    "daily-tasks"
+    "daily-tasks",
+    "receipts",
+    "outstanding",
+    "customers",
+    "reports"
   ],
   "Super Admin": [
     "dashboard",
@@ -119,49 +123,28 @@ export default function FinancePortal() {
   const { user } = useAuth();
   const showToast = useNotificationStore(s => s.showToast);
 
-  // All store data + action refs in ONE useShallow subscription.
-  // EMPTY_ARRAY is module-scoped so it is always the same reference.
-  const {
-    purchaseIndents,
-    purchaseOrders,
-    goodsReceipts,
-    unissuedPOs,
-    invoices,
-    vendorPayments,
-    acceptPurchaseOrderByVendor,
-    createVendorPayment,
-    completeVendorPayment,
-    payVendor,
-    createPurchaseOrderFromIndent,
-    submitPurchaseOrder,
-    approvePurchaseOrder,
-    rejectPurchaseOrder,
-    issuePurchaseOrder,
-    approveGoodsReceiptNote,
-    approveGoodsReceipt,
-    createGoodsReceipt,
-    approveMaterialIndent,
-  } = useERPStore(useShallow((s) => ({
-    purchaseIndents: s.state.procurement?.materialIndents ?? s.state.purchaseIndents ?? EMPTY_ARRAY,
-    purchaseOrders: s.state.procurement?.purchaseOrders ?? s.state.purchaseOrders ?? EMPTY_ARRAY,
-    goodsReceipts: s.state.procurement?.goodsReceiptNotes ?? s.state.goodsReceipts ?? EMPTY_ARRAY,
-    unissuedPOs: s.state.unissuedPOs ?? EMPTY_ARRAY,
-    invoices: s.state.invoices ?? EMPTY_ARRAY,
-    vendorPayments: s.state.vendorPayments ?? EMPTY_ARRAY,
-    acceptPurchaseOrderByVendor: s.acceptPurchaseOrderByVendor,
-    createVendorPayment: s.createVendorPayment,
-    completeVendorPayment: s.completeVendorPayment,
-    payVendor: s.payVendor,
-    createPurchaseOrderFromIndent: s.createPurchaseOrderFromIndent,
-    submitPurchaseOrder: s.submitPurchaseOrder,
-    approvePurchaseOrder: s.approvePurchaseOrder,
-    rejectPurchaseOrder: s.rejectPurchaseOrder,
-    issuePurchaseOrder: s.issuePurchaseOrder,
-    approveGoodsReceiptNote: s.approveGoodsReceiptNote,
-    approveGoodsReceipt: s.approveGoodsReceipt,
-    createGoodsReceipt: s.createGoodsReceipt,
-    approveMaterialIndent: s.approveMaterialIndent,
-  })));
+  // Subscribe to stable references directly. Returning one freshly-created
+  // object snapshot here can trigger React's getSnapshot infinite-loop guard.
+  const erpStoreState = useERPStore((s) => s.state);
+  const purchaseIndents = erpStoreState.procurement?.materialIndents ?? erpStoreState.purchaseIndents ?? EMPTY_ARRAY;
+  const purchaseOrders = erpStoreState.procurement?.purchaseOrders ?? erpStoreState.purchaseOrders ?? EMPTY_ARRAY;
+  const goodsReceipts = erpStoreState.procurement?.goodsReceiptNotes ?? erpStoreState.goodsReceipts ?? EMPTY_ARRAY;
+  const unissuedPOs = erpStoreState.unissuedPOs ?? EMPTY_ARRAY;
+  const invoices = erpStoreState.invoices ?? EMPTY_ARRAY;
+  const vendorPayments = erpStoreState.vendorPayments ?? EMPTY_ARRAY;
+  const acceptPurchaseOrderByVendor = useERPStore((s) => s.acceptPurchaseOrderByVendor);
+  const createVendorPayment = useERPStore((s) => s.createVendorPayment);
+  const completeVendorPayment = useERPStore((s) => s.completeVendorPayment);
+  const payVendor = useERPStore((s) => s.payVendor);
+  const createPurchaseOrderFromIndent = useERPStore((s) => s.createPurchaseOrderFromIndent);
+  const submitPurchaseOrder = useERPStore((s) => s.submitPurchaseOrder);
+  const approvePurchaseOrder = useERPStore((s) => s.approvePurchaseOrder);
+  const rejectPurchaseOrder = useERPStore((s) => s.rejectPurchaseOrder);
+  const issuePurchaseOrder = useERPStore((s) => s.issuePurchaseOrder);
+  const approveGoodsReceiptNote = useERPStore((s) => s.approveGoodsReceiptNote);
+  const approveGoodsReceipt = useERPStore((s) => s.approveGoodsReceipt);
+  const createGoodsReceipt = useERPStore((s) => s.createGoodsReceipt);
+  const approveMaterialIndent = useERPStore((s) => s.approveMaterialIndent);
 
   const globalSearch = useSearchStore(s => s.globalSearch);
 
@@ -2927,8 +2910,6 @@ export default function FinancePortal() {
     <>
       {view === 'dashboard' && renderDashboard()}
       {view === 'invoices' && renderInvoices()}
-      {view === 'outstanding' && <OutstandingPayments />}
-      {view === 'customers' && <Customers />}
       {view === 'create-po' && <CreatePurchaseOrder />}
       {view === 'delivery-audit' && <DeliveryAudit />}
       {view === 'rejection-management' && <RejectionManagement />}

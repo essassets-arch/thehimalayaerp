@@ -2,16 +2,16 @@
 
 import React, { useState, useMemo } from 'react';
 import Swal from 'sweetalert2';
-import { 
-  Bell, 
-  Search, 
+import {
+  Search,
   RefreshCw,
-  Mail,
-  Calendar,
-  MessageSquare
+  SlidersHorizontal,
+  X
 } from 'lucide-react';
 import { useERPStore } from '../../../store/erpStore';
 import { useAuthStore } from '../../../store/authStore';
+import { useQuery } from '@tanstack/react-query';
+import { backendFetch } from '../../../lib/backendFetch';
 
 export default function OutstandingView() {
   const state = useERPStore((s) => s.state);
@@ -20,32 +20,91 @@ export default function OutstandingView() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activePreset, setActivePreset] = useState('All');
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [minOutstanding, setMinOutstanding] = useState('');
+  const [maxOutstanding, setMaxOutstanding] = useState('');
+  const [dueFrom, setDueFrom] = useState('');
+  const [dueTo, setDueTo] = useState('');
+  const [collectionStatus, setCollectionStatus] = useState('All');
+  const [reminderStatus, setReminderStatus] = useState('All');
+  const [salesmanFilter, setSalesmanFilter] = useState('All Salesmen');
+  const [sortBy, setSortBy] = useState('Outstanding: High to Low');
 
-  const orders = state.sales?.orders || [];
-  const customerPayments = state.finance?.customerPayments || [];
+  const localOrders = state.sales?.orders || [];
+  const localCustomerPayments = state.finance?.customerPayments || [];
   const followUps = state.finance?.paymentFollowUps || [];
+  const {
+    data: backendOrders = [],
+    isLoading: ordersLoading,
+    error: ordersError,
+    refetch: refetchOrders,
+    isFetching: ordersFetching,
+  } = useQuery({
+    queryKey: ['finance-outstanding-delivered-orders'],
+    queryFn: async () => {
+      const response = await backendFetch('/api/backend/finance/payments/delivered-orders');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+  const {
+    data: backendPayments = [],
+    isLoading: paymentsLoading,
+    error: paymentsError,
+    refetch: refetchPayments,
+    isFetching: paymentsFetching,
+  } = useQuery({
+    queryKey: ['finance-outstanding-payments'],
+    queryFn: async () => {
+      const response = await backendFetch('/api/backend/finance/payments');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+
+  const orders = useMemo(() => {
+    const combined = [...backendOrders, ...localOrders];
+    return combined.filter((order, index, list) => {
+      const id = String(order.id || order.orderId || order.orderNo || '');
+      return id && list.findIndex((candidate) =>
+        String(candidate.id || candidate.orderId || candidate.orderNo || '') === id
+      ) === index;
+    });
+  }, [backendOrders, localOrders]);
 
   // Map outstanding list from orders and payments
   const outstandingList = useMemo(() => {
     return orders.map((o) => {
       const totalAmount = Number(o.grandTotal ?? o.totalAmount ?? 0);
-      const paidAmount = customerPayments
-        .filter((p) => p.orderId === o.id && p.verificationStatus === 'FINANCE_VERIFIED')
-        .reduce((sum, p) => sum + p.paymentAmount, 0);
+      const backendPaidAmount = backendPayments
+        .filter((payment) =>
+          String(payment.salesOrderId || payment.salesOrder?.id || '') === String(o.id) &&
+          ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(payment.status || '').toUpperCase())
+        )
+        .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      const localPaidAmount = localCustomerPayments
+        .filter((payment) =>
+          String(payment.orderId || '') === String(o.id) &&
+          payment.verificationStatus === 'FINANCE_VERIFIED'
+        )
+        .reduce((sum, payment) => sum + Number(payment.paymentAmount || 0), 0);
+      const paidAmount = backendPaidAmount || localPaidAmount;
       const outstanding = Math.max(totalAmount - paidAmount, 0);
 
       // Days Overdue
-      const dueDate = o.requiredDeliveryDate || o.expectedDeliveryDate || new Date().toISOString();
+      const deliveredDate = o.deliveredAt ? new Date(o.deliveredAt) : null;
+      const defaultDueDate = deliveredDate && !Number.isNaN(deliveredDate.getTime())
+        ? new Date(deliveredDate.getTime() + (15 * 24 * 60 * 60 * 1000)).toISOString()
+        : new Date().toISOString();
+      const dueDate = o.paymentDueDate || o.dueDate || o.requiredDeliveryDate || o.expectedDeliveryDate || defaultDueDate;
       const diffTime = Date.now() - new Date(dueDate).getTime();
       const daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
       return {
         invoiceId: o.id,
-        invoiceNumber: o.invoiceNo || 'Pending',
-        orderNumber: o.id,
-        customerName: o.customerName,
+        invoiceNumber: o.invoiceNo || `INV-${o.orderNo || o.orderId || o.id}`,
+        orderNumber: o.orderNo || o.orderId || o.id,
+        customerName: o.customerName || o.customer?.companyName || 'Unknown customer',
         customerId: o.customerId || o.customer?.id || 'CUST-UNKNOWN',
         totalAmount,
         paidAmount,
@@ -53,12 +112,17 @@ export default function OutstandingView() {
         dueDate,
         daysOverdue,
         salesPerson: o.salesperson || 'N/A',
+        salesPersonId: o.salespersonId || '',
         status: o.paymentStatus || 'PAYMENT_DUE',
-        orderStatus: o.dispatchStatus || 'OPEN',
+        orderStatus: o.dispatchStatus || (o.deliveredAt ? 'DELIVERED' : 'OPEN'),
         reminderSent: followUps.some((f) => f.orderId === o.id)
       };
     }).filter((item) => item.outstanding > 0);
-  }, [orders, customerPayments, followUps]);
+  }, [orders, backendPayments, localCustomerPayments, followUps]);
+
+  const salesmen = useMemo(() => Array.from(new Set(
+    outstandingList.map((item) => item.salesPerson).filter((name) => name && name !== 'N/A')
+  )).sort((left, right) => left.localeCompare(right)), [outstandingList]);
 
   // Compute aging buckets
   const agingStats = useMemo(() => {
@@ -72,69 +136,6 @@ export default function OutstandingView() {
       return acc;
     }, { current: 0, bracket1_30: 0, bracket31_60: 0, bracket61_90: 0, bracket90_plus: 0 });
   }, [outstandingList]);
-
-  const handleSendReminder = (item, channel) => {
-    Swal.fire({
-      title: `Sending ${channel} Reminder...`,
-      html: `Drafting message for ${item.customerName} regarding outstanding amount: <strong>${formatCurrency(item.outstanding)}</strong>.`,
-      timer: 1500,
-      timerProgressBar: true,
-      didOpen: () => Swal.showLoading()
-    }).then(() => {
-      // Record a follow up log
-      try {
-        const actor = {
-          id: user?.id || 'System',
-          name: user?.name || 'Finance Executive User',
-          role: user?.role || 'Finance Executive'
-        };
-        financeActions.addPaymentFollowUp({
-          customerId: item.customerId,
-          orderId: item.invoiceId,
-          invoiceNumber: item.invoiceNumber,
-          contactPerson: 'Accounts Manager',
-          phoneNumber: '9876543210',
-          followUpDate: new Date().toISOString().split('T')[0],
-          contactMode: channel === 'WhatsApp' ? 'WhatsApp' : 'Email',
-          discussionSummary: `Sent automated payment reminder for outstanding balance: ${formatCurrency(item.outstanding)}`,
-          customerResponse: 'Needs More Time',
-          nextFollowUpDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          remarks: `Automated ${channel} reminder sent.`
-        }, actor);
-
-        Swal.fire({
-          icon: 'success',
-          title: 'Reminder Sent & Logged',
-          text: `${channel} reminder successfully sent to ${item.customerName} and logged in follow-ups.`,
-          timer: 1850,
-          showConfirmButton: false
-        });
-      } catch (err) {
-        Swal.fire('Error', err?.message || String(err), 'error');
-      }
-    });
-  };
-
-  const handleClientReminderPrompt = (item) => {
-    Swal.fire({
-      title: 'Send Payment Reminder',
-      text: `Select how you want to send the payment reminder to ${item.customerName} for ${formatCurrency(item.outstanding)}:`,
-      icon: 'question',
-      showCancelButton: true,
-      showDenyButton: true,
-      confirmButtonText: 'Send via WhatsApp',
-      denyButtonText: 'Send via Email',
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#22c55e',
-      denyButtonColor: '#0284c7'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        handleSendReminder(item, 'WhatsApp');
-      } else if (result.isDenied) {
-        handleSendReminder(item, 'Email');
-      }
-    });
-  };
 
   const handleSelfReminder = (item) => {
     const today = new Date().toISOString().split('T')[0];
@@ -173,11 +174,13 @@ export default function OutstandingView() {
             name: user?.name || 'Finance Executive User',
             role: user?.role || 'Finance Executive'
           };
-          financeActions.addPaymentFollowUp({
-            customerId: item.customerId,
-            orderId: item.invoiceId,
-            invoiceNumber: item.invoiceNumber,
-            contactPerson: 'Accounts Desk',
+        financeActions.addPaymentFollowUp({
+          customerId: item.customerId,
+          orderId: item.invoiceId,
+          invoiceNumber: item.invoiceNumber,
+          customerName: item.customerName,
+          outstandingAmount: item.outstanding,
+          contactPerson: 'Accounts Desk',
             phoneNumber: '9876543210',
             followUpDate: today,
             contactMode: 'Phone',
@@ -210,24 +213,35 @@ export default function OutstandingView() {
   };
 
   const filteredList = useMemo(() => {
-    return outstandingList.filter((o) => {
+    const filtered = outstandingList.filter((o) => {
       const matchesSearch = 
         o.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(o.orderNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         o.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         o.salesPerson?.toLowerCase().includes(searchQuery.toLowerCase());
       
       if (!matchesSearch) return false;
+      if (minOutstanding !== '' && o.outstanding < Number(minOutstanding)) return false;
+      if (maxOutstanding !== '' && o.outstanding > Number(maxOutstanding)) return false;
+      const dueDateValue = String(o.dueDate || '').slice(0, 10);
+      if (dueFrom && dueDateValue < dueFrom) return false;
+      if (dueTo && dueDateValue > dueTo) return false;
+      if (collectionStatus === 'Unpaid' && o.paidAmount > 0) return false;
+      if (collectionStatus === 'Partially Paid' && !(o.paidAmount > 0 && o.outstanding > 0)) return false;
+      if (reminderStatus === 'Scheduled' && !o.reminderSent) return false;
+      if (reminderStatus === 'Not Scheduled' && o.reminderSent) return false;
+      if (salesmanFilter !== 'All Salesmen' && o.salesPerson !== salesmanFilter) return false;
 
       switch (activePreset) {
         case 'Reminders':
           return o.reminderSent;
-        case '20-30 Days Overdue':
-          return o.daysOverdue >= 20 && o.daysOverdue <= 30;
-        case '30-45 Days Overdue':
-          return o.daysOverdue > 30 && o.daysOverdue <= 45;
-        case '45-60 Days Overdue':
-          return o.daysOverdue > 45 && o.daysOverdue <= 60;
-        case '60-90 Days Overdue':
+        case 'Not Due':
+          return o.daysOverdue === 0;
+        case '1-30 Days':
+          return o.daysOverdue >= 1 && o.daysOverdue <= 30;
+        case '31-60 Days':
+          return o.daysOverdue >= 31 && o.daysOverdue <= 60;
+        case '61-90 Days':
           return o.daysOverdue > 60 && o.daysOverdue <= 90;
         case '90+ Days Overdue':
           return o.daysOverdue > 90;
@@ -235,7 +249,56 @@ export default function OutstandingView() {
           return true;
       }
     });
-  }, [outstandingList, searchQuery, activePreset]);
+
+    return filtered.sort((left, right) => {
+      switch (sortBy) {
+        case 'Outstanding: Low to High':
+          return left.outstanding - right.outstanding;
+        case 'Most Overdue':
+          return right.daysOverdue - left.daysOverdue;
+        case 'Due Date: Earliest':
+          return new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime();
+        case 'Customer: A to Z':
+          return left.customerName.localeCompare(right.customerName);
+        default:
+          return right.outstanding - left.outstanding;
+      }
+    });
+  }, [
+    outstandingList,
+    searchQuery,
+    activePreset,
+    minOutstanding,
+    maxOutstanding,
+    dueFrom,
+    dueTo,
+    collectionStatus,
+    reminderStatus,
+    salesmanFilter,
+    sortBy,
+  ]);
+
+  const advancedFilterCount = [
+    minOutstanding,
+    maxOutstanding,
+    dueFrom,
+    dueTo,
+    collectionStatus !== 'All',
+    reminderStatus !== 'All',
+    salesmanFilter !== 'All Salesmen',
+    sortBy !== 'Outstanding: High to Low',
+  ].filter(Boolean).length;
+
+  const resetAdvancedFilters = () => {
+    setMinOutstanding('');
+    setMaxOutstanding('');
+    setDueFrom('');
+    setDueTo('');
+    setCollectionStatus('All');
+    setReminderStatus('All');
+    setSalesmanFilter('All Salesmen');
+    setSortBy('Outstanding: High to Low');
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: "'Outfit', sans-serif" }}>
@@ -273,11 +336,16 @@ export default function OutstandingView() {
       </div>
 
       <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {(ordersError || paymentsError) && (
+          <div style={{ padding: '12px 14px', borderRadius: '8px', background: '#FEF2F2', color: '#B91C1C' }}>
+            {ordersError?.message || paymentsError?.message || 'Unable to load outstanding payments.'}
+          </div>
+        )}
         
         {/* Filters bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            {['All', 'Reminders', '20-30 Days Overdue', '30-45 Days Overdue', '45-60 Days Overdue', '60-90 Days Overdue', '90+ Days Overdue'].map((preset) => (
+            {['All', 'Not Due', '1-30 Days', '31-60 Days', '61-90 Days', '90+ Days Overdue', 'Reminders'].map((preset) => (
               <button
                 key={preset}
                 onClick={() => setActivePreset(preset)}
@@ -298,17 +366,112 @@ export default function OutstandingView() {
             ))}
           </div>
 
-          <div style={{ position: 'relative', width: '240px' }}>
-            <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '14px', height: '14px', color: '#94A3B8' }} />
-            <input 
-              type="text" 
-              placeholder="Search outstanding..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
-            />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ position: 'relative', width: '240px' }}>
+              <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '14px', height: '14px', color: '#94A3B8' }} />
+              <input
+                type="text"
+                placeholder="Search outstanding..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+              />
+            </div>
+            <button
+              onClick={() => setShowAdvancedFilters((current) => !current)}
+              className="btn-small btn-outline-small"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: showAdvancedFilters ? '#EFF6FF' : undefined,
+                color: showAdvancedFilters ? '#1D4ED8' : undefined,
+              }}
+            >
+              <SlidersHorizontal size={13} />
+              Advanced Filters
+              {advancedFilterCount > 0 && (
+                <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: '#2563EB', color: '#fff', display: 'inline-grid', placeItems: 'center', fontSize: 10 }}>
+                  {advancedFilterCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => { refetchOrders(); refetchPayments(); }}
+              disabled={ordersFetching || paymentsFetching}
+              className="btn-small btn-outline-small"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <RefreshCw size={13} /> Refresh
+            </button>
           </div>
         </div>
+
+        {showAdvancedFilters && (
+          <div style={{ padding: 16, borderRadius: 10, border: '1px solid #BFDBFE', background: '#F8FBFF' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <strong style={{ color: '#1E3A8A', fontSize: 13 }}>Advanced Filters</strong>
+              <button onClick={() => setShowAdvancedFilters(false)} aria-label="Close advanced filters" style={{ border: 0, background: 'transparent', color: '#64748B', cursor: 'pointer' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Minimum Outstanding
+                <input type="number" min="0" value={minOutstanding} onChange={(event) => setMinOutstanding(event.target.value)} placeholder="₹ 0" style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7 }} />
+              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Maximum Outstanding
+                <input type="number" min="0" value={maxOutstanding} onChange={(event) => setMaxOutstanding(event.target.value)} placeholder="No maximum" style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7 }} />
+              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Due Date From
+                <input type="date" value={dueFrom} onChange={(event) => setDueFrom(event.target.value)} style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7 }} />
+              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Due Date To
+                <input type="date" value={dueTo} onChange={(event) => setDueTo(event.target.value)} style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7 }} />
+              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Collection Status
+                <select value={collectionStatus} onChange={(event) => setCollectionStatus(event.target.value)} style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7, background: '#fff' }}>
+                  <option>All</option>
+                  <option>Unpaid</option>
+                  <option>Partially Paid</option>
+                </select>
+              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Self Reminder
+                <select value={reminderStatus} onChange={(event) => setReminderStatus(event.target.value)} style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7, background: '#fff' }}>
+                  <option>All</option>
+                  <option>Scheduled</option>
+                  <option>Not Scheduled</option>
+                </select>
+              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Salesman
+                <select value={salesmanFilter} onChange={(event) => setSalesmanFilter(event.target.value)} style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7, background: '#fff' }}>
+                  <option>All Salesmen</option>
+                  {salesmen.map((salesman) => <option key={salesman} value={salesman}>{salesman}</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                Sort Results
+                <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ width: '100%', marginTop: 5, padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 7, background: '#fff' }}>
+                  <option>Outstanding: High to Low</option>
+                  <option>Outstanding: Low to High</option>
+                  <option>Most Overdue</option>
+                  <option>Due Date: Earliest</option>
+                  <option>Customer: A to Z</option>
+                </select>
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+              <span style={{ color: '#64748B', fontSize: 12 }}>{filteredList.length} of {outstandingList.length} outstanding accounts shown</span>
+              <button onClick={resetAdvancedFilters} className="btn-small btn-outline-small">Reset Advanced Filters</button>
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '12px' }}>
@@ -327,7 +490,13 @@ export default function OutstandingView() {
               </tr>
             </thead>
             <tbody style={{ fontSize: '13.5px' }}>
-              {filteredList.length === 0 ? (
+              {(ordersLoading || paymentsLoading) ? (
+                <tr>
+                  <td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>
+                    Loading outstanding payments...
+                  </td>
+                </tr>
+              ) : filteredList.length === 0 ? (
                 <tr>
                   <td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>
                     No outstanding accounts found matching selected criteria.
@@ -368,24 +537,6 @@ export default function OutstandingView() {
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                        <button 
-                          onClick={() => handleClientReminderPrompt(item)}
-                          style={{
-                            padding: '6px 10px',
-                            background: '#0ea5e9',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontWeight: 'bold',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Bell size={12} /> Remind Client
-                        </button>
                         <button 
                           onClick={() => handleSelfReminder(item)}
                           style={{

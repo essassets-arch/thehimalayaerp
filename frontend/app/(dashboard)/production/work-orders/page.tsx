@@ -2,17 +2,16 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
-import { Eye } from 'lucide-react';
+import { ClipboardList, Eye, Search } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
+import Swal from 'sweetalert2';
 
 import { DataTable } from '@/components/erp/data-table/DataTable';
-import { FilterBar } from '@/components/erp/common/FilterBar';
 import { StatusBadge } from '@/components/erp/common/StatusBadge';
 import { Button } from '@/components/ui/button';
-import { EntityHeader } from '@/components/erp/common/EntityHeader';
+import { backendFetch } from '@/lib/backendFetch';
+import styles from './work-orders.module.css';
 
 interface WorkOrder {
   id: string;
@@ -35,25 +34,67 @@ interface WorkOrder {
 export default function WorkOrderListPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [startingId, setStartingId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['work-orders-list', search, pagination],
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['work-orders-list'],
     queryFn: async () => {
-      const res = await axios.get('/api/backend/production/work-orders');
-      return res.data;
+      const payload = await backendFetch<WorkOrder[]>('/api/backend/production/work-orders');
+      return Array.isArray(payload)
+        ? payload.filter((workOrder) => {
+            const status = String(workOrder.workflowState?.name || workOrder.status || '').toUpperCase();
+            return !['CREATED', 'CANCELLED'].includes(status);
+          })
+        : [];
     }
   });
 
   const filteredData = React.useMemo(() => {
-    if (!data) return [];
-    if (!search) return data;
+    const workOrders = Array.isArray(data) ? data : [];
+    if (!search) return workOrders;
     const lower = search.toLowerCase();
-    return data.filter((w: WorkOrder) => 
+    return workOrders.filter((w: WorkOrder) =>
       w.workOrderNumber.toLowerCase().includes(lower) || 
       w.productionPlan?.planNumber.toLowerCase().includes(lower)
     );
   }, [data, search]);
+
+  const handleStartWork = async (workOrder: WorkOrder) => {
+    if (startingId) return;
+    const confirmation = await Swal.fire({
+      title: 'Start Production Work?',
+      text: `Start ${workOrder.workOrderNumber} on the production floor?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Start Work',
+      confirmButtonColor: '#2563eb',
+    });
+    if (!confirmation.isConfirmed) return;
+
+    setStartingId(workOrder.id);
+    try {
+      await backendFetch(`/api/backend/production/work-orders/${workOrder.id}/start`, {
+        method: 'POST',
+        body: { remarks: 'Production work started' },
+      });
+      await refetch();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Work Started',
+        text: `${workOrder.workOrderNumber} is now active on the production floor.`,
+        timer: 1600,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Unable to Start Work',
+        text: error instanceof Error ? error.message : 'Work order could not be started.',
+      });
+    } finally {
+      setStartingId(null);
+    }
+  };
 
   const columns: ColumnDef<WorkOrder>[] = [
     {
@@ -80,50 +121,87 @@ export default function WorkOrderListPage() {
     },
     {
       id: 'actions',
-      cell: ({ row }) => (
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => router.push(`/production/work-orders/${row.original.id}`)}
-          className="h-8 gap-1"
-        >
-          <Eye className="h-4 w-4 text-gray-500" />
-          Terminal
-        </Button>
-      ),
+      header: 'Actions',
+      cell: ({ row }) => {
+        const status = String(row.original.workflowState?.name || row.original.status || '').toUpperCase();
+        if (status === 'READY') {
+          return (
+            <Button
+              type="button"
+              onClick={() => handleStartWork(row.original)}
+              disabled={startingId === row.original.id}
+            >
+              {startingId === row.original.id ? 'Starting…' : 'Start Work'}
+            </Button>
+          );
+        }
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/production/work-orders/${row.original.id}`)}
+            className="h-8 gap-1"
+          >
+            <Eye className="h-4 w-4 text-gray-500" />
+            Terminal
+          </Button>
+        );
+      },
     },
   ];
 
   return (
-    <div className="container mx-auto py-8 max-w-7xl px-4 sm:px-6 lg:px-8">
-      <EntityHeader 
-        title="Work Orders" 
-        subtitle="Manage shop floor execution and log batches."
-      />
+    <main className={styles.page}>
+      <header className={styles.hero}>
+        <div className={styles.heroIcon}><ClipboardList size={24} /></div>
+        <div>
+          <span className={styles.eyebrow}>Production control</span>
+          <h1>Work Orders</h1>
+          <p>Manage shop-floor execution, production quantities and batch activity.</p>
+        </div>
+        <div className={styles.summary}>
+          <strong>{filteredData.length}</strong>
+          <span>Visible orders</span>
+        </div>
+      </header>
 
-      <div className="mt-6 space-y-4">
-        <FilterBar 
-          onSearch={setSearch}
-          searchPlaceholder="Search work order or plan number..."
-          hasActiveFilters={!!search}
-          onClear={() => setSearch('')}
-        />
+      <section className={styles.panel}>
+        <div className={styles.toolbar}>
+          <div>
+            <h2>Work-order register</h2>
+            <p>Orders released by Plant Head and assigned to Production.</p>
+          </div>
+          <label className={styles.search}>
+            <Search size={17} aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search work order or plan..."
+              aria-label="Search work orders"
+            />
+            <div className="w-12 flex items-center justify-center">
+              {search && (
+                <button type="button" onClick={() => setSearch('')} aria-label="Clear search">
+                  Clear
+                </button>
+              )}
+            </div>
+          </label>
+        </div>
 
         {isLoading ? (
-          <div className="h-64 flex items-center justify-center text-gray-500">Loading work orders...</div>
+          <div className={styles.loading}>Loading work orders…</div>
         ) : (
           <DataTable 
             columns={columns} 
-            data={filteredData.slice(
-              pagination.pageIndex * pagination.pageSize,
-              (pagination.pageIndex + 1) * pagination.pageSize
-            )} 
-            pageCount={Math.ceil(filteredData.length / pagination.pageSize)}
-            onPaginationChange={setPagination}
+            data={filteredData}
             serverSide={false}
+            className={styles.table}
+            emptyMessage={search ? 'No work orders match your search.' : 'No work orders have been released yet.'}
           />
         )}
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

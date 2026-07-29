@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, Query } from '@nestjs/common';
 import { WorkOrdersService } from './work-orders.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
@@ -8,8 +8,9 @@ export class WorkOrdersController {
 
   @Get()
   @Permissions('production.workorder.read')
-  async listWorkOrders() {
-    return this.workOrdersService.listWorkOrders();
+  async listWorkOrders(@Query('status') status?: string) {
+    const statuses = status ? status.split(',') : [];
+    return this.workOrdersService.listWorkOrders(statuses);
   }
 
   @Get(':id')
@@ -52,5 +53,17 @@ export class WorkOrdersController {
   @Permissions('production.workorder.complete')
   async completeWorkOrder(@Param('id') id: string, @Body() dto: { remarks?: string }, @Req() req: any) {
     return this.workOrdersService.processAction(id, 'COMPLETE', dto.remarks, req.user?.sub);
+  }
+
+  @Post(':id/send-to-dispatch')
+  @Permissions('production.workorder.complete')
+  async sendToDispatch(@Param('id') id: string, @Req() req: any) {
+    return this.workOrdersService.sendToDispatch(id, req.user?.sub);
+  }
+
+  @Post(':id/dispatch')
+  @Permissions('dispatch.update')
+  async dispatchOrder(@Param('id') id: string, @Req() req: any) {
+    return this.workOrdersService.dispatchOrder(id, req.user?.sub);
   }
 }

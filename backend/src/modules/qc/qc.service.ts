@@ -13,7 +13,10 @@ export class QcService {
     return this.prisma.qCInspection.findMany({
       include: {
         workOrder: {
-          include: { productionPlan: { include: { salesOrder: { include: { customer: true } } } } }
+          include: { 
+            productionPlan: { include: { salesOrder: { include: { customer: true } } } },
+            salesOrderItem: true
+          }
         },
         workflowState: true
       },
@@ -35,11 +38,12 @@ export class QcService {
     return inspection;
   }
 
-  async processAction(id: string, actionName: string, remarks?: string, userId?: string) {
+  async processAction(id: string, actionName: string, remarks?: string, userId?: string, extraData?: any) {
     return this.prisma.$transaction(async (tx) => {
     const inspection = await tx.qCInspection.findUnique({
       where: { id },
       include: {
+        workflowState: true,
         workOrder: {
           include: {
             salesOrderItem: true,
@@ -56,28 +60,57 @@ export class QcService {
     });
     if (!inspection) throw new NotFoundException('QC Inspection not found');
 
+    let currentStateId = inspection.workflowStateId!;
+    if (actionName === 'APPROVE' && inspection.workflowState?.code === 'PENDING') {
+      const startResult = await this.workflowService.processAction({
+        entityId: id,
+        entityType: 'QC_INSPECTION',
+        workflowCode: 'QC_INSPECTION',
+        currentStateId: currentStateId,
+        actionName: 'START',
+        userId: userId || 'SYSTEM',
+        remarks: 'Auto-started for immediate approval'
+      }, tx);
+      currentStateId = startResult.nextStateId;
+      await tx.qCInspection.update({ where: { id }, data: { workflowStateId: currentStateId } });
+    }
+
     const result = await this.workflowService.processAction({
       entityId: id,
       entityType: 'QC_INSPECTION',
       workflowCode: 'QC_INSPECTION',
-      currentStateId: inspection.workflowStateId!,
+      currentStateId,
       actionName,
       userId: userId || 'SYSTEM',
       remarks
     }, tx);
 
+    const updateData: any = {
+      workflowStateId: result.nextStateId,
+    };
+
+    if (actionName === 'APPROVE') {
+      updateData.status = 'APPROVED';
+      updateData.approvedAt = new Date();
+      updateData.inspectorId = userId || 'SYSTEM';
+      if (extraData?.approvedQuantity !== undefined) updateData.approvedQuantity = extraData.approvedQuantity;
+      if (extraData?.rejectedQuantity !== undefined) updateData.rejectedQuantity = extraData.rejectedQuantity;
+      if (remarks) updateData.remarks = remarks;
+      
+      // Move WorkOrder to QC_APPROVED status as part of QC Approval
+      await tx.workOrder.update({
+        where: { id: inspection.workOrderId },
+        data: { status: 'QC_APPROVED' }
+      });
+    } else if (actionName === 'REJECT') {
+      updateData.status = 'FAILED';
+    } else if (actionName === 'REWORK') {
+      updateData.status = 'REWORK';
+    }
+
     const updated = await tx.qCInspection.update({
       where: { id },
-      data: {
-        workflowStateId: result.nextStateId,
-        status: actionName === 'APPROVE'
-          ? 'APPROVED'
-          : actionName === 'REJECT'
-            ? 'FAILED'
-            : actionName === 'REWORK'
-              ? 'REWORK'
-              : undefined,
-      }
+      data: updateData
     });
 
     if (actionName === 'APPROVE') {

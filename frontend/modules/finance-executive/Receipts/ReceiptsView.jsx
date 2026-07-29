@@ -1,201 +1,147 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { Search, Eye, Printer, FileText } from 'lucide-react';
-import { useERPStore } from '../../../store/erpStore';
+import { Image as ImageIcon, Printer, RefreshCw, Search } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { backendFetch } from '../../../lib/backendFetch';
+
+const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+const date = (value) => value ? new Date(value).toLocaleDateString('en-IN') : '—';
+const safe = (value) => String(value ?? '—')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
 
 export default function ReceiptsView() {
-  const state = useERPStore((s) => s.state);
-  const receipts = state.finance?.paymentReceipts || [];
-
   const [searchQuery, setSearchQuery] = useState('');
+  const { data: payments = [], isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: ['finance-payment-receipts'],
+    queryFn: async () => {
+      const response = await backendFetch('/api/backend/finance/payments');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+
+  const receipts = useMemo(() => payments
+    .filter((payment) => ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(payment.status || '').toUpperCase()))
+    .map((payment) => ({
+      id: payment.id,
+      receiptNumber: payment.paymentNo || `RCPT-${String(payment.id).slice(0, 8)}`,
+      orderId: payment.salesOrder?.orderNumber || payment.salesOrderId || '—',
+      invoiceNumber: payment.salesOrder?.orderNumber ? `INV-${payment.salesOrder.orderNumber}` : '—',
+      customerName: payment.customer?.companyName || payment.customer?.name || 'Unknown customer',
+      paymentAmount: Number(payment.amount || 0),
+      totalInvoiceAmount: Number(payment.salesOrder?.totalAmount || payment.amount || 0),
+      paymentMode: payment.method || 'Bank Transfer',
+      transactionReference: payment.referenceNo || payment.paymentNo || '—',
+      paymentDate: payment.verifiedAt || payment.receivedAt || payment.createdAt,
+      proofUrl: payment.proofUrl,
+    })), [payments]);
 
   const filteredReceipts = useMemo(() => {
-    if (!searchQuery) return receipts;
-    const q = searchQuery.toLowerCase();
-    return receipts.filter((r) =>
-      r.receiptNumber?.toLowerCase().includes(q) ||
-      r.customerName?.toLowerCase().includes(q) ||
-      r.orderId?.toLowerCase().includes(q)
-    );
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return receipts;
+    return receipts.filter((receipt) => [
+      receipt.receiptNumber,
+      receipt.customerName,
+      receipt.orderId,
+      receipt.invoiceNumber,
+      receipt.transactionReference,
+    ].some((value) => String(value || '').toLowerCase().includes(query)));
   }, [receipts, searchQuery]);
 
-  const handlePrintReceipt = (receipt) => {
-    const formattedDate = new Date(receipt.createdAt).toLocaleString();
-    Swal.fire({
-      title: `<span style="font-size: 20px; font-weight: 800; color: #1E293B;">Receipt #${receipt.receiptNumber}</span>`,
-      width: '560px',
+  const handleReceipt = async (receipt) => {
+    const result = await Swal.fire({
+      title: `Receipt ${safe(receipt.receiptNumber)}`,
+      width: 620,
+      showCancelButton: true,
+      confirmButtonText: 'Print Receipt',
+      cancelButtonText: 'Close',
+      confirmButtonColor: '#2563eb',
       html: `
-        <div style="text-align: left; font-family: 'Outfit', sans-serif; font-size: 13.5px; border: 1px solid #E2E8F0; padding: 20px; border-radius: 12px; background: white; margin-top: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.02);">
-          <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #3b82f6; padding-bottom: 12px; margin-bottom: 16px;">
-            <div>
-              <strong style="font-size: 16px; color: #1E3A8A;">Himalaya Concrete Products</strong>
-              <div style="font-size: 11px; color: #64748B; margin-top: 2px;">Plot 12, MIDC, Nagpur, MH, India</div>
-            </div>
-            <div style="text-align: right;">
-              <strong style="color: #3b82f6; font-size: 15px;">Official Receipt</strong>
-              <div style="font-size: 11px; color: #64748B; margin-top: 2px;">Date: ${receipt.paymentDate}</div>
-            </div>
+        <div id="finance-printable-receipt" style="text-align:left;border:1px solid #dbe5f0;border-radius:12px;padding:22px;font-family:Arial,sans-serif">
+          <div style="display:flex;justify-content:space-between;border-bottom:2px solid #2563eb;padding-bottom:14px;margin-bottom:18px">
+            <div><strong style="font-size:18px;color:#1e3a8a">Himalaya Composites & Precast Pvt. Ltd.</strong><div style="font-size:12px;color:#64748b;margin-top:4px">Official customer payment receipt</div></div>
+            <div style="text-align:right"><strong style="color:#2563eb">${safe(receipt.receiptNumber)}</strong><div style="font-size:12px;color:#64748b">${safe(date(receipt.paymentDate))}</div></div>
           </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-            <div>
-              <span style="font-size: 10px; color: #64748B; font-weight: 700; text-transform: uppercase; display: block;">Received From</span>
-              <strong style="color: #1E293B; font-size: 14px;">${receipt.customerName}</strong>
-              <div style="font-size: 12px; color: #475569; margin-top: 2px; line-height: 1.4;">${receipt.customerAddress || 'Customer Address'}</div>
-            </div>
-            <div style="text-align: right;">
-              <span style="font-size: 10px; color: #64748B; font-weight: 700; text-transform: uppercase; display: block;">Order Context</span>
-              <strong style="color: #1E293B; font-size: 13px; font-family: monospace;">Order: ${receipt.orderId}</strong>
-              <div style="font-size: 12px; color: #475569; margin-top: 2px;">Invoice: ${receipt.invoiceNumber || 'Pending'}</div>
-            </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px">
+            <div><span style="color:#64748b">Received from</span><br><strong>${safe(receipt.customerName)}</strong></div>
+            <div><span style="color:#64748b">Order / Invoice</span><br><strong>${safe(receipt.orderId)} / ${safe(receipt.invoiceNumber)}</strong></div>
+            <div><span style="color:#64748b">Payment method</span><br><strong>${safe(receipt.paymentMode)}</strong></div>
+            <div><span style="color:#64748b">Transaction reference</span><br><strong>${safe(receipt.transactionReference)}</strong></div>
           </div>
-
-          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 14px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between;">
-              <span style="color: #475569;">Payment Method:</span>
-              <strong>${receipt.paymentMode}</strong>
-            </div>
-            ${receipt.transactionReference ? `
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #475569;">Transaction Reference:</span>
-                <strong style="font-family: monospace;">${receipt.transactionReference}</strong>
-              </div>
-            ` : ''}
-            <div style="display: flex; justify-content: space-between; border-top: 1px dashed #CBD5E1; padding-top: 8px; margin-top: 4px;">
-              <span style="color: #475569; font-weight: 600;">Amount Received:</span>
-              <strong style="color: #10B981; font-size: 16px;">₹${receipt.paymentAmount.toLocaleString('en-IN')}</strong>
-            </div>
-          </div>
-
-          <div style="border-top: 1px solid #E2E8F0; padding-top: 12px; font-size: 12px; color: #475569; display: flex; flex-direction: column; gap: 4px;">
-            <div style="display: flex; justify-content: space-between;">
-              <span>Total Invoice Amount:</span>
-              <span>₹${receipt.totalInvoiceAmount.toLocaleString('en-IN')}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span>Previously Verified Paid:</span>
-              <span>₹${receipt.previouslyPaidAmount.toLocaleString('en-IN')}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-weight: 700; color: #1E293B; border-top: 1px solid #F1F5F9; padding-top: 4px; margin-top: 2px;">
-              <span>Outstanding Balance Remaining:</span>
-              <span style="color: #EF4444;">₹${receipt.remainingBalance.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-
-          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 24px; padding-top: 12px; border-top: 1px solid #F1F5F9;">
-            <div style="font-size: 11px; color: #64748B;">
-              <div>Generated At: ${formattedDate}</div>
-              <div>System Signed & Verified</div>
-            </div>
-            <div style="text-align: right;">
-              <div style="border-bottom: 1px solid #94A3B8; width: 140px; margin-bottom: 4px; height: 30px;"></div>
-              <span style="font-size: 11px; font-weight: 700; color: #475569;">${receipt.authorizedSignature}</span>
-            </div>
-          </div>
+          <div style="margin-top:20px;padding:16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:9px;display:flex;justify-content:space-between"><strong>Verified amount received</strong><strong style="font-size:20px;color:#047857">${safe(money(receipt.paymentAmount))}</strong></div>
+          <div style="margin-top:22px;font-size:11px;color:#64748b">System generated receipt • Finance verified</div>
         </div>
       `,
-      confirmButtonText: 'Print Receipt',
-      showCancelButton: true,
-      cancelButtonText: 'Close',
-      confirmButtonColor: '#3b82f6',
-      cancelButtonColor: '#64748B'
-    }).then((res) => {
-      if (res.isConfirmed) {
-        window.print();
-      }
     });
+    if (result.isConfirmed) window.print();
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: "'Outfit', sans-serif" }}>
-      
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontFamily: "'Outfit', sans-serif" }}>
       <div>
-        <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1E293B', margin: 0 }}>Customer Payment Receipts</h1>
-        <p style={{ color: '#64748B', fontSize: '13.5px', marginTop: '4px', margin: 0 }}>
-          View, print, and search verified receipts linked to order payments.
-        </p>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1E293B', margin: 0 }}>Customer Payment Receipts</h1>
+        <p style={{ color: '#64748B', fontSize: 13.5, margin: '4px 0 0' }}>Verified customer payments from the Finance workflow.</p>
       </div>
 
-      <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        
-        {/* Search */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ position: 'relative', width: '280px' }}>
-            <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '14px', height: '14px', color: '#94A3B8' }} />
-            <input 
-              type="text" 
-              placeholder="Search by Receipt #, Client..." 
+      <div style={{ background: 'white', padding: 20, borderRadius: 12, border: '1px solid #E2E8F0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+          <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: 420 }}>
+            <Search style={{ position: 'absolute', left: 12, top: 11, width: 15, height: 15, color: '#94A3B8' }} />
+            <input
+              type="search"
+              placeholder="Search receipt, order, invoice or customer..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              style={{ width: '100%', padding: '9px 12px 9px 36px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13 }}
             />
           </div>
+          <button onClick={() => refetch()} disabled={isFetching} className="btn-small btn-outline-small" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            <RefreshCw size={14} className={isFetching ? 'spin' : ''} /> Refresh
+          </button>
         </div>
 
-        {/* Table */}
-        <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '12px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead style={{ background: '#F8FAFC', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
-              <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
-                <th style={{ padding: '12px 16px' }}>Receipt Number</th>
-                <th style={{ padding: '12px 16px' }}>Order ID</th>
-                <th style={{ padding: '12px 16px' }}>Customer Name</th>
-                <th style={{ padding: '12px 16px' }}>Amount Paid</th>
-                <th style={{ padding: '12px 16px' }}>Payment Mode</th>
-                <th style={{ padding: '12px 16px' }}>Date</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+        {error && <div style={{ padding: 14, marginBottom: 14, borderRadius: 8, background: '#FEF2F2', color: '#B91C1C' }}>{error.message || 'Unable to load receipts.'}</div>}
+
+        <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: 10 }}>
+          <table style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead style={{ background: '#F8FAFC', fontSize: 12, color: '#475569' }}>
+              <tr>
+                {['Receipt Number', 'Order / Invoice', 'Customer', 'Verified Amount', 'Payment Mode', 'Verified Date', 'Actions'].map((heading) => (
+                  <th key={heading} style={{ padding: '12px 14px', borderBottom: '1px solid #E2E8F0' }}>{heading}</th>
+                ))}
               </tr>
             </thead>
-            <tbody style={{ fontSize: '13.5px' }}>
-              {filteredReceipts.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>
-                    No verified receipts found.
+            <tbody style={{ fontSize: 13 }}>
+              {isLoading ? (
+                <tr><td colSpan={7} style={{ padding: 28, textAlign: 'center', color: '#64748B' }}>Loading verified receipts...</td></tr>
+              ) : filteredReceipts.length === 0 ? (
+                <tr><td colSpan={7} style={{ padding: 28, textAlign: 'center', color: '#94A3B8' }}>No verified payment receipts found.</td></tr>
+              ) : filteredReceipts.map((receipt) => (
+                <tr key={receipt.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <td style={{ padding: '12px 14px', fontWeight: 800, color: '#1E3A8A' }}>{receipt.receiptNumber}</td>
+                  <td style={{ padding: '12px 14px' }}><strong>{receipt.orderId}</strong><div style={{ color: '#64748B', marginTop: 2 }}>{receipt.invoiceNumber}</div></td>
+                  <td style={{ padding: '12px 14px', fontWeight: 600 }}>{receipt.customerName}</td>
+                  <td style={{ padding: '12px 14px', fontWeight: 800, color: '#047857' }}>{money(receipt.paymentAmount)}</td>
+                  <td style={{ padding: '12px 14px' }}>{receipt.paymentMode}</td>
+                  <td style={{ padding: '12px 14px' }}>{date(receipt.paymentDate)}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                      <button onClick={() => handleReceipt(receipt)} className="btn-small btn-primary-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Printer size={13} /> View / Print</button>
+                      {receipt.proofUrl && <button onClick={() => window.open(receipt.proofUrl, '_blank', 'noopener,noreferrer')} className="btn-small btn-outline-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ImageIcon size={13} /> Proof</button>}
+                    </div>
                   </td>
                 </tr>
-              ) : (
-                filteredReceipts.map((r) => (
-                  <tr key={r.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: '700', color: '#1E293B' }}>{r.receiptNumber}</td>
-                    <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{r.orderId}</td>
-                    <td style={{ padding: '12px 16px', fontWeight: '600' }}>{r.customerName}</td>
-                    <td style={{ padding: '12px 16px', fontWeight: '800', color: '#10B981' }}>₹{r.paymentAmount.toLocaleString('en-IN')}</td>
-                    <td style={{ padding: '12px 16px' }}>{r.paymentMode}</td>
-                    <td style={{ padding: '12px 16px' }}>{r.paymentDate}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                        <button 
-                          onClick={() => handlePrintReceipt(r)}
-                          style={{
-                            padding: '6px 12px',
-                            background: '#F1F5F9',
-                            border: '1px solid #E2E8F0',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            color: '#475569',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Eye size={12} /> View / Print
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>
-
       </div>
-
     </div>
   );
 }

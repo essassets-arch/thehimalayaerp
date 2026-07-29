@@ -9,6 +9,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '@/store/erpStore';
+import styles from './OrdersView.module.css';
 
 export default function OrdersView({ 
   orders, 
@@ -76,7 +77,17 @@ export default function OrdersView({
   const getAvailableAfterSalesQuantity = (order) => {
     if (!order) return 0;
     const items = order.items || order.detailedItems || [];
-    const deliveredQty = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const deliveredQty = items.reduce(
+      (sum, item) =>
+        sum +
+        (Number(
+          item.deliveredQuantity ??
+          item.quantity ??
+          item.orderedQuantity ??
+          0
+        ) || 0),
+      0
+    );
     
     const reps = replacementRequests || [];
     const rets = returnRequests || [];
@@ -97,7 +108,7 @@ export default function OrdersView({
 
   const hasActiveReplacement = (order) => {
     const status = String(order?.replacementStatus || order?._raw?.replacement_status || '').toUpperCase();
-    if (order?.activeReplacementExists || order?._raw?.active_replacement_exists || status === 'ACTIVE' || status === 'PENDING') return true;
+    if (order?.activeReplacementExists || order?._raw?.active_replacement_exists || ['ACTIVE', 'PENDING', 'REQUESTED', 'UNDER_REVIEW', 'APPROVED', 'DISPATCHED', 'IN_TRANSIT'].includes(status)) return true;
     const reps = replacementRequests || [];
     const orderReplacements = reps.filter(r => r.orderId === order.id || r.orderId === order.orderNo);
     return orderReplacements.some(r => ['REPLACEMENT_REQUESTED', 'REPLACEMENT_APPROVED', 'REPLACEMENT_DISPATCHED', 'REPLACEMENT_IN_TRANSIT'].includes(r.status));
@@ -105,11 +116,27 @@ export default function OrdersView({
 
   const hasActiveReturn = (order) => {
     const status = String(order?.returnStatus || order?._raw?.return_status || '').toUpperCase();
-    if (order?.activeReturnExists || order?._raw?.active_return_exists || status === 'REQUESTED' || status === 'ACTIVE') return true;
+    if (order?.activeReturnExists || order?._raw?.active_return_exists || ['REQUESTED', 'UNDER_REVIEW', 'APPROVED', 'PICKUP_ASSIGNED', 'IN_TRANSIT', 'ACTIVE'].includes(status)) return true;
     const rets = returnRequests || [];
     const orderReturns = rets.filter(r => r.orderId === order.id || r.orderId === order.orderNo);
     return orderReturns.some(r => ['RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURN_PICKUP_ASSIGNED', 'RETURN_IN_TRANSIT'].includes(r.status));
   };
+
+  const replacementBadge = (order) => ({
+    REQUESTED: 'Replacement Requested',
+    UNDER_REVIEW: 'Under Plant Head Review',
+    APPROVED: 'Replacement Approved',
+    DISPATCHED: 'Dispatch Created',
+    IN_TRANSIT: 'Replacement In Transit',
+  }[String(order?.replacementStatus || '').toUpperCase()] || 'Replacement Pending');
+
+  const returnBadge = (order) => ({
+    REQUESTED: 'Return Requested',
+    UNDER_REVIEW: 'Under Plant Head Review',
+    APPROVED: 'Return Approved',
+    PICKUP_ASSIGNED: 'Dispatch Created',
+    IN_TRANSIT: 'Return In Transit',
+  }[String(order?.returnStatus || '').toUpperCase()] || 'Return Requested');
 
   const isDeliveredOrder = (order) => {
     const dispatchSt = String(order?.dispatchStatus || '').toUpperCase();
@@ -422,7 +449,7 @@ export default function OrdersView({
 
       {/* Table */}
       <div className="crm-table-container">
-        <table className="crm-table responsive-table flat-table">
+        <table className={`crm-table responsive-table ${styles.ordersTable}`}>
           <colgroup>
             {isProductionUser ? (
               <>
@@ -434,12 +461,12 @@ export default function OrdersView({
               </>
             ) : (
               <>
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '22%' }} />
-                <col style={{ width: '26%' }} />
+                <col style={{ width: '10%' }} />
                 <col style={{ width: '15%' }} />
-                <col style={{ width: '13%' }} />
+                <col style={{ width: '25%' }} />
+                <col style={{ width: '10%' }} />
                 <col style={{ width: '12%' }} />
+                <col style={{ width: '28%' }} />
               </>
             )}
           </colgroup>
@@ -496,8 +523,8 @@ export default function OrdersView({
                       <td data-label="Payment Status">
                         <StatusBadge status={paymentLabel} />
                       </td>
-                      <td data-label="Action">
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <td data-label="Action" className={styles.actionsCell}>
+                        <div className={styles.actionsGrid}>
                           <button
                             title="View"
                             onClick={() => setSelectedOrder(o)}
@@ -511,7 +538,7 @@ export default function OrdersView({
                           >
                             <Eye size={13} />
                           </button>
-                          {canAskForPayment(o) && (
+                          {isDeliveredOrder(o) && (
                             <button
                               type="button"
                               onClick={() => navigate.push('/sales/payment-followup')}
@@ -531,7 +558,7 @@ export default function OrdersView({
                           {hasPendingFinanceConfirmation(o) && (
                             <StatusBadge status="Payment Verification Pending" />
                           )}
-                          {onAskReplacement && canAskReplacement(o) && (
+                          {onAskReplacement && isDeliveredOrder(o) && !hasActiveReplacement(o) && !['COMPLETED', 'REJECTED'].includes(String(o.replacementStatus || '').toUpperCase()) && (
                             <button
                               type="button"
                               onClick={() => onAskReplacement(o)}
@@ -549,9 +576,11 @@ export default function OrdersView({
                             </button>
                           )}
                           {hasActiveReplacement(o) && (
-                            <StatusBadge status="Replacement Pending" />
+                            <StatusBadge status={replacementBadge(o)} />
                           )}
-                          {onAskReturn && canAskReturn(o) && (
+                          {String(o.replacementStatus || '').toUpperCase() === 'COMPLETED' && <StatusBadge status="Replacement Completed" />}
+                          {String(o.replacementStatus || '').toUpperCase() === 'REJECTED' && <StatusBadge status="Replacement Rejected" />}
+                          {onAskReturn && isDeliveredOrder(o) && !hasActiveReturn(o) && !['COMPLETED', 'REJECTED'].includes(String(o.returnStatus || '').toUpperCase()) && (
                             <button
                               type="button"
                               onClick={() => onAskReturn(o)}
@@ -569,8 +598,10 @@ export default function OrdersView({
                             </button>
                           )}
                           {hasActiveReturn(o) && (
-                            <span style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', background: '#ffe4e6', color: '#be123c', border: '1px solid #fda4af' }}>Return Requested</span>
+                            <StatusBadge status={returnBadge(o)} />
                           )}
+                          {String(o.returnStatus || '').toUpperCase() === 'COMPLETED' && <StatusBadge status="Return Completed" />}
+                          {String(o.returnStatus || '').toUpperCase() === 'REJECTED' && <StatusBadge status="Return Rejected" />}
                         </div>
                       </td>
                     </tr>
@@ -600,16 +631,15 @@ export default function OrdersView({
                     )}
                     <td data-label="Order Status">
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {o.dispatchStatus === 'DELIVERED' && <StatusBadge status="Delivered" />}
                         {o.paymentStatus === 'FULLY_PAID' && <StatusBadge status="Fully Paid" />}
                         <StatusBadge status={getOrderStatusLabel(o)} />
                       </div>
                     </td>
-                    <td data-label="Actions">
+                    <td data-label="Actions" className={styles.actionsCell}>
                       {(() => {
                         const actionState = getOrderActionState(o);
                         return (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                          <div className={styles.actionsGrid}>
                             <button
                               title="View Details"
                               onClick={() => setSelectedOrder(o)}
@@ -715,9 +745,9 @@ export default function OrdersView({
                               </button>
                             )}
 
-                            {(actionState.action === 'AFTER_DELIVERY' || actionState.action === 'AFTER_SALES') && (
+                            {isDeliveredOrder(o) && (
                               <>
-                                {canAskForPayment(o) && (
+                                {isDeliveredOrder(o) && (
                                   <button
                                     type="button"
                                     onClick={() => navigate.push('/sales/payment-followup')}
@@ -738,7 +768,7 @@ export default function OrdersView({
                                 {hasPendingFinanceConfirmation(o) && (
                                   <StatusBadge status="Payment Verification Pending" />
                                 )}
-                                {onAskReplacement && canAskReplacement(o) && (
+                                {onAskReplacement && isDeliveredOrder(o) && !hasActiveReplacement(o) && !['COMPLETED', 'REJECTED'].includes(String(o.replacementStatus || '').toUpperCase()) && (
                                   <button
                                     type="button"
                                     onClick={() => onAskReplacement(o)}
@@ -757,9 +787,11 @@ export default function OrdersView({
                                   </button>
                                 )}
                                 {hasActiveReplacement(o) && (
-                                  <StatusBadge status="Replacement Pending" />
+                                  <StatusBadge status={replacementBadge(o)} />
                                 )}
-                                {onAskReturn && canAskReturn(o) && (
+                                {String(o.replacementStatus || '').toUpperCase() === 'COMPLETED' && <StatusBadge status="Replacement Completed" />}
+                                {String(o.replacementStatus || '').toUpperCase() === 'REJECTED' && <StatusBadge status="Replacement Rejected" />}
+                                {onAskReturn && isDeliveredOrder(o) && !hasActiveReturn(o) && !['COMPLETED', 'REJECTED'].includes(String(o.returnStatus || '').toUpperCase()) && (
                                   <button
                                     type="button"
                                     onClick={() => onAskReturn(o)}
@@ -778,12 +810,14 @@ export default function OrdersView({
                                   </button>
                                 )}
                                 {hasActiveReturn(o) && (
-                                  <span style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', background: '#ffe4e6', color: '#be123c', border: '1px solid #fda4af' }}>Return Requested</span>
+                                  <StatusBadge status={returnBadge(o)} />
                                 )}
+                                {String(o.returnStatus || '').toUpperCase() === 'COMPLETED' && <StatusBadge status="Return Completed" />}
+                                {String(o.returnStatus || '').toUpperCase() === 'REJECTED' && <StatusBadge status="Return Rejected" />}
                               </>
                             )}
 
-                            {!actionState.action && actionState.label && (
+                            {!isDeliveredOrder(o) && !actionState.action && actionState.label && (
                               <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: '600', padding: '0 4px' }}>
                                 {actionState.label}
                               </span>
@@ -988,7 +1022,7 @@ export default function OrdersView({
                     ✓ Send to Plant Head
                   </button>
                 )}
-                {canAskForPayment(currentDetailsOrder) && (
+                {isDeliveredOrder(currentDetailsOrder) && (
                   <button
                     type="button"
                     onClick={() => { setSelectedOrder(null); navigate.push('/sales/payment-followup'); }}
@@ -1000,7 +1034,7 @@ export default function OrdersView({
                     Ask for Payment
                   </button>
                 )}
-                {onAskReplacement && canAskReplacement(currentDetailsOrder) && (
+                {onAskReplacement && isDeliveredOrder(currentDetailsOrder) && (
                   <button
                     type="button"
                     onClick={() => { setSelectedOrder(null); onAskReplacement(currentDetailsOrder); }}
@@ -1012,7 +1046,7 @@ export default function OrdersView({
                     Ask for Replacement
                   </button>
                 )}
-                {onAskReturn && canAskReturn(currentDetailsOrder) && (
+                {onAskReturn && isDeliveredOrder(currentDetailsOrder) && (
                   <button
                     type="button"
                     onClick={() => { setSelectedOrder(null); onAskReturn(currentDetailsOrder); }}

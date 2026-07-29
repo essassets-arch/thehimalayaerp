@@ -2120,6 +2120,8 @@ export const useERPStore = create((set: any, get: any) => ({
         customerId: payload.customerId,
         orderId: payload.orderId,
         invoiceNumber: payload.invoiceNumber,
+        customerName: payload.customerName,
+        outstandingAmount: payload.outstandingAmount ? Number(payload.outstandingAmount) : undefined,
         contactPerson: payload.contactPerson,
         phoneNumber: payload.phoneNumber,
         followUpDate: payload.followUpDate,

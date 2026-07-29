@@ -12,6 +12,18 @@ export class PaymentsController {
     return this.paymentsService.listPayments();
   }
 
+  @Get('sales-recorded')
+  @Permissions('sales.orders.read')
+  async listSalesRecordedPayments() {
+    return this.paymentsService.listSalesRecordedPayments();
+  }
+
+  @Get('delivered-orders')
+  @Permissions('finance.payment.read')
+  async listDeliveredOrders() {
+    return this.paymentsService.listDeliveredOrders();
+  }
+
   @Get(':id')
   @Permissions('finance.payment.read')
   async getPayment(@Param('id') id: string) {
@@ -22,6 +34,15 @@ export class PaymentsController {
   @Permissions('finance.payment.create')
   async createPayment(@Body() dto: { customerId: string, amount: number }, @Req() req: any) {
     return this.paymentsService.createPayment(dto, req.user?.sub);
+  }
+
+  @Post('sales-record')
+  @Permissions('sales.orders.update')
+  async recordPaymentFromSales(
+    @Body() dto: { customerId: string, salesOrderId: string, amount: number, proofUrl: string },
+    @Req() req: any,
+  ) {
+    return this.paymentsService.recordPaymentFromSales(dto, req.user?.sub);
   }
 
   @Post(':id/submit-verification')

@@ -9,7 +9,9 @@ export class QcController {
   @Get()
   @Permissions('qc.inspection.read')
   async listInspections() {
-    return this.qcService.listInspections();
+    const items = await this.qcService.listInspections();
+    console.log('listInspections called. Returned items count:', items.length);
+    return items;
   }
 
   @Get(':id')
@@ -32,8 +34,8 @@ export class QcController {
 
   @Post(':id/approve')
   @Permissions('qc.inspection.approve')
-  async approveInspection(@Param('id') id: string, @Body() dto: { remarks?: string }, @Req() req: any) {
-    return this.qcService.processAction(id, 'APPROVE', dto.remarks, req.user?.sub);
+  async approveInspection(@Param('id') id: string, @Body() dto: { remarks?: string, approvedQuantity?: number, rejectedQuantity?: number }, @Req() req: any) {
+    return this.qcService.processAction(id, 'APPROVE', dto.remarks, req.user?.sub, dto);
   }
 
   @Post(':id/reject')

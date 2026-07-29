@@ -33,7 +33,7 @@ export default function WorkOrderDetailsPage() {
   const status = wo.workflowState?.code || wo.status;
 
   const headerDetails = [
-    { label: 'Production Plan', value: wo.productionPlan.planNumber },
+    { label: 'Production Plan', value: wo.productionPlan?.planNumber || 'N/A' },
     { label: 'Target Quantity', value: wo.quantity },
     { label: 'Created At', value: new Date(wo.createdAt).toLocaleDateString() },
   ];

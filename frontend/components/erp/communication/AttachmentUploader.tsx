@@ -36,10 +36,19 @@ export function AttachmentUploader({ entityType, entityId, className }: Attachme
   const { data: attachments = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      const res = await axios.get<Attachment[]>(`/api/backend/attachments`, {
+      const res = await axios.get<any>(`/api/backend/attachments`, {
         params: { entityType, entityId }
       });
-      return res.data;
+      const body = res.data;
+      return Array.isArray(body) 
+        ? body 
+        : Array.isArray(body?.data) 
+          ? body.data 
+          : Array.isArray(body?.attachments)
+            ? body.attachments
+            : Array.isArray(body?.items)
+              ? body.items
+              : [];
     }
   });
 

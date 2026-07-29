@@ -42,6 +42,11 @@ export interface SalesOrderResponseDto {
   // Computed summaries — derived from child documents, not stored
   productionSummary?: string;
   dispatchSummary?: string;
+  dispatchStatus?: string;
+  deliveredAt?: string;
+  podUrl?: string;
+  returnStatus?: string;
+  replacementStatus?: string;
   paymentSummary?: string;
   invoiceSummary?: string;
 

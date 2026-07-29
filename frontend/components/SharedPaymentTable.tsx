@@ -9,6 +9,8 @@ import Swal from 'sweetalert2';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
 import { useERPStore } from '../store/erpStore';
 import { apiClient } from '../lib/apiClient';
+import { backendFetch } from '../lib/backendFetch';
+import { useQuery } from '@tanstack/react-query';
 import { getPaymentStatus, formatRemainingDays } from '../utils/paymentTerms';
 import { 
   PaymentStatusBadge, 
@@ -21,10 +23,40 @@ import './erp-premium-ui.css';
 export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' | 'finance' }) {
   const storeState = useERPStore((s: any) => s.state);
   const recordPayment = useERPStore((s: any) => s.recordSalesPayment);
-  const orders = storeState?.sales?.orders || [];
+  const localOrders = storeState?.sales?.orders || [];
   const quotations = storeState?.sales?.quotations || [];
   const paymentConfirmations = storeState?.sales?.paymentConfirmations || [];
   const consignments = storeState?.dispatch?.consignments || [];
+  const { data: backendOrders = [] } = useQuery<any[]>({
+    queryKey: ['payment-followup-sales-orders'],
+    queryFn: async () => {
+      const response = await backendFetch<any>('/api/backend/sales/orders');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+  const { data: backendPayments = [], refetch: refetchBackendPayments } = useQuery<any[]>({
+    queryKey: ['sales-recorded-payments'],
+    queryFn: async () => {
+      const response = await backendFetch<any>('/api/backend/finance/payments/sales-recorded');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+  const orders = useMemo(() => {
+    const normalizedBackend = backendOrders.map((order: any) => ({
+      ...order,
+      orderNo: order.orderNo || order.orderId,
+    }));
+    return [...normalizedBackend, ...localOrders].filter(
+      (order: any, index: number, list: any[]) => {
+        const key = String(order.id || order.orderNo || order.orderId || '');
+        return list.findIndex((candidate: any) =>
+          String(candidate.id || candidate.orderNo || candidate.orderId || '') === key
+        ) === index;
+      },
+    );
+  }, [backendOrders, localOrders]);
 
   // Local UI State
   const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
@@ -42,6 +74,7 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
   const [payAmount, setPayAmount] = useState('');
   const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
   const [payRemarks, setPayRemarks] = useState('');
+  const [payProof, setPayProof] = useState<File | null>(null);
   const [reminderModal, setReminderModal] = useState<any>(null);
 
   const handleSaveReminder = async (formData: any) => {
@@ -76,13 +109,22 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
           confirmation.orderId === o.id && confirmation.status === 'FINANCE_VERIFIED'
         )
         .reduce((sum: number, confirmation: any) => sum + Number(confirmation.amount || 0), 0);
+      const backendOrderPayments = backendPayments.filter((payment: any) =>
+        String(payment.salesOrderId) === String(o.id)
+      );
+      const verifiedBackendAmount = backendOrderPayments
+        .filter((payment: any) => ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(payment.status || '').toUpperCase()))
+        .reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0);
       const hasPendingFinanceConfirmation = paymentConfirmations.some((confirmation: any) =>
         String(confirmation.orderId) === String(orderId) &&
         ['FINANCE_VERIFICATION_PENDING', 'PENDING', 'SUBMITTED_FOR_VERIFICATION'].includes(
           String(confirmation.status || '').toUpperCase()
         )
+      ) || backendOrderPayments.some((payment: any) =>
+        ['SUBMITTED', 'UNDER_VERIFICATION', 'FINANCE_VERIFICATION_PENDING', 'RECEIVED']
+          .includes(String(payment.status || '').toUpperCase())
       );
-      const paidAmount = Number(o.paidAmount || o.paid_amount || verifiedFromConfirmations || 0);
+      const paidAmount = Number(o.paidAmount || o.paid_amount || (verifiedFromConfirmations + verifiedBackendAmount) || 0);
       const pendingAmount = Math.max(0, totalAmount - paidAmount);
       const paymentTermsRaw = String(o.paymentTerms || '15');
       const paymentTermsMatch = paymentTermsRaw.match(/\d+/);
@@ -123,7 +165,7 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
           Boolean(deliveryDate && deliveryDate !== '--')
       };
     });
-  }, [orders, quotations, paymentConfirmations, consignments]);
+  }, [orders, quotations, paymentConfirmations, backendPayments, consignments]);
 
   // 2. Filter Orders for Table Display
   const filteredOrders = useMemo(() => {
@@ -169,7 +211,7 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
     });
   }, [processedOrders, activeTab, searchQuery, customerFilter, salespersonFilter, statusFilter, quickFilter]);
 
-  const handleRecordPaymentSubmit = (e: React.FormEvent) => {
+  const handleRecordPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentModalOrder) return;
     const amountNum = Number(payAmount);
@@ -190,41 +232,93 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
       });
       return;
     }
+    if (!payProof) {
+      Swal.fire({
+        title: 'Payment Proof Required',
+        text: 'Please upload one payment receipt or transaction screenshot.',
+        icon: 'warning',
+      });
+      return;
+    }
 
     try {
-      recordPayment(
-      paymentModalOrder.id || paymentModalOrder.orderNo,
-      {
-        amount: amountNum,
-        method: 'BANK_TRANSFER',
-        transactionReference: `TXN${Date.now().toString().slice(-6)}`,
-        paymentDate: payDate,
-        remarks: payRemarks,
-      },
-      mode === 'finance' ? 'Finance Team' : 'Sales Executive'
-    );
+      const upload = new FormData();
+      upload.append('file', payProof);
+      upload.append('category', 'payment-proof');
+      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: upload });
+      if (!uploadResponse.ok) {
+        const uploadError = await uploadResponse.json().catch(() => ({}));
+        throw new Error(uploadError?.message || 'Payment proof upload failed');
+      }
+      const uploadedProof = await uploadResponse.json();
+      const proofUrl = uploadedProof.url;
+      if (!proofUrl) throw new Error('Payment proof upload did not return a file URL');
 
-    const orderId = paymentModalOrder.orderNo || paymentModalOrder.id;
-    const isFullyPaid = amountNum >= paymentModalOrder.pendingAmount;
+      const localOrder = localOrders.find((order: any) =>
+        [order.id, order.orderNo, order.orderNumber]
+          .filter(Boolean)
+          .some((identifier) =>
+            [paymentModalOrder.id, paymentModalOrder.orderNo, paymentModalOrder.orderNumber]
+              .filter(Boolean)
+              .some((candidate) => String(candidate) === String(identifier))
+          )
+      );
+
+      if (localOrder) {
+        recordPayment(
+          localOrder.id,
+          {
+            amount: amountNum,
+            method: 'BANK_TRANSFER',
+            transactionReference: `TXN${Date.now().toString().slice(-6)}`,
+            paymentDate: payDate,
+            remarks: payRemarks,
+            proofDocument: proofUrl,
+          },
+          mode === 'finance' ? 'Finance Team' : 'Sales Executive'
+        );
+      } else {
+        const customerId = paymentModalOrder.customerId || paymentModalOrder.customer?.id;
+        if (!customerId) {
+          throw new Error('Customer information is missing for this order. Please refresh and try again.');
+        }
+
+        await backendFetch<any>('/api/backend/finance/payments/sales-record', {
+          method: 'POST',
+          body: {
+            customerId,
+            amount: amountNum,
+            paymentDate: payDate,
+            method: 'BANK_TRANSFER',
+            remarks: payRemarks,
+            salesOrderId: paymentModalOrder.id,
+            proofUrl,
+          },
+        });
+        await refetchBackendPayments();
+      }
+
+    const orderId = paymentModalOrder.orderNo || paymentModalOrder.orderNumber || paymentModalOrder.id;
 
     Swal.fire({
-      title: isFullyPaid ? 'Payment Verified & Settled! 🎉' : 'Partial Payment Recorded! 💳',
+      title: 'Payment Submitted for Verification',
       html: `
         <div style="font-size:14px; text-align:left; line-height:1.6; padding: 4px;">
           <p><strong>Order ID:</strong> ${orderId}</p>
           <p><strong>Amount Recorded:</strong> <span style="color:#047857; font-weight:bold;">₹${amountNum.toLocaleString('en-IN')}</span></p>
           <p><strong>Payment Date:</strong> ${payDate}</p>
-          <p><strong>Status:</strong> ${isFullyPaid ? '<span style="color:#059669; font-weight:bold;">PAID / PAYMENT VERIFIED</span>' : '<span style="color:#b45309; font-weight:bold;">PARTIAL PAYMENT</span>'}</p>
+          <p><strong>Status:</strong> <span style="color:#b45309; font-weight:bold;">PENDING FINANCE VERIFICATION</span></p>
         </div>
       `,
       icon: 'success',
       confirmButtonColor: '#059669',
-      confirmButtonText: 'Great, thanks!'
+      confirmButtonText: 'Done'
     });
 
       setPaymentModalOrder(null);
       setPayAmount('');
       setPayRemarks('');
+      setPayProof(null);
     } catch (error: any) {
       Swal.fire({
         title: 'Payment Recording Failed',
@@ -363,7 +457,7 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
         </div>
       </div>
 
-      {/* 15-Column Table */}
+      {/* Payment follow-up table */}
       <div className="erp-table-card">
         <div className="erp-table-responsive">
           <table className="erp-table">
@@ -382,14 +476,15 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                 <th>11. Paid Amount</th>
                 <th>12. Pending Amount</th>
                 <th>13. Status</th>
-                <th>14. Reminder</th>
-                <th style={{ textAlign: 'right' }}>15. Action</th>
+                <th>14. POD Document</th>
+                <th>15. Reminder</th>
+                <th style={{ textAlign: 'right' }}>16. Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={15} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
+                  <td colSpan={16} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
                     No orders match the selected payment filters.
                   </td>
                 </tr>
@@ -427,6 +522,22 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                           />
                         )}
                       </td>
+                      <td>
+                        {o.podUrl ? (
+                          <a
+                            href={o.podUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="erp-btn erp-btn-sm erp-btn-secondary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
+                          >
+                            <Eye style={{ width: 13, height: 13 }} />
+                            View POD
+                          </a>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>—</span>
+                        )}
+                      </td>
                       <td style={{ color: '#5E6B82', fontSize: '11.5px' }}>
                         {o.hasPendingFinanceConfirmation
                           ? 'Awaiting Finance approval'
@@ -453,7 +564,7 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
 
                           {o.hasPendingFinanceConfirmation ? (
                             <span style={{ color: '#92400e', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                              Finance Verification Pending
+                              Sent to Finance
                             </span>
                           ) : o.pendingAmount > 0 && o.isDelivered && (
                             <button
@@ -489,13 +600,16 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
       {/* Record Payment Modal */}
       {paymentModalOrder && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(3px)', padding: '16px' }}>
-          <div style={{ width: '100%', maxWidth: '420px', background: '#ffffff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #DCE5F0' }}>
+          <div style={{ width: '100%', maxWidth: '420px', maxHeight: '92vh', background: '#ffffff', borderRadius: '16px', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #DCE5F0' }}>
             <div style={{ padding: '16px 20px', background: '#24345C', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Record Payment</h3>
                 <span style={{ fontSize: '11px', color: '#8893A7' }}>Order: {paymentModalOrder.orderNo || paymentModalOrder.id}</span>
               </div>
-              <button onClick={() => setPaymentModalOrder(null)} style={{ background: 'none', border: 'none', color: '#8893A7', cursor: 'pointer' }} type="button">
+              <button onClick={() => {
+                setPaymentModalOrder(null);
+                setPayProof(null);
+              }} style={{ background: 'none', border: 'none', color: '#8893A7', cursor: 'pointer' }} type="button">
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
@@ -540,10 +654,33 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                 />
               </div>
 
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Payment Proof Image <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', border: `1.5px dashed ${payProof ? '#16a34a' : '#94a3b8'}`, borderRadius: '10px', background: payProof ? '#f0fdf4' : '#f8fafc', cursor: 'pointer' }}>
+                  <Download style={{ width: 18, height: 18, color: payProof ? '#15803d' : '#475569' }} />
+                  <span style={{ minWidth: 0, color: payProof ? '#15803d' : '#475569', fontSize: '12px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {payProof ? payProof.name : 'Upload receipt or transaction screenshot'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    required
+                    onChange={(event) => setPayProof(event.target.files?.[0] || null)}
+                    style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+                  />
+                </label>
+                <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '10.5px' }}>JPG, PNG or WebP image.</p>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '4px' }}>
                 <button
                   type="button"
-                  onClick={() => setPaymentModalOrder(null)}
+                  onClick={() => {
+                    setPaymentModalOrder(null);
+                    setPayProof(null);
+                  }}
                   className="erp-btn erp-btn-secondary"
                 >
                   Cancel

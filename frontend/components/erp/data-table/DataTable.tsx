@@ -32,6 +32,8 @@ interface DataTableProps<TData, TValue> {
   pageCount?: number;
   onPaginationChange?: (pagination: PaginationState) => void;
   serverSide?: boolean;
+  className?: string;
+  emptyMessage?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -40,6 +42,8 @@ export function DataTable<TData, TValue>({
   pageCount,
   onPaginationChange,
   serverSide = false,
+  className = '',
+  emptyMessage = 'No results.',
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -84,15 +88,15 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-md border bg-white shadow-sm">
+    <div className={`erp-data-table space-y-4 ${className}`.trim()}>
+      <div className="erp-data-table__viewport rounded-md border bg-white shadow-sm overflow-x-auto w-full">
         <Table>
           <TableHeader className="bg-gray-50/50">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="whitespace-nowrap">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -113,17 +117,25 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && 'selected'}
                   className="hover:bg-gray-50/50 transition-colors"
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const header = cell.column.columnDef.header;
+                    const dataLabel = typeof header === 'string'
+                      ? header
+                      : cell.column.id === 'actions'
+                        ? 'Actions'
+                        : cell.column.id;
+                    return (
+                      <TableCell key={cell.id} data-label={dataLabel}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-gray-500">
-                  No results.
+                  {emptyMessage}
                 </TableCell>
               </TableRow>
             )}
@@ -131,9 +143,9 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center space-x-2 text-sm text-gray-500">
-          <p className="text-sm font-medium">Rows per page</p>
+      <div className="erp-data-table__pagination flex items-center justify-between px-2">
+        <div className="flex items-center gap-3 text-sm text-gray-500">
+          <p className="text-sm font-medium whitespace-nowrap">Rows per page</p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {

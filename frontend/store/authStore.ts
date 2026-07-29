@@ -1,17 +1,43 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 
 type UserRole = string | null;
 
+type AuthUser = {
+  role?: string;
+  [key: string]: unknown;
+};
+
 interface AuthState {
-  user: any;
+  user: AuthUser | null;
   role: UserRole;
   isAuthenticated: boolean;
   accessToken: string | null;
-  login: (role: UserRole, user: any, accessToken: string) => void;
+  login: (role: UserRole, user: AuthUser, accessToken: string) => void;
   setAccessToken: (token: string | null) => void;
   logout: () => void;
 }
+
+const safeLocalStorage: StateStorage = {
+  getItem: (name) => {
+    const value = window.localStorage.getItem(name);
+    if (!value?.trim()) {
+      if (value !== null) window.localStorage.removeItem(name);
+      return null;
+    }
+
+    try {
+      JSON.parse(value);
+      return value;
+    } catch {
+      console.warn(`[authStore] Removed invalid persisted state from "${name}".`);
+      window.localStorage.removeItem(name);
+      return null;
+    }
+  },
+  setItem: (name, value) => window.localStorage.setItem(name, value),
+  removeItem: (name) => window.localStorage.removeItem(name),
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -26,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      storage: createJSONStorage(() => safeLocalStorage),
       partialize: (state) => ({
         user: state.user,
         role: state.role,

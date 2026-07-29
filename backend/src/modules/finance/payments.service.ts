@@ -16,10 +16,90 @@ export class PaymentsService {
     return this.prisma.customerPayment.findMany({
       include: {
         customer: true,
+        salesOrder: {
+          select: {
+            id: true,
+            orderNumber: true,
+            totalAmount: true,
+          },
+        },
         workflowState: true,
         allocations: true
       },
       orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async listSalesRecordedPayments() {
+    return this.prisma.customerPayment.findMany({
+      where: { salesOrderId: { not: null } },
+      select: {
+        id: true,
+        paymentNo: true,
+        salesOrderId: true,
+        amount: true,
+        status: true,
+        proofUrl: true,
+        receivedAt: true,
+        verifiedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async listDeliveredOrders() {
+    const completedStatuses = ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'] as any[];
+    const orders = await this.prisma.salesOrder.findMany({
+      where: {
+        deletedAt: null,
+        dispatches: {
+          some: { status: { in: completedStatuses } },
+          none: { status: { notIn: completedStatuses } },
+        },
+      },
+      include: {
+        customer: true,
+        dispatches: {
+          select: {
+            status: true,
+            deliveredAt: true,
+            podUrl: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const salespersonIds = [...new Set(orders.map((order) => order.createdById).filter(Boolean))];
+    const salespeople = await this.prisma.user.findMany({
+      where: { id: { in: salespersonIds } },
+      select: { id: true, name: true },
+    });
+    const salespersonNames = new Map(salespeople.map((person) => [person.id, person.name]));
+
+    return orders.map((order) => {
+      const deliveredDispatches = order.dispatches.filter((dispatch) =>
+        completedStatuses.includes(dispatch.status),
+      );
+      const deliveredAt = deliveredDispatches
+        .map((dispatch) => dispatch.deliveredAt)
+        .filter((date): date is Date => Boolean(date))
+        .sort((left, right) => right.getTime() - left.getTime())[0];
+      return {
+        id: order.id,
+        orderNo: order.orderNumber,
+        orderId: order.orderNumber,
+        invoiceNo: `INV-${order.orderNumber}`,
+        customerId: order.customerId,
+        customerName: order.customer.companyName,
+        salespersonId: order.createdById,
+        salesperson: salespersonNames.get(order.createdById) || 'Unassigned',
+        grandTotal: Number(order.totalAmount),
+        totalAmount: Number(order.totalAmount),
+        dispatchStatus: 'DELIVERED',
+        deliveredAt: deliveredAt?.toISOString(),
+        podUrl: deliveredDispatches.find((dispatch) => dispatch.podUrl)?.podUrl,
+        status: order.status,
+      };
     });
   }
 
@@ -36,7 +116,7 @@ export class PaymentsService {
     return payment;
   }
 
-  async createPayment(dto: { customerId: string, amount: number }, userId?: string) {
+  async createPayment(dto: { customerId: string, salesOrderId?: string, amount: number, proofUrl?: string }, userId?: string) {
     if (Number(dto.amount) <= 0) throw new BadRequestException('Payment amount must be greater than zero');
     return this.prisma.$transaction(async (tx) => {
     const customer = await tx.customer.findUnique({ where: { id: dto.customerId } });
@@ -48,6 +128,8 @@ export class PaymentsService {
       data: {
         paymentNo,
         customerId: dto.customerId,
+        salesOrderId: dto.salesOrderId,
+        proofUrl: dto.proofUrl,
         amount: dto.amount,
         status: 'SUBMITTED',
         workflowStateId: initialState.id,
@@ -56,6 +138,20 @@ export class PaymentsService {
 
     return payment;
     });
+  }
+
+  async recordPaymentFromSales(dto: { customerId: string, salesOrderId: string, amount: number, proofUrl: string }, userId?: string) {
+    if (!dto.proofUrl) throw new BadRequestException('Payment proof image is required');
+    const order = await this.prisma.salesOrder.findUnique({
+      where: { id: dto.salesOrderId },
+      select: { id: true, customerId: true },
+    });
+    if (!order) throw new NotFoundException(`Order ${dto.salesOrderId} not found`);
+    if (order.customerId !== dto.customerId) {
+      throw new BadRequestException('The selected customer does not match this sales order');
+    }
+    const payment = await this.createPayment(dto, userId);
+    return this.submitForVerification(payment.id, userId);
   }
 
   async submitForVerification(id: string, userId?: string) {

@@ -1,29 +1,63 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { CheckCircle, Eye, Search, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle, Eye, RefreshCw, Search, XCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { useERPStore } from '../../../store/erpStore';
+import { backendFetch } from '../../../lib/backendFetch';
+import styles from './ReplacementsView.module.css';
 
 const activeStatuses = ['REPLACEMENT_REQUESTED', 'REPLACEMENT_APPROVED'];
+const PENDING_REPLACEMENT_STATUSES = ['REQUESTED', 'UNDER_REVIEW', 'REPLACEMENT_REQUESTED'];
 
 export default function ReplacementsView() {
-  const sales = useERPStore((store) => store.state?.sales);
-  const requests = sales?.replacementRequests || [];
-  const orders = sales?.orders || [];
-  const approveReplacement = useERPStore((store) => store.salesActions?.approveReplacement);
-  const rejectReplacement = useERPStore((store) => store.salesActions?.rejectReplacement);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('pending');
   const [viewRequest, setViewRequest] = useState(null);
 
-  const rows = useMemo(() => requests.map((request) => {
-    const order = orders.find((candidate) => candidate.id === request.orderId);
-    return { ...request, order, customerName: order?.customerName || 'Unknown customer' };
-  }).filter((request) => {
+  const loadRequests = async ({ silent = false } = {}) => {
+    setLoading(true);
+    try {
+      setRequests(await backendFetch('/api/backend/replacements'));
+    } catch (error) {
+      if (!silent) {
+        Swal.fire({ icon: 'error', title: 'Unable to load replacements', text: error.message });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRequests();
+    const refresh = () => {
+      if (document.visibilityState === 'visible') loadRequests({ silent: true });
+    };
+    window.addEventListener('focus', refresh);
+    const interval = window.setInterval(refresh, 10000);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const allRows = useMemo(() => requests.map((request) => ({
+    ...request,
+    orderId: request.salesOrderId,
+    customerName: request.salesOrder?.customer?.companyName || request.salesOrder?.customer?.name || 'Unknown customer',
+  })), [requests]);
+
+  const pendingCount = allRows.filter((request) => PENDING_REPLACEMENT_STATUSES.includes(request.status)).length;
+  const historyCount = allRows.length - pendingCount;
+
+  const rows = useMemo(() => allRows.filter((request) => {
+    const isPending = PENDING_REPLACEMENT_STATUSES.includes(request.status);
+    if (activeTab === 'pending' ? !isPending : isPending) return false;
     const query = search.trim().toLowerCase();
     return !query || [request.id, request.orderId, request.customerName]
       .some((value) => String(value || '').toLowerCase().includes(query));
-  }), [orders, requests, search]);
+  }), [allRows, activeTab, search]);
 
   const approve = async (request) => {
     const requested = request.items.reduce((sum, item) => sum + Number(item.requestedQuantity || 0), 0);
@@ -55,7 +89,13 @@ export default function ReplacementsView() {
         };
       },
     });
-    if (result.isConfirmed) approveReplacement(request.id, result.value, 'Plant Head');
+    if (result.isConfirmed) {
+      await backendFetch(`/api/backend/replacements/${request.id}/approve`, {
+        method: 'PATCH',
+        body: { remarks: result.value.remarks },
+      });
+      await loadRequests();
+    }
   };
 
   const reject = async (request) => {
@@ -66,42 +106,73 @@ export default function ReplacementsView() {
       showCancelButton: true,
       inputValidator: (value) => value?.trim() ? undefined : 'A reason is required.',
     });
-    if (result.isConfirmed) rejectReplacement(request.id, result.value, 'Plant Head');
+    if (result.isConfirmed) {
+      await backendFetch(`/api/backend/replacements/${request.id}/reject`, {
+        method: 'PATCH',
+        body: { reason: result.value },
+      });
+      await loadRequests();
+    }
   };
 
   return (
-    <div className="app-card" style={{ flex: 1 }}>
-      <div className="module-header-row">
+    <div className={`app-card ${styles.card}`}>
+      <div className={`module-header-row ${styles.header}`}>
         <div>
           <h2 className="module-title">Replacement Requests</h2>
           <p style={{ margin: 0, color: 'var(--color-text-secondary)' }}>Canonical Sales requests linked to the original order.</p>
         </div>
-        <div className="search-box">
+        <button className={`btn-small btn-outline-small ${styles.refreshButton}`} onClick={loadRequests} disabled={loading}>
+          <RefreshCw size={13} /> Refresh
+        </button>
+        <div className={`search-box ${styles.search}`}>
           <Search size={14} />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search request, order, customer…" />
         </div>
       </div>
-      <div className="crm-table-container">
-        <table className="crm-table responsive-table flat-table">
+      <div className={styles.tabs} role="tablist" aria-label="Replacement request filters">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'pending'}
+          className={`${styles.tabButton} ${activeTab === 'pending' ? styles.activeTab : ''}`}
+          onClick={() => setActiveTab('pending')}
+        >
+          Pending Requests <span>{pendingCount}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'history'}
+          className={`${styles.tabButton} ${activeTab === 'history' ? styles.activeTab : ''}`}
+          onClick={() => setActiveTab('history')}
+        >
+          History <span>{historyCount}</span>
+        </button>
+      </div>
+      <div className={`crm-table-container ${styles.tableContainer}`}>
+        <table className={`crm-table flat-table ${styles.table}`}>
           <thead><tr><th>Request ID</th><th>Order ID</th><th>Customer</th><th>Products / Qty</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
-            {rows.length === 0 ? (
+            {loading ? (
+              <tr><td colSpan="7" style={{ textAlign: 'center', padding: 30 }}>Loading replacement requests…</td></tr>
+            ) : rows.length === 0 ? (
               <tr><td colSpan="7" style={{ textAlign: 'center', padding: 30 }}>No replacement requests found.</td></tr>
             ) : rows.map((request) => (
               <tr key={request.id}>
-                <td style={{ fontFamily: 'monospace', fontWeight: 800 }}>{request.id}</td>
-                <td style={{ fontFamily: 'monospace' }}>{request.orderId}</td>
-                <td>{request.customerName}</td>
-                <td>{request.items.map((item) => `${item.productName || item.productId || 'Item'} (${item.requestedQuantity})`).join(', ')}</td>
+                <td data-label="Request ID" className={styles.requestId}>{request.requestNumber}</td>
+                <td data-label="Order ID" className={styles.orderId}>{request.salesOrder?.orderNumber || request.orderId}</td>
+                <td data-label="Customer">{request.customerName}</td>
+                <td data-label="Products / Qty">{request.items.map((item) => `${item.product?.name || item.productId || 'Item'} (${item.requestedQuantity})`).join(', ')}</td>
                 <td>{request.items.map((item) => item.reason).filter(Boolean).join(', ') || request.remarks || '—'}</td>
-                <td>{request.status.replaceAll('_', ' ')}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button className="btn-small btn-outline-small" onClick={() => setViewRequest(request)}><Eye size={12} /> View</button>
-                    {request.status === 'REPLACEMENT_REQUESTED' && (
+                <td data-label="Status"><span className={styles.status}>{request.status.replaceAll('_', ' ')}</span></td>
+                <td data-label="Actions">
+                  <div className={styles.actions}>
+                    <button className={`${styles.actionButton} ${styles.viewButton}`} onClick={() => setViewRequest(request)}><Eye size={14} /> View</button>
+                    {PENDING_REPLACEMENT_STATUSES.includes(request.status) && (
                       <>
-                      <button className="btn-small btn-outline-small" onClick={() => approve(request)}><CheckCircle size={12} /> Approve</button>
-                      <button className="btn-small btn-outline-small" onClick={() => reject(request)}><XCircle size={12} /> Reject</button>
+                      <button className={`${styles.actionButton} ${styles.approveButton}`} onClick={() => approve(request)}><CheckCircle size={14} /> Approve</button>
+                      <button className={`${styles.actionButton} ${styles.rejectButton}`} onClick={() => reject(request)}><XCircle size={14} /> Reject</button>
                       </>
                     )}
                     {request.status !== 'REPLACEMENT_REQUESTED' && activeStatuses.includes(request.status) && <span>Approved</span>}
@@ -113,27 +184,28 @@ export default function ReplacementsView() {
         </table>
       </div>
       {viewRequest && (
-        <div className="modal-overlay active" style={{ zIndex: 10000 }} onClick={() => setViewRequest(null)}>
-          <div role="dialog" aria-modal="true" aria-label="Replacement Request Details" className="modal-content" style={{ maxWidth: 760, width: '94%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">
+        <div className={styles.modalOverlay} onClick={() => setViewRequest(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Replacement Request Details" className={styles.modal} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.modalHeader}>
               <div>
-                <h2 style={{ margin: 0 }}>Replacement Request Details</h2>
-                <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary)' }}>{viewRequest.id}</p>
+                <h2>Replacement Request Details</h2>
+                <p>{viewRequest.requestNumber || viewRequest.id}</p>
               </div>
               <button type="button" className="modal-close" onClick={() => setViewRequest(null)}>×</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, padding: 20 }}>
-              <Detail label="Original Order" value={viewRequest.orderId} />
+            <div className={styles.detailGrid}>
+              <Detail label="Original Order" value={viewRequest.salesOrder?.orderNumber || viewRequest.orderId} />
               <Detail label="Customer" value={viewRequest.customerName} />
               <Detail label="Status" value={viewRequest.status?.replaceAll('_', ' ')} />
               <Detail label="Pickup Required" value={viewRequest.pickupRequired ? 'Yes' : 'No'} />
               <Detail label="Replacement Address" value={viewRequest.replacementDeliveryAddress || viewRequest.replacementAddress} />
               <Detail label="Preferred Date" value={viewRequest.preferredReplacementDate || viewRequest.preferredDate} />
-              <Detail label="Sales Remarks" value={viewRequest.remarks} wide />
+              <Detail label="Description" value={viewRequest.customerRemarks} wide />
+              <Detail label="Sales Remarks" value={viewRequest.internalRemarks} wide />
             </div>
             <RequestItems items={viewRequest.items} />
-            <Evidence files={[...(viewRequest.photos || []), ...(viewRequest.documents || [])]} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 20 }}>
+            <Evidence files={viewRequest.evidence?.files || []} />
+            <div className={styles.modalFooter}>
               <button className="btn-small btn-outline-small" onClick={() => setViewRequest(null)}>Close</button>
             </div>
           </div>
@@ -154,12 +226,12 @@ function Detail({ label, value, wide = false }) {
 
 function RequestItems({ items = [] }) {
   return (
-    <div style={{ padding: '0 20px 20px' }}>
+    <div className={styles.modalSection}>
       <h3>Requested Products</h3>
-      {items.map((item) => (
-        <div key={item.orderLineId} style={{ padding: 12, marginTop: 8, border: '1px solid #DCE5F0', borderRadius: 10 }}>
-          <strong>{item.productName || item.productId || 'Item'}</strong>
-          <div>Order line: {item.orderLineId}</div>
+      {items.map((item, index) => (
+        <div key={item.id || item.salesOrderItemId || `${item.productId}-${index}`} className={styles.itemCard}>
+          <strong>{item.product?.name || item.productName || item.productId || 'Item'}</strong>
+          <div>Order line: {item.salesOrderItemId || item.orderLineId || '—'}</div>
           <div>Requested quantity: {item.requestedQuantity}</div>
           <div>Condition: {item.condition || '—'}</div>
           <div>Reason: {item.reason || '—'}</div>
@@ -170,18 +242,18 @@ function RequestItems({ items = [] }) {
 }
 
 function Evidence({ files = [] }) {
-  const unique = files.filter((file, index, all) => all.findIndex((candidate) => candidate.id === file.id) === index);
+  const unique = files.filter((file, index, all) => all.findIndex((candidate) => (candidate.id || candidate.url) === (file.id || file.url)) === index);
   return (
-    <div style={{ padding: '0 20px 20px' }}>
+    <div className={styles.modalSection}>
       <h3>Uploaded Evidence</h3>
       {unique.length === 0 ? <p style={{ color: '#5E6B82' }}>No images or documents uploaded.</p> : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <div className={styles.evidenceGrid}>
           {unique.map((file) => (
-            <a key={file.id} href={file.localDataUrl} target="_blank" rel="noreferrer" style={{ width: 130 }}>
-              {file.mimeType?.startsWith('image/') && file.localDataUrl ? (
-                <img src={file.localDataUrl} alt={file.name} style={{ width: 130, height: 92, objectFit: 'cover', borderRadius: 8, border: '1px solid #D6E2F0' }} />
+            <a key={file.id || file.url} href={file.url || file.localDataUrl} target="_blank" rel="noreferrer" className={styles.evidenceCard}>
+              {(file.mime || file.mimeType)?.startsWith('image/') && (file.url || file.localDataUrl) ? (
+                <img src={file.url || file.localDataUrl} alt={file.name} />
               ) : <div style={{ padding: 18, border: '1px solid #D6E2F0', borderRadius: 8 }}>Document</div>}
-              <div style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
+              <div className={styles.evidenceName}>{file.name}</div>
             </a>
           ))}
         </div>

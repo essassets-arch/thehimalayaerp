@@ -1,135 +1,196 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
-import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
-import { Plus, Eye } from 'lucide-react';
-import { ColumnDef } from '@tanstack/react-table';
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { backendFetch } from "@/lib/backendFetch";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import { Plus, Eye, Truck, Search } from "lucide-react";
+import { ColumnDef } from "@tanstack/react-table";
 
-import { DataTable } from '@/components/erp/data-table/DataTable';
-import { FilterBar } from '@/components/erp/common/FilterBar';
-import { StatusBadge } from '@/components/erp/common/StatusBadge';
-import { Button } from '@/components/ui/button';
-import { EntityHeader } from '@/components/erp/common/EntityHeader';
+import { DataTable } from "@/components/erp/data-table/DataTable";
+import { StatusBadge } from "@/components/erp/common/StatusBadge";
+import { Button } from "@/components/ui/button";
+import styles from "../production/work-orders/work-orders.module.css";
+import responsive from "./dispatch-responsive.module.css";
 
 interface Dispatch {
   id: string;
   dispatchNo: string;
   salesOrder: {
     orderNumber: string;
-    customer: { companyName: string }
+    customer: { companyName: string };
   };
   createdAt: string;
   workflowState: {
-    name: string;
-  } | null;
-  status: string; // fallback
+    code: string;
+  };
 }
 
 export default function DispatchListPage() {
   const router = useRouter();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dispatch-list', search, pagination],
+    queryKey: ["dispatch-list", search, pagination],
     queryFn: async () => {
-      const res = await axios.get('/api/backend/logistics/dispatches');
-      return res.data;
-    }
+      const payload = await backendFetch<Dispatch[]>(
+        "/api/backend/logistics/dispatches",
+      );
+      return Array.isArray(payload) ? payload : [];
+    },
   });
 
   const filteredData = React.useMemo(() => {
     if (!data) return [];
     if (!search) return data;
     const lower = search.toLowerCase();
-    return data.filter((d: Dispatch) => 
-      d.dispatchNo.toLowerCase().includes(lower) || 
-      d.salesOrder?.orderNumber.toLowerCase().includes(lower) ||
-      d.salesOrder?.customer?.companyName.toLowerCase().includes(lower)
+    return data.filter(
+      (d: Dispatch) =>
+        d.dispatchNo.toLowerCase().includes(lower) ||
+        d.salesOrder?.orderNumber.toLowerCase().includes(lower) ||
+        d.salesOrder?.customer?.companyName.toLowerCase().includes(lower),
     );
   }, [data, search]);
 
   const columns: ColumnDef<Dispatch>[] = [
     {
-      accessorKey: 'dispatchNo',
-      header: 'Dispatch No',
-      cell: ({ row }) => <span className="font-medium text-gray-900">{row.getValue('dispatchNo')}</span>,
-    },
-    {
-      accessorKey: 'salesOrder.orderNumber',
-      header: 'Sales Order',
-      cell: ({ row }) => row.original.salesOrder?.orderNumber || 'N/A'
-    },
-    {
-      accessorKey: 'salesOrder.customer.companyName',
-      header: 'Customer',
-      cell: ({ row }) => row.original.salesOrder?.customer?.companyName || 'N/A'
-    },
-    {
-      accessorKey: 'createdAt',
-      header: 'Created At',
-      cell: ({ row }) => format(new Date(row.original.createdAt), 'MMM d, yyyy HH:mm'),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.workflowState?.name || row.original.status || 'UNKNOWN'} />,
-    },
-    {
-      id: 'actions',
+      accessorKey: "dispatchNo",
+      header: "Dispatch No",
       cell: ({ row }) => (
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <span className="font-medium text-gray-900">
+          {row.getValue("dispatchNo")}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "salesOrder.orderNumber",
+      header: "Sales Order",
+      cell: ({ row }) => (
+        <span className="text-gray-600">
+          {row.original.salesOrder?.orderNumber}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "salesOrder.customer.companyName",
+      header: "Customer",
+      cell: ({ row }) => (
+        <span className="text-gray-600">
+          {row.original.salesOrder?.customer?.companyName}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created At",
+      cell: ({ row }) => (
+        <span className="text-gray-600">
+          {format(new Date(row.getValue("createdAt")), "MMM dd, yyyy HH:mm")}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "workflowState.code",
+      header: "Status",
+      cell: ({ row }) => (
+        <StatusBadge status={row.original.workflowState?.code || "UNKNOWN"} />
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1 text-gray-500 hover:text-gray-900"
           onClick={() => router.push(`/dispatch/${row.original.id}`)}
-          className="h-8 gap-1"
         >
-          <Eye className="h-4 w-4 text-gray-500" />
-          Manage
+          <Eye className="h-4 w-4" />
+          <span>Manage</span>
         </Button>
       ),
     },
   ];
 
   return (
-    <div className="container mx-auto py-8 max-w-7xl px-4 sm:px-6 lg:px-8">
-      <EntityHeader 
-        title="Dispatch Dashboard" 
-        subtitle="Manage logistics, trucks, and deliveries."
-        actions={
-          <Button onClick={() => router.push('/dispatch/create')}>
+    <main className={`${styles.page} ${responsive.page}`}>
+      <header className={styles.hero}>
+        <div className={styles.heroIcon}>
+          <Truck size={24} />
+        </div>
+        <div>
+          <span className={styles.eyebrow}>Logistics</span>
+          <h1>Dispatch Dashboard</h1>
+          <p>Manage logistics, trucks, and deliveries.</p>
+        </div>
+        <div className={styles.summary}>
+          <strong>{filteredData.length}</strong>
+          <span>Dispatches</span>
+        </div>
+        <div className="ml-auto">
+          <Button
+            onClick={() => router.push("/dispatch/orders")}
+            className="bg-[#2d82b5] hover:bg-[#256c98] text-white"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Create Dispatch
           </Button>
-        }
-      />
+        </div>
+      </header>
 
-      <div className="mt-6 space-y-4">
-        <FilterBar 
-          onSearch={setSearch}
-          searchPlaceholder="Search dispatch no or customer..."
-          hasActiveFilters={!!search}
-          onClear={() => setSearch('')}
-        />
+      <section className={styles.panel}>
+        <div className={styles.toolbar}>
+          <div>
+            <h2>Dispatch Register</h2>
+            <p>Active and past dispatch assignments.</p>
+          </div>
+          <label className={styles.search}>
+            <Search size={17} aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search dispatch no or customer..."
+              aria-label="Search dispatches"
+            />
+            <div className="w-12 flex items-center justify-center">
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </label>
+        </div>
 
         {isLoading ? (
-          <div className="h-64 flex items-center justify-center text-gray-500">Loading dispatches...</div>
+          <div className={styles.loading}>Loading dispatches...</div>
         ) : (
-          <DataTable 
-            columns={columns} 
+          <DataTable
+            columns={columns}
             data={filteredData.slice(
               pagination.pageIndex * pagination.pageSize,
-              (pagination.pageIndex + 1) * pagination.pageSize
-            )} 
+              (pagination.pageIndex + 1) * pagination.pageSize,
+            )}
             pageCount={Math.ceil(filteredData.length / pagination.pageSize)}
             onPaginationChange={setPagination}
             serverSide={false}
+            className={styles.table}
+            emptyMessage={
+              search
+                ? "No dispatches match your search."
+                : "No dispatches have been created yet."
+            }
           />
         )}
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

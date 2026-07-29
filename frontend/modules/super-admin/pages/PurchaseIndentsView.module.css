@@ -1,0 +1,98 @@
+.actionButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionButton {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #ffffff !important;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.actionButton:hover {
+  transform: translateY(-1px);
+}
+
+.actionButton:active {
+  transform: translateY(0);
+}
+
+.actionButton:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.32);
+  outline-offset: 2px;
+}
+
+.viewButton {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.24);
+}
+
+.viewButton:hover {
+  background-color: #1d4ed8 !important;
+}
+
+.approveButton {
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
+  box-shadow: 0 3px 8px rgba(22, 163, 74, 0.24);
+}
+
+.approveButton:hover {
+  background-color: #15803d !important;
+}
+
+.rejectButton {
+  background-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 3px 8px rgba(220, 38, 38, 0.24);
+}
+
+.rejectButton:hover {
+  background-color: #b91c1c !important;
+}
+
+@media (max-width: 768px) {
+  .actionButtons {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .actionButton {
+    width: 100% !important;
+    min-width: 0;
+    padding-inline: 10px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .actionButtons {
+    grid-template-columns: 1fr;
+  }
+
+  .actionButton {
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actionButton {
+    transition: none;
+  }
+}

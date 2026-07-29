@@ -537,19 +537,21 @@ model SalesOrder {
   deletedAt                    DateTime?
 
   // Relations — statuses are computed from child documents, not stored
-  customer           Customer                    @relation(fields: [customerId], references: [id])
-  items              SalesOrderItem[]
-  productionPlans    ProductionPlan[]
-  dispatches         Dispatch[]
-  invoices           SalesInvoice[]
-  returns            SalesReturn[]
-  replacementOrders  ReplacementOrder[]
-  amendments         OrderAmendment[]
-  creditReviews      SalesOrderCreditReview[]
-  allocations        SalesOrderAllocation[]
-  histories          SalesOrderHistory[]
+  customer            Customer                    @relation(fields: [customerId], references: [id])
+  items               SalesOrderItem[]
+  productionPlans     ProductionPlan[]
+  dispatches          Dispatch[]
+  invoices            SalesInvoice[]
+  returns             SalesReturn[]
+  replacementRequests ReplacementRequest[]
+  replacementOrders   ReplacementOrder[]
+  amendments          OrderAmendment[]
+  creditReviews       SalesOrderCreditReview[]
+  allocations         SalesOrderAllocation[]
+  histories           SalesOrderHistory[]
+  customerPayments    CustomerPayment[]
   // Kept for backward-compat during migration; to be deprecated
-  paymentAllocations CustomerPaymentAllocation[]
+  paymentAllocations  CustomerPaymentAllocation[]
 
   @@index([customerId])
   @@index([status])
@@ -656,6 +658,9 @@ model SalesReturn {
   pickupRequired  Boolean              @default(true)
   pickupAddress   Json?
   resolutionType  ReturnResolutionType
+  status          ReturnStatus         @default(REQUESTED)
+  dispatchDetails Json?
+  deliveryProof   Json?
   workflowStateId String?
   workflowState   WorkflowState?       @relation(fields: [workflowStateId], references: [id])
   requestedById   String
@@ -735,6 +740,11 @@ model ReplacementRequest {
   workflowStateId   String?
   workflowState     WorkflowState?           @relation(fields: [workflowStateId], references: [id])
   reasonCode        ReplacementReasonCode
+  status            ReplacementRequestStatus @default(REQUESTED)
+  dispatchStatus    ReplacementOrderStatus?
+  dispatchDetails   Json?
+  deliveryProof     Json?
+  completedAt       DateTime?
   customerRemarks   String?
   internalRemarks   String?
   evidence          Json?
@@ -746,6 +756,7 @@ model ReplacementRequest {
   approvedAt        DateTime?
   rejectedAt        DateTime?
   CustomerComplaint CustomerComplaint[]
+  salesOrder        SalesOrder               @relation(fields: [salesOrderId], references: [id])
   replacementOrder  ReplacementOrder?
   items             ReplacementRequestItem[]
 
@@ -901,12 +912,18 @@ enum QcStatus {
 }
 
 enum DispatchStatus {
-  CREATED
-  READY
+  PENDING_DISPATCH
+  DISPATCH_DRAFT
+  DISPATCH_APPROVED
+  READY_FOR_PICKUP
+  VEHICLE_ASSIGNED
+  LOADING_IN_PROGRESS
+  DISPATCHED
   IN_TRANSIT
+  OUT_FOR_DELIVERY
   DELIVERED
-  PARTIALLY_DELIVERED
-  COMPLETED
+  POD_RECEIVED
+  DISPATCH_CLOSED
 }
 
 enum PaymentStatus {
@@ -1278,10 +1295,14 @@ enum WorkOrderStatus {
   CREATED
   MATERIAL_PENDING
   READY
+  CANCELLED
   STARTED
   PARTIALLY_COMPLETED
   COMPLETED
   QC_PENDING
+  QC_APPROVED
+  READY_FOR_DISPATCH
+  DISPATCHED
   CLOSED
 }
 
@@ -1340,8 +1361,20 @@ model WorkOrder {
   status           WorkOrderStatus @default(CREATED)
   quantity         Decimal         @db.Decimal(18, 3)
   workflowStateId  String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+
+  startedAt     DateTime?
+  completedAt   DateTime?
+  duration      Int?
+  startedById   String?
+  completedById String?
+
+  sentToDispatchAt   DateTime?
+  sentToDispatchById String?
+  dispatchedAt       DateTime?
+  dispatchedById     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   productionPlan    ProductionPlan    @relation(fields: [productionPlanId], references: [id])
   salesOrderItem    SalesOrderItem?   @relation(fields: [salesOrderItemId], references: [id])
@@ -1368,7 +1401,14 @@ model QCInspection {
   status          QcStatus @default(PENDING)
   notes           String?
   workflowStateId String?
-  createdAt       DateTime @default(now())
+
+  approvedQuantity Decimal?  @db.Decimal(18, 3)
+  rejectedQuantity Decimal?  @db.Decimal(18, 3)
+  remarks          String?
+  approvedAt       DateTime?
+  inspectorId      String?
+
+  createdAt DateTime @default(now())
 
   workOrder     WorkOrder      @relation(fields: [workOrderId], references: [id])
   workflowState WorkflowState? @relation("QCInspectionWorkflow", fields: [workflowStateId], references: [id])
@@ -1377,15 +1417,102 @@ model QCInspection {
 }
 
 model Dispatch {
-  id              String         @id @default(uuid())
-  dispatchNo      String         @unique
-  salesOrderId    String
-  status          DispatchStatus @default(CREATED)
-  dispatchedAt    DateTime?
-  deliveredAt     DateTime?
+  id           String         @id @default(uuid())
+  dispatchNo   String         @unique
+  salesOrderId String
+  status       DispatchStatus @default(DISPATCH_DRAFT)
+  isSubmitted  Boolean        @default(false)
+
+  // Delivery info
+  deliveryAddress     String?
+  specialInstructions String?
+
+  // Packages
+  packageCount Int?
+  packageType  String? // e.g. Box, Pallet, Bag
+  totalWeight  Decimal? @db.Decimal(18, 3)
+
+  // Transport / Vehicle
+  transporterName String?
+  vehicleNumber   String?
+  vehicleType     String?
+  driverName      String?
+  driverPhone     String?
+  driverLicence   String?
+  lrNumber        String? // LR / Consignment Number
+  freightType     String? // e.g. Paid, To Pay, contract
+  freightAmount   Decimal? @db.Decimal(18, 2)
+  trackingRef     String? // GPS / tracking reference
+
+  // 3. Approval details
+  approvedAt       DateTime?
+  approvedById     String?
+  rejectionRemarks String?
+
+  // 4. Ready for Pickup
+  readyAt           DateTime?
+  readyById         String?
+  dispatchLocation  String?
+  documentChecklist Json? // checklist state e.g. { packed: true, labels: true, invoice: true }
+
+  // 5 & 6. Loading
+  loadingStartedAt   DateTime?
+  loadingCompletedAt DateTime?
+  loadedQuantity     Decimal?  @db.Decimal(18, 3)
+  vehicleClean       Boolean?  @default(true)
+  sealNumber         String?
+  loadingSupervisor  String?
+  loadingRemarks     String? // shortage or damage comments
+
+  // 7. Gate Out / Dispatched
+  dispatchedAt          DateTime?
+  dispatchedById        String?
+  gateOutAt             DateTime?
+  gatePassNumber        String?
+  gateSecurityConfirmed Boolean?  @default(false)
+  invoiceNumber         String?
+  ewayBillNumber        String?
+
+  // 8. In Transit
+  currentLocation      String?
+  lastLocationUpdateAt DateTime?
+  eta                  DateTime?
+  transitCondition     String? // ON_SCHEDULE, DELAYED, BREAKDOWN, ROUTE_CHANGED, FAILED
+  transitRemarks       String?
+  transitLogs          Json? // Location / status history log
+
+  // 9. Out for Delivery
+  outForDeliveryAt      DateTime?
+  deliveryContactPerson String?
+  deliveryContactPhone  String?
+  expectedDeliveryTime  DateTime?
+  deliveryAttemptNo     Int?      @default(1)
+
+  // 10 & 11. Delivery & POD
+  deliveredAt         DateTime?
+  deliveredQuantity   Decimal?  @db.Decimal(18, 3)
+  shortQuantity       Decimal?  @db.Decimal(18, 3)
+  damagedQuantity     Decimal?  @db.Decimal(18, 3)
+  receivedBy          String?
+  receiverDesignation String?
+  receiverPhone       String?
+  deliveryRemarks     String?
+  deliveryPhotoUrl    String?
+  signatureUrl        String?
+  podUrl              String?
+  podReceivedAt       DateTime?
+  podApprovedAt       DateTime?
+  podApprovedById     String?
+  podStatus           String? // PENDING, APPROVED, REJECTED
+
+  // 12. Closure
+  closedAt        DateTime?
+  closedById      String?
+  transitDuration Int? // transit duration in hours / minutes
+
   workflowStateId String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
   items         DispatchItem[]
@@ -1426,6 +1553,8 @@ model CustomerPayment {
   id              String        @id @default(uuid())
   paymentNo       String        @unique
   customerId      String
+  salesOrderId    String?
+  proofUrl        String?
   amount          Decimal       @db.Decimal(18, 2)
   status          PaymentStatus @default(SUBMITTED)
   workflowStateId String?
@@ -1435,10 +1564,12 @@ model CustomerPayment {
   createdAt       DateTime      @default(now())
 
   customer      Customer            @relation(fields: [customerId], references: [id])
+  salesOrder    SalesOrder?          @relation(fields: [salesOrderId], references: [id])
   allocations   PaymentAllocation[]
   workflowState WorkflowState?      @relation("PaymentWorkflow", fields: [workflowStateId], references: [id])
 
   @@index([workflowStateId])
+  @@index([salesOrderId])
 }
 
 model PaymentAllocation {

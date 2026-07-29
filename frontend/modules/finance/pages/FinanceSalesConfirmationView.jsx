@@ -6,18 +6,45 @@ import {
 } from 'lucide-react';
 import { useERPStore } from '../../../store/erpStore';
 import Swal from 'sweetalert2';
+import { useQuery } from '@tanstack/react-query';
+import { backendFetch } from '../../../lib/backendFetch';
 
 export default function FinanceSalesConfirmationView() {
   const state = useERPStore((s) => s.state);
   const verifyFinancePayment = useERPStore((s) => s.verifyFinancePayment);
   const rejectFinancePayment = useERPStore((s) => s.rejectFinancePayment);
 
-  const orders = state.sales?.orders || [];
+  const localOrders = state.sales?.orders || [];
+  const { data: backendPayments = [], refetch: refetchBackendPayments } = useQuery({
+    queryKey: ['finance-sales-payment-confirmations'],
+    queryFn: async () => {
+      const response = await backendFetch('/api/backend/finance/payments');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+  const { data: backendDeliveredOrders = [] } = useQuery({
+    queryKey: ['finance-delivered-sales-orders'],
+    queryFn: async () => {
+      const response = await backendFetch('/api/backend/finance/payments/delivered-orders');
+      const records = Array.isArray(response) ? response : response?.data;
+      return Array.isArray(records) ? records : [];
+    },
+  });
+  const orders = React.useMemo(() => {
+    const combined = [...backendDeliveredOrders, ...localOrders];
+    return combined.filter((order, index, list) => {
+      const key = String(order.id || order.orderNo || order.orderId || '');
+      return list.findIndex((candidate) =>
+        String(candidate.id || candidate.orderNo || candidate.orderId || '') === key
+      ) === index;
+    });
+  }, [backendDeliveredOrders, localOrders]);
 
   const calculateVerifiedPaidAmount = (orderId) => {
-    return (state.finance?.customerPayments || [])
-      .filter((p) => p.orderId === orderId && p.verificationStatus === 'FINANCE_VERIFIED')
-      .reduce((sum, p) => sum + p.paymentAmount, 0);
+    return paymentConfirmations
+      .filter((payment) => payment.orderId === orderId && payment.status === 'FINANCE_VERIFIED')
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   };
 
   const calculatePendingAmount = (order) => {
@@ -27,7 +54,7 @@ export default function FinanceSalesConfirmationView() {
   };
 
   const paymentConfirmations = React.useMemo(() => {
-    return (state.finance?.customerPayments || []).map((p) => ({
+    const localConfirmations = (state.finance?.customerPayments || []).map((p) => ({
       id: p.id,
       orderId: p.orderId,
       amount: p.paymentAmount,
@@ -39,11 +66,48 @@ export default function FinanceSalesConfirmationView() {
       financeRemarks: p.rejectionReason || p.remarks,
       verifiedBy: p.verifiedBy,
       verifiedAt: p.verifiedAt,
-      createdAt: p.recordedAt
+      createdAt: p.recordedAt,
+      source: 'local',
     }));
-  }, [state.finance?.customerPayments]);
+    const persistedConfirmations = backendPayments
+      .filter((payment) => payment.salesOrderId)
+      .map((payment) => {
+        const backendStatus = String(payment.status || '').toUpperCase();
+        const status =
+          ['UNDER_VERIFICATION', 'SUBMITTED', 'RECEIVED'].includes(backendStatus)
+            ? 'FINANCE_VERIFICATION_PENDING'
+            : ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(backendStatus)
+              ? 'FINANCE_VERIFIED'
+              : backendStatus === 'BOUNCED'
+                ? 'FINANCE_REJECTED'
+                : backendStatus;
+        return {
+          id: payment.id,
+          orderId: payment.salesOrderId,
+          amount: Number(payment.amount || 0),
+          paymentDate: payment.receivedAt || payment.createdAt,
+          method: payment.method || 'BANK_TRANSFER',
+          transactionReference: payment.paymentNo,
+          proofDocument: payment.proofUrl,
+          status,
+          verifiedAt: payment.verifiedAt,
+          createdAt: payment.createdAt,
+          source: 'backend',
+          orderSnapshot: {
+            id: payment.salesOrder?.id || payment.salesOrderId,
+            orderNo: payment.salesOrder?.orderNumber,
+            invoiceNo: `INV-${payment.salesOrder?.orderNumber || payment.salesOrderId}`,
+            customerName: payment.customer?.companyName || payment.customer?.name || 'Unknown',
+            salesperson: 'Sales',
+            grandTotal: Number(payment.salesOrder?.totalAmount || 0),
+            totalAmount: Number(payment.salesOrder?.totalAmount || 0),
+          },
+        };
+      });
+    return [...localConfirmations, ...persistedConfirmations];
+  }, [state.finance?.customerPayments, backendPayments]);
 
-  const [activeTab, setActiveTab] = useState('Sales Confirmations');
+  const [activeTab, setActiveTab] = useState('Payment Outstanding');
   const [searchQuery, setSearchQuery] = useState('');
   const [rejectModal, setRejectModal] = useState(null);
 
@@ -55,7 +119,10 @@ export default function FinanceSalesConfirmationView() {
       // Base on orders with pendingAmount > 0
       result = orders.filter((o) => {
         const pending = calculatePendingAmount(o, paymentConfirmations);
-        return pending > 0 && o.commercialStatus !== 'ORDER_CLOSED';
+        const isDelivered =
+          String(o.dispatchStatus || '').toUpperCase() === 'DELIVERED' ||
+          Boolean(o.deliveredAt);
+        return isDelivered && pending > 0 && o.commercialStatus !== 'ORDER_CLOSED';
       }).map((o) => ({
         type: 'ORDER',
         id: o.id,
@@ -107,7 +174,7 @@ export default function FinanceSalesConfirmationView() {
       );
 
       result = filteredConfirmations.map((c) => {
-        const o = orders.find((ord) => ord.id === c.orderId) || {};
+        const o = orders.find((ord) => ord.id === c.orderId) || c.orderSnapshot || {};
         return {
           type: 'CONFIRMATION',
           id: c.id,
@@ -160,7 +227,14 @@ export default function FinanceSalesConfirmationView() {
     });
     if (!result.isConfirmed) return;
     try {
-      verifyFinancePayment(confirmationId, 'Finance Team');
+      if (confirmation?.source === 'backend') {
+        await backendFetch(`/api/backend/finance/payments/${confirmationId}/verify`, {
+          method: 'POST',
+        });
+        await refetchBackendPayments();
+      } else {
+        verifyFinancePayment(confirmationId, 'Finance Team');
+      }
       await Swal.fire({ icon: 'success', title: 'Payment Verified', text: 'The verified amount and order payment status have been updated.', timer: 1800, showConfirmButton: false });
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'Verification Failed', text: err?.message || String(err) });

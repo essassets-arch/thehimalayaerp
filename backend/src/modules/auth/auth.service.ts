@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
@@ -135,7 +136,15 @@ export class AuthService {
         },
       ),
       this.jwtService.signAsync(
-        { sub: userId, email, role, companyId },
+        {
+          sub: userId,
+          email,
+          role,
+          companyId,
+          // A unique token ID keeps simultaneous logins as independent
+          // sessions, even when they are created within the same second.
+          jti: randomUUID(),
+        },
         {
           secret: this.configService.get<string>('jwt.refreshSecret') as string,
           expiresIn: this.configService.get<string>(

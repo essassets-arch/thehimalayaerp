@@ -8,7 +8,11 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
     workflowState: true;
     productionPlans: true;
   };
-}>;
+}> & {
+  dispatches?: Prisma.DispatchGetPayload<{ include: { items: true } }>[];
+  returns?: Prisma.SalesReturnGetPayload<Record<string, never>>[];
+  replacementRequests?: Prisma.ReplacementRequestGetPayload<Record<string, never>>[];
+};
 
 export function mapSalesOrder(
   order: SalesOrderWithRelations,
@@ -19,6 +23,40 @@ export function mapSalesOrder(
     order.status === 'SENT_TO_PLANT_HEAD'
       ? order.status
       : workflowStatus ?? order.status;
+  const completedDispatchStatuses = new Set([
+    'DELIVERED',
+    'POD_RECEIVED',
+    'DISPATCH_CLOSED',
+  ]);
+  const dispatches = order.dispatches ?? [];
+  const dispatchStatus =
+    dispatches.length > 0 &&
+    dispatches.every((dispatch) =>
+      completedDispatchStatuses.has(dispatch.status),
+    )
+      ? 'DELIVERED'
+      : dispatches[0]?.status;
+  const deliveredAt = dispatches
+    .filter((dispatch) => completedDispatchStatuses.has(dispatch.status))
+    .map((dispatch) => dispatch.deliveredAt)
+    .filter((date): date is Date => date !== null)
+    .sort((left, right) => right.getTime() - left.getTime())[0];
+  const podUrl = dispatches.find(
+    (dispatch) =>
+      completedDispatchStatuses.has(dispatch.status) && dispatch.podUrl,
+  )?.podUrl;
+  const latestReturn = order.returns?.[0];
+  const latestReplacement = order.replacementRequests?.[0];
+  const returnStatus = latestReturn
+    ? latestReturn.status === 'CLOSED'
+      ? 'COMPLETED'
+      : latestReturn.status
+    : undefined;
+  const replacementStatus = latestReplacement
+    ? latestReplacement.dispatchStatus === 'DELIVERED'
+      ? 'COMPLETED'
+      : latestReplacement.dispatchStatus ?? latestReplacement.status
+    : undefined;
   return {
     id: order.id,
     orderId: order.orderNumber,
@@ -26,19 +64,28 @@ export function mapSalesOrder(
     customerName: order.customer.companyName,
     customerCode: order.customer.customerCode,
 
-    items: order.items.map((item) => ({
-      id: item.id,
-      productId: item.productId,
-      productName: item.productNameSnapshot,
-      productCode: item.productCodeSnapshot,
-      orderedQuantity: Number(item.orderedQuantity),
-      unit: item.unit,
-      unitPrice: Number(item.unitPrice),
-      lineTotal: Number(item.lineTotal),
-      // deliveredQuantity, returnedQuantity, replacedQuantity are now computed
-      // from DispatchItem, SalesReturnItem, ReplacementOrderItem respectively.
-      // They are not stored on SalesOrderItem; services can pass them as computed props.
-    })),
+    items: order.items.map((item) => {
+      const deliveredQuantity = dispatches
+        .filter((dispatch) => completedDispatchStatuses.has(dispatch.status))
+        .flatMap((dispatch) => dispatch.items)
+        .filter((dispatchItem) => dispatchItem.salesOrderItemId === item.id)
+        .reduce(
+          (total, dispatchItem) => total + Number(dispatchItem.quantity),
+          0,
+        );
+
+      return {
+        id: item.id,
+        productId: item.productId,
+        productName: item.productNameSnapshot,
+        productCode: item.productCodeSnapshot,
+        orderedQuantity: Number(item.orderedQuantity),
+        deliveredQuantity,
+        unit: item.unit,
+        unitPrice: Number(item.unitPrice),
+        lineTotal: Number(item.lineTotal),
+      };
+    }),
 
     subtotal: Number(order.subtotal),
     taxAmount: Number(order.taxAmount),
@@ -46,6 +93,11 @@ export function mapSalesOrder(
 
     // Unified lifecycle status
     status: effectiveStatus,
+    dispatchStatus,
+    deliveredAt: deliveredAt?.toISOString(),
+    podUrl: podUrl ?? undefined,
+    returnStatus,
+    replacementStatus,
     productionPlanId: productionPlan?.id ?? null,
     productionStatus: productionPlan?.status ?? null,
     productionAssignedToId: productionPlan?.assignedToId ?? null,

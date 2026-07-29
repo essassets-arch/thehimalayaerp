@@ -314,16 +314,19 @@ textarea {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   /* ENTIRE PAGE IS SCROLLABLE */
-  padding: 24px;
-  gap: 32px;
+  padding: 20px 20px 32px;
+  gap: 24px;
   height: 100vh;
   min-width: 0;
-  overflow-x: hidden;
+  /* Ensure content never exceeds viewport width */
+  width: 100%;
 }
 
-.main-viewport>* {
+.main-viewport > * {
   min-width: 0;
+  /* Don't hard-clip children — let scrollable containers handle their own overflow */
   max-width: 100%;
 }
 
@@ -442,8 +445,9 @@ textarea {
 .hero-top-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .brand-title {
@@ -452,6 +456,16 @@ textarea {
   color: #ffffff;
   letter-spacing: -0.5px;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Right-side action icon group */
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* Hero search box with blur */
@@ -465,14 +479,18 @@ textarea {
   border-radius: var(--radius-xl);
   padding: 8px 16px;
   gap: 10px;
-  width: 320px;
+  /* Fluid width: grows to fill available space, caps at 360px */
+  flex: 1;
+  min-width: 0;
+  max-width: 360px;
+  width: 100%;
   transition: var(--transition-smooth);
 }
 
 .hero-search:focus-within {
   background: rgba(255, 255, 255, 0.25);
   border-color: rgba(255, 255, 255, 0.5);
-  width: 360px;
+  max-width: 420px;
 }
 
 .hero-search svg {
@@ -6380,7 +6398,8 @@ body.notification-open {
   /* Every direct child of main-viewport gets safe margins */
   .main-viewport > * {
     max-width: 100% !important;
-    overflow-x: hidden !important;
+    /* Do NOT set overflow-x:hidden here — it clips scrollable table containers.
+       Each component manages its own overflow via overflow-x:auto on its wrapper. */
   }
 
   /* ── 6. APP CARDS ── */

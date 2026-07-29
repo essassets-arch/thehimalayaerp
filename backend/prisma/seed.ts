@@ -54,7 +54,7 @@ async function main() {
     'finance.ledger.read',
     'finance.payment.create', 'finance.payment.read', 'finance.payment.update',
     'production.plan.approve', 'production.plan.create', 'production.plan.read', 'production.plan.release',
-    'production.workorder.complete', 'production.workorder.read', 'production.workorder.start',
+    'production.workorder.complete', 'production.workorder.read', 'production.workorder.start', 'production.workorder.update',
     'qc.inspection.approve', 'qc.inspection.read',
 
     // Original CRM / Sales (legacy/misc)
@@ -144,6 +144,32 @@ async function main() {
     }
   }
 
+  console.log('Assigning permissions to finance roles...');
+  const financeRoles = await prisma.role.findMany({
+    where: { code: { in: ['FINANCE_EXECUTIVE', 'FINANCE_MANAGER'] } },
+  });
+  const financePerms = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'finance.payment.read',
+          'finance.payment.update',
+          'sales.customers.read',
+        ],
+      },
+    },
+  });
+
+  for (const role of financeRoles) {
+    for (const perm of financePerms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
   const plantHeadRole = await prisma.role.findUnique({ where: { code: 'PLANT_HEAD' } });
   const plantHeadPermissions = await prisma.permission.findMany({
     where: {
@@ -155,6 +181,8 @@ async function main() {
           'production.plan.create',
           'production.plan.approve',
           'production.plan.release',
+          'production.workorder.update',
+          'qc.inspection.read',
         ],
       },
     },
@@ -179,6 +207,81 @@ async function main() {
 
   // ── 5. Users (one per role) ─────────────────────────────────────────────────
   console.log('👤 Seeding users...');
+  const productionRoles = await prisma.role.findMany({
+    where: { code: { in: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR'] } },
+  });
+  const productionPermissions = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'production.plan.read',
+          'production.plan.create',
+          'production.plan.approve',
+          'production.plan.release',
+          'production.workorder.read',
+          'production.workorder.start',
+          'production.workorder.complete',
+          'production.workorder.update',
+          'qc.inspection.read',
+        ],
+      },
+    },
+  });
+  for (const role of productionRoles) {
+    for (const permission of productionPermissions) {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: {
+          roleId: role.id,
+          permissionId: permission.id,
+        },
+      });
+    }
+  }
+
+  // Dispatch users need read access to the production queue that feeds their
+  // dashboard, in addition to permission to create and progress dispatches.
+  const dispatchRole = await prisma.role.findUnique({
+    where: { code: 'DISPATCH_EXECUTIVE' },
+  });
+  const dispatchPermissions = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'production.workorder.read',
+          'production.workorder.update',
+          'sales.orders.read',
+          'dispatch.create',
+          'dispatch.read',
+          'dispatch.update',
+        ],
+      },
+    },
+  });
+  if (dispatchRole) {
+    for (const permission of dispatchPermissions) {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: dispatchRole.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: {
+          roleId: dispatchRole.id,
+          permissionId: permission.id,
+        },
+      });
+    }
+  }
+
   const hashedPassword = await bcrypt.hash('admin123', 12);
   const allRoles = await prisma.role.findMany();
 
@@ -365,8 +468,11 @@ async function main() {
         { code: 'STARTED',          name: 'Started',           sequence: 4 },
         { code: 'PARTIALLY_COMPLETED', name: 'Partially Completed', sequence: 5 },
         { code: 'COMPLETED',        name: 'Completed',         sequence: 6, isFinal: true },
+        { code: 'CANCELLED',        name: 'Cancelled',         sequence: 7, isFinal: true },
       ],
       transitions: [
+        { from: 'CREATED',          to: 'READY',            actionName: 'ACCEPT',            actionLabel: 'Accept Work Order', requiredRole: 'PRODUCTION_PLANNER' },
+        { from: 'CREATED',          to: 'CANCELLED',        actionName: 'REJECT',            actionLabel: 'Reject Work Order', requiredRole: 'PRODUCTION_PLANNER', allowReject: true },
         { from: 'CREATED',          to: 'MATERIAL_PENDING', actionName: 'REQUEST_MATERIALS', actionLabel: 'Request Materials', requiredRole: 'PRODUCTION_OPERATOR' },
         { from: 'MATERIAL_PENDING', to: 'READY',            actionName: 'ISSUE_MATERIALS',   actionLabel: 'Issue Materials',   requiredRole: 'STORE_MANAGER' },
         { from: 'READY',            to: 'STARTED',          actionName: 'START',             actionLabel: 'Start Job',         requiredRole: 'PRODUCTION_OPERATOR' },

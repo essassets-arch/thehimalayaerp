@@ -1,0 +1,536 @@
+.pageFlow {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 2vw, 32px);
+}
+.deliveryTabs {
+  display: flex;
+  width: 100%;
+  padding: 5px;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 14px rgba(15, 23, 42, 0.04);
+}
+.tabList {
+  display: grid;
+  width: min(100%, 560px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.tabList button {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 14px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+.tabList button:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+.tabList button strong {
+  display: inline-flex;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 10px;
+}
+.tabList button.activeTab {
+  background: #4f46e5;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.22);
+}
+.tabList button.activeTab strong {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.workspace {
+  display: block;
+  width: 100%;
+}
+.queueColumn,
+.handoverColumn {
+  min-width: 0;
+}
+.panel,
+.history {
+  min-width: 0;
+  padding: clamp(18px, 1.8vw, 26px);
+  overflow: visible;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+}
+.panel {
+  min-height: 330px;
+  height: 100%;
+  box-sizing: border-box;
+}
+.panelTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  color: #1e293b;
+  font-size: 17px;
+  font-weight: 800;
+}
+.tableFrame {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+.tableFrame :global(.erp-data-table__viewport) {
+  width: 100%;
+  overflow-x: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.tableFrame :global(table) {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+.tableFrame :global(thead) {
+  background: #f8fafc;
+}
+.tableFrame :global(th) {
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tableFrame :global(td) {
+  height: 58px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #edf2f7;
+  color: #334155;
+  font-size: 13px;
+  vertical-align: middle;
+}
+.tableFrame :global(tbody tr:last-child td) {
+  border-bottom: 0;
+}
+.tableFrame :global(tbody tr:hover) {
+  background: #f8fbff;
+}
+.tableFrame :global(td button) {
+  min-height: 36px;
+  padding-inline: 12px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+.tableFrame :global(.erp-data-table__pagination) {
+  min-height: 54px;
+  padding: 9px 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #fbfdff;
+  box-sizing: border-box;
+}
+.tableFrame :global(.erp-data-table__pagination button) {
+  border-radius: 8px;
+  box-shadow: none;
+}
+.tableFrame :global(.erp-data-table__pagination p),
+.tableFrame :global(.erp-data-table__pagination div) {
+  font-size: 12px;
+}
+.confirmationCard {
+  display: flex;
+  min-width: 0;
+  padding: clamp(18px, 1.8vw, 24px);
+  flex-direction: column;
+  gap: 24px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 6px 22px rgba(15, 23, 42, 0.08);
+}
+.modalBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  padding: 24px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(4px);
+  animation: modalFadeIn 160ms ease-out;
+}
+.confirmationModal {
+  width: min(100%, 640px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+  scrollbar-width: thin;
+  animation: modalSlideIn 180ms ease-out;
+}
+.confirmationModal .confirmationCard {
+  border: 0;
+  box-shadow: none;
+}
+.confirmationHeader {
+  display: flex;
+  min-width: 0;
+  padding-bottom: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.modalClose {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+}
+.modalClose:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+}
+.modalClose:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.confirmationHeader span {
+  display: block;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.dispatchDetails {
+  display: flex;
+  min-width: 0;
+  padding: 16px;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+}
+.dispatchDetails > div,
+.dispatchDetails span {
+  overflow-wrap: anywhere;
+}
+.formFields {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+.formFields > div {
+  min-width: 0;
+}
+.receiverGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.formField {
+  min-width: 0;
+}
+.formField > label {
+  display: block;
+  margin: 0 0 7px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.formField > input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.formField > input::placeholder {
+  color: #94a3b8;
+}
+.formField > input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.13);
+}
+.formFields input,
+.formFields textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.imageUploader {
+  display: block;
+  width: 100%;
+  min-height: 150px;
+  overflow: hidden;
+  border: 1.5px dashed #a5b4fc;
+  border-radius: 14px;
+  background: #f8faff;
+  color: #64748b;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+.imageUploader:hover {
+  border-color: #6366f1;
+  background: #f5f7ff;
+}
+.imageUploader > input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.imagePrompt {
+  display: flex;
+  min-height: 150px;
+  padding: 20px;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #818cf8;
+  text-align: center;
+}
+.imagePrompt strong {
+  color: #334155;
+  font-size: 13px;
+}
+.imagePrompt span,
+.imagePreview span {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.imagePreview {
+  position: relative;
+  display: flex;
+  min-height: 180px;
+  padding: 10px;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.imagePreview img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+.formActions {
+  display: flex;
+  padding-top: 16px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+.emptyHandover {
+  display: flex;
+  min-height: 330px;
+  height: 100%;
+  padding: 32px;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 18px;
+  background: #fff;
+  color: #94a3b8;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.8);
+}
+.emptyHandover span {
+  max-width: 340px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+@media (max-width: 1180px) {
+  .panel {
+    min-height: 0;
+  }
+  .emptyHandover {
+    min-height: 220px;
+  }
+  .confirmationCard {
+    outline: none;
+  }
+}
+@media (max-width: 640px) {
+  .pageFlow {
+    gap: 14px;
+  }
+  .deliveryTabs {
+    padding: 4px;
+  }
+  .tabList {
+    width: 100%;
+  }
+  .tabList button {
+    min-height: 46px;
+    padding: 8px;
+    gap: 6px;
+  }
+  .tabList button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .panel,
+  .history {
+    padding: 14px;
+    border-radius: 14px;
+  }
+  .panelTitle {
+    align-items: flex-start;
+    font-size: 15px;
+  }
+  .emptyHandover {
+    min-height: 190px;
+    padding: 24px 18px;
+    border-radius: 14px;
+  }
+  .confirmationCard {
+    padding: 16px;
+    gap: 18px;
+    border-radius: 14px;
+  }
+  .modalBackdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .confirmationModal {
+    width: 100%;
+    max-height: 94dvh;
+    border-radius: 18px 18px 0 0;
+  }
+  .confirmationModal .confirmationCard {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+  }
+  .dispatchDetails {
+    padding: 14px;
+  }
+  .formActions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+  .receiverGrid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .formActions button {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+  }
+  .tableFrame {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .tableFrame :global(.erp-data-table__viewport) {
+    overflow: visible;
+    border: 0;
+    box-shadow: none;
+  }
+  .tableFrame :global(.erp-data-table__pagination) {
+    padding: 8px 0 0;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 0;
+    background: transparent;
+  }
+  .tableFrame :global(.erp-data-table__pagination) > div {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .tableFrame :global(table) {
+    min-width: 0;
+  }
+  .tableFrame :global(tbody tr) {
+    padding: 14px !important;
+  }
+  .tableFrame :global(tbody td) {
+    min-height: 38px !important;
+    height: auto;
+    padding: 8px 0 !important;
+  }
+  .tableFrame :global(tbody td button) {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+  }
+}

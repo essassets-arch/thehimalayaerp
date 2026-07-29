@@ -52,6 +52,12 @@ export class SalesService {
           items: true,
           workflowState: true,
           productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+          dispatches: {
+            include: { items: true },
+            orderBy: { updatedAt: 'desc' },
+          },
+          returns: { orderBy: { requestedAt: 'desc' } },
+          replacementRequests: { orderBy: { requestedAt: 'desc' } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -77,6 +83,12 @@ export class SalesService {
         items: true,
         workflowState: true,
         productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+        dispatches: {
+          include: { items: true },
+          orderBy: { updatedAt: 'desc' },
+        },
+        returns: { orderBy: { requestedAt: 'desc' } },
+        replacementRequests: { orderBy: { requestedAt: 'desc' } },
       },
     });
     if (!order) throw new NotFoundException(`SalesOrder with ID ${id} not found`);

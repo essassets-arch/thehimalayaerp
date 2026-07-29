@@ -46,6 +46,7 @@ export const generateTasks = (state, targetDate) => {
   const quotations = state.quotations || [];
   const orders = state.orders || [];
   const payments = state.payments || [];
+  const financeFollowUps = state.finance?.paymentFollowUps || [];
 
   // 1. Leads follow-up tasks
   leads.forEach(l => {
@@ -163,6 +164,27 @@ export const generateTasks = (state, targetDate) => {
         rawEntity: p
       });
     }
+  });
+
+  // 6. Finance self-reminders scheduled from Outstanding Collections
+  financeFollowUps.forEach(followUp => {
+    if (!followUp.nextFollowUpDate) return;
+    const isOverdue = followUp.nextFollowUpDate < today;
+    const order = orders.find(item =>
+      String(item.id || item.orderNo || '') === String(followUp.orderId || '')
+    );
+    tasks.push({
+      id: `FUP-${followUp.id}`,
+      sourceId: followUp.id,
+      clientName: followUp.customerName || order?.customerName || order?.customer?.name || 'Customer payment follow-up',
+      type: 'Payment',
+      status: isOverdue ? 'Overdue' : 'Pending',
+      followUpDate: followUp.nextFollowUpDate,
+      notes: followUp.remarks || followUp.discussionSummary || `Follow up for invoice ${followUp.invoiceNumber || '—'}`,
+      amount: Number(followUp.outstandingAmount || followUp.promisedAmount || 0),
+      phone: followUp.phoneNumber || '',
+      rawEntity: followUp,
+    });
   });
 
   return tasks;

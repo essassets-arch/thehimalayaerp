@@ -8,7 +8,7 @@ import {
   ArrowUpRight, BookOpen, Wallet, Building, Book, Notebook, Library, Scale, Landmark,
   Calculator, ShoppingBag, CalendarOff, Award, Files, MessageSquare, BellRing, Hash, Ruler, Grid,
   RotateCcw, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2,
-  Archive, BadgeCheck, FileCheck
+  BadgeCheck, FileCheck
 } from 'lucide-react';
 
 export const navigationConfig = {
@@ -148,17 +148,32 @@ export const navigationConfig = {
       icon: RotateCcw,
       path: '/dispatch/returns',
       group: 'Logistics',
+      subItems: [
+        { id: 'return-pending', label: 'Pending Dispatch', path: '/dispatch/returns?status=pending' },
+        { id: 'return-transit', label: 'In Transit', path: '/dispatch/returns?status=in-transit' },
+        { id: 'return-delivered', label: 'Delivered', path: '/dispatch/returns?status=delivered' },
+      ],
     },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch/remaining' },
     { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch/history' }
   ],
 
   'Finance Executive': [
-    { id: 'payment-verification', label: 'Payment Verification', icon: BadgeCheck, path: '/finance-executive/payment-verification' },
-    { id: 'payment-history', label: 'Payment History Archive', icon: Archive, path: '/finance-executive/payment-history' },
-    { id: 'payment-receipts', label: 'Payment Receipts', icon: Receipt, path: '/finance-executive/payment-receipts' },
-    { id: 'outstanding-payments', label: 'Outstanding Payments', icon: CreditCard, path: '/finance-executive/outstanding-payments' },
-    { id: 'customers', label: 'Customers', icon: Users, path: '/finance-executive/customers' }
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance-executive/dashboard' },
+    { id: 'daily-tasks', label: 'Tasks', icon: ClipboardList, path: '/finance-executive/daily-tasks' },
+    {
+      id: 'payment-verification',
+      label: 'Payment Verification',
+      icon: BadgeCheck,
+      path: '/finance-executive/payment-verification',
+      subItems: [
+        { id: 'payment-verification-queue', label: 'Payment Verification Queue', path: '/finance-executive/payment-verification' },
+        { id: 'payment-receipts', label: 'Payment Receipts', path: '/finance-executive/receipts' },
+        { id: 'outstanding-payments', label: 'Outstanding Payments', path: '/finance-executive/outstanding' },
+        { id: 'customers', label: 'Customers', path: '/finance-executive/customers' },
+      ],
+    },
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance-executive/reports' },
   ],
 
   'Finance': [
@@ -171,7 +186,6 @@ export const navigationConfig = {
       path: '/finance/payment-verification',
       subItems: [
         { id: 'payment-verification', label: 'Payment Verification Queue', path: '/finance/payment-verification' },
-        { id: 'payment-history', label: 'Payment History Archive', path: '/finance/payment-history' },
         { id: 'payment-receipts', label: 'Payment Receipts', path: '/finance/receipts' },
         { id: 'outstanding-payments', label: 'Outstanding Payments', path: '/finance/outstanding' },
         { id: 'customers', label: 'Customers', path: '/finance/customers' }
