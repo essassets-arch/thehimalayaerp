@@ -94,6 +94,34 @@ async function main() {
     'hr.recruitment.candidates.update',
     'hr.recruitment.interviews.create',
     'hr.recruitment.interviews.update',
+    'hr.employees.read',
+    'hr.employees.create',
+    'hr.employees.update',
+    'hr.employees.status.update',
+    'hr.employees.documents.read',
+    'hr.employees.documents.upload',
+    'hr.employees.documents.delete',
+    'hr.employees.sensitive.read',
+    'hr.departments.read',
+    'hr.locations.read',
+    'hr.payroll.read',
+    'hr.payroll.prepare',
+    'hr.payroll.update',
+    'hr.payroll.submit',
+    'superadmin.payroll.read',
+    'superadmin.payroll.approve',
+    'superadmin.payroll.reject',
+    'superadmin.payroll.hold',
+    'superadmin.payroll.send_to_finance',
+    'finance.payroll.read',
+    'finance.payroll.process',
+    'finance.payroll.pay',
+    'finance.payroll.history',
+    'salary_slips.read_own',
+    'salary_slips.read_all',
+    'salary_slips.download',
+    'salary_slips.share',
+    'salary_slips.revoke_share',
   ];
 
   for (const code of permissionCodes) {
@@ -112,6 +140,33 @@ async function main() {
     create: { publicId: 'COMP-000001', name: 'Himalaya Wellness Pvt. Ltd.' },
   });
 
+  for (const item of [
+    { code: 'HR', name: 'Human Resources' },
+    { code: 'SALES', name: 'Sales' },
+    { code: 'FINANCE', name: 'Finance' },
+    { code: 'PRODUCTION', name: 'Production' },
+    { code: 'QUALITY', name: 'Quality Control' },
+  ]) {
+    await prisma.department.upsert({
+      where: { companyId_code: { companyId: company.id, code: item.code } },
+      update: { name: item.name, isActive: true },
+      create: { companyId: company.id, ...item },
+    });
+  }
+  for (const item of [
+    { code: 'HEAD_OFFICE', name: 'Head Office' },
+    { code: 'PLANT', name: 'Plant' },
+    { code: 'WAREHOUSE', name: 'Warehouse' },
+    { code: 'FIELD', name: 'Field' },
+    { code: 'REMOTE', name: 'Remote' },
+  ]) {
+    await prisma.workLocation.upsert({
+      where: { companyId_code: { companyId: company.id, code: item.code } },
+      update: { name: item.name, isActive: true },
+      create: { companyId: company.id, ...item },
+    });
+  }
+
   // ── 4. Assign all permissions to SUPER_ADMIN and ADMIN ─────────────────────
   console.log('🔗 Assigning permissions to admin roles...');
   const adminRoles = await prisma.role.findMany({
@@ -125,6 +180,18 @@ async function main() {
         where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
         update: {},
         create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  const ownSlipPermission = await prisma.permission.findUnique({ where: { code: 'salary_slips.read_own' } });
+  if (ownSlipPermission) {
+    const everyRole = await prisma.role.findMany();
+    for (const role of everyRole) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: ownSlipPermission.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: ownSlipPermission.id },
       });
     }
   }
@@ -168,6 +235,14 @@ async function main() {
           'finance.payment.read',
           'finance.payment.update',
           'sales.customers.read',
+          'finance.payroll.read',
+          'finance.payroll.process',
+          'finance.payroll.pay',
+          'finance.payroll.history',
+          'salary_slips.read_all',
+          'salary_slips.download',
+          'salary_slips.share',
+          'salary_slips.revoke_share',
         ],
       },
     },
@@ -224,7 +299,7 @@ async function main() {
 
   const hrRole = await prisma.role.findUnique({ where: { code: 'HR' } });
   const hrPermissions = await prisma.permission.findMany({
-    where: { code: { startsWith: 'hr.recruitment.' } },
+    where: { OR: [{ code: { startsWith: 'hr.' } }, { code: { startsWith: 'salary_slips.' } }] },
   });
   if (hrRole) {
     for (const permission of hrPermissions) {

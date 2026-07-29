@@ -62,6 +62,8 @@ model Company {
   VendorReturn          VendorReturn[]
   SupplierPayable       SupplierPayable[]
   recruitmentRequests   RecruitmentRequest[]
+  departments           Department[]
+  workLocations         WorkLocation[]
 }
 
 model Branch {
@@ -422,41 +424,462 @@ model PurchaseIndentItem {
   purchaseIndent    PurchaseIndent @relation(fields: [purchaseIndentId], references: [id], onDelete: Cascade)
 }
 
+enum EmployeeStatus {
+  DRAFT
+  ACTIVE
+  ON_PROBATION
+  CONFIRMED
+  ON_LEAVE
+  SUSPENDED
+  RESIGNED
+  TERMINATED
+  RETIRED
+  INACTIVE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum BankAccountType {
+  SAVINGS
+  CURRENT
+  SALARY
+  OTHER
+}
+
+enum EmployeeDocumentType {
+  AADHAAR_CARD
+  PAN_CARD
+  BANK_PASSBOOK
+  CANCELLED_CHEQUE
+  RESUME
+  PASSPORT
+  DRIVING_LICENCE
+  EDUCATION_CERTIFICATE
+  EXPERIENCE_CERTIFICATE
+  APPOINTMENT_LETTER
+  SALARY_SLIP
+  POLICE_VERIFICATION
+  MEDICAL_CERTIFICATE
+  PHOTOGRAPH
+  SIGNATURE
+  OTHER
+}
+
+enum EmployeeDocumentStatus {
+  UPLOADED
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+model Department {
+  id        String     @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  company   Company    @relation(fields: [companyId], references: [id])
+  employees Employee[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model WorkLocation {
+  id        String     @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  company   Company    @relation(fields: [companyId], references: [id])
+  employees Employee[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
 model Employee {
-  id          String       @id @default(uuid())
-  publicId    String       @unique
-  companyId   String
-  userId      String?      @unique
-  firstName   String
-  lastName    String
-  email       String?
-  phone       String?
-  hireDate    DateTime
-  department  String?
-  jobTitle    String?
-  baseSalary  Decimal      @db.Decimal(14, 2)
-  status      String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  company     Company      @relation(fields: [companyId], references: [id])
-  user        User?        @relation(fields: [userId], references: [id])
-  salarySlips SalarySlip[]
+  id                     String                             @id @default(uuid())
+  publicId               String                             @unique
+  companyId              String
+  userId                 String?                            @unique
+  employeeCode           String                             @unique
+  firstName              String
+  lastName               String
+  fullName               String
+  dateOfBirth            DateTime
+  gender                 Gender
+  jobTitle               String
+  departmentId           String
+  reportingManagerId     String?
+  workLocationId         String
+  employmentType         EmploymentType
+  joiningDate            DateTime
+  probationEndDate       DateTime?
+  status                 EmployeeStatus                     @default(ACTIVE)
+  workEmail              String                             @unique
+  personalEmail          String?
+  phoneNumber            String
+  residentialAddress     String
+  emergencyContactName   String
+  emergencyContactPhone  String
+  emergencyRelationship  String
+  panNumber              String                             @unique
+  aadhaarNumberEncrypted String
+  aadhaarLastFour        String
+  aadhaarHash            String                             @unique
+  uanNumber              String?
+  esicNumber             String?
+  bankName               String
+  accountHolderName      String
+  bankAccountType        BankAccountType
+  bankAccountEncrypted   String
+  bankAccountLastFour    String
+  bankAccountHash        String
+  ifscCode               String
+  branchName             String?
+  baseSalary             Decimal                            @default(0) @db.Decimal(14, 2)
+  version                Int                                @default(1)
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
+  createdById            String?
+  updatedById            String?
+  company                Company                            @relation(fields: [companyId], references: [id])
+  user                   User?                              @relation(fields: [userId], references: [id])
+  department             Department                         @relation(fields: [departmentId], references: [id])
+  workLocation           WorkLocation                       @relation(fields: [workLocationId], references: [id])
+  reportingManager       Employee?                          @relation("EmployeeReportingManager", fields: [reportingManagerId], references: [id])
+  directReports          Employee[]                         @relation("EmployeeReportingManager")
+  documents              EmployeeDocument[]
+  salarySlips            SalarySlip[]
+  salaryStructures       EmployeeSalaryStructure[]
+  attendanceSummaries    EmployeeMonthlyAttendanceSummary[]
+  payrollRecords         PayrollRecord[]
+  completedDraft         EmployeeDraft?                     @relation("CompletedEmployeeDraft")
+
+  @@index([companyId, status])
+  @@index([departmentId])
+  @@index([workLocationId])
+  @@index([reportingManagerId])
+  @@index([fullName])
+  @@index([phoneNumber])
+}
+
+model EmployeeDraft {
+  id                  String    @id @default(uuid())
+  companyId           String
+  createdById         String
+  employeeData        Json
+  completedEmployeeId String?   @unique
+  version             Int       @default(1)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  completedEmployee   Employee? @relation("CompletedEmployeeDraft", fields: [completedEmployeeId], references: [id])
+
+  @@index([companyId, createdById])
+}
+
+model EmployeeDocument {
+  id               String                 @id @default(uuid())
+  employeeId       String
+  documentType     EmployeeDocumentType
+  documentName     String
+  originalFileName String
+  storedFileName   String
+  storageKey       String
+  mimeType         String
+  fileSize         Int
+  description      String?
+  expiryDate       DateTime?
+  status           EmployeeDocumentStatus @default(UPLOADED)
+  verifiedAt       DateTime?
+  verifiedById     String?
+  rejectionReason  String?
+  uploadedAt       DateTime               @default(now())
+  uploadedById     String?
+  employee         Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([documentType])
+  @@index([status])
+}
+
+enum PayrollPeriodStatus {
+  OPEN
+  ATTENDANCE_LOCKED
+  PAYROLL_PROCESSING
+  PAYROLL_COMPLETED
+  CLOSED
+}
+
+enum PayrollStatus {
+  DRAFT
+  READY_FOR_SUBMISSION
+  PENDING_SUPER_ADMIN_APPROVAL
+  SUPER_ADMIN_APPROVED
+  REJECTED
+  ON_HOLD
+  CORRECTION_REQUIRED
+  SENT_TO_FINANCE
+  PAYMENT_PROCESSING
+  SALARY_PAID
+  PAYMENT_FAILED
+  CANCELLED
+}
+
+enum PayrollAdjustmentType {
+  BONUS
+  INCENTIVE
+  OVERTIME
+  ARREARS
+  REIMBURSEMENT
+  OTHER_EARNING
+  LEAVE_DEDUCTION
+  LOAN_DEDUCTION
+  ADVANCE_DEDUCTION
+  TAX_DEDUCTION
+  OTHER_DEDUCTION
+}
+
+enum SalaryPaymentMode {
+  BANK_TRANSFER
+  NEFT
+  RTGS
+  IMPS
+  UPI
+  CHEQUE
+  CASH
+  OTHER
+}
+
+model PayrollPeriod {
+  id             String                             @id @default(uuid())
+  month          Int
+  year           Int
+  startDate      DateTime
+  endDate        DateTime
+  status         PayrollPeriodStatus                @default(OPEN)
+  lockedAt       DateTime?
+  lockedById     String?
+  createdAt      DateTime                           @default(now())
+  updatedAt      DateTime                           @updatedAt
+  payrollRecords PayrollRecord[]
+  summaries      EmployeeMonthlyAttendanceSummary[]
+
+  @@unique([month, year])
+  @@index([status])
+}
+
+model EmployeeSalaryStructure {
+  id                  String    @id @default(uuid())
+  employeeId          String
+  effectiveFrom       DateTime
+  effectiveTo         DateTime?
+  basicSalary         Decimal   @db.Decimal(14, 2)
+  hra                 Decimal   @default(0) @db.Decimal(14, 2)
+  conveyanceAllowance Decimal   @default(0) @db.Decimal(14, 2)
+  specialAllowance    Decimal   @default(0) @db.Decimal(14, 2)
+  otherAllowance      Decimal   @default(0) @db.Decimal(14, 2)
+  pfApplicable        Boolean   @default(false)
+  esicApplicable      Boolean   @default(false)
+  professionalTax     Boolean   @default(false)
+  tdsApplicable       Boolean   @default(false)
+  grossSalary         Decimal   @db.Decimal(14, 2)
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, effectiveFrom])
+}
+
+model EmployeeMonthlyAttendanceSummary {
+  id              String         @id @default(uuid())
+  employeeId      String
+  payrollPeriodId String
+  calendarDays    Decimal        @default(0) @db.Decimal(6, 2)
+  workingDays     Decimal        @default(0) @db.Decimal(6, 2)
+  presentDays     Decimal        @default(0) @db.Decimal(6, 2)
+  paidLeaveDays   Decimal        @default(0) @db.Decimal(6, 2)
+  unpaidLeaveDays Decimal        @default(0) @db.Decimal(6, 2)
+  halfDays        Decimal        @default(0) @db.Decimal(6, 2)
+  absentDays      Decimal        @default(0) @db.Decimal(6, 2)
+  weeklyOffDays   Decimal        @default(0) @db.Decimal(6, 2)
+  holidayDays     Decimal        @default(0) @db.Decimal(6, 2)
+  payableDays     Decimal        @default(0) @db.Decimal(6, 2)
+  overtimeHours   Decimal        @default(0) @db.Decimal(8, 2)
+  lateMarks       Int            @default(0)
+  calculatedAt    DateTime       @default(now())
+  version         Int            @default(1)
+  employee        Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollPeriod   PayrollPeriod  @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  payrollRecord   PayrollRecord?
+
+  @@unique([employeeId, payrollPeriodId])
+}
+
+model PayrollRecord {
+  id                    String                            @id @default(uuid())
+  payrollNumber         String                            @unique
+  employeeId            String
+  payrollPeriodId       String
+  attendanceSummaryId   String?                           @unique
+  status                PayrollStatus                     @default(DRAFT)
+  calendarDays          Decimal                           @default(0) @db.Decimal(6, 2)
+  standardWorkingDays   Decimal                           @default(0) @db.Decimal(6, 2)
+  presentDays           Decimal                           @default(0) @db.Decimal(6, 2)
+  paidLeaveDays         Decimal                           @default(0) @db.Decimal(6, 2)
+  unpaidLeaveDays       Decimal                           @default(0) @db.Decimal(6, 2)
+  payableDays           Decimal                           @default(0) @db.Decimal(6, 2)
+  overtimeHours         Decimal                           @default(0) @db.Decimal(8, 2)
+  basicSalary           Decimal                           @default(0) @db.Decimal(14, 2)
+  hra                   Decimal                           @default(0) @db.Decimal(14, 2)
+  conveyanceAllowance   Decimal                           @default(0) @db.Decimal(14, 2)
+  specialAllowance      Decimal                           @default(0) @db.Decimal(14, 2)
+  otherAllowance        Decimal                           @default(0) @db.Decimal(14, 2)
+  overtimeAmount        Decimal                           @default(0) @db.Decimal(14, 2)
+  bonusAmount           Decimal                           @default(0) @db.Decimal(14, 2)
+  incentiveAmount       Decimal                           @default(0) @db.Decimal(14, 2)
+  arrearsAmount         Decimal                           @default(0) @db.Decimal(14, 2)
+  otherEarnings         Decimal                           @default(0) @db.Decimal(14, 2)
+  grossEarnings         Decimal                           @default(0) @db.Decimal(14, 2)
+  leaveDeduction        Decimal                           @default(0) @db.Decimal(14, 2)
+  pfDeduction           Decimal                           @default(0) @db.Decimal(14, 2)
+  esicDeduction         Decimal                           @default(0) @db.Decimal(14, 2)
+  professionalTax       Decimal                           @default(0) @db.Decimal(14, 2)
+  tdsDeduction          Decimal                           @default(0) @db.Decimal(14, 2)
+  loanDeduction         Decimal                           @default(0) @db.Decimal(14, 2)
+  advanceDeduction      Decimal                           @default(0) @db.Decimal(14, 2)
+  otherDeductions       Decimal                           @default(0) @db.Decimal(14, 2)
+  totalDeductions       Decimal                           @default(0) @db.Decimal(14, 2)
+  netPayable            Decimal                           @default(0) @db.Decimal(14, 2)
+  paidAmount            Decimal                           @default(0) @db.Decimal(14, 2)
+  hrRemarks             String?
+  superAdminRemarks     String?
+  financeRemarks        String?
+  preparedById          String?
+  preparedAt            DateTime?
+  submittedById         String?
+  submittedAt           DateTime?
+  approvedById          String?
+  approvedAt            DateTime?
+  sentToFinanceById     String?
+  sentToFinanceAt       DateTime?
+  processingStartedById String?
+  processingStartedAt   DateTime?
+  paidById              String?
+  paidAt                DateTime?
+  rejectionReason       String?
+  holdReason            String?
+  correctionReason      String?
+  version               Int                               @default(1)
+  createdAt             DateTime                          @default(now())
+  updatedAt             DateTime                          @updatedAt
+  employee              Employee                          @relation(fields: [employeeId], references: [id])
+  payrollPeriod         PayrollPeriod                     @relation(fields: [payrollPeriodId], references: [id])
+  attendanceSummary     EmployeeMonthlyAttendanceSummary? @relation(fields: [attendanceSummaryId], references: [id])
+  payment               SalaryPayment?
+  salarySlip            SalarySlip?
+  adjustments           PayrollAdjustment[]
+  statusHistory         PayrollStatusHistory[]
+
+  @@unique([employeeId, payrollPeriodId])
+  @@index([payrollPeriodId, status])
+  @@index([employeeId, status])
+}
+
+model PayrollAdjustment {
+  id              String                @id @default(uuid())
+  payrollRecordId String
+  type            PayrollAdjustmentType
+  description     String
+  amount          Decimal               @db.Decimal(14, 2)
+  isEarning       Boolean
+  addedById       String
+  createdAt       DateTime              @default(now())
+  payrollRecord   PayrollRecord         @relation(fields: [payrollRecordId], references: [id], onDelete: Cascade)
+
+  @@index([payrollRecordId])
+}
+
+model SalaryPayment {
+  id                   String            @id @default(uuid())
+  payrollRecordId      String            @unique
+  paymentNumber        String            @unique
+  paymentDate          DateTime
+  paymentMode          SalaryPaymentMode
+  paidAmount           Decimal           @db.Decimal(14, 2)
+  bankAccountId        String?
+  utrNumber            String?           @unique
+  transactionReference String?
+  remarks              String?
+  attachmentUrl        String?
+  paidById             String
+  createdAt            DateTime          @default(now())
+  payrollRecord        PayrollRecord     @relation(fields: [payrollRecordId], references: [id])
+
+  @@index([paymentDate])
 }
 
 model SalarySlip {
-  id         String   @id @default(uuid())
-  publicId   String   @unique
-  employeeId String
-  month      Int
-  year       Int
-  basePay    Decimal  @db.Decimal(14, 2)
-  allowances Decimal  @db.Decimal(14, 2)
-  deductions Decimal  @db.Decimal(14, 2)
-  netPay     Decimal  @db.Decimal(14, 2)
-  status     String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  id                  String            @id @default(uuid())
+  payrollRecordId     String            @unique
+  slipNumber          String            @unique
+  employeeId          String
+  salaryMonth         Int
+  salaryYear          Int
+  grossEarnings       Decimal           @db.Decimal(14, 2)
+  totalDeductions     Decimal           @db.Decimal(14, 2)
+  netPaid             Decimal           @db.Decimal(14, 2)
+  snapshotJson        Json
+  pdfUrl              String?
+  availableToEmployee Boolean           @default(true)
+  generatedAt         DateTime          @default(now())
+  payrollRecord       PayrollRecord     @relation(fields: [payrollRecordId], references: [id])
+  employee            Employee          @relation(fields: [employeeId], references: [id])
+  shares              SalarySlipShare[]
+
+  @@index([employeeId, salaryYear, salaryMonth])
+}
+
+model SalarySlipShare {
+  id            String     @id @default(uuid())
+  salarySlipId  String
+  tokenHash     String     @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdById   String
+  allowDownload Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  viewCount     Int        @default(0)
+  lastViewedAt  DateTime?
+  salarySlip    SalarySlip @relation(fields: [salarySlipId], references: [id], onDelete: Cascade)
+
+  @@index([salarySlipId])
+  @@index([expiresAt])
+}
+
+model PayrollStatusHistory {
+  id              String         @id @default(uuid())
+  payrollRecordId String
+  fromStatus      PayrollStatus?
+  toStatus        PayrollStatus
+  action          String
+  remarks         String?
+  changedById     String
+  changedAt       DateTime       @default(now())
+  payrollRecord   PayrollRecord  @relation(fields: [payrollRecordId], references: [id], onDelete: Cascade)
+
+  @@index([payrollRecordId, changedAt])
 }
 
 model Quotation {
@@ -1743,6 +2166,9 @@ enum EmploymentType {
   TEMPORARY
   APPRENTICE
   INTERN
+  TRAINEE
+  CONSULTANT
+  PART_TIME
 }
 
 enum RecruitmentRequestStatus {

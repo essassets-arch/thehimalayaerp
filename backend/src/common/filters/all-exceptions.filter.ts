@@ -64,6 +64,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code,
         message,
         details,
+        field:
+          exception instanceof HttpException
+            ? (exception.getResponse() as any)?.field
+            : undefined,
       },
       meta: {
         requestId,

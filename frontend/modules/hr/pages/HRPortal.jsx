@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
@@ -8,12 +8,14 @@ import { useERP } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { adminService } from '../../../services/admin.service';
 import { apiClient } from '../../../lib/apiClient';
+import { employeesService } from '../../../services/hr/employeesService';
 import EmployeeRegistrationForm from '../employee/components/EmployeeRegistrationForm';
+import EmployeeDetails from '../employee/components/EmployeeDetails';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import { 
   Users, UserPlus, Clock, ClipboardList, FileText, PackageCheck, CreditCard, Bell, 
-  Trash2, Edit3, Shield, UserX, CheckCircle, XCircle, Search, Save, Calendar, Camera, Play
+  Trash2, Edit3, Shield, UserX, CheckCircle, XCircle, Search, Save, Calendar, Camera, Play, Eye
 } from 'lucide-react';
 
 export default function HRPortal() {
@@ -26,6 +28,18 @@ export default function HRPortal() {
 
   // Roster states
   const employees = state.employees || [];
+  const [directoryEmployees, setDirectoryEmployees] = useState([]);
+  const [directoryError, setDirectoryError] = useState('');
+  useEffect(() => {
+    if (view !== 'employees') return;
+    const today = new Date();
+    employeesService.getPayrollOverview({ month: today.getMonth() + 1, year: today.getFullYear(), search: globalSearch })
+      .then((result) => {
+        setDirectoryEmployees(result);
+        setDirectoryError('');
+      })
+      .catch((error) => setDirectoryError(error.message));
+  }, [view, globalSearch]);
   const leaves = state.leaves || [];
   const shifts = state.shifts || [];
   const exitClearances = state.exitClearances || [];
@@ -293,6 +307,7 @@ export default function HRPortal() {
 
   // 2. EMPLOYEES DIRECTORY
   const renderEmployees = () => {
+    if (params?.slug?.[1]) return <EmployeeDetails id={params.slug[1]} />;
     return (
       <div className="app-card">
         <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '16px' }}>
@@ -311,29 +326,32 @@ export default function HRPortal() {
 
         <DataTable 
           columns={[
-            { header: 'Code', accessor: 'id' },
-            { header: 'Full Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
-            { header: 'Department', accessor: 'department' },
-            { header: 'Role', accessor: 'role' },
-            { header: 'Salary', accessor: 'salary', render: (row) => `₹${(row.salary || 30000).toLocaleString('en-IN')}` },
-            { header: 'Attendance', accessor: 'attendance', render: (row) => `${row.attendance || 95}%` }
+            { header: 'Code', accessor: 'employeeCode' },
+            { header: 'Full Name', accessor: 'fullName', render: (row) => <strong>{row.fullName}</strong> },
+            { header: 'Department', accessor: 'department', render: (row) => row.department?.name },
+            { header: 'Role', accessor: 'jobTitle' },
+            { header: 'Working Days', accessor: 'payroll', render: (row) => row.payroll?.standardWorkingDays || '—' },
+            { header: 'Paid Days', accessor: 'payroll', render: (row) => row.payroll?.payableDays || '—' },
+            { header: 'Unpaid Days', accessor: 'payroll', render: (row) => row.payroll?.unpaidLeaveDays || '—' },
+            { header: 'Gross Salary', accessor: 'payroll', render: (row) => row.payroll ? `₹${Number(row.payroll.grossEarnings).toLocaleString('en-IN')}` : '—' },
+            { header: 'Payroll Status', accessor: 'payroll', render: (row) => row.payroll?.status || 'NOT GENERATED' }
           ]}
-          data={employees}
+          data={directoryEmployees}
           searchQuery={globalSearch}
-          searchField="name"
+          searchField="fullName"
           actions={(row) => (
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
-                title="Delete Employee"
+                title="View Employee"
                 className="action-btn"
                 style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
-                onClick={() => handleDeleteEmployee(row.id, row.name)}
+                onClick={() => navigate.push(`/hr/employees/${row.id}`)}
               >
-                <Trash2 size={12} />
+                <Eye size={12} />
               </button>
             </div>
           )}
-          emptyMessage="No employees found in records."
+          emptyMessage={directoryError || "No employees found in records."}
         />
       </div>
     );

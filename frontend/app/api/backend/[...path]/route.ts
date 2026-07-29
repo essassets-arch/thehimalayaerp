@@ -15,9 +15,12 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     '/logistics/dispatches/replacements': '/replacements',
   };
   const backendPath = backendPathAliases[requestedPath] || requestedPath;
+  const contentType = request.headers.get('content-type') || '';
   const body = method === 'GET' || method === 'DELETE'
     ? undefined
-    : await request.json().catch(() => undefined);
+    : contentType.includes('multipart/form-data')
+      ? await request.formData()
+      : await request.json().catch(() => undefined);
 
   return forwardBackendRequest({
     path: backendPath,

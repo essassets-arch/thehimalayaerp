@@ -1,210 +1,177 @@
 'use client';
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { useERPStore } from '@/store/erpStore';
-import {
-  PAYMENT_STATUS,
-  PAYROLL_STATUS,
-  approvePayrollBySuperAdmin,
-  closePayroll,
-  createPayrollDraft,
-  createSalaryPaymentBatch,
-  generatePayslips,
-  markEmployeePaymentFailed,
-  markEmployeePaymentPaid,
-  rejectPayrollBySuperAdmin,
-  reopenRejectedPayroll,
-  retryEmployeePayment,
-  selectPayrollRuns,
-  submitPayrollToSuperAdmin,
-  updatePayrollEmployee,
-  verifyPayrollByFinance,
-} from '@/store/payrollFlow';
+import { PayrollRecord, payrollService } from '@/services/payroll/payrollService';
+import { useRouter } from 'next/navigation';
 
 type Mode = 'prepare' | 'super-admin' | 'finance' | 'payment' | 'payslips' | 'history' | 'employee';
-
-const money = (value: number) => `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-const statuses: Record<Mode, string[]> = {
-  prepare: [PAYROLL_STATUS.PAYROLL_DRAFT, PAYROLL_STATUS.SUPER_ADMIN_REJECTED, PAYROLL_STATUS.PENDING_SUPER_ADMIN_APPROVAL],
-  'super-admin': [PAYROLL_STATUS.PENDING_SUPER_ADMIN_APPROVAL, PAYROLL_STATUS.SUPER_ADMIN_REJECTED, PAYROLL_STATUS.SUPER_ADMIN_APPROVED],
-  finance: [PAYROLL_STATUS.SUPER_ADMIN_APPROVED],
-  payment: [PAYROLL_STATUS.FINANCE_VERIFIED, PAYROLL_STATUS.PAYMENT_PROCESSING, PAYROLL_STATUS.PARTIALLY_PAID, PAYROLL_STATUS.SALARY_PAID],
-  payslips: [PAYROLL_STATUS.SALARY_PAID, PAYROLL_STATUS.PAYSLIP_GENERATED],
-  history: Object.values(PAYROLL_STATUS),
-  employee: [PAYROLL_STATUS.PAYSLIP_GENERATED, PAYROLL_STATUS.PAYROLL_CLOSED],
-};
-
-const titles: Record<Mode, [string, string]> = {
-  prepare: ['Prepare Salary', 'Generate, review, correct, and submit payroll to Super Admin.'],
-  'super-admin': ['Payroll Analysis & Approvals', 'Review payroll totals, exceptions, and employee calculations.'],
-  finance: ['Salary Verification', 'Only payrolls approved by Super Admin are available here.'],
-  payment: ['Salary Disbursement', 'Create payment batches and resolve employee-level payment exceptions.'],
-  payslips: ['Payslip Generation', 'Payslips are available only for successfully paid employees.'],
-  history: ['Payroll History', 'Close completed payrolls; closed records remain read-only.'],
-  employee: ['My Payslips', 'View generated and closed payroll payslips.'],
-};
-
-const notifyError = (error: unknown) => Swal.fire('Action blocked', error instanceof Error ? error.message : String(error), 'warning');
-const runAction = async (callback: () => void, message?: string) => {
-  try {
-    callback();
-    if (message) await Swal.fire('Success', message, 'success');
-  } catch (error) {
-    await notifyError(error);
-  }
+const money = (value: unknown) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const title: Record<Mode, string> = {
+  prepare: 'HR Salary Preparation', 'super-admin': 'Super Admin Salary Approval',
+  finance: 'Finance Pending Salaries', payment: 'Finance Salary Processing',
+  payslips: 'Salary Slips', history: 'Paid Salary History', employee: 'My Salary Slips',
 };
 
 export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
-  const rawRuns = useERPStore((store: any) => store.state?.payrollRuns);
-  const runs = useMemo(() => selectPayrollRuns({ payrollRuns: rawRuns }), [rawRuns]);
-  const [month, setMonth] = useState('2026-07');
-  const [payrollId, setPayrollId] = useState('');
-  const [expanded, setExpanded] = useState<string>('');
-  const [tab, setTab] = useState(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search).get('tab') || 'All');
+  const router = useRouter();
+  const now = new Date();
+  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+  const [records, setRecords] = useState<PayrollRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState('');
 
-  const shown = useMemo(() => runs.filter((run: any) => {
-    if (!statuses[mode].includes(run.status)) return false;
-    if (tab === 'Rejected') return run.status === PAYROLL_STATUS.SUPER_ADMIN_REJECTED;
-    if (tab === 'Pending') return run.status === PAYROLL_STATUS.PENDING_SUPER_ADMIN_APPROVAL;
-    if (tab === 'Approved') return run.status === PAYROLL_STATUS.SUPER_ADMIN_APPROVED;
-    if (tab === 'Failed') return run.employees.some((line: any) => line.paymentStatus === PAYMENT_STATUS.PAYMENT_FAILED);
-    return true;
-  }), [runs, mode, tab]);
-  const summary = useMemo(() => shown.reduce((result: any, run: any) => ({
-    employees: result.employees + Number(run.employees?.length || 0),
-    gross: result.gross + Number(run.totals?.grossSalary || 0),
-    deductions: result.deductions + Number(run.totals?.totalDeductions || 0),
-    net: result.net + Number(run.totals?.netPayable || 0),
-  }), { employees: 0, gross: 0, deductions: 0, net: 0 }), [shown]);
-
-  const create = () => runAction(
-    () => createPayrollDraft(month, { payrollId: payrollId.trim() || undefined }, 'HR'),
-    'Payroll draft saved and will remain available after refresh.',
-  );
-
-  const submit = async (run: any) => {
-    const result = await Swal.fire({ title: 'Submit to Super Admin?', text: 'HR editing will be locked after submission.', icon: 'question', showCancelButton: true, confirmButtonText: 'Submit to Super Admin' });
-    if (result.isConfirmed) await runAction(() => submitPayrollToSuperAdmin(run.id), 'Payroll submitted to Super Admin.');
-  };
-
-  const approve = async (run: any) => {
-    const result = await Swal.fire({ title: 'Approve and Send to Finance?', input: 'textarea', inputLabel: 'Approval remarks', showCancelButton: true, confirmButtonText: 'Approve and Send to Finance' });
-    if (result.isConfirmed) await runAction(() => approvePayrollBySuperAdmin(run.id, result.value || ''), 'Payroll approved and sent to Finance.');
-  };
-
-  const reject = async (run: any) => {
-    const result = await Swal.fire({ title: 'Reject payroll', input: 'textarea', inputLabel: 'Rejection reason', inputValidator: (value) => !value?.trim() ? 'Rejection reason is required.' : undefined, showCancelButton: true, confirmButtonText: 'Reject' });
-    if (result.isConfirmed) await runAction(() => rejectPayrollBySuperAdmin(run.id, result.value));
-  };
-
-  const batch = async (run: any) => {
-    if (run.status === PAYROLL_STATUS.FINANCE_VERIFIED) {
-      await runAction(() => createSalaryPaymentBatch(run.id, { paymentMode: 'Bank Transfer' }), 'Payment batch generated; salary processing started.');
-      return;
-    }
-    const processable = run.employees.filter((line: any) => line.paymentStatus === PAYMENT_STATUS.PAYMENT_PROCESSING);
-    for (const line of processable) {
-      await runAction(() => markEmployeePaymentPaid(run.id, line.employeeId, { transactionReference: `TXN-${line.employeeId}-${Date.now()}`, paymentMode: 'Bank Transfer' }));
-    }
-    await Swal.fire('Payments updated', `${processable.length} payment(s) marked successful.`, 'success');
-  };
-
-  const editDeduction = async (run: any, line: any) => {
-    if (run.status === PAYROLL_STATUS.SUPER_ADMIN_REJECTED) {
-      await runAction(() => reopenRejectedPayroll(run.id), 'Payroll opened for correction.');
-      return;
-    }
-    const result = await Swal.fire({ title: `Edit deduction — ${line.employeeName}`, input: 'number', inputValue: line.deductions.otherDeductions || 0, inputAttributes: { min: '0', step: '1' }, showCancelButton: true, confirmButtonText: 'Save correction' });
-    if (result.isConfirmed) await runAction(() => updatePayrollEmployee(run.id, line.employeeId, { deductions: { otherDeductions: Number(result.value || 0) } }), 'Salary recalculated.');
-  };
-
-  const reopen = async (run: any) => {
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    const [year, selectedMonth] = month.split('-').map(Number);
     try {
-      reopenRejectedPayroll(run.id);
-      setTab('All');
-      await Swal.fire('Success', 'Payroll opened for correction.', 'success');
-    } catch (error) {
-      await notifyError(error);
-    }
-  };
+      const params = { month: selectedMonth, year, page: 1, pageSize: 100 };
+      const result = mode === 'employee'
+        ? { items: (await payrollService.getMySalarySlips()).map((slip: any) => ({ ...slip.payrollRecord, employee: slip.employee, salarySlip: slip })), pagination: { page: 1, pageSize: 100, total: 0, totalPages: 1 } }
+        : mode === 'super-admin' ? await payrollService.getPendingApprovals(params)
+        : mode === 'finance' ? await payrollService.getFinancePendingPayroll(params)
+        : mode === 'payment' ? await payrollService.getProcessingPayroll(params)
+        : mode === 'history' || mode === 'payslips' ? await payrollService.getPayrollHistory(params)
+        : await payrollService.getPayrollRecords(params);
+      setRecords(result.items);
+    } catch (cause: any) { setError(cause.message); }
+    finally { setLoading(false); }
+  }, [mode, month]);
+  useEffect(() => { void load(); }, [load]);
 
-  const retry = async (run: any, employeeId: string) => {
+  const totals = useMemo(() => records.reduce((sum, record) => ({
+    gross: sum.gross + Number(record.grossEarnings), deductions: sum.deductions + Number(record.totalDeductions),
+    net: sum.net + Number(record.netPayable),
+  }), { gross: 0, deductions: 0, net: 0 }), [records]);
+
+  const execute = async (id: string, action: () => Promise<unknown>, success: string) => {
+    setBusy(id);
+    try { await action(); await Swal.fire('Success', success, 'success'); await load(); }
+    catch (cause: any) { await Swal.fire('Unable to complete action', cause.message, 'error'); }
+    finally { setBusy(''); }
+  };
+  const generate = async () => {
+    const [year, selectedMonth] = month.split('-').map(Number);
+    const result = await Swal.fire({ title: 'Generate monthly salaries?', text: `Salary calculations will be generated for ${month}.`, icon: 'question', showCancelButton: true });
+    if (result.isConfirmed) await execute('generate', () => payrollService.generateBulkPayroll({ month: selectedMonth, year }), 'Monthly salary records generated.');
+  };
+  const submit = async (record: PayrollRecord) => {
+    const result = await Swal.fire({ title: 'Submit salary for approval?', html: `<b>${record.employee.fullName}</b><br>${month}<br>Net payable: ${money(record.netPayable)}`, icon: 'question', showCancelButton: true });
+    if (result.isConfirmed) await execute(record.id, () => payrollService.submitPayroll(record.id, { version: record.version }), 'Salary submitted to Super Admin.');
+  };
+  const review = async (record: PayrollRecord, action: 'approve' | 'reject' | 'hold' | 'correction') => {
+    const remarksRequired = action !== 'approve';
+    const result = await Swal.fire({ title: `${action === 'correction' ? 'Return for correction' : action} salary?`, html: `<b>${record.employee.fullName}</b><br>Net payable: ${money(record.netPayable)}`, input: 'textarea', inputLabel: 'Remarks', inputValidator: (value) => remarksRequired && !value?.trim() ? 'Remarks are required.' : undefined, showCancelButton: true });
+    if (!result.isConfirmed) return;
+    const body = { version: record.version, remarks: result.value || '' };
+    const request = action === 'approve' ? payrollService.approvePayroll(record.id, body)
+      : action === 'reject' ? payrollService.rejectPayroll(record.id, body)
+      : action === 'hold' ? payrollService.holdPayroll(record.id, body)
+      : payrollService.returnPayrollForCorrection(record.id, body);
+    await execute(record.id, () => request, `Salary ${action === 'correction' ? 'returned for correction' : `${action}d`}.`);
+  };
+  const sendFinance = async (record: PayrollRecord) => {
+    const result = await Swal.fire({ title: 'Send approved salary to Finance?', html: `<b>${record.employee.fullName}</b><br>${money(record.netPayable)}`, icon: 'question', showCancelButton: true });
+    if (result.isConfirmed) await execute(record.id, () => payrollService.sendPayrollToFinance([{ id: record.id, version: record.version }]), 'Salary sent to Finance.');
+  };
+  const start = async (record: PayrollRecord) => {
+    const result = await Swal.fire({ title: 'Start salary processing?', html: `<b>${record.employee.fullName}</b><br>${money(record.netPayable)}`, icon: 'question', showCancelButton: true });
+    if (result.isConfirmed) await execute(record.id, () => payrollService.startPayrollProcessing(record.id, { version: record.version }), 'Salary moved to processing.');
+  };
+  const paid = async (record: PayrollRecord) => {
+    const result = await Swal.fire({
+      title: 'Mark salary as paid?', html: `<b>${record.employee.fullName}</b><br>${month}<br>${money(record.netPayable)}`,
+      input: 'text', inputLabel: 'UTR Number', inputPlaceholder: 'UTR123456789',
+      inputValidator: (value) => !value?.trim() ? 'UTR number is required.' : undefined, showCancelButton: true,
+    });
+    if (!result.isConfirmed) return;
+    await execute(record.id, () => payrollService.markPayrollPaid(record.id, {
+      version: record.version, paymentDate: new Date().toISOString(), paymentMode: 'BANK_TRANSFER',
+      paidAmount: record.netPayable, utrNumber: result.value, transactionReference: result.value,
+    }), 'Salary payment completed and salary slip generated.');
+  };
+  const missingSlip = () => Swal.fire('Salary slip unavailable', 'Salary slip is not available for this paid payroll record.', 'warning');
+  const viewSlip = (record: PayrollRecord) => record.salarySlip
+    ? router.push(mode === 'employee' ? `/employee/salary-slips/${record.salarySlip.id}` : `/finance/salary/history/${record.id}/salary-slip`)
+    : void missingSlip();
+  const downloadSlip = async (record: PayrollRecord) => {
+    if (!record.salarySlip) return void missingSlip();
+    try { await payrollService.downloadSalarySlipPdf(record.salarySlip.id); await Swal.fire('Downloaded', 'Salary slip downloaded successfully.', 'success'); }
+    catch (error: any) { await Swal.fire('Download failed', error.message, 'error'); }
+  };
+  const shareSlip = async (record: PayrollRecord) => {
+    if (!record.salarySlip) return void missingSlip();
+    const result = await Swal.fire({
+      title: 'Share Salary Slip', html: `Create a secure link for <b>${record.employee.fullName}</b> — ${record.payrollPeriod.month}/${record.payrollPeriod.year}.`,
+      input: 'select', inputOptions: { 24: '24 hours', 72: '3 days', 168: '7 days', 720: '30 days' },
+      inputLabel: 'Link validity', showCancelButton: true, confirmButtonText: 'Create Secure Link',
+    });
+    if (!result.isConfirmed) return;
     try {
-      retryEmployeePayment(run.id, employeeId);
-      setTab('All');
-      await Swal.fire('Success', 'Payment returned to processing queue.', 'success');
-    } catch (error) {
-      await notifyError(error);
-    }
+      const share = await payrollService.createSalarySlipShare(record.salarySlip.id, { validHours: Number(result.value), allowDownload: true });
+      const url = `${window.location.origin}/salary-slip/shared/${share.token}`;
+      const choice = await Swal.fire({ title: 'Secure share link created successfully.', html: `<input value="${url}" readonly style="width:100%;padding:8px">`, showDenyButton: true, showCancelButton: true, confirmButtonText: 'Copy / Share', denyButtonText: 'Revoke Link', cancelButtonText: 'Close' });
+      if (choice.isConfirmed) {
+        if (navigator.share) await navigator.share({ title: `Salary Slip — ${record.employee.fullName}`, url });
+        else await navigator.clipboard.writeText(url);
+        await Swal.fire('Ready to share', 'The secure link was copied or shared successfully.', 'success');
+      } else if (choice.isDenied) {
+        const confirmation = await Swal.fire({ title: 'Revoke salary-slip link?', text: 'Anyone using this link will immediately lose access.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Revoke' });
+        if (confirmation.isConfirmed) {
+          await payrollService.revokeSalarySlipShare(share.id);
+          await Swal.fire('Link revoked', 'The salary-slip link is no longer available.', 'success');
+        }
+      }
+    } catch (error: any) { await Swal.fire('Unable to share salary slip', error.message, 'error'); }
   };
-
-  const primary = (run: any) => {
-    if (mode === 'prepare') {
-      if (run.status === PAYROLL_STATUS.SUPER_ADMIN_REJECTED) return <button onClick={() => reopen(run)}>Correct Payroll</button>;
-      if (run.status === PAYROLL_STATUS.PAYROLL_DRAFT) return <button onClick={() => submit(run)}>Submit to Super Admin</button>;
-      return <button disabled>Submitted</button>;
-    }
-    if (mode === 'super-admin' && run.status === PAYROLL_STATUS.PENDING_SUPER_ADMIN_APPROVAL) return <><button onClick={() => approve(run)}>Approve and Send to Finance</button><button className="danger" onClick={() => reject(run)}>Reject</button></>;
-    if (mode === 'finance') return <button onClick={() => runAction(() => verifyPayrollByFinance(run.id), 'Payroll verified and ready for disbursement.')}>Verify Payroll</button>;
-    if (mode === 'payment') {
-      if (run.status === PAYROLL_STATUS.FINANCE_VERIFIED) return <button onClick={() => batch(run)}>Generate Payment Batch</button>;
-      if ([PAYROLL_STATUS.PAYMENT_PROCESSING, PAYROLL_STATUS.PARTIALLY_PAID].includes(run.status)) return <button onClick={() => batch(run)}>Mark All Processing Paid</button>;
-    }
-    if (mode === 'payslips' && run.status === PAYROLL_STATUS.SALARY_PAID) return <button onClick={() => runAction(() => generatePayslips(run.id), 'Payslips generated.')}>Generate Payslips</button>;
-    if (mode === 'history' && run.status === PAYROLL_STATUS.PAYSLIP_GENERATED) return <button onClick={() => runAction(() => closePayroll(run.id), 'Payroll closed and is now read-only.')}>Close Payroll</button>;
-    return null;
+  const actions = (record: PayrollRecord) => {
+    if (mode === 'prepare' && ['DRAFT', 'CORRECTION_REQUIRED'].includes(record.status)) return <button disabled={busy === record.id} onClick={() => submit(record)}>Submit</button>;
+    if (mode === 'super-admin' && record.status === 'SUPER_ADMIN_APPROVED') return <button disabled={!!busy} onClick={() => sendFinance(record)}>Send to Finance</button>;
+    if (mode === 'super-admin') return <><button disabled={!!busy} onClick={() => review(record, 'approve')}>Approve</button><button disabled={!!busy} onClick={() => review(record, 'reject')}>Reject</button><button disabled={!!busy} onClick={() => review(record, 'hold')}>Hold</button><button disabled={!!busy} onClick={() => review(record, 'correction')}>Return</button></>;
+    if (mode === 'finance') return <button disabled={!!busy} onClick={() => start(record)}>Start Processing</button>;
+    if (mode === 'payment') return <button disabled={!!busy} onClick={() => paid(record)}>Salary Done</button>;
+    if (mode === 'prepare' && record.status === 'SUPER_ADMIN_APPROVED') return <button disabled={!!busy} onClick={() => sendFinance(record)}>Send to Finance</button>;
+    if (record.status === 'SALARY_PAID' && record.salarySlip) return <details><summary style={{ cursor: 'pointer' }}>Actions</summary><div style={{ display: 'grid', gap: 5, position: 'absolute', background: '#fff', padding: 8, boxShadow: '0 6px 20px #0002', zIndex: 5 }}>
+      <button onClick={() => viewSlip(record)}>View Salary Slip</button>
+      <button onClick={() => downloadSlip(record)}>Download PDF</button>
+      <button onClick={() => window.open(`/finance/salary/history/${record.id}/salary-slip?print=1`, '_blank')}>Print</button>
+      <button onClick={() => shareSlip(record)}>Share</button>
+      <button onClick={() => execute(record.id, () => payrollService.enableEmployeeSalarySlipAccess(record.salarySlip.id), 'Salary slip is available to the employee.')}>Make Available to Employee</button>
+    </div></details>;
+    if (record.status === 'SALARY_PAID') return <button onClick={missingSlip}>View Salary Slip</button>;
+    return <span>—</span>;
   };
 
   return <main className="payroll-page">
-    <section className="payroll-hero">
-      <div><span className="payroll-eyebrow">Payroll workspace</span><h1>{titles[mode][0]}</h1><p className="subtitle">{titles[mode][1]}</p></div>
-      <div className="payroll-live"><span />Central payroll state</div>
+    <section className="payroll-hero"><div><span className="payroll-eyebrow">Database-backed payroll</span><h1>{title[mode]}</h1><p className="subtitle">Attendance, calculations, approvals, payments and immutable salary slips from PostgreSQL.</p></div></section>
+    <section className="payroll-stats">
+      <article><span>Records</span><strong>{records.length}</strong></article>
+      <article><span>Gross earnings</span><strong>{money(totals.gross)}</strong></article>
+      <article><span>Deductions</span><strong>{money(totals.deductions)}</strong></article>
+      <article className="payroll-net-card"><span>Net payable</span><strong>{money(totals.net)}</strong></article>
     </section>
-    <section className="payroll-stats" aria-label="Payroll summary">
-      <article><span>Payroll runs</span><strong>{shown.length}</strong><small>Current workflow stage</small></article>
-      <article><span>Employees</span><strong>{summary.employees}</strong><small>Included salary lines</small></article>
-      <article><span>Gross payroll</span><strong>{money(summary.gross)}</strong><small>Before deductions</small></article>
-      <article className="payroll-net-card"><span>Net payable</span><strong>{money(summary.net)}</strong><small>{money(summary.deductions)} deductions</small></article>
-    </section>
-    {mode === 'prepare' && <section className="payroll-control-card">
-      <div className="payroll-section-title"><h2>Create payroll run</h2><p>Select a salary month and optionally provide your own payroll reference.</p></div>
-      <div className="toolbar">
-        <label><span>Salary month</span><input aria-label="Salary Month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
-        <label><span>Payroll ID</span><input aria-label="Payroll ID" placeholder="e.g. PAY-2026-07" value={payrollId} onChange={(event) => setPayrollId(event.target.value)} /></label>
-        <button onClick={create}>Generate Payroll</button>
-      </div>
-    </section>}
-    <section className="payroll-content-card">
-    <div className="payroll-content-head"><div><h2>Payroll records</h2><p>{shown.length} record{shown.length === 1 ? '' : 's'} available</p></div>
-    {(mode === 'super-admin' || mode === 'payment' || mode === 'prepare') && <div className="tabs">
-      {['All', ...(mode === 'super-admin' ? ['Pending', 'Approved', 'Rejected'] : []), ...(mode === 'payment' ? ['Failed'] : []), ...(mode === 'prepare' ? ['Rejected'] : [])].map((name) =>
-        <button className={tab === name ? '' : 'secondary'} key={name} onClick={() => setTab(name)}>{name}</button>)}
-    </div>}</div>
-    <div className="table-wrap"><table><thead><tr>
-      {['Payroll', 'Month', 'Employees', 'Gross', 'Deductions', 'Net Payable', 'Status', 'Action'].map((label) => <th key={label}>{label}</th>)}
+    <section className="payroll-control-card"><div className="toolbar">
+      <label><span>Salary month</span><input type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
+      {mode === 'prepare' && <button disabled={!!busy} onClick={generate}>{busy === 'generate' ? 'Generating…' : 'Generate Monthly Salary'}</button>}
+      <button className="secondary" onClick={load}>Refresh</button>
+    </div></section>
+    <section className="payroll-content-card"><div className="table-wrap"><table><thead><tr>
+      {['Employee', 'ID', 'Department', 'Month', 'Working', 'Paid', 'Unpaid', 'Gross', 'Deductions', 'Net', 'Status', 'Actions'].map((label) => <th key={label}>{label}</th>)}
     </tr></thead><tbody>
-      {!shown.length && <tr><td colSpan={8} style={{ textAlign: 'center', color: '#5E6B82', padding: 32 }}>No payroll records available for this stage.</td></tr>}
-      {shown.map((run: any) => <React.Fragment key={run.id}><tr>
-        <td>{run.id}</td><td>{run.salaryMonth}</td><td>{run.employees.length}</td><td>{money(run.totals?.grossSalary)}</td>
-        <td>{money(run.totals?.totalDeductions)}</td><td>{money(run.totals?.netPayable)}</td><td className="status">{run.status}</td>
-        <td><div className="actions"><button className="secondary" onClick={() => setExpanded(expanded === run.id ? '' : run.id)}>{expanded === run.id ? 'Hide' : 'View / Review'}</button>{primary(run)}</div></td>
-      </tr>{expanded === run.id && <tr><td colSpan={8} className="details">
-        {run.status === PAYROLL_STATUS.PENDING_SUPER_ADMIN_APPROVAL && mode === 'prepare' && <div className="warning">Payroll is pending Super Admin approval and cannot be edited.</div>}
-        {run.status === PAYROLL_STATUS.SUPER_ADMIN_REJECTED && <div className="warning"><strong>Rejection reason:</strong> {run.superAdminApproval?.remarks || 'See revision history.'}</div>}
-        {mode === 'finance' && run.employees.some((line: any) => !line.bankDetailsValid) && <div className="warning">
-          {run.employees.filter((line: any) => !line.bankDetailsValid).length} employee(s) have missing or invalid bank details. Affected payments will be excluded.
-        </div>}
-        <table><thead><tr>{['Employee', 'Department', 'Present Days', 'Gross', 'Deduction', 'Net Salary', 'Payment Status', 'Transaction / Payment Date', 'Action'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
-          <tbody>{run.employees.map((line: any) => <tr key={line.employeeId}><td>{line.employeeId}<br />{line.employeeName}</td><td>{line.department}</td><td>{line.attendance?.presentDays}</td><td>{money(line.grossSalary)}</td><td>{money(line.totalDeductions)}</td><td>{money(line.netSalary)}</td><td>{!line.bankDetailsValid && mode === 'finance' ? 'INVALID_BANK_DETAILS' : line.paymentStatus}</td>
-            <td>{line.transactionReference || '—'}<br />{line.paymentDate ? new Date(line.paymentDate).toLocaleDateString('en-IN') : '—'}</td>
-            <td><div className="actions">
-              {mode === 'prepare' && <button disabled={run.status === PAYROLL_STATUS.PENDING_SUPER_ADMIN_APPROVAL} onClick={() => editDeduction(run, line)}>Edit Deduction</button>}
-              {mode === 'payment' && line.paymentStatus === PAYMENT_STATUS.PAYMENT_PROCESSING && <><button onClick={() => runAction(() => markEmployeePaymentPaid(run.id, line.employeeId, { transactionReference: `TXN-${line.employeeId}`, paymentMode: 'Bank Transfer' }))}>Mark Paid</button><button className="danger" onClick={() => runAction(() => markEmployeePaymentFailed(run.id, line.employeeId, 'Payment failed'))}>Mark Failed</button></>}
-              {mode === 'payment' && line.paymentStatus === PAYMENT_STATUS.PAYMENT_FAILED && <button onClick={() => retry(run, line.employeeId)}>Retry Payment</button>}
-            </div></td></tr>)}</tbody></table>
-        <details><summary>Revision history</summary><pre>{JSON.stringify(run.revisionHistory, null, 2)}</pre></details>
+      {loading && <tr><td colSpan={12}>Loading payroll records…</td></tr>}
+      {!loading && error && <tr><td colSpan={12}><button onClick={load}>Retry</button> {error}</td></tr>}
+      {!loading && !error && !records.length && <tr><td colSpan={12}>No payroll records are available for this stage and month.</td></tr>}
+      {records.map((record) => <React.Fragment key={record.id}><tr>
+        <td><button className="secondary" onClick={() => setExpanded(expanded === record.id ? '' : record.id)}>{record.employee.fullName}</button></td>
+        <td>{record.employee.employeeCode}</td><td>{record.employee.department?.name}</td><td>{record.payrollPeriod.month}/{record.payrollPeriod.year}</td>
+        <td>{record.standardWorkingDays}</td><td>{record.payableDays}</td><td>{record.unpaidLeaveDays}</td>
+        <td>{money(record.grossEarnings)}</td><td>{money(record.totalDeductions)}</td><td>{money(record.netPayable)}</td>
+        <td className="status">{record.status.replaceAll('_', ' ')}</td><td><div className="actions">{actions(record)}</div></td>
+      </tr>{expanded === record.id && <tr><td colSpan={12} className="details">
+        <h3>Complete salary calculation</h3>
+        <div className="payroll-stats"><article><span>Basic</span><strong>{money(record.basicSalary)}</strong></article><article><span>HRA</span><strong>{money(record.hra)}</strong></article><article><span>PF</span><strong>{money(record.pfDeduction)}</strong></article><article><span>ESIC</span><strong>{money(record.esicDeduction)}</strong></article></div>
+        <pre>{JSON.stringify(record.salarySlip?.snapshotJson || record.attendanceSummary || record.statusHistory, null, 2)}</pre>
       </td></tr>}</React.Fragment>)}
     </tbody></table></div></section>
   </main>;

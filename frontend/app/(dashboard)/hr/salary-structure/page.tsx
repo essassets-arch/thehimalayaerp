@@ -1,45 +1,43 @@
 'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState } from 'react';
-import { useERPStore } from '@/store/erpStore';
+import { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import { Settings, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { payrollService } from '@/services/payroll/payrollService';
 
 const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
 export default function SalaryStructurePage() {
-  const employees = useERPStore((store: any) =>
-    Array.isArray(store.state?.employees) ? store.state.employees : []
-  );
-  const setState = useERPStore((store: any) => store.setState);
-  const storeState = useERPStore((store: any) => store.state);
+  const [employees, setEmployees] = useState<any[]>([]);
 
   const [configModal, setConfigModal] = useState<{ open: boolean; employee: any | null }>({ open: false, employee: null });
   const [configForm, setConfigForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  const load = () => payrollService.getSalaryStructures().then(setEmployees).catch((error) => Swal.fire('Unable to load salary structures', error.message, 'error'));
+  useEffect(() => { void load(); }, []);
 
   const openConfig = (employee: any) => {
     setConfigForm({
-      baseSalary: employee.baseSalary || employee.salary || '',
-      hra: employee.hra || '',
-      conveyance: employee.conveyance || '',
-      medicalAllowance: employee.medicalAllowance || '',
-      allowance: employee.allowance || employee.otherAllowances || '',
-      pfApplicable: employee.pfApplicable ?? false,
-      esiApplicable: employee.esiApplicable ?? false,
-      professionalTax: employee.professionalTax || 200,
-      tds: employee.tds || 0,
+      baseSalary: employee.salaryStructures?.[0]?.basicSalary || '',
+      hra: employee.salaryStructures?.[0]?.hra || '',
+      conveyance: employee.salaryStructures?.[0]?.conveyanceAllowance || '',
+      medicalAllowance: employee.salaryStructures?.[0]?.specialAllowance || '',
+      allowance: employee.salaryStructures?.[0]?.otherAllowance || '',
+      pfApplicable: employee.salaryStructures?.[0]?.pfApplicable ?? false,
+      esiApplicable: employee.salaryStructures?.[0]?.esicApplicable ?? false,
+      professionalTax: employee.salaryStructures?.[0]?.professionalTax ?? false,
+      tds: employee.salaryStructures?.[0]?.tdsApplicable ?? false,
       overtimeRate: employee.overtimeRate || 0,
       loanDeduction: employee.loanDeduction || 0,
       advanceRecovery: employee.advanceRecovery || 0,
       bankName: employee.bankName || '',
-      bankAccountHolder: employee.bankAccountHolder || employee.name || '',
-      bankAccount: employee.bankAccount || '',
+      bankAccountHolder: employee.accountHolderName || employee.fullName || '',
+      bankAccount: employee.bankAccountMasked || `XXXXXXXX${employee.bankAccountLastFour || ''}`,
       ifscCode: employee.ifscCode || employee.ifsc || '',
       branchName: employee.branchName || '',
-      accountType: employee.accountType || 'Savings',
-      salaryEffectiveDate: employee.salaryEffectiveDate || new Date().toISOString().split('T')[0],
+      accountType: employee.bankAccountType || 'SALARY',
+      salaryEffectiveDate: employee.salaryStructures?.[0]?.effectiveFrom?.slice(0, 10) || new Date().toISOString().split('T')[0],
     });
     setConfigModal({ open: true, employee });
   };
@@ -49,10 +47,6 @@ export default function SalaryStructurePage() {
     if (!emp) return;
     if (!configForm.baseSalary || Number(configForm.baseSalary) <= 0) {
       Swal.fire('Validation Error', 'Basic Salary is required and must be greater than 0.', 'error');
-      return;
-    }
-    if (!configForm.bankAccount) {
-      Swal.fire('Validation Error', 'Bank Account Number is required for payroll.', 'error');
       return;
     }
     if (!configForm.ifscCode || !ifscRegex.test(configForm.ifscCode.toUpperCase())) {
@@ -66,41 +60,16 @@ export default function SalaryStructurePage() {
 
     setSaving(true);
     try {
-      const updatedEmployees = (storeState?.employees || []).map((e: any) => {
-        if (e.id !== emp.id) return e;
-        return {
-          ...e,
-          baseSalary: Number(configForm.baseSalary),
-          salary: Number(configForm.baseSalary), // compat
-          basic: Number(configForm.baseSalary),
-          hra: Number(configForm.hra) || 0,
-          conveyance: Number(configForm.conveyance) || 0,
-          medicalAllowance: Number(configForm.medicalAllowance) || 0,
-          allowance: Number(configForm.allowance) || 0,
-          pfApplicable: Boolean(configForm.pfApplicable),
-          esiApplicable: Boolean(configForm.esiApplicable),
-          professionalTax: Number(configForm.professionalTax) || 0,
-          tds: Number(configForm.tds) || 0,
-          overtimeRate: Number(configForm.overtimeRate) || 0,
-          loanDeduction: Number(configForm.loanDeduction) || 0,
-          advanceRecovery: Number(configForm.advanceRecovery) || 0,
-          bankName: configForm.bankName,
-          bankAccountHolder: configForm.bankAccountHolder,
-          bankAccount: configForm.bankAccount,
-          ifscCode: configForm.ifscCode.toUpperCase(),
-          ifsc: configForm.ifscCode.toUpperCase(),
-          branchName: configForm.branchName,
-          accountType: configForm.accountType,
-          salaryEffectiveDate: configForm.salaryEffectiveDate,
-          salaryStructureStatus: 'CONFIGURED',
-          payrollEligibility: 'ELIGIBLE',
-          updatedAt: new Date().toISOString(),
-        };
+      await payrollService.saveSalaryStructure(emp.id, {
+        basicSalary: configForm.baseSalary, hra: configForm.hra,
+        conveyanceAllowance: configForm.conveyance, specialAllowance: configForm.medicalAllowance,
+        otherAllowance: configForm.allowance, pfApplicable: configForm.pfApplicable,
+        esicApplicable: configForm.esiApplicable, professionalTax: Boolean(configForm.professionalTax),
+        tdsApplicable: Boolean(configForm.tds), effectiveFrom: configForm.salaryEffectiveDate,
       });
-
-      setState({ ...storeState, employees: updatedEmployees });
+      await load();
       setConfigModal({ open: false, employee: null });
-      Swal.fire({ icon: 'success', title: 'Salary Configured', text: `${emp.name}'s salary structure has been configured. They are now eligible for payroll.`, confirmButtonColor: '#2F4375' });
+      Swal.fire({ icon: 'success', title: 'Salary Configured', text: `${emp.fullName}'s salary structure has been saved to PostgreSQL.`, confirmButtonColor: '#2F4375' });
     } catch (err: any) {
       Swal.fire('Error', err?.message || 'Failed to save salary configuration.', 'error');
     } finally {
@@ -129,17 +98,18 @@ export default function SalaryStructurePage() {
             </tr>
           </thead>
           <tbody>
-            {employees.filter((e: any) => e.recordStatus !== 'ARCHIVED').map((employee: any) => {
-              const status = employee.salaryStructureStatus || (employee.baseSalary || employee.salary ? 'CONFIGURED' : 'PENDING');
-              const bankValid = Boolean(employee.bankAccount && (employee.ifscCode || employee.ifsc));
+            {employees.map((employee: any) => {
+              const structure = employee.salaryStructures?.[0];
+              const status = structure ? 'CONFIGURED' : 'PENDING';
+              const bankValid = Boolean(employee.bankAccountLastFour && employee.ifscCode);
               const isConfigured = status === 'CONFIGURED';
               return (
                 <tr key={employee.id} style={{ borderBottom: '1px solid #F0F5FB' }}>
                   <td style={{ padding: '10px 12px' }}>
-                    <div style={{ fontWeight: '700', color: '#24345C', fontSize: '13px' }}>{employee.name}</div>
-                    <div style={{ fontSize: '11px', color: '#8893A7' }}>{employee.id} · {employee.designation || employee.role}</div>
+                    <div style={{ fontWeight: '700', color: '#24345C', fontSize: '13px' }}>{employee.fullName}</div>
+                    <div style={{ fontSize: '11px', color: '#8893A7' }}>{employee.employeeCode} · {employee.jobTitle}</div>
                   </td>
-                  <td style={{ padding: '10px 12px', fontSize: '13px' }}>{employee.department}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '13px' }}>{employee.department?.name}</td>
                   <td style={{ padding: '10px 12px' }}>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -152,8 +122,8 @@ export default function SalaryStructurePage() {
                     </span>
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: '13px' }}>
-                    {employee.baseSalary || employee.salary
-                      ? `₹${Number(employee.baseSalary || employee.salary).toLocaleString('en-IN')}`
+                    {structure
+                      ? `₹${Number(structure.basicSalary).toLocaleString('en-IN')}`
                       : <span style={{ color: '#d97706' }}>Not set</span>}
                   </td>
                   <td style={{ padding: '10px 12px' }}>
@@ -162,7 +132,7 @@ export default function SalaryStructurePage() {
                     </span>
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: '12px', color: '#5E6B82' }}>
-                    {employee.salaryEffectiveDate ? String(employee.salaryEffectiveDate).slice(0, 10) : <span style={{ color: '#d97706' }}>Not set</span>}
+                    {structure?.effectiveFrom ? String(structure.effectiveFrom).slice(0, 10) : <span style={{ color: '#d97706' }}>Not set</span>}
                   </td>
                   <td style={{ padding: '10px 12px' }}>
                     <span style={{
@@ -193,7 +163,7 @@ export default function SalaryStructurePage() {
                 </tr>
               );
             })}
-            {employees.filter((e: any) => e.recordStatus !== 'ARCHIVED').length === 0 && (
+            {employees.length === 0 && (
               <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>No active employees found.</td></tr>
             )}
           </tbody>
@@ -206,7 +176,7 @@ export default function SalaryStructurePage() {
           <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ background: 'linear-gradient(135deg, #2F4375 0%, #3BAEEB 100%)', padding: '20px 24px', borderRadius: '16px 16px 0 0', color: '#fff' }}>
               <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>Configure Salary Structure</h2>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', opacity: 0.85 }}>{configModal.employee.name} · {configModal.employee.id}</p>
+              <p style={{ margin: '4px 0 0', fontSize: '12px', opacity: 0.85 }}>{configModal.employee.fullName} · {configModal.employee.employeeCode}</p>
             </div>
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ fontSize: '12px', fontWeight: '700', color: '#5E6B82', borderBottom: '1px solid #E5ECF5', paddingBottom: '8px' }}>EARNINGS</div>

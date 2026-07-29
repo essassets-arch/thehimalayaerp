@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/authStore';
 
 type BackendFetchInit = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
-  body?: unknown;
+  body?: unknown | FormData;
   idempotencyKey?: string;
   requestId?: string;
   cacheTtlMs?: number;
@@ -20,9 +20,8 @@ const pendingReads = new Map<string, Promise<unknown>>();
 const readCache = new Map<string, { data: unknown; expiresAt: number }>();
 
 function getAuthHeaders(extra: BackendFetchInit): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = {};
+  if (!(extra.body instanceof FormData)) headers['Content-Type'] = 'application/json';
 
   // Grab the in-memory access token (never persisted to localStorage)
   const token = useAuthStore.getState().accessToken;
@@ -49,7 +48,7 @@ async function performBackendFetch<T = unknown>(
 
   const fetchOpts: RequestInit = { method, headers };
   if (opts.body !== undefined && method !== 'GET') {
-    fetchOpts.body = JSON.stringify(opts.body);
+    fetchOpts.body = opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body);
   }
 
   let res = await fetch(url, fetchOpts);
@@ -72,7 +71,7 @@ async function performBackendFetch<T = unknown>(
       const retryHeaders = getAuthHeaders(opts);
       const retryOpts: RequestInit = { method, headers: retryHeaders };
       if (opts.body !== undefined && method !== 'GET') {
-        retryOpts.body = JSON.stringify(opts.body);
+        retryOpts.body = opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body);
       }
       res = await fetch(url, retryOpts);
     }
@@ -113,6 +112,7 @@ async function performBackendFetch<T = unknown>(
     (error as any).status = res.status;
     (error as any).code = envelope?.error?.code || envelope?.code;
     (error as any).details = envelope?.error?.details;
+    (error as any).field = envelope?.error?.field;
     throw error;
   }
 

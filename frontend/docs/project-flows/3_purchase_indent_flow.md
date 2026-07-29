@@ -1,123 +1,365 @@
-# Functional Process & User Journey Documentation: Purchase Indent & Material Flow (P2P)
+# Purchase Indent: Complete Application Flow
 
-This document details the step-by-step business process, operational user journey, procurement approvals, vendor interaction, and quality inspection workflow for the **Procure-to-Pay (P2P)** material lifecycle.
+## 1. Purpose
 
----
+This document describes the purchase-indent flow currently implemented in the ERP prototype. It follows a material requirement from the Store team through approval, purchase-order creation, delivery, GRN and finance audit, until the procurement request is completed.
 
-## 1. Flow Overview & Visual Workflow
+> Scope: material purchase indents. Recruitment indents and customer sales orders are outside this flow.
+
+## 2. End-to-End Flow
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Dept as User / MRP System
-    participant HOD as Department Head / Plant Head
-    participant Pur as Purchasing Department
-    participant Ven as External Vendor
-    participant Sec as Security Gate
-    participant QC as Quality Control (QC)
-    participant Str as Main Warehouse Store
-    participant Fin as Accounts Payable (Finance)
-
-    Dept->>HOD: 1. Create Purchase Indent (PI)
-    HOD->>Pur: 2. Approve Indent
-    Pur->>Ven: 3. Send RFQ & Receive Quotations
-    Pur->>Pur: 4. Prepare Commercial Comparison
-    Pur->>Ven: 5. Issue Purchase Order (PO)
-    Ven->>Sec: 6. Dispatch Goods & Delivery Challan
-    Sec->>QC: 7. Inward Gate Entry & Unload to Quarantine Store
-    QC->>Str: 8. Perform Physical Quality Testing (QC Pass)
-    QC->>Ven: 8b. QC Rejection (Debit Note / Return Material)
-    Str->>Fin: 9. Create Goods Receipt Note (GRN) & Store Stock Entry
-    Ven->>Fin: 10. Send Vendor Tax Invoice
-    Fin->>Fin: 11. 3-Way Match (PO vs GRN vs Bill)
-    Fin->>Ven: 12. Release Payment Voucher
+flowchart TD
+    A[Low stock or material requirement] --> B[Store creates material indent]
+    B --> C{Plant Head review}
+    C -->|Return with remarks| D[Store corrects and resubmits]
+    D --> C
+    C -->|Reject| X[Indent rejected]
+    C -->|Approve quantities| E[Finance receives approved indent]
+    E --> F[Finance selects vendor, rates, tax, freight and terms]
+    F --> G[Draft PO created]
+    G --> H[Finance submits PO]
+    H --> I{Super Admin review}
+    I -->|Return for correction| J[Finance edits and resubmits PO]
+    J --> I
+    I -->|Reject| Y[PO rejected]
+    I -->|Approve| K[Finance issues final PO]
+    K --> L[Vendor supplies material]
+    L --> M[Store checks delivery and creates GRN]
+    M --> N{Finance audits GRN}
+    N -->|Return| O[GRN returned to Store]
+    O --> M
+    N -->|Approve| P[Accepted stock posted to inventory]
+    P --> Q{All ordered quantities accepted and issues resolved?}
+    Q -->|No| L
+    Q -->|Yes| R[PO closed and indent completed]
 ```
 
----
+## 3. Actors and Responsibilities
 
-## 2. Step-by-Step Functional Journey
+| Actor | Main responsibility |
+|---|---|
+| Store Executive / Store Admin | Identify shortage, create the indent, track it, receive material and prepare the GRN |
+| Plant Head | Review need and requested quantity; approve, reject, or return the indent |
+| Finance | Create and submit the PO, issue the approved PO, audit the GRN, and handle invoice/payment activities |
+| Super Admin | Approve, reject, or return the PO for correction |
+| Vendor | Accept the issued PO and supply the ordered material |
+| System | Generates IDs, calculates PO totals, prevents invalid transitions, records history, posts approved stock, and closes eligible records |
 
-### Stage 1: Purchase Indent (PI) Requisition
-* **Actor**: Department User, Maintenance Manager, or Automated MRP System
-* **Action**:
-  1. Material requirement is triggered manually (by department) or automatically (when stock drops below Min-Max Reorder level or during Material Requirements Planning run).
-  2. User submits a **Purchase Indent (PI)** in ERP specifying:
-     - Item specifications and drawing numbers.
-     - Required quantity and unit of measure.
-     - Target delivery date and target cost estimation.
-     - Purpose / Cost Center allocation.
+## 4. Detailed User Journey
 
----
+### Step 1 — Identify a material requirement
 
-### Stage 2: Multi-Tier Indent Approval
-* **Actor**: Department Head, Plant Head, Finance Director
-* **Action**:
-  1. Indent routes through approval matrix based on total estimated budget:
-     - *Under $1,000*: Department Head approval.
-     - *$1,000 - $10,000*: Plant Head approval.
-     - *Above $10,000*: Managing Director / Finance VP approval.
-  2. Once approved, status changes to `INDENT_APPROVED` and is passed to the Procurement team.
+The usual trigger is a material at or below its minimum stock level. The Store user can start the process from the low-stock area or the procurement request screen.
 
----
+The Store user reviews:
 
-### Stage 3: Request for Quotation (RFQ) & Vendor Selection
-* **Actor**: Purchase Executive
-* **Action**:
-  1. Purchase executive generates a **Request for Quotation (RFQ)** for approved indent items.
-  2. RFQ is sent to registered vendors via ERP portal or email.
-  3. Vendors submit quotes containing price per unit, delivery lead time, payment terms, and warranty terms.
-  4. Purchase executive compiles a **Commercial Comparison Matrix (CS Statement)** comparing 3+ vendor quotes.
-  5. Procurement Head approves winning vendor quote.
+- material name and code;
+- current and minimum stock;
+- required quantity and unit;
+- target/required date;
+- priority;
+- remarks or business reason.
 
----
+### Step 2 — Create and submit the material indent
 
-### Stage 4: Purchase Order (PO) Issuance
-* **Actor**: Procurement Manager
-* **Action**:
-  1. System generates a formal **Purchase Order (PO)** with terms:
-     - Agreed pricing, taxes (GST/VAT), packaging and freight terms.
-     - Delivery schedule and penalties for delay (Liquidated Damages clause).
-  2. PO is digitally signed and dispatched to the vendor.
-  3. Vendor confirms receipt and provides a **PO Acknowledgment**.
+**Actor:** Store
 
----
+The Store user enters one or more material lines and submits the request. The system:
 
-### Stage 5: Security Gate Entry & Inward Receipt
-* **Actor**: External Vendor Transporter, Factory Gate Security Guard
-* **Action**:
-  1. Vendor delivers physical shipment to factory gate.
-  2. Security guard inspects physical package condition and vendor Delivery Challan / Lorry Receipt (LR).
-  3. Security registers a **Gate Entry Slip** in ERP, capturing vehicle number, driver details, gross weight, and challan date.
-  4. Goods are unloaded into the **Quarantine / Uninspected Goods Holding Store**.
+- creates an indent such as `#INDENT1`;
+- creates a line ID for each item;
+- records requested quantities;
+- sets the requesting department to Store;
+- adds creation details to the history;
+- prevents an immediate duplicate caused by a double-click;
+- sends the indent to the Plant Head queue.
 
----
+**New status:** `PENDING_PLANT_HEAD_APPROVAL`
 
-### Stage 6: Quality Control (QC) Inspection
-* **Actor**: QC Inspector / Lab Technician
-* **Action**:
-  1. QC inspector samples items from the quarantine store.
-  2. Performs laboratory, chemical, or dimensional testing against PO technical parameters.
-  3. Inspector inputs test results into the **QC Inspection Entry**:
-     - **Accepted Quantity**: Moved to Main Warehouse Store.
-     - **Rejected Quantity**: Marked for return. Vendor is notified to pick up rejected material. System auto-generates a **Vendor Return / Debit Note**.
+The Store user can monitor all requests from **Indent History**.
 
----
+### Step 3 — Plant Head reviews the indent
 
-### Stage 7: Goods Receipt Note (GRN) & Stock Post
-* **Actor**: Warehouse Storekeeper
-* **Action**:
-  1. Storekeeper generates a **Goods Receipt Note (GRN)** for the QC-passed quantity.
-  2. Items are assigned physical bin locations in the Main Warehouse.
-  3. System automatically increases available raw material stock.
+**Actor:** Plant Head
 
----
+The Plant Head opens **Material Indent Approvals**, selects a pending indent, reviews its dates, priority, remarks, stock context and line items, and may adjust the approved quantity on each line.
 
-### Stage 8: Invoice Matching & Payment Release
-* **Actor**: Accounts Payable (AP) Accountant
-* **Action**:
-  1. Vendor sends final Tax Invoice.
-  2. Accountant performs **3-Way Matching**:
-     - PO Unit Price vs Invoice Unit Price.
-     - GRN Accepted Quantity vs Invoice Billed Quantity.
-  3. If matched cleanly, Accountant approves Vendor Invoice and schedules payment as per agreed payment terms (e.g. *NET 45 Days*).
-  4. Finance releases bank payment voucher upon due date.
+The available decisions are:
+
+1. **Approve** — saves the approved quantities and forwards the request to Finance.
+2. **Return for correction** — sends it back to Store; remarks are mandatory.
+3. **Reject** — closes the approval path as rejected; remarks should explain the decision.
+
+| Decision | Resulting status | Next owner |
+|---|---|---|
+| Approve | `PLANT_HEAD_APPROVED` | Finance |
+| Return | `PLANT_HEAD_CORRECTION_REQUIRED` | Store |
+| Reject | `PLANT_HEAD_REJECTED` | End/Store history |
+
+When an indent is returned, Store corrects it and resubmits it. It returns to `PENDING_PLANT_HEAD_APPROVAL`.
+
+### Step 4 — Finance creates a draft purchase order
+
+**Actor:** Finance
+
+Only a `PLANT_HEAD_APPROVED` indent without an existing active PO can be converted. Finance opens the approved-indent queue and selects **Create PO**.
+
+Finance enters or confirms:
+
+- vendor;
+- item quantities and unit rates;
+- GST percentage;
+- freight;
+- expected delivery date;
+- payment terms.
+
+The system calculates:
+
+```text
+Line subtotal = ordered quantity × unit rate
+Subtotal      = sum of line subtotals
+GST amount    = subtotal × GST percentage
+Grand total   = subtotal + GST amount + freight
+```
+
+It then creates a PO such as `#PO1`.
+
+| Record | Resulting status |
+|---|---|
+| PO | `DRAFT` |
+| Indent | `DRAFT_PO_CREATED` |
+
+The system prevents more than one active PO from being created for the same indent.
+
+### Step 5 — Finance submits the PO for approval
+
+**Actor:** Finance
+
+Finance can edit a PO while it is `DRAFT` or `CORRECTION_REQUIRED`. After verifying commercial details, Finance submits it to Super Admin.
+
+**New PO status:** `PENDING_SUPER_ADMIN_APPROVAL`
+
+### Step 6 — Super Admin reviews the PO
+
+**Actor:** Super Admin
+
+The Super Admin reviews the vendor, item quantities, rates, GST, freight, total, delivery date and payment terms.
+
+| Decision | Resulting status | Next action |
+|---|---|---|
+| Approve | `SUPER_ADMIN_APPROVED` | Finance issues the PO |
+| Return for correction | `CORRECTION_REQUIRED` | Finance edits and resubmits |
+| Reject | `SUPER_ADMIN_REJECTED` | PO process stops |
+
+Remarks are mandatory when returning or rejecting a PO.
+
+### Step 7 — Finance issues the approved PO
+
+**Actor:** Finance
+
+Only a `SUPER_ADMIN_APPROVED` PO can be issued. Finance assigns or generates the final PO number and issues it to the vendor.
+
+**New PO status:** `PO_ISSUED`
+
+**Delivery status:** `AWAITING_DELIVERY`
+
+The issue date, issuer and final PO number are added to the PO history.
+
+The prototype also supports recording vendor acceptance and an expected delivery date as `VENDOR_ACCEPTED`. See the implementation note in section 10.
+
+### Step 8 — Store receives and inspects the delivery
+
+**Actor:** Store
+
+When the material arrives, Store opens the PO in the delivery/receiving area and records:
+
+- delivery challan or invoice reference;
+- received date;
+- received quantity per item;
+- accepted quantity;
+- rejected quantity;
+- inspection remarks;
+- supporting delivery information, where available.
+
+The system validates that:
+
+- the PO is eligible for receipt;
+- received quantities are positive;
+- cumulative receipts do not exceed the ordered quantity;
+- accepted plus rejected quantity agrees with the received quantity.
+
+Partial deliveries are allowed. The PO delivery status becomes:
+
+- `PARTIALLY_RECEIVED` when some quantity is still outstanding; or
+- `FULLY_RECEIVED` when the ordered quantity has been delivered.
+
+### Step 9 — Create and submit the GRN
+
+**Actor:** Store
+
+Store confirms the inspection and creates a Goods Receipt Note (GRN), such as `#GRN1`.
+
+The GRN contains:
+
+- PO and vendor reference;
+- item-level ordered, received, accepted and rejected quantities;
+- receipt and inspection details;
+- Store remarks;
+- an audit/history trail.
+
+**GRN status:** `PENDING_FINANCE_AUDIT`
+
+Rejected material does not increase usable stock. It must be handled through the rejection/replacement path before the related procurement can be fully closed.
+
+### Step 10 — Finance audits the GRN
+
+**Actor:** Finance
+
+Finance opens the delivery-audit queue and compares the GRN with the PO and delivery evidence.
+
+Finance can:
+
+1. **Approve the GRN** — accepted quantities are posted to raw-material inventory.
+2. **Return the GRN to Store** — remarks are mandatory and Store must correct/recreate the receipt information.
+
+| Decision | Resulting GRN status | Inventory effect |
+|---|---|---|
+| Approve | `FINANCE_AUDIT_APPROVED` | Accepted quantity is posted once |
+| Return | `RETURNED_TO_STORE` | No new stock posting |
+
+The system prevents the same GRN from posting inventory more than once.
+
+### Step 11 — Resolve shortages and rejected quantities
+
+If the PO is only partly delivered, the process returns to delivery receipt for the outstanding quantity.
+
+If a delivered quantity is rejected, the rejection may be resolved through a replacement delivery or a commercial settlement. A replacement receipt follows the same GRN and finance-audit controls. The system tracks cumulative accepted replacement quantity and keeps the rejection open until the rejected quantity is resolved.
+
+The PO remains open while:
+
+- ordered quantity is still outstanding;
+- a GRN is waiting for audit;
+- accepted quantity does not equal ordered quantity; or
+- rejected quantity remains unresolved.
+
+### Step 12 — Complete procurement
+
+After Finance approves the final relevant GRN, the system checks every PO line.
+
+The PO closes only when:
+
+- accepted audited quantity equals ordered quantity for every line;
+- all applicable GRNs are finance-audit approved; and
+- no rejected quantity remains unresolved.
+
+| Record | Final status |
+|---|---|
+| PO | `PO_CLOSED` |
+| PO delivery | `DELIVERY_COMPLETED` |
+| PO audit | `FINANCE_AUDIT_APPROVED` |
+| Indent | `PROCUREMENT_COMPLETED` |
+
+## 5. Status Lifecycle
+
+### Indent lifecycle
+
+```text
+PENDING_PLANT_HEAD_APPROVAL
+    ├─> PLANT_HEAD_CORRECTION_REQUIRED ─> PENDING_PLANT_HEAD_APPROVAL
+    ├─> PLANT_HEAD_REJECTED
+    └─> PLANT_HEAD_APPROVED
+            └─> DRAFT_PO_CREATED
+                    └─> PROCUREMENT_COMPLETED
+```
+
+An open indent may also be cancelled as `INDENT_CANCELLED` when the relevant UI/action is used and a cancellation reason is supplied.
+
+### Purchase order lifecycle
+
+```text
+DRAFT
+  └─> PENDING_SUPER_ADMIN_APPROVAL
+        ├─> CORRECTION_REQUIRED ─> DRAFT ─> PENDING_SUPER_ADMIN_APPROVAL
+        ├─> SUPER_ADMIN_REJECTED
+        └─> SUPER_ADMIN_APPROVED
+              └─> PO_ISSUED
+                    └─> PO_CLOSED
+```
+
+Delivery progress is tracked separately as `AWAITING_DELIVERY`, `PARTIALLY_RECEIVED`, `FULLY_RECEIVED`, and finally `DELIVERY_COMPLETED`.
+
+### GRN lifecycle
+
+```text
+PENDING_FINANCE_AUDIT
+    ├─> RETURNED_TO_STORE ─> correction/resubmission
+    └─> FINANCE_AUDIT_APPROVED ─> inventory posted
+```
+
+## 6. Main Screens
+
+| Role | Area/screen | Purpose |
+|---|---|---|
+| Store | Low Stock Alerts / Create Request | Start an indent from a shortage |
+| Store | Indent History | Track submitted, returned, approved, rejected and completed indents |
+| Plant Head | Material Indent Approvals | Review lines, adjust approved quantities and decide |
+| Finance | Approved Indents / Pending Requests | Convert an approved indent into a PO |
+| Finance | PO creation/edit screen | Add vendor and commercial terms |
+| Super Admin | PO Requests / Purchase Order Approval | Approve, return or reject the PO |
+| Finance | Approved PO area | Issue the final PO |
+| Store | Vendor Deliveries / Receive Goods | Record receipt, inspection and GRN |
+| Finance | Delivery Audit | Approve or return the GRN |
+| Store | GRN History | View receipt and audit progress |
+
+## 7. Key Controls and Business Rules
+
+- A material indent starts in the Plant Head approval queue.
+- Plant Head can approve quantities lower than the requested quantities.
+- Correction and rejection decisions require explanatory remarks.
+- Finance cannot create a PO before Plant Head approval.
+- Only one active PO is allowed per indent.
+- Finance can edit only draft or correction-required POs.
+- A PO cannot be issued before Super Admin approval.
+- Receipt quantity cannot exceed the remaining ordered quantity.
+- Partial deliveries can create multiple GRNs.
+- Only Finance-audit-approved accepted quantities are posted to inventory.
+- Inventory posting is idempotent: one approved GRN cannot post twice.
+- A PO and its indent close only after full accepted supply and resolution of rejections.
+- Each major action records actor, role, timestamp, status change and remarks in history/audit data.
+
+## 8. Exception Paths
+
+| Situation | Required action |
+|---|---|
+| Incorrect indent details | Plant Head returns it with remarks; Store corrects and resubmits |
+| Indent no longer required | Reject or cancel it with a reason |
+| Incorrect vendor/rate/terms | Super Admin returns the PO; Finance edits and resubmits |
+| PO not authorized | Super Admin rejects it |
+| Short delivery | Create a partial GRN and receive the balance later |
+| Excess delivery | System blocks receipt above the PO balance |
+| Damaged/failed material | Record rejected quantity and begin return/replacement resolution |
+| Incorrect GRN | Finance returns it to Store with mandatory remarks |
+| Duplicate stock posting | System blocks the second posting |
+
+## 9. Invoice and Payment Extension
+
+The prototype also contains vendor invoice and payment functions after receipt:
+
+```text
+Vendor invoice submitted
+  -> invoice verified
+  -> payment created after eligible stock-posted GRN
+  -> payment completed with Transaction ID/UTR
+  -> invoice marked paid
+```
+
+These functions form the downstream procure-to-pay extension. The core purchase-indent flow documented above is operationally complete when the PO is closed and the indent reaches `PROCUREMENT_COMPLETED`.
+
+## 10. Current Prototype Note
+
+The canonical receiving function currently accepts `PO_ISSUED`, while the optional vendor-acceptance action changes the PO to `VENDOR_ACCEPTED`. Until those transitions are unified, a flow that explicitly records vendor acceptance may need an application fix before the same PO can create a GRN. The normal prototype journey can proceed directly from `PO_ISSUED` to Store receipt.
+
+## 11. One-Line Summary
+
+**Store raises indent → Plant Head approves → Finance creates PO → Super Admin approves → Finance issues PO → Store receives and creates GRN → Finance audits and posts stock → system closes the PO and completes the indent.**

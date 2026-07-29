@@ -12,7 +12,7 @@ function isValidUuid(id: string | null | undefined): boolean {
 export type ForwardBackendRequestOptions = {
   path: string;
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
-  body?: unknown;
+  body?: unknown | FormData;
   query?: URLSearchParams;
   idempotencyKey?: string;
   requestId?: string;
@@ -30,7 +30,7 @@ export type ForwardBackendRequestOptions = {
 async function createBridgeResponse(upstream: Response): Promise<Response> {
   const headers = new Headers();
 
-  for (const name of ['content-type', 'cache-control', 'location', 'retry-after', 'x-request-id']) {
+  for (const name of ['content-type', 'content-disposition', 'cache-control', 'location', 'retry-after', 'x-request-id']) {
     const value = upstream.headers.get(name);
     if (value) {
       headers.set(name, value);
@@ -64,8 +64,9 @@ export async function forwardBackendRequest(
       });
     }
 
+    const isMultipart = body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(!isMultipart && { 'Content-Type': 'application/json' }),
       ...(options.headers || {}),
       'X-Request-ID': requestId,
     };
@@ -89,7 +90,7 @@ export async function forwardBackendRequest(
       };
 
       if (body !== undefined && method !== 'GET') {
-        fetchOptions.body = JSON.stringify(body);
+        fetchOptions.body = isMultipart ? body as FormData : JSON.stringify(body);
       }
 
       const res = await fetch(url.toString(), fetchOptions);

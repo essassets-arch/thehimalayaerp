@@ -10,19 +10,13 @@ import {
   ChevronDown, ChevronUp, Save, UserPlus, ArrowLeft
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useERPStore } from '@/store/erpStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import { useAuth } from '@/shared/context/AuthContext';
-import { employeeRegistrationSchema, EmployeeRegistrationValues } from '../employee.schema';
-import { employeeService } from '../employee.service';
-import { saveFile, getFile, deleteFile, clearFilesByPrefix } from '../employee.db';
+import { employeeRegistrationSchema } from '../employee.schema';
+import { employeesService } from '@/services/hr/employeesService';
 
 // ── Constants ──────────────────────────────────────────────────
-const DRAFT_KEY = 'employee_registration_draft_v1';
-const DRAFT_VERSION = 1;
-
-const WORK_LOCATIONS = ['Head Office', 'Plant', 'Warehouse', 'Field', 'Remote', 'Other'] as const;
 const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern', 'Temporary', 'Consultant'] as const;
+const DRAFT_VERSION = 1;
 const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'] as const;
 const EMERGENCY_RELATIONSHIPS = ['Parent', 'Spouse', 'Sibling', 'Relative', 'Friend', 'Other'] as const;
 const ACCOUNT_TYPES = ['Savings', 'Current', 'Salary'] as const;
@@ -411,19 +405,10 @@ function DocUpload({
 // ── Main Form ──────────────────────────────────────────────────
 export default function EmployeeRegistrationForm() {
   const navigate = useRouter();
-  const { user } = useAuth();
-  const showToast = useNotificationStore(s => s.showToast);
-  const storeState = useERPStore(s => s.state);
-
-  // Employee list & master data from store
-  const employees = storeState?.employees || [];
-  const departments: { id: string; code: string; name: string; status: string }[] =
-    storeState?.masterData?.departments || [];
-
-  // Eligible managers: active employees
-  const eligibleManagers = employees.filter((e: any) =>
-    e.status === 'ACTIVE' && e.recordStatus !== 'ARCHIVED'
-  );
+  const showToast = useNotificationStore((s: any) => s.showToast);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [workLocations, setWorkLocations] = useState<any[]>([]);
+  const [eligibleManagers, setEligibleManagers] = useState<any[]>([]);
 
   // Form setup
   const {
@@ -446,11 +431,14 @@ export default function EmployeeRegistrationForm() {
   const [additionalDocs, setAdditionalDocs] = useState<AdditionalDoc[]>([]);
   const [photograph, setPhotograph] = useState<string>('');
   const [signature, setSignature] = useState<string>('');
+  const [photographFile, setPhotographFile] = useState<File | null>(null);
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [sigPreview, setSigPreview] = useState<string>('');
 
   // Draft state
   const [draftRestored, setDraftRestored] = useState(false);
+  const [draftId, setDraftId] = useState<string | undefined>();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -459,6 +447,26 @@ export default function EmployeeRegistrationForm() {
   const [deptSearch, setDeptSearch] = useState('');
   const [deptOpen, setDeptOpen] = useState(false);
   const watchedDept = watch('department');
+
+  useEffect(() => {
+    Promise.all([
+      employeesService.listDepartments(),
+      employeesService.listWorkLocations(),
+      employeesService.listReportingManagers(),
+      employeesService.listDrafts(),
+    ]).then(([departmentRows, locations, managers, drafts]) => {
+      setDepartments(departmentRows);
+      setWorkLocations(locations);
+      setEligibleManagers(managers);
+      const latest = drafts[0];
+      if (latest?.employeeData) {
+        reset(latest.employeeData);
+        setDraftId(latest.id);
+        setDraftRestored(true);
+        showToast('Employee registration draft was restored.');
+      }
+    }).catch((error) => Swal.fire('Unable to load HR data', error.message, 'error'));
+  }, [reset, showToast]);
 
   // Auto-gen full name from first+last
   const firstName = watch('firstName');
@@ -482,7 +490,7 @@ export default function EmployeeRegistrationForm() {
   // ── Draft: restore on mount ────────────────────────────────
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = null;
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft?.version !== DRAFT_VERSION) return;
@@ -490,7 +498,7 @@ export default function EmployeeRegistrationForm() {
       reset(values);
       if (values.photograph) { setPhotograph(values.photograph); setPhotoPreview(values.photograph); }
       if (values.signature) { setSignature(values.signature); setSigPreview(values.signature); }
-      // Note: doc metadata is stored but blobs are in IndexedDB
+      // Binary files are intentionally not restored from a draft payload.
       if (values.aadhaarCardDoc) setAadhaarDoc({ meta: values.aadhaarCardDoc, previewUrl: null, blob: null });
       if (values.panCardDoc) setPanDoc({ meta: values.panCardDoc, previewUrl: null, blob: null });
       if (values.bankProofDoc) setBankDoc({ meta: values.bankProofDoc, previewUrl: null, blob: null });
@@ -526,7 +534,7 @@ export default function EmployeeRegistrationForm() {
           })),
           lastSavedAt: new Date().toISOString(),
         };
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        void draft;
       } catch { /* localStorage full */ }
     }, 800);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -545,8 +553,6 @@ export default function EmployeeRegistrationForm() {
     });
     if (!result.isConfirmed) return;
 
-    localStorage.removeItem(DRAFT_KEY);
-    await clearFilesByPrefix('draft_');
     // Revoke preview URLs
     if (aadhaarDoc.previewUrl) URL.revokeObjectURL(aadhaarDoc.previewUrl);
     if (panDoc.previewUrl) URL.revokeObjectURL(panDoc.previewUrl);
@@ -563,12 +569,18 @@ export default function EmployeeRegistrationForm() {
   };
 
   // ── Save as Draft (explicit) ───────────────────────────────
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     setIsSaving(true);
-    setTimeout(() => {
+    try {
+      const saved = await employeesService.saveEmployeeDraft({ id: draftId, employeeData: formValues });
+      setDraftId(saved.id);
+      setDraftRestored(true);
+      showToast('Draft saved to PostgreSQL.');
+    } catch (error: any) {
+      Swal.fire('Draft not saved', error.message, 'error');
+    } finally {
       setIsSaving(false);
-      showToast('Draft saved!');
-    }, 600);
+    }
   };
 
   // ── Photo / Signature upload ───────────────────────────────
@@ -587,8 +599,8 @@ export default function EmployeeRegistrationForm() {
       return;
     }
     const b64 = await fileToBase64(file);
-    if (type === 'photo') { setPhotograph(b64); setPhotoPreview(b64); setValue('photograph', b64); }
-    else { setSignature(b64); setSigPreview(b64); setValue('signature', b64); }
+    if (type === 'photo') { setPhotograph(b64); setPhotographFile(file); setPhotoPreview(b64); setValue('photograph', 'selected'); }
+    else { setSignature(b64); setSignatureFile(file); setSigPreview(b64); setValue('signature', 'selected'); }
   };
 
   // ── Additional Documents ───────────────────────────────────
@@ -606,7 +618,6 @@ export default function EmployeeRegistrationForm() {
   const removeAdditionalDoc = async (rowId: string) => {
     const doc = additionalDocs.find(d => d.rowId === rowId);
     if (doc?.previewUrl) URL.revokeObjectURL(doc.previewUrl);
-    if (doc?.meta?.storageKey) await deleteFile(doc.meta.storageKey).catch(() => {});
     setAdditionalDocs(prev => prev.filter(d => d.rowId !== rowId));
   };
 
@@ -623,7 +634,6 @@ export default function EmployeeRegistrationForm() {
     if (old?.previewUrl) URL.revokeObjectURL(old.previewUrl);
     const storageKey = `draft_other_${rowId}_${Date.now()}`;
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
-    await saveFile(storageKey, file).catch(() => {});
     updateAdditionalDoc(rowId, {
       meta: { id: genId(), fileName: file.name, mimeType: file.type, size: file.size, category: 'OTHER', title: '', storageKey, uploadedAt: new Date().toISOString() },
       previewUrl,
@@ -639,31 +649,80 @@ export default function EmployeeRegistrationForm() {
     data.bankProofDoc = bankDoc.meta;
     data.additionalDocuments = additionalDocs.map(d => d.meta).filter(Boolean);
 
-    // Build blobs map
-    const blobs: Record<string, Blob> = {};
-    if (aadhaarDoc.blob && aadhaarDoc.meta) blobs[aadhaarDoc.meta.id] = aadhaarDoc.blob;
-    if (panDoc.blob && panDoc.meta) blobs[panDoc.meta.id] = panDoc.blob;
-    if (bankDoc.blob && bankDoc.meta) blobs[bankDoc.meta.id] = bankDoc.blob;
-    additionalDocs.forEach(d => { if (d.blob && d.meta) blobs[d.meta.id] = d.blob; });
-
     setIsRegistering(true);
     try {
-      const employee = await employeeService.register(data, blobs, user?.name || 'HR Executive');
-
-      // Clear draft
-      localStorage.removeItem(DRAFT_KEY);
-      await clearFilesByPrefix('draft_').catch(() => {});
+      const employmentTypes: Record<string, string> = {
+        'Full-time': 'PERMANENT', 'Part-time': 'PART_TIME', Contract: 'CONTRACT',
+        Intern: 'INTERN', Temporary: 'TEMPORARY', Consultant: 'CONSULTANT',
+      };
+      const genders: Record<string, string> = {
+        Male: 'MALE', Female: 'FEMALE', Other: 'OTHER', 'Prefer not to say': 'PREFER_NOT_TO_SAY',
+      };
+      const payload = {
+        employeeCode: data.employeeCode,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        dateOfBirth: data.dob,
+        gender: genders[data.gender],
+        jobTitle: data.designation,
+        departmentId: data.department,
+        reportingManagerId: data.managerId || undefined,
+        workLocationId: workLocations.find((location) => location.name === data.workLocation)?.id,
+        employmentType: employmentTypes[data.employmentType],
+        joiningDate: data.joiningDate,
+        probationEndDate: data.probationEndDate || undefined,
+        workEmail: data.email,
+        personalEmail: data.personalEmail || undefined,
+        phoneNumber: data.phone,
+        residentialAddress: data.residentialAddress,
+        emergencyContactName: data.emergencyName,
+        emergencyContactPhone: data.emergencyPhone,
+        emergencyRelationship: data.emergencyRelationship,
+        panNumber: data.pan,
+        aadhaarNumber: data.aadhaar,
+        uanNumber: data.uan || undefined,
+        esicNumber: data.esic || undefined,
+        bankName: data.bankName,
+        accountHolderName: data.bankAccountHolder,
+        bankAccountType: data.accountType.toUpperCase(),
+        bankAccountNumber: data.bankAccount,
+        confirmAccountNumber: data.confirmBankAccount,
+        ifscCode: data.ifscCode,
+        branchName: data.branchName || undefined,
+        draftId,
+        additionalDocuments: additionalDocs.map((doc) => ({
+          documentType: doc.docType.toUpperCase().replaceAll(' ', '_'),
+          documentName: doc.customTitle || doc.docType,
+        })),
+      };
+      const multipart = new FormData();
+      multipart.append('employeeData', JSON.stringify(payload));
+      if (aadhaarDoc.blob) multipart.append('aadhaarCard', aadhaarDoc.blob);
+      if (panDoc.blob) multipart.append('panCard', panDoc.blob);
+      if (bankDoc.blob) multipart.append('bankDocument', bankDoc.blob);
+      if (photographFile) multipart.append('photograph', photographFile);
+      if (signatureFile) multipart.append('signature', signatureFile);
+      additionalDocs.forEach((doc) => { if (doc.blob) multipart.append('additionalDocuments', doc.blob); });
+      const employee = await employeesService.createEmployee(multipart);
 
       await Swal.fire({
         icon: 'success',
         title: 'Employee Registered!',
-        html: `<b>${employee.name}</b> has been registered successfully.<br/><small>Employee ID: <strong>${employee.id}</strong></small>`,
+        html: `<b>${employee.fullName}</b> has been registered successfully.<br/><small>Employee ID: <strong>${employee.employeeCode}</strong></small>`,
         confirmButtonText: 'View Employee Directory',
         confirmButtonColor: '#2F4375',
       });
       navigate.push('/hr/employees');
     } catch (err: any) {
       const msg = err?.message || 'Registration failed.';
+      const backendToForm: Record<string, string> = {
+        workEmail: 'email', panNumber: 'pan', aadhaarNumber: 'aadhaar',
+        departmentId: 'department', workLocationId: 'workLocation',
+        reportingManagerId: 'managerId', dateOfBirth: 'dob',
+        phoneNumber: 'phone', confirmAccountNumber: 'confirmBankAccount',
+      };
+      const field = backendToForm[err?.field] || err?.field;
+      if (field) setError(field, { type: 'server', message: msg });
       Swal.fire({
         icon: 'error',
         title: 'Registration Failed',
@@ -710,7 +769,7 @@ export default function EmployeeRegistrationForm() {
 
   // ── Filtered departments ───────────────────────────────────
   const filteredDepts = departments
-    .filter(d => d.status === 'ACTIVE')
+    .filter(d => d.isActive)
     .filter(d => d.name.toLowerCase().includes(deptSearch.toLowerCase()));
 
   // ── Render ─────────────────────────────────────────────────
@@ -824,7 +883,7 @@ export default function EmployeeRegistrationForm() {
                   >
                     <span style={{ color: watchedDept ? '#24345C' : '#8893A7' }}>
                       {watchedDept
-                        ? departments.find(d => d.code === watchedDept)?.name || watchedDept
+                        ? departments.find(d => d.id === watchedDept)?.name || watchedDept
                         : 'Select Department'}
                     </span>
                     {deptOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -846,13 +905,13 @@ export default function EmployeeRegistrationForm() {
                           <div
                             key={d.id}
                             onClick={() => {
-                              setValue('department', d.code, { shouldValidate: true });
+                              setValue('department', d.id, { shouldValidate: true });
                               setDeptOpen(false);
                               setDeptSearch('');
                             }}
-                            style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: '#24345C', background: watchedDept === d.code ? '#EEF4FB' : 'transparent', fontWeight: watchedDept === d.code ? '600' : '400' }}
+                            style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: '#24345C', background: watchedDept === d.id ? '#EEF4FB' : 'transparent', fontWeight: watchedDept === d.id ? '600' : '400' }}
                             onMouseEnter={e => (e.currentTarget.style.background = '#F5F9FF')}
-                            onMouseLeave={e => (e.currentTarget.style.background = watchedDept === d.code ? '#EEF4FB' : 'transparent')}
+                            onMouseLeave={e => (e.currentTarget.style.background = watchedDept === d.id ? '#EEF4FB' : 'transparent')}
                           >
                             {d.name}
                           </div>
@@ -871,14 +930,14 @@ export default function EmployeeRegistrationForm() {
                 <select {...register('managerId')} style={styles.select}>
                   <option value="">None / Direct Report</option>
                   {eligibleManagers.map((e: any) => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.designation || e.role})</option>
+                    <option key={e.id} value={e.id}>{e.fullName} ({e.jobTitle})</option>
                   ))}
                 </select>
               </Field>
               <Field label="Work Location" required error={errors.workLocation?.message as string}>
                 <select {...register('workLocation')} style={styles.select}>
                   <option value="">Select Location</option>
-                  {WORK_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                  {workLocations.map((location) => <option key={location.id} value={location.name}>{location.name}</option>)}
                 </select>
               </Field>
               <Field label="Employment Type" required error={errors.employmentType?.message as string}>
@@ -1132,7 +1191,7 @@ export default function EmployeeRegistrationForm() {
               />
             </div>
             <div style={{ marginTop: '12px', background: '#FFF8E1', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#92400E', border: '1px solid #FDE68A' }}>
-              ⚠️ <strong>Note:</strong> PDF files are stored in browser IndexedDB for this prototype. They are not preserved across different browser sessions or devices.
+              <strong>Secure upload:</strong> Files are stored by the authenticated employee document service and remain available across sessions and devices.
             </div>
           </div>
 
@@ -1221,7 +1280,7 @@ export default function EmployeeRegistrationForm() {
                       <Camera size={12} /> {photoPreview ? 'Replace' : 'Upload'}
                     </label>
                     {photoPreview && (
-                      <button type="button" onClick={() => { setPhotograph(''); setPhotoPreview(''); setValue('photograph', ''); }} style={{ ...styles.uploadBtn, background: '#EF4444' }}>
+                      <button type="button" onClick={() => { setPhotograph(''); setPhotographFile(null); setPhotoPreview(''); setValue('photograph', ''); }} style={{ ...styles.uploadBtn, background: '#EF4444' }}>
                         <X size={12} />
                       </button>
                     )}
@@ -1242,7 +1301,7 @@ export default function EmployeeRegistrationForm() {
                       <PenTool size={12} /> {sigPreview ? 'Replace' : 'Upload'}
                     </label>
                     {sigPreview && (
-                      <button type="button" onClick={() => { setSignature(''); setSigPreview(''); setValue('signature', ''); }} style={{ ...styles.uploadBtn, background: '#EF4444' }}>
+                      <button type="button" onClick={() => { setSignature(''); setSignatureFile(null); setSigPreview(''); setValue('signature', ''); }} style={{ ...styles.uploadBtn, background: '#EF4444' }}>
                         <X size={12} />
                       </button>
                     )}

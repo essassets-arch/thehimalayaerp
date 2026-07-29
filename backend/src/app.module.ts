@@ -42,6 +42,8 @@ import { MaterialRequestsModule } from './modules/material-requests/material-req
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RecruitmentModule } from './modules/recruitment/recruitment.module';
+import { EmployeesModule } from './modules/employees/employees.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 
 @Module({
   imports: [
@@ -80,6 +82,8 @@ import { RecruitmentModule } from './modules/recruitment/recruitment.module';
     DispatchModule,
     MaterialRequestsModule,
     RecruitmentModule,
+    EmployeesModule,
+    PayrollModule,
   ],
   controllers: [AppController],
   providers: [
