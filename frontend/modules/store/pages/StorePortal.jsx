@@ -16,6 +16,7 @@ import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileT
 import StoreMaterialIssueView from '../../../components/material-workflow/StoreMaterialIssueView';
 import StoreReleasesView from '../../../components/material-workflow/StoreReleasesView';
 import StoreMaterialReturnVerificationView from '../../../components/material-workflow/StoreMaterialReturnVerificationView';
+import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
 import ModulePlaceholder from '../../../components/common/ModulePlaceholder';
 import GoodsReceiptNote from '../../purchase/pages/GoodsReceiptNote';
 import VendorManagement from '../../purchase/pages/VendorManagement';
@@ -516,7 +517,7 @@ export default function StorePortal() {
 
   const rawInventory = state.rawInventory || [];
   const finishedInventory = state.finishedInventory || [];
-  const mRequests = state.materialRequests || [];
+  const { data: mRequests = [] } = useMaterialRequests();
   const orders = state.sales?.orders || [];
 
   const handleRestock = (material, amount = 50) => {

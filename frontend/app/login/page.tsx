@@ -66,7 +66,13 @@ const DEMO_ACCOUNTS = [
 
 /** Map backend role codes to friendly display strings */
 function toFriendlyRole(code: string): string {
-  return code
+  const normalizedCode = code.trim().toUpperCase();
+  const acronymRoles: Record<string, string> = {
+    HR: 'HR',
+    QC: 'QC',
+  };
+
+  return acronymRoles[normalizedCode] || normalizedCode
     .toLowerCase()
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());

@@ -13,7 +13,11 @@ type BackendFetchInit = {
   body?: unknown;
   idempotencyKey?: string;
   requestId?: string;
+  cacheTtlMs?: number;
 };
+
+const pendingReads = new Map<string, Promise<unknown>>();
+const readCache = new Map<string, { data: unknown; expiresAt: number }>();
 
 function getAuthHeaders(extra: BackendFetchInit): Record<string, string> {
   const headers: Record<string, string> = {
@@ -36,7 +40,7 @@ function getAuthHeaders(extra: BackendFetchInit): Record<string, string> {
   return headers;
 }
 
-export async function backendFetch<T = unknown>(
+async function performBackendFetch<T = unknown>(
   url: string,
   opts: BackendFetchInit = {},
 ): Promise<T> {
@@ -124,6 +128,40 @@ export async function backendFetch<T = unknown>(
   }
 
   return (envelope?.data ?? envelope) as T;
+}
+
+export function backendFetch<T = unknown>(
+  url: string,
+  opts: BackendFetchInit = {},
+): Promise<T> {
+  const method = opts.method || 'GET';
+  if (method !== 'GET') {
+    readCache.clear();
+    return performBackendFetch<T>(url, opts);
+  }
+
+  const cacheTtlMs = opts.cacheTtlMs ?? 30_000;
+  const cached = readCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) {
+    return Promise.resolve(cached.data as T);
+  }
+  if (cached) readCache.delete(url);
+
+  const existing = pendingReads.get(url);
+  if (existing) return existing as Promise<T>;
+
+  const request = performBackendFetch<T>(url, opts)
+    .then((data) => {
+      if (cacheTtlMs > 0) {
+        readCache.set(url, { data, expiresAt: Date.now() + cacheTtlMs });
+      }
+      return data;
+    })
+    .finally(() => {
+      pendingReads.delete(url);
+    });
+  pendingReads.set(url, request);
+  return request;
 }
 
 export async function ensureAccessToken(): Promise<string | null> {

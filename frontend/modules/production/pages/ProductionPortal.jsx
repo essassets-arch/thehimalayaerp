@@ -11,7 +11,7 @@ import { STATUS } from '../../../shared/constants';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { productionService } from '../../../services/production.service';
 import { backendFetch } from '../../../lib/backendFetch';
-import { useMaterialRequestStore } from '../../../store/materialRequestStore';
+import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
 import { getProductionWorkOrders } from '../utils/getProductionWorkOrders';
 import { selectProductionIncomingOrders, selectProductionWorkOrders } from '../../../store/domains/sales/salesSelectors';
 import DataTable from '../../../shared/components/DataTable';
@@ -424,7 +424,7 @@ export default function ProductionPortal() {
   const woIdParam = searchParams.get('woId');
 
   const { state, dispatch, syncData } = useERP();
-  const workflowMaterialRequests = useMaterialRequestStore(s => s.materialRequests);
+  const { data: workflowMaterialRequests = [] } = useMaterialRequests();
   const { user } = useAuth();
   const showToast = useNotificationStore(s => s.showToast);
   const globalSearch = useSearchStore(s => s.globalSearch);
@@ -763,7 +763,7 @@ export default function ProductionPortal() {
     });
     return Array.from(mergedWOsMap.values());
   }, [orders, storeWorkOrders]);
-  const mRequests = state.materialRequests || [];
+  const mRequests = workflowMaterialRequests;
   const rawInventory = state.rawInventory || [];
 
   const resolvedWoId = woIdParam || 'DAILY-STOCK';

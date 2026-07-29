@@ -2,27 +2,27 @@
 
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-import { useShallow } from 'zustand/react/shallow';
-import { useERPStore } from '../../store/erpStore';
 import { useAuth } from '../../shared/context/AuthContext';
-import {
-  approveStoreMaterialRequest,
-  rejectStoreMaterialRequest,
-  selectStoreApprovedRequests,
-  selectStoreRequestHistory,
-} from '../../store/materialFlow';
+import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
 
 export default function StoreMaterialIssueView() {
   const { user } = useAuth();
   const [tab, setTab] = useState('Pending');
-  const pending = useERPStore(useShallow((store) => selectStoreApprovedRequests(store.state)));
-  const history = useERPStore(useShallow((store) => selectStoreRequestHistory(store.state)));
+  const { data = [] } = useMaterialRequests();
+  const updateStatus = useUpdateMaterialRequestStatus();
+  const pending = data.filter(request => request.status === 'PLANT_HEAD_APPROVED');
+  const history = data.filter(request => request.status === 'STORE_REJECTED');
   const requests = tab === 'Pending' ? pending : history;
   const actor = user?.name || 'Store';
 
   const approve = async (request) => {
     try {
-      approveStoreMaterialRequest(request.id, actor);
+      await updateStatus.mutateAsync({
+        id: request.id,
+        status: 'STORE_APPROVED',
+        items: request.items.map(item => ({ ...item, issuedQty: item.approvedQty })),
+        metadata: { storeApprovedBy: actor },
+      });
       await Swal.fire('Store Approved', 'Request moved to Store Releases. Inventory has not been deducted.', 'success');
     } catch (error) {
       await Swal.fire('Cannot approve', error.message, 'error');
@@ -41,7 +41,11 @@ export default function StoreMaterialIssueView() {
       confirmButtonColor: '#dc2626',
     });
     if (!result.isConfirmed) return;
-    rejectStoreMaterialRequest(request.id, result.value, actor);
+    await updateStatus.mutateAsync({
+      id: request.id,
+      status: 'STORE_REJECTED',
+      metadata: { storeRejectedBy: actor, storeRejectionRemarks: result.value },
+    });
     await Swal.fire('Rejected', 'Request moved to Store rejection history.', 'success');
   };
 

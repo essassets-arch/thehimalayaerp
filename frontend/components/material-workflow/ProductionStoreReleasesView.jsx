@@ -1,14 +1,13 @@
 'use client';
 
 import React from 'react';
-import { useShallow } from 'zustand/react/shallow';
-import { useERPStore } from '../../store/erpStore';
-import { selectProductionStoreReleases } from '../../store/materialFlow';
+import { useMaterialRequests } from '../../hooks/useMaterialRequests';
 
 export default function ProductionStoreReleasesView() {
-  const requests = useERPStore(useShallow((store) =>
-    selectProductionStoreReleases(store.state)
-  ));
+  const { data = [] } = useMaterialRequests();
+  const requests = data.filter(request =>
+    ['ISSUED_TO_PRODUCTION', 'ISSUED'].includes(request.status)
+  );
 
   return <div style={{ padding: 16 }}>
     <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>Production Store Releases</h1>
@@ -31,7 +30,7 @@ export default function ProductionStoreReleasesView() {
                 <td style={{ padding: 12 }}>{item.approvedQty} {item.unit}</td>
                 <td style={{ padding: 12 }}>{item.issuedQty} {item.unit}</td>
                 <td style={{ padding: 12 }}>{request.issuedBy}</td>
-                <td style={{ padding: 12 }}>{request.status}</td>
+                <td style={{ padding: 12 }}>Issued to Production</td>
               </tr>
             )))}
         </tbody>

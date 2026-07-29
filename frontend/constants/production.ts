@@ -19,7 +19,7 @@ export const MATERIAL_REQUEST_STATUS = {
   PLANT_HEAD_REJECTED: 'PLANT_HEAD_REJECTED',
   STORE_APPROVED: 'STORE_APPROVED',
   STORE_REJECTED: 'STORE_REJECTED',
-  ISSUED: 'ISSUED'
+  ISSUED_TO_PRODUCTION: 'ISSUED_TO_PRODUCTION'
 } as const;
 
 /**
@@ -45,7 +45,7 @@ export function assertProductionTransition(entityType: string, currentStatus: st
     }
   }
 
-  if (entityType === 'MATERIAL_REQUEST' && nextStatus === MATERIAL_REQUEST_STATUS.ISSUED) {
+  if (entityType === 'MATERIAL_REQUEST' && nextStatus === MATERIAL_REQUEST_STATUS.ISSUED_TO_PRODUCTION) {
     if (currentStatus !== MATERIAL_REQUEST_STATUS.STORE_APPROVED) {
       throw new Error(`Invalid transition: Material Request must be STORE_APPROVED before being issued (current: ${currentStatus}).`);
     }

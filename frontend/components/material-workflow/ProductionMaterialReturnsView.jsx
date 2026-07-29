@@ -2,20 +2,20 @@
 
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-import { useMaterialRequestStore } from '../../store/materialRequestStore';
+import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
 import { RefreshCw, Clock, Eye, CheckCircle } from 'lucide-react';
 
 export default function ProductionMaterialReturnsView() {
-  const materialRequests = useMaterialRequestStore(s => s.materialRequests);
-  const returnMaterials = useMaterialRequestStore(s => s.returnMaterials);
+  const { data: materialRequests = [] } = useMaterialRequests();
+  const updateStatus = useUpdateMaterialRequestStatus();
 
   const [activeTab, setActiveTab] = useState('Return Eligible');
   const [selectedReq, setSelectedReq] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
   const [returnNotes, setReturnNotes] = useState('');
 
-  const eligibleList = materialRequests.filter(mr => mr.status === 'Consuming' || mr.status === 'Received');
-  const historyList = materialRequests.filter(mr => ['Return Pending', 'Returned', 'Closed'].includes(mr.status));
+  const eligibleList = materialRequests.filter(mr => ['CONSUMING', 'RECEIVED'].includes(mr.status));
+  const historyList = materialRequests.filter(mr => ['RETURN_PENDING', 'RETURNED', 'CLOSED'].includes(mr.status));
 
   const displayList = activeTab === 'Return Eligible' ? eligibleList : historyList;
 
@@ -47,9 +47,14 @@ export default function ProductionMaterialReturnsView() {
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
       confirmButtonText: 'Yes, Submit Return'
-    }).then(res => {
+    }).then(async res => {
       if (res.isConfirmed) {
-        returnMaterials(selectedReq.id, editingItems, returnNotes);
+        await updateStatus.mutateAsync({
+          id: selectedReq.id,
+          status: 'RETURN_PENDING',
+          items: editingItems,
+          metadata: { returnNotes },
+        });
         Swal.fire('Return Initiated!', `${selectedReq.requestNo} status set to 'Return Pending'.`, 'success');
         setSelectedReq(null);
       }

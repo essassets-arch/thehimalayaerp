@@ -2,19 +2,19 @@
 
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-import { useMaterialRequestStore } from '../../store/materialRequestStore';
+import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
 import { Flame, Activity, Clock, Eye, Hammer } from 'lucide-react';
 
 export default function ProductionMaterialConsumptionView() {
-  const materialRequests = useMaterialRequestStore(s => s.materialRequests);
-  const logConsumption = useMaterialRequestStore(s => s.logConsumption);
+  const { data: materialRequests = [] } = useMaterialRequests();
+  const updateStatus = useUpdateMaterialRequestStatus();
 
   const [activeTab, setActiveTab] = useState('Active Floor Batches');
   const [selectedReq, setSelectedReq] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
 
-  const activeList = materialRequests.filter(mr => mr.status === 'Received' || mr.status === 'Consuming');
-  const historyList = materialRequests.filter(mr => ['Return Pending', 'Returned', 'Closed'].includes(mr.status));
+  const activeList = materialRequests.filter(mr => ['RECEIVED', 'CONSUMING'].includes(mr.status));
+  const historyList = materialRequests.filter(mr => ['RETURN_PENDING', 'RETURNED', 'CLOSED'].includes(mr.status));
   const displayList = activeTab === 'Active Floor Batches' ? activeList : historyList;
 
   const handleOpenConsumption = (mr) => {
@@ -39,9 +39,9 @@ export default function ProductionMaterialConsumptionView() {
       showCancelButton: true,
       confirmButtonColor: '#7c3aed',
       confirmButtonText: 'Yes, Log Consumption'
-    }).then(res => {
+    }).then(async res => {
       if (res.isConfirmed) {
-        logConsumption(selectedReq.id, editingItems);
+        await updateStatus.mutateAsync({ id: selectedReq.id, status: 'CONSUMING', items: editingItems });
         Swal.fire('Logged!', `${selectedReq.requestNo} consumption updated (${totalConsumed} total units).`, 'success');
         setSelectedReq(null);
       }

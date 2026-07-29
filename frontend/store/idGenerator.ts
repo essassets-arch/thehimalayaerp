@@ -100,7 +100,6 @@ export const generateEntityIdPure = (state: any, type: EntityIdType): [string, a
       case 'order': existingRecords = state?.sales?.orders || []; break;
       case 'workOrder': existingRecords = state?.production?.workOrders || []; break;
       case 'batch': existingRecords = state?.production?.finishedGoods || []; break;
-      case 'materialRequest': existingRecords = state?.production?.materialRequests || []; break;
       case 'storeRelease': existingRecords = state?.dispatch?.storeReleases || []; break;
       case 'materialIssue': existingRecords = state?.production?.materialIssues || []; break;
       case 'dispatch': existingRecords = state?.dispatch?.dispatchOrders || []; break;

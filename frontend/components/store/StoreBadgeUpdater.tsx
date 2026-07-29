@@ -1,13 +1,14 @@
 'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect } from 'react';
 import { useERPStore } from '@/store/erpStore';
 import { useBadgeStore } from '@/store/badgeStore';
-import { useMaterialRequestStore } from '@/store/materialRequestStore';
+import { useMaterialRequests } from '@/hooks/useMaterialRequests';
 
 export default function StoreBadgeUpdater() {
   const rawInventory = useERPStore((state: any) => state.state.rawInventory || []);
-  const materialRequests = useMaterialRequestStore((state: any) => state.materialRequests);
+  const { data: materialRequests = [] } = useMaterialRequests();
   const setBadge = useBadgeStore((state: any) => state.setBadge);
 
   useEffect(() => {
@@ -18,7 +19,9 @@ export default function StoreBadgeUpdater() {
     setBadge('store_low_stock_alerts', lowStockCount, 'high');
 
     // Material Requests Pending Issuance
-    const pendingRequestsCount = materialRequests.filter((r: any) => r.status === 'Approved' || r.status === 'Partially Issued').length;
+    const pendingRequestsCount = materialRequests.filter((r: any) =>
+      ['PLANT_HEAD_APPROVED', 'STORE_APPROVED'].includes(r.status)
+    ).length;
     setBadge('store_material_requests', pendingRequestsCount, 'low');
 
   }, [rawInventory, materialRequests, setBadge]);

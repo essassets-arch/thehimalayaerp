@@ -2,19 +2,19 @@
 
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-import { useMaterialRequestStore } from '../../store/materialRequestStore';
+import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
 import { RefreshCw, CheckCircle, Clock, Eye, CheckCheck } from 'lucide-react';
 
 export default function StoreMaterialReturnVerificationView() {
-  const materialRequests = useMaterialRequestStore(s => s.materialRequests);
-  const confirmReturn = useMaterialRequestStore(s => s.confirmReturn);
+  const { data: materialRequests = [] } = useMaterialRequests();
+  const updateStatus = useUpdateMaterialRequestStatus();
 
   const [activeTab, setActiveTab] = useState('Awaiting Verification');
   const [selectedReq, setSelectedReq] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
 
-  const pendingReturnList = materialRequests.filter(mr => mr.status === 'Return Pending');
-  const verifiedList = materialRequests.filter(mr => ['Returned', 'Closed'].includes(mr.status));
+  const pendingReturnList = materialRequests.filter(mr => mr.status === 'RETURN_PENDING');
+  const verifiedList = materialRequests.filter(mr => ['RETURNED', 'CLOSED'].includes(mr.status));
 
   const displayList = activeTab === 'Awaiting Verification' ? pendingReturnList : verifiedList;
 
@@ -40,9 +40,9 @@ export default function StoreMaterialReturnVerificationView() {
       showCancelButton: true,
       confirmButtonColor: '#0369a1',
       confirmButtonText: 'Yes, Verify & Accept Return'
-    }).then(res => {
+    }).then(async res => {
       if (res.isConfirmed) {
-        confirmReturn(selectedReq.id, editingItems);
+        await updateStatus.mutateAsync({ id: selectedReq.id, status: 'RETURNED', items: editingItems });
         Swal.fire('Return Verified!', `${selectedReq.requestNo} status updated to 'Returned' and stock reconciled.`, 'success');
         setSelectedReq(null);
       }

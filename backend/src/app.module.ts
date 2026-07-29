@@ -38,8 +38,10 @@ import { ProductionModule } from './modules/production/production.module';
 import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
 import { QcModule } from './modules/qc/qc.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
+import { MaterialRequestsModule } from './modules/material-requests/material-requests.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 
 @Module({
   imports: [
@@ -76,6 +78,8 @@ import { AppService } from './app.service';
     WorkOrdersModule,
     QcModule,
     DispatchModule,
+    MaterialRequestsModule,
+    RecruitmentModule,
   ],
   controllers: [AppController],
   providers: [

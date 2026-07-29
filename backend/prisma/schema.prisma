@@ -61,6 +61,7 @@ model Company {
   GoodsReceiptNote      GoodsReceiptNote[]
   VendorReturn          VendorReturn[]
   SupplierPayable       SupplierPayable[]
+  recruitmentRequests   RecruitmentRequest[]
 }
 
 model Branch {
@@ -366,6 +367,13 @@ model MaterialRequest {
   requestedById String
   requestDate   DateTime              @default(now())
   status        String
+  workOrderNo   String?
+  warehouse     String?
+  priority      String?
+  notes         String?
+  approvedById  String?
+  approvedAt    DateTime?
+  metadata      Json?
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
   branch        Branch?               @relation(fields: [branchId], references: [id])
@@ -379,6 +387,12 @@ model MaterialRequestItem {
   materialRequestId String
   productId         String
   quantity          Decimal         @db.Decimal(14, 2)
+  approvedQuantity  Decimal?        @db.Decimal(14, 2)
+  issuedQuantity    Decimal?        @db.Decimal(14, 2)
+  receivedQuantity  Decimal?        @db.Decimal(14, 2)
+  consumedQuantity  Decimal?        @db.Decimal(14, 2)
+  returnedQuantity  Decimal?        @db.Decimal(14, 2)
+  unit              String?
   status            String
   materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
   product           Product         @relation(fields: [productId], references: [id])
@@ -1564,7 +1578,7 @@ model CustomerPayment {
   createdAt       DateTime      @default(now())
 
   customer      Customer            @relation(fields: [customerId], references: [id])
-  salesOrder    SalesOrder?          @relation(fields: [salesOrderId], references: [id])
+  salesOrder    SalesOrder?         @relation(fields: [salesOrderId], references: [id])
   allocations   PaymentAllocation[]
   workflowState WorkflowState?      @relation("PaymentWorkflow", fields: [workflowStateId], references: [id])
 
@@ -1714,4 +1728,180 @@ enum NotificationStatus {
   UNREAD
   READ
   ARCHIVED
+}
+
+enum RecruitmentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum EmploymentType {
+  PERMANENT
+  CONTRACT
+  TEMPORARY
+  APPRENTICE
+  INTERN
+}
+
+enum RecruitmentRequestStatus {
+  DRAFT
+  OPEN
+  RETURNED_FOR_CORRECTION
+  HR_PROCESSING
+  CANDIDATES_SOURCED
+  INTERVIEWS_SCHEDULED
+  CANDIDATES_SELECTED
+  OFFER_IN_PROGRESS
+  PARTIALLY_FULFILLED
+  FULFILLED
+  ON_HOLD
+  REJECTED
+  WITHDRAWN
+  PENDING
+}
+
+enum RecruitmentCandidateStatus {
+  SOURCED
+  SCREENING
+  SHORTLISTED
+  REJECTED
+  INTERVIEW_SCHEDULED
+  INTERVIEWED
+  SELECTED
+  OFFERED
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  JOINED
+  NO_SHOW
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum InterviewResult {
+  PENDING
+  SELECTED
+  REJECTED
+  NEXT_ROUND
+  ON_HOLD
+}
+
+model RecruitmentRequest {
+  id                  String                       @id @default(uuid())
+  companyId           String
+  company             Company                      @relation(fields: [companyId], references: [id])
+  indentNumber        String                       @unique
+  designation         String
+  department          String
+  vacancies           Int
+  priority            RecruitmentPriority
+  employmentType      EmploymentType?
+  requiredExperience  String?
+  requiredSkills      String?
+  reasonForHiring     String
+  jobDescription      String?
+  requiredByDate      DateTime?
+  requestedById       String
+  requestedByName     String
+  requestedByRole     String
+  assignedHrUserId    String?
+  assignedHrUserName  String?
+  positionsFilled     Int                          @default(0)
+  status              RecruitmentRequestStatus     @default(OPEN)
+  submittedAt         DateTime                     @default(now())
+  processingStartedAt DateTime?
+  fulfilledAt         DateTime?
+  rejectedAt          DateTime?
+  withdrawnAt         DateTime?
+  hrRemarks           String?
+  rejectionReason     String?
+  correctionReason    String?
+  rejectedBy          String?
+  fulfilledBy         String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  version             Int                          @default(1)
+  candidates          RecruitmentCandidate[]
+  interviews          RecruitmentInterview[]
+  timeline            RecruitmentRequestTimeline[]
+
+  @@index([companyId, status])
+  @@index([department])
+  @@index([requestedById])
+  @@index([assignedHrUserId])
+  @@index([createdAt])
+}
+
+model RecruitmentCandidate {
+  id                   String                     @id @default(uuid())
+  candidateNumber      String                     @unique
+  recruitmentRequestId String
+  recruitmentRequest   RecruitmentRequest         @relation(fields: [recruitmentRequestId], references: [id], onDelete: Cascade)
+  name                 String
+  phone                String?
+  email                String?
+  experience           String?
+  currentCompany       String?
+  expectedSalary       Decimal?                   @db.Decimal(14, 2)
+  resumeUrl            String?
+  source               String?
+  status               RecruitmentCandidateStatus @default(SOURCED)
+  remarks              String?
+  selectedAt           DateTime?
+  joiningDate          DateTime?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  interviews           RecruitmentInterview[]
+
+  @@index([recruitmentRequestId])
+  @@index([status])
+}
+
+model RecruitmentInterview {
+  id                   String               @id @default(uuid())
+  recruitmentRequestId String
+  candidateId          String
+  recruitmentRequest   RecruitmentRequest   @relation(fields: [recruitmentRequestId], references: [id], onDelete: Cascade)
+  candidate            RecruitmentCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  interviewDate        DateTime
+  interviewMode        String
+  interviewLocation    String?
+  meetingLink          String?
+  interviewRound       String?
+  panelMembers         Json?
+  instructions         String?
+  status               InterviewStatus      @default(SCHEDULED)
+  feedback             String?
+  rating               Int?
+  result               InterviewResult?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([recruitmentRequestId])
+  @@index([candidateId])
+  @@index([interviewDate])
+}
+
+model RecruitmentRequestTimeline {
+  id                   String                    @id @default(uuid())
+  recruitmentRequestId String
+  recruitmentRequest   RecruitmentRequest        @relation(fields: [recruitmentRequestId], references: [id], onDelete: Cascade)
+  action               String
+  fromStatus           RecruitmentRequestStatus?
+  toStatus             RecruitmentRequestStatus?
+  performedById        String
+  performedByName      String
+  performedByRole      String
+  remarks              String?
+  metadata             Json?
+  createdAt            DateTime                  @default(now())
+
+  @@index([recruitmentRequestId])
+  @@index([createdAt])
 }

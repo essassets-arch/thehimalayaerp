@@ -169,8 +169,22 @@ export default function OrdersView({
   const canAskForPayment = (order) => {
     const isDelivered = isDeliveredOrder(order);
     const paymentSt = String(order?.paymentStatus || '').toUpperCase();
+    const total = Number(order?.totalAmount ?? order?.grandTotal ?? order?.payment?.totalAmount ?? 0);
+    const verifiedPaid = Number(
+      order?.verifiedPaidAmount ??
+      order?.verifiedAmount ??
+      order?.payment?.paidAmount ??
+      order?.payment?.paid ??
+      0
+    );
+    const hasFullyPaidBalance =
+      total > 0 &&
+      (verifiedPaid >= total ||
+        (verifiedPaid > 0 && Number(order?.balanceAmount) === 0));
     const isFinanceApprovedAndPaid =
-      paymentSt === 'FULLY_PAID' || paymentSt === 'PAID';
+      paymentSt === 'FULLY_PAID' ||
+      paymentSt === 'PAID' ||
+      hasFullyPaidBalance;
     return isDelivered && !isFinanceApprovedAndPaid;
   };
 

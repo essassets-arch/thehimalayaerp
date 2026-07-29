@@ -228,8 +228,7 @@ store/
 ├── badgeStore.ts             # Notification badge counts per module
 ├── customerComplaintStore.ts # Customer complaint workflow state
 ├── idGenerator.ts            # Sequence-safe ID generator
-├── materialFlow.ts           # Material request/indent state
-├── materialRequestStore.ts   # Material request actions
+├── hooks/useMaterialRequests.ts # Backend material-request queries and mutations
 ├── new_procurement_store.ts  # Procurement Zustand store
 ├── notificationStore.ts      # Toast/notification management
 ├── payrollFlow.ts            # Payroll preparation workflow

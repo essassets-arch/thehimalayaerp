@@ -81,6 +81,19 @@ async function main() {
     'attachment.upload', 'attachment.delete',
     'notification.read', 'comment.create', 'comment.read',
     'reports.sales', 'reports.production', 'reports.finance',
+    'hr.recruitment.requests.create',
+    'hr.recruitment.requests.read.own',
+    'hr.recruitment.requests.read.all',
+    'hr.recruitment.requests.update.own',
+    'hr.recruitment.requests.withdraw',
+    'hr.recruitment.requests.process',
+    'hr.recruitment.requests.return',
+    'hr.recruitment.requests.reject',
+    'hr.recruitment.requests.fulfil',
+    'hr.recruitment.candidates.create',
+    'hr.recruitment.candidates.update',
+    'hr.recruitment.interviews.create',
+    'hr.recruitment.interviews.update',
   ];
 
   for (const code of permissionCodes) {
@@ -183,6 +196,10 @@ async function main() {
           'production.plan.release',
           'production.workorder.update',
           'qc.inspection.read',
+          'hr.recruitment.requests.create',
+          'hr.recruitment.requests.read.own',
+          'hr.recruitment.requests.update.own',
+          'hr.recruitment.requests.withdraw',
         ],
       },
     },
@@ -201,6 +218,20 @@ async function main() {
           roleId: plantHeadRole.id,
           permissionId: permission.id,
         },
+      });
+    }
+  }
+
+  const hrRole = await prisma.role.findUnique({ where: { code: 'HR' } });
+  const hrPermissions = await prisma.permission.findMany({
+    where: { code: { startsWith: 'hr.recruitment.' } },
+  });
+  if (hrRole) {
+    for (const permission of hrPermissions) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: hrRole.id, permissionId: permission.id } },
+        update: {},
+        create: { roleId: hrRole.id, permissionId: permission.id },
       });
     }
   }

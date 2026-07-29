@@ -14,12 +14,14 @@ import { productionService } from '../../../services/production.service';
 import { productService } from '../../../services/product.service';
 import { apiClient } from '../../../lib/apiClient';
 import { backendFetch } from '../../../lib/backendFetch';
+import { hasPermission } from '../../../services/permissions/permissionService';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import { ChevronLeft, ChevronRight, Search, Download, Edit3, Trash2, Box, Package, Plus, ShieldAlert, ArrowRight, X, User, BarChart2, Activity, Settings, Truck, ClipboardList, CheckCircle2, Clock, Upload, ArrowLeft, ClipboardCheck, AlertTriangle, Pencil, Layers, BarChart3, TrendingUp, Percent, AlertCircle, AlertOctagon, Loader2, FileText, DollarSign, RefreshCw, ShieldCheck } from 'lucide-react';
 import ProductMasterUI from '../../../shared/components/ProductMasterUI';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
-import { ResponsiveContainer, ComposedChart, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { ComposedChart, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
 import { exportExecutiveReportPDF } from '../../../services/export.service';
 import O2PWorkflowBanner from '../../../shared/components/O2PWorkflowBanner';
 import ReplacementsView from './ReplacementsView';
@@ -30,6 +32,7 @@ import { useO2PWorkflow } from '../../../shared/hooks/useO2PWorkflow';
 import PlantHeadCommandDashboard from '../../../components/PlantHeadCommandDashboard';
 import ModulePlaceholder from '../../../components/common/ModulePlaceholder';
 import { isPlanningHistoryOrder, normalizeStatus } from '@/store/domains/shared/workflowUtils';
+import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
 
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
@@ -111,8 +114,10 @@ export default function PlantHeadPortal() {
   const orderNoParam = searchParams.get('orderNo');
 
   const { state, dispatch, syncData } = useERP();
+  const { data: persistedMaterialRequests = [] } = useMaterialRequests();
   const { salesOrders: backendSalesOrders, loadSalesOrders } = useSalesBackend();
   const { user } = useAuth();
+  const canReadSalesOrders = hasPermission(user, 'sales.orders.read');
   const showToast = useNotificationStore(s => s.showToast);
   const globalSearch = useSearchStore(s => s.globalSearch);
   const o2p = useO2PWorkflow();
@@ -209,18 +214,12 @@ export default function PlantHeadPortal() {
   const canonicalWorkOrders = useERPStore(s => s.state?.production?.workOrders) || [];
   const [directBackendOrders, setDirectBackendOrders] = useState([]);
   useEffect(() => {
-    if (currentView === 'incoming-orders' || currentView === 'planning') {
+    if (canReadSalesOrders && (currentView === 'incoming-orders' || currentView === 'planning')) {
       void loadSalesOrders();
-      void backendFetch('/api/backend/sales/orders?page=1&pageSize=100')
-        .then((result) => {
-          setDirectBackendOrders(Array.isArray(result) ? result : result?.data || []);
-        })
-        .catch((error) => {
-          console.error('[Plant Head] Unable to load incoming database orders', error);
-          setDirectBackendOrders([]);
-        });
+    } else if (!canReadSalesOrders) {
+      setDirectBackendOrders([]);
     }
-  }, [currentView, loadSalesOrders]);
+  }, [canReadSalesOrders, currentView, loadSalesOrders]);
 
   const orders = useMemo(() => [...directBackendOrders, ...(backendSalesOrders || []), ...salesOrdersStore]
     .filter((order, index, all) =>
@@ -233,7 +232,7 @@ export default function PlantHeadPortal() {
     );
     return normalizeIncomingOrder(order, sourceQuotation);
   }), [directBackendOrders, backendSalesOrders, salesOrdersStore, state.sales?.quotations]);
-  const mRequests = state.materialRequests || [];
+  const mRequests = persistedMaterialRequests;
 
   const [showPlanningModal, setShowPlanningModal] = useState(false);
   const [selectedOrderForPlanning, setSelectedOrderForPlanning] = useState(null);
@@ -1297,7 +1296,7 @@ export default function PlantHeadPortal() {
             <h3 className="card-heading">QC Inspection Quality Distribution</h3>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flex: 1, flexWrap: 'wrap', gap: '20px', marginTop: '16px' }}>
               <div style={{ width: '200px', height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveChartWrapper>
                   <PieChart>
                     <Pie
                       data={[
@@ -1320,7 +1319,7 @@ export default function PlantHeadPortal() {
                     </Pie>
                     <Tooltip />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveChartWrapper>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '160px' }}>
                 {[
@@ -1444,7 +1443,7 @@ export default function PlantHeadPortal() {
           <div className="app-card">
             <h3 className="card-heading">Daily Production Output (Qty vs Weight)</h3>
             <div style={{ width: '100%', height: '280px', marginTop: '16px' }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveChartWrapper>
                 <ComposedChart data={trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="name" tick={{ fill: '#5E6B82', fontSize: 11 }} />
@@ -1455,7 +1454,7 @@ export default function PlantHeadPortal() {
                   <Bar yAxisId="left" dataKey="Qty" fill="#337a86" radius={[4, 4, 0, 0]} />
                   <Line yAxisId="right" type="monotone" dataKey="Weight" stroke="#4f46e5" strokeWidth={3} dot={{ r: 4 }} />
                 </ComposedChart>
-              </ResponsiveContainer>
+              </ResponsiveChartWrapper>
             </div>
           </div>
 
@@ -1464,7 +1463,7 @@ export default function PlantHeadPortal() {
             <h3 className="card-heading">Category Wise Volume Distribution</h3>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flex: 1, flexWrap: 'wrap', gap: '20px', marginTop: '16px' }}>
               <div style={{ width: '220px', height: '220px' }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveChartWrapper>
                   <PieChart>
                     <Pie
                       data={categories}
@@ -1482,7 +1481,7 @@ export default function PlantHeadPortal() {
                     </Pie>
                     <Tooltip formatter={(val) => `${val} Pcs`} />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveChartWrapper>
               </div>
 
               {/* Legend List */}
@@ -1597,7 +1596,7 @@ export default function PlantHeadPortal() {
           <div className="app-card">
             <h3 className="card-heading">Operational Scrap & Wastage Comparison (Tons)</h3>
             <div style={{ width: '100%', height: '240px', marginTop: '16px' }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveChartWrapper>
                 <BarChart data={wastageChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="name" />
@@ -1609,7 +1608,7 @@ export default function PlantHeadPortal() {
                     ))}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveChartWrapper>
             </div>
           </div>
 
@@ -1618,7 +1617,7 @@ export default function PlantHeadPortal() {
             <h3 className="card-heading">Raw Material Consumption Proportions</h3>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flex: 1, flexWrap: 'wrap', gap: '20px', marginTop: '16px' }}>
               <div style={{ width: '200px', height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveChartWrapper>
                   <PieChart>
                     <Pie
                       data={materialPieData}
@@ -1635,7 +1634,7 @@ export default function PlantHeadPortal() {
                     </Pie>
                     <Tooltip formatter={(value) => `${value} Tons`} />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveChartWrapper>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '160px' }}>
                 {materialPieData.map((item, idx) => (
@@ -1671,7 +1670,7 @@ export default function PlantHeadPortal() {
           <div className="app-card">
             <h3 className="card-heading">Monthly Consumption Trend (Tons)</h3>
             <div style={{ width: '100%', height: '260px', marginTop: '20px' }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveChartWrapper>
                 <LineChart data={monthlyTrends}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="month" tick={{ fill: '#5E6B82', fontSize: 11 }} />
@@ -1682,7 +1681,7 @@ export default function PlantHeadPortal() {
                   <Line type="monotone" dataKey="Steel" stroke="#4f46e5" strokeWidth={3} dot={{ r: 4 }} />
                   <Line type="monotone" dataKey="Sand" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
                 </LineChart>
-              </ResponsiveContainer>
+              </ResponsiveChartWrapper>
             </div>
           </div>
         </div>
@@ -1896,7 +1895,7 @@ export default function PlantHeadPortal() {
           <div className="app-card">
             <h3 className="card-heading">Active Pipeline Phase Volume</h3>
             <div style={{ width: '100%', height: '260px', marginTop: '16px' }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveChartWrapper>
                 <BarChart data={pipelineChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -1908,7 +1907,7 @@ export default function PlantHeadPortal() {
                     ))}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveChartWrapper>
             </div>
           </div>
 

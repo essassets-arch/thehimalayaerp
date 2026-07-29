@@ -1,0 +1,214 @@
+.store-releases {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+}
+
+.store-releases__heading h1 {
+  margin: 0 0 6px;
+  color: #10285c;
+  font-size: clamp(1.5rem, 2vw, 1.85rem);
+  line-height: 1.2;
+}
+
+.store-releases__heading p {
+  margin: 0 0 20px;
+  color: #5e6b82;
+}
+
+.store-releases__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #dce5f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.store-releases__filters label {
+  display: grid;
+  gap: 6px;
+  min-width: min(240px, 100%);
+}
+
+.store-releases__filters label > span {
+  color: #10285c;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.store-releases__filters select {
+  min-height: 42px;
+  padding: 8px 36px 8px 12px;
+  border: 1px solid #cbd8e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #10285c;
+  font: inherit;
+  cursor: pointer;
+}
+
+.store-release-card {
+  overflow: hidden;
+  margin-bottom: 20px;
+  border: 1px solid #dce5f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.store-release-card__meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(max-content, auto));
+  gap: 10px 24px;
+  align-items: start;
+  padding: 16px;
+  background: #f5fafe;
+  color: #10285c;
+  font-size: 0.9rem;
+}
+
+.store-release-card__request {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.store-release-card__table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.store-release-card__table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #10285c;
+}
+
+.store-release-card__table th,
+.store-release-card__table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #dce5f0;
+}
+
+.store-release-card__table th {
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.store-release-card__table .is-ready { color: #059669; }
+.store-release-card__table .is-incomplete { color: #dc2626; }
+
+.store-release-card__footer { padding: 16px; }
+
+.store-release-card__warning {
+  margin: 0 0 10px;
+  color: #dc2626;
+  line-height: 1.45;
+}
+
+.store-release-card__warning p {
+  margin: 2px 0 0;
+}
+
+.store-release-card__warning ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.store-release-card__proceed {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid #a7f3d0;
+  border-radius: 9px;
+  background: #ecfdf5;
+  color: #047857;
+  line-height: 1.45;
+}
+
+.store-release-card__proceed p {
+  margin: 3px 0 0;
+}
+
+.store-release-card__meta .is-ready { color: #059669; }
+.store-release-card__meta .is-incomplete { color: #dc2626; }
+
+.store-release-card__footer button {
+  min-height: 40px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #059669;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.store-release-card__footer button:disabled {
+  background: #d6e2f0;
+  cursor: not-allowed;
+}
+
+.store-releases__empty {
+  padding: 32px;
+  border-radius: 12px;
+  background: #fff;
+  color: #5e6b82;
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .store-release-card__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .store-releases { padding: 12px; }
+  .store-releases__heading p { margin-bottom: 16px; font-size: 0.9rem; }
+  .store-releases__filters { align-items: stretch; padding: 12px; }
+  .store-releases__filters label { width: 100%; }
+  .store-release-card__meta { grid-template-columns: 1fr; gap: 9px; padding: 14px; }
+  .store-release-card__table-wrap { overflow: visible; padding: 8px 12px 4px; }
+  .store-release-card__table,
+  .store-release-card__table tbody,
+  .store-release-card__table tr,
+  .store-release-card__table td { display: block; width: 100%; }
+  .store-release-card__table thead { display: none; }
+  .store-release-card__table tr {
+    margin: 4px 0 12px;
+    padding: 6px 12px;
+    border: 1px solid #e4ebf3;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .store-release-card__table td {
+    display: grid;
+    grid-template-columns: minmax(110px, 42%) 1fr;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #edf2f7;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .store-release-card__table td:last-child { border-bottom: 0; }
+  .store-release-card__table td::before {
+    content: attr(data-label);
+    color: #5e6b82;
+    font-weight: 700;
+    text-align: left;
+  }
+  .store-release-card__footer { padding: 14px; }
+  .store-release-card__footer button { width: 100%; }
+}
+
+@media (max-width: 380px) {
+  .store-releases { padding-inline: 8px; }
+  .store-release-card__table td {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    text-align: left;
+  }
+}

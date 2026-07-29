@@ -2,19 +2,15 @@
 
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-import { useShallow } from 'zustand/react/shallow';
-import { useERPStore } from '../../store/erpStore';
-import {
-  approveMaterialRequest,
-  rejectMaterialRequest,
-  selectPlantHeadHistoryRequests,
-  selectPlantHeadPendingRequests
-} from '../../store/materialFlow';
+import { useApproveMaterialRequest, useMaterialRequests, useRejectMaterialRequest } from '../../hooks/useMaterialRequests';
 import { CheckCircle, XCircle, Eye, ShieldCheck, CheckSquare, Clock } from 'lucide-react';
 
 export default function PlantHeadMaterialApprovalView() {
-  const submittedList = useERPStore(useShallow(s => selectPlantHeadPendingRequests(s.state)));
-  const allList = useERPStore(useShallow(s => selectPlantHeadHistoryRequests(s.state)));
+  const { data: materialRequests = [] } = useMaterialRequests();
+  const approveRequest = useApproveMaterialRequest();
+  const rejectRequest = useRejectMaterialRequest();
+  const submittedList = materialRequests.filter(request => request.status === 'PENDING_PLANT_HEAD_APPROVAL');
+  const allList = materialRequests.filter(request => request.status !== 'PENDING_PLANT_HEAD_APPROVAL');
 
   const [activeTab, setActiveTab] = useState('Pending Approval');
   const [selectedReq, setSelectedReq] = useState(null);
@@ -26,7 +22,7 @@ export default function PlantHeadMaterialApprovalView() {
     setSelectedReq(mr);
     setEditingItems(mr.items.map(i => ({
       ...i,
-      approvedQty: i.approvedQty !== undefined && i.approvedQty !== null ? i.approvedQty : i.requestedQty
+      approvedQty: Number(i.approvedQty) > 0 ? Number(i.approvedQty) : Number(i.requestedQty)
     })));
   };
 
@@ -34,13 +30,17 @@ export default function PlantHeadMaterialApprovalView() {
     setEditingItems(prev => prev.map((item, idx) => idx === index ? { ...item, approvedQty: val } : item));
   };
 
-  const handleApprove = (status) => {
+  const handleApprove = async (status) => {
     if (!selectedReq) return;
-    if (status === 'Approved' && editingItems.some(i => i.approvedQty < 0)) {
-      Swal.fire({ icon: 'error', title: 'Invalid Quantity', text: 'Approved quantity cannot be negative.' });
+    if (status === 'Approved' && editingItems.some(i => !Number.isFinite(Number(i.approvedQty)) || Number(i.approvedQty) <= 0)) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Approved Quantity Required',
+        text: 'Please enter an approved quantity greater than 0 for all requested materials before approving.'
+      });
       return;
     }
-    Swal.fire({
+    const res = await Swal.fire({
       title: `${status} Request?`,
       text: status === 'Approved'
         ? `Approve material requisition ${selectedReq.requestNo}? Store will be authorized to issue materials.`
@@ -49,17 +49,26 @@ export default function PlantHeadMaterialApprovalView() {
       showCancelButton: true,
       confirmButtonColor: status === 'Approved' ? '#16a34a' : '#dc2626',
       confirmButtonText: `Yes, ${status}`
-    }).then(res => {
-      if (res.isConfirmed) {
-        if (status === 'Approved') {
-          approveMaterialRequest(selectedReq.id, editingItems, 'Plant Head');
-        } else {
-          rejectMaterialRequest(selectedReq.id, 'Plant Head');
-        }
-        Swal.fire(status === 'Approved' ? 'Approved!' : 'Rejected', `Request ${selectedReq.requestNo} status updated to ${status}.`, 'success');
-        setSelectedReq(null);
-      }
     });
+    if (res.isConfirmed) {
+      try {
+        if (status === 'Approved') {
+          await approveRequest.mutateAsync({ id: selectedReq.id, items: editingItems });
+        } else {
+          await rejectRequest.mutateAsync(selectedReq.id);
+        }
+        await Swal.fire(
+          status === 'Approved' ? 'Plant Head Approved' : 'Rejected',
+          status === 'Approved'
+            ? `Material Request ${selectedReq.requestNo} approved and forwarded to Store.`
+            : `Request ${selectedReq.requestNo} has been rejected.`,
+          'success'
+        );
+        setSelectedReq(null);
+      } catch (error) {
+        await Swal.fire('Cannot approve request', error.message, 'error');
+      }
+    }
   };
 
   return (
@@ -94,7 +103,6 @@ export default function PlantHeadMaterialApprovalView() {
                 <th style={{ padding: '14px 20px' }}>Request No</th>
                 <th style={{ padding: '14px 20px' }}>Date</th>
                 <th style={{ padding: '14px 20px' }}>Work Order</th>
-                <th style={{ padding: '14px 20px' }}>Requester</th>
                 <th style={{ padding: '14px 20px' }}>Items</th>
                 <th style={{ padding: '14px 20px' }}>Priority</th>
                 <th style={{ padding: '14px 20px' }}>Status</th>
@@ -103,7 +111,7 @@ export default function PlantHeadMaterialApprovalView() {
             </thead>
             <tbody>
               {displayList.length === 0 ? (
-                <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#8893A7', fontSize: '14px' }}>
+                <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#8893A7', fontSize: '14px' }}>
                   {activeTab === 'Pending Approval' ? 'No material requests awaiting approval.' : 'No material request history.'}
                 </td></tr>
               ) : (
@@ -114,8 +122,12 @@ export default function PlantHeadMaterialApprovalView() {
                       <td style={{ padding: '16px 20px', fontWeight: '800', fontFamily: 'monospace', color: '#24345C' }}>{mr.requestNo}</td>
                       <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5E6B82' }}>{mr.requestDate}</td>
                       <td style={{ padding: '16px 20px', fontWeight: '700', color: '#2563eb' }}>{mr.workOrderNo || '—'}</td>
-                      <td style={{ padding: '16px 20px', fontSize: '13px', color: '#334155', fontWeight: '600' }}>{mr.requester || 'Production Team'}</td>
-                      <td style={{ padding: '16px 20px', fontWeight: '700' }}>{mr.items?.length || 0} items</td>
+                      <td style={{ padding: '16px 20px' }}>
+                        <div style={{ fontWeight: '700' }}>{mr.items?.length || 0} items</div>
+                        <div style={{ marginTop: '3px', fontSize: '12px', color: '#5E6B82' }}>
+                          {mr.items?.map(item => item.material).filter(Boolean).join(', ') || 'No material specified'}
+                        </div>
+                      </td>
                       <td style={{ padding: '16px 20px' }}>
                         <span style={{ padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', background: mr.priority === 'Urgent' ? '#fff1f2' : mr.priority === 'High' ? '#fffbeb' : '#F5FAFE', color: mr.priority === 'Urgent' ? '#e11d48' : mr.priority === 'High' ? '#d97706' : '#475569' }}>
                           {mr.priority}
@@ -153,10 +165,8 @@ export default function PlantHeadMaterialApprovalView() {
               <button onClick={() => setSelectedReq(null)} style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontWeight: '700' }}>Close</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px', fontSize: '13px', background: '#F5FAFE', padding: '14px', borderRadius: '12px' }}>
-              <div><strong>Requester:</strong> {selectedReq.requester}</div>
               <div><strong>Work Order:</strong> {selectedReq.workOrderNo || '—'}</div>
               <div><strong>Priority:</strong> <span style={{ fontWeight: '800' }}>{selectedReq.priority}</span></div>
-              <div style={{ gridColumn: 'span 3' }}><strong>Warehouse:</strong> {selectedReq.warehouse}</div>
               {selectedReq.notes && (
                 <div style={{ gridColumn: 'span 3', color: '#92400e', background: '#fffbeb', padding: '10px', borderRadius: '8px', border: '1px solid #fde68a' }}>
                   <strong>Floor Notes:</strong> {selectedReq.notes}
@@ -182,7 +192,7 @@ export default function PlantHeadMaterialApprovalView() {
                     <td style={{ padding: '12px 14px', fontWeight: '700', color: '#5E6B82' }}>{item.requestedQty}</td>
                     <td style={{ padding: '12px 14px' }}>
                       {selectedReq.status === 'PENDING_PLANT_HEAD_APPROVAL' ? (
-                        <input type="number" min="0" step="0.1" value={item.approvedQty} onChange={(e) => handleQtyChange(idx, Number(e.target.value))} style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #16a34a', fontWeight: '800', color: '#16a34a', fontSize: '14px' }} />
+                        <input type="number" min="0.1" step="0.1" value={item.approvedQty} onChange={(e) => handleQtyChange(idx, e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: `1px solid ${Number(item.approvedQty) > 0 ? '#16a34a' : '#dc2626'}`, fontWeight: '800', color: Number(item.approvedQty) > 0 ? '#16a34a' : '#dc2626', fontSize: '14px' }} />
                       ) : (
                         <span style={{ fontWeight: '800', color: '#16a34a' }}>{item.approvedQty}</span>
                       )}
@@ -197,7 +207,7 @@ export default function PlantHeadMaterialApprovalView() {
                 <button onClick={() => handleApprove('Rejected')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', borderRadius: '10px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontWeight: '700', cursor: 'pointer' }}>
                   <XCircle size={16} /> Reject Request
                 </button>
-                <button onClick={() => handleApprove('Approved')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', borderRadius: '10px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
+                <button disabled={editingItems.some(i => !Number.isFinite(Number(i.approvedQty)) || Number(i.approvedQty) <= 0)} onClick={() => handleApprove('Approved')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', borderRadius: '10px', border: 'none', background: editingItems.every(i => Number(i.approvedQty) > 0) ? '#16a34a' : '#94a3b8', color: '#fff', fontWeight: '700', cursor: editingItems.every(i => Number(i.approvedQty) > 0) ? 'pointer' : 'not-allowed' }}>
                   <CheckCircle size={16} /> Approve & Authorize Store Issue
                 </button>
               </div>

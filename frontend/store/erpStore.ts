@@ -679,7 +679,7 @@ const getInitialStateFromStorage = () => {
   if (typeof window === 'undefined') {
     return normalizeStateForStore({
       workOrders: [], dispatches: [], payments: [], notifications: [], samples: [], rawInventory: [], customers: [], leads: [], quotations: [], purchaseIndents: [], purchaseOrders: [], goodsReceipts: [], vendorInvoices: [], vendorPayments: [], vendorReturns: [], analysisRequests: [], qcInspections: [], employees: [], payrollBatches: [], salaries: [], materialRejections: [], procurementAuditLogs: [], procurementDocuments: [], procurementNotifications: [], materialReplacementSchedules: [], replacementReceipts: [],
-      production: { finishedGoods: [], workOrders: [], qcRecords: [], materialRequests: [] },
+      production: { finishedGoods: [], workOrders: [], qcRecords: [] },
       procurement: { materialIndents: [] },
       sales: {
         leads: [],
@@ -864,7 +864,7 @@ const getInitialStateFromStorage = () => {
     }
 
     let sales: any = { leads: [], samples: [], quotations: [], orders: [], paymentConfirmations: [], replacementRequests: [], returnRequests: [] };
-    let production: any = { finishedGoods: [], workOrders: [], qcRecords: [], materialRequests: [] };
+    let production: any = { finishedGoods: [], workOrders: [], qcRecords: [] };
     let dispatch: any = { dispatchOrders: [], consignments: [] };
     let idSequences: any = {};
     try {
@@ -882,10 +882,7 @@ const getInitialStateFromStorage = () => {
               ...parsedSnapshot,
               state: {
                 ...savedState,
-                production: {
-                  ...(savedState.production || {}),
-                  materialRequests: [],
-                },
+                production: savedState.production || {},
               },
               version: MATERIAL_FLOW_STORE_VERSION,
             }));
@@ -1053,7 +1050,7 @@ const getInitialStateFromStorage = () => {
       sales: {
         leads: [], samples: [], quotations: [], orders: [], paymentConfirmations: [], replacementRequests: [], returnRequests: [],
       },
-      production: { finishedGoods: [], workOrders: [], qcRecords: [], materialRequests: [] },
+      production: { finishedGoods: [], workOrders: [], qcRecords: [] },
       finance: { customerPayments: [], paymentFollowUps: [], paymentReceipts: [] },
       idSequences: {},
       serverCache: {
@@ -1407,7 +1404,6 @@ export const useERPStore = create((set: any, get: any) => ({
           case 'order': existingRecords = state.state?.sales?.orders || []; break;
           case 'workOrder': existingRecords = state.state?.production?.workOrders || []; break;
           case 'batch': existingRecords = state.state?.production?.finishedGoods || []; break;
-          case 'materialRequest': existingRecords = state.state?.production?.materialRequests || []; break;
           case 'storeRelease': existingRecords = state.state?.dispatch?.storeReleases || []; break; // Note: may not map 1:1, but safe to scan
           case 'materialIssue': existingRecords = state.state?.production?.materialIssues || []; break;
           case 'dispatch': existingRecords = state.state?.dispatch?.dispatchOrders || []; break;
@@ -1481,7 +1477,6 @@ export const useERPStore = create((set: any, get: any) => ({
         productionEntries: [],
         qcRecords: [],
         finishedGoods: [],
-        materialRequests: [],
         reworkEntries: [],
         scrapEntries: [],
       },

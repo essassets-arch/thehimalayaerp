@@ -3,8 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
-import { useERPStore } from '../../store/erpStore';
-import { selectMaterialRequests, submitMaterialRequest } from '../../store/materialFlow';
+import { useCreateMaterialRequest, useMaterialRequests } from '../../hooks/useMaterialRequests';
 import { 
   ArrowLeft, 
   Package, 
@@ -37,7 +36,7 @@ const STATUS_COLORS = {
   PLANT_HEAD_REJECTED: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
   STORE_APPROVED: { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
   STORE_REJECTED: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
-  ISSUED: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+  ISSUED_TO_PRODUCTION: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
   Draft: { bg: '#f1f5f9', color: '#5E6B82', border: '#D6E2F0' },
   Submitted: { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
   Approved: { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
@@ -53,8 +52,8 @@ const STATUS_COLORS = {
 
 export default function ProductionMaterialRequestsView() {
   const router = useRouter();
-  const materialRequests = useERPStore(s => selectMaterialRequests(s.state));
-  const createRequest = submitMaterialRequest;
+  const { data: materialRequests = [] } = useMaterialRequests();
+  const createRequest = useCreateMaterialRequest();
   const closeRequest = () => {};
   const deleteRequest = () => {};
 
@@ -128,7 +127,7 @@ export default function ProductionMaterialRequestsView() {
     }));
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     if (e) e.preventDefault();
 
     if (requestItems.length === 0) {
@@ -142,7 +141,7 @@ export default function ProductionMaterialRequestsView() {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const created = createRequest({
+    const created = await createRequest.mutateAsync({
       requestDate: today,
       warehouse: 'Main Raw Material Store (Haridwar)',
       priority,
@@ -527,7 +526,7 @@ export default function ProductionMaterialRequestsView() {
           
           {/* Filters List */}
           <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {['All', 'PENDING_PLANT_HEAD_APPROVAL', 'PLANT_HEAD_APPROVED', 'PLANT_HEAD_REJECTED', 'STORE_APPROVED', 'STORE_REJECTED', 'ISSUED'].map(st => {
+            {['All', 'PENDING_PLANT_HEAD_APPROVAL', 'PLANT_HEAD_APPROVED', 'PLANT_HEAD_REJECTED', 'STORE_APPROVED', 'STORE_REJECTED', 'ISSUED_TO_PRODUCTION'].map(st => {
               const count = st === 'All' ? materialRequests.length : materialRequests.filter(m => m.status === st).length;
               const active = filterStatus === st;
               return (

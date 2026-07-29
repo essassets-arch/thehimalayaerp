@@ -2,19 +2,19 @@
 
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-import { useMaterialRequestStore } from '../../store/materialRequestStore';
+import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
 import { PackageCheck, CheckCircle, Clock, Eye } from 'lucide-react';
 
 export default function ProductionMaterialReceiptsView() {
-  const materialRequests = useMaterialRequestStore(s => s.materialRequests);
-  const confirmReceipt = useMaterialRequestStore(s => s.confirmReceipt);
+  const { data: materialRequests = [] } = useMaterialRequests();
+  const updateStatus = useUpdateMaterialRequestStatus();
 
   const [activeTab, setActiveTab] = useState('Pending Receipt');
   const [selectedReq, setSelectedReq] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
 
-  const pendingList = materialRequests.filter(mr => mr.status === 'Issued' || mr.status === 'Partially Issued');
-  const receivedList = materialRequests.filter(mr => ['Received', 'Consuming', 'Return Pending', 'Returned', 'Closed'].includes(mr.status));
+  const pendingList = materialRequests.filter(mr => ['ISSUED_TO_PRODUCTION', 'ISSUED'].includes(mr.status));
+  const receivedList = materialRequests.filter(mr => ['RECEIVED', 'CONSUMING', 'RETURN_PENDING', 'RETURNED', 'CLOSED'].includes(mr.status));
   const displayList = activeTab === 'Pending Receipt' ? pendingList : receivedList;
 
   const handleOpenReceipt = (mr) => {
@@ -38,9 +38,9 @@ export default function ProductionMaterialReceiptsView() {
       showCancelButton: true,
       confirmButtonColor: '#0284c7',
       confirmButtonText: 'Yes, Confirm Receipt'
-    }).then(res => {
+    }).then(async res => {
       if (res.isConfirmed) {
-        confirmReceipt(selectedReq.id, editingItems);
+        await updateStatus.mutateAsync({ id: selectedReq.id, status: 'RECEIVED', items: editingItems });
         Swal.fire('Confirmed!', `${selectedReq.requestNo} status updated to 'Received'.`, 'success');
         setSelectedReq(null);
       }

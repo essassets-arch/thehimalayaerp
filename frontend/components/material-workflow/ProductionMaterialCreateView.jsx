@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
-import { submitMaterialRequest } from '../../store/materialFlow';
+import { useCreateMaterialRequest } from '../../hooks/useMaterialRequests';
 import { Plus, Trash2, ArrowLeft, Send, Save, PackagePlus, AlertCircle } from 'lucide-react';
 import { useFormDraft } from '../../shared/hooks/useFormDraft';
 
@@ -24,7 +24,7 @@ const RAW_MATERIALS_CATALOG = [
 
 export default function ProductionMaterialCreateView() {
   const router = useRouter();
-  const createRequest = submitMaterialRequest;
+  const createRequest = useCreateMaterialRequest();
 
   const emptyMaterialForm = {
     warehouse: 'Main Raw Material Store (Haridwar)',
@@ -91,7 +91,7 @@ export default function ProductionMaterialCreateView() {
     }
 
     try {
-      const res = await createRequest({
+      const res = await createRequest.mutateAsync({
         requestDate: new Date().toISOString().split('T')[0],
         warehouse,
         priority,
@@ -111,7 +111,7 @@ export default function ProductionMaterialCreateView() {
         clearDraft();
         Swal.fire({
           title: 'Request Submitted!',
-          text: `Material request for ${workOrderNo} submitted to store.`,
+          text: `Material Request ${res.requestNo} has been successfully sent to Plant Head for approval.`,
           icon: 'success',
           confirmButtonColor: '#0369a1'
         }).then(() => {
