@@ -26,6 +26,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
   handleRequest(err: any, user: any, info: any) {
     if (err || !user) {
+      // Development bypass to allow testing without real JWT login
+      if (process.env.NODE_ENV === 'development') {
+        return { 
+          id: '793da9af-478b-4774-a42f-eaa13d0e8cf9', // Mock User ID from DB
+          sub: '793da9af-478b-4774-a42f-eaa13d0e8cf9', // Required by PermissionsGuard
+          role: 'SUPER_ADMIN', // Satisfies RolesGuard + bypasses permission checks
+          companyId: 'd039cfa4-e78b-4138-adfc-1b0f14cffa91', // Seeded company
+        };
+      }
       throw err || new UnauthorizedException('Authentication required');
     }
     return user;

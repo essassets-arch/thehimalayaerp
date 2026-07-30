@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { selectMaterialIndents } from '../../../store/procurementSelectors';
+import React, { useState } from 'react';
+import { useERPStore } from '../../../store/erpStore';
 import { createPurchaseOrder } from '../../../store/procurementActions';
 import { ProcurementStatusBadge } from '../components/ProcurementStatusBadge';
+import { Package, Calculator, FileText } from 'lucide-react';
+import Swal from 'sweetalert2';
+
 const formatDate = (value) => {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("en-IN", {
@@ -10,36 +13,32 @@ const formatDate = (value) => {
     year: "numeric",
   });
 };
-import { Package, Calculator, FileText } from 'lucide-react';
-import Swal from 'sweetalert2';
 
 export default function CreatePurchaseOrder() {
-  const [indents, setIndents] = useState([]);
+  const indents = useERPStore(state => state.state?.procurement?.materialIndents || []);
+  const suppliers = useERPStore(state => state.state?.suppliers || []);
+  
+  const readyIndents = indents.filter(ind => 
+    ind.status === 'PLANT_HEAD_APPROVED'
+  );
+
   const [selectedIndent, setSelectedIndent] = useState(null);
-  const [vendorName, setVendorName] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [freightAmount, setFreightAmount] = useState(0);
   const [poItems, setPoItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    // Only show indents that are ready for PO
-    const ready = selectMaterialIndents().filter(ind => 
-      ind.status === 'PLANT_HEAD_APPROVED' || ind.status === 'FINANCE_ACCEPTED'
-    );
-    setIndents(ready);
-  }, []);
-
   const handleSelectIndent = (indentId) => {
-    const indent = selectMaterialIndents().find(i => i.id === indentId);
+    const indent = readyIndents.find(i => i.id === indentId);
+    if (!indent) return;
     setSelectedIndent(indent);
     
-    setPoItems(indent.items.map(item => ({
-      materialId: item.materialId,
-      materialName: item.materialName,
-      materialCode: item.materialId,
-      unit: item.unit,
-      orderedQty: item.quantity,
-      unitRate: 0,
+    setPoItems((indent.items || []).map(item => ({
+      materialId: item.productId || item.materialId,
+      materialName: item.product?.name || item.materialName || 'Material',
+      unit: item.unit || item.product?.unit || 'Nos',
+      orderedQty: Number(item.approvedQuantity ?? item.approvedQty ?? item.quantity ?? 0),
+      unitRate: Number(item.estimatedUnitRate || 0),
       gstPercent: 18,
       discountPercent: 0
     })));
@@ -55,32 +54,47 @@ export default function CreatePurchaseOrder() {
     }));
   };
 
+  const calculateGrandTotal = () => {
+    const itemsTotal = poItems.reduce((acc, item) => {
+      const base = item.orderedQty * item.unitRate;
+      const disc = base * (item.discountPercent / 100);
+      const tax = (base - disc) * (item.gstPercent / 100);
+      return acc + (base - disc + tax);
+    }, 0);
+    return itemsTotal + Number(freightAmount);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!vendorName) return Swal.fire('Error', 'Vendor name is required', 'error');
+    if (!supplierId) return Swal.fire('Error', 'Supplier is required', 'error');
 
     try {
       setIsSubmitting(true);
       
       const poData = {
-        vendorName,
-        vendorDisplayName: vendorName,
-        freightAmount,
-        expectedDeliveryDate: selectedIndent.requiredDate, // default to indent required date
-        items: poItems
+        supplierId,
+        totalAmount: calculateGrandTotal(),
+        freight: Number(freightAmount),
+        otherCharges: 0,
+        paymentTerms: 'NET_30',
+        expectedDeliveryDate: selectedIndent.requiredDate,
+        items: poItems.map(item => ({
+          productId: item.materialId,
+          quantity: item.orderedQty,
+          unitPrice: item.unitRate,
+          discountPercent: item.discountPercent,
+          gstPercent: item.gstPercent
+        }))
       };
 
-      createPurchaseOrder(selectedIndent.id, poData, 'Finance Exec');
+      await createPurchaseOrder(selectedIndent.id, poData, 'Finance Exec');
       
       await Swal.fire('Success', 'Draft Purchase Order created successfully.', 'success');
       
       // Reset
       setSelectedIndent(null);
-      setVendorName('');
+      setSupplierId('');
       setFreightAmount(0);
-      setIndents(selectMaterialIndents().filter(ind => 
-        ind.status === 'PLANT_HEAD_APPROVED' || ind.status === 'FINANCE_ACCEPTED'
-      ));
     } catch (err) {
       Swal.fire('Error', err.message || 'Failed to create PO', 'error');
     } finally {
@@ -98,7 +112,7 @@ export default function CreatePurchaseOrder() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {indents.map(indent => (
+            {readyIndents.map(indent => (
               <div 
                 key={indent.id} 
                 onClick={() => handleSelectIndent(indent.id)}
@@ -106,13 +120,13 @@ export default function CreatePurchaseOrder() {
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="font-semibold text-gray-900">{indent.indentNumber}</h3>
+                    <h3 className="font-semibold text-gray-900">{indent.publicId || indent.id}</h3>
                     <p className="text-sm text-gray-500">{indent.department}</p>
                   </div>
                   <FileText className="text-gray-400" />
                 </div>
                 <div className="text-sm text-gray-600 mb-4">
-                  <span className="font-medium">{indent.items?.length || 0}</span> items required by <span className="font-medium text-rose-600">{formatDate(new Date(indent.requiredDate))}</span>
+                  <span className="font-medium">{indent.items?.length || 0}</span> items required by <span className="font-medium text-rose-600">{formatDate(indent.requiredDate)}</span>
                 </div>
                 <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
                   <ProcurementStatusBadge status={indent.status} />
@@ -120,15 +134,15 @@ export default function CreatePurchaseOrder() {
                 </div>
               </div>
             ))}
-            {indents.length === 0 && (
-              <div className="col-span-full py-12 text-center text-gray-500">
+            {readyIndents.length === 0 && (
+              <div className="col-span-full py-12 text-center text-gray-500 bg-white rounded-lg border border-gray-150">
                 No approved indents available for PO creation.
               </div>
             )}
           </div>
         </div>
       ) : (
-        <div className="w-full">
+        <div className="w-full bg-white rounded-lg p-6 border border-gray-200">
           <div className="flex justify-between items-center mb-6 border-b pb-4">
             <div>
               <button 
@@ -138,7 +152,7 @@ export default function CreatePurchaseOrder() {
                 ← Back to Indents
               </button>
               <h2 className="text-xl font-bold text-gray-900">Create Purchase Order</h2>
-              <p className="text-sm text-gray-500">Ref: {selectedIndent.indentNumber}</p>
+              <p className="text-sm text-gray-500">Ref: {selectedIndent.publicId || selectedIndent.id}</p>
             </div>
             <div className="p-3 bg-blue-50 text-blue-600 rounded-full">
               <Calculator size={24} />
@@ -146,17 +160,22 @@ export default function CreatePurchaseOrder() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-250">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Supplier</label>
+                <select
                   required
-                  value={vendorName}
-                  onChange={(e) => setVendorName(e.target.value)}
-                  placeholder="Select or enter vendor"
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
                   className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
+                >
+                  <option value="">Choose Supplier...</option>
+                  {suppliers.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.publicId})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Freight & Other Charges (₹)</label>

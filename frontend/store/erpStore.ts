@@ -28,6 +28,8 @@ const safeStringify = (obj: any) => {
   });
 };
 
+const EMPTY_ARRAY: any[] = [];
+
 export const postApprovedGrnToInventory = (state: any, grn: any) => {
   if (grn.inventoryPosted) {
     throw new Error(`Inventory has already been posted for GRN ${grn.id}.`);
@@ -95,35 +97,35 @@ export const normalizeStateForStore = (rawState: any) => {
   delete stateObj.materialIndents;
 
   Object.defineProperty(stateObj, 'purchaseOrders', {
-    get() { return this.procurement?.purchaseOrders || []; },
+    get() { return this.procurement?.purchaseOrders || EMPTY_ARRAY; },
     set(val) { if (this.procurement) this.procurement.purchaseOrders = val; },
     configurable: true,
     enumerable: true
   });
 
   Object.defineProperty(stateObj, 'goodsReceipts', {
-    get() { return this.procurement?.goodsReceiptNotes || []; },
+    get() { return this.procurement?.goodsReceiptNotes || EMPTY_ARRAY; },
     set(val) { if (this.procurement) this.procurement.goodsReceiptNotes = val; },
     configurable: true,
     enumerable: true
   });
 
   Object.defineProperty(stateObj, 'goodsReceiptNotes', {
-    get() { return this.procurement?.goodsReceiptNotes || []; },
+    get() { return this.procurement?.goodsReceiptNotes || EMPTY_ARRAY; },
     set(val) { if (this.procurement) this.procurement.goodsReceiptNotes = val; },
     configurable: true,
     enumerable: true
   });
 
   Object.defineProperty(stateObj, 'purchaseIndents', {
-    get() { return this.procurement?.materialIndents || []; },
+    get() { return this.procurement?.materialIndents || EMPTY_ARRAY; },
     set(val) { if (this.procurement) this.procurement.materialIndents = val; },
     configurable: true,
     enumerable: true
   });
 
   Object.defineProperty(stateObj, 'materialIndents', {
-    get() { return this.procurement?.materialIndents || []; },
+    get() { return this.procurement?.materialIndents || EMPTY_ARRAY; },
     set(val) { if (this.procurement) this.procurement.materialIndents = val; },
     configurable: true,
     enumerable: true

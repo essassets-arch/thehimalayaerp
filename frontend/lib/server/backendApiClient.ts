@@ -87,6 +87,7 @@ export async function forwardBackendRequest(
         method,
         headers,
         signal: controller.signal,
+        cache: 'no-store',
       };
 
       if (body !== undefined && method !== 'GET') {

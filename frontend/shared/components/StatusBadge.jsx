@@ -21,7 +21,14 @@ export default function StatusBadge({ status }) {
       'APPROVED': 'Approved',
       'RETURNED_FOR_CORRECTION': 'Returned for Correction',
       'READY_FOR_RELEASE': 'Ready for Release',
-      'ISSUED': 'Issued'
+      'ISSUED': 'Issued',
+      // Brand Analysis statuses
+      'PENDING_SUPER_ADMIN_APPROVAL': 'Pending Super Admin Approval',
+      'SUPER_ADMIN_APPROVED': 'Super Admin Approved',
+      'SUPER_ADMIN_REJECTED': 'Super Admin Rejected',
+      'FINANCE_ANALYSIS_IN_PROGRESS': 'Finance Analysis In Progress',
+      'FINANCE_ANALYSIS_COMPLETED': 'Finance Analysis Completed',
+      'FINANCE_REJECTED': 'Finance Rejected',
     };
     return displayMap[stat] || stat.replace(/_/g, ' ');
   };

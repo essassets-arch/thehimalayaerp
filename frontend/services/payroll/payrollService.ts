@@ -15,7 +15,14 @@ const qs = (params: Record<string, unknown> = {}) => {
   Object.entries(params).forEach(([key, item]) => item !== undefined && item !== '' && value.set(key, String(item)));
   return value.toString();
 };
-const post = <T>(url: string, body: unknown, idempotencyKey = crypto.randomUUID()) =>
+const generateUUID = () => {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return 'req-' + Math.random().toString(36).substring(2, 15) + '-' + Math.random().toString(36).substring(2, 15);
+};
+
+const post = <T>(url: string, body: unknown, idempotencyKey = generateUUID()) =>
   backendFetch<T>(url, { method: 'POST', body, idempotencyKey });
 
 export const payrollService = {
@@ -39,7 +46,7 @@ export const payrollService = {
   startPayrollProcessing: (id: string, body: unknown) => post<PayrollRecord>(`${root}/payroll/${id}/start-processing`, body),
   startBulkPayrollProcessing: (records: unknown[]) => post<PayrollRecord[]>(`${root}/payroll/start-processing-bulk`, { records }),
   getProcessingPayroll: (params = {}) => backendFetch<PayrollPage>(`${root}/payroll/finance/processing?${qs(params)}`, { cacheTtlMs: 0 }),
-  markPayrollPaid: (id: string, body: unknown, key = crypto.randomUUID()) => post<any>(`${root}/payroll/${id}/mark-paid`, body, key),
+  markPayrollPaid: (id: string, body: unknown, key = generateUUID()) => post<any>(`${root}/payroll/${id}/mark-paid`, body, key),
   getPayrollHistory: (params = {}) => backendFetch<PayrollPage>(`${root}/payroll/finance/history?${qs(params)}`, { cacheTtlMs: 0 }),
   getSalarySlipByPayrollId: (payrollRecordId: string) => backendFetch<any>(`${root}/salary-slips/payroll/${payrollRecordId}`, { cacheTtlMs: 0 }),
   getSalarySlip: (id: string) => backendFetch<any>(`${root}/salary-slips/${id}`, { cacheTtlMs: 0 }),

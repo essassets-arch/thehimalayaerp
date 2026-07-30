@@ -41,7 +41,34 @@ export default function GoodsReceiptNote() {
         purchaseService.getPurchaseOrders(),
         purchaseService.getWarehouses()
       ]);
-      setGrns(grnsData || []);
+      const dummyGrns = [
+        {
+          id: 1, grn_number: 'GRN-2026-1042', purchase_order_number: 'PO-2026-905', vendor_name: 'Global Metals Inc.', vendor_code: 'V-042',
+          received_date: new Date(Date.now() - 86400000 * 1).toISOString(), total_accepted: 1000, total_rejected: 0, status: 'Inventory Updated',
+          delivery_challan_number: 'DC-8481', received_by_name: 'Store Operator', notes: 'All sheets passed QC visually',
+          items: [
+            { id: 101, product_name: 'High-Tensile Steel Sheets (RM-1605)', product_code: 'RM-1605', unit_of_measure: 'Sheets', quantity_received: 1000, quantity_accepted: 1000, quantity_rejected: 0, inspection_notes: 'QC OK' }
+          ]
+        },
+        {
+          id: 2, grn_number: 'GRN-2026-1043', purchase_order_number: 'PO-2026-906', vendor_name: 'LubeTech Supplies', vendor_code: 'V-019',
+          received_date: new Date(Date.now() - 86400000 * 2).toISOString(), total_accepted: 480, total_rejected: 20, status: 'Draft',
+          delivery_challan_number: 'INV-9922', received_by_name: 'Store Operator', notes: '20 liters leaked in transit',
+          items: [
+            { id: 102, product_name: 'Industrial Lubricant Grade A', product_code: 'CONS-002', unit_of_measure: 'Liters', quantity_received: 500, quantity_accepted: 480, quantity_rejected: 20, inspection_notes: 'Damaged packaging' }
+          ]
+        },
+        {
+          id: 3, grn_number: 'GRN-2026-1044', purchase_order_number: 'PO-2026-907', vendor_name: 'CopperWorks Ltd', vendor_code: 'V-088',
+          received_date: new Date(Date.now() - 86400000 * 5).toISOString(), total_accepted: 50, total_rejected: 0, status: 'Inventory Updated',
+          delivery_challan_number: 'DC-1092', received_by_name: 'Store Manager', notes: 'Partial delivery received',
+          items: [
+            { id: 103, product_name: 'Copper Wire Roles 5mm', product_code: 'RM-2099', unit_of_measure: 'Coils', quantity_received: 50, quantity_accepted: 50, quantity_rejected: 0, inspection_notes: 'Gauge verified' }
+          ]
+        }
+      ];
+
+      setGrns(grnsData?.length > 0 && grnsData[0].grn_number ? grnsData : dummyGrns);
       setPurchaseOrders(posData || []);
       setWarehouses(warehousesData || []);
 

@@ -64,8 +64,7 @@ export const navigationConfig = {
     { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods', group: 'Planning Board' },
     { id: 'planning', label: 'Planning', icon: Wrench, path: '/plant-head/planning', group: 'Planning Board' },
     { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },
-    { id: 'material-indents', label: 'Material Indents', icon: ClipboardList, path: '/plant-head/material-indents' },
-    { id: 'indent-approvals', label: 'Indent Approvals (New)', icon: CheckCircle, path: '/plant-head/indent-approvals' },
+    { id: 'indent-approvals', label: 'Indent Approvals', icon: CheckCircle, path: '/plant-head/indent-approvals' },
     { id: 'replacements', label: 'Replacement Requests', icon: RefreshCw, path: '/plant-head/replacements' },
     { id: 'returns', label: 'Return Requests', icon: RefreshCw, path: '/plant-head/returns' },
     {
@@ -178,6 +177,7 @@ export const navigationConfig = {
   'Finance': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
     { id: 'daily-tasks', label: 'Daily Tasks', icon: ClipboardList, path: '/finance/daily-tasks' },
+    { id: 'brand-analysis', label: 'Brand Analysis', icon: ClipboardCheck, path: '/finance/brand-analysis' },
     {
       id: 'payment-verification',
       label: 'Payment Verification',
@@ -216,19 +216,7 @@ export const navigationConfig = {
       ]
     },
     { id: 'rejection-management', label: 'Material Rejections', icon: AlertTriangle, path: '/finance/rejection-management' },
-    { id: 'replacement-management', label: 'Replacement Management', icon: RefreshCw, path: '/finance/replacement-management' },
-    {
-      id: 'vendor-invoices',
-      label: 'Vendor Invoices',
-      icon: Receipt,
-      path: '/finance/vendor-invoices'
-    },
-    {
-      id: 'credit-notes',
-      label: 'Credit Notes',
-      icon: FileText,
-      path: '/finance/credit-notes'
-    },
+
     {
       id: 'salary',
       label: 'Salary & Payroll',
@@ -272,8 +260,7 @@ export const navigationConfig = {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
 
     { type: 'badge', label: 'APPROVALS' },
-    { id: 'po-approvals', label: 'PO Approvals (New)', icon: ShieldCheck, path: '/super-admin/po-approvals' },
-    { id: 'po-requests', label: 'PO Approval Requests', icon: ShoppingBag, path: '/super-admin/po-requests' },
+    { id: 'brand-analysis', label: 'Brand Analysis Requests', icon: ShieldCheck, path: '/super-admin/brand-analysis' },
     { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },
     { id: 'salary-approval', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approval' },
     { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/super-admin/customer-complaints' },

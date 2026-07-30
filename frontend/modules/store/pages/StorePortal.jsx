@@ -25,6 +25,9 @@ import VerifyPODelivery from '../../procurement/store/VerifyPODelivery';
 import ReceiveReplacement from '../../procurement/store/ReceiveReplacement';
 import MaterialRejections from '../components/MaterialRejections';
 import IndentHistory from '../components/IndentHistory';
+import POReport from '../components/POReport';
+import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
+import BrandAnalysisRequests from '../components/BrandAnalysisRequests';
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
   const req = (reqName || '').toLowerCase();
@@ -286,6 +289,7 @@ export default function StorePortal() {
   const [photo1Files, setPhoto1Files] = useState({});
   const [photo2Files, setPhoto2Files] = useState({});
   const [deliveryMetadata, setDeliveryMetadata] = useState({});
+  const [lowStockTab, setLowStockTab] = useState('Alerts');
 
   // Unified Raw Inventory UI states
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
@@ -1522,6 +1526,14 @@ export default function StorePortal() {
               <X size={16} />
             </button>
           )}
+
+          {tabParam === 'Material Rejections' && (
+            <MaterialRejections />
+          )}
+
+          {tabParam === 'PO Report' && (
+            <POReport />
+          )}
         </div>
 
         {/* Raw Inventory Table */}
@@ -2016,52 +2028,7 @@ export default function StorePortal() {
 
   // 5. Reports view
   const renderAnalysisRequests = () => {
-    const analysisReqs = state.analysisRequests || [];
-
-    return (
-      <div className="m-theme-container">
-        <div className="m-theme-header">
-          <div>
-            <h2 className="m-theme-title">Product & Brand Analysis</h2>
-            <p className="m-theme-subtitle">Manage and review quality analysis requests</p>
-          </div>
-        </div>
-
-        <div className="m-theme-table-container" style={{ padding: '24px' }}>
-          <table className="m-theme-table">
-            <thead>
-              <tr>
-                <th>Request No</th>
-                <th>Product Name</th>
-                <th>Batch No</th>
-                <th>Requested By</th>
-                <th>Date</th>
-                <th style={{ textAlign: 'center' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {analysisReqs.map((req, idx) => (
-                <tr key={req.id || idx}>
-                  <td style={{ fontWeight: '700' }}>{req.requestNo}</td>
-                  <td style={{ color: '#0f766e', fontWeight: '600' }}>{req.productName}</td>
-                  <td style={{ fontFamily: 'monospace', fontWeight: '600' }}>{req.batchNo}</td>
-                  <td>{req.requestedBy}</td>
-                  <td style={{ color: '#5E6B82' }}>{new Date(req.date).toLocaleDateString()}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className={`m-theme-badge m-theme-badge-${req.status === 'PENDING' ? 'yellow' : 'green'}`}>{req.status}</span>
-                  </td>
-                </tr>
-              ))}
-              {analysisReqs.length === 0 && (
-                <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: '#5E6B82' }}>No analysis requests found.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
+    return <BrandAnalysisRequests />;
   };
 
   const renderReports = () => {
@@ -2138,12 +2105,11 @@ export default function StorePortal() {
           remarks: indentRemarks || '',
         };
         
-        createMaterialIndent(payload);
+        const res = await createMaterialIndent(payload);
         await syncData();
 
         // Get the newly created indent to read its ID
-        const currentIndents = useERPStore.getState().state.procurement?.materialIndents || [];
-        const newIndentId = currentIndents[0]?.id || '#INDENT1';
+        const newIndentId = res?.publicId || res?.id || '#INDENT1';
 
         await Swal.fire({
           title: 'Success!',
@@ -2182,82 +2148,99 @@ export default function StorePortal() {
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="m-theme-kpi-grid">
-          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#ef4444' }}>
-            <span className="m-theme-kpi-label">Low / Out of Stock</span>
-            <span className="m-theme-kpi-value" style={{ color: '#ef4444' }}>{lowStockItems.length} Items</span>
-          </div>
-          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b' }}>
-            <span className="m-theme-kpi-label">Pending Indents</span>
-            <span className="m-theme-kpi-value" style={{ color: '#f59e0b' }}>{pendingIndentsCount}</span>
-          </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
+          {['Alerts', 'History'].map(tab => (
+            <button key={tab} type="button" onClick={() => setLowStockTab(tab)}
+              style={{ border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontWeight: 800, background: lowStockTab === tab ? '#2F4375' : '#eef2f7', color: lowStockTab === tab ? '#fff' : '#475569' }}>
+              {tab === 'Alerts' ? 'Low Stock Alerts' : 'Indent History'}
+            </button>
+          ))}
         </div>
 
-        {/* Table */}
-        <div className="m-theme-table-container">
-          <table className="m-theme-table">
-            <thead>
-              <tr>
-                <th>Material</th>
-                <th>Code</th>
-                <th>Current Stock</th>
-                <th>Minimum Stock</th>
-                <th>Required Qty</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lowStockItems.length === 0 ? (
-                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '28px', color: '#8893A7' }}>✅ All materials are sufficiently stocked.</td></tr>
-              ) : lowStockItems.map(item => {
-                const requiredQty = Math.max(0, item.minStock - item.stock);
-                const isOutOfStock = item.stock === 0;
-                const alreadyIndented = materialIndents.some(ind => 
-                  (ind.materialId === item.id || ind.materialCode === item.code) && 
-                  ind.status === 'PENDING_PLANT_HEAD_APPROVAL'
-                );
-                return (
-                  <tr key={item.id}>
-                    <td style={{ fontWeight: 600, color: '#0f766e' }}>{item.material}</td>
-                    <td style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 12 }}>{item.code}</td>
-                    <td>
-                      <span style={{ fontWeight: 600, color: isOutOfStock ? '#ef4444' : '#f59e0b' }}>
-                        {item.stock} {item.unit}
-                      </span>
-                    </td>
-                    <td style={{ color: '#5E6B82' }}>{item.minStock} {item.unit}</td>
-                    <td style={{ fontWeight: 600, color: '#ef4444' }}>{requiredQty} {item.unit}</td>
-                    <td>
-                      {alreadyIndented ? (
-                        <span className="m-theme-badge" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
-                          Pending Approval
-                        </span>
-                      ) : (
-                        <span className={`m-theme-badge m-theme-badge-${isOutOfStock ? 'red' : 'yellow'}`}>
-                          {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {alreadyIndented ? (
-                        <span style={{ fontSize: 12, color: '#8893A7', fontStyle: 'italic' }}>Indent Raised</span>
-                      ) : (
-                        <button
-                          className="m-theme-btn-action-green"
-                          onClick={() => openIndentModal(item)}
-                        >
-                          + Create Material Indent
-                        </button>
-                      )}
-                    </td>
+        {lowStockTab === 'Alerts' && (
+          <>
+            {/* Summary Cards */}
+            <div className="m-theme-kpi-grid">
+              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#ef4444' }}>
+                <span className="m-theme-kpi-label">Low / Out of Stock</span>
+                <span className="m-theme-kpi-value" style={{ color: '#ef4444' }}>{lowStockItems.length} Items</span>
+              </div>
+              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b' }}>
+                <span className="m-theme-kpi-label">Pending Indents</span>
+                <span className="m-theme-kpi-value" style={{ color: '#f59e0b' }}>{pendingIndentsCount}</span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="m-theme-table-container">
+              <table className="m-theme-table">
+                <thead>
+                  <tr>
+                    <th>Material</th>
+                    <th>Code</th>
+                    <th>Current Stock</th>
+                    <th>Minimum Stock</th>
+                    <th>Required Qty</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {lowStockItems.length === 0 ? (
+                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '28px', color: '#8893A7' }}>✅ All materials are sufficiently stocked.</td></tr>
+                  ) : lowStockItems.map(item => {
+                    const requiredQty = Math.max(0, item.minStock - item.stock);
+                    const isOutOfStock = item.stock === 0;
+                    const alreadyIndented = materialIndents.some(ind => 
+                      (ind.materialId === item.id || ind.materialCode === item.code) && 
+                      ind.status === 'PENDING_PLANT_HEAD_APPROVAL'
+                    );
+                    return (
+                      <tr key={item.id}>
+                        <td style={{ fontWeight: 600, color: '#0f766e' }}>{item.material}</td>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 12 }}>{item.code}</td>
+                        <td>
+                          <span style={{ fontWeight: 600, color: isOutOfStock ? '#ef4444' : '#f59e0b' }}>
+                            {item.stock} {item.unit}
+                          </span>
+                        </td>
+                        <td style={{ color: '#5E6B82' }}>{item.minStock} {item.unit}</td>
+                        <td style={{ fontWeight: 600, color: '#ef4444' }}>{requiredQty} {item.unit}</td>
+                        <td>
+                          {alreadyIndented ? (
+                            <span className="m-theme-badge" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
+                              Pending Approval
+                            </span>
+                          ) : (
+                            <span className={`m-theme-badge m-theme-badge-${isOutOfStock ? 'red' : 'yellow'}`}>
+                              {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {alreadyIndented ? (
+                            <span style={{ fontSize: 12, color: '#8893A7', fontStyle: 'italic' }}>Indent Raised</span>
+                          ) : (
+                            <button
+                              className="m-theme-btn-action-green"
+                              onClick={() => openIndentModal(item)}
+                            >
+                              + Create Material Indent
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {lowStockTab === 'History' && (
+          <IndentHistory hideHeader={true} />
+        )}
 
         {/* Create Material Indent Modal */}
         {showIndentModal && indentTargetMaterial && (
@@ -2638,29 +2621,25 @@ export default function StorePortal() {
                     Upload
                   </button>
                 )}
-                {row.status !== 'CLOSED' && row.status !== 'PO_CLOSED' && row.status !== 'COMPLETED' && (
-                  <button
-                    className="btn-small"
-                    style={{ margin: 0, background: 'rgba(22, 163, 74, 0.15)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.35)', fontWeight: 800 }}
-                    onClick={() => handleFastTrackPOClose(row)}
-                    title="Execute all delivery, QC, stock, and payment steps to immediately close this PO"
-                  >
-                    ⚡ Fast-Track Close
-                  </button>
-                )}
+
                 <button
                   className="btn-small btn-outline-small"
                   style={{ margin: 0 }}
-                  onClick={() => {
+                  onClick={async () => {
+                    let h = row.history;
+                    if (!h || h.length === 0) {
+                      const res = await purchaseOrderService.history(row.id).catch(() => ({ data: [] }));
+                      h = Array.isArray(res) ? res : (res?.data || []);
+                    }
                     Swal.fire({
-                      title: `PO ${row.id} History Logs`,
+                      title: `PO ${row.poNumber || row.id} History Logs`,
                       html: `
                         <div style="text-align: left; max-height: 300px; overflow-y: auto; padding: 8px;">
-                          ${(row.history && row.history.length > 0) ? row.history.map(h => `
+                          ${(h && h.length > 0) ? h.map(log => `
                             <div style="margin-bottom: 12px; border-left: 2px solid var(--color-accent-teal); padding-left: 8px;">
-                              <div style="font-weight: bold; font-size: 13px; color: #1e293b;">${h.stage}</div>
-                              <div style="font-size: 12px; color: #475569;">${h.remarks}</div>
-                              <div style="font-size: 10px; color: #8893A7;">${new Date(h.timestamp).toLocaleString()}</div>
+                              <div style="font-weight: bold; font-size: 13px; color: #1e293b;">${(log.action || log.stage || '').replace(/_/g, ' ')}</div>
+                              <div style="font-size: 12px; color: #475569;">${log.metadata?.remarks || log.remarks || '-'}</div>
+                              <div style="font-size: 10px; color: #8893A7;">${new Date(log.createdAt || log.timestamp).toLocaleString()}</div>
                             </div>
                           `).join('') : '<div style="color: #5E6B82; font-size: 13px; text-align: center; padding: 16px;">No history logs recorded for this purchase order yet.</div>'}
                         </div>
@@ -3158,7 +3137,7 @@ export default function StorePortal() {
       { label: 'Delivery History',       icon: '📦' },
       { label: 'GRN History',            icon: '🧾' },
       { label: 'Material Rejections',    icon: '🚫' },
-      { label: 'Replacement Deliveries', icon: '🔄' },
+      { label: 'PO Report',              icon: '📊' },
       { label: 'Indent History',         icon: '📂' },
     ];
 
@@ -3245,7 +3224,7 @@ export default function StorePortal() {
           {activeTab === 'Delivery History'                 && renderPOListTab()}
           {activeTab === 'GRN History'                      && <GoodsReceiptNote />}
           {activeTab === 'Material Rejections'              && <MaterialRejections />}
-          {activeTab === 'Replacement Deliveries'           && <ReceiveReplacement />}
+          {activeTab === 'PO Report'                        && <POReport />}
           {activeTab === 'Indent History'                   && <IndentHistory />}
         </div>
       </div>

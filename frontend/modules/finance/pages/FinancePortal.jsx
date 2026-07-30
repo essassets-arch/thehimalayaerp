@@ -7,7 +7,7 @@ import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigat
 import Swal from 'sweetalert2';
 import { useERP } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
-import { issuePurchaseOrder } from '../../../store/procurementActions';
+import { issuePurchaseOrder, closePurchaseOrder, evaluatePOClose } from '../../../store/procurementActions';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { financeService } from '../../../services/finance.service';
 import DataTable from '../../../shared/components/DataTable';
@@ -18,6 +18,7 @@ import { apiClient } from '../../../lib/apiClient';
 import { exportFinanceReportPDF, exportAgingReportPDF, exportToCSV } from '../../../services/export.service';
 import PaymentVerificationView from '../../finance-executive/PaymentVerification/PaymentVerificationView';
 import FinanceSalesConfirmationView from './FinanceSalesConfirmationView';
+import BrandAnalysisWidget from '../components/BrandAnalysisWidget';
 import ReceiptsView from '../../finance-executive/Receipts/ReceiptsView';
 import OutstandingView from '../../finance-executive/Outstanding/OutstandingView';
 import CustomersView from '../../finance-executive/Customers/CustomersView';
@@ -26,8 +27,8 @@ import DailyTaskView from '../../../components/DailyTaskView';
 import CreatePurchaseOrder from '../../procurement/finance/CreatePurchaseOrder';
 import DeliveryAudit from '../../procurement/finance/DeliveryAudit';
 import RejectionManagement from '../../procurement/finance/RejectionManagement';
-
-
+import VendorInvoiceWorkspace from '../../procurement/finance/VendorInvoiceWorkspace';
+import FinanceBrandAnalysis from './FinanceBrandAnalysis';
 
 const financeMenu = {
   "Finance": [
@@ -50,7 +51,8 @@ const financeMenu = {
     "all-pos",
     "verify-close",
     "history-ledger",
-    "history"
+    "history",
+    "brand-analysis"
   ],
   "finance-lead": [
     "dashboard",
@@ -72,7 +74,8 @@ const financeMenu = {
     "all-pos",
     "verify-close",
     "history-ledger",
-    "history"
+    "history",
+    "brand-analysis"
   ],
   "finance-executive": [
     "dashboard",
@@ -103,7 +106,8 @@ const financeMenu = {
     "all-pos",
     "verify-close",
     "history-ledger",
-    "history"
+    "history",
+    "brand-analysis"
   ]
 };
 
@@ -119,7 +123,20 @@ export default function FinancePortal() {
   const location = { pathname: usePathname(), search: "" };
   const nextSearchParams = useSearchParams();
   const currentView = params.view;
-  const { state, dispatch, syncData } = useERP();
+  const { 
+    state, 
+    dispatch, 
+    syncData,
+    createPurchaseOrderFromIndent,
+    submitPurchaseOrder,
+    approvePurchaseOrder,
+    rejectPurchaseOrder,
+    issuePurchaseOrder,
+    approveGoodsReceiptNote,
+    approveGoodsReceipt,
+    createGoodsReceipt,
+    approveMaterialIndent
+  } = useERP();
   const { user } = useAuth();
   const showToast = useNotificationStore(s => s.showToast);
 
@@ -132,19 +149,11 @@ export default function FinancePortal() {
   const unissuedPOs = erpStoreState.unissuedPOs ?? EMPTY_ARRAY;
   const invoices = erpStoreState.invoices ?? EMPTY_ARRAY;
   const vendorPayments = erpStoreState.vendorPayments ?? EMPTY_ARRAY;
+  const suppliers = erpStoreState.procurement?.suppliers ?? erpStoreState.suppliers ?? EMPTY_ARRAY;
   const acceptPurchaseOrderByVendor = useERPStore((s) => s.acceptPurchaseOrderByVendor);
   const createVendorPayment = useERPStore((s) => s.createVendorPayment);
   const completeVendorPayment = useERPStore((s) => s.completeVendorPayment);
   const payVendor = useERPStore((s) => s.payVendor);
-  const createPurchaseOrderFromIndent = useERPStore((s) => s.createPurchaseOrderFromIndent);
-  const submitPurchaseOrder = useERPStore((s) => s.submitPurchaseOrder);
-  const approvePurchaseOrder = useERPStore((s) => s.approvePurchaseOrder);
-  const rejectPurchaseOrder = useERPStore((s) => s.rejectPurchaseOrder);
-  const issuePurchaseOrder = useERPStore((s) => s.issuePurchaseOrder);
-  const approveGoodsReceiptNote = useERPStore((s) => s.approveGoodsReceiptNote);
-  const approveGoodsReceipt = useERPStore((s) => s.approveGoodsReceipt);
-  const createGoodsReceipt = useERPStore((s) => s.createGoodsReceipt);
-  const approveMaterialIndent = useERPStore((s) => s.approveMaterialIndent);
 
   const globalSearch = useSearchStore(s => s.globalSearch);
 
@@ -218,6 +227,9 @@ export default function FinancePortal() {
   const [selectedPO, setSelectedPO] = useState(null);
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [draftPOsSubTab, setDraftPOsSubTab] = useState('Pending Drafts');
+  const [pendingApprovalSubTab, setPendingApprovalSubTab] = useState('Pending');
+  const [approvedPOsSubTab, setApprovedPOsSubTab] = useState('Approved');
 
   // Vendor & PO Generation states
   const [vendors, setVendors] = useState([]);
@@ -282,7 +294,7 @@ export default function FinancePortal() {
   const [settingsTab, setSettingsTab] = useState('GST Settings');
 
   const wildcardValue = params['*'];
-  let view = params.view || wildcardValue;
+  let view = params.view || wildcardValue || (params.slug && params.slug[0]);
   if (view && view.endsWith('/')) {
     view = view.slice(0, -1);
   }
@@ -657,6 +669,7 @@ export default function FinancePortal() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <BrandAnalysisWidget />
         
         {/* KPI Summary Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
@@ -1805,9 +1818,9 @@ export default function FinancePortal() {
         <DataTable 
           columns={[
             { header: 'Indent ID', accessor: 'id', render: row => <strong style={{color: 'var(--color-primary)'}}>{row.id}</strong> },
-            { header: 'Material', accessor: 'material', render: row => row.materialName || row.material || (row.items && row.items[0]?.materialName) || 'Material' },
-            { header: 'Quantity', accessor: 'approvedQuantity', render: row => `${row.approvedQuantity ?? row.requestedQuantity ?? row.requiredQuantity ?? row.quantity ?? 0} ${row.unit || 'PCS'}` },
-            { header: 'Required Date', accessor: 'requiredDate', render: row => (row.targetDate || row.requiredDate) ? new Date(row.targetDate || row.requiredDate).toLocaleDateString('en-IN') : '-' },
+            { header: 'Material', accessor: 'material', render: row => row.materialName || row.material || (row.items && (row.items[0]?.product?.name || row.items[0]?.materialName)) || 'Material' },
+            { header: 'Quantity', accessor: 'approvedQuantity', render: row => `${row.approvedQuantity ?? row.requestedQuantity ?? row.requiredQuantity ?? row.quantity ?? (row.items && (row.items[0]?.approvedQuantity ?? row.items[0]?.quantity)) ?? 0} ${row.unit || (row.items && row.items[0]?.unit) || 'PCS'}` },
+            { header: 'Required Date', accessor: 'requiredDate', render: row => (row.targetDate || row.requiredDate || (row.items && row.items[0]?.requiredDate)) ? new Date(row.targetDate || row.requiredDate || row.items[0].requiredDate).toLocaleDateString('en-IN') : '-' },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
           data={pendingIndents}
@@ -1841,25 +1854,46 @@ export default function FinancePortal() {
     const lineItems = selectedPO.items?.length
       ? selectedPO.items
       : [{ material: selectedPO.material || 'Material', quantity: selectedPO.quantity || 0, unit: selectedPO.unit || 'Units' }];
-    
+    const displaySubtotal = lineItems.reduce((sum, it) => {
+      const matName = it.product?.name || it.materialName || it.material || it.name || 'Material';
+      const qty = Number(it.approvedQty ?? it.quantity_ordered ?? it.quantity ?? 0);
+      const rate = Number(poRates[matName] ?? addMatRate ?? 0);
+      return sum + (qty * rate);
+    }, 0);
+    const displayTax = displaySubtotal * (Number(poGst || 18) / 100);
+    const displayFreight = Number(poFreight || 0);
+    const displayTotal = displaySubtotal + displayTax + displayFreight;
+
     const handleGeneratePO = (e) => {
       e.preventDefault();
       const itemsPayload = lineItems.map(it => {
-        const matName = it.material || it.name || 'Material';
+        const matName = it.product?.name || it.materialName || it.material || it.name || 'Material';
+        const qty = Number(it.approvedQty ?? it.quantity_ordered ?? it.quantity ?? 0);
+        const rate = Number(poRates[matName] ?? addMatRate ?? 0);
         return {
+          productId: it.productId || it.materialId || it.product?.id || 'MAT-UNKNOWN',
           name: matName,
-          quantity: Number(it.approvedQty ?? it.quantity_ordered ?? it.quantity ?? 0),
+          quantity: qty,
+          unitPrice: rate,
+          rate: rate,
           unit: it.unit || 'Units',
-          rate: Number(poRates[matName] ?? addMatRate ?? 0)
+          gstPercent: Number(poGst || 18)
         };
       });
 
+      const subtotal = itemsPayload.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+      const totalTax = itemsPayload.reduce((sum, item) => sum + (item.quantity * item.unitPrice * (item.gstPercent / 100)), 0);
+      const totalAmount = subtotal + totalTax + Number(poFreight || 0);
+
       const poPayload = {
         id: 'PO-DRAFT-' + Date.now(),
+        supplierId: selectedVendorId || 'e97ffbef-9a6f-4439-815b-242398f45e5d',
         vendorId: selectedVendorId,
         vendorName: supplierName || 'Selected Vendor',
         paymentTerms: poPaymentTerms || '30 Days Net',
+        expectedDeliveryDate: poExpectedDate,
         expectedDate: poExpectedDate,
+        totalAmount: totalAmount,
         items: itemsPayload,
         gst: poGst || '18',
         freight: poFreight || '0'
@@ -1903,7 +1937,7 @@ export default function FinancePortal() {
                 <div style={{ textAlign: 'right' }}>Material Rate (₹) *</div>
               </div>
               {lineItems.map((it, idx) => {
-                const matKey = it.material || it.name || 'Material';
+                const matKey = it.product?.name || it.materialName || it.material || it.name || 'Material';
                 const qtyVal = Number(it.approvedQty ?? it.quantity_ordered ?? it.quantity ?? 0);
                 return (
                   <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 180px', padding: '14px 16px', borderBottom: idx < lineItems.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', fontSize: '14px' }}>
@@ -1942,12 +1976,27 @@ export default function FinancePortal() {
               <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>Vendor *</label>
               <input
                 type="text"
+                list="vendor-options"
                 required
-                placeholder="Vendor Name"
+                placeholder="Type or select Vendor Name"
                 value={supplierName}
-                onChange={e => setSupplierName(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  setSupplierName(val);
+                  const s = suppliers.find(sup => sup.name === val);
+                  if (s) {
+                    setSelectedVendorId(s.id);
+                  } else {
+                    setSelectedVendorId('');
+                  }
+                }}
                 style={{ width: '100%', padding: '11px 14px', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '14px', fontWeight: 600, color: '#24345C', background: '#ffffff', outline: 'none' }}
               />
+              <datalist id="vendor-options">
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.name} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>Expected Delivery Date *</label>
@@ -1969,7 +2018,7 @@ export default function FinancePortal() {
               />
             </div>
             <div>
-              <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>Freight (₹)</label>
+              <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>Transportation Cost (₹)</label>
               <input
                 type="number"
                 value={poFreight}
@@ -1985,6 +2034,29 @@ export default function FinancePortal() {
                 onChange={e => setPoPaymentTerms(e.target.value)}
                 style={{ width: '100%', padding: '11px 14px', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '14px', fontWeight: 600, color: '#24345C', background: '#ffffff', outline: 'none' }}
               />
+            </div>
+          </div>
+
+          {/* Order Summary Calculation */}
+          <div style={{ background: '#F5FAFE', border: '1px solid #DCE5F0', borderRadius: '10px', padding: '16px 20px', marginBottom: '26px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#24345C', margin: '0 0 12px 0' }}>Order Summary Calculation</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: '#475569' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 600 }}>Material Subtotal:</span>
+                <span style={{ fontWeight: 800, color: '#0F172A' }}>₹{displaySubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 600 }}>GST ({poGst || 18}%):</span>
+                <span style={{ fontWeight: 800, color: '#0F172A' }}>₹{displayTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 600 }}>Transportation Cost:</span>
+                <span style={{ fontWeight: 800, color: '#0F172A' }}>₹{displayFreight.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #DCE5F0', paddingTop: '12px' }}>
+                <span style={{ fontWeight: 800, fontSize: '15px', color: '#24345C' }}>Grand Total (Price):</span>
+                <span style={{ fontWeight: 900, fontSize: '16px', color: '#4F46E5' }}>₹{displayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
             </div>
           </div>
 
@@ -2011,6 +2083,9 @@ export default function FinancePortal() {
 
   const renderDraftPOsTab = () => {
     const draftPOs = purchaseOrders.filter(po => po.status === 'DRAFT' || po.status === 'SUPER_ADMIN_REJECTED');
+    const historyPOs = purchaseOrders.filter(po => po.status === 'PENDING_SUPER_ADMIN_APPROVAL' || po.status === 'SUPER_ADMIN_APPROVED');
+    
+    const displayedPOs = draftPOsSubTab === 'Pending Drafts' ? draftPOs : historyPOs;
 
     const handleSubmitForApproval = (po) => {
       submitPurchaseOrder(po.id);
@@ -2019,17 +2094,30 @@ export default function FinancePortal() {
 
     return (
       <div className="app-card">
-        <div className="card-top-bar"><h2 className="card-heading">Draft POs</h2></div>
+        <div className="card-top-bar" style={{ display: 'flex', gap: '20px', borderBottom: '1px solid #E2E8F0', paddingBottom: '0' }}>
+          <button
+            onClick={() => setDraftPOsSubTab('Pending Drafts')}
+            style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: draftPOsSubTab === 'Pending Drafts' ? '2px solid #4F46E5' : '2px solid transparent', color: draftPOsSubTab === 'Pending Drafts' ? '#4F46E5' : '#64748B', fontWeight: draftPOsSubTab === 'Pending Drafts' ? 700 : 500, cursor: 'pointer', fontSize: '14px' }}
+          >
+            Pending Drafts
+          </button>
+          <button
+            onClick={() => setDraftPOsSubTab('History')}
+            style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: draftPOsSubTab === 'History' ? '2px solid #4F46E5' : '2px solid transparent', color: draftPOsSubTab === 'History' ? '#4F46E5' : '#64748B', fontWeight: draftPOsSubTab === 'History' ? 700 : 500, cursor: 'pointer', fontSize: '14px' }}
+          >
+            Submission History
+          </button>
+        </div>
         <DataTable 
           columns={[
-            { header: 'PO ID', accessor: 'id', render: row => <strong>{row.id}</strong> },
-            { header: 'Indent ID', accessor: 'indentId' },
-            { header: 'Vendor', accessor: 'vendorName' },
+            { header: 'PO ID', accessor: 'id', render: row => <strong>{row.poNumber || row.publicId || row.id}</strong> },
+            { header: 'Indent ID', accessor: 'purchaseIndentId', render: row => row.purchaseIndentId || row.indentId || 'N/A' },
+            { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> },
             { header: 'Remarks', accessor: 'rejectionReason' }
           ]}
-          data={draftPOs}
-          actions={row => (
+          data={displayedPOs}
+          actions={row => draftPOsSubTab === 'Pending Drafts' ? (
             <button
               style={{
                 background: '#24345C',
@@ -2046,15 +2134,18 @@ export default function FinancePortal() {
             >
               Submit for Approval
             </button>
-          )}
-          emptyMessage="No Draft POs."
+          ) : undefined}
+          emptyMessage={draftPOsSubTab === 'Pending Drafts' ? "No draft POs found." : "No submitted POs found."}
         />
       </div>
     );
   };
 
   const renderApprovedPOsTab = () => {
-    const approvedPOs = purchaseOrders.filter(po => po.status === 'SUPER_ADMIN_APPROVED');
+    const activePOs = purchaseOrders.filter(po => po.status === 'SUPER_ADMIN_APPROVED');
+    const historyPOs = purchaseOrders.filter(po => ['PO_ISSUED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
+    
+    const displayedPOs = approvedPOsSubTab === 'Approved' ? activePOs : historyPOs;
 
     const handleDownloadPOPdf = (po) => {
       if (!po) return;
@@ -2200,23 +2291,52 @@ export default function FinancePortal() {
     return (
       <div className="app-card" style={{ position: 'relative' }}>
         <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 className="card-heading" style={{ fontSize: '18px', fontWeight: 800, color: '#24345C', margin: 0 }}>Approved POs (Ready for Order Placement)</h2>
-            <p style={{ fontSize: '13px', color: '#5E6B82', margin: '4px 0 0 0' }}>Review Super Admin approved POs, send via email/WhatsApp, and confirm order placement</p>
+          <div style={{ display: 'flex', gap: '20px' }}>
+            <button
+              onClick={() => setApprovedPOsSubTab('Approved')}
+              style={{ padding: '0px 0px 8px 0px', background: 'none', border: 'none', borderBottom: approvedPOsSubTab === 'Approved' ? '2px solid #4F46E5' : '2px solid transparent', color: approvedPOsSubTab === 'Approved' ? '#4F46E5' : '#64748B', fontWeight: approvedPOsSubTab === 'Approved' ? 700 : 500, cursor: 'pointer', fontSize: '15px' }}
+            >
+              Ready for Order Placement
+            </button>
+            <button
+              onClick={() => setApprovedPOsSubTab('History')}
+              style={{ padding: '0px 0px 8px 0px', background: 'none', border: 'none', borderBottom: approvedPOsSubTab === 'History' ? '2px solid #4F46E5' : '2px solid transparent', color: approvedPOsSubTab === 'History' ? '#4F46E5' : '#64748B', fontWeight: approvedPOsSubTab === 'History' ? 700 : 500, cursor: 'pointer', fontSize: '15px' }}
+            >
+              Order History
+            </button>
           </div>
         </div>
 
         <DataTable 
           columns={[
-            { header: 'PO Draft ID', accessor: 'id', render: row => <strong style={{ color: '#24345C' }}>{row.id}</strong> },
-            { header: 'Indent Ref', accessor: 'indentId', render: row => <span style={{ background: '#f0f9ff', color: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, border: '1px solid #bae6fd' }}>{row.indentId || 'PI-REF'}</span> },
-            { header: 'Vendor Name', accessor: 'vendorName', render: row => <strong style={{ color: '#334155' }}>{row.vendorName || 'Vendor'}</strong> },
-            { header: 'Grand Total', accessor: 'grandTotal', render: row => <span style={{ fontWeight: 800, color: '#16a34a' }}>₹{row.grandTotal?.toLocaleString() || '0'}</span> },
+            { header: 'PO Draft ID', accessor: 'id', render: row => <strong style={{ color: '#24345C' }}>{row.poNumber || row.publicId || row.id}</strong> },
+            { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => <span style={{ background: '#f0f9ff', color: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, border: '1px solid #bae6fd' }}>{row.purchaseIndent?.publicId || row.purchaseIndentId || row.indentId || 'PI-REF'}</span> },
+            { header: 'Vendor Name', accessor: 'vendorName', render: row => <strong style={{ color: '#334155' }}>{row.supplier?.name || row.vendorName || 'Vendor'}</strong> },
+            { header: 'Grand Total', accessor: 'grandTotal', render: row => {
+                const freightVal = Number(row.freight || 0);
+                let calculatedSubtotal = 0;
+                let calculatedGst = 0;
+                if (row.items && row.items.length > 0) {
+                  row.items.forEach(item => {
+                    const qty = Number(item.quantity || 0);
+                    const rate = Number(item.unitPrice || item.rate || 0);
+                    const gst = Number(item.gstPercent || item.tax || 18);
+                    const base = qty * rate;
+                    calculatedSubtotal += base;
+                    calculatedGst += base * (gst / 100);
+                  });
+                }
+                const subVal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(row.subtotal || 0);
+                const gstVal = calculatedGst > 0 ? calculatedGst : (row.gstAmount !== undefined && row.gstAmount !== null ? Number(row.gstAmount) : Math.round(subVal * 0.18));
+                const grandVal = Number(row.totalAmount || row.grandTotal) || (subVal + gstVal + freightVal + Number(row.otherCharges || 0));
+                
+                return <span style={{ fontWeight: 800, color: '#16a34a' }}>{grandVal ? `₹${grandVal.toLocaleString()}` : '₹0'}</span>;
+            } },
             { header: 'Approved By', accessor: 'approvedBy', render: row => <span style={{ fontWeight: 600, color: '#475569' }}>{row.approvedBy || row.history?.slice(-1)[0]?.actor || 'Super Admin'}</span> },
-            { header: 'Status', accessor: 'status', render: row => <StatusBadge status="Approved by Super Admin" type="success" /> }
+            { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
-          data={approvedPOs}
-          actions={row => (
+          data={displayedPOs}
+          actions={row => approvedPOsSubTab === 'Approved' ? (
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
@@ -2231,8 +2351,17 @@ export default function FinancePortal() {
                 <CheckCircle2 size={15} /> Place Order Manually
               </button>
             </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
+                style={{ padding: '7px 12px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#334155', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <FileText size={15} /> View / PDF
+              </button>
+            </div>
           )}
-          emptyMessage="No approved POs awaiting manual order placement."
+          emptyMessage={approvedPOsSubTab === 'Approved' ? "No approved POs awaiting manual order placement." : "No history found."}
         />
 
         {/* PO Details & PDF Modal */}
@@ -2399,34 +2528,140 @@ export default function FinancePortal() {
 
     let filteredData = purchaseOrders;
     if (filterType === 'PENDING_APPROVAL') {
-      filteredData = purchaseOrders.filter(po => ['PLANT_HEAD_APPROVED', 'PENDING_FINANCE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(po.status));
+      if (pendingApprovalSubTab === 'Pending') {
+        filteredData = purchaseOrders.filter(po => ['DRAFT', 'PLANT_HEAD_APPROVED', 'PENDING_FINANCE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(po.status));
+      } else {
+        filteredData = purchaseOrders.filter(po => ['SUPER_ADMIN_APPROVED', 'SUPER_ADMIN_REJECTED', 'PO_ISSUED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
+      }
     } else if (filterType === 'CLOSED') {
-      filteredData = purchaseOrders.filter(po => ['PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
+      filteredData = purchaseOrders.filter(po => ['RECEIVED', 'PARTIALLY_RECEIVED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED', 'FINANCE_AUDIT_APPROVED'].includes(po.status));
     } else if (filterType === 'HISTORY') {
       filteredData = purchaseOrders.filter(po => ['PO_CLOSED', 'CLOSED', 'PURCHASE_COMPLETED', 'SUPER_ADMIN_APPROVED', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(po.status));
     }
 
     return (
       <div className="app-card">
-        <div className="card-top-bar"><h2 className="card-heading">{filterType === 'PENDING_APPROVAL' ? 'Pending Approval POs' : filterType === 'CLOSED' ? 'Closed POs' : filterType === 'HISTORY' ? 'History' : 'All Purchase Orders'}</h2></div>
+        {filterType === 'PENDING_APPROVAL' ? (
+          <div className="card-top-bar" style={{ display: 'flex', gap: '20px', borderBottom: '1px solid #E2E8F0', paddingBottom: '0' }}>
+            <button
+              onClick={() => setPendingApprovalSubTab('Pending')}
+              style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: pendingApprovalSubTab === 'Pending' ? '2px solid #4F46E5' : '2px solid transparent', color: pendingApprovalSubTab === 'Pending' ? '#4F46E5' : '#64748B', fontWeight: pendingApprovalSubTab === 'Pending' ? 700 : 500, cursor: 'pointer', fontSize: '14px' }}
+            >
+              Pending Approval
+            </button>
+            <button
+              onClick={() => setPendingApprovalSubTab('History')}
+              style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: pendingApprovalSubTab === 'History' ? '2px solid #4F46E5' : '2px solid transparent', color: pendingApprovalSubTab === 'History' ? '#4F46E5' : '#64748B', fontWeight: pendingApprovalSubTab === 'History' ? 700 : 500, cursor: 'pointer', fontSize: '14px' }}
+            >
+              Approval History
+            </button>
+          </div>
+        ) : (
+          <div className="card-top-bar">
+            <h2 className="card-heading">
+              {filterType === 'CLOSED' ? 'Closed POs' : filterType === 'HISTORY' ? 'History' : 'All Purchase Orders'}
+            </h2>
+          </div>
+        )}
         <DataTable 
           columns={[
             { header: 'Official PO Ref', accessor: 'poNumber', render: row => <strong style={{color:'var(--color-primary)'}}>{row.poNumber || row.id}</strong> },
-            { header: 'Indent Ref', accessor: 'indentId' },
-            { header: 'Vendor', accessor: 'vendorName' },
+            { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => row.purchaseIndentId || row.indentId || 'N/A' },
+            { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
             { header: 'Date Created', accessor: 'createdAt', render: row => new Date(row.createdAt).toLocaleDateString() },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
           data={filteredData}
-          actions={filterType === 'HISTORY' ? undefined : row => (
-            <div style={{display:'flex', gap:'8px'}}>
-              {row.status === 'PO_ISSUED' && (
-                <button className="btn-small btn-outline-small" onClick={() => handleVendorAccept(row)}>
-                  Simulate Vendor Acceptance
-                </button>
-              )}
-            </div>
-          )}
+          actions={filterType === 'HISTORY' ? undefined : row => {
+            const handleClosePO = async (poId, poNumber) => {
+              // Step 1: Pre-flight — check closure eligibility
+              let eligibility = null;
+              try {
+                eligibility = await evaluatePOClose(poId);
+              } catch (_) { /* network error — proceed without pre-flight */ }
+
+              if (eligibility && !eligibility.eligible && eligibility.blockers?.length) {
+                const blockerHtml = eligibility.blockers
+                  .map(b => `<li style="margin:6px 0;color:#344054">${b.message}</li>`)
+                  .join('');
+                Swal.fire({
+                  title: 'PO Cannot Be Closed Yet',
+                  html: `<p style="text-align:left;font-size:13px;color:#475467;margin-bottom:8px">Resolve the following before closing <strong>${poNumber}</strong>:</p><ul style="text-align:left;font-size:13px;padding-left:18px;line-height:1.9">${blockerHtml}</ul>`,
+                  icon: 'warning',
+                  confirmButtonText: 'Understood',
+                  confirmButtonColor: '#2957FF',
+                  showCancelButton: false,
+                });
+                return;
+              }
+
+              // Step 2: Confirm
+              const { isConfirmed } = await Swal.fire({
+                title: 'Close Purchase Order?',
+                html: `<p style="font-size:14px;color:#475467">This will permanently close <strong>${poNumber}</strong> and mark the procurement cycle as complete.</p>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Close PO',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#059669',
+              });
+              if (!isConfirmed) return;
+
+              // Step 3: Execute
+              try {
+                await closePurchaseOrder(poId, 'Closed by Finance after full audit completion.');
+                Swal.fire({ title: 'PO Closed!', text: `${poNumber} has been successfully closed.`, icon: 'success', confirmButtonColor: '#059669', timer: 2500, showConfirmButton: false });
+              } catch (err) {
+                const payload = err?.details || err?.body || err?.data || err;
+                const blockers = payload?.blockers || [];
+                const blockerHtml = blockers.length
+                  ? blockers.map(b => `<li style="margin:6px 0">${b.message}</li>`).join('')
+                  : `<li>${payload?.message || err?.message || 'An unexpected error occurred.'}</li>`;
+                Swal.fire({
+                  title: 'Cannot Close PO',
+                  html: `<ul style="text-align:left;font-size:13px;color:#344054;padding-left:18px;line-height:1.9">${blockerHtml}</ul>`,
+                  icon: 'error',
+                  confirmButtonColor: '#2957FF',
+                });
+              }
+            };
+
+            const isClosed = row.status === 'PO_CLOSED' || row.status === 'CLOSED';
+            const canAttemptClose = filterType === 'CLOSED' && ['RECEIVED', 'PARTIALLY_RECEIVED', 'PURCHASE_COMPLETED', 'FINANCE_AUDIT_APPROVED'].includes(row.status);
+
+            return (
+              <div style={{display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center'}}>
+                {(row.status === 'DRAFT' || row.status === 'PENDING_FINANCE_APPROVAL') && (
+                  <button
+                    style={{ background: '#24345C', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
+                    onClick={() => { submitPurchaseOrder(row.id); showToast(`PO ${row.id} submitted for Super Admin Approval`); }}
+                  >
+                    Submit for Approval
+                  </button>
+                )}
+                {row.status === 'PO_ISSUED' && (
+                  <button className="btn-small btn-outline-small" onClick={() => handleVendorAccept(row)}>
+                    Simulate Vendor Acceptance
+                  </button>
+                )}
+                {canAttemptClose && (
+                  <button
+                    style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    onClick={() => handleClosePO(row.id, row.poNumber || row.id)}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Close PO
+                  </button>
+                )}
+                {isClosed && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Closed
+                  </span>
+                )}
+              </div>
+            );
+          }}
           emptyMessage="No POs found."
         />
       </div>
@@ -2913,6 +3148,7 @@ export default function FinancePortal() {
       {view === 'create-po' && <CreatePurchaseOrder />}
       {view === 'delivery-audit' && <DeliveryAudit />}
       {view === 'rejection-management' && <RejectionManagement />}
+      {view === 'brand-analysis' && <FinanceBrandAnalysis />}
       
       {/* Shared Payments Subviews */}
       {view === 'payment-verification' && <FinanceSalesConfirmationView />}

@@ -34,10 +34,14 @@ export default function PurchaseIndentsView() {
       confirmButtonColor: '#16a34a',
       cancelButtonColor: '#5E6B82',
       confirmButtonText: 'Yes, Approve PO!'
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        approvePurchaseOrder(po.id, 'Approved by Super Admin after review.', user?.name || 'Super Admin');
-        showToast('Purchase Order approved successfully and sent to Finance for final issuance.', 'success');
+        try {
+          await approvePurchaseOrder(po.id, 'Approved by Super Admin after review.', user?.name || 'Super Admin');
+          showToast('Purchase Order approved successfully and sent to Finance for final issuance.', 'success');
+        } catch (error) {
+          showToast(`Error approving PO: ${error.message || 'Unknown error'}`, 'error');
+        }
       }
     });
   };
@@ -51,10 +55,14 @@ export default function PurchaseIndentsView() {
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#5E6B82',
       confirmButtonText: 'Yes, Reject PO!'
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        rejectPurchaseOrder(po.id, 'Rejected by Super Admin during review. Please revise.', user?.name || 'Super Admin');
-        showToast('Purchase Order rejected and returned to Finance with remarks.', 'success');
+        try {
+          await rejectPurchaseOrder(po.id, 'Rejected by Super Admin during review. Please revise.', user?.name || 'Super Admin');
+          showToast('Purchase Order rejected and returned to Finance with remarks.', 'success');
+        } catch (error) {
+          showToast(`Error rejecting PO: ${error.message || 'Unknown error'}`, 'error');
+        }
       }
     });
   };
@@ -74,7 +82,7 @@ export default function PurchaseIndentsView() {
       accessor: 'indentId',
       cell: ({ row }) => (
         <span style={{ fontWeight: 700, color: '#0284c7', fontSize: '13px', background: '#f0f9ff', padding: '4px 10px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
-          {row.original.indentId || row.original.poNumber || 'PI-REF'}
+          {row.original.purchaseIndent?.publicId || row.original.purchaseIndentId || row.original.indentId || row.original.poNumber || 'PI-REF'}
         </span>
       )
     },
@@ -83,18 +91,37 @@ export default function PurchaseIndentsView() {
       accessor: 'vendorName',
       cell: ({ row }) => (
         <span style={{ fontWeight: 700, color: '#334155' }}>
-          {row.original.vendorName || 'Vendor'}
+          {row.original.supplier?.name || row.original.vendorName || 'Vendor'}
         </span>
       )
     },
     { 
       header: 'Grand Total', 
       align: 'right',
-      cell: ({ row }) => (
-        <span style={{ fontWeight: 800, color: '#24345C', fontSize: '15px' }}>
-          {row.original.grandTotal ? `₹${row.original.grandTotal.toLocaleString()}` : '₹0'}
-        </span>
-      )
+      cell: ({ row }) => {
+        const freightVal = Number(row.original.freight || 0);
+        let calculatedSubtotal = 0;
+        let calculatedGst = 0;
+        if (row.original.items && row.original.items.length > 0) {
+          row.original.items.forEach(item => {
+            const qty = Number(item.quantity || 0);
+            const rate = Number(item.unitPrice || item.rate || 0);
+            const gst = Number(item.gstPercent || item.tax || 18);
+            const base = qty * rate;
+            calculatedSubtotal += base;
+            calculatedGst += base * (gst / 100);
+          });
+        }
+        const subVal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(row.original.subtotal || 0);
+        const gstVal = calculatedGst > 0 ? calculatedGst : (row.original.gstAmount !== undefined && row.original.gstAmount !== null ? Number(row.original.gstAmount) : Math.round(subVal * 0.18));
+        const grandVal = Number(row.original.totalAmount || row.original.grandTotal) || (subVal + gstVal + freightVal + Number(row.original.otherCharges || 0));
+
+        return (
+          <span style={{ fontWeight: 800, color: '#24345C', fontSize: '15px' }}>
+            {grandVal ? `₹${grandVal.toLocaleString()}` : '₹0'}
+          </span>
+        );
+      }
     },
     { 
       header: 'Date', 
@@ -119,7 +146,7 @@ export default function PurchaseIndentsView() {
   ];
 
   return (
-    <div style={{ maxWidth: '1450px', margin: '0 auto', padding: '24px', fontFamily: `'Inter', -apple-system, sans-serif` }}>
+    <div style={{ width: '100%', margin: '0 auto', padding: '24px', fontFamily: `'Inter', -apple-system, sans-serif` }}>
       {/* Premium Dark Header */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', background: '#24345C', padding: '24px 30px', borderRadius: '16px', color: '#ffffff', boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -240,12 +267,24 @@ export default function PurchaseIndentsView() {
 
       {/* Premium Light Theme Details Modal */}
       {selectedPO && (() => {
-        const subVal = Number(selectedPO.subtotal || 0);
-        const grandVal = Number(selectedPO.grandTotal || 0);
         const freightVal = Number(selectedPO.freight || 0);
-        const gstVal = selectedPO.gstAmount !== undefined && selectedPO.gstAmount !== null && Number(selectedPO.gstAmount) > 0
-          ? Number(selectedPO.gstAmount)
-          : (grandVal > subVal ? (grandVal - subVal - freightVal) : Math.round(subVal * ((Number(selectedPO.gst) || 18) / 100)));
+        
+        let calculatedSubtotal = 0;
+        let calculatedGst = 0;
+        if (selectedPO.items && selectedPO.items.length > 0) {
+          selectedPO.items.forEach(item => {
+            const qty = Number(item.quantity || 0);
+            const rate = Number(item.unitPrice || item.rate || 0);
+            const gst = Number(item.gstPercent || item.tax || 18);
+            const base = qty * rate;
+            calculatedSubtotal += base;
+            calculatedGst += base * (gst / 100);
+          });
+        }
+        
+        const subVal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(selectedPO.subtotal || 0);
+        const gstVal = calculatedGst > 0 ? calculatedGst : (selectedPO.gstAmount !== undefined && selectedPO.gstAmount !== null ? Number(selectedPO.gstAmount) : Math.round(subVal * 0.18));
+        const grandVal = Number(selectedPO.totalAmount || selectedPO.grandTotal) || (subVal + gstVal + freightVal + Number(selectedPO.otherCharges || 0));
 
         return (
           <div 
@@ -287,9 +326,9 @@ export default function PurchaseIndentsView() {
                       <Building size={16} color="#0284c7" /> Vendor Information
                     </h3>
                     <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Vendor Name:</span> <strong style={{ color: '#24345C' }}>{selectedPO.vendorName || 'Vendor'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Vendor Name:</span> <strong style={{ color: '#24345C' }}>{selectedPO.supplier?.name || selectedPO.vendorName || 'Vendor'}</strong></div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Payment Terms:</span> <strong style={{ color: '#24345C' }}>{selectedPO.paymentTerms || 'Standard 30 Days Net'}</strong></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Expected Date:</span> <strong style={{ color: '#24345C' }}>{selectedPO.expectedDate || '-'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Expected Date:</span> <strong style={{ color: '#24345C' }}>{selectedPO.expectedDeliveryDate ? new Date(selectedPO.expectedDeliveryDate).toLocaleDateString() : (selectedPO.expectedDate || '-')}</strong></div>
                     </div>
                   </div>
 
@@ -337,12 +376,12 @@ export default function PurchaseIndentsView() {
                         </thead>
                         <tbody>
                           {selectedPO.items.map((item, idx) => {
-                            const rate = Number(item.unitRate || item.rate || 0);
+                            const rate = Number(item.unitPrice || item.rate || 0);
                             const qty = Number(item.quantity || 0);
                             return (
                               <tr key={idx} style={{ borderBottom: idx < selectedPO.items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                <td style={{ padding: '14px 18px', fontWeight: 700, color: '#24345C' }}>{item.name || item.material}</td>
-                                <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 600, color: '#475569' }}>{qty} {item.unit || 'Units'}</td>
+                                <td style={{ padding: '14px 18px', fontWeight: 700, color: '#24345C' }}>{item.product?.name || item.name || item.material || 'Material'}</td>
+                                <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 600, color: '#475569' }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
                                 <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 600, color: '#475569' }}>₹{rate.toLocaleString()}</td>
                                 <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 800, color: '#24345C' }}>₹{(qty * rate).toLocaleString()}</td>
                               </tr>

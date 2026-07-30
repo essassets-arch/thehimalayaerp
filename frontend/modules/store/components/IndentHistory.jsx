@@ -5,9 +5,12 @@ import { useERPStore } from '../../../store/erpStore';
 const STATUS_COLORS = {
   'PENDING_PLANT_HEAD_APPROVAL': { bg: '#FEF3C7', color: '#92400E', label: 'Pending Approval' },
   'PLANT_HEAD_APPROVED':         { bg: '#D1FAE5', color: '#065F46', label: 'Approved' },
-  'PLANT_HEAD_REJECTED':         { bg: '#fee2e2', color: '#b91c1c', label: 'Rejected' },
-  'CORRECTION_REQUIRED':         { bg: '#fef3c7', color: '#d97706', label: 'Correction Required' },
-  'CONVERTED_TO_PO':             { bg: '#DBEAFE', color: '#1D4ED8', label: 'Converted to PO' },
+  'PLANT_HEAD_CORRECTION_REQUIRED': { bg: '#FEF3C7', color: '#D97706', label: 'Correction Required' },
+  'PLANT_HEAD_REJECTED':         { bg: '#FEE2E2', color: '#B91C1C', label: 'Rejected' },
+  'INDENT_CANCELLED':            { bg: '#F1F5F9', color: '#64748B', label: 'Cancelled' },
+  'DRAFT_PO_CREATED':            { bg: '#DBEAFE', color: '#1D4ED8', label: 'PO Draft Created' },
+  'PROCUREMENT_IN_PROGRESS':     { bg: '#E0F2FE', color: '#0369A1', label: 'In Progress' },
+  'PROCUREMENT_COMPLETED':       { bg: '#D1FAE5', color: '#047857', label: 'Completed' },
 };
 
 function StatusBadge({ status }) {
@@ -23,20 +26,20 @@ function StatusBadge({ status }) {
   );
 }
 
-export default function IndentHistory() {
+export default function IndentHistory({ hideHeader = false } = {}) {
   const purchaseIndents = useERPStore(s => s.state?.procurement?.materialIndents || []);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  const filters = ['All', 'Pending Approval', 'Approved', 'Correction Required', 'Rejected', 'Converted to PO'];
+  const filters = ['All', 'Pending Approval', 'Approved', 'Correction Required', 'Rejected', 'Completed'];
 
   const statusMap = {
     'Pending Approval':     'PENDING_PLANT_HEAD_APPROVAL',
     'Approved':             'PLANT_HEAD_APPROVED',
-    'Correction Required':  'CORRECTION_REQUIRED',
+    'Correction Required':  'PLANT_HEAD_CORRECTION_REQUIRED',
     'Rejected':             'PLANT_HEAD_REJECTED',
-    'Converted to PO':      'CONVERTED_TO_PO',
+    'Completed':            'PROCUREMENT_COMPLETED',
   };
 
   const filtered = purchaseIndents.filter(ind => {
@@ -45,7 +48,7 @@ export default function IndentHistory() {
     const matchSearch = !q
       || (ind.id || '').toLowerCase().includes(q)
       || (ind.department || '').toLowerCase().includes(q)
-      || (ind.items || []).some(i => (i.materialId || i.materialName || '').toLowerCase().includes(q));
+      || (ind.items || []).some(i => (i.product?.name || i.materialId || i.materialName || '').toLowerCase().includes(q));
     return matchFilter && matchSearch;
   });
 
@@ -55,7 +58,7 @@ export default function IndentHistory() {
     pending:   purchaseIndents.filter(i => i.status === 'PENDING_PLANT_HEAD_APPROVAL').length,
     approved:  purchaseIndents.filter(i => i.status === 'PLANT_HEAD_APPROVED').length,
     rejected:  purchaseIndents.filter(i => i.status === 'PLANT_HEAD_REJECTED').length,
-    converted: purchaseIndents.filter(i => i.status === 'CONVERTED_TO_PO').length,
+    converted: purchaseIndents.filter(i => ['DRAFT_PO_CREATED', 'PROCUREMENT_IN_PROGRESS', 'PROCUREMENT_COMPLETED'].includes(i.status)).length,
   };
 
   const thStyle = {
@@ -78,14 +81,16 @@ export default function IndentHistory() {
   return (
     <div>
       {/* Page Header */}
-      <div style={{ marginBottom: '20px' }}>
-        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#24345C' }}>
-          📂 Indent History
-        </h2>
-        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#5E6B82' }}>
-          View all material indent requests submitted to Plant Head for approval
-        </p>
-      </div>
+      {!hideHeader && (
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#24345C' }}>
+            📂 Indent History
+          </h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#5E6B82' }}>
+            View all material indent requests submitted to Plant Head for approval
+          </p>
+        </div>
+      )}
 
       {/* KPI Row */}
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -222,7 +227,7 @@ export default function IndentHistory() {
                                 {items.map((item, idx) => (
                                   <tr key={idx}>
                                     <td style={{ ...tdStyle, padding: '8px 12px', color: '#5E6B82' }}>{idx + 1}</td>
-                                    <td style={{ ...tdStyle, padding: '8px 12px', fontWeight: 600 }}>{item.materialId || item.materialName || '—'}</td>
+                                    <td style={{ ...tdStyle, padding: '8px 12px', fontWeight: 600 }}>{item.product?.name || item.materialName || item.materialId || '—'}</td>
                                     <td style={{ ...tdStyle, padding: '8px 12px' }}>{item.quantity || '—'}</td>
                                     <td style={{ ...tdStyle, padding: '8px 12px' }}>{item.unit || 'Nos'}</td>
                                     <td style={{ ...tdStyle, padding: '8px 12px', color: '#5E6B82' }}>{item.reason || '—'}</td>

@@ -46,6 +46,7 @@ import ProductionAnalyticsPage from './ProductionAnalyticsPage.jsx';
 import HRAnalyticsPage from './HRAnalyticsPage.jsx';
 import { SuperAdminFilterProvider } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
+import BrandAnalysisPage from './BrandAnalysisPage';
 
 
 // Department Views
@@ -6000,9 +6001,7 @@ export default function SuperAdminPortal() {
   };
 
   const renderAnalysisRequestsWorkspace = () => {
-    const requests = state.analysisRequests || [];
-    const requestId = params?.slug?.[1];
-    const isDetails = !!requestId;
+    return <BrandAnalysisPage />;
 
     // Filters
     const filteredRequests = requests.filter(req => {
@@ -6457,8 +6456,6 @@ export default function SuperAdminPortal() {
     }
 
     switch (view) {
-      case 'po-approvals':
-        return <PurchaseOrderApproval />;
       case 'purchase-indents':
         return <PurchaseIndentsView />;
       case 'analysis-requests':

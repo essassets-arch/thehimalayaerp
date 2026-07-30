@@ -2431,31 +2431,34 @@ export default function PlantHeadPortal() {
                 <div style={{ padding: '8px 24px 20px' }}>
                   {(() => {
                     const flatMaterials = reqs.flatMap(r => 
-                      (r.materials || [{ materialName: r.materialName, quantityRequested: r.quantityRequested }])
+                      (r.items || r.materials || [{ materialName: r.materialName, quantityRequested: r.quantityRequested }])
                         .map(m => ({ ...m, requestId: r.id }))
                     );
                     return flatMaterials.map((mat, idx) => {
-                      const reqId = mat.materialName ? `${mat.requestId}-${mat.materialName}` : (mat.id || mat.requestId);
-                      const currentQty = overrideQty[reqId] !== undefined ? overrideQty[reqId] : mat.quantityRequested;
-                      const reqObj = reqs.find(r => r.id === mat.requestId);
-                      const isPending = reqObj ? reqObj.status === 'REQUESTED' : false;
+                      const displayMaterialName = mat.product?.name || mat.materialName || mat.materialId || 'Unknown Material';
+                      const displayQuantity = mat.quantity || mat.quantityRequested || 0;
                       
-                      const invItem = state.rawInventory?.find(i => i.material.toLowerCase() === (mat.materialName || '').toLowerCase()) ||
-                                      state.productCatalog?.find(i => i.name.toLowerCase() === (mat.materialName || '').toLowerCase());
-                      const unit = invItem ? invItem.unit : 'Tons';
+                      const reqId = displayMaterialName ? `${mat.requestId}-${displayMaterialName}` : (mat.id || mat.requestId);
+                      const currentQty = overrideQty[reqId] !== undefined ? overrideQty[reqId] : displayQuantity;
+                      const reqObj = reqs.find(r => r.id === mat.requestId);
+                      const isPending = reqObj ? reqObj.status === 'REQUESTED' || reqObj.status === 'PENDING_PLANT_HEAD_APPROVAL' : false;
+                      
+                      const invItem = state.rawInventory?.find(i => i.material.toLowerCase() === displayMaterialName.toLowerCase()) ||
+                                      state.productCatalog?.find(i => i.name.toLowerCase() === displayMaterialName.toLowerCase());
+                      const unit = invItem ? invItem.unit : (mat.unit || 'Nos');
 
                       return (
                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '20px 0', borderBottom: idx < flatMaterials.length - 1 ? '1px dashed var(--color-border)' : 'none' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <span style={{ color: 'var(--color-text-primary)', fontWeight: '700', fontSize: '15px' }}>{mat.materialName}</span>
+                              <span style={{ color: 'var(--color-text-primary)', fontWeight: '700', fontSize: '15px' }}>{displayMaterialName}</span>
                             </div>
 
                             {/* Quantities and input */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                                 <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>Requested</span>
-                                <strong style={{ color: 'var(--color-text-primary)', fontSize: '14.5px' }}>{mat.quantityRequested} {unit}</strong>
+                                <strong style={{ color: 'var(--color-text-primary)', fontSize: '14.5px' }}>{displayQuantity} {unit}</strong>
                               </div>
                               
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

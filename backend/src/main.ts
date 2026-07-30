@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
+import * as express from 'express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -16,6 +18,8 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());
+  
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
   const frontendUrl =
     configService.get<string>('frontendUrl') || 'http://localhost:3000';

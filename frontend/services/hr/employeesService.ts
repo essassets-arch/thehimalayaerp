@@ -14,15 +14,22 @@ const query = (params: Record<string, unknown> = {}) => {
   return search.toString();
 };
 
+const generateUUID = () => {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return 'req-' + Math.random().toString(36).substring(2, 15) + '-' + Math.random().toString(36).substring(2, 15);
+};
+
 export const employeesService = {
   listEmployees: (params: Record<string, unknown> = {}) =>
     backendFetch<EmployeeListResponse>(`${base}?${query(params)}`, { cacheTtlMs: 0 }),
   getPayrollOverview: (params: Record<string, unknown> = {}) =>
     backendFetch<any[]>(`${base}/payroll-overview?${query(params)}`, { cacheTtlMs: 0 }),
   getEmployee: (id: string) => backendFetch<any>(`${base}/${id}`, { cacheTtlMs: 0 }),
-  createEmployee: (formData: FormData, idempotencyKey = crypto.randomUUID()) =>
+  createEmployee: (formData: FormData, idempotencyKey = generateUUID()) =>
     backendFetch<any>(base, { method: 'POST', body: formData, idempotencyKey }),
-  saveEmployeeDraft: (payload: unknown, idempotencyKey = crypto.randomUUID()) =>
+  saveEmployeeDraft: (payload: unknown, idempotencyKey = generateUUID()) =>
     backendFetch<any>(`${base}/drafts`, { method: 'POST', body: payload, idempotencyKey }),
   listDrafts: () => backendFetch<any[]>(`${base}/drafts`, { cacheTtlMs: 0 }),
   updateEmployee: (id: string, payload: unknown) =>

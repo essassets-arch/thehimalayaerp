@@ -67,8 +67,15 @@ export type RecruitmentTimeline = {
   createdAt: string;
 };
 
+const generateUUID = () => {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return 'req-' + Math.random().toString(36).substring(2, 15) + '-' + Math.random().toString(36).substring(2, 15);
+};
+
 const base = '/api/backend/hr/recruitment-requests';
-const key = () => crypto.randomUUID();
+const key = () => generateUUID();
 
 export const recruitmentService = {
   list: (search = '', status = '') =>

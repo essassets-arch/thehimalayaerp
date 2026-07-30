@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useERPStore } from '../../../store/erpStore';
-import { approveMaterialIndent, returnIndentForCorrection } from '../../../store/procurementActions';
+import { approveMaterialIndent, returnIndentForCorrection, rejectMaterialIndent } from '../../../store/procurementActions';
 import { ProcurementStatusBadge } from '../components/ProcurementStatusBadge';
 import { Package, CheckCircle, XCircle, ArrowLeft, Clock, AlertCircle, ShieldCheck, FileText } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -26,6 +26,7 @@ export default function MaterialIndentApproval() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [approvedItemsMap, setApprovedItemsMap] = useState({});
   const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [viewTab, setViewTab] = useState('pending'); // 'pending' | 'history'
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -44,6 +45,12 @@ export default function MaterialIndentApproval() {
   const pendingIndents = useMemo(() => {
     return materialIndents.filter(ind => ind.status === 'PENDING_PLANT_HEAD_APPROVAL' || ind.status === 'PENDING_PLANT_HEAD');
   }, [materialIndents]);
+
+  const historyIndents = useMemo(() => {
+    return materialIndents.filter(ind => ind.status !== 'PENDING_PLANT_HEAD_APPROVAL' && ind.status !== 'PENDING_PLANT_HEAD' && ind.status !== 'DRAFT');
+  }, [materialIndents]);
+
+  const displayedIndents = viewTab === 'history' ? historyIndents : pendingIndents;
 
   const selectedIndent = useMemo(() => {
     if (!selectedIndentId) return null;
@@ -82,6 +89,19 @@ export default function MaterialIndentApproval() {
 
   const handleApprove = async () => {
     if (!selectedIndent) return;
+
+    const result = await Swal.fire({
+      title: 'Approve Indent?',
+      text: `Are you sure you want to approve indent ${selectedIndent.id} and forward it to Finance?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#4F46E5',
+      cancelButtonColor: '#64748B',
+      confirmButtonText: 'Yes, Approve & Forward'
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       setIsSubmitting(true);
       const items = selectedIndent.items || [
@@ -129,18 +149,27 @@ export default function MaterialIndentApproval() {
 
   const handleReturn = async () => {
     if (!selectedIndent) return;
-    if (!remarks.trim()) {
-      return Swal.fire({
-        title: 'Remarks Required',
-        text: 'Please provide mandatory remarks explaining why the indent is being returned for correction.',
-        icon: 'warning',
-        confirmButtonColor: '#f59e0b'
-      });
-    }
+
+    const { value: inputRemarks } = await Swal.fire({
+      title: 'Return for Correction',
+      input: 'textarea',
+      inputLabel: 'Remarks',
+      inputPlaceholder: 'Explain why the indent is being returned...',
+      showCancelButton: true,
+      confirmButtonText: 'Return Indent',
+      confirmButtonColor: '#f59e0b',
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return 'Remarks are mandatory for returning an indent!';
+        }
+      }
+    });
+
+    if (!inputRemarks) return;
 
     try {
       setIsSubmitting(true);
-      returnIndentForCorrection(selectedIndent.id, remarks, 'Plant Head');
+      returnIndentForCorrection(selectedIndent.id, inputRemarks, 'Plant Head');
       
       await Swal.fire({
         title: 'Indent Returned',
@@ -163,6 +192,89 @@ export default function MaterialIndentApproval() {
     }
   };
 
+  const handleReject = async () => {
+    if (!selectedIndent) return;
+
+    const { value: inputRemarks } = await Swal.fire({
+      title: 'Reject Indent',
+      input: 'textarea',
+      inputLabel: 'Remarks',
+      inputPlaceholder: 'Explain why the indent is being rejected...',
+      showCancelButton: true,
+      confirmButtonText: 'Reject Indent',
+      confirmButtonColor: '#dc2626',
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return 'Remarks are mandatory for rejecting an indent!';
+        }
+      }
+    });
+
+    if (!inputRemarks) return;
+
+    try {
+      setIsSubmitting(true);
+      await rejectMaterialIndent(selectedIndent.id, inputRemarks, 'Plant Head');
+      
+      await Swal.fire({
+        title: 'Indent Rejected',
+        text: `Indent ${selectedIndent.id} has been rejected.`,
+        icon: 'error',
+        confirmButtonColor: '#dc2626'
+      });
+
+      setSelectedIndentId(null);
+      setRemarks('');
+    } catch (err) {
+      Swal.fire({
+        title: 'Error',
+        text: err.message || 'Failed to reject indent',
+        icon: 'error',
+        confirmButtonColor: '#ef4444'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleViewHistory = async (indent) => {
+    try {
+      const response = await fetch(`/api/backend/procurement/indents/${indent.id}/history`);
+      if (!response.ok) throw new Error('Failed to fetch history');
+      const payload = await response.json();
+      const history = payload.data || [];
+      
+      if (!history.length) {
+        Swal.fire('No History', 'No history found for this indent.', 'info');
+        return;
+      }
+
+      const historyHtml = history.map(h => `
+        <div style="text-align: left; padding: 12px; border-bottom: 1px solid #E2E8F0; font-family: sans-serif;">
+          <div style="font-size: 11px; font-weight: bold; color: #94A3B8; text-transform: uppercase; margin-bottom: 4px;">
+            ${new Date(h.createdAt).toLocaleString('en-IN')}
+          </div>
+          <div style="font-size: 14px; font-weight: 800; color: #0F172A;">
+            ${h.oldStatus ? `${h.oldStatus} &rarr; ${h.newStatus}` : h.newStatus}
+          </div>
+          ${h.remarks ? `<div style="font-size: 13px; color: #475569; margin-top: 6px; background: #F8FAFC; padding: 8px; border-radius: 6px; border: 1px solid #E2E8F0;"><i>" ${h.remarks} "</i></div>` : ''}
+        </div>
+      `).join('');
+
+      Swal.fire({
+        title: 'Indent History',
+        html: `<div style="max-height: 400px; overflow-y: auto;">${historyHtml}</div>`,
+        width: 600,
+        showConfirmButton: true,
+        confirmButtonText: 'Close',
+        confirmButtonColor: '#4F46E5'
+      });
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', 'Failed to load history', 'error');
+    }
+  };
+
   const highPriorityCount = useMemo(() => {
     return pendingIndents.filter(i => (i.priority || '').toUpperCase() === 'HIGH' || (i.priority || '').toUpperCase() === 'URGENT').length;
   }, [pendingIndents]);
@@ -170,9 +282,8 @@ export default function MaterialIndentApproval() {
   return (
     <div style={{
       width: '100%',
-      maxWidth: '1280px',
-      margin: '0 auto',
-      padding: isMobile ? '12px 8px' : '20px 16px',
+      maxWidth: '100%',
+      padding: isMobile ? '12px 8px' : '20px',
       display: 'flex',
       flexDirection: 'column',
       gap: '20px',
@@ -232,7 +343,9 @@ export default function MaterialIndentApproval() {
             {/* Card 1 */}
             <div style={{
               background: '#ffffff',
-              border: '1px solid #E2E8F0',
+              borderTop: '1px solid #E2E8F0',
+              borderRight: '1px solid #E2E8F0',
+              borderBottom: '1px solid #E2E8F0',
               borderLeft: '4px solid #F59E0B',
               borderRadius: '12px',
               padding: '16px 20px',
@@ -257,7 +370,9 @@ export default function MaterialIndentApproval() {
             {/* Card 2 */}
             <div style={{
               background: '#ffffff',
-              border: '1px solid #E2E8F0',
+              borderTop: '1px solid #E2E8F0',
+              borderRight: '1px solid #E2E8F0',
+              borderBottom: '1px solid #E2E8F0',
               borderLeft: '4px solid #EF4444',
               borderRadius: '12px',
               padding: '16px 20px',
@@ -282,7 +397,9 @@ export default function MaterialIndentApproval() {
             {/* Card 3 */}
             <div style={{
               background: '#ffffff',
-              border: '1px solid #E2E8F0',
+              borderTop: '1px solid #E2E8F0',
+              borderRight: '1px solid #E2E8F0',
+              borderBottom: '1px solid #E2E8F0',
               borderLeft: '4px solid #6366F1',
               borderRadius: '12px',
               padding: '16px 20px',
@@ -305,6 +422,44 @@ export default function MaterialIndentApproval() {
             </div>
           </div>
 
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #E2E8F0', padding: '0 16px', marginTop: '10px' }}>
+            <button
+              onClick={() => setViewTab('pending')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: 800,
+                color: viewTab === 'pending' ? '#4F46E5' : '#64748B',
+                borderBottom: viewTab === 'pending' ? '3px solid #4F46E5' : '3px solid transparent',
+                cursor: 'pointer',
+                marginBottom: '-2px',
+                transition: 'all 0.2s'
+              }}
+            >
+              Pending Approvals ({pendingIndents.length})
+            </button>
+            <button
+              onClick={() => setViewTab('history')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: 800,
+                color: viewTab === 'history' ? '#4F46E5' : '#64748B',
+                borderBottom: viewTab === 'history' ? '3px solid #4F46E5' : '3px solid transparent',
+                cursor: 'pointer',
+                marginBottom: '-2px',
+                transition: 'all 0.2s'
+              }}
+            >
+              Approval History ({historyIndents.length})
+            </button>
+          </div>
+
           {/* Pending List Section */}
           <div style={{
             background: '#ffffff',
@@ -323,10 +478,10 @@ export default function MaterialIndentApproval() {
               justifyContent: 'space-between'
             }}>
               <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Pending Material Indents
+                {viewTab === 'pending' ? 'Pending Material Indents' : 'Approved & Processed Indents'}
               </h2>
               <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
-                Click Review to inspect line items
+                {viewTab === 'pending' ? 'Click Review to inspect line items' : 'Click History to view audit log'}
               </span>
             </div>
 
@@ -347,16 +502,16 @@ export default function MaterialIndentApproval() {
                     </tr>
                   </thead>
                   <tbody style={{ fontSize: '13px', color: '#334155' }}>
-                    {pendingIndents.length === 0 ? (
+                    {displayedIndents.length === 0 ? (
                       <tr>
                         <td colSpan={8} style={{ padding: '48px 20px', textAlign: 'center', color: '#94A3B8', fontWeight: 600 }}>
-                          No material indents currently pending Plant Head approval.
+                          {viewTab === 'pending' ? 'No material indents currently pending Plant Head approval.' : 'No indent history found.'}
                         </td>
                       </tr>
                     ) : (
-                      pendingIndents.map((indent) => {
+                      displayedIndents.map((indent) => {
                         const items = indent.items || [];
-                        const displayMaterial = indent.materialName || (items[0]?.materialName) || 'Material';
+                        const displayMaterial = indent.materialName || items[0]?.product?.name || (items[0]?.materialName) || 'Material';
                         const reqQty = indent.requiredQuantity || indent.quantity || (items[0]?.quantity) || 0;
                         const unit = indent.unit || (items[0]?.unit) || 'PCS';
                         const isHigh = (indent.priority || '').toUpperCase() === 'HIGH' || (indent.priority || '').toUpperCase() === 'URGENT';
@@ -388,23 +543,42 @@ export default function MaterialIndentApproval() {
                               <ProcurementStatusBadge status={indent.status} />
                             </td>
                             <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                              <button
-                                onClick={() => handleSelectIndent(indent)}
-                                style={{
-                                  padding: '8px 16px',
-                                  background: '#4F46E5',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  borderRadius: '8px',
-                                  fontSize: '12px',
-                                  fontWeight: 800,
-                                  cursor: 'pointer',
-                                  boxShadow: '0 2px 4px rgba(79, 70, 229, 0.25)',
-                                  transition: 'all 0.15s'
-                                }}
-                              >
-                                Review & Approve →
-                              </button>
+                              {viewTab === 'history' ? (
+                                <button
+                                  onClick={() => handleViewHistory(indent)}
+                                  style={{
+                                    padding: '8px 16px',
+                                    background: '#F1F5F9',
+                                    color: '#475569',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  View History
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleSelectIndent(indent)}
+                                  style={{
+                                    padding: '8px 16px',
+                                    background: '#4F46E5',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 4px rgba(79, 70, 229, 0.25)',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  Review & Approve →
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -416,14 +590,14 @@ export default function MaterialIndentApproval() {
             ) : (
               /* Mobile Cards List */
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {pendingIndents.length === 0 ? (
+                {displayedIndents.length === 0 ? (
                   <div style={{ padding: '36px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', fontWeight: 600 }}>
-                    No material indents currently pending Plant Head approval.
+                    {viewTab === 'pending' ? 'No material indents currently pending Plant Head approval.' : 'No indent history found.'}
                   </div>
                 ) : (
-                  pendingIndents.map((indent) => {
+                  displayedIndents.map((indent) => {
                     const items = indent.items || [];
-                    const displayMaterial = indent.materialName || (items[0]?.materialName) || 'Material';
+                    const displayMaterial = indent.materialName || items[0]?.product?.name || (items[0]?.materialName) || 'Material';
                     const reqQty = indent.requiredQuantity || indent.quantity || (items[0]?.quantity) || 0;
                     const unit = indent.unit || (items[0]?.unit) || 'PCS';
                     const isHigh = (indent.priority || '').toUpperCase() === 'HIGH' || (indent.priority || '').toUpperCase() === 'URGENT';
@@ -477,23 +651,45 @@ export default function MaterialIndentApproval() {
                           <span style={{ color: '#4F46E5', fontWeight: 950, marginTop: '2px', display: 'block' }}>{reqQty} {unit}</span>
                         </div>
 
-                        <button
-                          onClick={() => handleSelectIndent(indent)}
-                          style={{
-                            width: '100%',
-                            padding: '10px',
-                            background: '#4F46E5',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '8px',
-                            fontSize: '13px',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            textAlign: 'center'
-                          }}
-                        >
-                          Review & Approve Indent →
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                          {viewTab === 'history' ? (
+                            <button
+                              onClick={() => handleViewHistory(indent)}
+                              style={{
+                                width: '100%',
+                                padding: '10px',
+                                background: '#F1F5F9',
+                                color: '#475569',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                textAlign: 'center'
+                              }}
+                            >
+                              View History
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleSelectIndent(indent)}
+                              style={{
+                                width: '100%',
+                                padding: '10px',
+                                background: '#4F46E5',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                textAlign: 'center'
+                              }}
+                            >
+                              Review & Approve Indent →
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })
@@ -643,8 +839,8 @@ export default function MaterialIndentApproval() {
                         quantity: selectedIndent.requiredQuantity || selectedIndent.quantity || 0,
                         unit: selectedIndent.unit || 'PCS'
                       }
-                    ]).map((item) => {
-                      const itemKey = item.indentItemId || item.materialId;
+                    ]).map((item, idx) => {
+                      const itemKey = item.id || item.indentItemId || item.materialId || `fallback-${idx}`;
                       const approvedVal = approvedItemsMap[itemKey] !== undefined ? approvedItemsMap[itemKey] : (item.quantity || item.requiredQuantity || 0);
 
                       return (
@@ -652,11 +848,11 @@ export default function MaterialIndentApproval() {
                           <td style={{ padding: '16px 20px', fontWeight: 800, color: '#0F172A' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <Package style={{ width: 18, height: 18, color: '#4F46E5', flexShrink: 0 }} />
-                              <span>{item.materialName || selectedIndent.materialName}</span>
+                              <span>{item.product?.name || item.materialName || selectedIndent.materialName || 'Unknown Material'}</span>
                             </div>
                           </td>
                           <td style={{ padding: '16px 20px', fontFamily: 'monospace', fontWeight: 700, color: '#64748B' }}>
-                            {item.materialId || selectedIndent.materialCode || '-'}
+                            {item.product?.sku || item.product?.id?.slice(0, 8) || item.productId?.slice(0, 8) || item.materialId || selectedIndent.materialCode || '-'}
                           </td>
                           <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 800, color: '#334155' }}>
                             {item.quantity || item.requiredQuantity || selectedIndent.requiredQuantity} {item.unit || selectedIndent.unit || 'PCS'}
@@ -752,39 +948,6 @@ export default function MaterialIndentApproval() {
             )}
           </div>
 
-          {/* Remarks Card */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '14px',
-            border: '1px solid #E2E8F0',
-            padding: isMobile ? '16px' : '20px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-          }}>
-            <label style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
-              Plant Head Authorization Remarks
-            </label>
-            <textarea
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              rows={3}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                fontSize: '13px',
-                color: '#1E293B',
-                boxSizing: 'border-box',
-                outline: 'none',
-                fontFamily: 'inherit'
-              }}
-              placeholder="Enter optional approval remarks or mandatory return/correction justification..."
-            />
-          </div>
-
           {/* Action Buttons */}
           <div style={{
             display: 'flex',
@@ -815,6 +978,29 @@ export default function MaterialIndentApproval() {
             >
               <XCircle style={{ width: 18, height: 18 }} />
               Return for Correction
+            </button>
+            <button
+              type="button"
+              onClick={handleReject}
+              disabled={isSubmitting}
+              style={{
+                width: isMobile ? '100%' : 'auto',
+                padding: '12px 20px',
+                border: '2px solid #FCA5A5',
+                background: '#FEF2F2',
+                color: '#991B1B',
+                borderRadius: '10px',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <XCircle style={{ width: 18, height: 18 }} />
+              Reject Indent
             </button>
             <button
               type="button"

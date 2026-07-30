@@ -1,0 +1,9 @@
+-- Procurement final alignment migration
+-- Applied via `prisma db push --accept-data-loss` on 2026-07-29.
+-- Records schema additions from the P2P integration:
+--   - PurchaseIndent: added `department`, `warehouseId`, `businessReason`, `priority`,
+--     `cancellationReason` columns
+--   - GoodsReceiptNote: added UNIQUE constraint on `grnNumber`
+--   - PurchaseOrder: added UNIQUE constraints on `purchaseIndentId` and `poNumber`
+--   - AuditLog, ProcurementClosureService and related status-history tables
+-- Schema and database are already in sync. No SQL to execute.

@@ -55,7 +55,7 @@ export class InventoryService {
       const item = stockMap.get(key)!;
       const qty = Number(row._sum.quantity || 0);
 
-      if (row.type === 'IN') {
+      if (row.type === 'IN' || row.type === 'PURCHASE_RECEIPT') {
         item.quantity += qty;
       } else if (row.type === 'OUT') {
         item.quantity -= qty;

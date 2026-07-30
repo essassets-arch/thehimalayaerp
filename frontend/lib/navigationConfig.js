@@ -41,7 +41,7 @@ export const navigationConfig = {
     { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/plant-head/incoming-orders' },
     { id: 'planning', label: 'Planning Board', icon: Wrench, path: '/plant-head/planning' },
     { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },
-    { id: 'material-indents', label: 'Material Indents', icon: ClipboardList, path: '/plant-head/material-indents' },
+    { id: 'indent-approvals', label: 'Indent Approvals', icon: CheckCircle, path: '/plant-head/indent-approvals' },
     { id: 'replacements', label: 'Replacement Requests', icon: RefreshCw, path: '/plant-head/replacements' },
     {
       id: 'analytics-and-reports',

@@ -36,34 +36,37 @@ enum CustomerStatus {
 }
 
 model Company {
-  id                    String                 @id @default(uuid())
-  publicId              String                 @unique
-  name                  String
-  version               Int                    @default(1)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  createdById           String?
-  updatedById           String?
-  deletedAt             DateTime?
-  branches              Branch[]
-  customers             Customer[]
-  employees             Employee[]
-  inventoryTransactions InventoryTransaction[]
-  leads                 Lead[]
-  materialRequests      MaterialRequest[]
-  products              Product[]
-  purchaseIndents       PurchaseIndent[]
-  suppliers             Supplier[]
-  users                 User[]
-  warehouses            Warehouse[]
-  SampleRequest         SampleRequest[]
-  PurchaseOrder         PurchaseOrder[]
-  GoodsReceiptNote      GoodsReceiptNote[]
-  VendorReturn          VendorReturn[]
-  SupplierPayable       SupplierPayable[]
-  recruitmentRequests   RecruitmentRequest[]
-  departments           Department[]
-  workLocations         WorkLocation[]
+  id                             String                          @id @default(uuid())
+  publicId                       String                          @unique
+  name                           String
+  version                        Int                             @default(1)
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  createdById                    String?
+  updatedById                    String?
+  deletedAt                      DateTime?
+  branches                       Branch[]
+  customers                      Customer[]
+  employees                      Employee[]
+  inventoryTransactions          InventoryTransaction[]
+  leads                          Lead[]
+  materialRequests               MaterialRequest[]
+  products                       Product[]
+  purchaseIndents                PurchaseIndent[]
+  suppliers                      Supplier[]
+  users                          User[]
+  warehouses                     Warehouse[]
+  SampleRequest                  SampleRequest[]
+  PurchaseOrder                  PurchaseOrder[]
+  GoodsReceiptNote               GoodsReceiptNote[]
+  VendorReturn                   VendorReturn[]
+  SupplierPayable                SupplierPayable[]
+  procurementDeliveries          ProcurementDelivery[]
+  materialRejections             MaterialRejection[]
+  procurementReplacementRequests ProcurementReplacementRequest[]
+  recruitmentRequests            RecruitmentRequest[]
+  departments                    Department[]
+  workLocations                  WorkLocation[]
 }
 
 model Branch {
@@ -124,27 +127,33 @@ model RolePermission {
 }
 
 model User {
-  id                      String            @id @default(uuid())
-  publicId                String            @unique
-  email                   String            @unique
-  password                String
-  name                    String
-  roleId                  String
-  companyId               String
-  isActive                Boolean           @default(true)
-  version                 Int               @default(1)
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime          @updatedAt
-  createdById             String?
-  updatedById             String?
-  deletedAt               DateTime?
-  employee                Employee?
-  materialRequests        MaterialRequest[]
-  purchaseIndents         PurchaseIndent[]
-  assignedProductionPlans ProductionPlan[]  @relation("ProductionPlanAssignee")
-  refreshSessions         RefreshSession[]
-  company                 Company           @relation(fields: [companyId], references: [id])
-  role                    Role              @relation(fields: [roleId], references: [id])
+  id                            String                 @id @default(uuid())
+  publicId                      String                 @unique
+  email                         String                 @unique
+  password                      String
+  name                          String
+  roleId                        String
+  companyId                     String
+  isActive                      Boolean                @default(true)
+  version                       Int                    @default(1)
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @updatedAt
+  createdById                   String?
+  updatedById                   String?
+  deletedAt                     DateTime?
+  employee                      Employee?
+  materialRequests              MaterialRequest[]
+  purchaseIndents               PurchaseIndent[]
+  assignedProductionPlans       ProductionPlan[]       @relation("ProductionPlanAssignee")
+  refreshSessions               RefreshSession[]
+  company                       Company                @relation(fields: [companyId], references: [id])
+  role                          Role                   @relation(fields: [roleId], references: [id])
+  brandAnalysisRequested         BrandAnalysisRequest[]   @relation("BrandAnalysisRequestedBy")
+  brandAnalysisApproved          BrandAnalysisRequest[]   @relation("BrandAnalysisApprovedBy")
+  brandAnalysisRejected          BrandAnalysisRequest[]   @relation("BrandAnalysisRejectedBy")
+  brandAnalysisFinanceStarted    BrandAnalysisRequest[]   @relation("BrandAnalysisFinanceStartedBy")
+  brandAnalysisFinanceCompleted  BrandAnalysisRequest[]   @relation("BrandAnalysisFinanceCompletedBy")
+  brandAnalysisHistoryPerformed  BrandAnalysisHistory[]   @relation("BrandAnalysisHistoryPerformedBy")
 }
 
 model RefreshSession {
@@ -288,32 +297,47 @@ model IdempotencyRecord {
 }
 
 model Product {
-  id                      String                   @id @default(uuid())
-  publicId                String                   @unique
-  companyId               String
-  name                    String
-  sku                     String?
-  description             String?
-  category                String?
-  unit                    String
-  unitPrice               Decimal                  @db.Decimal(14, 2)
-  isActive                Boolean                  @default(true)
-  version                 Int                      @default(1)
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  inventoryTransactions   InventoryTransaction[]
-  materialRequestItems    MaterialRequestItem[]
-  company                 Company                  @relation(fields: [companyId], references: [id])
-  purchaseIndentItems     PurchaseIndentItem[]
-  salesOrderItems         SalesOrderItem[]
-  quotationItems          QuotationItem[]
-  salesReturnItems        SalesReturnItem[]
-  replacementRequestItems ReplacementRequestItem[]
-  replacementOrderItems   ReplacementOrderItem[]
-  SampleItem              SampleItem[]
-  PurchaseOrderItem       PurchaseOrderItem[]
-  GoodsReceiptNoteItem    GoodsReceiptNoteItem[]
-  VendorReturnItem        VendorReturnItem[]
+  id                          String                       @id @default(uuid())
+  publicId                    String                       @unique
+  companyId                   String
+  name                        String
+  sku                         String?
+  description                 String?
+  category                    String?
+  unit                        String
+  unitPrice                   Decimal                      @db.Decimal(14, 2)
+  minimumStock                Decimal                      @default(0) @db.Decimal(14, 2)
+  reorderQuantity             Decimal?                     @db.Decimal(14, 2)
+  reorderUnit                 String?
+  leadTimeDays                Int?
+  preferredVendorId           String?
+  isAutoReorderEnabled        Boolean                      @default(false)
+  isActive                    Boolean                      @default(true)
+  version                     Int                          @default(1)
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  inventoryTransactions       InventoryTransaction[]
+  materialRequestItems        MaterialRequestItem[]
+  company                     Company                      @relation(fields: [companyId], references: [id])
+  purchaseIndentItems         PurchaseIndentItem[]
+  salesOrderItems             SalesOrderItem[]
+  quotationItems              QuotationItem[]
+  salesReturnItems            SalesReturnItem[]
+  replacementRequestItems     ReplacementRequestItem[]
+  replacementOrderItems       ReplacementOrderItem[]
+  SampleItem                  SampleItem[]
+  PurchaseOrderItem           PurchaseOrderItem[]
+  GoodsReceiptNoteItem        GoodsReceiptNoteItem[]
+  VendorReturnItem            VendorReturnItem[]
+  VendorInvoiceItem           VendorInvoiceItem[]
+  preferredVendor             Supplier?                    @relation("PreferredVendor", fields: [preferredVendorId], references: [id], onDelete: SetNull)
+  deliveryItems               ProcurementDeliveryItem[]
+  materialRejectionItems      MaterialRejectionItem[]
+  procurementReplacementItems ProcurementReplacementItem[]
+  productSuppliers            ProductSupplier[]
+
+  @@index([companyId, minimumStock])
+  @@index([preferredVendorId])
 }
 
 model Warehouse {
@@ -326,6 +350,7 @@ model Warehouse {
   branch                Branch?                @relation(fields: [branchId], references: [id])
   company               Company                @relation(fields: [companyId], references: [id])
   GoodsReceiptNote      GoodsReceiptNote[]
+  ProcurementDelivery   ProcurementDelivery[]
 }
 
 model InventoryTransaction {
@@ -344,21 +369,28 @@ model InventoryTransaction {
 }
 
 model Supplier {
-  id              String            @id @default(uuid())
-  publicId        String            @unique
-  companyId       String
-  name            String
-  contact         String?
-  email           String?
-  phone           String?
-  gstin           String?
-  isActive        Boolean           @default(true)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  company         Company           @relation(fields: [companyId], references: [id])
-  PurchaseOrder   PurchaseOrder[]
-  VendorReturn    VendorReturn[]
-  SupplierPayable SupplierPayable[]
+  id                             String                          @id @default(uuid())
+  publicId                       String                          @unique
+  companyId                      String
+  name                           String
+  contact                        String?
+  email                          String?
+  phone                          String?
+  gstin                          String?
+  isActive                       Boolean                         @default(true)
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  company                        Company                         @relation(fields: [companyId], references: [id])
+  PurchaseOrder                  PurchaseOrder[]
+  VendorReturn                   VendorReturn[]
+  SupplierPayable                SupplierPayable[]
+  vendorInvoices                 VendorInvoice[]
+  vendorPayments                 VendorPayment[]
+  preferredProducts              Product[]                       @relation("PreferredVendor")
+  deliveries                     ProcurementDelivery[]
+  materialRejections             MaterialRejection[]
+  procurementReplacementRequests ProcurementReplacementRequest[]
+  productSuppliers               ProductSupplier[]
 }
 
 model MaterialRequest {
@@ -401,17 +433,30 @@ model MaterialRequestItem {
 }
 
 model PurchaseIndent {
-  id            String               @id @default(uuid())
-  publicId      String               @unique
-  companyId     String
-  requestedById String
-  indentDate    DateTime             @default(now())
-  status        String
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  company       Company              @relation(fields: [companyId], references: [id])
-  requestedBy   User                 @relation(fields: [requestedById], references: [id])
-  items         PurchaseIndentItem[]
+  id                 String                        @id @default(uuid())
+  publicId           String                        @unique
+  companyId          String
+  requestedById      String
+  indentDate         DateTime                      @default(now())
+  status             String
+  department         String?
+  warehouseId        String?
+  requiredDate       DateTime?
+  priority           String?                       @default("NORMAL")
+  businessReason     String?
+  remarks            String?
+  cancellationReason String?
+  version            Int                           @default(1)
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+  company            Company                       @relation(fields: [companyId], references: [id])
+  requestedBy        User                          @relation(fields: [requestedById], references: [id])
+  items              PurchaseIndentItem[]
+  history            PurchaseIndentStatusHistory[]
+  purchaseOrder      PurchaseOrder?
+
+  @@index([status])
+  @@index([requiredDate])
 }
 
 model PurchaseIndentItem {
@@ -419,9 +464,28 @@ model PurchaseIndentItem {
   purchaseIndentId  String
   productId         String
   quantity          Decimal        @db.Decimal(14, 2)
+  approvedQuantity  Decimal?       @db.Decimal(14, 2)
+  estimatedUnitRate Decimal?       @db.Decimal(14, 2)
+  lineRemarks       String?
   materialReqItemId String?
   product           Product        @relation(fields: [productId], references: [id])
   purchaseIndent    PurchaseIndent @relation(fields: [purchaseIndentId], references: [id], onDelete: Cascade)
+}
+
+model PurchaseIndentStatusHistory {
+  id               String         @id @default(uuid())
+  purchaseIndentId String
+  oldStatus        String?
+  newStatus        String
+  remarks          String?
+  actorId          String?
+  requestId        String?
+  versionBefore    Int?
+  versionAfter     Int?
+  createdAt        DateTime       @default(now())
+  purchaseIndent   PurchaseIndent @relation(fields: [purchaseIndentId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseIndentId, createdAt])
 }
 
 enum EmployeeStatus {
@@ -1553,44 +1617,95 @@ model SampleHistory {
 }
 
 model PurchaseOrder {
-  id              String              @id @default(uuid())
-  publicId        String              @unique
-  companyId       String
-  supplierId      String
-  workflowStateId String?
-  workflowState   WorkflowState?      @relation(fields: [workflowStateId], references: [id])
-  totalAmount     Decimal             @db.Decimal(14, 2)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  company         Company             @relation(fields: [companyId], references: [id])
-  supplier        Supplier            @relation(fields: [supplierId], references: [id])
-  items           PurchaseOrderItem[]
-  grns            GoodsReceiptNote[]
+  id                             String                          @id @default(uuid())
+  publicId                       String                          @unique
+  companyId                      String
+  supplierId                     String
+  purchaseIndentId               String?                         @unique
+  status                         String                          @default("DRAFT")
+  poNumber                       String?                         @unique
+  version                        Int                             @default(1)
+  currency                       String                          @default("INR")
+  freight                        Decimal                         @default(0) @db.Decimal(14, 2)
+  otherCharges                   Decimal                         @default(0) @db.Decimal(14, 2)
+  paymentTerms                   String?
+  expectedDeliveryDate           DateTime?
+  issuedAt                       DateTime?
+  issuedById                     String?
+  snapshot                       Json?
+  workflowStateId                String?
+  workflowState                  WorkflowState?                  @relation(fields: [workflowStateId], references: [id])
+  totalAmount                    Decimal                         @db.Decimal(14, 2)
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  company                        Company                         @relation(fields: [companyId], references: [id])
+  supplier                       Supplier                        @relation(fields: [supplierId], references: [id])
+  items                          PurchaseOrderItem[]
+  grns                           GoodsReceiptNote[]
+  purchaseIndent                 PurchaseIndent?                 @relation(fields: [purchaseIndentId], references: [id])
+  history                        PurchaseOrderStatusHistory[]
+  invoices                       VendorInvoice[]
+  deliveries                     ProcurementDelivery[]
+  materialRejections             MaterialRejection[]
+  procurementReplacementRequests ProcurementReplacementRequest[]
+
+  @@index([status])
 }
 
 model PurchaseOrderItem {
+  id                          String                       @id @default(uuid())
+  purchaseOrderId             String
+  productId                   String
+  quantity                    Decimal                      @db.Decimal(14, 2)
+  unitPrice                   Decimal                      @db.Decimal(14, 2)
+  discountPercent             Decimal                      @default(0) @db.Decimal(5, 2)
+  gstPercent                  Decimal                      @default(0) @db.Decimal(5, 2)
+  receivedQuantity            Decimal                      @default(0) @db.Decimal(14, 2)
+  acceptedQuantity            Decimal                      @default(0) @db.Decimal(14, 2)
+  purchaseOrder               PurchaseOrder                @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product                     Product                      @relation(fields: [productId], references: [id])
+  deliveryItems               ProcurementDeliveryItem[]
+  materialRejectionItems      MaterialRejectionItem[]
+  procurementReplacementItems ProcurementReplacementItem[]
+}
+
+model PurchaseOrderStatusHistory {
   id              String        @id @default(uuid())
   purchaseOrderId String
-  productId       String
-  quantity        Decimal       @db.Decimal(14, 2)
-  unitPrice       Decimal       @db.Decimal(14, 2)
+  oldStatus       String?
+  newStatus       String
+  remarks         String?
+  actorId         String?
+  requestId       String?
+  createdAt       DateTime      @default(now())
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product         Product       @relation(fields: [productId], references: [id])
+
+  @@index([purchaseOrderId, createdAt])
 }
 
 model GoodsReceiptNote {
-  id              String                 @id @default(uuid())
-  publicId        String                 @unique
-  companyId       String
-  purchaseOrderId String
-  warehouseId     String
-  status          String // RECEIVED, AUDITED
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  company         Company                @relation(fields: [companyId], references: [id])
-  purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
-  warehouse       Warehouse              @relation(fields: [warehouseId], references: [id])
-  items           GoodsReceiptNoteItem[]
+  id                String                 @id @default(uuid())
+  publicId          String                 @unique
+  companyId         String
+  purchaseOrderId   String
+  warehouseId       String
+  status            String // RECEIVED, AUDITED
+  grnNumber         String?                @unique
+  version           Int                    @default(1)
+  receivedAt        DateTime               @default(now())
+  receivedById      String?
+  snapshot          Json?
+  inventoryPostedAt DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  company           Company                @relation(fields: [companyId], references: [id])
+  purchaseOrder     PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
+  warehouse         Warehouse              @relation(fields: [warehouseId], references: [id])
+  items             GoodsReceiptNoteItem[]
+  history           GRNStatusHistory[]
+  delivery          ProcurementDelivery?
+
+  @@index([status])
 }
 
 model GoodsReceiptNoteItem {
@@ -1599,8 +1714,290 @@ model GoodsReceiptNoteItem {
   productId          String
   acceptedQuantity   Decimal          @db.Decimal(14, 2)
   rejectedQuantity   Decimal          @db.Decimal(14, 2)
+  receivedQuantity   Decimal          @default(0) @db.Decimal(14, 2)
+  inspectionRemarks  String?
   goodsReceiptNote   GoodsReceiptNote @relation(fields: [goodsReceiptNoteId], references: [id], onDelete: Cascade)
   product            Product          @relation(fields: [productId], references: [id])
+}
+
+model GRNStatusHistory {
+  id                 String           @id @default(uuid())
+  goodsReceiptNoteId String
+  oldStatus          String?
+  newStatus          String
+  remarks            String?
+  actorId            String?
+  createdAt          DateTime         @default(now())
+  goodsReceiptNote   GoodsReceiptNote @relation(fields: [goodsReceiptNoteId], references: [id], onDelete: Cascade)
+
+  @@index([goodsReceiptNoteId, createdAt])
+}
+
+enum ProcurementDeliveryStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum MaterialRejectionStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  REPLACEMENT_EXPECTED
+  REPLACEMENT_RECEIVED
+  RESOLVED
+  REJECTED
+}
+
+enum RejectionResolutionType {
+  REPLACED
+  CREDIT_NOTE
+  REFUND
+  WAIVED
+}
+
+enum ProcurementReplacementStatus {
+  PENDING_FINANCE
+  APPROVED
+  REJECTED
+  IN_TRANSIT
+  COMPLETED
+  CLOSED
+}
+
+// A delivery is the physical receipt event. Its accepted quantities are posted
+// through its GRN; documents use the existing generic Attachment table.
+model ProcurementDelivery {
+  id                             String                          @id @default(uuid())
+  deliveryNumber                 String                          @unique
+  companyId                      String
+  purchaseOrderId                String
+  supplierId                     String
+  warehouseId                    String
+  grnId                          String?                         @unique
+  status                         ProcurementDeliveryStatus       @default(PENDING_VERIFICATION)
+  expectedDeliveryDate           DateTime?
+  actualDeliveryDate             DateTime?
+  verifiedAt                     DateTime?
+  verifiedById                   String?
+  invoiceNumber                  String?
+  deliveryChallanNo              String?
+  remarks                        String?
+  deletedAt                      DateTime?
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  company                        Company                         @relation(fields: [companyId], references: [id])
+  purchaseOrder                  PurchaseOrder                   @relation(fields: [purchaseOrderId], references: [id])
+  supplier                       Supplier                        @relation(fields: [supplierId], references: [id])
+  warehouse                      Warehouse                       @relation(fields: [warehouseId], references: [id])
+  grn                            GoodsReceiptNote?               @relation(fields: [grnId], references: [id])
+  items                          ProcurementDeliveryItem[]
+  materialRejections             MaterialRejection[]
+  procurementReplacementRequests ProcurementReplacementRequest[]
+  replacementDeliveryFor         ProcurementReplacementRequest[] @relation("ReplacementDelivery")
+
+  @@index([companyId, status])
+  @@index([purchaseOrderId, actualDeliveryDate])
+  @@index([supplierId])
+}
+
+model ProcurementDeliveryItem {
+  id                  String              @id @default(uuid())
+  deliveryId          String
+  purchaseOrderItemId String
+  productId           String
+  deliveredQuantity   Decimal             @db.Decimal(14, 2)
+  acceptedQuantity    Decimal             @default(0) @db.Decimal(14, 2)
+  rejectedQuantity    Decimal             @default(0) @db.Decimal(14, 2)
+  remainingQuantity   Decimal             @db.Decimal(14, 2)
+  remarks             String?
+  createdAt           DateTime            @default(now())
+  delivery            ProcurementDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  purchaseOrderItem   PurchaseOrderItem   @relation(fields: [purchaseOrderItemId], references: [id])
+  product             Product             @relation(fields: [productId], references: [id])
+
+  @@unique([deliveryId, purchaseOrderItemId])
+  @@index([productId])
+}
+
+model MaterialRejection {
+  id                     String                          @id @default(uuid())
+  rejectionNumber        String                          @unique
+  companyId              String
+  purchaseOrderId        String
+  supplierId             String
+  deliveryId             String?
+  invoiceNumber          String?
+  status                 MaterialRejectionStatus         @default(SUBMITTED)
+  financeRemarks         String?
+  expectedResolutionDate DateTime?
+  resolvedAt             DateTime?
+  resolutionType         RejectionResolutionType?
+  createdById            String?
+  decidedById            String?
+  deletedAt              DateTime?
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  company                Company                         @relation(fields: [companyId], references: [id])
+  purchaseOrder          PurchaseOrder                   @relation(fields: [purchaseOrderId], references: [id])
+  supplier               Supplier                        @relation(fields: [supplierId], references: [id])
+  delivery               ProcurementDelivery?            @relation(fields: [deliveryId], references: [id])
+  items                  MaterialRejectionItem[]
+  replacementRequests    ProcurementReplacementRequest[]
+
+  @@index([companyId, status])
+  @@index([purchaseOrderId])
+  @@index([deliveryId])
+}
+
+model MaterialRejectionItem {
+  id                  String                       @id @default(uuid())
+  materialRejectionId String
+  purchaseOrderItemId String
+  productId           String
+  quantity            Decimal                      @db.Decimal(14, 2)
+  reason              String
+  remarks             String?
+  createdAt           DateTime                     @default(now())
+  materialRejection   MaterialRejection            @relation(fields: [materialRejectionId], references: [id], onDelete: Cascade)
+  purchaseOrderItem   PurchaseOrderItem            @relation(fields: [purchaseOrderItemId], references: [id])
+  product             Product                      @relation(fields: [productId], references: [id])
+  replacementItems    ProcurementReplacementItem[]
+
+  @@index([productId])
+}
+
+// Named to avoid colliding with the existing sales replacement workflow.
+model ProcurementReplacementRequest {
+  id                    String                       @id @default(uuid())
+  requestNumber         String                       @unique
+  companyId             String
+  purchaseOrderId       String
+  supplierId            String
+  deliveryId            String?
+  replacementDeliveryId String?
+  materialRejectionId   String?
+  invoiceNumber         String?
+  status                ProcurementReplacementStatus @default(PENDING_FINANCE)
+  expectedDeliveryDate  DateTime?
+  financeRemarks        String?
+  completedAt           DateTime?
+  createdById           String?
+  decidedById           String?
+  deletedAt             DateTime?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  company               Company                      @relation(fields: [companyId], references: [id])
+  purchaseOrder         PurchaseOrder                @relation(fields: [purchaseOrderId], references: [id])
+  supplier              Supplier                     @relation(fields: [supplierId], references: [id])
+  delivery              ProcurementDelivery?         @relation(fields: [deliveryId], references: [id])
+  replacementDelivery   ProcurementDelivery?         @relation("ReplacementDelivery", fields: [replacementDeliveryId], references: [id])
+  materialRejection     MaterialRejection?           @relation(fields: [materialRejectionId], references: [id])
+  items                 ProcurementReplacementItem[]
+
+  @@index([companyId, status])
+  @@index([purchaseOrderId])
+  @@index([materialRejectionId])
+  @@index([replacementDeliveryId])
+}
+
+model ProcurementReplacementItem {
+  id                      String                        @id @default(uuid())
+  replacementRequestId    String
+  purchaseOrderItemId     String
+  materialRejectionItemId String?
+  productId               String
+  quantity                Decimal                       @db.Decimal(14, 2)
+  reason                  String
+  remarks                 String?
+  createdAt               DateTime                      @default(now())
+  replacementRequest      ProcurementReplacementRequest @relation(fields: [replacementRequestId], references: [id], onDelete: Cascade)
+  purchaseOrderItem       PurchaseOrderItem             @relation(fields: [purchaseOrderItemId], references: [id])
+  materialRejectionItem   MaterialRejectionItem?        @relation(fields: [materialRejectionItemId], references: [id])
+  product                 Product                       @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([materialRejectionItemId])
+}
+
+model ProductSupplier {
+  id              String   @id @default(uuid())
+  productId       String
+  supplierId      String
+  isPreferred     Boolean  @default(false)
+  leadTimeDays    Int?
+  lastPrice       Decimal? @db.Decimal(14, 2)
+  minimumOrderQty Decimal? @db.Decimal(14, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, supplierId])
+  @@index([supplierId, isPreferred])
+}
+
+model VendorInvoice {
+  id              String                    @id @default(uuid())
+  invoiceNumber   String
+  supplierId      String
+  purchaseOrderId String
+  status          String                    @default("DRAFT")
+  invoiceDate     DateTime                  @default(now())
+  dueDate         DateTime?
+  totalAmount     Decimal                   @db.Decimal(14, 2)
+  paidAmount      Decimal                   @default(0) @db.Decimal(14, 2)
+  version         Int                       @default(1)
+  matchResult     Json?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  supplier        Supplier                  @relation(fields: [supplierId], references: [id])
+  purchaseOrder   PurchaseOrder             @relation(fields: [purchaseOrderId], references: [id])
+  items           VendorInvoiceItem[]
+  payments        VendorPaymentAllocation[]
+
+  @@unique([supplierId, invoiceNumber])
+  @@index([status, dueDate])
+}
+
+model VendorInvoiceItem {
+  id              String        @id @default(uuid())
+  vendorInvoiceId String
+  productId       String
+  quantity        Decimal       @db.Decimal(14, 2)
+  unitRate        Decimal       @db.Decimal(14, 2)
+  gstPercent      Decimal       @default(0) @db.Decimal(5, 2)
+  vendorInvoice   VendorInvoice @relation(fields: [vendorInvoiceId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id])
+}
+
+model VendorPayment {
+  id            String                    @id @default(uuid())
+  paymentNumber String                    @unique
+  supplierId    String
+  status        String                    @default("DRAFT")
+  paymentDate   DateTime?
+  transactionId String?                   @unique
+  paidAmount    Decimal                   @db.Decimal(14, 2)
+  version       Int                       @default(1)
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  supplier      Supplier                  @relation(fields: [supplierId], references: [id])
+  allocations   VendorPaymentAllocation[]
+
+  @@index([status])
+}
+
+model VendorPaymentAllocation {
+  id              String        @id @default(uuid())
+  vendorPaymentId String
+  vendorInvoiceId String
+  amount          Decimal       @db.Decimal(14, 2)
+  vendorPayment   VendorPayment @relation(fields: [vendorPaymentId], references: [id], onDelete: Cascade)
+  vendorInvoice   VendorInvoice @relation(fields: [vendorInvoiceId], references: [id])
+
+  @@unique([vendorPaymentId, vendorInvoiceId])
 }
 
 model VendorReturn {
@@ -2330,4 +2727,103 @@ model RecruitmentRequestTimeline {
 
   @@index([recruitmentRequestId])
   @@index([createdAt])
+}
+
+
+
+
+
+enum BrandAnalysisRequestStatus {
+  DRAFT
+  PENDING_SUPER_ADMIN_APPROVAL
+  SUPER_ADMIN_APPROVED
+  SUPER_ADMIN_REJECTED
+  FINANCE_ANALYSIS_IN_PROGRESS
+  FINANCE_ANALYSIS_COMPLETED
+  CANCELLED
+}
+
+enum BrandAnalysisRecommendation {
+  RECOMMENDED
+  NOT_RECOMMENDED
+  FURTHER_REVIEW_REQUIRED
+}
+
+model BrandAnalysisRequest {
+  id                String    @id @default(uuid())
+  requestNo         String    @unique
+  productName       String
+  brandName         String
+  quantity          Decimal   @db.Decimal(18, 3)
+  quantityUnit      String
+  imageUrl          String
+  imageOriginalName String?
+  reason            String
+  orderDetails      String?
+  requiredByDate    DateTime?
+  remarks           String?
+
+  status  BrandAnalysisRequestStatus @default(PENDING_SUPER_ADMIN_APPROVAL)
+  version Int                        @default(1)
+
+  requestedById String
+  requestedBy   User   @relation("BrandAnalysisRequestedBy", fields: [requestedById], references: [id])
+
+  approvedById    String?
+  approvedBy      User?     @relation("BrandAnalysisApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  approvalRemarks String?
+
+  rejectedById    String?
+  rejectedBy      User?     @relation("BrandAnalysisRejectedBy", fields: [rejectedById], references: [id])
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  financeStartedById    String?
+  financeStartedBy      User?     @relation("BrandAnalysisFinanceStartedBy", fields: [financeStartedById], references: [id])
+  financeStartedAt      DateTime?
+  financeInitialRemarks String?
+
+  financeCompletedById String?
+  financeCompletedBy   User?     @relation("BrandAnalysisFinanceCompletedBy", fields: [financeCompletedById], references: [id])
+  financeCompletedAt   DateTime?
+
+  analysisResult      String?
+  recommendedBrand    String?
+  estimatedUnitCost   Decimal?                     @db.Decimal(18, 2)
+  estimatedTotalCost  Decimal?                     @db.Decimal(18, 2)
+  supplierName        String?
+  financeRemarks      String?
+  analysisDocumentUrl String?
+  recommendation      BrandAnalysisRecommendation?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  history BrandAnalysisHistory[]
+
+  @@index([status])
+  @@index([requestedById])
+  @@index([createdAt])
+  @@map("brand_analysis_requests")
+}
+
+model BrandAnalysisHistory {
+  id        String               @id @default(uuid())
+  requestId String
+  request   BrandAnalysisRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  fromStatus BrandAnalysisRequestStatus?
+  toStatus   BrandAnalysisRequestStatus
+  action     String
+  remarks    String?
+
+  performedById String
+  performedBy   User   @relation("BrandAnalysisHistoryPerformedBy", fields: [performedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+  @@index([performedById])
+  @@map("brand_analysis_history")
 }

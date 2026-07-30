@@ -53,6 +53,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status = HttpStatus.NOT_FOUND;
         code = 'RECORD_NOT_FOUND';
         message = 'The requested record was not found.';
+      } else if (prismaError.code === 'P2003') {
+        status = HttpStatus.BAD_REQUEST;
+        code = 'FOREIGN_KEY_CONSTRAINT_VIOLATION';
+        message = `Invalid reference: ${prismaError.meta?.field_name || 'a related record was not found'}.`;
+      } else if (prismaError.code === 'P2023' || prismaError.code === 'P2006') {
+        status = HttpStatus.BAD_REQUEST;
+        code = 'INVALID_FIELD_VALUE';
+        message = prismaError.message || 'Invalid field value provided.';
       }
     }
 

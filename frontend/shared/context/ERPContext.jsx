@@ -2,6 +2,18 @@
 
 import React, { useEffect, useCallback } from 'react';
 import { useERPStore, getProcurementAnalytics } from '../../store/erpStore';
+import { 
+  createMaterialIndent as createMaterialIndentAction,
+  createPurchaseOrder as createPurchaseOrderAction,
+  submitPurchaseOrder as submitPurchaseOrderAction,
+  approvePurchaseOrder as approvePurchaseOrderAction,
+  rejectPurchaseOrder as rejectPurchaseOrderAction,
+  issuePurchaseOrder as issuePurchaseOrderAction,
+  verifyPODelivery as verifyPODeliveryAction,
+  approveGoodsReceiptNote as approveGoodsReceiptNoteAction,
+  returnPurchaseOrderForCorrection as returnPurchaseOrderForCorrectionAction
+} from '../../store/procurementActions';
+
 
 // Re-export useERPStore for modules that import it via ERPContext (backward compatibility)
 export { useERPStore } from '../../store/erpStore';
@@ -12,6 +24,13 @@ import { customersReadRepository } from '../../services/customers/customersReadR
 import { leadsReadRepository } from '../../services/leads/leadsReadRepository';
 import { useAuthStore } from '../../store/authStore';
 import { hasPermission } from '../../services/permissions/permissionService';
+
+import { purchaseIndentService } from '../../services/procurement/purchaseIndentService';
+import { purchaseOrderService } from '../../services/procurement/purchaseOrderService';
+import { grnService } from '../../services/procurement/grnService';
+import { vendorInvoiceService } from '../../services/procurement/vendorInvoiceService';
+import { vendorPaymentService } from '../../services/procurement/vendorPaymentService';
+import { backendFetch } from '../../lib/backendFetch';
 
 let syncInFlight = false;
 let lastSyncStartedAt = 0;
@@ -118,25 +137,80 @@ export const useERP = () => {
       const currentProcurement = latestState.procurement || {};
       const currentSales = latestState.sales || {};
 
-      let materialIndents = Array.isArray(currentProcurement.materialIndents) && currentProcurement.materialIndents.length > 0
-        ? currentProcurement.materialIndents
-        : (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_material_indents') || 'null')) || (currentProcurement.materialIndents || []);
+      // The access token lives in memory only — never in sessionStorage.
+      const token = typeof window !== 'undefined' ? useAuthStore.getState().accessToken : null;
+      
+      let materialIndents = [];
+      let purchaseOrders = [];
+      let goodsReceiptNotes = [];
+      let vendorInvoices = [];
+      let vendorPayments = [];
+      let rawInventory = [];
+      let warehouses = [];
+      let suppliers = [];
+      let products = [];
+      let auditLogs = [];
 
-      let purchaseOrders = Array.isArray(currentProcurement.purchaseOrders) && currentProcurement.purchaseOrders.length > 0
-        ? currentProcurement.purchaseOrders
-        : (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_purchase_orders') || 'null')) || (currentProcurement.purchaseOrders || []);
+      if (token) {
+        try {
+          const indentsRes = await purchaseIndentService.list({ limit: 100 }).catch(() => []);
+          materialIndents = Array.isArray(indentsRes) ? indentsRes : (indentsRes?.data || []);
+          
+          const posRes = await purchaseOrderService.list({ limit: 100 }).catch(() => []);
+          purchaseOrders = Array.isArray(posRes) ? posRes : (posRes?.data || []);
+          
+          const grnsRes = await grnService.list({ limit: 100 }).catch(() => []);
+          goodsReceiptNotes = Array.isArray(grnsRes) ? grnsRes : (grnsRes?.data || []);
 
-      let goodsReceiptNotes = Array.isArray(currentProcurement.goodsReceiptNotes) && currentProcurement.goodsReceiptNotes.length > 0
-        ? currentProcurement.goodsReceiptNotes
-        : (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_goods_receipts') || 'null')) || (currentProcurement.goodsReceiptNotes || []);
+          const invoicesRes = await vendorInvoiceService.list({ limit: 100 }).catch(() => []);
+          vendorInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes?.data || []);
+
+          const paymentsRes = await vendorPaymentService.list({ limit: 100 }).catch(() => []);
+          vendorPayments = Array.isArray(paymentsRes) ? paymentsRes : (paymentsRes?.data || []);
+          
+          // Use backendFetch — auto-injects Authorization header from authStore
+          const productsRaw = await backendFetch('/api/backend/products').catch(() => []);
+          products = Array.isArray(productsRaw) ? productsRaw : (productsRaw?.data || []);
+          
+          const warehousesRaw = await backendFetch('/api/backend/warehouses').catch(() => []);
+          warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : (warehousesRaw?.data || []);
+
+          const suppliersRaw = await backendFetch('/api/backend/suppliers').catch(() => []);
+          suppliers = Array.isArray(suppliersRaw) ? suppliersRaw : (suppliersRaw?.data || []);
+
+          const stockRaw = await backendFetch('/api/backend/inventory/stock-levels').catch(() => []);
+          const stockLevels = Array.isArray(stockRaw) ? stockRaw : (stockRaw?.data || []);
+
+          // Fetch all audit logs for history timeline (Admins only)
+          const authUser = useAuthStore.getState().user;
+          if (authUser?.role === 'Super Admin' || authUser?.role === 'Admin') {
+            const auditRaw = await backendFetch('/api/backend/admin/audit-logs').catch(() => ({}));
+            auditLogs = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
+          }
+
+          rawInventory = products.map((prod, idx) => {
+            const stockForProd = stockLevels.filter(s => s.productId === prod.id);
+            const totalStock = stockForProd.reduce((sum, s) => sum + Number(s.quantity), 0);
+            return {
+              id: prod.id,
+              code: prod.sku || `RM${String(idx + 1).padStart(3, '0')}`,
+              material: prod.name,
+              unit: prod.unit || 'Kg',
+              stock: totalStock,
+              minStock: 100,
+              reorderLevel: 150,
+              rate: Number(prod.unitPrice || 0)
+            };
+          });
+        } catch (e) {
+          console.error('[ERPContext] Failed to load data from backend:', e);
+        }
+      }
 
       let dispatches = latestState.dispatches || [];
       let vendorReturns = latestState.vendorReturns || [];
       let notifications = latestState.notifications || [];
       let analysisRequests = latestState.analysisRequests || [];
-      let vendorInvoices = latestState.vendorInvoices || [];
-      let vendorPayments = latestState.vendorPayments || [];
-      let rawInventory = latestState.rawInventory || [];
       let reminders = latestState.reminders || [];
 
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -148,9 +222,6 @@ export const useERP = () => {
         vendorReturns = getLocal('erp_vendor_returns', vendorReturns);
         notifications = getLocal('erp_notifications', notifications);
         analysisRequests = getLocal('erp_analysis_requests_v1', analysisRequests);
-        vendorInvoices = getLocal('erp_vendor_invoices', vendorInvoices);
-        vendorPayments = getLocal('erp_vendor_payments', vendorPayments);
-        rawInventory = getLocal('erp_inventory', rawInventory);
         reminders = getLocal('erp_reminders', reminders);
       }
 
@@ -168,6 +239,10 @@ export const useERP = () => {
         vendorInvoices,
         vendorPayments,
         rawInventory,
+        warehouses,
+        suppliers,
+        products,
+        procurementAuditLogs: auditLogs,
         reminders,
         procurement: {
           ...currentProcurement,
@@ -236,8 +311,8 @@ export const useERP = () => {
     updateRequestStatus: ((id, status, data) => {}),
 
     // --- Procurement Actions ---
-    createMaterialIndent: (payload) => {
-      const res = store.createMaterialIndent(payload);
+    createMaterialIndent: async (payload) => {
+      const res = await createMaterialIndentAction(payload, 'Store Portal');
       notify('Indent Created', 'A new material indent is awaiting approval', 'Plant Head');
       return res;
     },
@@ -270,27 +345,39 @@ export const useERP = () => {
     },
     rejectPurchaseIndent: store.rejectPurchaseIndent,
     cancelPurchaseIndent: store.cancelPurchaseIndent,
-    createPurchaseOrderFromIndent: store.createPurchaseOrderFromIndent,
+    createPurchaseOrderFromIndent: async (indentId, poData) => {
+      const res = await createPurchaseOrderAction(indentId, poData, 'Finance');
+      notify('PO Created', 'Draft PO has been created', 'Finance');
+      return res;
+    },
     updatePurchaseOrder: store.updatePurchaseOrder,
-    submitPurchaseOrder: (id) => {
-      const res = store.submitPurchaseOrder(id);
-      const pos = store.state.procurement?.purchaseOrders || store.state.purchaseOrders || [];
-      const po = pos.find(p => p.id === id);
-      if (po && po.grandTotal > 50000) {
-        notify('PO Approval Required', 'A PO exceeding ₹50,000 requires your approval', 'Super Admin');
-      } else {
-        notify('PO Auto-Approved', 'A PO under ₹50,000 has been auto-approved', 'Finance');
-      }
+    submitPurchaseOrder: async (id) => {
+      const res = await submitPurchaseOrderAction(id, 'Finance');
+      notify('PO Submitted', 'PO is awaiting approval', 'Super Admin');
       return res;
     },
-    approvePurchaseOrder: (id, remarks, approver) => {
-      const res = store.approvePurchaseOrder(id, remarks, approver);
-      notify('PO Approved', 'Super Admin has approved the PO', 'Finance');
+    approvePurchaseOrder: async (id, remarks, approver) => {
+      const res = await approvePurchaseOrderAction(id, remarks || 'Approved', approver || 'Super Admin');
+      notify('PO Approved', 'PO has been approved', 'Finance');
       return res;
     },
-    rejectPurchaseOrder: store.rejectPurchaseOrder,
-    issuePurchaseOrder: (id, poNo) => {
-      const res = store.issuePurchaseOrder(id, poNo);
+    rejectPurchaseOrder: async (id, remarks) => {
+      const res = await rejectPurchaseOrderAction(id, remarks || 'Rejected', 'Super Admin');
+      notify('PO Rejected', 'PO has been rejected', 'Finance');
+      return res;
+    },
+    returnPurchaseOrder: async (id, remarks) => {
+      const res = await returnPurchaseOrderForCorrectionAction(id, remarks || 'Correction needed', 'Super Admin');
+      notify('PO Returned', 'PO has been returned for correction', 'Finance');
+      return res;
+    },
+    returnPurchaseOrderForCorrection: async (id, remarks) => {
+      const res = await returnPurchaseOrderForCorrectionAction(id, remarks || 'Correction needed', 'Super Admin');
+      notify('PO Returned', 'PO has been returned for correction', 'Finance');
+      return res;
+    },
+    issuePurchaseOrder: async (id, poNo) => {
+      const res = await issuePurchaseOrderAction(id, 'Finance');
       notify('PO Issued', `Purchase Order ${poNo || id} has been issued`, 'Store');
       return res;
     },
@@ -298,13 +385,25 @@ export const useERP = () => {
     amendPurchaseOrder: store.amendPurchaseOrder,
     cancelPurchaseOrder: store.cancelPurchaseOrder,
 
-    createGoodsReceipt: (poId, data) => {
-      store.createGoodsReceipt(poId, data);
-      notify('GRN Submitted', `GRN submitted and awaits inspection`, 'QC');
+    createGoodsReceipt: async (poId, data) => {
+      const res = await verifyPODeliveryAction(poId, data, 'Store Operator');
+      notify('GRN Created', 'Delivery verified and GRN generated', 'Finance');
+      return res;
     },
-    approveGoodsReceipt: (id, remarks) => {
-      store.approveGoodsReceipt(id, remarks);
+    verifyPODelivery: async (poId, data) => {
+      const res = await verifyPODeliveryAction(poId, data, 'Store Operator');
+      notify('GRN Created', 'Delivery verified and GRN generated', 'Finance');
+      return res;
+    },
+    approveGoodsReceipt: async (id, remarks) => {
+      const res = await approveGoodsReceiptNoteAction(id, remarks || 'Approved', 'Finance');
       notify('QC Approved', 'Goods Receipt has passed Quality Check', 'Store');
+      return res;
+    },
+    approveGoodsReceiptNote: async (id, remarks) => {
+      const res = await approveGoodsReceiptNoteAction(id, remarks || 'Approved', 'Finance');
+      notify('QC Approved', 'Goods Receipt has passed Quality Check', 'Store');
+      return res;
     },
     rejectGoodsReceipt: store.rejectGoodsReceipt,
     postGoodsReceiptToStock: (id) => {

@@ -44,7 +44,7 @@ import { AppService } from './app.service';
 import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
-
+import { BrandAnalysisModule } from './modules/brand-analysis/brand-analysis.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -57,6 +57,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
     UsersModule,
     AuditModule,
     HealthModule,
+    BrandAnalysisModule,
     CustomersModule,
     SalesModule,
     SequenceModule,
