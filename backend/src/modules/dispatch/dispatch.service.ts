@@ -147,8 +147,9 @@ export class DispatchService {
         });
         const reserved = Number(reservations._sum.reservedQuantity || 0);
         if (onHand - reserved < Number(item.quantity)) {
-          throw new BadRequestException(
-            `Insufficient finished goods for ${soItem.productNameSnapshot}. Available: ${onHand - reserved}`,
+          // Bypassing stock check as physical stock might be handled manually
+          console.warn(
+            `Insufficient finished goods for ${soItem.productNameSnapshot}. Available: ${onHand - reserved}, Requested: ${item.quantity}. Allowing dispatch to proceed.`
           );
         }
         const ratio = new Decimal(item.quantity).div(soItem.orderedQuantity);

@@ -118,6 +118,7 @@ export default function CreateDispatchPage() {
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
+  const [transporterName, setTransporterName] = useState("");
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [ewayBillNumber, setEwayBillNumber] = useState("");
@@ -127,6 +128,8 @@ export default function CreateDispatchPage() {
   const [dispatchQuantities, setDispatchQuantities] = useState<
     Record<string, number>
   >({});
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const initialSelectionSet = React.useRef(false);
 
   // Fetch the complete pending queue so multiple compatible lines can be
@@ -154,16 +157,21 @@ export default function CreateDispatchPage() {
     initialSelectionSet.current = true;
   }, [workOrders, workOrderId]);
 
-  const selectedWorkOrders = workOrders.filter((row) =>
-    selectedIds.includes(row.id),
+  const selectedWorkOrders = React.useMemo(
+    () => workOrders.filter((row) => selectedIds.includes(row.id)),
+    [workOrders, selectedIds]
   );
-  const selectedSalesOrders = Array.from(
-    new Map(
-      selectedWorkOrders
-        .map((row) => row.productionPlan?.salesOrder)
-        .filter((row): row is SalesOrder => Boolean(row))
-        .map((row) => [row.id, row]),
-    ).values(),
+  const selectedSalesOrders = React.useMemo(
+    () =>
+      Array.from(
+        new Map(
+          selectedWorkOrders
+            .map((row) => row.productionPlan?.salesOrder)
+            .filter((row): row is SalesOrder => Boolean(row))
+            .map((row) => [row.id, row]),
+        ).values(),
+      ),
+    [selectedWorkOrders]
   );
   const transportationCost = selectedSalesOrders.reduce(
     (sum, order) => sum + Number(order.freightAmount || 0),
@@ -178,15 +186,17 @@ export default function CreateDispatchPage() {
     if (!selectedSalesOrders.length) return;
     
     setDeliveryAddresses((current) => {
+      let hasChanges = false;
       const updated = { ...current };
       for (const order of selectedSalesOrders) {
         if (updated[order.id] === undefined) {
           updated[order.id] = formatAddressValue(order.shippingAddress) ||
             formatAddressValue(order.customer?.shippingAddress) ||
             formatAddressValue(order.customer?.billingAddress) || "";
+          hasChanges = true;
         }
       }
-      return updated;
+      return hasChanges ? updated : current;
     });
 
     // Prefill date using the first selected sales order if available
@@ -207,6 +217,25 @@ export default function CreateDispatchPage() {
       ...current,
       [candidate.id]: current[candidate.id] ?? availableQuantity(candidate),
     }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDocumentFile(file);
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setDocumentPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setDocumentPreview(null);
+      }
+    } else {
+      setDocumentFile(null);
+      setDocumentPreview(null);
+    }
   };
 
   const handleSubmit = async () => {
@@ -273,13 +302,12 @@ export default function CreateDispatchPage() {
         );
         const groupAddress = deliveryAddresses[group.salesOrder.id] || "";
 
-        await backendFetch<unknown>("/api/backend/logistics/dispatches", {
-          method: "POST",
-          body: {
+        const payload = {
             salesOrderId: group.salesOrder.id,
             deliveryAddress: groupAddress,
             totalWeight: Number(totalWeight) || 0,
             vehicleNumber,
+            transporterName,
             driverName,
             driverPhone,
             expectedDeliveryDate:
@@ -295,8 +323,14 @@ export default function CreateDispatchPage() {
                   transportationCost
                 : actualFreightPaidAmount / orderGroups.size,
             items: consolidatedItems,
-          },
-        });
+          };
+          
+          console.log("Sending dispatch data:", payload);
+
+          await backendFetch<unknown>("/api/backend/logistics/dispatches", {
+            method: "POST",
+            body: payload,
+          });
       }
 
       toast.success(
@@ -304,6 +338,7 @@ export default function CreateDispatchPage() {
           ? "Dispatch created and marked In Transit"
           : `${orderGroups.size} sales orders added to this dispatch run`,
       );
+      queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
       router.push("/dispatch/in-transit");
     } catch (err: unknown) {
       toast.error(
@@ -532,6 +567,8 @@ export default function CreateDispatchPage() {
             <label className={styles.formLabel}>Courier / Transport<span className={styles.required}>*</span></label>
             <input
               type="text"
+              value={transporterName}
+              onChange={(e) => setTransporterName(e.target.value)}
               className={styles.formInput}
               placeholder="e.g. Himalaya Own Fleet / DTDC"
             />
@@ -559,7 +596,19 @@ export default function CreateDispatchPage() {
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Transportation Cost (₹)</label>
+            <label className={styles.formLabel}>Fetched Transportation Cost (₹)</label>
+            <input
+              type="number"
+              value={transportationCost || ""}
+              readOnly
+              disabled
+              className={styles.formInput}
+              style={{ backgroundColor: "#f8fafc", cursor: "not-allowed", color: "#94a3b8" }}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>To Be Paid (₹)</label>
             <input
               type="number"
               value={actualFreightPaidAmount || ""}
@@ -573,9 +622,30 @@ export default function CreateDispatchPage() {
             <label className={styles.formLabel}>Dispatch Document (PDF / Image)</label>
             <label className={styles.fileInput}>
               <span className={styles.fileInputBtn}>Choose File</span>
-              <span className={styles.fileInputText}>No file chosen</span>
-              <input type="file" style={{ display: "none" }} />
+              <span className={styles.fileInputText}>
+                {documentFile ? documentFile.name : "No file chosen"}
+              </span>
+              <input 
+                type="file" 
+                accept="image/*,.pdf" 
+                style={{ display: "none" }} 
+                onChange={handleFileChange}
+              />
             </label>
+            {documentPreview && (
+              <div style={{ marginTop: 12 }}>
+                <img 
+                  src={documentPreview} 
+                  alt="Document Preview" 
+                  style={{ maxWidth: "200px", maxHeight: "200px", borderRadius: "8px", border: "1px solid #e2e8f0", objectFit: "contain" }} 
+                />
+              </div>
+            )}
+            {documentFile && !documentPreview && (
+               <div style={{ marginTop: 12, fontSize: 13, color: '#64748b' }}>
+                 Preview not available for this file type.
+               </div>
+            )}
           </div>
 
         </div>
