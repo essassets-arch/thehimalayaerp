@@ -42,6 +42,20 @@ export class PaymentsService {
         proofUrl: true,
         receivedAt: true,
         verifiedAt: true,
+        createdAt: true,
+        salesOrder: {
+          select: {
+            id: true,
+            orderNumber: true,
+            totalAmount: true,
+          },
+        },
+        customer: {
+          select: {
+            id: true,
+            companyName: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });

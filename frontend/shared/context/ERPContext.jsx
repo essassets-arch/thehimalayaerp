@@ -55,7 +55,7 @@ export const useERP = () => {
   const customersReadEnabled =
     process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_READ === 'true' &&
     hasPermission(currentUser, 'sales.customers.read');
-  const leadsReadEnabled = false; // Phase 4 strictly disables backend leads
+  const leadsReadEnabled = process.env.NEXT_PUBLIC_BACKEND_LEADS_READ !== 'false' && hasPermission(currentUser, 'sales.leads.read');
 
   const replaceCustomerCache = store.replaceCustomerCache;
   const replaceLeadCache = store.replaceLeadCache;
@@ -150,23 +150,30 @@ export const useERP = () => {
       let suppliers = [];
       let products = [];
       let auditLogs = [];
+      let fetchedReminders = [];
 
       if (token) {
         try {
-          const indentsRes = await purchaseIndentService.list({ limit: 100 }).catch(() => []);
-          materialIndents = Array.isArray(indentsRes) ? indentsRes : (indentsRes?.data || []);
-          
-          const posRes = await purchaseOrderService.list({ limit: 100 }).catch(() => []);
-          purchaseOrders = Array.isArray(posRes) ? posRes : (posRes?.data || []);
-          
-          const grnsRes = await grnService.list({ limit: 100 }).catch(() => []);
-          goodsReceiptNotes = Array.isArray(grnsRes) ? grnsRes : (grnsRes?.data || []);
+          const authUser = useAuthStore.getState().user;
+          const role = authUser?.role || '';
+          const canReadProcurement = ['Super Admin', 'Admin', 'Procurement', 'Procurement Executive', 'Plant Head', 'Finance'].includes(role) || hasPermission(authUser, 'procurement.indents.read');
 
-          const invoicesRes = await vendorInvoiceService.list({ limit: 100 }).catch(() => []);
-          vendorInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes?.data || []);
+          if (canReadProcurement) {
+            const indentsRes = await purchaseIndentService.list({ limit: 100 }).catch(() => []);
+            materialIndents = Array.isArray(indentsRes) ? indentsRes : (indentsRes?.data || []);
+            
+            const posRes = await purchaseOrderService.list({ limit: 100 }).catch(() => []);
+            purchaseOrders = Array.isArray(posRes) ? posRes : (posRes?.data || []);
+            
+            const grnsRes = await grnService.list({ limit: 100 }).catch(() => []);
+            goodsReceiptNotes = Array.isArray(grnsRes) ? grnsRes : (grnsRes?.data || []);
 
-          const paymentsRes = await vendorPaymentService.list({ limit: 100 }).catch(() => []);
-          vendorPayments = Array.isArray(paymentsRes) ? paymentsRes : (paymentsRes?.data || []);
+            const invoicesRes = await vendorInvoiceService.list({ limit: 100 }).catch(() => []);
+            vendorInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes?.data || []);
+
+            const paymentsRes = await vendorPaymentService.list({ limit: 100 }).catch(() => []);
+            vendorPayments = Array.isArray(paymentsRes) ? paymentsRes : (paymentsRes?.data || []);
+          }
           
           // Use backendFetch — auto-injects Authorization header from authStore
           const productsRaw = await backendFetch('/api/backend/products').catch(() => []);
@@ -182,11 +189,15 @@ export const useERP = () => {
           const stockLevels = Array.isArray(stockRaw) ? stockRaw : (stockRaw?.data || []);
 
           // Fetch all audit logs for history timeline (Admins only)
-          const authUser = useAuthStore.getState().user;
-          if (authUser?.role === 'Super Admin' || authUser?.role === 'Admin') {
-            const auditRaw = await backendFetch('/api/backend/admin/audit-logs').catch(() => ({}));
+          const authUserLog = useAuthStore.getState().user;
+          if (authUserLog?.role === 'Super Admin' || authUserLog?.role === 'Admin') {
+            const auditRaw = await backendFetch('/api/backend/admin/audit-logs').catch(() => []);
             auditLogs = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
           }
+          
+          const remindersRaw = await backendFetch('/api/backend/sales/reminders').catch(() => []);
+          fetchedReminders = Array.isArray(remindersRaw) ? remindersRaw : (remindersRaw?.data || []);
+          // Note: we'll merge this with the existing state logic below.
 
           rawInventory = products.map((prod, idx) => {
             const stockForProd = stockLevels.filter(s => s.productId === prod.id);
@@ -211,7 +222,7 @@ export const useERP = () => {
       let vendorReturns = latestState.vendorReturns || [];
       let notifications = latestState.notifications || [];
       let analysisRequests = latestState.analysisRequests || [];
-      let reminders = latestState.reminders || [];
+      let reminders = (fetchedReminders && fetchedReminders.length > 0) ? fetchedReminders : (latestState.reminders || []);
 
       if (typeof window !== 'undefined' && window.localStorage) {
         const getLocal = (key, fallback) => {
@@ -222,7 +233,7 @@ export const useERP = () => {
         vendorReturns = getLocal('erp_vendor_returns', vendorReturns);
         notifications = getLocal('erp_notifications', notifications);
         analysisRequests = getLocal('erp_analysis_requests_v1', analysisRequests);
-        reminders = getLocal('erp_reminders', reminders);
+        reminders = (fetchedReminders && fetchedReminders.length > 0) ? fetchedReminders : getLocal('erp_reminders', reminders);
       }
 
       const nextState = {

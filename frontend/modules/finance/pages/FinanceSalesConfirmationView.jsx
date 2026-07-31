@@ -13,6 +13,7 @@ export default function FinanceSalesConfirmationView() {
   const state = useERPStore((s) => s.state);
   const verifyFinancePayment = useERPStore((s) => s.verifyFinancePayment);
   const rejectFinancePayment = useERPStore((s) => s.rejectFinancePayment);
+  const [isProcessing, setIsProcessing] = React.useState(false);
 
   const localOrders = state.sales?.orders || [];
   const { data: backendPayments = [], refetch: refetchBackendPayments } = useQuery({
@@ -41,15 +42,16 @@ export default function FinanceSalesConfirmationView() {
     });
   }, [backendDeliveredOrders, localOrders]);
 
-  const calculateVerifiedPaidAmount = (orderId) => {
-    return paymentConfirmations
+  const calculateVerifiedPaidAmount = (orderId, confirmations) => {
+    const list = confirmations || [];
+    return list
       .filter((payment) => payment.orderId === orderId && payment.status === 'FINANCE_VERIFIED')
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   };
 
-  const calculatePendingAmount = (order) => {
+  const calculatePendingAmount = (order, confirmations) => {
     const total = Number(order.grandTotal ?? order.totalAmount ?? 0);
-    const paid = calculateVerifiedPaidAmount(order.id);
+    const paid = calculateVerifiedPaidAmount(order.id, confirmations);
     return Math.max(total - paid, 0);
   };
 
@@ -212,32 +214,35 @@ export default function FinanceSalesConfirmationView() {
   }, [orders, paymentConfirmations, activeTab, searchQuery]);
 
   const handleApprove = async (confirmationId) => {
-    if (typeof verifyFinancePayment !== 'function') {
-      await Swal.fire({ icon: 'error', title: 'Finance Action Unavailable', text: 'The verification action is not initialized.' });
-      return;
-    }
     const confirmation = paymentConfirmations.find((item) => item.id === confirmationId);
     const result = await Swal.fire({
       icon: 'question',
       title: 'Approve Payment?',
-      text: `Verify ₹${Number(confirmation?.amount || 0).toLocaleString('en-IN')} for ${confirmation?.orderId || 'this order'}?`,
+      text: `Verify ₹${Number(confirmation?.amount || 0).toLocaleString('en-IN')} for ${confirmation?.orderSnapshot?.orderNo || confirmation?.orderId || 'this order'}?`,
       showCancelButton: true,
       confirmButtonText: 'Approve Payment',
       cancelButtonText: 'Cancel',
     });
     if (!result.isConfirmed) return;
+    setIsProcessing(true);
     try {
       if (confirmation?.source === 'backend') {
+        // Hit backend: mark as VERIFIED and persist to DB
         await backendFetch(`/api/backend/finance/payments/${confirmationId}/verify`, {
           method: 'POST',
         });
-        await refetchBackendPayments();
-      } else {
+      } else if (confirmation?.source === 'local' && typeof verifyFinancePayment === 'function') {
+        // Fallback for legacy local mock payments
         verifyFinancePayment(confirmationId, 'Finance Team');
+      } else {
+        throw new Error('Cannot find this payment record. It may have already been processed.');
       }
-      await Swal.fire({ icon: 'success', title: 'Payment Verified', text: 'The verified amount and order payment status have been updated.', timer: 1800, showConfirmButton: false });
+      await refetchBackendPayments();
+      await Swal.fire({ icon: 'success', title: 'Payment Verified ✓', text: 'The payment has been verified and the order payment status updated.', timer: 1800, showConfirmButton: false });
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'Verification Failed', text: err?.message || String(err) });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -245,13 +250,29 @@ export default function FinanceSalesConfirmationView() {
     e.preventDefault();
     if (!rejectModal) return;
     const fd = new FormData(e.target);
+    const remarks = String(fd.get('remarks') || '');
+    setIsProcessing(true);
     try {
-      if (typeof rejectFinancePayment !== 'function') throw new Error('The rejection action is not initialized.');
-      rejectFinancePayment(rejectModal.confirmationId, String(fd.get('remarks') || ''), 'Finance Team');
+      const confirmation = paymentConfirmations.find((item) => item.id === rejectModal.confirmationId);
+      if (confirmation?.source === 'backend') {
+        // Hit backend: mark as BOUNCED and persist to DB
+        await backendFetch(`/api/backend/finance/payments/${rejectModal.confirmationId}/bounce`, {
+          method: 'POST',
+          body: { remarks },
+        });
+        await refetchBackendPayments();
+      } else if (typeof rejectFinancePayment === 'function') {
+        // Fallback for legacy local mock payments
+        rejectFinancePayment(rejectModal.confirmationId, remarks, 'Finance Team');
+      } else {
+        throw new Error('Cannot find this payment record. It may have already been processed.');
+      }
       setRejectModal(null);
-      await Swal.fire({ icon: 'success', title: 'Payment Rejected', text: 'Sales can submit a corrected payment confirmation.', timer: 1800, showConfirmButton: false });
+      await Swal.fire({ icon: 'success', title: 'Payment Rejected', text: 'The payment has been marked as bounced. Sales can submit a corrected payment confirmation.', timer: 1800, showConfirmButton: false });
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'Rejection Failed', text: err?.message || String(err) });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -397,14 +418,16 @@ export default function FinanceSalesConfirmationView() {
                         <>
                           <button
                             onClick={() => handleApprove(r.confirmationId)}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors inline-flex items-center gap-1"
+                            disabled={isProcessing}
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors inline-flex items-center gap-1"
                             title="Approve"
                           >
-                            <CheckCircle2 className="w-4 h-4" /> Approve
+                            <CheckCircle2 className="w-4 h-4" /> {isProcessing ? 'Processing...' : 'Approve'}
                           </button>
                           <button
                             onClick={() => setRejectModal(r)}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors inline-flex items-center gap-1"
+                            disabled={isProcessing}
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors inline-flex items-center gap-1"
                             title="Reject"
                           >
                             <XCircle className="w-4 h-4" /> Reject

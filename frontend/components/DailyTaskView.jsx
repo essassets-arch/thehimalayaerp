@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-export default function DailyTaskView({ state, dispatch, navigate, showToast, module = 'Sales' }) {
+export default function DailyTaskView({ state, dispatch, navigate, showToast, module = 'Sales', completeReminder, updateReminder }) {
   const [targetDate, setTargetDate] = useState(() => getTodayDateString());
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
@@ -46,9 +46,9 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
 
   // Filter based on module before counting stats
   if (module === 'Finance') {
-    rawTasks = rawTasks.filter(t => ['Payment', 'Order', 'Production'].includes(t.type));
+    rawTasks = rawTasks.filter(t => ['Payment', 'Order', 'Production'].includes(t.type) || t.isExplicitReminder);
   } else if (module === 'Sales') {
-    rawTasks = rawTasks.filter(t => ['Lead', 'Quotation', 'Sample'].includes(t.type));
+    rawTasks = rawTasks.filter(t => ['Lead', 'Quotation', 'Sample', 'Payment', 'Order'].includes(t.type) || t.isExplicitReminder);
   }
 
   // 2. Count metrics for the selected target date
@@ -176,6 +176,8 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           } 
         }
       });
+    } else if (prefix === 'REM' && completeReminder) {
+      completeReminder(sourceId);
     }
 
     setCompletedSessionTasks([...completedSessionTasks, taskId]);
@@ -226,6 +228,8 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
         type: 'RECEIVE_PAYMENT',
         payload: { paymentUpdate: { id: Number(sourceId), dueDate: rescheduleDate } }
       });
+    } else if (prefix === 'REM' && updateReminder) {
+      updateReminder(sourceId, { date: rescheduleDate });
     }
 
     showToast(`Task rescheduled to ${rescheduleDate}`);

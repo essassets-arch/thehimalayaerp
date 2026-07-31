@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { QuotationsService } from './quotations.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
-@Controller(['crm/quotations', 'quotations'])
+@Controller(['crm/quotations', 'quotations', 'sales/quotations'])
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class QuotationsController {
   constructor(private readonly quotationsService: QuotationsService) {}
 

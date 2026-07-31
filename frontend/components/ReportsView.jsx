@@ -13,7 +13,8 @@ import {
   UserCheck, 
   ArrowUpRight,
   Download,
-  RefreshCw
+  RefreshCw,
+  ChevronDown
 } from 'lucide-react';
 import { useERP } from '../shared/context/ERPContext';
 import { apiClient } from '../lib/apiClient';
@@ -24,6 +25,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   const settings = state?.settings || {};
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Date filters
   const [dateFrom, setDateFrom] = useState(() => {
@@ -64,15 +66,30 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   const isSalesAdmin = user?.role === 'Sales Admin' || user?.role === 'Super Admin' || user?.role === 'Admin';
   const myName = user?.name || '';
 
-  // Data Filtering based on Role
-  const myLeads = isSalesAdmin ? leads : leads.filter(l => l.salesperson === myName);
-  const myOrders = isSalesAdmin ? orders : orders.filter(o => o.salesperson === myName);
-  const myPayments = isSalesAdmin ? payments : payments.filter(p => myOrders.some(o => o.orderNo === p.orderNo));
+  // Data Filtering based on Role and Date Range
+  const isDateInRange = (dateStr) => {
+    if (!dateStr) return true;
+    const d = new Date(dateStr);
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    to.setHours(23, 59, 59, 999);
+    return d >= from && d <= to;
+  };
+
+  const roleFilteredLeads = isSalesAdmin ? leads : leads.filter(l => l.salesperson === myName);
+  const myLeads = roleFilteredLeads.filter(l => isDateInRange(l.createdAt || l.date));
+
+  const roleFilteredOrders = isSalesAdmin ? orders : orders.filter(o => o.salesperson === myName);
+  const myOrders = roleFilteredOrders.filter(o => isDateInRange(o.createdAt || o.orderDate || o.date));
+
+  const roleFilteredPayments = isSalesAdmin ? payments : payments.filter(p => roleFilteredOrders.some(o => o.orderNo === p.orderNo));
+  const myPayments = roleFilteredPayments.filter(p => isDateInRange(p.date || p.createdAt));
+
   const myCustomers = isSalesAdmin 
     ? customers 
     : customers.filter(c => 
-        myOrders.some(o => o.customer?.id === c.id || o.customerName === c.name) || 
-        myLeads.some(l => l.companyName === c.name)
+        roleFilteredOrders.some(o => o.customer?.id === c.id || o.customerName === c.name) || 
+        roleFilteredLeads.some(l => l.companyName === c.name)
       );
 
   // Common calculations & formatting helpers
@@ -206,12 +223,12 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   // Salespersons comparison data
   const salespeople = ['Alex Carter', 'Sarah Connor', 'Alex Rivera'];
   const teamStats = salespeople.map(name => {
-    const repLeads = leads.filter(l => l.salesperson === name);
-    const repOrders = orders.filter(o => o.salesperson === name);
+    const repLeads = leads.filter(l => l.salesperson === name && isDateInRange(l.createdAt || l.date));
+    const repOrders = orders.filter(o => o.salesperson === name && isDateInRange(o.createdAt || o.orderDate || o.date));
     const repRevenue = repOrders.reduce((sum, o) => sum + (o.payment?.totalAmount || o.totalValue || 0), 0);
     const repConverted = repLeads.filter(l => l.status === 'Converted').length;
     const repConversion = repLeads.length ? Math.round((repConverted / repLeads.length) * 100) : 0;
-    const repPayments = payments.filter(p => repOrders.some(o => o.orderNo === p.orderNo));
+    const repPayments = payments.filter(p => repOrders.some(o => o.orderNo === p.orderNo) && isDateInRange(p.date || p.createdAt));
     const repOutstanding = repPayments.reduce((sum, p) => sum + (p.status !== 'Paid' ? (p.totalAmount - p.paidAmount) : 0), 0);
 
     return {
@@ -350,27 +367,93 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tab-filters-row reports-tab-filters hide-scrollbar" style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
-        {tabs.map(tab => (
+      {/* Tabs Dropdown */}
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-border)' }}>
+        <div 
+          style={{ display: 'inline-block', position: 'relative' }}
+          onBlur={(e) => {
+            // Close dropdown if focus moves outside this container
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+              setDropdownOpen(false);
+            }
+          }}
+        >
           <button
-            key={tab.id}
-            className={`filter-pill ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px', 
-              flexShrink: 0, 
-              whiteSpace: 'nowrap',
-              padding: '8px 18px',
-              borderRadius: '30px'
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              border: '1px solid var(--color-border)',
+              background: '#fff',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: 'var(--color-text-primary)',
+              cursor: 'pointer',
+              minWidth: '220px',
+              justifyContent: 'space-between',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
             }}
           >
-            {tab.icon}
-            {tab.label}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {tabs.find(t => t.id === activeTab)?.icon}
+              {tabs.find(t => t.id === activeTab)?.label}
+            </div>
+            <ChevronDown size={16} style={{ color: 'var(--color-text-secondary)', transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
           </button>
-        ))}
+          
+          {dropdownOpen && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: '6px',
+              width: '100%',
+              background: '#fff',
+              border: '1px solid var(--color-border)',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
+              zIndex: 50,
+              overflow: 'hidden'
+            }}>
+              {tabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setDropdownOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: 'none',
+                    background: activeTab === tab.id ? '#eaf6f6' : 'transparent',
+                    color: activeTab === tab.id ? 'var(--color-accent-teal)' : 'var(--color-text-primary)',
+                    fontSize: '14px',
+                    fontWeight: activeTab === tab.id ? '600' : '500',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    if (activeTab !== tab.id) e.currentTarget.style.background = '#f5f5f5';
+                  }}
+                  onMouseOut={(e) => {
+                    if (activeTab !== tab.id) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main View Area */}

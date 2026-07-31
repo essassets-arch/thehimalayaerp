@@ -108,7 +108,7 @@ export default function SalesPortal() {
 
   const { quotations, createQuotation, updateQuotation, confirmOrder } = useQuotations(
     showToast,
-    currentView === 'quotations' || currentView === 'create-quotation'
+    currentView === 'quotations' || currentView === 'create-quotation' || currentView === 'dashboard'
   );
 
   const { reminders, createReminder, updateReminder, completeReminder } = useReminders(showToast);
@@ -126,12 +126,20 @@ export default function SalesPortal() {
 
   const orders = backendOrders;
 
+  const { refreshSamples, loadLeads, loadCustomers } = useSalesBackend();
+
   useEffect(() => {
-    // Only load if on orders view and loadOrders is available
-    if (currentView === 'orders' && loadOrders) {
+    // Load orders on orders view or dashboard
+    if ((currentView === 'orders' || currentView === 'dashboard') && loadOrders) {
       void loadOrders();
     }
-  }, [currentView, loadOrders]);
+    // Load other modules on dashboard view for dynamic metrics
+    if (currentView === 'dashboard') {
+      if (loadLeads) void loadLeads();
+      if (refreshSamples) void refreshSamples();
+      if (loadCustomers) void loadCustomers();
+    }
+  }, [currentView, loadOrders, loadLeads, refreshSamples, loadCustomers]);
 
   // ── O2P Workflow ────────────────────────────────────────────────────────────
   const o2p = useO2PWorkflow();
@@ -358,29 +366,29 @@ export default function SalesPortal() {
     });
 
     if (formValues) {
+      showToast('Submitting payment request to Finance…');
       try {
-        showToast('Submitting payment request to Finance…');
         const payload = {
-          orderId: order.id,
-          paymentAmount: formValues.paymentAmount,
-          paymentMode: formValues.paymentMode,
-          transactionReference: formValues.transactionReference,
-          remarks: formValues.remarks,
-          files: formValues.proofDocument ? [{ file_name: formValues.proofDocument, file_path: `/uploads/${formValues.proofDocument}` }] : []
+          salesOrderId: order.id,
+          customerId: order.customerId || order.customer?.id || 'unknown',
+          amount: formValues.paymentAmount,
+          proofUrl: formValues.proofDocument || 'missing-proof.jpg'
         };
-        const response = await apiClient.post('/payment-verification/request', payload);
-        if (response.success) {
-          Swal.fire({
-            icon: 'success',
-            title: 'Request Submitted',
-            text: `Payment request ${response.data.requestNumber} for INR ${formValues.paymentAmount.toLocaleString('en-IN')} is pending Finance verification.`,
-            timer: 3000,
-            showConfirmButton: false
-          });
-          await syncData();
-        }
+        await backendFetch('/api/backend/finance/payments/sales-record', {
+          method: 'POST',
+          body: payload
+        });
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Request Submitted',
+          text: `Payment request for INR ${formValues.paymentAmount.toLocaleString('en-IN')} is pending Finance verification.`,
+          timer: 3000,
+          showConfirmButton: false
+        });
+        await syncData();
       } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Submission Failed', text: err.message });
+        Swal.fire({ icon: 'error', title: 'Submission Failed', text: err.message || 'Error occurred' });
       }
     }
   };
@@ -860,10 +868,10 @@ export default function SalesPortal() {
 
   switch (currentView) {
     case 'daily-task':
-      return <DailyTaskView state={state} dispatch={dispatch} navigate={navigate} showToast={showToast} />;
+      return <DailyTaskView state={{ ...state, reminders }} dispatch={dispatch} navigate={navigate} showToast={showToast} completeReminder={completeReminder} updateReminder={updateReminder} />;
 
     case 'dashboard':
-      return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} />;
+      return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />;
 
     case 'leads':
       return (
@@ -1221,6 +1229,6 @@ export default function SalesPortal() {
       return <ReportsView leads={leads} orders={orders} payments={payments} customers={customers} user={user} />;
 
     default:
-      return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} />;
+      return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />;
   }
 }

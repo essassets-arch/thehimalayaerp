@@ -102,41 +102,8 @@ async function handleGet(path, options = {}) {
   const samples = mockDB.get('samples');
 
   // ── Sales ───────────────────────────────────────────────
-  if (path === '/sales/leads' || path.startsWith('/sales/leads?')) {
-    return { ...ok(leads), leads };
-  }
-  if (path.match(/\/sales\/leads\/([^/]+)$/)) {
-    const id = path.split('/').pop();
-    const lead = leads.find(l => l.id === id);
-    return lead ? ok(lead) : err('Lead not found');
-  }
-  if (path === '/sales/samples' || path.startsWith('/sales/samples?')) {
-    return { ...ok(samples), samples };
-  }
-  if (path === '/sales/quotations' || path.startsWith('/sales/quotations?')) {
-    return { ...ok(quotations), quotations };
-  }
-  if (path.match(/\/sales\/quotations\/([^/]+)$/)) {
-    const id = path.split('/').pop();
-    const q = quotations.find(q => q.id === id || q.quotationNo === id);
-    return q ? ok(q) : err('Quotation not found');
-  }
-  if (path === '/sales/orders' || path.startsWith('/sales/orders?')) {
-    // Sales sees ALL orders they created (all non-lead statuses)
-    const salesOrders = orders.filter(o =>
-      ![S.LEAD_CREATED, S.SAMPLE_REQUIRED, S.QUOTATION_CREATED, S.QUOTATION_SENT].includes(o.workflowStatus)
-    );
-    return { ...ok(salesOrders), orders: salesOrders };
-  }
-  if (path.match(/\/sales\/orders\/([^/]+)$/) && !path.includes('/confirm') && !path.includes('/send')) {
-    const id = path.split('/').pop();
-    const o = orders.find(o => o.id === id || o.orderNo === id);
-    return o ? ok(o) : err('Order not found');
-  }
-  if (path === '/sales/orders/delivered' || path.includes('/sales/orders/delivered')) {
-    const delivered = orders.filter(o => [S.DELIVERED, S.INVOICED, S.PAYMENT_PENDING, S.PAYMENT_VERIFIED, S.CLOSED].includes(o.workflowStatus));
-    return { ...ok(delivered), orders: delivered };
-  }
+  // Mocks for Sales (Leads, Samples, Quotations, Orders) have been disabled.
+  // These requests will now fall through and hit the real backend API.
   if (path === '/admin-ops/customers') {
     return { ...ok(customers), customers };
   }
@@ -455,65 +422,8 @@ async function handlePost(path, body = {}) {
     }
   }
 
-  // ── Sales: Create Lead ──────────────────────────────────
-  if (path === '/sales/leads') {
-    const lead = mockDB.insert('leads', {
-      ...body,
-      status: 'New Lead',
-      workflowStatus: S.LEAD_CREATED,
-      currentDepartment: 'Sales',
-      createdDate: new Date().toISOString().split('T')[0],
-    });
-    return ok(lead, 'Lead created');
-  }
-
-  // ── Sales: Create Sample ────────────────────────────────
-  if (path === '/sales/samples') {
-    const sample = mockDB.insert('samples', { ...body, status: 'Pending' });
-    if (body.leadId) {
-      mockDB.update('leads', body.leadId, { status: 'Sample Required', sampleId: sample.id });
-    }
-    return ok(sample, 'Sample created');
-  }
-
-  // ── Sales: Create Quotation ────────────────────────────
-  if (path === '/sales/quotations') {
-    const quotation = mockDB.insert('quotations', {
-      ...body,
-      status: 'Draft',
-      workflowStatus: S.QUOTATION_CREATED,
-      createdDate: new Date().toISOString().split('T')[0],
-    });
-    if (body.leadId) {
-      mockDB.update('leads', body.leadId, { status: 'Quotation Created', quotationId: quotation.id });
-    }
-    return { ...ok(quotation, 'Quotation created'), quotation };
-  }
-
-  // ── Sales: Create Order (from quotation conversion) ────
-  if (path === '/sales/orders') {
-    const orderNo = `ORD-${Date.now().toString().slice(-6)}`;
-    const order = mockDB.insert('orders', {
-      ...body,
-      orderNo,
-      workflowStatus: S.ORDER_CREATED,
-      status: S.ORDER_CREATED,
-      currentDepartment: 'Sales',
-      overallStage: 'Sales',
-      history: [makeTimelineEvent(S.ORDER_CREATED, 'Sales Order Created from Quotation', 'Convert to Order', body.salesExecutive || 'Sales', 'Sales')],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-    // Update quotation status
-    if (body.quotationId || body.quotationRef) {
-      mockDB.update('quotations', body.quotationId || body.quotationRef, { status: 'Converted to Order', orderId: order.id });
-    }
-    // Update lead status
-    if (body.leadId) {
-      mockDB.update('leads', body.leadId, { status: 'Order Created', orderId: order.id });
-    }
-    return { ...ok(order, 'Order created'), order };
-  }
+  // ── Sales: Create APIs ──────────────────────────────────
+  // POST Mocks for Sales (Leads, Samples, Orders, Quotations) disabled.
 
   // ── Workflow Transition (generic) ───────────────────────
   if (path.includes('/workflow/transition') || path.includes('/payment-verification/request')) {
@@ -1017,7 +927,7 @@ async function handlePatch(path, body = {}) {
   // Generic PATCH
   const segments = path.split('/').filter(Boolean);
   for (let i = 0; i < segments.length - 1; i++) {
-    const collections = ['leads', 'quotations', 'orders', 'customers', 'payments', 'samples'];
+    const collections = ['customers', 'payments'];
     if (collections.includes(segments[i])) {
       const id = segments[i + 1];
       const updated = mockDB.update(segments[i], id, body);
@@ -1057,7 +967,7 @@ async function handlePut(path, body = {}) {
   }
   const segments = path.split('/').filter(Boolean);
   for (let i = 0; i < segments.length - 1; i++) {
-    const collections = ['leads', 'quotations', 'orders', 'customers', 'payments', 'samples'];
+    const collections = ['customers', 'payments'];
     if (collections.includes(segments[i])) {
       const id = segments[i + 1];
       const updated = mockDB.update(segments[i], id, body);
@@ -1088,7 +998,7 @@ async function handleDelete(path) {
   }
   const segments = path.split('/').filter(Boolean);
   for (let i = 0; i < segments.length - 1; i++) {
-    const collections = ['leads', 'quotations', 'orders', 'customers', 'payments', 'samples'];
+    const collections = ['customers', 'payments'];
     if (collections.includes(segments[i])) {
       const id = segments[i + 1];
       const success = mockDB.remove(segments[i], id);

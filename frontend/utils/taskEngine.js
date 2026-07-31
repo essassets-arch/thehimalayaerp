@@ -187,5 +187,28 @@ export const generateTasks = (state, targetDate) => {
     });
   });
 
+  // 7. Explicit Reminders (created via UI)
+  const reminders = state.reminders || [];
+  reminders.forEach(r => {
+    // Only show pending or uncompleted reminders
+    const rDate = r.reminderDate || r.date;
+    if (r.status !== 'Completed' && r.status !== 'Closed' && rDate) {
+      const isOverdue = rDate < today;
+      tasks.push({
+        id: `REM-${r.id}`,
+        sourceId: r.moduleId || r.id,
+        clientName: r.customerName || r.title || 'Reminder',
+        type: r.moduleType || 'Lead',
+        status: isOverdue ? 'Overdue' : 'Pending',
+        followUpDate: rDate,
+        notes: r.remarks || r.notes || r.message || r.description || `Follow up on ${r.moduleType || 'record'}`,
+        amount: r.amount || 0,
+        phone: getClientPhone(state, r.customerName),
+        rawEntity: r,
+        isExplicitReminder: true
+      });
+    }
+  });
+
   return tasks;
 };

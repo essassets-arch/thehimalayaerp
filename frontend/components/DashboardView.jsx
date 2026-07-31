@@ -1,4 +1,6 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../lib/apiClient';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import {
   Target,
@@ -34,7 +36,6 @@ import {
   Legend
 } from 'recharts';
 import DailyAgendaCalendar from './DailyAgendaCalendar';
-import { apiClient } from '../lib/apiClient';
 import { formatReminderTime, getTodayPendingReminders } from '../shared/utils/reminderUtils.js';
 
 
@@ -85,7 +86,18 @@ function ConversionGauges({ leadRate, quoteRate }) {
   );
 }
 
-export default function DashboardView({ state, dispatch, navigate, onQuickAction }) {
+export default function DashboardView({ 
+  state, 
+  dispatch, 
+  navigate, 
+  onQuickAction,
+  leads = [],
+  quotations = [],
+  orders = [],
+  payments = [],
+  samples = [],
+  customers = []
+}) {
   const [isMounted, setIsMounted] = React.useState(false);
   const [timeFilter, setTimeFilter] = React.useState('This Month');
   const [customStartDate, setCustomStartDate] = React.useState('');
@@ -97,6 +109,17 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
     setIsMounted(true);
   }, []);
 
+  const fetchDashboard = async () => {
+    const res = await apiClient.get('/backend/sales-targets/dashboard');
+    return res.data;
+  };
+
+  const { data: targetData, isLoading: isLoadingTarget, isError } = useQuery({
+    queryKey: ['sales-target-dashboard'],
+    queryFn: fetchDashboard,
+    staleTime: 60000,
+  });
+
   const handleNav = (path) => {
     if (navigate) {
       if (typeof navigate === 'function') {
@@ -107,11 +130,6 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
     }
   };
 
-  const leads = state?.leads || [];
-  const quotations = state?.quotations || [];
-  const orders = state?.orders || [];
-  const payments = state?.payments || [];
-  const samples = state?.samples || [];
   const reminders = Array.isArray(state?.reminders) ? state.reminders : [];
 
   const todayCrmReminders = getTodayPendingReminders(reminders);
@@ -132,23 +150,27 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
   // Helper to extract creation date from item (local timezone safe)
   const getCreatedAtDate = (item) => {
     if (!item) return null;
-    let rawDate = item.createdAt || item.date || item.created_at || (item._raw && (item._raw.created_at || item._raw.createdAt));
+    let rawDate = item?.createdAt || item?.date || item?.created_at || (item?._raw && (item?._raw?.created_at || item?._raw?.createdAt)) || item?.orderDate || item?.followUpDate;
     if (!rawDate) return null;
     
-    if (typeof rawDate === 'number') {
-      return new Date(rawDate);
-    }
-    
-    if (typeof rawDate === 'string') {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-        rawDate = rawDate + 'T00:00:00';
+    try {
+      if (typeof rawDate === 'number') {
+        return new Date(rawDate);
       }
+      
+      if (typeof rawDate === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+          rawDate = rawDate + 'T00:00:00';
+        }
+        const parsed = new Date(rawDate);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+      
       const parsed = new Date(rawDate);
-      if (!isNaN(parsed.getTime())) return parsed;
+      return isNaN(parsed.getTime()) ? null : parsed;
+    } catch (err) {
+      return null;
     }
-    
-    const parsed = new Date(rawDate);
-    return isNaN(parsed.getTime()) ? null : parsed;
   };
 
   // Helper to check if a specific timestamp falls inside the active timeframe filter
@@ -201,11 +223,43 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
     return isTimeWithinFilter(itemDate.getTime());
   };
 
+  const effectivePayments = orders.map(o => {
+    const total = Number(o.payment?.totalAmount || o.grandTotal || o.totalAmount || o.totalValue || o.total || 0);
+    const payStatus = String(o.paymentStatus || '').trim().toLowerCase();
+    
+    let pStatus = 'Pending';
+    let paid = Number(o.verifiedPaidAmount ?? o.payment?.paidAmount ?? o.amountPaid ?? o.paidAmount ?? 0);
+
+    if (payStatus === 'fully paid' || payStatus === 'fully_paid' || payStatus === 'paid') {
+      pStatus = 'Paid';
+      if (paid === 0) paid = total;
+    } else if (payStatus === 'partially paid' || payStatus === 'partially_paid' || paid > 0) {
+      pStatus = 'Partial';
+    }
+
+    let verifiedStatus = 'Approved';
+    if (payStatus.includes('pending verification') || payStatus.includes('verification_pending')) {
+      verifiedStatus = 'Pending';
+    }
+
+    return {
+      id: o.id || o.orderId || o.orderNumber,
+      orderNo: o.orderId || o.orderNumber || o.id,
+      customerName: o.customerName || o.customer?.companyName || o.customer?.name || '',
+      totalAmount: total,
+      paidAmount: paid,
+      paymentAmount: paid, 
+      status: pStatus,
+      verified: verifiedStatus,
+      createdAt: o.createdAt || o.date,
+    };
+  }).filter(p => p.totalAmount > 0 || p.paidAmount > 0);
+
   // Filtered lists based on selected timeframe
   const filteredLeads = leads.filter(filterByDate);
   const filteredQuotations = quotations.filter(filterByDate);
   const filteredOrders = orders.filter(filterByDate);
-  const filteredPayments = payments.filter(filterByDate);
+  const filteredPayments = effectivePayments.filter(filterByDate);
   const filteredSamples = samples.filter(filterByDate);
 
   // ──🔹 TOP ROW: Daily Focus metrics ──
@@ -226,10 +280,10 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
   }).length;
 
   const totalLeadsCount = filteredLeads.length;
-  const convertedLeadsCount = filteredLeads.filter(l => l.status === 'Converted' || l.status === 'Quotation').length;
+  const convertedLeadsCount = filteredLeads.filter(l => String(l.status).includes('Converted') || String(l.status).includes('Quotation')).length;
   const conversionRate = totalLeadsCount > 0 ? ((convertedLeadsCount / totalLeadsCount) * 100) : 0;
   const totalQuotesCount = filteredQuotations.length;
-  const convertedQuotesCount = filteredQuotations.filter(q => q.status === 'Approved' || q.status === 'Converted').length;
+  const convertedQuotesCount = filteredQuotations.filter(q => String(q.status).includes('Approved') || String(q.status).includes('Converted')).length;
   const quoteToOrderRate = totalQuotesCount > 0 ? ((convertedQuotesCount / totalQuotesCount) * 100) : 0;
 
   // ──🔹 SECOND ROW: Sales Pipeline metrics ──
@@ -271,7 +325,7 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
   const mySalesTotal = filteredOrders
     .filter(o => !['cancelled', 'void', 'draft'].includes(String(o.status || '').toLowerCase()))
     .reduce((sum, o) => sum + Number(o.grand_total || o.total_amount || 0), 0);
-  const salesTarget = 5000000;
+  const salesTarget = targetData?.monthlyTarget || 0;
   const orderValue = (order) => Number(order.grandTotal || order.grand_total || order.totalValue || order.total_amount || order.invoiceAmount || 0);
   const orderQuantity = (order) => Number(order.quantity || order.totalQuantity || order.qty || (Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
   const isConfirmedSalesOrder = (order) => {
@@ -280,19 +334,14 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
       (status.includes('CONFIRM') || status.includes('APPROV') || ['PLANT_PENDING','PRODUCTION_PLANNED','IN_PRODUCTION','QC_PENDING','QC_PASSED','READY_FOR_DISPATCH','DISPATCHED','IN_TRANSIT','DELIVERED','COMPLETED','CLOSED','PAYMENT_PENDING'].includes(status));
   };
   const nowForSales = new Date();
-  const currentMonthOrders = orders.filter(order => {
-    const date = getCreatedAtDate({ ...order, createdAt: order.confirmedAt || order.approvedAt || order.orderDate || order.createdAt });
-    return isConfirmedSalesOrder(order) && date && date.getFullYear() === nowForSales.getFullYear() && date.getMonth() === nowForSales.getMonth();
-  });
-  const currentMonthAchieved = currentMonthOrders.reduce((sum, order) => sum + orderValue(order), 0);
-  const targetAchievement = salesTarget > 0 ? Math.min(100, (currentMonthAchieved / salesTarget) * 100) : 0;
-  const remainingTarget = Math.max(0, salesTarget - currentMonthAchieved);
-  const daysInMonth = new Date(nowForSales.getFullYear(), nowForSales.getMonth() + 1, 0).getDate();
-  const daysRemaining = Math.max(0, daysInMonth - nowForSales.getDate());
-  const requiredDailySales = daysRemaining > 0 ? remainingTarget / daysRemaining : remainingTarget;
+  
+  // Use targetData for KPIs, but keep the local monthly calculation for the historical 6-month chart
   const monthlyTargetData = Array.from({ length: 6 }, (_, index) => {
     const date = new Date(nowForSales.getFullYear(), nowForSales.getMonth() - 5 + index, 1);
-    const achieved = orders.filter(order => { const orderDate = getCreatedAtDate({ ...order, createdAt: order.confirmedAt || order.approvedAt || order.orderDate || order.createdAt }); return isConfirmedSalesOrder(order) && orderDate && orderDate.getFullYear() === date.getFullYear() && orderDate.getMonth() === date.getMonth(); }).reduce((sum, order) => sum + orderValue(order), 0);
+    const achieved = orders.filter(order => { 
+      const orderDate = getCreatedAtDate({ ...order, createdAt: order.confirmedAt || order.approvedAt || order.orderDate || order.createdAt }); 
+      return isConfirmedSalesOrder(order) && orderDate && orderDate.getFullYear() === date.getFullYear() && orderDate.getMonth() === date.getMonth(); 
+    }).reduce((sum, order) => sum + orderValue(order), 0);
     return { month: date.toLocaleDateString('en-IN', { month: 'short' }), Target: salesTarget, Achieved: achieved };
   });
 
@@ -373,85 +422,29 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
   }, [timeFilter, customStartDate, customEndDate]);
 
   const getDynamicTrendData = () => {
-    if (salesSummary && salesSummary.length > 0) {
-      return [...salesSummary].slice(0, 6).reverse().map(item => {
-        if (!item?.month || typeof item.month !== 'string') {
-          return { name: '—', Leads: 0, Conversions: 0 };
-        }
-        const [yr, mn] = item.month.split('-');
-        const monthNames = {
-          '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
-          '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
-        };
-        const name = monthNames[mn] || item.month;
-        return {
-          name,
-          Leads: Math.round(item.order_count * 1.5),
-          Conversions: item.order_count
-        };
-      });
-    }
-
-    // Local fallback calculation based on memory state
-    const now = new Date();
-    if (timeFilter === 'Today') {
+    try {
+      // Local fallback calculation based on memory state - Always 6 months
+      const now = new Date();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const data = [];
+      const safeLeads = Array.isArray(leads) ? leads : [];
+      const safeOrders = Array.isArray(orders) ? orders : [];
+      
       for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getTime() - i * 4 * 60 * 60 * 1000);
-        const hourLabel = `${d.getHours()}:00`;
-        const start = d.getTime() - 4 * 60 * 60 * 1000;
-        const end = d.getTime();
-        const Leads = filteredLeads.filter(l => { const t = getCreatedAtDate(l)?.getTime(); return t && t >= start && t <= end; }).length;
-        const Conversions = filteredOrders.filter(o => { const t = getCreatedAtDate(o)?.getTime(); return t && t >= start && t <= end; }).length;
-        data.push({ name: hourLabel, Leads, Conversions });
+        const targetMonthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mIdx = targetMonthDate.getMonth();
+        const mYear = targetMonthDate.getFullYear();
+        const start = new Date(mYear, mIdx, 1).getTime();
+        const end = new Date(mYear, mIdx + 1, 0).getTime() + 86400000 - 1;
+        const Leads = safeLeads.filter(l => { const t = getCreatedAtDate(l)?.getTime(); return t && t >= start && t <= end; }).length;
+        const Conversions = safeOrders.filter(o => { const t = getCreatedAtDate(o)?.getTime(); return t && t >= start && t <= end; }).length;
+        data.push({ name: months[mIdx], Leads, Conversions });
       }
       return data;
+    } catch (err) {
+      console.error('Error calculating trend data:', err);
+      return [];
     }
-    
-    if (timeFilter === 'This Week') {
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const data = [];
-      const currentDay = now.getDay();
-      const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
-      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday);
-      for (let i = 0; i < 7; i++) {
-        const dDate = new Date(monday.getTime() + i * 24 * 60 * 60 * 1000);
-        const start = dDate.setHours(0,0,0,0);
-        const end = dDate.setHours(23,59,59,999);
-        const Leads = filteredLeads.filter(l => { const t = getCreatedAtDate(l)?.getTime(); return t && t >= start && t <= end; }).length;
-        const Conversions = filteredOrders.filter(o => { const t = getCreatedAtDate(o)?.getTime(); return t && t >= start && t <= end; }).length;
-        data.push({ name: days[dDate.getDay()], Leads, Conversions });
-      }
-      return data;
-    }
-    
-    if (timeFilter === 'This Month') {
-      const data = [];
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-      for (let w = 0; w < 4; w++) {
-        const start = startOfMonth + w * 7 * 24 * 60 * 60 * 1000;
-        const end = start + 7 * 24 * 60 * 60 * 1000 - 1;
-        const Leads = filteredLeads.filter(l => { const t = getCreatedAtDate(l)?.getTime(); return t && t >= start && t <= end; }).length;
-        const Conversions = filteredOrders.filter(o => { const t = getCreatedAtDate(o)?.getTime(); return t && t >= start && t <= end; }).length;
-        data.push({ name: `W${w+1}`, Leads, Conversions });
-      }
-      return data;
-    }
-
-    // Default: This Year or Custom
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const data = [];
-    for (let i = 5; i >= 0; i--) {
-      const targetMonthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mIdx = targetMonthDate.getMonth();
-      const mYear = targetMonthDate.getFullYear();
-      const start = new Date(mYear, mIdx, 1).getTime();
-      const end = new Date(mYear, mIdx + 1, 0).getTime() + 86400000 - 1;
-      const Leads = filteredLeads.filter(l => { const t = getCreatedAtDate(l)?.getTime(); return t && t >= start && t <= end; }).length;
-      const Conversions = filteredOrders.filter(o => { const t = getCreatedAtDate(o)?.getTime(); return t && t >= start && t <= end; }).length;
-      data.push({ name: months[mIdx], Leads, Conversions });
-    }
-    return data;
   };
   
   const trendData = getDynamicTrendData();
@@ -616,7 +609,7 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
             { label: 'Orders', val: activeOrdersCount, color: '#06b6d4', bg: '#ecfeff', path: '/sales/orders' },
             { label: 'Production', val: ordersInProductionCount, color: '#f43f5e', bg: '#fff1f2', path: '/sales/production-status' },
             { label: 'Dispatch', val: readyForDispatchCount, color: '#eab308', bg: '#fefce8', path: '/sales/orders' },
-            { label: 'Delivery', val: deliveredOrdersCount, color: '#10b981', bg: '#ecfdf5', path: '/sales/orders' },
+            { label: 'Delivered', val: deliveredOrdersCount, color: '#10b981', bg: '#ecfdf5', path: '/sales/orders' },
             { label: 'Payment', val: paymentPendingOrdersCount, color: '#ef4444', bg: '#fef2f2', path: '/sales/payment-followup' }
           ].map((step, idx, arr) => (
             <React.Fragment key={step.label}>
@@ -706,8 +699,8 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
                   <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ef4444' }}>Total Payment Due</span>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#ef4444' }}>
                     {'\u20B9'}{filteredPayments
-                      .filter(p => p.status !== 'Paid' && p.verified !== 'Approved')
-                      .reduce((s, p) => s + (Number(p.totalAmount || 0) - Number(p.paidAmount || 0)), 0)
+                      .filter(p => p.totalAmount > p.paidAmount)
+                      .reduce((s, p) => s + (p.totalAmount - p.paidAmount), 0)
                       .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -737,8 +730,7 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
                   <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#16a34a' }}>Total Collected</span>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#15803d' }}>
                     {'\u20B9'}{filteredPayments
-                      .filter(p => p.status === 'Paid' || p.verified === 'Approved')
-                      .reduce((s, p) => s + Number(p.paymentAmount || p.totalAmount || p.amount || 0), 0)
+                      .reduce((s, p) => s + p.paidAmount, 0)
                       .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -753,7 +745,9 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
                 }}>
                   <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ca8a04' }}>Payment Received</span>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#a16207' }}>
-                    {'\u20B9'}{collectionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {'\u20B9'}{filteredPayments
+                      .reduce((s, p) => s + p.paidAmount, 0)
+                      .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
 
@@ -813,11 +807,11 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
                       <Target size={16} />
                     </div>
                   </div>
-                  <div style={{ fontSize: '24px', fontWeight: '900', color: 'var(--color-text-primary)' }}>{targetAchievement.toFixed(1)}%</div>
+                  <div style={{ fontSize: '24px', fontWeight: '900', color: 'var(--color-text-primary)' }}>{(targetData?.achievement || 0).toFixed(1)}%</div>
                   
                   {/* Micro Progress Bar */}
                   <div style={{ height: '5px', background: '#DCE5F0', borderRadius: '3px', overflow: 'hidden', marginTop: 'auto' }}>
-                    <div style={{ width: `${targetAchievement}%`, height: '100%', background: '#8b5cf6', borderRadius: '3px' }}></div>
+                    <div style={{ width: `${targetData?.progress || 0}%`, height: '100%', background: '#8b5cf6', borderRadius: '3px' }}></div>
                   </div>
                 </div>
 
@@ -1048,8 +1042,8 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
                   <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#ef4444' }}>Payment Due</span>
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#ef4444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     ₹{filteredPayments
-                      .filter(p => p.status !== 'Paid' && p.verified !== 'Approved')
-                      .reduce((s, p) => s + (Number(p.totalAmount || 0) - Number(p.paidAmount || 0)), 0)
+                      .filter(p => p.totalAmount > p.paidAmount)
+                      .reduce((s, p) => s + (p.totalAmount - p.paidAmount), 0)
                       .toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </span>
                 </div>
@@ -1063,8 +1057,7 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
                   <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#16a34a' }}>Collected</span>
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#15803d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     ₹{filteredPayments
-                      .filter(p => p.status === 'Paid' || p.verified === 'Approved')
-                      .reduce((s, p) => s + Number(p.paymentAmount || p.totalAmount || p.amount || 0), 0)
+                      .reduce((s, p) => s + p.paidAmount, 0)
                       .toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </span>
                 </div>
@@ -1300,18 +1293,55 @@ export default function DashboardView({ state, dispatch, navigate, onQuickAction
       {/* Sales performance and return intelligence */}
       <div className="sales-analytics-grid">
         <section className="app-card sales-analytics-card" style={{ padding: '20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '14px', boxShadow: 'var(--shadow-premium)', minWidth: 0 }}>
-          <div style={{ marginBottom: '18px' }}><h2 style={{ margin: 0, fontSize: '17px', fontWeight: 850, color: '#24345C' }}>Sales Target vs Achievement</h2><p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5E6B82' }}>Current Month · confirmed and approved sales orders</p></div>
-          <div className="sales-target-kpis" style={{ marginBottom: '18px' }}>
-            {[
-              ['Monthly Target', `₹${(salesTarget / 100000).toFixed(1)} L`, '#24345C'],
-              ['Achieved Sales', `₹${(currentMonthAchieved / 100000).toFixed(1)} L`, '#059669'],
-              ['Achievement', `${targetAchievement.toFixed(1)}%`, '#7c3aed'],
-              ['Remaining Target', `₹${(remainingTarget / 100000).toFixed(1)} L`, '#ea580c'],
-              ['Days Remaining', daysRemaining, '#2563eb'],
-              ['Required Daily Sales', `₹${Math.round(requiredDailySales).toLocaleString('en-IN')}`, '#dc2626']
-            ].map(([label, value, color]) => <div className="sales-analytics-kpi" key={label} style={{ padding: '11px 12px', borderRadius: '9px', background: '#F5FAFE', border: '1px solid #DCE5F0', minWidth: 0 }}><div style={{ fontSize: '10px', fontWeight: 750, color: '#5E6B82', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: '4px', fontSize: '16px', fontWeight: 850, color, overflowWrap: 'anywhere' }}>{value}</div></div>)}
-          </div>
-          <div style={{ marginBottom: '18px' }}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 750, color: '#475569', marginBottom: '7px' }}><span>Current month progress</span><span>{targetAchievement.toFixed(1)}%</span></div><div style={{ height: '10px', borderRadius: '999px', background: '#DCE5F0', overflow: 'hidden' }}><div style={{ height: '100%', width: `${targetAchievement}%`, borderRadius: '999px', background: 'linear-gradient(90deg, #84cc16, #16a34a)', transition: 'width .4s ease' }} /></div></div>
+          <div style={{ marginBottom: '18px' }}><h2 style={{ margin: 0, fontSize: '17px', fontWeight: 850, color: '#24345C' }}>Sales Target vs Achievement</h2><p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5E6B82' }}>Current Active Target · confirmed and approved sales orders</p></div>
+          
+          {isLoadingTarget ? (
+            <div style={{ padding: '30px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82' }}>
+              <div className="spinner" style={{ margin: '0 auto 10px', width: '24px', height: '24px', border: '3px solid rgba(0,0,0,0.1)', borderTop: '3px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <p style={{ margin: 0, fontWeight: 600 }}>Loading active sales target...</p>
+            </div>
+          ) : isError ? (
+            <div style={{ padding: '30px', textAlign: 'center', background: '#fff1f2', borderRadius: '9px', border: '1px dashed #fecdd3', color: '#e11d48' }}>
+              <AlertTriangle size={32} style={{ opacity: 0.5, margin: '0 auto 10px' }} />
+              <p style={{ margin: 0, fontWeight: 600 }}>Failed to load target data.</p>
+              <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Please try refreshing the page.</p>
+            </div>
+          ) : targetData?.target ? (
+            <>
+              <div className="sales-target-kpis" style={{ marginBottom: '18px' }}>
+                {[
+                  ['Target Period', targetData.target.period || 'Monthly', '#24345C'],
+                  ['Total Target', `₹${(targetData.monthlyTarget / 100000).toFixed(1)} L`, '#24345C'],
+                  ['Achieved Sales', `₹${(targetData.achievedSales / 100000).toFixed(1)} L`, '#059669'],
+                  ['Achievement', `${targetData.achievement.toFixed(1)}%`, '#7c3aed'],
+                  ['Remaining', `₹${(targetData.remainingTarget / 100000).toFixed(1)} L`, '#ea580c'],
+                  ['Days Remaining', targetData.daysRemaining, '#2563eb'],
+                  ['Req. Daily Sales', `₹${Math.round(targetData.requiredDailySales).toLocaleString('en-IN')}`, '#dc2626']
+                ].map(([label, value, color]) => (
+                  <div className="sales-analytics-kpi" key={label} style={{ padding: '11px 12px', borderRadius: '9px', background: '#F5FAFE', border: '1px solid #DCE5F0', minWidth: 0 }}>
+                    <div style={{ fontSize: '10px', fontWeight: 750, color: '#5E6B82', textTransform: 'uppercase' }}>{label}</div>
+                    <div style={{ marginTop: '4px', fontSize: '16px', fontWeight: 850, color, overflowWrap: 'anywhere' }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginBottom: '18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 750, color: '#475569', marginBottom: '7px' }}>
+                  <span>Current progress</span>
+                  <span>{targetData.achievement.toFixed(1)}%</span>
+                </div>
+                <div style={{ height: '10px', borderRadius: '999px', background: '#DCE5F0', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${targetData.progress}%`, borderRadius: '999px', background: 'linear-gradient(90deg, #84cc16, #16a34a)', transition: 'width .4s ease' }} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: '30px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82' }}>
+              <Target size={32} style={{ opacity: 0.3, margin: '0 auto 10px' }} />
+              <p style={{ margin: 0, fontWeight: 600 }}>No sales target assigned for the current period.</p>
+              <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Please contact the Super Admin to configure your revenue target.</p>
+            </div>
+          )}
+          
           <div style={{ width: '100%', height: '260px', minWidth: 0 }}><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyTargetData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#DCE5F0"/><XAxis dataKey="month" tick={{ fontSize: 11 }}/><YAxis tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 100000)}L`}/><Tooltip formatter={value => `₹${Number(value).toLocaleString('en-IN')}`}/><Legend wrapperStyle={{ fontSize: '11px' }}/><Bar dataKey="Target" fill="#D6E2F0" radius={[4,4,0,0]}/><Bar dataKey="Achieved" fill="#84cc16" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer></div>
         </section>
 

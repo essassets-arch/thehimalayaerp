@@ -45,6 +45,9 @@ import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { BrandAnalysisModule } from './modules/brand-analysis/brand-analysis.module';
+import { SalesReportsModule } from './modules/sales-reports/sales-reports.module';
+import { SalesTargetModule } from './modules/sales-target/sales-target.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -58,6 +61,7 @@ import { BrandAnalysisModule } from './modules/brand-analysis/brand-analysis.mod
     AuditModule,
     HealthModule,
     BrandAnalysisModule,
+    SalesTargetModule,
     CustomersModule,
     SalesModule,
     SequenceModule,
@@ -85,6 +89,7 @@ import { BrandAnalysisModule } from './modules/brand-analysis/brand-analysis.mod
     RecruitmentModule,
     EmployeesModule,
     PayrollModule,
+    SalesReportsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -26,6 +26,7 @@ import QuotationsView from '../../../components/QuotationsView';
 import OrdersView from '../../../components/OrdersView';
 import { useConfirm } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../shared/context/ToastContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLoading } from '../../../hooks/useLoading';
 import { exportSalesReportPDF, exportFinanceReportPDF, exportInventoryReportPDF, exportAgingReportPDF } from '../../../services/export.service';
 import { apiClient } from '../../../lib/apiClient';
@@ -148,6 +149,8 @@ export default function SuperAdminPortal() {
   const [salesSummaryData, setSalesSummaryData] = useState([]);
   const [revenueExpenseData, setRevenueExpenseData] = useState([]);
   const [stockLevelsData, setStockLevelsData] = useState([]);
+  const queryClient = useQueryClient();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isReportsLoading, setIsReportsLoading] = useState(false);
 
   const fetchDashboardReports = async () => {
@@ -219,11 +222,35 @@ export default function SuperAdminPortal() {
     }
   }, [state?.productCatalog]);
 
-  const [salesTargets, setSalesTargets] = useState([
-    { id: 'TGT-001', salespersonId: 'rahul-patel', salespersonName: 'Rahul Patel', fy: 'FY 2026-27', period: 'Monthly', startDate: '2026-07-01', endDate: '2026-07-31', targetAmount: 10000000, remarks: 'July Target' },
-    { id: 'TGT-002', salespersonId: 'amit-shah', salespersonName: 'Amit Shah', fy: 'FY 2026-27', period: 'Monthly', startDate: '2026-07-01', endDate: '2026-07-31', targetAmount: 5000000, remarks: 'July Target' },
-    { id: 'TGT-003', salespersonId: 'neha-patel', salespersonName: 'Neha Patel', fy: 'FY 2026-27', period: 'Monthly', startDate: '2026-07-01', endDate: '2026-07-31', targetAmount: 7500000, remarks: 'July Target' }
-  ]);
+  const [salesTargets, setSalesTargets] = useState([]);
+
+  useEffect(() => {
+    if (view === 'sales-target') {
+      const loadTargets = async () => {
+        try {
+          const res = await apiClient.get('/backend/sales-targets');
+          const targetList = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+          
+          const mapped = targetList.map(t => ({
+            id: t.id,
+            salespersonId: t.salespersonId,
+            salespersonName: t.salesperson?.name || 'Unknown',
+            fy: 'FY 26-27', // Dynamic fallback if required by UI
+            period: t.targetPeriod,
+            startDate: t.startDate ? new Date(t.startDate).toISOString().split('T')[0] : '',
+            endDate: t.endDate ? new Date(t.endDate).toISOString().split('T')[0] : '',
+            targetAmount: Number(t.revenueTarget),
+            remarks: t.remarks,
+            status: t.status
+          })).filter(t => t.status !== 'CANCELLED');
+          setSalesTargets(mapped);
+        } catch (err) {
+          console.error('Failed to load targets', err);
+        }
+      };
+      loadTargets();
+    }
+  }, [view]);
 
   const [selectedSalesTarget, setSelectedSalesTarget] = useState(null);
   const [showSalesTargetModal, setShowSalesTargetModal] = useState(false);
@@ -3502,47 +3529,52 @@ export default function SuperAdminPortal() {
     const employeesOnTarget = targetRows.filter(t => t.pct >= 80).length;
     const employeesBehind = targetRows.filter(t => t.pct < 80).length;
 
-    const salesPersonnel = [
-      { id: 'rahul-patel', name: 'Rahul Patel' },
-      { id: 'amit-shah', name: 'Amit Shah' },
-      { id: 'neha-patel', name: 'Neha Patel' },
-      { id: 'amit-sharma', name: 'Amit Sharma' },
-      { id: 'priya-singh', name: 'Priya Singh' }
-    ];
+    const salesPersonnel = usersList
+      .filter(u => String(u.role?.name || u.role).toLowerCase().includes('sales'))
+      .map(u => ({ id: u.id, name: u.name }));
+    
+    // Fallback if no sales users found
+    if (salesPersonnel.length === 0) {
+      salesPersonnel.push(
+        { id: 'rahul-patel', name: 'Rahul Patel' },
+        { id: 'amit-shah', name: 'Amit Shah' },
+        { id: 'neha-patel', name: 'Neha Patel' }
+      );
+    }
 
-    const handleSaveTarget = (e) => {
+    const handleSaveTarget = async (e) => {
       e.preventDefault();
 
-      // Check overlap
-      const hasOverlap = salesTargets.some(
-        (target) =>
-          target.salespersonId === salesTargetForm.salespersonId &&
-          target.id !== salesTargetForm.id &&
-          new Date(salesTargetForm.startDate) <= new Date(target.endDate) &&
-          new Date(salesTargetForm.endDate) >= new Date(target.startDate)
-      );
+      const payload = {
+        salespersonId: salesTargetForm.salespersonId,
+        targetPeriod: salesTargetForm.period,
+        startDate: salesTargetForm.startDate,
+        endDate: salesTargetForm.endDate,
+        revenueTarget: salesTargetForm.targetAmount,
+        remarks: salesTargetForm.remarks || '',
+      };
 
-      if (hasOverlap) {
+      try {
+        if (salesTargetModalMode === 'create') {
+          const res = await apiClient.post('/backend/sales-targets', payload);
+          showToast(res.data.message || 'Revenue Target assigned successfully.');
+          
+          setSalesTargets([...salesTargets, res.data.data]);
+        } else {
+          const res = await apiClient.patch(`/backend/sales-targets/${salesTargetForm.id}`, payload);
+          showToast(res.data.message || 'Revenue Target updated successfully.');
+          
+          setSalesTargets(salesTargets.map(t => t.id === salesTargetForm.id ? { ...t, ...res.data.data } : t));
+        }
+        queryClient.invalidateQueries({ queryKey: ['sales-target-dashboard'] });
+        setShowSalesTargetModal(false);
+      } catch (err) {
         fireSwal({
-          title: 'Target Overlap',
-          text: 'An active sales target already exists for this salesperson during the selected period.',
+          title: 'Target Setup Failed',
+          text: err.response?.data?.message || 'An error occurred while saving the target.',
           icon: 'error'
         });
-        return;
       }
-
-      if (salesTargetModalMode === 'create') {
-        const newTarget = {
-          ...salesTargetForm,
-          id: `TGT-${Date.now().toString().slice(-4)}`
-        };
-        setSalesTargets([...salesTargets, newTarget]);
-        showToast('Revenue Target assigned successfully.');
-      } else {
-        setSalesTargets(salesTargets.map(t => t.id === salesTargetForm.id ? salesTargetForm : t));
-        showToast('Revenue Target updated successfully.');
-      }
-      setShowSalesTargetModal(false);
     };
 
     return (
@@ -3683,9 +3715,15 @@ export default function SuperAdminPortal() {
                   <TrendingUp size={12} />
                 </button>
                 <button
-                  onClick={() => {
-                    setSalesTargets(salesTargets.filter(t => t.id !== row.id));
-                    showToast('Target assignment deleted.');
+                  onClick={async () => {
+                    try {
+                      await apiClient.delete(`/backend/sales-targets/${row.id}`);
+                      setSalesTargets(salesTargets.filter(t => t.id !== row.id));
+                      queryClient.invalidateQueries({ queryKey: ['sales-target-dashboard'] });
+                      showToast('Target assignment deleted.');
+                    } catch (err) {
+                      showToast('Failed to delete target.', 'error');
+                    }
                   }}
                   className="action-btn"
                   style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
@@ -3759,26 +3797,46 @@ export default function SuperAdminPortal() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>Financial Year</label>
-                    <input
-                      type="text"
-                      value={salesTargetForm.fy}
-                      onChange={(e) => setSalesTargetForm({ ...salesTargetForm, fy: e.target.value })}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
-                      required
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>Target Period</label>
                     <select
                       value={salesTargetForm.period}
-                      onChange={(e) => setSalesTargetForm({ ...salesTargetForm, period: e.target.value })}
+                      onChange={(e) => {
+                        const period = e.target.value;
+                        const now = new Date();
+                        let startDate = '';
+                        let endDate = '';
+                        
+                        if (period === 'Monthly') {
+                          startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+                        } else if (period === 'Quarterly') {
+                          const q = Math.floor(now.getMonth() / 3);
+                          startDate = new Date(now.getFullYear(), q * 3, 1).toISOString().split('T')[0];
+                          endDate = new Date(now.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0];
+                        } else if (period === 'Yearly') {
+                          startDate = new Date(now.getFullYear(), 3, 1).toISOString().split('T')[0]; // Financial year starts April
+                          endDate = new Date(now.getFullYear() + 1, 2, 31).toISOString().split('T')[0];
+                        }
+                        
+                        setSalesTargetForm({ ...salesTargetForm, period, startDate, endDate });
+                      }}
                       style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                     >
                       <option value="Monthly">Monthly</option>
                       <option value="Quarterly">Quarterly</option>
                       <option value="Yearly">Yearly</option>
                     </select>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>Financial Year</label>
+                    <input
+                      type="text"
+                      value={salesTargetForm.fy}
+                      onChange={(e) => setSalesTargetForm({ ...salesTargetForm, fy: e.target.value })}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#f8fafc', color: '#64748b' }}
+                      readOnly
+                    />
                   </div>
                 </div>
 

@@ -24,8 +24,8 @@ export function useSuperAdminData() {
         companiesRes,
         rolesRes
       ] = await Promise.all([
-        apiClient.get('/admin/users'),
-        apiClient.get('/admin/employees'),
+        apiClient.get('/backend/users').catch(() => ({ data: [] })),
+        apiClient.get('/admin/employees').catch(() => ({ data: [] })),
         apiClient.get('/admin/modules'),
         apiClient.get('/admin/audit-logs'),
         apiClient.get('/admin/companies'),
@@ -33,7 +33,7 @@ export function useSuperAdminData() {
       ]);
 
       setData({
-        users: usersRes.data || [],
+        users: Array.isArray(usersRes.data?.data) ? usersRes.data.data : (Array.isArray(usersRes.data) ? usersRes.data : []),
         employees: employeesRes.data || [],
         modules: modulesRes.data || [],
         auditLogs: auditLogsRes.data || [],

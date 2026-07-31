@@ -1,10 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Headers, Request, UnauthorizedException, BadRequestException, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Headers, Request, UnauthorizedException, BadRequestException, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { SamplesService } from './samples.service';
 import { CreateSampleDto } from './dto/create-sample.dto';
 import { UpdateSampleDto } from './dto/update-sample.dto';
 import { SampleStatus } from '@prisma/client';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
-@Controller('samples')
+@Controller(['samples', 'sales/samples'])
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SamplesController {
   constructor(private readonly samplesService: SamplesService) {}
 

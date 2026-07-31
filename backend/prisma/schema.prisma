@@ -154,6 +154,7 @@ model User {
   brandAnalysisFinanceStarted    BrandAnalysisRequest[]   @relation("BrandAnalysisFinanceStartedBy")
   brandAnalysisFinanceCompleted  BrandAnalysisRequest[]   @relation("BrandAnalysisFinanceCompletedBy")
   brandAnalysisHistoryPerformed  BrandAnalysisHistory[]   @relation("BrandAnalysisHistoryPerformedBy")
+  salesTargets                   SalesTarget[]
 }
 
 model RefreshSession {
@@ -200,6 +201,7 @@ model Customer {
   sampleRequests  SampleRequest[]
   payments        CustomerPayment[]
   ledgers         CustomerLedger[]
+  complaints      CustomerComplaint[]
 
   @@unique([companyId, gstin])
   @@index([companyId, status])
@@ -328,6 +330,7 @@ model Product {
   SampleItem                  SampleItem[]
   PurchaseOrderItem           PurchaseOrderItem[]
   GoodsReceiptNoteItem        GoodsReceiptNoteItem[]
+  complaints                  CustomerComplaint[]
   VendorReturnItem            VendorReturnItem[]
   VendorInvoiceItem           VendorInvoiceItem[]
   preferredVendor             Supplier?                    @relation("PreferredVendor", fields: [preferredVendorId], references: [id], onDelete: SetNull)
@@ -1125,26 +1128,35 @@ model SalesOrderAllocation {
 }
 
 model CustomerComplaint {
-  id                   String                  @id @default(uuid())
-  complaintNumber      String                  @unique
-  customerId           String
-  salesOrderId         String
-  invoiceId            String?
-  complaintType        CustomerComplaintType
-  description          String
-  evidence             Json?
-  complaintStatus      CustomerComplaintStatus
-  raisedById           String
-  assignedToId         String?
-  raisedAt             DateTime                @default(now())
-  resolvedAt           DateTime?
-  replacementRequestId String?
-  replacementRequest   ReplacementRequest?     @relation(fields: [replacementRequestId], references: [id])
-  returnRequest        SalesReturn?
+  id             String          @id @default(cuid())
+  complaintNo    String          @unique
+  customerId     String
+  productId      String
+  complaintType  String
+  priority       String
+  complaintDate  DateTime
+  subject        String
+  description    String
+  salesRemarks   String?
+  attachment     String?
+  status         ComplaintStatus @default(DRAFT)
+  adminRemarks   String?
+  submittedBy    String?
+  submittedAt    DateTime?
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedBy     String?
+  rejectedAt     DateTime?
+  createdBy      String
+  updatedBy      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
 
   @@index([customerId])
-  @@index([salesOrderId])
-  @@index([complaintStatus])
+  @@index([productId])
+  @@index([status])
 }
 
 model SalesReturn {
@@ -1177,7 +1189,6 @@ model SalesReturn {
   creditNotes     CreditNote[]
   gateEntries     ReturnGateEntry[]
   inspections     ReturnQcInspection[]
-  complaint       CustomerComplaint?   @relation(fields: [complaintId], references: [id])
   salesOrder      SalesOrder           @relation(fields: [salesOrderId], references: [id])
   items           SalesReturnItem[]
 
@@ -1256,7 +1267,6 @@ model ReplacementRequest {
   reviewedAt        DateTime?
   approvedAt        DateTime?
   rejectedAt        DateTime?
-  CustomerComplaint CustomerComplaint[]
   salesOrder        SalesOrder               @relation(fields: [salesOrderId], references: [id])
   replacementOrder  ReplacementOrder?
   items             ReplacementRequestItem[]
@@ -1503,17 +1513,11 @@ enum SalesAllocationType {
   PRODUCTION_REQUIRED
 }
 
-enum CustomerComplaintType {
-  RETURN
-  REPLACEMENT
-  BOTH
-  OTHER
-}
-
-enum CustomerComplaintStatus {
-  RAISED
-  IN_REVIEW
-  RESOLVED
+enum ComplaintStatus {
+  DRAFT
+  PENDING_SUPER_ADMIN
+  APPROVED
+  REJECTED
 }
 
 enum ReturnReasonCode {
@@ -2826,4 +2830,42 @@ model BrandAnalysisHistory {
   @@index([requestId])
   @@index([performedById])
   @@map("brand_analysis_history")
+}
+
+enum TargetPeriod {
+  Monthly
+  Quarterly
+  Yearly
+}
+
+enum SalesTargetStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
+}
+
+model SalesTarget {
+  id             String   @id @default(cuid())
+  salespersonId  String
+  salesperson    User     @relation(fields: [salespersonId], references: [id])
+
+  targetPeriod   TargetPeriod
+
+  startDate      DateTime
+  endDate        DateTime
+
+  revenueTarget  Decimal @db.Decimal(15,2)
+
+  remarks        String?
+
+  status         SalesTargetStatus @default(ACTIVE)
+
+  createdById    String?
+  updatedById    String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([salespersonId, status])
+  @@index([startDate, endDate])
 }

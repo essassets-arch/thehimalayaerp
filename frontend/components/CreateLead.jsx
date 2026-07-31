@@ -552,18 +552,18 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Project Name *</label>
-                  <input type="text" className="form-input" placeholder="e.g. Skyline Premium Residency" value={projectName} onChange={e => setProjectName(e.target.value)} required />
+                  <input type="text" className="form-input" placeholder="e.g. Skyline Premium Residency" value={projectName} onChange={e => setProjectName(e.target.value)} maxLength={255} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Group Name *</label>
-                  <input type="text" className="form-input" placeholder="e.g. ABC Group" value={groupName} onChange={e => setGroupName(e.target.value)} required />
+                  <input type="text" className="form-input" placeholder="e.g. ABC Group" value={groupName} onChange={e => setGroupName(e.target.value)} maxLength={255} required />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Gst Name (Optional)</label>
-                  <input type="text" className="form-input" placeholder="e.g. ABC Buildcon Pvt Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} />
+                  <label className="form-label">GST Name (Optional)</label>
+                  <input type="text" className="form-input" placeholder="e.g. ABC Buildcon Pvt Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} maxLength={255} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">GST Number (Optional)</label>
@@ -573,7 +573,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                     placeholder="e.g. 09ABCDE1234F1Z5"
                     value={gstNumber}
                     onChange={e => setGstNumber(e.target.value.toUpperCase())}
-                    maxLength={15}
+                    maxLength={50}
                   />
                 </div>
               </div>
@@ -581,7 +581,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Site Incharge Name *</label>
-                  <input type="text" className="form-input" placeholder="e.g. Rahul Sharma" value={siteInchargeName} onChange={e => setSiteInchargeName(e.target.value)} required />
+                  <input type="text" className="form-input" placeholder="e.g. Rahul Sharma" value={siteInchargeName} onChange={e => setSiteInchargeName(e.target.value)} maxLength={255} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Site Incharge Mobile *</label>
@@ -591,6 +591,9 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                     placeholder="e.g. 9876543210"
                     value={siteInchargeMobile}
                     onChange={e => setSiteInchargeMobile(e.target.value.replace(/\D/g, ''))}
+                    maxLength={10}
+                    minLength={10}
+                    pattern="[0-9]{10}"
                     required
                   />
                 </div>
@@ -599,11 +602,11 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Office Contact (Optional)</label>
-                  <input type="text" className="form-input" placeholder="e.g. 011-22334455" value={officeContact} onChange={e => setOfficeContact(e.target.value)} />
+                  <input type="text" className="form-input" placeholder="e.g. 011-22334455" value={officeContact} onChange={e => setOfficeContact(e.target.value)} maxLength={15} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Email Address (Optional)</label>
-                  <input type="email" className="form-input" placeholder="e.g. contact@company.com" value={email} onChange={e => setEmail(e.target.value)} />
+                  <input type="email" className="form-input" placeholder="e.g. contact@company.com" value={email} onChange={e => setEmail(e.target.value)} maxLength={255} />
                 </div>
               </div>
 

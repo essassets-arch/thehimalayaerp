@@ -25,17 +25,23 @@ export const brandAnalysisService = {
   },
   
   findAll: async (filters = {}) => {
+    // This was failing with 404 because there is no base GET /brand-analysis.
+    // Finance should use /brand-analysis/finance/requests
     const params = new URLSearchParams(filters);
-    const response = await client.get(`/brand-analysis?${params.toString()}`);
-    // NestJS global interceptor wraps responses in { success, data, meta }
-    // Our service also returns { data, meta }
-    // So the actual array is inside response.data.data
+    const response = await client.get(`/brand-analysis/finance/requests?${params.toString()}`);
     return response.data.data || { data: [], meta: {} };
   },
 
   getFinanceSummary: async () => {
-    const response = await client.get('/brand-analysis/finance-summary');
-    return response.data.data;
+    // Calculate summary from the requests list since there's no backend summary endpoint
+    const response = await client.get('/brand-analysis/finance/requests');
+    const requests = response.data.data || [];
+    
+    return {
+      pending: requests.filter(r => r.status === 'SUPER_ADMIN_APPROVED').length,
+      reviewed: requests.filter(r => r.status === 'FINANCE_ANALYSIS_IN_PROGRESS').length,
+      completed: requests.filter(r => r.status === 'FINANCE_ANALYSIS_COMPLETED').length
+    };
   },
 
   findOne: async (id) => {

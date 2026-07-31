@@ -10,26 +10,25 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
 
   // Filter orders by search query and active pipeline stage
   const filteredOrders = orders.filter(o => {
-    const custName = o.customerName || o.customer?.name || '';
+    const custName = o.customerName || o.customer?.companyName || '';
     const matchesSearch = custName.toLowerCase().includes(search.toLowerCase()) || 
-                          o.products.toLowerCase().includes(search.toLowerCase()) ||
-                          o.orderNo.toLowerCase().includes(search.toLowerCase());
+                          String(o.orderId || o.orderNo || '').toLowerCase().includes(search.toLowerCase());
     
-    const prodStatus = String(o.productionStatus || '').toLowerCase();
-    const stStatus = String(o.storeStatus || '').toLowerCase();
-    const qcStatus = String(o.plantHeadStatus || '').toLowerCase();
+    const prodStatus = String(o.productionStatus || '').toUpperCase();
+    const orderStatus = String(o.status || '').toUpperCase();
 
     let matchesFilter = false;
     if (filter === 'All') {
       matchesFilter = true;
     } else if (filter === 'Awaiting Materials') {
-      matchesFilter = (stStatus !== 'issued' && prodStatus !== 'completed' && prodStatus !== 'qc_pending' && prodStatus !== 'qc_passed');
+      matchesFilter = ['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'PENDING_PLANNING'].includes(orderStatus) || prodStatus === 'PENDING_PLANNING';
     } else if (filter === 'Manufacturing') {
-      matchesFilter = ['running', 'rework', 'hold', 'in_production', 'work_order_created', 'planned'].includes(prodStatus);
+      matchesFilter = ['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PLANNED', 'IN_PRODUCTION'].includes(prodStatus);
     } else if (filter === 'QC Inspection') {
-      matchesFilter = (['completed', 'qc_pending'].includes(prodStatus) && ['pending', 'qc rejected', 'qc_rejected'].includes(qcStatus));
+      // In this backend, QC is part of production completion, but we can treat READY_FOR_DISPATCH as post-QC
+      matchesFilter = orderStatus === 'READY_FOR_DISPATCH' && prodStatus !== 'COMPLETED';
     } else if (filter === 'QC Approved') {
-      matchesFilter = ['approved', 'qc approved', 'qc_passed', 'qc passed'].includes(qcStatus);
+      matchesFilter = orderStatus === 'READY_FOR_DISPATCH' || prodStatus === 'COMPLETED';
     }
 
     return matchesSearch && matchesFilter;
@@ -38,21 +37,23 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
   // KPI Calculations
   const total = orders.length;
   const awaitingMaterials = orders.filter(o => {
-    const stStatus = String(o.storeStatus || '').toLowerCase();
-    const prodStatus = String(o.productionStatus || '').toLowerCase();
-    return stStatus !== 'issued' && prodStatus !== 'completed' && prodStatus !== 'qc_pending' && prodStatus !== 'qc_passed';
+    const status = String(o.status || '').toUpperCase();
+    const pStatus = String(o.productionStatus || '').toUpperCase();
+    return ['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'PENDING_PLANNING'].includes(status) || pStatus === 'PENDING_PLANNING';
   }).length;
 
   const runningCount = orders.filter(o => {
-    const prodStatus = String(o.productionStatus || '').toLowerCase();
-    return ['running', 'rework', 'in_production', 'work_order_created', 'planned'].includes(prodStatus);
+    const status = String(o.status || '').toUpperCase();
+    const pStatus = String(o.productionStatus || '').toUpperCase();
+    return ['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(status) || ['PLANNED', 'IN_PRODUCTION'].includes(pStatus);
   }).length;
 
-  const holdCount = orders.filter(o => String(o.productionStatus || '').toLowerCase() === 'hold').length;
+  const holdCount = 0; // Not natively in standard schema yet
 
   const completedCount = orders.filter(o => {
-    const qcStatus = String(o.plantHeadStatus || '').toLowerCase();
-    return ['approved', 'qc approved', 'qc_passed', 'qc passed'].includes(qcStatus);
+    const status = String(o.status || '').toUpperCase();
+    const pStatus = String(o.productionStatus || '').toUpperCase();
+    return status === 'READY_FOR_DISPATCH' || pStatus === 'COMPLETED' || status === 'COMPLETED';
   }).length;
 
   const getStepColor = (status) => {
@@ -66,40 +67,41 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
   };
 
   const renderPipeline = (o) => {
-    const prodStatus = String(o.productionStatus || '').toLowerCase();
-    const qcStatus = String(o.plantHeadStatus || '').toLowerCase();
-    const dispStatus = String(o.dispatchStatus || '').toLowerCase();
+    const prodStatus = String(o.productionStatus || '').toUpperCase();
+    const orderStatus = String(o.status || '').toUpperCase();
+    const dispStatus = String(o.dispatchStatus || '').toUpperCase();
 
     // Step 1: Order Confirm
-    const s1 = 'completed';
-
-    // Step 2: Plant Head Production
-    let s2 = 'pending';
-    if (['completed', 'qc_pending', 'qc_passed', 'qc passed'].includes(prodStatus)) {
-      s2 = 'completed';
-    } else if (['running', 'rework', 'in_production', 'work_order_created', 'planned'].includes(prodStatus)) {
-      s2 = 'active';
-    } else if (prodStatus === 'hold') {
-      s2 = 'hold';
+    let s1 = 'pending';
+    if (!['DRAFT', 'PENDING_APPROVAL'].includes(orderStatus)) {
+      s1 = 'completed';
     } else {
-      s2 = 'active';
+      s1 = 'active';
     }
 
-    // Step 3: QC
+    // Step 2: Plant Head & Production
+    let s2 = 'pending';
+    if (['READY_FOR_DISPATCH', 'COMPLETED'].includes(orderStatus) || prodStatus === 'COMPLETED') {
+      s2 = 'completed';
+    } else if (['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PENDING_PLANNING', 'PLANNED', 'IN_PRODUCTION'].includes(prodStatus)) {
+      s2 = 'active';
+    } else if (s1 === 'completed') {
+      s2 = 'pending'; // Waiting for plant head
+    }
+
+    // Step 3: Ready for Dispatch / QC Approved
     let s3 = 'pending';
-    if (['approved', 'qc approved', 'qc_passed', 'qc passed'].includes(qcStatus)) {
+    if (['COMPLETED'].includes(orderStatus) || ['SHIPPED', 'IN_TRANSIT', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(dispStatus)) {
       s3 = 'completed';
-    } else if (['rejected', 'qc rejected', 'qc_rejected'].includes(qcStatus)) {
-      s3 = 'rejected';
-    } else if (s2 === 'completed') {
+    } else if (orderStatus === 'READY_FOR_DISPATCH' || prodStatus === 'COMPLETED') {
       s3 = 'active';
     }
 
     // Step 4: Dispatch Delivered
     let s4 = 'pending';
-    if (dispStatus === 'delivered' || dispStatus === 'closed') {
+    if (['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(dispStatus)) {
       s4 = 'completed';
-    } else if (['dispatched', 'dispatch_created', 'in transit', 'in_transit'].includes(dispStatus)) {
+    } else if (['DISPATCH_DRAFT', 'DISPATCH_CREATED', 'SHIPPED', 'IN_TRANSIT'].includes(dispStatus)) {
       s4 = 'active';
     } else if (s3 === 'completed') {
       s4 = 'active';
@@ -108,19 +110,21 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
     // Resolve current active stage description
     let activeText = 'Order Confirmed';
     if (s4 === 'completed') {
-      activeText = 'Delivered successfully';
-    } else if (['dispatched', 'dispatch_created', 'in transit', 'in_transit'].includes(dispStatus)) {
-      activeText = 'Cargo Dispatched';
-    } else if (s3 === 'completed') {
-      activeText = 'QC Approved - Awaiting Dispatch';
-    } else if (s3 === 'rejected') {
-      activeText = 'QC Rejected - Floor Rework';
-    } else if (s3 === 'active') {
-      activeText = 'QC Inspection queue';
-    } else if (prodStatus === 'hold') {
-      activeText = 'Assembly floor on Hold';
-    } else if (['running', 'in_production', 'work_order_created', 'planned'].includes(prodStatus)) {
-      activeText = 'Manufacturing Floor execution';
+      activeText = 'Delivered Successfully';
+    } else if (['SHIPPED', 'IN_TRANSIT'].includes(dispStatus)) {
+      activeText = 'Cargo Dispatched / In Transit';
+    } else if (dispStatus === 'DISPATCH_CREATED' || dispStatus === 'DISPATCH_DRAFT') {
+      activeText = 'Dispatch Planned';
+    } else if (s3 === 'active' || s3 === 'completed') {
+      activeText = 'Production Completed - Awaiting Dispatch';
+    } else if (['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PLANNED', 'IN_PRODUCTION'].includes(prodStatus)) {
+      activeText = 'Manufacturing Floor Execution';
+    } else if (['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED'].includes(orderStatus) || prodStatus === 'PENDING_PLANNING') {
+      activeText = 'Plant Head Review / Planning';
+    } else if (orderStatus === 'CONFIRMED') {
+      activeText = 'Awaiting Plant Head Assignment';
+    } else {
+      activeText = 'Awaiting Approval';
     }
 
     const renderStep = (status, titleText) => {
@@ -282,12 +286,12 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
 
         <DataTable
           columns={[
-            { header: 'Order ID', accessor: 'orderNo', render: (row) => <strong style={{ color: 'var(--color-accent-teal)' }}>{row.orderNo}</strong> },
-            { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || row.customer?.name },
-            { header: 'Products / Items', accessor: 'products' },
-            { header: 'Store Release', accessor: 'storeStatus', render: (row) => <StatusBadge status={row.storeStatus} /> },
-            { header: 'Quality Check', accessor: 'plantHeadStatus', render: (row) => <StatusBadge status={row.plantHeadStatus} /> },
-            { header: 'Pipeline Progress', accessor: 'productionStatus', render: (row) => renderPipeline(row) }
+            { header: 'Order ID', accessor: 'orderId', render: (row) => <strong style={{ color: 'var(--color-accent-teal)' }}>{row.orderId || row.orderNo}</strong> },
+            { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || row.customer?.companyName || 'Unknown' },
+            { header: 'Items', accessor: 'items', render: (row) => row.items?.length ? `${row.items.length} items` : row.products || '-' },
+            { header: 'Production Status', accessor: 'productionStatus', render: (row) => <StatusBadge status={row.productionStatus || 'PENDING'} /> },
+            { header: 'Dispatch Status', accessor: 'dispatchStatus', render: (row) => <StatusBadge status={row.dispatchStatus || 'PENDING'} /> },
+            { header: 'Pipeline Progress', accessor: 'pipeline', render: (row) => renderPipeline(row) }
           ]}
           data={filteredOrders}
           searchQuery={search}

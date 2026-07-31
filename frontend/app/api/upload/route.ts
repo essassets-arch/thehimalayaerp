@@ -59,7 +59,8 @@ export async function POST(request: Request) {
       mime: file.type,
       size: file.size,
     });
-  } catch {
+  } catch (error) {
+    console.error("Upload error:", error);
     return NextResponse.json(
       { message: "The image could not be uploaded." },
       { status: 500 },

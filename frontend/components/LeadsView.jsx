@@ -13,17 +13,41 @@ import { useRouter } from 'next/navigation';
 import { useERPStore, getLeadQuotationState, getLeadSampleState } from '../store/erpStore';
 import { displayEntityId } from '../store/idGenerator';
 
-export default function LeadsView({ 
-  leads, 
+const getSmartLeadStatus = (lead, orders, quotations, samples, reminders, erpState) => {
+  let status = lead.status || lead.leadStatus || 'New';
+  if (status === 'Lost' || status === 'Converted') return status;
+
+  const leadId = lead.id || lead.leadId;
+  const quoState = getLeadQuotationState(erpState, leadId);
+  const smpState = getLeadSampleState(erpState, leadId);
+  const hasOrder = orders.some(o => o.leadId === leadId || (o.customerName && o.customerName === lead.companyName));
+  const hasReminder = reminders.some(r => (r.moduleId === leadId || r.customerName === lead.companyName) && r.status !== 'Completed' && r.status !== 'Closed');
+
+  if (hasOrder) {
+    return 'Converted';
+  } else if (quoState.state === 'COMPLETED') {
+    return 'Quotation Generated';
+  } else if (quoState.state === 'DRAFT') {
+    return 'Quotation Draft';
+  } else if (smpState.state === 'COMPLETED' || smpState.state === 'DRAFT') {
+    return 'Sample Sent';
+  } else if (hasReminder) {
+    return 'Follow-up';
+  }
+  return status;
+};
+
+export default function LeadsView({
+  leads,
   reminders = [],
   samples = [],
   quotations = [],
   orders = [],
-  onAddLeadClick, 
+  onAddLeadClick,
   onEditLeadClick,
   onConvertToSample,
   onGenerateQuotation,
-  onUpdateStatus, 
+  onUpdateStatus,
   onUpdateLead,
   onAddFollowup,
   onDeleteLead,
@@ -243,8 +267,8 @@ export default function LeadsView({
     const contactPerson = lead.contactPerson || '';
     const salesperson = lead.salesperson || '';
     const matchesSearch = companyName.toLowerCase().includes(search.toLowerCase()) ||
-                          contactPerson.toLowerCase().includes(search.toLowerCase()) ||
-                          salesperson.toLowerCase().includes(search.toLowerCase());
+      contactPerson.toLowerCase().includes(search.toLowerCase()) ||
+      salesperson.toLowerCase().includes(search.toLowerCase());
     if (filter === 'Reminders') return false;
     const matchesFilter = filter === 'All' || lead.status === filter;
     return matchesSearch && matchesFilter;
@@ -320,6 +344,7 @@ export default function LeadsView({
   const leadSamples = currentDetailsLead ? samples.filter((s) => String(s.leadId || s.lead_id) === String(currentDetailsLead.id)) : [];
   const leadQuotations = currentDetailsLead ? quotations.filter((q) => String(q.leadId || q.lead_id) === String(currentDetailsLead.id)) : [];
   const leadOrders = currentDetailsLead ? orders.filter((o) => o.customerName === currentDetailsLead.companyName || (currentDetailsLead.customerId && String(o.customerId) === String(currentDetailsLead.customerId))) : [];
+  const currentDetailsStatus = currentDetailsLead ? getSmartLeadStatus(currentDetailsLead, orders, quotations, samples, reminders, erpStore.state) : '';
 
   return (
     <div className="app-card" style={{ flex: 1 }}>
@@ -330,7 +355,7 @@ export default function LeadsView({
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
             {['All', 'New', 'Follow-up', 'Converted', 'Lost', 'Reminders'].map(st => (
-              <button 
+              <button
                 key={st}
                 className={`filter-pill ${filter === st ? 'active' : ''}`}
                 onClick={() => setFilter(st)}
@@ -343,15 +368,15 @@ export default function LeadsView({
 
           <div className="search-box" style={{ background: '#f1f3f5', border: '1px solid #D6E2F0' }}>
             <Search size={14} style={{ color: 'var(--color-text-secondary)' }} />
-            <input 
-              type="text" 
-              placeholder="Search leads..." 
+            <input
+              type="text"
+              placeholder="Search leads..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ color: 'var(--color-text-primary)' }}
             />
           </div>
-          <button 
+          <button
             className="btn-small btn-primary-small"
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             onClick={onAddLeadClick}
@@ -379,282 +404,286 @@ export default function LeadsView({
       {/* Table */}
       <div className="crm-table-container">
         {isRemindersView ? (
-        <table className="crm-table responsive-table">
-          <thead>
-            <tr>
-              <th>Lead</th>
-              <th>Reminder</th>
-              <th>Date</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLeadReminders.length === 0 ? (
+          <table className="crm-table responsive-table">
+            <thead>
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
-                  No reminders found.
-                </td>
+                <th>Lead</th>
+                <th>Reminder</th>
+                <th>Date</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Action</th>
               </tr>
-            ) : (
-              displayedReminders.map((reminder) => {
-                const lead = leads.find((l) => String(l.id) === String(reminder.moduleId));
-                return (
-                  <tr key={reminder.id}>
-                    <td data-label="Lead" style={{ fontWeight: '700' }}>{lead?.companyName || reminder.customerName || `Lead #${reminder.moduleId}`}</td>
-                    <td data-label="Reminder">{reminder.reminderType}</td>
-                    <td data-label="Date">
-                      {formatReminderDate(reminder.reminderDate)}
-                      {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
-                    </td>
-                    <td data-label="Priority">{reminder.priority}</td>
-                    <td data-label="Status">{reminder.status}</td>
-                    <td data-label="Action">
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {reminder.status === 'Pending' && onCompleteReminder && (
-                          <button className="btn-small btn-outline-small" onClick={() => onCompleteReminder(reminder.id)}>Complete</button>
-                        )}
-                        <button className="btn-small btn-outline-small" onClick={() => setReminderModal({ lead, reminder })}>Edit</button>
-                        {lead && (
-                          <button className="btn-small btn-outline-small" onClick={() => setSelectedLead(lead)}>Open Lead</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredLeadReminders.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                    No reminders found.
+                  </td>
+                </tr>
+              ) : (
+                displayedReminders.map((reminder) => {
+                  const lead = leads.find((l) => String(l.id) === String(reminder.moduleId));
+                  return (
+                    <tr key={reminder.id}>
+                      <td data-label="Lead" style={{ fontWeight: '700' }}>{lead?.companyName || reminder.customerName || `Lead #${reminder.moduleId}`}</td>
+                      <td data-label="Reminder">{reminder.reminderType}</td>
+                      <td data-label="Date">
+                        {formatReminderDate(reminder.reminderDate)}
+                        {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
+                      </td>
+                      <td data-label="Priority">{reminder.priority}</td>
+                      <td data-label="Status">{reminder.status}</td>
+                      <td data-label="Action">
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {reminder.status === 'Pending' && onCompleteReminder && (
+                            <button className="btn-small btn-outline-small" onClick={() => onCompleteReminder(reminder.id)}>Complete</button>
+                          )}
+                          <button className="btn-small btn-outline-small" onClick={() => setReminderModal({ lead, reminder })}>Edit</button>
+                          {lead && (
+                            <button className="btn-small btn-outline-small" onClick={() => setSelectedLead(lead)}>Open Lead</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         ) : (
-        <table className="crm-table responsive-table">
-          <thead>
-            <tr>
-              <th>Lead ID</th>
-              <th>Company Name</th>
-              <th>Contact Person</th>
-              <th>Phone / Email</th>
-              <th>Status</th>
-              <th>Next Reminder</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLeads.length === 0 ? (
+          <table className="crm-table responsive-table">
+            <thead>
               <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
-                  <strong>No leads found.</strong>
-                  <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
-                    Create your first lead to begin the sales workflow.
-                  </div>
-                </td>
+                <th>Lead ID</th>
+                <th>Company Name</th>
+                <th>Phone / Email</th>
+                <th>Status</th>
+                <th>Next Reminder</th>
+                <th>Actions</th>
               </tr>
-            ) : (
-              displayedLeads.map((lead) => (
-                <tr key={lead.id}>
-                  <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{displayEntityId(lead.id)}</td>
-                  <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</td>
-                  <td data-label="Contact Person" style={{ whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.contactPerson || lead.siteInchargeName || 'N/A'}</td>
-                  <td data-label="Phone / Email">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</span>
-                      <span style={{ fontSize: '11px', color: '#5E6B82', whiteSpace: 'nowrap' }}>{lead.email || 'N/A'}</span>
-                    </div>
-                  </td>
-                  <td data-label="Status">
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '3px 10px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      background: lead.status === 'New' || lead.status === 'New Lead' ? '#dbeafe'
-                        : lead.status === 'Follow-up' ? '#fef9c3'
-                        : lead.status === 'Converted' ? '#dcfce7'
-                        : lead.status === 'Lost' ? '#fee2e2'
-                        : lead.status === 'Quotation Draft' ? '#ffedd5'
-                        : lead.status === 'Quotation Generated' ? '#e0f2fe'
-                        : '#f1f5f9',
-                      color: lead.status === 'New' || lead.status === 'New Lead' ? '#1d4ed8'
-                        : lead.status === 'Follow-up' ? '#92400e'
-                        : lead.status === 'Converted' ? '#15803d'
-                        : lead.status === 'Lost' ? '#dc2626'
-                        : lead.status === 'Quotation Draft' ? '#ea580c'
-                        : lead.status === 'Quotation Generated' ? '#0369a1'
-                        : '#475569',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {lead.status}
-                    </span>
-                  </td>
-                  <td data-label="Next Reminder">{renderNextReminder(lead)}</td>
-                  <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                    <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                      {/* View Icon */}
-                      <button
-                        title="View Details"
-                        onClick={() => setSelectedLead(lead)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '32px', height: '32px',
-                          background: '#ffffff', border: '1px solid #D6E2F0',
-                          borderRadius: '8px', cursor: 'pointer',
-                          color: '#475569', flexShrink: 0
-                        }}
-                      >
-                        <Eye size={14} />
-                      </button>
-                      {/* Edit Icon */}
-                      <button
-                        title="Edit Details"
-                        onClick={() => onEditLeadClick(lead.id)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '32px', height: '32px',
-                          background: '#ffffff', border: '1px solid #D6E2F0',
-                          borderRadius: '8px', cursor: 'pointer',
-                          color: '#475569', flexShrink: 0
-                        }}
-                      >
-                        <Edit size={14} />
-                      </button>
-
-                      {lead.status !== 'Lost' ? (
-                        <>
-                          {/* 1. Generate / Continue Quotation */}
-                          {(() => {
-                            const quoState = getLeadQuotationState(erpStore.state, lead.id || lead.leadId);
-                            if (quoState.state === 'COMPLETED') return null;
-
-                            return (
-                              <button
-                                onClick={() => handleGenerateQuotationClick(lead)}
-                                title={quoState.state === 'DRAFT' ? "Continue Quotation" : "Generate Quotation"}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center',
-                                  padding: '6px 12px', height: '32px',
-                                  background: quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375',
-                                  border: `1px solid ${quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375'}`,
-                                  borderRadius: '8px', cursor: 'pointer',
-                                  fontSize: '11.5px', fontWeight: '800',
-                                  color: '#ffffff', whiteSpace: 'nowrap',
-                                  flexShrink: 0,
-                                  boxShadow: `0 1px 4px ${quoState.state === 'DRAFT' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(47,67,117,0.3)'}`
-                                }}
-                              >
-                                {quoState.state === 'DRAFT' ? 'Continue Quotation →' : 'Generate Quotation →'}
-                              </button>
-                            );
-                          })()}
-                          {/* 2. Send / Continue Sample */}
-                          {(() => {
-                            const smpState = getLeadSampleState(erpStore.state, lead.id || lead.leadId);
-                            if (smpState.state === 'COMPLETED') return null;
-
-                            return (
-                              <button
-                                onClick={() => handleGenerateSampleClick(lead)}
-                                title={smpState.state === 'DRAFT' ? "Continue Sample" : "Send Sample"}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center',
-                                  padding: '6px 12px', height: '32px',
-                                  background: smpState.state === 'DRAFT' ? '#FEF3C7' : '#ffffff',
-                                  border: `1px solid ${smpState.state === 'DRAFT' ? '#FDE68A' : '#D6E2F0'}`,
-                                  borderRadius: '8px', cursor: 'pointer',
-                                  fontSize: '11.5px', fontWeight: '700',
-                                  color: smpState.state === 'DRAFT' ? '#92400E' : '#334155', whiteSpace: 'nowrap',
-                                  flexShrink: 0
-                                }}
-                              >
-                                {smpState.state === 'DRAFT' ? 'Continue Sample' : 'Send Sample'}
-                              </button>
-                            );
-                          })()}
-                          {/* 3. Reminder */}
-                          {onSaveReminder && lead.status !== 'Lost' && lead.status !== 'Converted' && (
-                            <button
-                              onClick={() => setReminderModal({ lead })}
-                              style={{
-                                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                padding: '6px 12px', height: '32px',
-                                background: '#ffffff',
-                                border: '1px solid #D6E2F0',
-                                borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '11.5px', fontWeight: '700',
-                                color: '#334155', whiteSpace: 'nowrap',
-                                flexShrink: 0
-                              }}
-                            >
-                              <Bell size={12} /> Reminder
-                            </button>
-                          )}
-                          {/* 4. Mark Lost */}
-                          {lead.status !== 'Lost' && lead.status !== 'Converted' && (
-                            <button
-                              onClick={() => handleMarkLostClick(lead)}
-                              style={{
-                                display: 'inline-flex', alignItems: 'center',
-                                padding: '6px 12px', height: '32px',
-                                background: '#ffffff',
-                                border: '1.5px solid #fca5a5',
-                                borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '11.5px', fontWeight: '700',
-                                color: '#dc2626', whiteSpace: 'nowrap',
-                                flexShrink: 0
-                              }}
-                            >
-                              Lost
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            Swal.fire({
-                              title: 'Restore Lead?',
-                              text: `Are you sure you want to restore "${lead.companyName}" to New status?`,
-                              icon: 'question',
-                              showCancelButton: true,
-                              confirmButtonText: 'Yes, Restore',
-                              cancelButtonText: 'Cancel',
-                              customClass: {
-                                popup: 'swal-premium-popup',
-                                title: 'swal-premium-title',
-                                htmlContainer: 'swal-premium-text',
-                                confirmButton: 'swal-premium-confirm-btn',
-                                cancelButton: 'swal-premium-cancel-btn'
-                              },
-                              buttonsStyling: false
-                            }).then((result) => {
-                              if (result.isConfirmed) {
-                                onUpdateStatus(lead.id, 'New');
-                              }
-                            });
-                          }}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center',
-                            padding: '4px 12px', height: '30px',
-                            background: '#dcfce7',
-                            border: '1px solid #86efac',
-                            borderRadius: '8px', cursor: 'pointer',
-                            fontSize: '12px', fontWeight: '700',
-                            color: '#15803d', whiteSpace: 'nowrap',
-                            flexShrink: 0
-                          }}
-                        >
-                          Restore Lead
-                        </button>
-                      )}
-
+            </thead>
+            <tbody>
+              {filteredLeads.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                    <strong>No leads found.</strong>
+                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
+                      Create your first lead to begin the sales workflow.
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                displayedLeads.map((lead) => {
+                  const displayStatus = getSmartLeadStatus(lead, orders, quotations, samples, reminders, erpStore.state);
+
+                  return (
+                    <tr key={lead.id}>
+                      <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{displayEntityId(lead.id)}</td>
+                      <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</td>
+                      <td data-label="Phone / Email">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</span>
+                          <span style={{ fontSize: '11px', color: '#5E6B82', whiteSpace: 'nowrap' }}>{lead.email || 'N/A'}</span>
+                        </div>
+                      </td>
+                      <td data-label="Status">
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          background: displayStatus === 'New' || displayStatus === 'New Lead' ? '#dbeafe'
+                            : displayStatus === 'Follow-up' ? '#fef9c3'
+                              : displayStatus === 'Converted' ? '#dcfce7'
+                                : displayStatus === 'Lost' ? '#fee2e2'
+                                  : displayStatus === 'Quotation Draft' ? '#ffedd5'
+                                    : displayStatus === 'Quotation Generated' ? '#e0f2fe'
+                                      : displayStatus === 'Sample Sent' ? '#e0f2fe'
+                                        : '#f1f5f9',
+                          color: displayStatus === 'New' || displayStatus === 'New Lead' ? '#1d4ed8'
+                            : displayStatus === 'Follow-up' ? '#92400e'
+                              : displayStatus === 'Converted' ? '#15803d'
+                                : displayStatus === 'Lost' ? '#dc2626'
+                                  : displayStatus === 'Quotation Draft' ? '#ea580c'
+                                    : displayStatus === 'Quotation Generated' ? '#0369a1'
+                                      : displayStatus === 'Sample Sent' ? '#0369a1'
+                                        : '#475569',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {displayStatus}
+                        </span>
+                      </td>
+                      <td data-label="Next Reminder">{renderNextReminder(lead)}</td>
+                      <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                          {/* View Icon */}
+                          <button
+                            title="View Details"
+                            onClick={() => setSelectedLead(lead)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: '#ffffff', border: '1px solid #D6E2F0',
+                              borderRadius: '8px', cursor: 'pointer',
+                              color: '#475569', flexShrink: 0
+                            }}
+                          >
+                            <Eye size={14} />
+                          </button>
+                          {/* Edit Icon */}
+                          <button
+                            title="Edit Details"
+                            onClick={() => onEditLeadClick(lead.id)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: '#ffffff', border: '1px solid #D6E2F0',
+                              borderRadius: '8px', cursor: 'pointer',
+                              color: '#475569', flexShrink: 0
+                            }}
+                          >
+                            <Edit size={14} />
+                          </button>
+
+                          {lead.status !== 'Lost' ? (
+                            <>
+                              {/* 1. Generate / Continue Quotation */}
+                              {(() => {
+                                const quoState = getLeadQuotationState(erpStore.state, lead.id || lead.leadId);
+                                if (quoState.state === 'COMPLETED') return null;
+
+                                return (
+                                  <button
+                                    onClick={() => handleGenerateQuotationClick(lead)}
+                                    title={quoState.state === 'DRAFT' ? "Continue Quotation" : "Generate Quotation"}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center',
+                                      padding: '6px 12px', height: '32px',
+                                      background: quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375',
+                                      border: `1px solid ${quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375'}`,
+                                      borderRadius: '8px', cursor: 'pointer',
+                                      fontSize: '11.5px', fontWeight: '800',
+                                      color: '#ffffff', whiteSpace: 'nowrap',
+                                      flexShrink: 0,
+                                      boxShadow: `0 1px 4px ${quoState.state === 'DRAFT' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(47,67,117,0.3)'}`
+                                    }}
+                                  >
+                                    {quoState.state === 'DRAFT' ? 'Continue Quotation →' : 'Generate Quotation →'}
+                                  </button>
+                                );
+                              })()}
+                              {/* 2. Send / Continue Sample */}
+                              {(() => {
+                                const smpState = getLeadSampleState(erpStore.state, lead.id || lead.leadId);
+                                if (smpState.state === 'COMPLETED') return null;
+
+                                return (
+                                  <button
+                                    onClick={() => handleGenerateSampleClick(lead)}
+                                    title={smpState.state === 'DRAFT' ? "Continue Sample" : "Send Sample"}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center',
+                                      padding: '6px 12px', height: '32px',
+                                      background: smpState.state === 'DRAFT' ? '#FEF3C7' : '#ffffff',
+                                      border: `1px solid ${smpState.state === 'DRAFT' ? '#FDE68A' : '#D6E2F0'}`,
+                                      borderRadius: '8px', cursor: 'pointer',
+                                      fontSize: '11.5px', fontWeight: '700',
+                                      color: smpState.state === 'DRAFT' ? '#92400E' : '#334155', whiteSpace: 'nowrap',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    {smpState.state === 'DRAFT' ? 'Continue Sample' : 'Send Sample'}
+                                  </button>
+                                );
+                              })()}
+                              {/* 3. Reminder */}
+                              {onSaveReminder && lead.status !== 'Lost' && lead.status !== 'Converted' && (
+                                <button
+                                  onClick={() => setReminderModal({ lead })}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                    padding: '6px 12px', height: '32px',
+                                    background: '#ffffff',
+                                    border: '1px solid #D6E2F0',
+                                    borderRadius: '8px', cursor: 'pointer',
+                                    fontSize: '11.5px', fontWeight: '700',
+                                    color: '#334155', whiteSpace: 'nowrap',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  <Bell size={12} /> Reminder
+                                </button>
+                              )}
+                              {/* 4. Mark Lost */}
+                              {lead.status !== 'Lost' && lead.status !== 'Converted' && (
+                                <button
+                                  onClick={() => handleMarkLostClick(lead)}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center',
+                                    padding: '6px 12px', height: '32px',
+                                    background: '#ffffff',
+                                    border: '1.5px solid #fca5a5',
+                                    borderRadius: '8px', cursor: 'pointer',
+                                    fontSize: '11.5px', fontWeight: '700',
+                                    color: '#dc2626', whiteSpace: 'nowrap',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  Lost
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                Swal.fire({
+                                  title: 'Restore Lead?',
+                                  text: `Are you sure you want to restore "${lead.companyName}" to New status?`,
+                                  icon: 'question',
+                                  showCancelButton: true,
+                                  confirmButtonText: 'Yes, Restore',
+                                  cancelButtonText: 'Cancel',
+                                  customClass: {
+                                    popup: 'swal-premium-popup',
+                                    title: 'swal-premium-title',
+                                    htmlContainer: 'swal-premium-text',
+                                    confirmButton: 'swal-premium-confirm-btn',
+                                    cancelButton: 'swal-premium-cancel-btn'
+                                  },
+                                  buttonsStyling: false
+                                }).then((result) => {
+                                  if (result.isConfirmed) {
+                                    onUpdateStatus(lead.id, 'New');
+                                  }
+                                });
+                              }}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center',
+                                padding: '4px 12px', height: '30px',
+                                background: '#dcfce7',
+                                border: '1px solid #86efac',
+                                borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '12px', fontWeight: '700',
+                                color: '#15803d', whiteSpace: 'nowrap',
+                                flexShrink: 0
+                              }}
+                            >
+                              Restore Lead
+                            </button>
+                          )}
+
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -690,12 +719,12 @@ export default function LeadsView({
       {/* Details Modal Overlay */}
       {currentDetailsLead && (
         <div className="modal-overlay active" onClick={() => setSelectedLead(null)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '560px' }}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header-row">
-              <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span>Lead Details {displayEntityId(currentDetailsLead.id)}</span>
-                <span className={`badge badge-${currentDetailsLead.status.toLowerCase().replace(' ', '-')}`}>
-                  {currentDetailsLead.status}
+                <span className={`badge badge-${currentDetailsStatus.toLowerCase().replace(' ', '-')}`}>
+                  {currentDetailsStatus}
                 </span>
               </h3>
               <button className="modal-close-btn" onClick={() => setSelectedLead(null)}>✕</button>
@@ -769,7 +798,7 @@ export default function LeadsView({
               {currentDetailsLead.priority && (
                 <div className="details-row">
                   <span className="details-label">Priority Level</span>
-                  <span className="details-value" style={{ 
+                  <span className="details-value" style={{
                     fontWeight: '700',
                     color: currentDetailsLead.priority === 'High' ? '#dc2626' : currentDetailsLead.priority === 'Medium' ? '#d97706' : '#2563eb'
                   }}>
@@ -941,10 +970,10 @@ export default function LeadsView({
             {/* Follow-up input form */}
             {currentDetailsLead.status !== 'Converted' && currentDetailsLead.status !== 'Lost' && (
               <form onSubmit={handleAddFollowupSubmit} style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Log follow-up details (e.g. called client, set demo...)" 
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Log follow-up details (e.g. called client, set demo...)"
                   value={followupText}
                   onChange={(e) => setFollowupText(e.target.value)}
                   required
