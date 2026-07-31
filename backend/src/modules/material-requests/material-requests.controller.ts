@@ -7,7 +7,7 @@ export class MaterialRequestsController {
 
   @Get()
   findAll(@Req() req: any) {
-    return this.service.findAll(req.user.companyId);
+    return this.service.findAll(req.user.companyId, req.user.sub, req.user.role);
   }
 
   @Post()

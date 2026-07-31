@@ -22,6 +22,50 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const normalized = String(status || '').toUpperCase().replace(/ /g, '_');
+
+  // Special animated "Working" badge for IN_PROGRESS
+  if (normalized === 'IN_PROGRESS' || normalized === 'IN PRODUCTION') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '4px 12px',
+          background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+          color: '#1d4ed8',
+          border: '1px solid #bfdbfe',
+          borderRadius: '999px',
+          fontSize: '12px',
+          fontWeight: 700,
+          letterSpacing: '0.02em',
+          whiteSpace: 'nowrap',
+        }}
+        className={className}
+      >
+        <span
+          style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: '#2563eb',
+            display: 'inline-block',
+            flexShrink: 0,
+            animation: 'workingPulse 1.4s ease-in-out infinite',
+          }}
+        />
+        Working
+        <style>{`
+          @keyframes workingPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.7); }
+          }
+        `}</style>
+      </span>
+    );
+  }
+
   const getBadgeVariant = (status: string) => {
     switch (status) {
       case 'DRAFT':
@@ -38,7 +82,6 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       case 'REJECTED':
       case 'CANCELLED':
         return 'bg-red-100 text-red-800 hover:bg-red-100/80 border border-red-200';
-      case 'IN_PROGRESS':
       case 'SENT_TO_PLANT':
       case 'PARTIALLY_DELIVERED':
       case 'IN_TRANSIT':
@@ -67,8 +110,8 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   };
 
   return (
-    <Badge className={cn('font-medium px-2.5 py-0.5 rounded-full border-none', getBadgeVariant(status), className)}>
-      {formatStatus(status)}
+    <Badge className={cn('font-medium px-2.5 py-0.5 rounded-full border-none', getBadgeVariant(normalized), className)}>
+      {formatStatus(normalized)}
     </Badge>
   );
 }

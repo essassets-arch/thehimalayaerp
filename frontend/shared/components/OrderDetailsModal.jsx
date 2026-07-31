@@ -196,12 +196,7 @@ export default function OrderDetailsModal({ order, role, onClose }) {
         )}
 
         {/* Live Order Timeline Progress Tracking */}
-        <div style={{ border: '1px solid #f0f0f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', background: '#ffffff' }}>
-          <h4 style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#5E6B82', marginBottom: '16px', letterSpacing: '0.5px' }}>
-            Production & Fulfillment Journey
-          </h4>
-          <OrderTimeline orderId={orderRef} compact={true} />
-        </div>
+        <OrderTimeline orderId={orderRef} compact={true} />
 
         {/* Action buttons controls */}
         <div className="sheet-actions">

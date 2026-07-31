@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { getSalesScope, isRestrictedRole } from '../../common/utils/rbac.util';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 
@@ -11,9 +12,11 @@ export class LeadsService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async listLeads(companyId?: string, search?: string) {
+  async listLeads(companyId?: string, search?: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'assignedToId');
     return this.prisma.lead.findMany({
       where: {
+        ...scope,
         deletedAt: null,
         ...(companyId ? { companyId } : {}),
         ...(search ? {
@@ -33,20 +36,21 @@ export class LeadsService {
     });
   }
 
-  async getLead(id: string, companyId?: string) {
+  async getLead(id: string, companyId?: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'assignedToId');
     const lead = await this.prisma.lead.findFirst({
-      where: { id, deletedAt: null, ...(companyId ? { companyId } : {}) },
+      where: { id, ...scope, deletedAt: null, ...(companyId ? { companyId } : {}) },
       include: {
         workflowState: true,
         activities: { orderBy: { createdAt: 'desc' } },
         quotations: { include: { workflowState: true, items: true }, orderBy: { createdAt: 'desc' } },
       }
     });
-    if (!lead) throw new NotFoundException('Lead not found');
+    if (!lead) throw new NotFoundException('Lead not found or access denied');
     return lead;
   }
 
-  async createLead(dto: any, userId: string, companyId?: string) {
+  async createLead(dto: any, userId: string, companyId?: string, role?: string) {
     const initialState = await this.workflowService.getInitialState('LEAD');
     const resolvedCompanyId = companyId || dto.companyId || (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
     if (!resolvedCompanyId) throw new NotFoundException('Company not found');
@@ -69,7 +73,7 @@ export class LeadsService {
         detailedItems: Array.isArray(dto.detailedItems) ? dto.detailedItems : undefined,
         estimatedQuantity: dto.estimatedQuantity,
         unit: dto.unit,
-        assignedToId: dto.assignedToId,
+        assignedToId: isRestrictedRole(role) ? userId : (dto.assignedToId || userId),
         remarks: dto.remarks || dto.notes,
         companyId: resolvedCompanyId,
         workflowStateId: initialState.id,
@@ -79,8 +83,8 @@ export class LeadsService {
     });
   }
 
-  async updateLead(id: string, dto: any, userId: string, companyId?: string) {
-    await this.getLead(id, companyId);
+  async updateLead(id: string, dto: any, userId: string, companyId?: string, role?: string) {
+    await this.getLead(id, companyId, userId, role);
     const allowed = [
       'companyName', 'groupName', 'projectName', 'contactPerson', 'email', 'phone',
       'gstName', 'gstNumber', 'address', 'source',
@@ -91,6 +95,8 @@ export class LeadsService {
       Object.entries(dto).filter(([key]) => allowed.includes(key)),
     ) as any;
     if (data.nextReminderAt) data.nextReminderAt = new Date(data.nextReminderAt);
+    if (isRestrictedRole(role)) delete data.assignedToId; // Prevent unauthorized reassignment
+
     return this.prisma.lead.update({
       where: { id },
       data: { ...data, updatedById: userId, version: { increment: 1 } },
@@ -98,8 +104,8 @@ export class LeadsService {
     });
   }
 
-  async getTimeline(id: string) {
-    await this.getLead(id);
+  async getTimeline(id: string, userId?: string, role?: string) {
+    await this.getLead(id, undefined, userId, role);
     const [workflow, activities] = await Promise.all([
       this.prisma.workflowHistory.findMany({
         where: { entityType: 'LEAD', entityId: id },
@@ -115,9 +121,8 @@ export class LeadsService {
     );
   }
 
-  async addActivity(id: string, dto: { activityType: string, notes?: string, scheduledAt?: string }, userId: string) {
-    const lead = await this.prisma.lead.findUnique({ where: { id } });
-    if (!lead) throw new NotFoundException('Lead not found');
+  async addActivity(id: string, dto: { activityType: string, notes?: string, scheduledAt?: string }, userId: string, role?: string) {
+    const lead = await this.getLead(id, undefined, userId, role);
 
     return this.prisma.leadActivity.create({
       data: {
@@ -130,8 +135,9 @@ export class LeadsService {
     });
   }
 
-  async processAction(id: string, actionName: string, remarks?: string, userId?: string) {
+  async processAction(id: string, actionName: string, remarks?: string, userId?: string, role?: string) {
     return this.prisma.$transaction(async (tx) => {
+      await this.getLead(id, undefined, userId, role);
       const lead = await tx.lead.findUnique({ where: { id }, include: { workflowState: true } });
       if (!lead) throw new NotFoundException('Lead not found');
 

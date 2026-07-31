@@ -8,6 +8,7 @@ import {
   withOptimisticUpdate,
 } from '../../common/utils/database.util';
 import { Prisma } from '@prisma/client';
+import { getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class CustomersService {
@@ -83,6 +84,8 @@ export class CustomersService {
     page: number = 1,
     pageSize: number = 25,
     search?: string,
+    userId?: string,
+    role?: string,
   ) {
     const where: Prisma.CustomerWhereInput = {
       companyId,
@@ -97,6 +100,7 @@ export class CustomersService {
             ],
           }
         : {}),
+      ...getSalesScope(userId, role, 'createdById'),
     };
 
     const [items, total] = await Promise.all([
@@ -112,9 +116,10 @@ export class CustomersService {
     return { items, total };
   }
 
-  async getById(id: string, companyId: string) {
+  async getById(id: string, companyId: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'createdById');
     const customer = await this.prisma.customer.findFirst({
-      where: { id, companyId },
+      where: { id, companyId, ...scope, deletedAt: null },
     });
     if (!customer) throw new NotFoundException('Customer not found');
     return customer;
@@ -126,8 +131,9 @@ export class CustomersService {
     updateDto: UpdateCustomerDto,
     userId: string,
     requestId?: string,
+    role?: string,
   ) {
-    const existing = await this.getById(id, companyId);
+    const existing = await this.getById(id, companyId, userId, role);
     const { expectedVersion, ...data } = updateDto;
 
     const updated = await withOptimisticUpdate(
@@ -173,8 +179,9 @@ export class CustomersService {
     expectedVersion: number,
     userId: string,
     requestId?: string,
+    role?: string,
   ) {
-    const existing = await this.getById(id, companyId);
+    const existing = await this.getById(id, companyId, userId, role);
     const updated = await withOptimisticUpdate(
       this.prisma,
       'customer',
@@ -207,8 +214,9 @@ export class CustomersService {
     expectedVersion: number,
     userId: string,
     requestId?: string,
+    role?: string,
   ) {
-    const existing = await this.getById(id, companyId); // might need to be careful if we exclude deleted records from normal gets
+    const existing = await this.getById(id, companyId, userId, role); // might need to be careful if we exclude deleted records from normal gets
     // Let's ensure getById allows soft-deleted records to be found.
     // `findFirst` in getById does NOT filter `deletedAt: null`, so it's fine.
 

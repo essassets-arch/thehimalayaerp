@@ -235,6 +235,7 @@ export const navigationConfig = {
 
   'HR': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/hr/dashboard' },
+    { id: 'users', label: 'User Management', icon: Users, path: '/hr/users' },
     { id: 'recruitment', label: 'Recruitment Requisitions', icon: UserPlus, path: '/hr/recruitment' },
     { id: 'employees', label: 'Employees', icon: Users, path: '/hr/employees' },
     { id: 'register-staff', label: 'Register Staff', icon: UserPlus, path: '/hr/register-staff' },

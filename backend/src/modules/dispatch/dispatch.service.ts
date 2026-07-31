@@ -4,6 +4,7 @@ import { WorkflowService } from '../workflow/workflow.service';
 import { CreditService } from '../finance/credit.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Decimal } from '@prisma/client/runtime/library';
+import { getAdvancedScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class DispatchService {
@@ -14,8 +15,13 @@ export class DispatchService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async listDispatches() {
+  async listDispatches(userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'DISPATCH': { createdById: userId },
+      'SALES': { salesOrder: { createdById: userId } }
+    });
     return this.prisma.dispatch.findMany({
+      where: scope,
       include: {
         salesOrder: { include: { customer: true } },
         items: { include: { salesOrderItem: true } },
@@ -25,9 +31,13 @@ export class DispatchService {
     });
   }
 
-  async getDispatch(id: string) {
+  async getDispatch(id: string, userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'DISPATCH': { createdById: userId },
+      'SALES': { salesOrder: { createdById: userId } }
+    });
     const dispatch = await this.prisma.dispatch.findUnique({
-      where: { id },
+      where: { id, ...scope },
       include: {
         salesOrder: { include: { customer: true } },
         items: { include: { salesOrderItem: true } },

@@ -1,13 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class CrmInsightsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async customer360(customerId: string, companyId?: string) {
+  async customer360(customerId: string, companyId?: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'createdById');
     const customer = await this.prisma.customer.findFirst({
-      where: { id: customerId, deletedAt: null, ...(companyId ? { companyId } : {}) },
+      where: { id: customerId, deletedAt: null, ...scope, ...(companyId ? { companyId } : {}) },
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
@@ -91,37 +93,41 @@ export class CrmInsightsService {
     };
   }
 
-  async salesDashboard(companyId?: string) {
+  async salesDashboard(companyId?: string, userId?: string, role?: string) {
     const companyFilter = companyId ? { companyId } : {};
+    const leadScope = getSalesScope(userId, role, 'assignedToId');
+    const orderScope = getSalesScope(userId, role, 'createdById');
+
     const [leadStates, quotationStates, leads, quotations, orders, ledger, users] =
       await Promise.all([
         this.prisma.lead.groupBy({
           by: ['workflowStateId'],
-          where: { deletedAt: null, ...companyFilter },
+          where: { deletedAt: null, ...companyFilter, ...leadScope },
           _count: { _all: true },
         }),
         this.prisma.quotation.groupBy({
           by: ['workflowStateId'],
-          where: { deletedAt: null, ...companyFilter },
+          where: { deletedAt: null, ...companyFilter, ...orderScope },
           _count: { _all: true },
         }),
         this.prisma.lead.findMany({
-          where: { deletedAt: null, ...companyFilter },
+          where: { deletedAt: null, ...companyFilter, ...leadScope },
           select: { id: true, assignedToId: true, convertedAt: true, workflowStateId: true },
         }),
         this.prisma.quotation.findMany({
-          where: { deletedAt: null, ...companyFilter },
+          where: { deletedAt: null, ...companyFilter, ...orderScope },
           select: { id: true, total: true, workflowStateId: true },
         }),
         this.prisma.salesOrder.findMany({
           where: {
             deletedAt: null,
             ...(companyId ? { customer: { companyId } } : {}),
+            ...orderScope,
           },
           select: { totalAmount: true, createdById: true },
         }),
         this.prisma.customerLedger.findMany({
-          where: { customer: companyFilter },
+          where: { customer: { ...companyFilter, ...orderScope } },
           select: { debit: true, credit: true },
         }),
         this.prisma.user.findMany({

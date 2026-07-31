@@ -114,8 +114,11 @@ export class ProcurementService {
     });
   }
 
-  async deliveryHistory(companyId: string | undefined, query: any) {
-    const { page, limit, skip } = this.page(query); const where: any = { ...(companyId && { companyId }) };
+  async deliveryHistory(companyId: string | undefined, query: any, userId?: string, role?: string) {
+    const scope = require('../../common/utils/rbac.util').getAdvancedScope(userId, role, {
+      'STORE': { receivedById: userId }
+    });
+    const { page, limit, skip } = this.page(query); const where: any = { ...(companyId && { companyId }), ...scope };
     const [data, total] = await this.prisma.$transaction([this.prisma.goodsReceiptNote.findMany({ where, skip, take: limit, orderBy: { receivedAt: 'desc' }, include: { purchaseOrder: { include: { supplier: true } }, items: { include: { product: true } } } }), this.prisma.goodsReceiptNote.count({ where })]);
     return { data, meta: { page, limit, total } };
   }

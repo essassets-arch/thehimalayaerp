@@ -1347,6 +1347,8 @@ model SalesInvoice {
   freightAmount   Decimal       @default(0) @db.Decimal(18, 2)
   roundingAmount  Decimal       @default(0) @db.Decimal(18, 2)
   totalAmount     Decimal       @default(0) @db.Decimal(18, 2)
+  createdById     String?
+  updatedById     String?
   createdAt       DateTime      @default(now())
 
   dispatch           Dispatch?           @relation(fields: [dispatchId], references: [id])
@@ -2211,8 +2213,9 @@ model WorkOrder {
   dispatchedAt       DateTime?
   dispatchedById     String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   productionPlan    ProductionPlan    @relation(fields: [productionPlanId], references: [id])
   salesOrderItem    SalesOrderItem?   @relation(fields: [salesOrderItemId], references: [id])
@@ -2349,6 +2352,7 @@ model Dispatch {
   transitDuration Int? // transit duration in hours / minutes
 
   workflowStateId String?
+  createdById     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -2399,6 +2403,7 @@ model CustomerPayment {
   receivedAt      DateTime      @default(now())
   verifiedAt      DateTime?
   verifiedById    String?
+  createdById     String?
   createdAt       DateTime      @default(now())
 
   customer      Customer            @relation(fields: [customerId], references: [id])

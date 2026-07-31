@@ -3,19 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Truck,
-  ArrowLeft,
-  Send,
-  X,
-  ClipboardList,
-  Info,
-} from "lucide-react";
+import { Truck, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { backendFetch } from "@/lib/backendFetch";
-import responsive from "../dispatch-responsive.module.css";
 import styles from "./create-dispatch.module.css";
 
 interface Customer {
@@ -122,7 +113,7 @@ export default function CreateDispatchPage() {
   const workOrderId = searchParams.get("workOrderId");
 
   // Form State
-  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryAddresses, setDeliveryAddresses] = useState<Record<string, string>>({});
   const [totalWeight, setTotalWeight] = useState<number>(0);
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [driverName, setDriverName] = useState("");
@@ -182,23 +173,28 @@ export default function CreateDispatchPage() {
   const salesOrder = workOrder?.productionPlan?.salesOrder;
   const customer = salesOrder?.customer;
 
-  // Prefill default delivery address
+  // Prefill default delivery addresses per selected Sales Order
   useEffect(() => {
-    if (salesOrder) {
-      setDeliveryAddress(
-        formatAddressValue(salesOrder.shippingAddress) ||
-          formatAddressValue(customer?.shippingAddress) ||
-          formatAddressValue(customer?.billingAddress),
-      );
-      if (salesOrder.requestedDeliveryDate) {
-        setExpectedDeliveryDate(
-          new Date(salesOrder.requestedDeliveryDate)
-            .toISOString()
-            .slice(0, 10),
-        );
+    if (!selectedSalesOrders.length) return;
+    
+    setDeliveryAddresses((current) => {
+      const updated = { ...current };
+      for (const order of selectedSalesOrders) {
+        if (updated[order.id] === undefined) {
+          updated[order.id] = formatAddressValue(order.shippingAddress) ||
+            formatAddressValue(order.customer?.shippingAddress) ||
+            formatAddressValue(order.customer?.billingAddress) || "";
+        }
       }
+      return updated;
+    });
+
+    // Prefill date using the first selected sales order if available
+    const firstOrderWithDate = selectedSalesOrders.find(o => o.requestedDeliveryDate);
+    if (firstOrderWithDate && !expectedDeliveryDate) {
+      setExpectedDeliveryDate(new Date(firstOrderWithDate.requestedDeliveryDate).toISOString().slice(0, 10));
     }
-  }, [salesOrder, customer]);
+  }, [selectedSalesOrders, expectedDeliveryDate]);
 
   const toggleWorkOrder = (candidate: WorkOrder) => {
     setSelectedIds((current) => {
@@ -216,10 +212,6 @@ export default function CreateDispatchPage() {
   const handleSubmit = async () => {
     if (!selectedWorkOrders.length) {
       toast.error("Select at least one pending dispatch order");
-      return;
-    }
-    if (!deliveryAddress.trim()) {
-      toast.error("Delivery Address is mandatory");
       return;
     }
     if (
@@ -254,12 +246,7 @@ export default function CreateDispatchPage() {
       }, new Map<string, { salesOrder: SalesOrder; workOrders: WorkOrder[] }>());
 
       for (const group of orderGroups.values()) {
-        const groupCustomer = group.salesOrder.customer;
-        const groupAddress =
-          formatAddressValue(group.salesOrder.shippingAddress) ||
-          formatAddressValue(groupCustomer?.shippingAddress) ||
-          formatAddressValue(groupCustomer?.billingAddress) ||
-          (group.salesOrder.id === salesOrder?.id ? deliveryAddress : "");
+        const groupAddress = deliveryAddresses[group.salesOrder.id] || "";
         if (!groupAddress.trim()) {
           throw new Error(
             `Delivery address is missing for ${group.salesOrder.orderNumber}`,
@@ -284,12 +271,7 @@ export default function CreateDispatchPage() {
           }, new Map<string, { salesOrderItemId: string; quantity: number; workOrderIds: string[] }>())
           .values(),
         );
-        const groupCustomer = group.salesOrder.customer;
-        const groupAddress =
-          formatAddressValue(group.salesOrder.shippingAddress) ||
-          formatAddressValue(groupCustomer?.shippingAddress) ||
-          formatAddressValue(groupCustomer?.billingAddress) ||
-          (group.salesOrder.id === salesOrder?.id ? deliveryAddress : "");
+        const groupAddress = deliveryAddresses[group.salesOrder.id] || "";
 
         await backendFetch<unknown>("/api/backend/logistics/dispatches", {
           method: "POST",
@@ -332,8 +314,8 @@ export default function CreateDispatchPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-500 text-sm">
-        <Truck className="animate-spin h-6 w-6 mr-2 text-blue-500" />
+      <div className={styles.page} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh", color: "#64748b", fontSize: 14, gap: 10 }}>
+        <Truck style={{ animation: "spin 1s linear infinite", width: 22, height: 22, color: "#3b82f6" }} />
         Loading work order details...
       </div>
     );
@@ -341,382 +323,276 @@ export default function CreateDispatchPage() {
 
   if (error || (!isLoading && workOrders.length === 0)) {
     return (
-      <div className="max-w-2xl mx-auto mt-12 p-6 bg-red-50 border border-red-200 rounded-xl">
-        <h1 className="text-lg font-semibold text-red-800">
-          Error loading work order
-        </h1>
-        <p className="text-sm text-red-700 mt-1">
-          No work orders are currently ready for dispatch.
-        </p>
-        <Button
-          onClick={() => router.push("/dispatch/orders")}
-          className="mt-4"
-        >
-          Back to Queue
-        </Button>
+      <div className={styles.page}>
+        <div style={{ maxWidth: 480, margin: "40px auto", padding: 24, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 14 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#991b1b", margin: "0 0 8px" }}>Error loading work order</h1>
+          <p style={{ fontSize: 13, color: "#b91c1c", margin: "0 0 16px" }}>No work orders are currently ready for dispatch.</p>
+          <button onClick={() => router.push("/dispatch/orders")} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", color: "#b91c1c", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+            Back to Queue
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`${responsive.page} ${styles.page}`}>
-      {/* Top Breadcrumb */}
-      <div className={styles.breadcrumb}>
-        <button
-          onClick={() => router.push("/dispatch/orders")}
-          className="hover:text-blue-600 flex items-center gap-1"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Queue
+    <div className={styles.page}>
+      {/* ── Top Header ── */}
+      <div className={styles.topBar}>
+        <h1 className={styles.pageTitle}>Schedule Outgoing Shipment (Fulfillment Booking)</h1>
+        <button type="button" className={styles.cancelBtn} onClick={() => router.push("/dispatch/orders")}>
+          Cancel
         </button>
-        <span>/</span>
-        <span className="text-gray-900 font-medium">Create Dispatch</span>
       </div>
 
       <div className={styles.card}>
-        {/* Title */}
-        <div className={styles.cardHeader}>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="text-blue-600 h-6 w-6" />
-            Create Dispatch Record
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Select one or more pending lines for Sales Order{" "}
-            <span className="font-semibold text-gray-800">
-              {salesOrder ? `#${salesOrder.orderNumber}` : "—"}
-            </span>
-          </p>
-        </div>
+        {/* ── Top Section: Order List + Cargo Summary ── */}
+        <div className={styles.topSection}>
 
-        {/* Pending work-order selector */}
-        <section className={styles.orderSelector}>
-          <div className={styles.selectorHeader}>
-            <div>
-              <h2>Pending Dispatch Orders</h2>
-              <p>
-                Select any pending orders and set a dispatch quantity for each
-                line.
-              </p>
+          {/* Left: Select Active Order Reference */}
+          <div className={styles.orderListPanel}>
+            <p className={styles.panelLabel}>Select Active Order Reference</p>
+            <div className={styles.orderList}>
+              {workOrders.map((candidate) => {
+                const candidateSalesOrder = candidate.productionPlan?.salesOrder;
+                const selected = selectedIds.includes(candidate.id);
+                const maximum = availableQuantity(candidate);
+                return (
+                  <label
+                    key={candidate.id}
+                    className={`${styles.orderItem} ${selected ? styles.selected : ""}`.trim()}
+                    style={maximum <= 0 ? { opacity: 0.45, cursor: "not-allowed" } : {}}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={maximum <= 0}
+                      onChange={() => toggleWorkOrder(candidate)}
+                    />
+                    <span>
+                      {candidateSalesOrder?.orderNumber || candidate.workOrderNumber}{" "}
+                      ({maximum} Units)
+                    </span>
+                  </label>
+                );
+              })}
             </div>
-            <span>{selectedIds.length} selected</span>
           </div>
-          <div className={styles.orderTable}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Select</th>
-                  <th>Sales Order</th>
-                  <th>Work Order</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Available Qty</th>
-                  <th>Dispatch Qty</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workOrders.map((candidate) => {
-                  const candidateSalesOrder =
-                    candidate.productionPlan?.salesOrder;
-                  const selected = selectedIds.includes(candidate.id);
-                  const maximum = availableQuantity(candidate);
-                  return (
-                    <tr key={candidate.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          disabled={maximum <= 0}
-                          onChange={() => toggleWorkOrder(candidate)}
-                          aria-label={`Select ${candidate.workOrderNumber}`}
-                        />
-                      </td>
-                      <td>
-                        <strong>
-                          #{candidateSalesOrder?.orderNumber || "N/A"}
-                        </strong>
-                      </td>
-                      <td>{candidate.workOrderNumber}</td>
-                      <td>
-                        {candidateSalesOrder?.customer?.companyName || "N/A"}
-                      </td>
-                      <td>
-                        {candidate.salesOrderItem?.productNameSnapshot ||
-                          "Unknown"}
-                      </td>
-                      <td>{maximum}</td>
-                      <td>
-                        <input
-                          type="number"
-                          min={1}
-                          max={maximum}
-                          disabled={!selected}
-                          value={
-                            selected
-                              ? (dispatchQuantities[candidate.id] ?? maximum)
-                              : ""
-                          }
-                          onChange={(event) =>
-                            setDispatchQuantities((current) => ({
-                              ...current,
-                              [candidate.id]: Number(event.target.value),
-                            }))
-                          }
-                          aria-label={`Dispatch quantity for ${candidate.workOrderNumber}`}
-                        />
+
+          {/* Right: Cargo & Ordered Items Summary */}
+          <div className={styles.cargoPanel}>
+            <div className={styles.cargoHeader}>
+              <div className={styles.cargoTitle}>
+                <ClipboardList size={15} />
+                Cargo &amp; Ordered Items Summary
+              </div>
+              <div className={styles.cargoActions}>
+                <button type="button" className={styles.cargoActionBtn}>Auto Fill 1 each</button>
+                <button type="button" className={styles.cargoActionBtn}>Distribute equally</button>
+              </div>
+            </div>
+
+            <div className={styles.cargoTableWrap}>
+              <table className={styles.cargoTable}>
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th className={styles.center}>Ordered</th>
+                    <th className={styles.center}>Remaining</th>
+                    <th className={styles.center}>Dispatch Now</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedWorkOrders.map((candidate) => {
+                    const candidateSalesOrder = candidate.productionPlan?.salesOrder;
+                    const maximum = availableQuantity(candidate);
+                    const orderedQty = candidate.salesOrderItem?.orderedQuantity || maximum;
+                    return (
+                      <tr key={candidate.id}>
+                        <td>
+                          <div className={styles.orderId}>
+                            {candidateSalesOrder?.orderNumber || candidate.workOrderNumber}
+                          </div>
+                          <div className={styles.productName}>
+                            {candidate.salesOrderItem?.productNameSnapshot || "Unknown Product"}
+                          </div>
+                        </td>
+                        <td className={styles.center}>{orderedQty}</td>
+                        <td className={`${styles.center} ${styles.remaining}`}>{maximum}</td>
+                        <td className={styles.center}>
+                          <input
+                            type="number"
+                            min={1}
+                            max={maximum}
+                            value={dispatchQuantities[candidate.id] ?? maximum}
+                            onChange={(event) =>
+                              setDispatchQuantities((current) => ({
+                                ...current,
+                                [candidate.id]: Number(event.target.value),
+                              }))
+                            }
+                            className={styles.qtyInput}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {selectedWorkOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className={styles.emptyMsg}>
+                        Select an order reference to view details
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Quantities Alert Box */}
-        <div className={styles.notice}>
-          <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <span className="font-semibold">Dispatch Selection:</span>
-            <div className="flex flex-wrap gap-4 text-xs text-blue-800 mt-1 font-mono">
-              <div>
-                Selected lines:{" "}
-                <span className="font-bold text-gray-900">
-                  {selectedWorkOrders.length}
-                </span>
-              </div>
-              <div>
-                Total dispatch quantity:{" "}
-                <span className="font-bold text-emerald-700">
-                  {selectedWorkOrders.reduce(
-                    (sum, selected) =>
-                      sum + Number(dispatchQuantities[selected.id] || 0),
-                    0,
                   )}
-                </span>
-              </div>
+                </tbody>
+              </table>
+            </div>
+
+            <div className={styles.cargoFooter}>
+              <span className={styles.totalLabel}>Total Dispatch Quantity:</span>
+              <span className={styles.totalBadge}>
+                {selectedWorkOrders.reduce(
+                  (sum, sel) => sum + Number(dispatchQuantities[sel.id] || 0),
+                  0,
+                )}{" "}
+                Tons
+              </span>
             </div>
           </div>
         </div>
 
-        <div className={styles.mainGrid}>
-          {/* Left Column: Auto-filled Details */}
-          <div className={styles.column}>
-            <h2 className={styles.sectionTitle}>Auto-filled Information</h2>
+        {/* ── Divider ── */}
+        <div className={styles.divider} />
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">
-                Sales Order Reference
-              </label>
-              <input
-                type="text"
-                value={salesOrder?.orderNumber || ""}
-                disabled
-                className="w-full bg-gray-50 text-gray-800 border rounded-lg px-3 py-2 text-sm font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">
-                Customer Details
-              </label>
-              <input
-                type="text"
-                value={customer?.companyName || ""}
-                disabled
-                className="w-full bg-gray-50 text-gray-800 border rounded-lg px-3 py-2 text-sm font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">
-                Product Details
-              </label>
-              <input
-                type="text"
-                value={
-                  selectedWorkOrders
-                    .map(
-                      (selected) =>
-                        selected.salesOrderItem?.productNameSnapshot,
-                    )
-                    .filter(Boolean)
-                    .join(", ") || ""
-                }
-                disabled
-                className="w-full bg-gray-50 text-gray-800 border rounded-lg px-3 py-2 text-sm font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">
-                Delivery Address
-              </label>
-              <textarea
-                rows={3}
-                value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Enter delivery address"
-              />
-            </div>
-          </div>
-
-          {/* Right Column: User Input Fields */}
-          <div className={styles.column}>
-            <h2 className={styles.sectionTitle}>User Input Fields</h2>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Transportation Cost
-                </label>
-                <input
-                  type="number"
-                  value={transportationCost}
-                  disabled
-                  className="w-full bg-gray-50 text-gray-800 border rounded-lg px-3 py-2 text-sm font-mono font-bold"
+        {/* ── Delivery Addresses ── */}
+        <div style={{ marginBottom: 32 }}>
+          <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm mb-4">
+            Delivery Addresses
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {selectedSalesOrders.map((order) => (
+              <div key={order.id} className={styles.addressPanel}>
+                <div className={styles.addressHeader}>
+                  <span className={styles.addressTitle}>{order.orderNumber}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">Shipping To</span>
+                </div>
+                <textarea
+                  className={styles.addressTextarea}
+                  value={deliveryAddresses[order.id] || ""}
+                  onChange={(e) => setDeliveryAddresses((curr) => ({ ...curr, [order.id]: e.target.value }))}
+                  placeholder={`Delivery Address for ${order.orderNumber}...`}
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Actual Paid Amount
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={actualFreightPaidAmount}
-                  onChange={(event) =>
-                    setActualFreightPaidAmount(Number(event.target.value))
-                  }
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono font-bold text-emerald-700"
-                  placeholder="Enter amount paid"
-                />
+            ))}
+            {selectedSalesOrders.length === 0 && (
+              <div className="text-sm font-medium text-gray-400 p-4 border border-dashed border-gray-200 rounded-xl text-center md:col-span-2">
+                Select an order to view and edit its delivery address
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Total Weight (kg)
-                </label>
-                <input
-                  type="number"
-                  value={totalWeight}
-                  onChange={(e) => setTotalWeight(Number(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Vehicle Number
-                </label>
-                <input
-                  type="text"
-                  value={vehicleNumber}
-                  onChange={(e) => setVehicleNumber(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="e.g. MH-12-PQ-1234"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Driver Name
-                </label>
-                <input
-                  type="text"
-                  value={driverName}
-                  onChange={(e) => setDriverName(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="e.g. John Doe"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Driver Phone
-                </label>
-                <input
-                  type="tel"
-                  value={driverPhone}
-                  onChange={(e) => setDriverPhone(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="+91-9999999999"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Expected Delivery Date
-                </label>
-                <input
-                  type="date"
-                  value={expectedDeliveryDate}
-                  onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Invoice Reference
-                </label>
-                <input
-                  type="text"
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="e.g. INV-2026-0001"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  E-way Bill Details
-                </label>
-                <input
-                  type="text"
-                  value={ewayBillNumber}
-                  onChange={(e) => setEwayBillNumber(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="E-way bill number"
-                />
-              </div>
-            </div>
-
+            )}
           </div>
         </div>
 
-        {/* Buttons */}
-        <div className={styles.actions}>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/dispatch/orders")}
-            className="flex items-center gap-1.5"
-          >
-            <X className="h-4 w-4" />
-            Cancel
-          </Button>
-          <Button
+        {/* ── Form Fields Grid ── */}
+        <div className={styles.formGrid}>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Vehicle No<span className={styles.required}>*</span></label>
+            <input
+              type="text"
+              value={vehicleNumber}
+              onChange={(e) => setVehicleNumber(e.target.value)}
+              className={styles.formInput}
+              placeholder="e.g. UK-07-CB-1234"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Driver Name<span className={styles.required}>*</span></label>
+            <input
+              type="text"
+              value={driverName}
+              onChange={(e) => setDriverName(e.target.value)}
+              className={styles.formInput}
+              placeholder="e.g. Ramesh Singh"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Driver Phone</label>
+            <input
+              type="tel"
+              value={driverPhone}
+              onChange={(e) => setDriverPhone(e.target.value)}
+              className={styles.formInput}
+              placeholder="e.g. 9876543210"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Courier / Transport<span className={styles.required}>*</span></label>
+            <input
+              type="text"
+              className={styles.formInput}
+              placeholder="e.g. Himalaya Own Fleet / DTDC"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>LR / AWB Number</label>
+            <input
+              type="text"
+              value={ewayBillNumber}
+              onChange={(e) => setEwayBillNumber(e.target.value)}
+              className={styles.formInput}
+              placeholder="e.g. LR-2024-00123"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Dispatch Date<span className={styles.required}>*</span></label>
+            <input
+              type="date"
+              value={expectedDeliveryDate}
+              onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+              className={styles.formInput}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Transportation Cost (₹)</label>
+            <input
+              type="number"
+              value={actualFreightPaidAmount || ""}
+              onChange={(e) => setActualFreightPaidAmount(Number(e.target.value))}
+              className={styles.formInput}
+              placeholder="e.g. 500.00"
+            />
+          </div>
+
+          <div className={`${styles.formGroup} ${styles.span2}`}>
+            <label className={styles.formLabel}>Dispatch Document (PDF / Image)</label>
+            <label className={styles.fileInput}>
+              <span className={styles.fileInputBtn}>Choose File</span>
+              <span className={styles.fileInputText}>No file chosen</span>
+              <input type="file" style={{ display: "none" }} />
+            </label>
+          </div>
+
+        </div>
+
+        {/* ── Submit ── */}
+        <div className={styles.submitRow}>
+          <button
             type="button"
             onClick={handleSubmit}
             disabled={selectedWorkOrders.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5"
+            className={styles.submitBtn}
           >
-            <Send className="h-4 w-4" />
-            Create Dispatch
-          </Button>
+            Book Dispatch Consignment
+          </button>
         </div>
       </div>
     </div>
   );
 }
+

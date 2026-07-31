@@ -1,15 +1,22 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('HR', 'SUPER_ADMIN')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
   async findAll() {
-    const users = await this.usersService.findAll();
-    return { data: users };
+    return this.usersService.findAll();
+  }
+
+  @Post()
+  async create(@Body() body: any) {
+    return this.usersService.create(body);
   }
 }

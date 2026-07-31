@@ -14,12 +14,13 @@ export class SamplesController {
   private extractAuthData(req: any, headers: any) {
     const companyId = headers['x-company-id'] || req.user?.companyId;
     const userId = req.user?.sub || req.user?.id || 'system';
+    const role = req.user?.role;
 
     if (!companyId) {
       throw new UnauthorizedException('Company ID is required');
     }
 
-    return { companyId, userId };
+    return { companyId, userId, role };
   }
 
   @Post()
@@ -31,14 +32,14 @@ export class SamplesController {
 
   @Get()
   async findAll(@Request() req, @Headers() headers) {
-    const { companyId } = this.extractAuthData(req, headers);
-    return this.samplesService.findAll(companyId);
+    const { companyId, userId, role } = this.extractAuthData(req, headers);
+    return this.samplesService.findAll(companyId, userId, role);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req, @Headers() headers) {
-    const { companyId } = this.extractAuthData(req, headers);
-    return this.samplesService.findOne(id, companyId);
+    const { companyId, userId, role } = this.extractAuthData(req, headers);
+    return this.samplesService.findOne(id, companyId, userId, role);
   }
 
   @Patch(':id')
@@ -48,8 +49,8 @@ export class SamplesController {
     @Request() req,
     @Headers() headers
   ) {
-    const { companyId, userId } = this.extractAuthData(req, headers);
-    return this.samplesService.update(id, companyId, updateSampleDto, userId);
+    const { companyId, userId, role } = this.extractAuthData(req, headers);
+    return this.samplesService.update(id, companyId, updateSampleDto, userId, role);
   }
 
   @Post(':id/status')

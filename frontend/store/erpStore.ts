@@ -19,6 +19,40 @@ const MATERIAL_FLOW_LEGACY_KEYS = [
   'himalaya_material_requests_v1',
 ];
 
+export function getUserIdSuffix() {
+  if (typeof window === 'undefined') return '';
+  try {
+    const authRaw = window.localStorage.getItem('auth-storage');
+    if (authRaw) {
+      const parsed = JSON.parse(authRaw);
+      const id = parsed?.state?.user?.email || parsed?.state?.user?.id;
+      if (id) return `_${id}`;
+    }
+  } catch (e) {}
+  return '';
+}
+
+function getScopedKey(baseKey: string) {
+  return `${baseKey}${getUserIdSuffix()}`;
+}
+
+const GLOBAL_KEYS = ['himalaya-material-flow-cleanup-version', 'himalaya-transactional-reset-version', 'himalaya-ess-browser-seed-version', 'erp_procurement_data_version_2'];
+
+function getStorageItem(key: string) {
+  if (GLOBAL_KEYS.includes(key) || key === 'auth-storage') return window.localStorage.getItem(key);
+  return window.localStorage.getItem(getScopedKey(key));
+}
+
+function setStorageItem(key: string, value: string) {
+  if (GLOBAL_KEYS.includes(key)) return window.localStorage.setItem(key, value);
+  return window.localStorage.setItem(getScopedKey(key), value);
+}
+
+function removeStorageItem(key: string) {
+  if (GLOBAL_KEYS.includes(key)) return window.localStorage.removeItem(key);
+  return window.localStorage.removeItem(getScopedKey(key));
+}
+
 const safeStringify = (obj: any) => {
   return JSON.stringify(obj, (key, value) => {
     if (typeof value === 'string' && value.length > 50000 && value.startsWith('data:image')) {
@@ -222,23 +256,23 @@ export const normalizeStateForStore = (rawState: any) => {
 const persistToStorage = (state: any) => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem('erp_procurement_data_version_2', '2');
-      if (Array.isArray(state.materialRejections)) window.localStorage.setItem('erp_material_rejections', JSON.stringify(state.materialRejections));
-      if (Array.isArray(state.procurementAuditLogs)) window.localStorage.setItem('erp_procurement_audit_logs', JSON.stringify(state.procurementAuditLogs));
-      if (Array.isArray(state.procurementDocuments)) window.localStorage.setItem('erp_procurement_documents', JSON.stringify(state.procurementDocuments));
-      if (Array.isArray(state.procurementNotifications)) window.localStorage.setItem('erp_procurement_notifications', JSON.stringify(state.procurementNotifications));
-      if (Array.isArray(state.materialReplacementSchedules)) window.localStorage.setItem('erp_material_replacement_schedules', JSON.stringify(state.materialReplacementSchedules));
-      if (Array.isArray(state.replacementReceipts)) window.localStorage.setItem('erp_replacement_receipts', JSON.stringify(state.replacementReceipts));
+      setStorageItem('erp_procurement_data_version_2', '2');
+      if (Array.isArray(state.materialRejections)) setStorageItem('erp_material_rejections', JSON.stringify(state.materialRejections));
+      if (Array.isArray(state.procurementAuditLogs)) setStorageItem('erp_procurement_audit_logs', JSON.stringify(state.procurementAuditLogs));
+      if (Array.isArray(state.procurementDocuments)) setStorageItem('erp_procurement_documents', JSON.stringify(state.procurementDocuments));
+      if (Array.isArray(state.procurementNotifications)) setStorageItem('erp_procurement_notifications', JSON.stringify(state.procurementNotifications));
+      if (Array.isArray(state.materialReplacementSchedules)) setStorageItem('erp_material_replacement_schedules', JSON.stringify(state.materialReplacementSchedules));
+      if (Array.isArray(state.replacementReceipts)) setStorageItem('erp_replacement_receipts', JSON.stringify(state.replacementReceipts));
       
       if (state.procurement) {
-        window.localStorage.setItem('erp_procurement', JSON.stringify(state.procurement));
+        setStorageItem('erp_procurement', JSON.stringify(state.procurement));
         // Keep fallback keys updated for non-migrated or legacy reader pages
-        window.localStorage.setItem('erp_material_indents', JSON.stringify(state.procurement.materialIndents || []));
-        window.localStorage.setItem('erp_purchase_orders', JSON.stringify(state.procurement.purchaseOrders || []));
-        window.localStorage.setItem('erp_goods_receipts', JSON.stringify(state.procurement.goodsReceiptNotes || []));
+        setStorageItem('erp_material_indents', JSON.stringify(state.procurement.materialIndents || []));
+        setStorageItem('erp_purchase_orders', JSON.stringify(state.procurement.purchaseOrders || []));
+        setStorageItem('erp_goods_receipts', JSON.stringify(state.procurement.goodsReceiptNotes || []));
       }
 
-      window.localStorage.setItem('erp_procurement_data_version', '1');
+      setStorageItem('erp_procurement_data_version', '1');
 
       // Check feature flags to strip data if backend write mode is enabled
       const salesToPersist = { ...state.sales };
@@ -247,7 +281,7 @@ const persistToStorage = (state: any) => {
       }
 
       if (process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_WRITE !== 'true') {
-        window.localStorage.setItem('erp_customers', JSON.stringify(state.customers || []));
+        setStorageItem('erp_customers', JSON.stringify(state.customers || []));
       }
 
       // Canonical persisted store snapshot under required key
@@ -264,40 +298,40 @@ const persistToStorage = (state: any) => {
         },
         version: MATERIAL_FLOW_STORE_VERSION,
       };
-      window.localStorage.setItem('himalaya-erp-store', safeStringify(unifiedStoreSnapshot));
+      setStorageItem('himalaya-erp-store', safeStringify(unifiedStoreSnapshot));
       
       if (Array.isArray(state.notifications)) {
-        window.localStorage.setItem('erp_notifications', JSON.stringify(state.notifications));
+        setStorageItem('erp_notifications', JSON.stringify(state.notifications));
       }
       if (Array.isArray(state.vendorReturns)) {
-        window.localStorage.setItem('erp_vendor_returns', JSON.stringify(state.vendorReturns));
+        setStorageItem('erp_vendor_returns', JSON.stringify(state.vendorReturns));
       }
       if (Array.isArray(state.vendorInvoices)) {
-        window.localStorage.setItem('erp_vendor_invoices', JSON.stringify(state.vendorInvoices));
+        setStorageItem('erp_vendor_invoices', JSON.stringify(state.vendorInvoices));
       }
       if (Array.isArray(state.vendorPayments)) {
-        window.localStorage.setItem('erp_vendor_payments', JSON.stringify(state.vendorPayments));
+        setStorageItem('erp_vendor_payments', JSON.stringify(state.vendorPayments));
       }
       if (Array.isArray(state.rawInventory)) {
-        window.localStorage.setItem('erp_inventory', JSON.stringify(state.rawInventory));
+        setStorageItem('erp_inventory', JSON.stringify(state.rawInventory));
       }
       if (Array.isArray(state.analysisRequests)) {
-        window.localStorage.setItem('erp_analysis_requests_v1', JSON.stringify(state.analysisRequests));
+        setStorageItem('erp_analysis_requests_v1', JSON.stringify(state.analysisRequests));
       }
       if (Array.isArray(state.qcInspections)) {
-        window.localStorage.setItem('erp_qc_inspections', JSON.stringify(state.qcInspections));
+        setStorageItem('erp_qc_inspections', JSON.stringify(state.qcInspections));
       }
       if (Array.isArray(state.employees)) {
-        window.localStorage.setItem('erp_employees', JSON.stringify(state.employees));
+        setStorageItem('erp_employees', JSON.stringify(state.employees));
       }
       if (Array.isArray(state.payrollBatches)) {
-        window.localStorage.setItem('erp_payroll_batches_v2', JSON.stringify(state.payrollBatches));
+        setStorageItem('erp_payroll_batches_v2', JSON.stringify(state.payrollBatches));
       }
       if (Array.isArray(state.salaries)) {
-        window.localStorage.setItem('erp_salaries_v2', JSON.stringify(state.salaries));
+        setStorageItem('erp_salaries_v2', JSON.stringify(state.salaries));
       }
       if (Array.isArray(state.payrollRuns)) {
-        window.localStorage.setItem('erp_payroll_runs', JSON.stringify(state.payrollRuns));
+        setStorageItem('erp_payroll_runs', JSON.stringify(state.payrollRuns));
       }
     }
   } catch (e: any) {
@@ -477,7 +511,7 @@ const MOCK_SALARIES = [
 
 
 const migratePersistedState = (state: any) => {
-  const version = typeof window !== 'undefined' ? window.localStorage.getItem('erp_procurement_data_version_2') : '2';
+  const version = typeof window !== 'undefined' ? getStorageItem('erp_procurement_data_version_2') : '2';
   if (version === '2') return state;
 
   console.log('Migrating procurement data to v2...');
@@ -648,13 +682,13 @@ function migrateToUnifiedSalesState(persistedState: unknown, version: number): a
 }
 const safePersist = (store: any, updater: (state: any) => any) => {
   if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem('erp_procurement_data_version_2', '2');
-    if (Array.isArray(store.state.materialRejections)) window.localStorage.setItem('erp_material_rejections', JSON.stringify(store.state.materialRejections));
-    if (Array.isArray(store.state.procurementAuditLogs)) window.localStorage.setItem('erp_procurement_audit_logs', JSON.stringify(store.state.procurementAuditLogs));
-    if (Array.isArray(store.state.procurementDocuments)) window.localStorage.setItem('erp_procurement_documents', JSON.stringify(store.state.procurementDocuments));
-    if (Array.isArray(store.state.procurementNotifications)) window.localStorage.setItem('erp_procurement_notifications', JSON.stringify(store.state.procurementNotifications));
-    if (Array.isArray(store.state.materialReplacementSchedules)) window.localStorage.setItem('erp_material_replacement_schedules', JSON.stringify(store.state.materialReplacementSchedules));
-    if (Array.isArray(store.state.replacementReceipts)) window.localStorage.setItem('erp_replacement_receipts', JSON.stringify(store.state.replacementReceipts));
+    setStorageItem('erp_procurement_data_version_2', '2');
+    if (Array.isArray(store.state.materialRejections)) setStorageItem('erp_material_rejections', JSON.stringify(store.state.materialRejections));
+    if (Array.isArray(store.state.procurementAuditLogs)) setStorageItem('erp_procurement_audit_logs', JSON.stringify(store.state.procurementAuditLogs));
+    if (Array.isArray(store.state.procurementDocuments)) setStorageItem('erp_procurement_documents', JSON.stringify(store.state.procurementDocuments));
+    if (Array.isArray(store.state.procurementNotifications)) setStorageItem('erp_procurement_notifications', JSON.stringify(store.state.procurementNotifications));
+    if (Array.isArray(store.state.materialReplacementSchedules)) setStorageItem('erp_material_replacement_schedules', JSON.stringify(store.state.materialReplacementSchedules));
+    if (Array.isArray(store.state.replacementReceipts)) setStorageItem('erp_replacement_receipts', JSON.stringify(store.state.replacementReceipts));
   }
   const result = updater(store);
   if (result && result.state) {
@@ -705,13 +739,13 @@ const getInitialStateFromStorage = () => {
   }
   try {
     const getStorageList = (key: string) => {
-      const data = window.localStorage.getItem(key);
+      const data = getStorageItem(key);
       if (!data) return [];
       try { return JSON.parse(data) || []; } catch { return []; }
     };
 
     const readJSON = (key: string) => {
-      const data = window.localStorage.getItem(key);
+      const data = getStorageItem(key);
       if (!data) return null;
       try { return JSON.parse(data); } catch { return null; }
     };
@@ -872,15 +906,15 @@ const getInitialStateFromStorage = () => {
     try {
       const materialFlowCleanupKey = 'himalaya-material-flow-cleanup-version';
       const requiresMaterialFlowCleanup =
-        window.localStorage.getItem(materialFlowCleanupKey) !== MATERIAL_FLOW_CLEANUP_VERSION;
+        getStorageItem(materialFlowCleanupKey) !== MATERIAL_FLOW_CLEANUP_VERSION;
       if (requiresMaterialFlowCleanup) {
-        MATERIAL_FLOW_LEGACY_KEYS.forEach((key) => window.localStorage.removeItem(key));
-        const savedSnapshot = window.localStorage.getItem('himalaya-erp-store');
+        MATERIAL_FLOW_LEGACY_KEYS.forEach((key) => removeStorageItem(key));
+        const savedSnapshot = getStorageItem('himalaya-erp-store');
         if (savedSnapshot) {
           try {
             const parsedSnapshot = JSON.parse(savedSnapshot);
             const savedState = parsedSnapshot.state || parsedSnapshot;
-            window.localStorage.setItem('himalaya-erp-store', safeStringify({
+            setStorageItem('himalaya-erp-store', safeStringify({
               ...parsedSnapshot,
               state: {
                 ...savedState,
@@ -889,14 +923,14 @@ const getInitialStateFromStorage = () => {
               version: MATERIAL_FLOW_STORE_VERSION,
             }));
           } catch {
-            window.localStorage.removeItem('himalaya-erp-store');
+            removeStorageItem('himalaya-erp-store');
           }
         }
-        window.localStorage.setItem(materialFlowCleanupKey, MATERIAL_FLOW_CLEANUP_VERSION);
+        setStorageItem(materialFlowCleanupKey, MATERIAL_FLOW_CLEANUP_VERSION);
       }
 
       const resetVersionKey = 'himalaya-transactional-reset-version';
-      const requiresTransactionalReset = window.localStorage.getItem(resetVersionKey) !== '5';
+      const requiresTransactionalReset = getStorageItem(resetVersionKey) !== '5';
       if (requiresTransactionalReset) {
         [
           'himalaya-erp-store',
@@ -912,14 +946,14 @@ const getInitialStateFromStorage = () => {
           'erp_dispatches',
           'erp_reminders',
           'erp_qc_inspections',
-        ].forEach((key) => window.localStorage.removeItem(key));
+        ].forEach((key) => removeStorageItem(key));
         window.sessionStorage?.clear();
-        window.localStorage.setItem(resetVersionKey, '5');
+        setStorageItem(resetVersionKey, '5');
       }
 
       const unified = requiresTransactionalReset
         ? null
-        : window.localStorage.getItem('himalaya-erp-store');
+        : getStorageItem('himalaya-erp-store');
       let finance: any = { customerPayments: [], paymentFollowUps: [], paymentReceipts: [] };
       let customRoles: any[] = [];
       if (unified) {
@@ -937,7 +971,7 @@ const getInitialStateFromStorage = () => {
       const browserSeedVersionKey = 'himalaya-ess-browser-seed-version';
       const shouldSeedESSLead =
         (!unified || sales.leads.length === 0) &&
-        window.localStorage.getItem(browserSeedVersionKey) !== '2';
+        getStorageItem(browserSeedVersionKey) !== '2';
       if (shouldSeedESSLead) {
         const now = new Date().toISOString();
         sales = normalizeSalesState({
@@ -989,8 +1023,8 @@ const getInitialStateFromStorage = () => {
             updatedAt: now,
           }],
         });
-        window.localStorage.setItem(browserSeedVersionKey, '2');
-        window.localStorage.setItem('himalaya-erp-store', safeStringify({
+        setStorageItem(browserSeedVersionKey, '2');
+        setStorageItem('himalaya-erp-store', safeStringify({
           state: {
             sales,
             production,

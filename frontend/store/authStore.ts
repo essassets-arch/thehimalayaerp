@@ -56,7 +56,8 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         role: state.role,
-        // We DO NOT persist accessToken or isAuthenticated (since auth requires the token in memory)
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
       }),
     }
   )

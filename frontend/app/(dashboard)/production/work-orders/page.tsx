@@ -11,6 +11,7 @@ import { DataTable } from '@/components/erp/data-table/DataTable';
 import { StatusBadge } from '@/components/erp/common/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { backendFetch } from '@/lib/backendFetch';
+import OrderDetailsModal from '@/shared/components/OrderDetailsModal';
 import styles from './work-orders.module.css';
 
 interface WorkOrder {
@@ -35,6 +36,7 @@ export default function WorkOrderListPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [startingId, setStartingId] = useState<string | null>(null);
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['work-orders-list'],
@@ -96,113 +98,207 @@ export default function WorkOrderListPage() {
     }
   };
 
+  const handlePauseWork = async (workOrder: WorkOrder) => {
+    Swal.fire({
+      icon: 'info',
+      title: 'Work Paused',
+      text: `Work order ${workOrder.workOrderNumber} has been paused.`,
+      timer: 1600,
+      showConfirmButton: false,
+    });
+  };
+
+  const handleCompleteWork = async (workOrder: WorkOrder) => {
+    const confirmation = await Swal.fire({
+      title: 'Complete Production Work?',
+      text: `Mark ${workOrder.workOrderNumber} as complete?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Complete Work',
+      confirmButtonColor: '#2563eb',
+    });
+    if (!confirmation.isConfirmed) return;
+
+    try {
+      await backendFetch(`/api/backend/production/work-orders/${workOrder.id}/complete`, {
+        method: 'POST',
+        body: { remarks: 'Production work completed' },
+      });
+      await refetch();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Work Completed',
+        text: `${workOrder.workOrderNumber} has been completed.`,
+        timer: 1600,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'Failed to complete work order.',
+      });
+    }
+  };
+
   const columns: ColumnDef<WorkOrder>[] = [
     {
       accessorKey: 'workOrderNumber',
       header: 'WO Number',
+      size: 180,
       cell: ({ row }) => <span className="font-medium text-gray-900">{row.getValue('workOrderNumber')}</span>,
     },
     {
       accessorKey: 'productionPlan.planNumber',
       header: 'Production Plan',
+      size: 160,
     },
     {
       accessorKey: 'productionPlan.salesOrder.customer.companyName',
       header: 'Customer',
+      size: 160,
     },
     {
       accessorKey: 'quantity',
       header: 'Quantity',
+      size: 100,
     },
     {
       accessorKey: 'status',
       header: 'Status',
+      size: 140,
       cell: ({ row }) => <StatusBadge status={row.original.workflowState?.name || row.original.status || 'UNKNOWN'} />,
     },
     {
       id: 'actions',
       header: 'Actions',
+      size: 260,
       cell: ({ row }) => {
         const status = String(row.original.workflowState?.name || row.original.status || '').toUpperCase();
+        
+        const viewButton = (
+          <button
+            type="button"
+            className={styles.btnTerminal}
+            onClick={() => {
+              const wo = row.original;
+              const mapped = {
+                ref: wo.workOrderNumber,
+                customerName: wo.productionPlan?.salesOrder?.customer?.companyName || 'Production Stock',
+                address: 'Andheri, Mumbai (Default Address)',
+                gst: '27ABCDE4321G2Z8',
+                orderDate: new Date(wo.createdAt).toLocaleDateString(),
+                salesStatus: 'Confirmed',
+                productionStatus: wo.workflowState?.name || wo.status || 'Pending',
+                dispatchStatus: 'Pending',
+                items: [
+                  {
+                    name: 'Lifecycle Product MS4J0RRM',
+                    code: 'E2E-MS4J0RRM',
+                    qty: wo.quantity,
+                  }
+                ]
+              };
+              setSelectedOrderForModal(mapped);
+            }}
+          >
+            <Eye size={15} />
+            Terminal
+          </button>
+        );
+
         if (status === 'READY') {
           return (
-            <Button
-              type="button"
-              onClick={() => handleStartWork(row.original)}
-              disabled={startingId === row.original.id}
-              className={styles.dispatchButton}
-            >
-              {startingId === row.original.id ? 'Starting…' : 'Start Work'}
-            </Button>
+            <div className={styles.actionButtons}>
+              <button
+                type="button"
+                onClick={() => handleStartWork(row.original)}
+                disabled={startingId === row.original.id}
+                className={styles.btnStart}
+              >
+                {startingId === row.original.id ? 'Starting…' : 'Start Work'}
+              </button>
+              {viewButton}
+            </div>
           );
         }
-        return (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push(`/production/work-orders/${row.original.id}`)}
-            className="h-8 gap-1"
-          >
-            <Eye className="h-4 w-4 text-gray-500" />
-            Terminal
-          </Button>
-        );
+
+        if (status === 'IN_PROGRESS' || status === 'IN PRODUCTION') {
+          return (
+            <div className={styles.actionButtons}>
+              <button
+                type="button"
+                onClick={() => handlePauseWork(row.original)}
+                className={styles.btnPause}
+              >
+                Pause
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCompleteWork(row.original)}
+                className={styles.btnComplete}
+              >
+                Complete Work
+              </button>
+              {viewButton}
+            </div>
+          );
+        }
+        
+        if (status === 'COMPLETED' || status === 'DONE') {
+          return (
+            <div className={styles.actionButtons}>
+              <span className={styles.completedBadge}>✓ Completed</span>
+              {viewButton}
+            </div>
+          );
+        }
+
+        return <div className={styles.actionButtons}>{viewButton}</div>;
       },
     },
   ];
 
   return (
-    <main className={styles.page}>
-      <header className={styles.hero}>
-        <div className={styles.heroIcon}><ClipboardList size={24} /></div>
+    <main className={styles.workOrderPage}>
+      <div className={styles.workOrderHeader}>
         <div>
-          <span className={styles.eyebrow}>Production control</span>
-          <h1>Work Orders</h1>
-          <p>Manage shop-floor execution, production quantities and batch activity.</p>
-        </div>
-        <div className={styles.summary}>
-          <strong>{filteredData.length}</strong>
-          <span>Visible orders</span>
-        </div>
-      </header>
-
-      <section className={styles.panel}>
-        <div className={styles.toolbar}>
-          <div>
-            <h2>Work-order register</h2>
-            <p>Orders released by Plant Head and assigned to Production.</p>
-          </div>
-          <label className={styles.search}>
-            <Search size={17} aria-hidden="true" />
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search work order or plan..."
-              aria-label="Search work orders"
-            />
-            <div className="w-12 flex items-center justify-center">
-              {search && (
-                <button type="button" onClick={() => setSearch('')} aria-label="Clear search">
-                  Clear
-                </button>
-              )}
-            </div>
-          </label>
+          <h1>Work-order register</h1>
+          <p>Orders released by Plant Head and assigned to Production.</p>
         </div>
 
-        {isLoading ? (
-          <div className={styles.loading}>Loading work orders…</div>
-        ) : (
-          <DataTable 
-            columns={columns} 
-            data={filteredData}
-            serverSide={false}
-            className={styles.table}
-            emptyMessage={search ? 'No work orders match your search.' : 'No work orders have been released yet.'}
+        <div className={styles.searchBox}>
+          <Search size={18} color="#64748b" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search work order or plan..."
           />
-        )}
-      </section>
+        </div>
+      </div>
+
+      <div className={styles.tableWrapper}>
+        <div className={styles.tableScrollArea}>
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[280px] text-slate-500 text-sm">Loading work orders...</div>
+          ) : (
+            <DataTable 
+              columns={columns} 
+              data={filteredData}
+              serverSide={false}
+              emptyMessage={search ? 'No work orders match your search.' : 'No work orders have been released yet.'}
+            />
+          )}
+        </div>
+      </div>
+      {selectedOrderForModal && (
+        <OrderDetailsModal 
+          order={selectedOrderForModal}
+          role="production"
+          onClose={() => setSelectedOrderForModal(null)} 
+        />
+      )}
     </main>
   );
 }

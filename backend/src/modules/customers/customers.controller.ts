@@ -47,7 +47,7 @@ export class CustomersController {
     @Query('pageSize', new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
     @Query('search') search?: string,
   ) {
-    return this.customersService.list(user.companyId, page, pageSize, search);
+    return this.customersService.list(user.companyId, page, pageSize, search, user.sub, user.role);
   }
 
   @Get('check-duplicates')
@@ -71,7 +71,7 @@ export class CustomersController {
   @Get(':id')
   @Permissions('sales.customers.read')
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.customersService.getById(id, user.companyId);
+    return this.customersService.getById(id, user.companyId, user.sub, user.role);
   }
 
   @Patch(':id')
@@ -87,7 +87,8 @@ export class CustomersController {
       user.companyId,
       updateCustomerDto,
       user.sub || user.userId,
-      req.requestId,
+      req?.requestId,
+      user.role
     );
   }
 
@@ -107,6 +108,7 @@ export class CustomersController {
       expectedVersion,
       user.sub || user.userId,
       req.requestId,
+      user.role
     );
   }
 
@@ -126,6 +128,7 @@ export class CustomersController {
       expectedVersion,
       user.sub || user.userId,
       req.requestId,
+      user.role
     );
   }
 }

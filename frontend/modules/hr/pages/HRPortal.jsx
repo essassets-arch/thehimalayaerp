@@ -17,6 +17,7 @@ import {
   Users, UserPlus, Clock, ClipboardList, FileText, PackageCheck, CreditCard, Bell, 
   Trash2, Edit3, Shield, UserX, CheckCircle, XCircle, Search, Save, Calendar, Camera, Play, Eye
 } from 'lucide-react';
+import UsersManagementView from '../components/UsersManagementView';
 
 export default function HRPortal() {
   const params = useParams(); const view = params?.slug?.[0];
@@ -969,6 +970,8 @@ export default function HRPortal() {
         return renderPayroll();
       case 'notifications':
         return renderNotifications();
+      case 'users':
+        return <UsersManagementView />;
       default:
         return renderDashboard();
     }

@@ -8,14 +8,14 @@ export class DispatchController {
 
   @Get()
   @Permissions('dispatch.read')
-  async listDispatches() {
-    return this.dispatchService.listDispatches();
+  async listDispatches(@Req() req: any) {
+    return this.dispatchService.listDispatches(req.user?.sub, req.user?.role);
   }
 
   @Get(':id')
   @Permissions('dispatch.read')
-  async getDispatch(@Param('id') id: string) {
-    return this.dispatchService.getDispatch(id);
+  async getDispatch(@Param('id') id: string, @Req() req: any) {
+    return this.dispatchService.getDispatch(id, req.user?.sub, req.user?.role);
   }
 
   @Post()

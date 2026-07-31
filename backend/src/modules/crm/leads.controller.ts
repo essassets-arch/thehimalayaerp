@@ -9,13 +9,13 @@ export class LeadsController {
   @Get()
   @Permissions('sales.leads.read')
   async listLeads(@Req() req: any, @Query('search') search?: string) {
-    return this.leadsService.listLeads(req.user?.companyId, search);
+    return this.leadsService.listLeads(req.user?.companyId, search, req.user?.sub, req.user?.role);
   }
 
   @Get(':id')
   @Permissions('sales.leads.read')
   async getLead(@Param('id') id: string, @Req() req: any) {
-    return this.leadsService.getLead(id, req.user?.companyId);
+    return this.leadsService.getLead(id, req.user?.companyId, req.user?.sub, req.user?.role);
   }
 
   @Post()
@@ -27,31 +27,31 @@ export class LeadsController {
   @Patch(':id')
   @Permissions('sales.leads.update')
   async updateLead(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
-    return this.leadsService.updateLead(id, dto, req.user?.sub || 'SYSTEM', req.user?.companyId);
+    return this.leadsService.updateLead(id, dto, req.user?.sub || 'SYSTEM', req.user?.companyId, req.user?.role);
   }
 
   @Post(':id/activities')
   @Permissions('sales.leads.update')
   async addActivity(@Param('id') id: string, @Body() dto: { activityType: string, notes?: string, scheduledAt?: string }, @Req() req: any) {
-    return this.leadsService.addActivity(id, dto, req.user?.sub || 'SYSTEM');
+    return this.leadsService.addActivity(id, dto, req.user?.sub || 'SYSTEM', req.user?.role);
   }
 
   @Post(':id/activity')
   @Permissions('sales.leads.update')
   async addActivityAlias(@Param('id') id: string, @Body() dto: { activityType: string, notes?: string, scheduledAt?: string }, @Req() req: any) {
-    return this.leadsService.addActivity(id, dto, req.user?.sub || 'SYSTEM');
+    return this.leadsService.addActivity(id, dto, req.user?.sub || 'SYSTEM', req.user?.role);
   }
 
   @Post(':id/action')
   @Permissions('sales.leads.update')
   async processAction(@Param('id') id: string, @Body() dto: { action: string, remarks?: string }, @Req() req: any) {
-    return this.leadsService.processAction(id, dto.action, dto.remarks, req.user?.sub);
+    return this.leadsService.processAction(id, dto.action, dto.remarks, req.user?.sub, req.user?.role);
   }
 
   @Get(':id/timeline')
   @Permissions('sales.leads.read')
-  async timeline(@Param('id') id: string) {
-    return this.leadsService.getTimeline(id);
+  async timeline(@Param('id') id: string, @Req() req: any) {
+    return this.leadsService.getTimeline(id, req.user?.sub, req.user?.role);
   }
 
   @Post(':id/followups')
@@ -61,7 +61,7 @@ export class LeadsController {
       activityType: dto.activityType || 'FOLLOW_UP',
       notes: dto.notes,
       scheduledAt: dto.scheduledAt || dto.reminderAt,
-    }, req.user?.sub || 'SYSTEM');
+    }, req.user?.sub || 'SYSTEM', req.user?.role);
   }
 
   @Post(':id/reminders')
@@ -69,19 +69,19 @@ export class LeadsController {
   async addReminder(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     return this.leadsService.updateLead(id, {
       nextReminderAt: dto.reminderAt || dto.nextReminderAt,
-    }, req.user?.sub || 'SYSTEM', req.user?.companyId);
+    }, req.user?.sub || 'SYSTEM', req.user?.companyId, req.user?.role);
   }
 
   @Post(':id/qualify')
   @Permissions('sales.leads.update')
   async qualify(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
-    return this.leadsService.processAction(id, dto.action || 'IDENTIFY_REQ', dto.remarks, req.user?.sub);
+    return this.leadsService.processAction(id, dto.action || 'IDENTIFY_REQ', dto.remarks, req.user?.sub, req.user?.role);
   }
 
   @Post(':id/mark-lost')
   @Permissions('sales.leads.update')
   async markLost(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
-    await this.leadsService.updateLead(id, { lostReason: dto.reason || dto.lostReason }, req.user?.sub || 'SYSTEM', req.user?.companyId);
-    return this.leadsService.processAction(id, 'LOST', dto.remarks, req.user?.sub);
+    await this.leadsService.updateLead(id, { lostReason: dto.reason || dto.lostReason }, req.user?.sub || 'SYSTEM', req.user?.companyId, req.user?.role);
+    return this.leadsService.processAction(id, 'LOST', dto.remarks, req.user?.sub, req.user?.role);
   }
 }

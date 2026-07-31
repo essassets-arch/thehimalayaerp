@@ -249,12 +249,7 @@ export default function DispatchOrdersPage() {
                       <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
                         QC Date
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
-                        Required By
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
-                        Priority
-                      </th>
+
                       <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
                         Actions
                       </th>
@@ -317,24 +312,7 @@ export default function DispatchOrdersPage() {
                                 : "—"}
                             </span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="text-xs font-mono text-gray-600">
-                              {salesOrder?.requestedDeliveryDate
-                                ? new Date(
-                                    salesOrder.requestedDeliveryDate,
-                                  ).toLocaleDateString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  })
-                                : "—"}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-amber-200">
-                              Normal
-                            </span>
-                          </td>
+
                           <td className="px-5 py-4 whitespace-nowrap">
                             <Button
                               size="sm"
@@ -380,9 +358,6 @@ export default function DispatchOrdersPage() {
                           {wo.workOrderNumber}
                         </span>
                       </div>
-                      <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-200">
-                        Normal Priority
-                      </span>
                     </div>
 
                     {/* Card Body */}
@@ -442,7 +417,7 @@ export default function DispatchOrdersPage() {
                       </div>
 
                       {/* Dates row */}
-                      <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="grid grid-cols-1 gap-3 pt-1">
                         <div className="flex items-start gap-2.5">
                           <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
                             <Clock className="h-3.5 w-3.5 text-gray-400" />
@@ -459,26 +434,6 @@ export default function DispatchOrdersPage() {
                                     qcInspection?.approvedAt ||
                                       qcInspection?.createdAt ||
                                       wo.sentToDispatchAt!,
-                                  ).toLocaleDateString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                  })
-                                : "—"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                            <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                              Required By
-                            </p>
-                            <p className="text-xs font-mono text-gray-600">
-                              {salesOrder?.requestedDeliveryDate
-                                ? new Date(
-                                    salesOrder.requestedDeliveryDate,
                                   ).toLocaleDateString("en-IN", {
                                     day: "2-digit",
                                     month: "short",

@@ -8,14 +8,14 @@ export class InvoicesController {
 
   @Get()
   @Permissions('finance.invoice.read')
-  async listInvoices() {
-    return this.invoicesService.listInvoices();
+  async listInvoices(@Req() req: any) {
+    return this.invoicesService.listInvoices(req.user?.sub, req.user?.role);
   }
 
   @Get(':id')
   @Permissions('finance.invoice.read')
-  async getInvoice(@Param('id') id: string) {
-    return this.invoicesService.getInvoice(id);
+  async getInvoice(@Param('id') id: string, @Req() req: any) {
+    return this.invoicesService.getInvoice(id, req.user?.sub, req.user?.role);
   }
 
   @Post(':id/action')

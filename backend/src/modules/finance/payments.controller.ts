@@ -8,14 +8,14 @@ export class PaymentsController {
 
   @Get()
   @Permissions('finance.payment.read')
-  async listPayments() {
-    return this.paymentsService.listPayments();
+  async listPayments(@Req() req: any) {
+    return this.paymentsService.listPayments(req.user?.sub, req.user?.role);
   }
 
   @Get('sales-recorded')
   @Permissions('sales.orders.read')
-  async listSalesRecordedPayments() {
-    return this.paymentsService.listSalesRecordedPayments();
+  async listSalesRecordedPayments(@Req() req: any) {
+    return this.paymentsService.listSalesRecordedPayments(req.user?.sub, req.user?.role);
   }
 
   @Get('delivered-orders')
@@ -26,8 +26,8 @@ export class PaymentsController {
 
   @Get(':id')
   @Permissions('finance.payment.read')
-  async getPayment(@Param('id') id: string) {
-    return this.paymentsService.getPayment(id);
+  async getPayment(@Param('id') id: string, @Req() req: any) {
+    return this.paymentsService.getPayment(id, req.user?.sub, req.user?.role);
   }
 
   @Post()

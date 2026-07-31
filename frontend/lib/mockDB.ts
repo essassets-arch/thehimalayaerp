@@ -1,13 +1,16 @@
 import { mockLeads, mockQuotations, mockOrders, mockCustomers, mockPayments } from './mockData';
-import { getMockStorage, persistMockStorage } from './mockStorage';
+import { getMockStorage, persistMockStorage, getUserEmail } from './mockStorage';
+
+const email = getUserEmail();
+const isDemoUser = email === 'sales.executive@himalayaerp.com' || email === 'super.admin@himalayaerp.com' || !email;
 
 // ── In-memory DB state (hydrated from localStorage or seed) ──
 let db: any = getMockStorage({
-  leads: [...mockLeads],
-  quotations: [...mockQuotations],
-  orders: [...mockOrders],
-  customers: [...mockCustomers],
-  payments: [...mockPayments],
+  leads: isDemoUser ? [...mockLeads] : [],
+  quotations: isDemoUser ? [...mockQuotations] : [],
+  orders: isDemoUser ? [...mockOrders] : [],
+  customers: isDemoUser ? [...mockCustomers] : [],
+  payments: isDemoUser ? [...mockPayments] : [],
   samples: [],
   reminders: [],
   dispatches: [],

@@ -31,8 +31,9 @@ export function WorkflowTimeline({ entityType, entityId, className }: WorkflowTi
   const { data: history = [], isLoading, isError } = useQuery({
     queryKey: ['workflow-history', entityType, entityId],
     queryFn: async () => {
-      const res = await axios.get<WorkflowHistoryItem[]>(`/api/backend/workflow/history/${entityType}/${entityId}`);
-      return res.data;
+      const res = await axios.get(`/api/backend/workflow/history/${entityType}/${entityId}`);
+      // If the backend wraps the response in { success, data, meta }, unpack it here.
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     }
   });
 

@@ -435,8 +435,13 @@ export default function CreateQuotation({
       alert('Please create this lead first, then generate the quotation from the saved lead/customer.');
       return;
     }
-    if (!customerName.trim() || !gstName.trim() || !gstNumber.trim()) {
-      alert('Please fill out Customer Name, GST Name, and GST Number.');
+    if (!customerName.trim() || !groupName.trim() || !gstName.trim() || !gstNumber.trim()) {
+      alert('Please fill out Customer Name, Group Name, GST Name, and GST Number.');
+      return;
+    }
+    
+    if (transportCharge === '' || transportCharge === null || transportCharge === undefined) {
+      alert('Please specify the Expected Transportation Cost.');
       return;
     }
     
@@ -666,13 +671,14 @@ export default function CreateQuotation({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">Group Name</label>
+            <label className="form-label">Group Name *</label>
             <input
               type="text"
               className="form-input"
               placeholder="e.g. NHAI Group, L&T Infrastructure"
               value={groupName}
               onChange={e => setGroupName(e.target.value)}
+              required
             />
           </div>
           <div className="form-group">
@@ -713,14 +719,15 @@ export default function CreateQuotation({
           </div>
           <div className="form-group">
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Truck size={12} /> Expected Transportation Cost (₹)
+              <Truck size={12} /> Expected Transportation Cost (₹) *
             </label>
             <input 
               type="number" 
               className="form-input" 
               placeholder="e.g. 2500"
-              value={transportCharge || ''} 
-              onChange={e => setTransportCharge(Number(e.target.value) || 0)} 
+              value={transportCharge !== undefined && transportCharge !== null ? transportCharge : ''} 
+              onChange={e => setTransportCharge(e.target.value === '' ? '' : Number(e.target.value))} 
+              required
             />
           </div>
         </div>

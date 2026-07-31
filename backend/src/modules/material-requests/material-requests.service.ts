@@ -39,9 +39,12 @@ export class MaterialRequestsService {
     };
   }
 
-  async findAll(companyId: string) {
+  async findAll(companyId: string, userId?: string, role?: string) {
+    const scope = require('../../common/utils/rbac.util').getAdvancedScope(userId, role, {
+      'STORE': { requestedById: userId }
+    });
     const rows = await this.prisma.materialRequest.findMany({
-      where: { companyId },
+      where: { companyId, ...scope },
       include: { items: { include: { product: true } }, requestedBy: true },
       orderBy: { createdAt: 'desc' },
     });

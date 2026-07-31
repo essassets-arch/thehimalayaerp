@@ -35,7 +35,7 @@ export class ProcurementController {
   @Post('grns/:id/:action') @Permissions('procurement.grns.update') grnAction(@Param('id') id:string,@Param('action') a:string,@Body() d:any,@Req() r:any){return this.service.grnAction(id,a,d,r.user?.sub)}
   /** Verifies one partial/full delivery, posts accepted stock and creates its GRN atomically. */
   @Post('store/deliveries/verify') @Roles('STORE', 'STORE_MANAGER') verifyDelivery(@Body() d:any,@Req() r:any){return this.service.verifyDelivery(d,r.user?.sub, r.user?.companyId)}
-  @Get('store/deliveries') @Roles('STORE', 'STORE_MANAGER') deliveries(@Req() r:any,@Query() q:any){return this.service.deliveryHistory(r.user?.companyId,q)}
+  @Get('store/deliveries') @Roles('STORE', 'STORE_MANAGER') deliveries(@Req() r:any,@Query() q:any){return this.service.deliveryHistory(r.user?.companyId,q, r.user?.sub, r.user?.role)}
   @Get('grns/:id/history') @Permissions('procurement.grns.read') grnHistory(@Param('id') id:string){return this.service.history('GoodsReceiptNote',id)}
   @Get('vendor-invoices') @Permissions('procurement.vendor_invoices.read') listInvoices(@Query() q:any){return this.service.list('vendorInvoice',q)}
   @Post('vendor-invoices') @Permissions('procurement.vendor_invoices.create') createInvoice(@Body() d:any,@Req() r:any){return this.service.createInvoice(d,r.user?.sub)}

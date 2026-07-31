@@ -4,6 +4,7 @@ import { CreateSampleDto } from './dto/create-sample.dto';
 import { UpdateSampleDto } from './dto/update-sample.dto';
 import { generatePublicId, withOptimisticUpdate } from '../../common/utils/database.util';
 import { SampleStatus } from '@prisma/client';
+import { getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SamplesService {
@@ -80,9 +81,10 @@ export class SamplesService {
     });
   }
 
-  async findAll(companyId: string) {
+  async findAll(companyId: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'createdById');
     return this.prisma.sampleRequest.findMany({
-      where: { companyId, deletedAt: null },
+      where: { companyId, deletedAt: null, ...scope },
       include: {
         items: {
           include: {
@@ -96,9 +98,10 @@ export class SamplesService {
     });
   }
 
-  async findOne(id: string, companyId: string) {
+  async findOne(id: string, companyId: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'createdById');
     const sample = await this.prisma.sampleRequest.findFirst({
-      where: { id, companyId, deletedAt: null },
+      where: { id, companyId, deletedAt: null, ...scope },
       include: {
         items: {
           include: {
@@ -120,11 +123,11 @@ export class SamplesService {
     return sample;
   }
 
-  async update(id: string, companyId: string, updateDto: UpdateSampleDto, userId: string = 'system') {
+  async update(id: string, companyId: string, updateDto: UpdateSampleDto, userId: string = 'system', role?: string) {
     const { expectedVersion, items, ...updateData } = updateDto;
 
-    // ensure it exists
-    await this.findOne(id, companyId);
+    // ensure it exists and user owns it
+    await this.findOne(id, companyId, userId, role);
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Optimistic update for the parent fields

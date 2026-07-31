@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
+import { getAdvancedScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class InvoicesService {
@@ -9,8 +10,13 @@ export class InvoicesService {
     private readonly workflowService: WorkflowService
   ) {}
 
-  async listInvoices() {
+  async listInvoices(userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'FINANCE': { createdById: userId },
+      'SALES': { salesOrder: { createdById: userId } }
+    });
     return this.prisma.salesInvoice.findMany({
+      where: scope,
       include: {
         salesOrder: { include: { customer: true } },
         workflowState: true
@@ -19,9 +25,13 @@ export class InvoicesService {
     });
   }
 
-  async getInvoice(id: string) {
+  async getInvoice(id: string, userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'FINANCE': { createdById: userId },
+      'SALES': { salesOrder: { createdById: userId } }
+    });
     const invoice = await this.prisma.salesInvoice.findUnique({
-      where: { id },
+      where: { id, ...scope },
       include: {
         salesOrder: { include: { customer: true } },
         dispatch: true,

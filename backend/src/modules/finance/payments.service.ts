@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Prisma, SalesOrderStatus } from '@prisma/client';
+import { getAdvancedScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class PaymentsService {
@@ -12,8 +13,13 @@ export class PaymentsService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async listPayments() {
+  async listPayments(userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'FINANCE': { createdById: userId },
+      'SALES': { customer: { createdById: userId } }
+    });
     return this.prisma.customerPayment.findMany({
+      where: scope,
       include: {
         customer: true,
         salesOrder: {
@@ -30,9 +36,13 @@ export class PaymentsService {
     });
   }
 
-  async listSalesRecordedPayments() {
+  async listSalesRecordedPayments(userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'FINANCE': { createdById: userId },
+      'SALES': { customer: { createdById: userId } }
+    });
     return this.prisma.customerPayment.findMany({
-      where: { salesOrderId: { not: null } },
+      where: { salesOrderId: { not: null }, ...scope },
       select: {
         id: true,
         paymentNo: true,
@@ -56,6 +66,7 @@ export class PaymentsService {
             companyName: true,
           },
         },
+        workflowState: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -117,10 +128,16 @@ export class PaymentsService {
     });
   }
 
-  async getPayment(id: string) {
-    const payment = await this.prisma.customerPayment.findUnique({
-      where: { id },
-      include: {
+  async getPayment(id: string, userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'FINANCE': { createdById: userId },
+      'SALES': { customer: { createdById: userId } }
+    });
+    const payment = await this.prisma.customerPayment.findFirst({
+      where: {
+        id,
+        ...scope
+      },include: {
         customer: true,
         workflowState: true,
         allocations: { include: { invoice: true } }

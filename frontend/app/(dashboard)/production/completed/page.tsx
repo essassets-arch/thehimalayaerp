@@ -8,28 +8,22 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/erp/data-table/DataTable';
 import { StatusBadge } from '@/components/erp/common/StatusBadge';
 import { backendFetch } from '@/lib/backendFetch';
-import styles from '../work-orders/work-orders.module.css';
+import styles from './completed.module.css';
 
 interface WorkOrder {
   id: string;
   workOrderNumber: string;
   productionPlan: {
-    salesOrder: {
-      customer: { companyName: string }
-    }
+    salesOrder: { customer: { companyName: string } };
   };
-  salesOrderItem: {
-    productNameSnapshot: string;
-  } | null;
+  salesOrderItem: { productNameSnapshot: string } | null;
   quantity: number;
   status: string;
   startedAt: string | null;
   completedAt: string | null;
   duration: number | null;
   completedById: string | null;
-  workflowState: {
-    name: string;
-  } | null;
+  workflowState: { name: string } | null;
 }
 
 export default function CompletedOrdersPage() {
@@ -40,87 +34,103 @@ export default function CompletedOrdersPage() {
     queryFn: async () => {
       const payload = await backendFetch<WorkOrder[]>('/api/backend/production/work-orders');
       return Array.isArray(payload)
-        ? payload.filter((workOrder) => {
-            const status = String(workOrder.workflowState?.name || workOrder.status || '').toUpperCase();
-            // In the suggested flow, after COMPLETED it might go to QC_PENDING or CLOSED.
-            // We can show anything that has a completedAt.
-            return workOrder.completedAt != null;
-          })
+        ? payload.filter((wo) => wo.completedAt != null)
         : [];
-    }
+    },
   });
 
   const filteredData = React.useMemo(() => {
-    const workOrders = Array.isArray(data) ? data : [];
-    if (!search) return workOrders;
+    const orders = Array.isArray(data) ? data : [];
+    if (!search) return orders;
     const lower = search.toLowerCase();
-    return workOrders.filter((w: WorkOrder) =>
-      w.workOrderNumber.toLowerCase().includes(lower)
-    );
+    return orders.filter((w) => w.workOrderNumber.toLowerCase().includes(lower));
   }, [data, search]);
 
   const columns: ColumnDef<WorkOrder>[] = [
     {
       accessorKey: 'workOrderNumber',
       header: 'WO Number',
-      cell: ({ row }) => <span className="font-medium text-gray-900">{row.getValue('workOrderNumber')}</span>,
+      size: 155,
+      cell: ({ row }) => <strong>{row.getValue('workOrderNumber')}</strong>,
     },
     {
       id: 'product',
       header: 'Product',
-      cell: ({ row }) => row.original.salesOrderItem?.productNameSnapshot || '-',
+      size: 175,
+      cell: ({ row }) => row.original.salesOrderItem?.productNameSnapshot || '—',
     },
     {
       accessorKey: 'quantity',
       header: 'Produced Qty',
+      size: 110,
     },
     {
       id: 'startedAt',
       header: 'Started At',
-      cell: ({ row }) => row.original.startedAt ? new Date(row.original.startedAt).toLocaleString() : '-',
+      size: 160,
+      cell: ({ row }) =>
+        row.original.startedAt
+          ? new Date(row.original.startedAt).toLocaleString()
+          : '—',
     },
     {
       id: 'completedAt',
       header: 'Completed At',
-      cell: ({ row }) => row.original.completedAt ? new Date(row.original.completedAt).toLocaleString() : '-',
+      size: 160,
+      cell: ({ row }) =>
+        row.original.completedAt
+          ? new Date(row.original.completedAt).toLocaleString()
+          : '—',
     },
     {
       id: 'duration',
       header: 'Total Duration',
+      size: 120,
       cell: ({ row }) => {
-        if (row.original.duration == null) return '-';
-        const hours = Math.floor(row.original.duration / 60);
-        const mins = row.original.duration % 60;
-        return <span className="font-mono text-xs">{hours}h {mins}m</span>;
+        if (row.original.duration == null) return '—';
+        const h = Math.floor(row.original.duration / 60);
+        const m = row.original.duration % 60;
+        return <span className={styles.durationChip}>{h}h {m}m</span>;
       },
     },
     {
       id: 'completedBy',
       header: 'Completed By',
-      cell: ({ row }) => row.original.completedById ? 'User ' + row.original.completedById.slice(0, 8) : '-',
+      size: 140,
+      cell: ({ row }) =>
+        row.original.completedById
+          ? 'User ' + row.original.completedById.slice(0, 8)
+          : '—',
     },
     {
       accessorKey: 'status',
       header: 'Current Status',
-      cell: ({ row }) => <StatusBadge status={row.original.workflowState?.name || row.original.status || 'UNKNOWN'} />,
+      size: 140,
+      cell: ({ row }) => (
+        <StatusBadge status={row.original.workflowState?.name || row.original.status || 'UNKNOWN'} />
+      ),
     },
   ];
 
   return (
     <main className={styles.page}>
+      {/* ── Hero ── */}
       <header className={styles.hero}>
-        <div className={styles.heroIcon}><ClipboardCheck size={24} /></div>
-        <div>
+        <div className={styles.heroIcon}>
+          <ClipboardCheck size={22} />
+        </div>
+        <div className={styles.heroText}>
           <span className={styles.eyebrow}>Production History</span>
           <h1>Completed Orders</h1>
           <p>Review completed production orders and their time durations.</p>
         </div>
-        <div className={styles.summary}>
+        <div className={styles.summaryBadge}>
           <strong>{filteredData.length}</strong>
           <span>Completed</span>
         </div>
       </header>
 
+      {/* ── Panel ── */}
       <section className={styles.panel}>
         <div className={styles.toolbar}>
           <div>
@@ -128,35 +138,34 @@ export default function CompletedOrdersPage() {
             <p>Orders that have finished production.</p>
           </div>
           <label className={styles.search}>
-            <Search size={17} aria-hidden="true" />
+            <Search size={16} aria-hidden="true" />
             <input
               type="search"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search work order..."
-              aria-label="Search work orders"
+              aria-label="Search completed orders"
             />
-            <div className="w-12 flex items-center justify-center">
-              {search && (
-                <button type="button" onClick={() => setSearch('')} aria-label="Clear search">
-                  Clear
-                </button>
-              )}
-            </div>
+            {search && (
+              <button type="button" onClick={() => setSearch('')} aria-label="Clear search">
+                Clear
+              </button>
+            )}
           </label>
         </div>
 
-        {isLoading ? (
-          <div className={styles.loading}>Loading completed orders…</div>
-        ) : (
-          <DataTable 
-            columns={columns} 
-            data={filteredData}
-            serverSide={false}
-            className={styles.table}
-            emptyMessage={search ? 'No work orders match your search.' : 'No completed work orders yet.'}
-          />
-        )}
+        <div className={styles.tableScrollArea}>
+          {isLoading ? (
+            <div className={styles.loading}>Loading completed orders…</div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={filteredData}
+              serverSide={false}
+              emptyMessage={search ? 'No work orders match your search.' : 'No completed work orders yet.'}
+            />
+          )}
+        </div>
       </section>
     </main>
   );

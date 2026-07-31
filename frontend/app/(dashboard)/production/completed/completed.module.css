@@ -85,69 +85,12 @@
     color: #64748b;
 }
 
-/* ─── Panel / card ─── */
+/* ─── Panel ─── */
 .panel {
     background: #fff;
     border: 1px solid #e2e8f0;
     border-radius: 14px;
     box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
-}
-
-/* ─── Tabs ─── */
-.tabs {
-    display: flex;
-    gap: 6px;
-    padding: 6px;
-    margin: 0;
-    border-bottom: 1px solid #f1f5f9;
-    background: #f8fafc;
-    border-radius: 14px 14px 0 0;
-}
-
-.tabs button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: 8px 16px;
-    min-height: 36px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #64748b;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-}
-
-.tabs button:hover {
-    background: #e2e8f0;
-    color: #1e293b;
-}
-
-.tabs button span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: #e2e8f0;
-    color: #475569;
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.activeTab {
-    background: #fff !important;
-    color: #1d4ed8 !important;
-    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.1);
-}
-
-.activeTab span {
-    background: #dbeafe !important;
-    color: #1d4ed8 !important;
 }
 
 /* ─── Toolbar ─── */
@@ -156,7 +99,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 14px;
-    padding: 14px 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid #f1f5f9;
     flex-wrap: wrap;
 }
@@ -219,14 +162,14 @@
     white-space: nowrap;
 }
 
-/* ─── Table scroll ─── */
+/* ─── Table scroll wrapper ─── */
 .tableScrollArea {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: 0 0 14px 14px;
 }
 
-/* Strip DataTable inner wrappers */
+/* Strip DataTable's inner wrappers */
 .panel :global(.erp-data-table) { margin: 0; }
 .panel :global(.space-y-4) { gap: 0 !important; }
 .panel :global(.erp-data-table__viewport),
@@ -240,7 +183,7 @@
 /* ─── Table ─── */
 .panel :global(table) {
     width: 100%;
-    min-width: 780px;
+    min-width: 1000px;
     border-collapse: collapse;
     table-layout: auto !important;
 }
@@ -272,61 +215,32 @@
 .panel :global(tbody tr:hover) { background: #fafcff; }
 .panel :global(td:first-child) { font-weight: 700; color: #0f172a; }
 
-/* Column widths */
+/* Column widths — force natural sizing */
 .panel :global(th:nth-child(1)),
-.panel :global(td:nth-child(1)) { width: 160px; }
+.panel :global(td:nth-child(1)) { width: 155px; }
 
 .panel :global(th:nth-child(2)),
-.panel :global(td:nth-child(2)) { width: 180px; }
+.panel :global(td:nth-child(2)) { width: 175px; }
 
 .panel :global(th:nth-child(3)),
 .panel :global(td:nth-child(3)) { width: 100px; text-align: center; }
 
 .panel :global(th:nth-child(4)),
-.panel :global(td:nth-child(4)) { width: 140px; }
+.panel :global(td:nth-child(4)) { width: 155px; }
 
 .panel :global(th:nth-child(5)),
-.panel :global(td:nth-child(5)) { width: 175px; }
+.panel :global(td:nth-child(5)) { width: 155px; }
 
 .panel :global(th:nth-child(6)),
-.panel :global(td:nth-child(6)) { width: 110px; }
+.panel :global(td:nth-child(6)) { width: 115px; text-align: center; }
 
-/* ─── Action button ─── */
-.btnApprove {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 7px 18px;
-    background: #059669;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.18s;
-}
+.panel :global(th:nth-child(7)),
+.panel :global(td:nth-child(7)) { width: 130px; }
 
-.btnApprove:hover { background: #047857; }
-.btnApprove:disabled { background: #6ee7b7; cursor: not-allowed; }
+.panel :global(th:nth-child(8)),
+.panel :global(td:nth-child(8)) { width: 130px; }
 
-/* Duration chip */
-.durationChip {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 10px;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    font-family: ui-monospace, monospace;
-    color: #15803d;
-    white-space: nowrap;
-}
-
-/* Pagination */
+/* ─── Pagination ─── */
 .panel :global(.erp-data-table__pagination) {
     display: flex;
     align-items: center;
@@ -339,7 +253,7 @@
     flex-wrap: wrap;
 }
 
-/* Loading */
+/* ─── Loading ─── */
 .loading {
     display: flex;
     align-items: center;
@@ -347,6 +261,22 @@
     min-height: 200px;
     color: #94a3b8;
     font-size: 14px;
+}
+
+/* ─── Duration chip ─── */
+.durationChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: ui-monospace, monospace;
+    color: #15803d;
+    white-space: nowrap;
 }
 
 /* ─── Responsive ─── */
@@ -357,7 +287,11 @@
 @media (max-width: 768px) {
     .page { padding: 14px; }
 
-    .hero { padding: 16px; gap: 12px; }
+    .hero {
+        padding: 16px;
+        gap: 12px;
+    }
+
     .heroText h1 { font-size: 19px; }
 
     .toolbar {
@@ -366,25 +300,26 @@
         gap: 10px;
     }
 
-    .search { width: 100%; }
+    .search {
+        width: 100%;
+    }
 
-    .summaryBadge { width: 100%; justify-content: center; }
+    .summaryBadge {
+        width: 100%;
+        justify-content: center;
+    }
 
-    .tabs { gap: 4px; }
-
-    .btnApprove { width: 100%; justify-content: center; }
+    .panel :global(.erp-data-table__pagination) {
+        gap: 8px;
+    }
 }
 
 @media (max-width: 480px) {
     .page { padding: 10px; }
+
     .hero { gap: 10px; padding: 14px; }
     .heroIcon { width: 42px; height: 42px; border-radius: 11px; }
     .heroText h1 { font-size: 17px; }
-
-    .tabs {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-    }
 
     .panel :global(.erp-data-table__pagination) {
         flex-direction: column;

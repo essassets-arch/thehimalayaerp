@@ -96,7 +96,11 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} className="whitespace-nowrap">
+                    <TableHead 
+                      key={header.id} 
+                      className="whitespace-nowrap"
+                      style={{ width: header.column.getSize() !== 150 ? `${header.column.getSize()}px` : undefined }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(

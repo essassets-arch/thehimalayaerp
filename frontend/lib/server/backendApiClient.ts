@@ -1,7 +1,7 @@
 import 'server-only';
 import crypto from 'crypto';
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:4000/api/v1';
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://127.0.0.1:4000/api/v1';
 
 function isValidUuid(id: string | null | undefined): boolean {
   if (!id) return false;

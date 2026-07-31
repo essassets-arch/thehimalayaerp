@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Decimal } from '@prisma/client/runtime/library';
+import { getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class QuotationsService {
@@ -12,9 +13,11 @@ export class QuotationsService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async listQuotations(companyId?: string, search?: string) {
+  async listQuotations(companyId?: string, search?: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'createdById');
     return this.prisma.quotation.findMany({
       where: {
+        ...scope,
         deletedAt: null,
         ...(companyId ? { companyId } : {}),
         ...(search ? { quotationNumber: { contains: search, mode: 'insensitive' } } : {}),
@@ -28,9 +31,10 @@ export class QuotationsService {
     });
   }
 
-  async getQuotation(id: string, companyId?: string) {
+  async getQuotation(id: string, companyId?: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'createdById');
     const quotation = await this.prisma.quotation.findFirst({
-      where: { id, deletedAt: null, ...(companyId ? { companyId } : {}) },
+      where: { id, ...scope, deletedAt: null, ...(companyId ? { companyId } : {}) },
       include: {
         workflowState: true,
         items: true,
@@ -69,7 +73,7 @@ export class QuotationsService {
     };
   }
 
-  async createQuotation(dto: any, userId: string, companyId?: string) {
+  async createQuotation(dto: any, userId: string, companyId?: string, role?: string) {
     const initialState = await this.workflowService.getInitialState('QUOTATION');
     const resolvedCompanyId = companyId || dto.companyId || (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
     if (!resolvedCompanyId) throw new BadRequestException('Company is required');
@@ -134,10 +138,11 @@ export class QuotationsService {
     });
   }
 
-  async updateQuotation(id: string, dto: any, userId: string, companyId?: string) {
+  async updateQuotation(id: string, dto: any, userId: string, companyId?: string, role?: string) {
     return this.prisma.$transaction(async (tx) => {
+      const scope = getSalesScope(userId, role, 'createdById');
       const quotation = await tx.quotation.findFirst({
-        where: { id, deletedAt: null, ...(companyId ? { companyId } : {}) },
+        where: { id, ...scope, deletedAt: null, ...(companyId ? { companyId } : {}) },
         include: { workflowState: true },
       });
       if (!quotation) throw new NotFoundException('Quotation not found');
@@ -176,9 +181,10 @@ export class QuotationsService {
     });
   }
 
-  async processAction(id: string, actionName: string, remarks?: string, userId?: string) {
+  async processAction(id: string, actionName: string, remarks?: string, userId?: string, role?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const quotation = await tx.quotation.findUnique({ where: { id }, include: { workflowState: true } });
+      const scope = getSalesScope(userId, role, 'createdById');
+      const quotation = await tx.quotation.findFirst({ where: { id, ...scope }, include: { workflowState: true } });
       if (!quotation) throw new NotFoundException('Quotation not found');
 
       const result = await this.workflowService.processAction({
@@ -202,10 +208,11 @@ export class QuotationsService {
     });
   }
 
-  async duplicateVersion(id: string, userId: string) {
+  async duplicateVersion(id: string, userId: string, role?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const original = await tx.quotation.findUnique({
-        where: { id },
+      const scope = getSalesScope(userId, role, 'createdById');
+      const original = await tx.quotation.findFirst({
+        where: { id, ...scope },
         include: { items: true, workflowState: true }
       });
       
@@ -280,10 +287,11 @@ export class QuotationsService {
     });
   }
 
-  async convertToSalesOrder(id: string, userId: string) {
+  async convertToSalesOrder(id: string, userId: string, role?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const quotation = await tx.quotation.findUnique({
-        where: { id },
+      const scope = getSalesScope(userId, role, 'createdById');
+      const quotation = await tx.quotation.findFirst({
+        where: { id, ...scope },
         include: { items: true, workflowState: true, lead: true }
       });
 

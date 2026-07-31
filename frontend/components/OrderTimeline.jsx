@@ -133,13 +133,7 @@ export default function OrderTimeline({ orderId, compact = false }) {
   }
 
   if (timeline.length === 0) {
-    return (
-      <div className="glass-card" style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-        <Clock style={{ margin: '0 auto 8px', display: 'block', opacity: 0.5 }} size={24} />
-        <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>No events recorded for order {orderId} yet.</p>
-        <button type="button" onClick={() => setRevision((value) => value + 1)} style={{ marginTop: 10 }}>Rebuild from ERP State</button>
-      </div>
-    );
+    return null;
   }
 
   // Deduce stage info
@@ -168,7 +162,11 @@ export default function OrderTimeline({ orderId, compact = false }) {
   const pct = Math.round((activeIndex / (MILESTONE_GROUPS.length - 1)) * 100);
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ border: '1px solid #f0f0f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', background: '#ffffff' }}>
+      <h4 style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#5E6B82', marginBottom: '16px', letterSpacing: '0.5px' }}>
+        Production & Fulfillment Journey
+      </h4>
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* 1. Milestone Progress Indicator */}
       <div style={{
@@ -532,6 +530,7 @@ export default function OrderTimeline({ orderId, compact = false }) {
           to { opacity: 1; transform: translateY(0); }
         }
       `}} />
+      </div>
     </div>
   );
 }

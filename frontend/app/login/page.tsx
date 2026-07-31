@@ -130,7 +130,7 @@ export default function LoginPage() {
       login(friendlyRole, { ...user, role: friendlyRole }, accessToken);
 
       const redirectPath = getDefaultPath(user.role);
-      router.push(redirectPath);
+      window.location.href = redirectPath;
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {

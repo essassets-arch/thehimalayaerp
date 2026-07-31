@@ -335,7 +335,7 @@ async function main() {
   // ── 5. Users (one per role) ─────────────────────────────────────────────────
   console.log('👤 Seeding users...');
   const productionRoles = await prisma.role.findMany({
-    where: { code: { in: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR'] } },
+    where: { code: { in: ['PLANT_HEAD', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR'] } },
   });
   const productionPermissions = await prisma.permission.findMany({
     where: {

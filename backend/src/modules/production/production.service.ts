@@ -1,20 +1,26 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
+import { SequenceService } from '../../common/sequence/sequence.service';
+import { getAdvancedScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class ProductionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly workflowService: WorkflowService
+    private readonly workflowService: WorkflowService,
+    private readonly sequenceService: SequenceService
   ) {}
 
-  async listPlans() {
+  async listPlans(userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'PRODUCTION': { assignedToId: userId },
+      'SALES': { salesOrder: { createdById: userId } }
+    });
     return this.prisma.productionPlan.findMany({
+      where: scope,
       include: {
-        salesOrder: {
-          include: { customer: true }
-        },
+        salesOrder: { include: { customer: true } },
         _count: {
           select: { workOrders: true }
         },
@@ -24,9 +30,13 @@ export class ProductionService {
     });
   }
 
-  async getPlan(id: string) {
-    const plan = await this.prisma.productionPlan.findUnique({
-      where: { id },
+  async getPlan(id: string, userId?: string, role?: string) {
+    const scope = getAdvancedScope(userId, role, {
+      'PRODUCTION': { assignedToId: userId },
+      'SALES': { salesOrder: { createdById: userId } }
+    });
+    const plan = await this.prisma.productionPlan.findFirst({
+      where: { id, ...scope },
       include: {
         salesOrder: {
           include: { items: true, customer: true }
@@ -39,7 +49,7 @@ export class ProductionService {
     return plan;
   }
 
-  async createPlan(dto: { salesOrderId: string, plannedStartDate?: string, plannedEndDate?: string, productionLine?: string }) {
+  async createPlan(dto: { salesOrderId: string, plannedStartDate?: string, plannedEndDate?: string, productionLine?: string }, userId?: string, role?: string) {
     const initialState = await this.workflowService.getInitialState('PRODUCTION_PLAN');
     const count = await this.prisma.productionPlan.count();
     const planNumber = `PP-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
@@ -53,6 +63,7 @@ export class ProductionService {
         productionLine: dto.productionLine,
         status: 'DRAFT',
         workflowStateId: initialState.id,
+        assignedToId: userId,
       }
     });
   }
@@ -64,9 +75,10 @@ export class ProductionService {
       plannedEndDate?: string;
       productionLine?: string;
     },
+    userId?: string,
+    role?: string
   ) {
-    const plan = await this.prisma.productionPlan.findUnique({ where: { id } });
-    if (!plan) throw new NotFoundException('Production Plan not found');
+    const plan = await this.getPlan(id, userId, role);
 
     return this.prisma.productionPlan.update({
       where: { id },
@@ -88,11 +100,9 @@ export class ProductionService {
     });
   }
 
-  async processAction(id: string, actionName: string, remarks?: string, userId?: string) {
+  async processAction(id: string, actionName: string, remarks?: string, userId?: string, role?: string) {
+    const plan = await this.getPlan(id, userId, role);
     return this.prisma.$transaction(async (tx) => {
-    const plan = await tx.productionPlan.findUnique({ where: { id } });
-    if (!plan) throw new NotFoundException('Plan not found');
-
     const result = await this.workflowService.processAction({
       entityId: id,
       entityType: 'PRODUCTION_PLAN',

@@ -195,8 +195,10 @@ export const useERP = () => {
             auditLogs = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
           }
           
-          const remindersRaw = await backendFetch('/api/backend/sales/reminders').catch(() => []);
-          fetchedReminders = Array.isArray(remindersRaw) ? remindersRaw : (remindersRaw?.data || []);
+          if (authUserLog?.role === 'Sales Executive' || authUserLog?.role === 'Super Admin' || authUserLog?.role === 'Admin') {
+            const remindersRaw = await backendFetch('/api/backend/sales/reminders').catch(() => []);
+            fetchedReminders = Array.isArray(remindersRaw) ? remindersRaw : (remindersRaw?.data || []);
+          }
           // Note: we'll merge this with the existing state logic below.
 
           rawInventory = products.map((prod, idx) => {

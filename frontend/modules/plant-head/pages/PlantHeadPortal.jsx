@@ -565,8 +565,8 @@ export default function PlantHeadPortal() {
         showToast("Plant Head: Logging planning metrics and scheduling order...");
           try {
             const isBackendOrder = Boolean(
-              selectedOrderForPlanning.workflowStateCode ||
-              directBackendOrders.some(order => order.id === selectedOrderForPlanning.id)
+              directBackendOrders.some(order => order.id === selectedOrderForPlanning.id) ||
+              (backendSalesOrders || []).some(order => order.id === selectedOrderForPlanning.id)
             );
 
             if (isBackendOrder) {
@@ -2651,7 +2651,9 @@ export default function PlantHeadPortal() {
       if (remarks === undefined) return; // cancelled
       showToast('Accepting order…');
       try {
-        if (order.workflowStateCode || directBackendOrders.some(candidate => candidate.id === order.id)) {
+        const isBackendOrder = directBackendOrders.some(candidate => candidate.id === order.id) ||
+                               (backendSalesOrders && backendSalesOrders.some(candidate => candidate.id === order.id));
+        if (isBackendOrder) {
           await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
             method: 'POST',
             body: { action: 'PLANT_APPROVE', remarks },
@@ -2880,8 +2882,24 @@ export default function PlantHeadPortal() {
           actions={(row) => planningViewTab === 'pending' ? (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button
-                className="action-btn"
-                style={{ background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                style={{ 
+                  background: '#0284c7', 
+                  color: '#ffffff', 
+                  border: 'none', 
+                  padding: '8px 16px', 
+                  borderRadius: '8px', 
+                  fontWeight: '600', 
+                  fontSize: '13px',
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#0369a1'}
+                onMouseOut={(e) => e.currentTarget.style.background = '#0284c7'}
                 onClick={() => {
                   setSelectedOrderForPlanning(row);
                   const d = new Date(); d.setDate(d.getDate() + 7);
@@ -2890,7 +2908,7 @@ export default function PlantHeadPortal() {
                   setShowPlanningModal(true);
                 }}
               >
-                <Plus size={13} /> Set Date &amp; Send to Production
+                <Plus size={14} /> Plan &amp; Send to Production
               </button>
             </div>
           ) : null}

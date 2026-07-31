@@ -17,6 +17,7 @@ import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto
 import { Decimal } from '@prisma/client/runtime/library';
 import { WorkflowService } from '../workflow/workflow.service';
 import { CreditService } from '../finance/credit.service';
+import { getSalesScope, isRestrictedRole } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SalesService {
@@ -29,11 +30,14 @@ export class SalesService {
 
   async listOrders(
     query: ListSalesOrdersQueryDto,
+    userId?: string,
+    role?: string,
   ): Promise<SalesOrderListResponseDto> {
     const { page = 1, pageSize = 25, search } = query;
     const skip = (page - 1) * pageSize;
     const take = pageSize;
-    const where: Prisma.SalesOrderWhereInput = {};
+    const scope = getSalesScope(userId, role, 'createdById');
+    const where: Prisma.SalesOrderWhereInput = { ...scope };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
@@ -76,9 +80,10 @@ export class SalesService {
     };
   }
 
-  async getOrder(id: string) {
-    const order = await this.prisma.salesOrder.findUnique({
-      where: { id },
+  async getOrder(id: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'createdById');
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id, ...scope },
       include: {
         customer: true,
         items: true,
@@ -150,6 +155,7 @@ export class SalesService {
   async createOrder(
     dto: CreateSalesOrderDto,
     userId: string,
+    role?: string,
   ): Promise<SalesOrderResponseDto> {
     const initialState = await this.workflowService.getInitialState('SALES_ORDER');
 
@@ -219,9 +225,16 @@ export class SalesService {
     });
   }
 
-  async processAction(id: string, dto: { action: string, remarks?: string }, userId: string) {
+  async processAction(
+    id: string,
+    dto: { action: string, remarks?: string },
+    userId: string,
+    role?: string,
+  ) {
+    const scope = getSalesScope(userId, role, 'createdById');
     return this.prisma.$transaction(async (tx) => {
-    const order = await tx.salesOrder.findUnique({ where: { id }, include: { items: true } });
+      const order = await tx.salesOrder.findFirst({
+        where: { id, ...scope }, include: { items: true } });
     if (!order) throw new NotFoundException('Sales Order not found');
 
     if (dto.action === 'SUBMIT') {
@@ -314,7 +327,12 @@ export class SalesService {
   async convertQuotationToOrder(
     dto: ConvertQuotationToOrderDto,
     userId: string,
+    role?: string,
   ): Promise<SalesOrderResponseDto> {
+    const scope = getSalesScope(userId, role, 'createdById');
+    const quotation = await this.prisma.quotation.findFirst({
+      where: { id: dto.quotationId, ...scope },
+    });
     throw new BadRequestException({
       code: DomainErrorCodes.QUOTATION_NOT_ACCEPTED,
       message: 'Quotations not implemented in prototype',
