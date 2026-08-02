@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { WarehousesService } from './warehouses.service';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
@@ -9,7 +17,10 @@ export class WarehousesController {
   constructor(private readonly warehousesService: WarehousesService) {}
 
   @Post()
-  create(@CurrentUser() user: any, @Body() createWarehouseDto: CreateWarehouseDto) {
+  create(
+    @CurrentUser() user: any,
+    @Body() createWarehouseDto: CreateWarehouseDto,
+  ) {
     return this.warehousesService.create(user.companyId, createWarehouseDto);
   }
 
@@ -27,8 +38,12 @@ export class WarehousesController {
   update(
     @CurrentUser() user: any,
     @Param('id') id: string,
-    @Body() updateWarehouseDto: UpdateWarehouseDto
+    @Body() updateWarehouseDto: UpdateWarehouseDto,
   ) {
-    return this.warehousesService.update(user.companyId, id, updateWarehouseDto);
+    return this.warehousesService.update(
+      user.companyId,
+      id,
+      updateWarehouseDto,
+    );
   }
 }

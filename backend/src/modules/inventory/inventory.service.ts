@@ -6,7 +6,10 @@ import { CreateInventoryTransactionDto } from './dto/create-inventory-transactio
 export class InventoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createTransaction(companyId: string, dto: CreateInventoryTransactionDto) {
+  async createTransaction(
+    companyId: string,
+    dto: CreateInventoryTransactionDto,
+  ) {
     // Verify product exists
     const product = await this.prisma.product.findFirst({
       where: { companyId, id: dto.productId },
@@ -44,12 +47,19 @@ export class InventoryService {
       where,
     });
 
-    const stockMap = new Map<string, { productId: string; warehouseId: string; quantity: number }>();
+    const stockMap = new Map<
+      string,
+      { productId: string; warehouseId: string; quantity: number }
+    >();
 
     for (const row of grouped) {
       const key = `${row.productId}-${row.warehouseId}`;
       if (!stockMap.has(key)) {
-        stockMap.set(key, { productId: row.productId, warehouseId: row.warehouseId, quantity: 0 });
+        stockMap.set(key, {
+          productId: row.productId,
+          warehouseId: row.warehouseId,
+          quantity: 0,
+        });
       }
 
       const item = stockMap.get(key)!;
@@ -64,13 +74,17 @@ export class InventoryService {
 
     // Attach product and warehouse names for convenience
     const stockList = Array.from(stockMap.values());
-    
-    // In a real app we'd join, but for a prototype we can fetch relations if needed, 
+
+    // In a real app we'd join, but for a prototype we can fetch relations if needed,
     // or the frontend can join based on IDs. Let's just return the aggregated array.
     return stockList;
   }
 
-  async getTransactions(companyId: string, productId?: string, warehouseId?: string) {
+  async getTransactions(
+    companyId: string,
+    productId?: string,
+    warehouseId?: string,
+  ) {
     const where: any = { companyId };
     if (productId) where.productId = productId;
     if (warehouseId) where.warehouseId = warehouseId;
@@ -80,8 +94,8 @@ export class InventoryService {
       orderBy: { createdAt: 'desc' },
       include: {
         product: { select: { name: true, sku: true, unit: true } },
-        warehouse: { select: { name: true } }
-      }
+        warehouse: { select: { name: true } },
+      },
     });
   }
 }

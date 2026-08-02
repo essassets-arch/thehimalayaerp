@@ -13,7 +13,12 @@ export class SalesReportsController {
     @Query('date_to') dateTo: string,
     @Req() req: any,
   ) {
-    return this.salesReportsService.getSalesSummary(dateFrom, dateTo, req.user?.sub, req.user?.role);
+    return this.salesReportsService.getSalesSummary(
+      dateFrom,
+      dateTo,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Get('top-products')
@@ -23,7 +28,13 @@ export class SalesReportsController {
     @Query('limit') limit: string,
     @Req() req: any,
   ) {
-    return this.salesReportsService.getTopProducts(dateFrom, dateTo, parseInt(limit, 10) || 10, req.user?.sub, req.user?.role);
+    return this.salesReportsService.getTopProducts(
+      dateFrom,
+      dateTo,
+      parseInt(limit, 10) || 10,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Get('customer-performance')
@@ -32,6 +43,11 @@ export class SalesReportsController {
     @Query('date_to') dateTo: string,
     @Req() req: any,
   ) {
-    return this.salesReportsService.getCustomerPerformance(dateFrom, dateTo, req.user?.sub, req.user?.role);
+    return this.salesReportsService.getCustomerPerformance(
+      dateFrom,
+      dateTo,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 }

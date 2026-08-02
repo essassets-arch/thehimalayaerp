@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
@@ -9,48 +13,58 @@ export class ProductionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
-    private readonly sequenceService: SequenceService
+    private readonly sequenceService: SequenceService,
   ) {}
 
   async listPlans(userId?: string, role?: string) {
     const scope = getAdvancedScope(userId, role, {
-      'PRODUCTION': { assignedToId: userId },
-      'SALES': { salesOrder: { createdById: userId } }
+      PRODUCTION: { assignedToId: userId },
+      SALES: { salesOrder: { createdById: userId } },
     });
     return this.prisma.productionPlan.findMany({
       where: scope,
       include: {
         salesOrder: { include: { customer: true } },
         _count: {
-          select: { workOrders: true }
+          select: { workOrders: true },
         },
-        workflowState: true
+        workflowState: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async getPlan(id: string, userId?: string, role?: string) {
     const scope = getAdvancedScope(userId, role, {
-      'PRODUCTION': { assignedToId: userId },
-      'SALES': { salesOrder: { createdById: userId } }
+      PRODUCTION: { assignedToId: userId },
+      SALES: { salesOrder: { createdById: userId } },
     });
     const plan = await this.prisma.productionPlan.findFirst({
       where: { id, ...scope },
       include: {
         salesOrder: {
-          include: { items: true, customer: true }
+          include: { items: true, customer: true },
         },
         workOrders: true,
-        workflowState: true
-      }
+        workflowState: true,
+      },
     });
     if (!plan) throw new NotFoundException('Production Plan not found');
     return plan;
   }
 
-  async createPlan(dto: { salesOrderId: string, plannedStartDate?: string, plannedEndDate?: string, productionLine?: string }, userId?: string, role?: string) {
-    const initialState = await this.workflowService.getInitialState('PRODUCTION_PLAN');
+  async createPlan(
+    dto: {
+      salesOrderId: string;
+      plannedStartDate?: string;
+      plannedEndDate?: string;
+      productionLine?: string;
+    },
+    userId?: string,
+    role?: string,
+  ) {
+    const initialState =
+      await this.workflowService.getInitialState('PRODUCTION_PLAN');
     const count = await this.prisma.productionPlan.count();
     const planNumber = `PP-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
 
@@ -58,13 +72,17 @@ export class ProductionService {
       data: {
         planNumber,
         salesOrderId: dto.salesOrderId,
-        plannedStartDate: dto.plannedStartDate ? new Date(dto.plannedStartDate) : null,
-        plannedEndDate: dto.plannedEndDate ? new Date(dto.plannedEndDate) : null,
+        plannedStartDate: dto.plannedStartDate
+          ? new Date(dto.plannedStartDate)
+          : null,
+        plannedEndDate: dto.plannedEndDate
+          ? new Date(dto.plannedEndDate)
+          : null,
         productionLine: dto.productionLine,
         status: 'DRAFT',
         workflowStateId: initialState.id,
         assignedToId: userId,
-      }
+      },
     });
   }
 
@@ -76,7 +94,7 @@ export class ProductionService {
       productionLine?: string;
     },
     userId?: string,
-    role?: string
+    role?: string,
   ) {
     const plan = await this.getPlan(id, userId, role);
 
@@ -84,10 +102,18 @@ export class ProductionService {
       where: { id },
       data: {
         ...(dto.plannedStartDate !== undefined
-          ? { plannedStartDate: dto.plannedStartDate ? new Date(dto.plannedStartDate) : null }
+          ? {
+              plannedStartDate: dto.plannedStartDate
+                ? new Date(dto.plannedStartDate)
+                : null,
+            }
           : {}),
         ...(dto.plannedEndDate !== undefined
-          ? { plannedEndDate: dto.plannedEndDate ? new Date(dto.plannedEndDate) : null }
+          ? {
+              plannedEndDate: dto.plannedEndDate
+                ? new Date(dto.plannedEndDate)
+                : null,
+            }
           : {}),
         ...(dto.productionLine !== undefined
           ? { productionLine: dto.productionLine }
@@ -100,59 +126,73 @@ export class ProductionService {
     });
   }
 
-  async processAction(id: string, actionName: string, remarks?: string, userId?: string, role?: string) {
+  async processAction(
+    id: string,
+    actionName: string,
+    remarks?: string,
+    userId?: string,
+    role?: string,
+  ) {
     const plan = await this.getPlan(id, userId, role);
     return this.prisma.$transaction(async (tx) => {
-    const result = await this.workflowService.processAction({
-      entityId: id,
-      entityType: 'PRODUCTION_PLAN',
-      workflowCode: 'PRODUCTION_PLAN',
-      currentStateId: plan.workflowStateId!,
-      actionName,
-      userId: userId || 'SYSTEM',
-      remarks
-    }, tx);
+      const result = await this.workflowService.processAction(
+        {
+          entityId: id,
+          entityType: 'PRODUCTION_PLAN',
+          workflowCode: 'PRODUCTION_PLAN',
+          currentStateId: plan.workflowStateId!,
+          actionName,
+          userId: userId || 'SYSTEM',
+          remarks,
+        },
+        tx,
+      );
 
-    const updated = await tx.productionPlan.update({
-      where: { id },
-      data: {
-        workflowStateId: result.nextStateId,
-        status: {
-          SUBMIT: 'UNDER_REVIEW',
-          APPROVE: 'APPROVED',
-          RELEASE: 'RELEASED',
-          START: 'IN_PROGRESS',
-          COMPLETE: 'COMPLETED',
-          CANCEL: 'CANCELLED',
-          REJECT: 'CANCELLED',
-        }[actionName] as any,
-      },
-      include: { salesOrder: { include: { items: true } } }
-    });
+      const updated = await tx.productionPlan.update({
+        where: { id },
+        data: {
+          workflowStateId: result.nextStateId,
+          status: {
+            SUBMIT: 'UNDER_REVIEW',
+            APPROVE: 'APPROVED',
+            RELEASE: 'RELEASED',
+            START: 'IN_PROGRESS',
+            COMPLETE: 'COMPLETED',
+            CANCEL: 'CANCELLED',
+            REJECT: 'CANCELLED',
+          }[actionName] as any,
+        },
+        include: { salesOrder: { include: { items: true } } },
+      });
 
-    // If released, automatically generate Work Orders based on the sales order items
-    if (actionName === 'RELEASE') {
-      const initialWOState = await this.workflowService.getInitialState('WORK_ORDER', tx);
-      const existing = await tx.workOrder.count({ where: { productionPlanId: id } });
-      if (existing) return updated;
-      const count = await tx.workOrder.count();
-      
-      for (let i = 0; i < updated.salesOrder.items.length; i++) {
-        const item = updated.salesOrder.items[i];
-        await tx.workOrder.create({
-          data: {
-            workOrderNumber: `WO-${new Date().getFullYear()}-${String(count + i + 1).padStart(5, '0')}`,
-            productionPlanId: id,
-            salesOrderItemId: item.id,
-            quantity: item.orderedQuantity,
-            workflowStateId: initialWOState.id,
-            status: 'CREATED'
-          }
+      // If released, automatically generate Work Orders based on the sales order items
+      if (actionName === 'RELEASE') {
+        const initialWOState = await this.workflowService.getInitialState(
+          'WORK_ORDER',
+          tx,
+        );
+        const existing = await tx.workOrder.count({
+          where: { productionPlanId: id },
         });
-      }
-    }
+        if (existing) return updated;
+        const count = await tx.workOrder.count();
 
-    return updated;
+        for (let i = 0; i < updated.salesOrder.items.length; i++) {
+          const item = updated.salesOrder.items[i];
+          await tx.workOrder.create({
+            data: {
+              workOrderNumber: `WO-${new Date().getFullYear()}-${String(count + i + 1).padStart(5, '0')}`,
+              productionPlanId: id,
+              salesOrderItemId: item.id,
+              quantity: item.orderedQuantity,
+              workflowStateId: initialWOState.id,
+              status: 'CREATED',
+            },
+          });
+        }
+      }
+
+      return updated;
     });
   }
 }

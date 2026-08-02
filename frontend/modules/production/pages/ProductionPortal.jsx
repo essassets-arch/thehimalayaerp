@@ -25,12 +25,11 @@ import ProductionMaterialRequestsView from '../../../components/material-workflo
 import ProductionMaterialReceiptsView from '../../../components/material-workflow/ProductionMaterialReceiptsView';
 import ProductionMaterialConsumptionView from '../../../components/material-workflow/ProductionMaterialConsumptionView';
 import ProductionMaterialReturnsView from '../../../components/material-workflow/ProductionMaterialReturnsView';
-import QCDashboardView from '../components/qc/QCDashboardView';
 import QCPendingView from '../components/qc/QCPendingView';
 import QCHistoryView from '../components/qc/QCHistoryView';
 import FinishedGoodsView from '../components/FinishedGoodsView';
 import ProductionOperationsDashboard from '../../../components/ProductionOperationsDashboard';
-import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, PieChart, Pie, LineChart, Line, Legend } from 'recharts';
 
 const HARDWARE_ITEMS = [
   { material: 'Bolts (M12)', stock: 1500, unit: 'Units', reorderLevel: 200 },
@@ -530,6 +529,7 @@ export default function ProductionPortal() {
   const [dashboardStats, setDashboardStats] = useState(null);
   const [testingEntries, setTestingEntries] = useState([]);
   const [rejectionEntries, setRejectionEntries] = useState([]);
+  const [globalSummary, setGlobalSummary] = useState(null);
 
   const updateManualTestingItems = (updated) => {
     setManualTestingItems(updated);
@@ -562,6 +562,17 @@ export default function ProductionPortal() {
     }
   };
 
+  const fetchGlobalSummary = async () => {
+    try {
+      const res = await backendFetch('/api/backend/production/reports/summary');
+      if (res?.success && res.data) {
+        setGlobalSummary(res.data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch global summary', e);
+    }
+  };
+
   useEffect(() => {
     syncData();
     if (view === 'dashboard') {
@@ -570,6 +581,8 @@ export default function ProductionPortal() {
       fetchTesting();
     } else if (view === 'rejection') {
       fetchRejections();
+    } else if (view === 'reports') {
+      fetchGlobalSummary();
     }
   }, [view, syncData]);
 
@@ -1610,6 +1623,19 @@ export default function ProductionPortal() {
 
         <ProductionOperationsDashboard
           workOrders={workOrders}
+          initialShiftEntries={(globalSummary?.shiftEntries || []).map(entry => ({
+            ...entry,
+            date: entry.date ? entry.date.slice(0, 10) : '',
+            workOrder: entry.workOrder?.workOrderNumber || '—',
+            product: entry.workOrder?.salesOrderItem?.product?.name || '—',
+            efficiency: Number(entry.targetQty) ? Math.max(0, Number(entry.producedQty) - Number(entry.rejectedQty)) / Number(entry.targetQty) * 100 : 0
+          }))}
+          initialScrapEntries={(globalSummary?.scrapEntries || []).map(entry => ({
+            ...entry,
+            date: entry.date ? entry.date.slice(0, 10) : '',
+            workOrder: entry.workOrder?.workOrderNumber || '—',
+            product: entry.workOrder?.salesOrderItem?.product?.name || '—'
+          }))}
           onCompleteRework={(workOrder) => dispatch({
             type: 'UPDATE_WORK_ORDER',
             payload: {
@@ -3130,17 +3156,212 @@ export default function ProductionPortal() {
   };
 
   const renderReports = () => {
+    const reportCategories = [
+      { id: 'dashboard', title: 'Dashboard Reports', icon: Activity, desc: 'Overall production performance and KPIs.', color: '#0ea5e9' },
+      { id: 'work-orders', title: 'Work Orders Report', icon: ClipboardList, desc: 'Analyze work order completion and cycle times.', color: '#3b82f6' },
+      { id: 'incoming-orders', title: 'Incoming Orders Report', icon: Box, desc: 'Track incoming production demands and queues.', color: '#8b5cf6' },
+      { id: 'material-requests', title: 'Material Requests Report', icon: Layers, desc: 'Review material consumption and requisition trends.', color: '#f59e0b' },
+      { id: 'store-releases', title: 'Store Releases Report', icon: PackageCheck, desc: 'Monitor store inventory released for production.', color: '#10b981' },
+      { id: 'floor', title: 'Production Floor Report', icon: Wrench, desc: 'Real-time metrics for ongoing floor operations.', color: '#6366f1' },
+      { id: 'completed', title: 'Completed Orders Report', icon: ClipboardCheck, desc: 'Historical data on successfully completed orders.', color: '#14b8a6' },
+      { id: 'qc-failed', title: 'QC Failed & Reproduction', icon: RefreshCw, desc: 'Analyze quality failure rates and rework cycles.', color: '#ef4444' },
+      { id: 'testing', title: 'Testing Reports', icon: Activity, desc: 'Detailed analytics on production testing phases.', color: '#0ea5e9' },
+      { id: 'finished-goods', title: 'Finished Goods Report', icon: Package, desc: 'Inventory analytics for finished production goods.', color: '#f97316' },
+      { id: 'qc-pending', title: 'Pending Inspections', icon: Clock, desc: 'Track bottlenecks in the Quality Control queue.', color: '#eab308' },
+      { id: 'qc-history', title: 'Inspected History', icon: ClipboardList, desc: 'Comprehensive history of all QC inspections.', color: '#22c55e' }
+    ];
+
+    const [showDetailedReports, setShowDetailedReports] = useState(false);
+
+    if (!globalSummary || !globalSummary.kpis) {
+      return <div style={{ padding: '24px', color: '#fff' }}>Loading dashboard data...</div>;
+    }
+
+    const { summary, kpis, charts, recentWorkOrders } = globalSummary;
+    const COLORS = ['#4ade80', '#38bdf8', '#facc15', '#f87171', '#c084fc'];
+
+    const kpiCards = [
+      { title: 'Total Work Orders', value: kpis.workOrders.total, onClick: () => navigate.push('/production/work-orders'), color: '#3b82f6' },
+      { title: 'Active Jobs', value: kpis.workOrders.active, onClick: () => navigate.push('/production/floor'), color: '#38bdf8' },
+      { title: 'Completed', value: kpis.workOrders.completed, onClick: () => navigate.push('/production/completed'), color: '#4ade80' },
+      { title: 'QC Pending', value: kpis.qc.pending, onClick: () => navigate.push('/production/qc-pending'), color: '#facc15' },
+      { title: 'Dispatch Ready', value: kpis.logistics.readyForDispatch, onClick: () => navigate.push('/production/finished-goods'), color: '#a855f7' },
+      { title: 'Incoming Orders', value: kpis.incomingOrders.pending, onClick: () => navigate.push('/production/incoming-orders'), color: '#8b5cf6' },
+      { title: 'Rework / Failed', value: kpis.qc.failed, onClick: () => navigate.push('/production/qc-failed'), color: '#f87171' },
+      { title: 'Material Requests', value: kpis.materialRequests.total, onClick: () => navigate.push('/production/material-requests'), color: '#f59e0b' }
+    ];
+
     return (
       <div className="module-content">
-        <div className="module-header-row">
-          <h2 className="module-title">Production Reports</h2>
+        <div className="module-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', marginBottom: '24px' }}>
+          <div>
+            <h2 className="module-title" style={{ fontSize: '24px', color: 'var(--color-text-primary)', margin: 0 }}>Comprehensive Production Dashboard</h2>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px', marginTop: '6px', margin: '6px 0 0 0' }}>Real-time aggregated view of manufacturing, QC, and dispatch.</p>
+          </div>
         </div>
-        <div className="app-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', textAlign: 'center' }}>
-          <Activity size={48} style={{ color: 'var(--color-text-muted)', marginBottom: '16px' }} />
-          <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-text-primary)' }}>Coming Soon</h3>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px', maxWidth: '400px', marginTop: '8px' }}>
-            The detailed production analytics and reporting module is currently under development. Please check back later.
-          </p>
+
+        {/* Top Row: KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+          {kpiCards.map((kpi, idx) => (
+            <div key={idx} onClick={kpi.onClick} style={{
+              background: 'linear-gradient(135deg, var(--color-bg-card) 0%, rgba(30,41,59,0.5) 100%)',
+              border: `1px solid ${kpi.color}30`,
+              borderRadius: '12px',
+              padding: '20px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = kpi.color; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = `${kpi.color}30`; }}
+            >
+              <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600', marginBottom: '8px' }}>{kpi.title}</div>
+              <div style={{ fontSize: '28px', fontWeight: '800', color: kpi.color }}>{kpi.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Middle Row: Charts */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+          <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '16px', color: 'var(--color-text-primary)' }}>Production Status Distribution</h3>
+            <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <PieChart width={300} height={300}>
+                  <Pie 
+                    data={charts.productionStatus?.some(d => d.value > 0) ? charts.productionStatus : [{ name: 'No Data', value: 1 }]} 
+                    cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
+                  >
+                    {(charts.productionStatus?.some(d => d.value > 0) ? charts.productionStatus : [{ name: 'No Data', value: 1 }]).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.name === 'No Data' ? '#334155' : COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  {charts.productionStatus?.some(d => d.value > 0) && <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />}
+                  <Legend />
+                </PieChart>
+            </div>
+          </div>
+
+          <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '16px', color: 'var(--color-text-primary)' }}>Daily Production Trend (7 Days)</h3>
+            <div style={{ height: '300px', width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
+                <BarChart width={400} height={300} data={charts.dailyTrend || []}>
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis stroke="#64748b" />
+                  <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                  <Legend />
+                  <Bar dataKey="completed" name="Completed" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="active" name="Active" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+            </div>
+          </div>
+
+          <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '16px', color: 'var(--color-text-primary)' }}>QC Pass vs Fail</h3>
+            <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <PieChart width={300} height={300}>
+                  <Pie 
+                    data={charts.qcStatus?.some(d => d.value > 0) ? charts.qcStatus : [{ name: 'No Data', value: 1 }]} 
+                    cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
+                  >
+                    {(charts.qcStatus?.some(d => d.value > 0) ? charts.qcStatus : [{ name: 'No Data', value: 1 }]).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.name === 'No Data' ? '#334155' : (entry.name === 'Failed' ? '#f87171' : '#4ade80')} />
+                    ))}
+                  </Pie>
+                  {charts.qcStatus?.some(d => d.value > 0) && <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />}
+                  <Legend />
+                </PieChart>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Row: Recent Work Orders Table */}
+        <div style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '16px', overflow: 'hidden', marginBottom: '32px' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--color-text-primary)' }}>Recent Work Orders</h3>
+            <button onClick={() => navigate.push('/production/work-orders')} style={{ background: 'transparent', border: 'none', color: '#38bdf8', cursor: 'pointer', fontWeight: '600' }}>View All →</button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600', fontSize: '13px' }}>Work Order #</th>
+                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600', fontSize: '13px' }}>Product</th>
+                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600', fontSize: '13px' }}>Status</th>
+                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600', fontSize: '13px' }}>QC Result</th>
+                  <th style={{ padding: '16px 24px', color: '#94a3b8', fontWeight: '600', fontSize: '13px' }}>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentWorkOrders.map((wo, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <td style={{ padding: '16px 24px', color: '#fff', fontWeight: '500' }}>{wo.workOrderNumber}</td>
+                    <td style={{ padding: '16px 24px', color: 'var(--color-text-secondary)' }}>{wo.salesOrderItem?.product?.name || 'N/A'}</td>
+                    <td style={{ padding: '16px 24px' }}>
+                      <StatusBadge status={wo.productionStatus} />
+                    </td>
+                    <td style={{ padding: '16px 24px', color: wo.qcResult === 'PASS' ? '#4ade80' : wo.qcResult === 'FAIL' ? '#f87171' : '#94a3b8' }}>
+                      {wo.qcResult || 'Pending'}
+                    </td>
+                    <td style={{ padding: '16px 24px', color: 'var(--color-text-secondary)' }}>
+                      {new Date(wo.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+                {recentWorkOrders.length === 0 && (
+                  <tr>
+                    <td colSpan="5" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>No recent work orders found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Very Bottom: Collapsible Detailed Reports */}
+        <div style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '16px', padding: '24px' }}>
+          <div 
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+            onClick={() => setShowDetailedReports(!showDetailedReports)}
+          >
+            <div>
+              <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--color-text-primary)' }}>Detailed Reports Archive</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--color-text-secondary)' }}>Access legacy detailed report grids and modules.</p>
+            </div>
+            <button style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
+              {showDetailedReports ? 'Hide Reports' : 'Show Reports'}
+            </button>
+          </div>
+          
+          {showDetailedReports && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', marginTop: '24px' }}>
+              {reportCategories.map(cat => {
+                const Icon = cat.icon;
+                return (
+                  <div key={cat.id} onClick={() => navigate.push(`/production/${cat.id}`)} style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = cat.color; e.currentTarget.style.background = `${cat.color}10`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                  >
+                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: `${cat.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: cat.color }}>
+                      <Icon size={20} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '14px', color: 'var(--color-text-primary)' }}>{cat.title}</h4>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -3172,7 +3393,6 @@ export default function ProductionPortal() {
       {view === 'finished-goods' && renderFinishedGoods()}
 
       {/* QC & Operations Routes */}
-      {view === 'qc-dashboard' && <QCDashboardView />}
       {view === 'qc-pending' && <QCPendingView />}
       {view === 'qc-history' && <QCHistoryView />}
       {view === 'floor' && renderProductionWork()}

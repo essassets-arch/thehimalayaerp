@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { AttachmentsService } from './attachments.service';
 
 export class AddAttachmentDto {

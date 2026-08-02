@@ -8,8 +8,9 @@ export class QcController {
 
   @Get()
   @Permissions('qc.inspection.read')
-  async listInspections() {
-    const items = await this.qcService.listInspections();
+  async listInspections(@Req() req: any) {
+    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    const items = await this.qcService.listInspections(companyId);
     console.log('listInspections called. Returned items count:', items.length);
     return items;
   }
@@ -22,31 +23,82 @@ export class QcController {
 
   @Post(':id/action')
   @Permissions('qc.inspection.approve')
-  async processAction(@Param('id') id: string, @Body() dto: { action: string, remarks?: string }, @Req() req: any) {
-    return this.qcService.processAction(id, dto.action, dto.remarks, req.user?.sub);
+  async processAction(
+    @Param('id') id: string,
+    @Body() dto: { action: string; remarks?: string },
+    @Req() req: any,
+  ) {
+    return this.qcService.processAction(
+      id,
+      dto.action,
+      dto.remarks,
+      req.user?.sub,
+    );
   }
 
   @Post(':id/start')
   @Permissions('qc.inspection.approve')
-  async startInspection(@Param('id') id: string, @Body() dto: { remarks?: string }, @Req() req: any) {
-    return this.qcService.processAction(id, 'START', dto.remarks, req.user?.sub);
+  async startInspection(
+    @Param('id') id: string,
+    @Body() dto: { remarks?: string },
+    @Req() req: any,
+  ) {
+    return this.qcService.processAction(
+      id,
+      'START',
+      dto.remarks,
+      req.user?.sub,
+    );
   }
 
   @Post(':id/approve')
   @Permissions('qc.inspection.approve')
-  async approveInspection(@Param('id') id: string, @Body() dto: { remarks?: string, approvedQuantity?: number, rejectedQuantity?: number }, @Req() req: any) {
-    return this.qcService.processAction(id, 'APPROVE', dto.remarks, req.user?.sub, dto);
+  async approveInspection(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      remarks?: string;
+      approvedQuantity?: number;
+      rejectedQuantity?: number;
+    },
+    @Req() req: any,
+  ) {
+    return this.qcService.processAction(
+      id,
+      'APPROVE',
+      dto.remarks,
+      req.user?.sub,
+      dto,
+    );
   }
 
   @Post(':id/reject')
   @Permissions('qc.inspection.approve')
-  async rejectInspection(@Param('id') id: string, @Body() dto: { remarks?: string }, @Req() req: any) {
-    return this.qcService.processAction(id, 'REJECT', dto.remarks, req.user?.sub);
+  async rejectInspection(
+    @Param('id') id: string,
+    @Body() dto: { remarks?: string },
+    @Req() req: any,
+  ) {
+    return this.qcService.processAction(
+      id,
+      'REJECT',
+      dto.remarks,
+      req.user?.sub,
+    );
   }
 
   @Post(':id/rework')
   @Permissions('qc.inspection.approve')
-  async reworkInspection(@Param('id') id: string, @Body() dto: { remarks?: string }, @Req() req: any) {
-    return this.qcService.processAction(id, 'REWORK', dto.remarks, req.user?.sub);
+  async reworkInspection(
+    @Param('id') id: string,
+    @Body() dto: { remarks?: string },
+    @Req() req: any,
+  ) {
+    return this.qcService.processAction(
+      id,
+      'REWORK',
+      dto.remarks,
+      req.user?.sub,
+    );
   }
 }

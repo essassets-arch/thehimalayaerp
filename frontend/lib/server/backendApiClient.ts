@@ -37,6 +37,11 @@ async function createBridgeResponse(upstream: Response): Promise<Response> {
     }
   }
 
+  const setCookies = upstream.headers.getSetCookie ? upstream.headers.getSetCookie() : [];
+  for (const cookie of setCookies) {
+    headers.append('set-cookie', cookie);
+  }
+
   const body =
     upstream.status === 204 || upstream.status === 205 || upstream.status === 304
       ? null

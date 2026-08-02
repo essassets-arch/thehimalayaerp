@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { RecruitmentService } from './recruitment.service';
 
@@ -55,8 +64,17 @@ export class RecruitmentController {
 
   @Post('recruitment-requests/:id/return-for-correction')
   @Permissions('hr.recruitment.requests.return')
-  returnForCorrection(@Param('id') id: string, @Body() body: any, @Req() req: any) {
-    return this.service.transition(id, 'RETURNED_FOR_CORRECTION', body, req.user);
+  returnForCorrection(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    return this.service.transition(
+      id,
+      'RETURNED_FOR_CORRECTION',
+      body,
+      req.user,
+    );
   }
 
   @Post('recruitment-requests/:id/put-on-hold')
@@ -97,19 +115,31 @@ export class RecruitmentController {
 
   @Patch('recruitment-candidates/:candidateId')
   @Permissions('hr.recruitment.candidates.update')
-  updateCandidate(@Param('candidateId') id: string, @Body() body: any, @Req() req: any) {
+  updateCandidate(
+    @Param('candidateId') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.updateCandidate(id, body, req.user);
   }
 
   @Post('recruitment-candidates/:candidateId/select')
   @Permissions('hr.recruitment.candidates.update')
-  selectCandidate(@Param('candidateId') id: string, @Body() body: any, @Req() req: any) {
+  selectCandidate(
+    @Param('candidateId') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.candidateDecision(id, 'SELECTED', body, req.user);
   }
 
   @Post('recruitment-candidates/:candidateId/reject')
   @Permissions('hr.recruitment.candidates.update')
-  rejectCandidate(@Param('candidateId') id: string, @Body() body: any, @Req() req: any) {
+  rejectCandidate(
+    @Param('candidateId') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.candidateDecision(id, 'REJECTED', body, req.user);
   }
 
@@ -127,13 +157,22 @@ export class RecruitmentController {
 
   @Patch('recruitment-interviews/:interviewId')
   @Permissions('hr.recruitment.interviews.update')
-  updateInterview(@Param('interviewId') id: string, @Body() body: any, @Req() req: any) {
+  updateInterview(
+    @Param('interviewId') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.updateInterview(id, body, req.user);
   }
 
   @Post('recruitment-interviews/:interviewId/:action')
   @Permissions('hr.recruitment.interviews.update')
-  interviewAction(@Param('interviewId') id: string, @Param('action') action: string, @Body() body: any, @Req() req: any) {
+  interviewAction(
+    @Param('interviewId') id: string,
+    @Param('action') action: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.interviewAction(id, action, body, req.user);
   }
 

@@ -1,8 +1,22 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post,
-  Query, Req, UploadedFile, UploadedFiles, UseInterceptors,
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UploadedFile,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -15,12 +29,27 @@ export class EmployeesController {
 
   private async parseEmployeeData(value: string) {
     let payload: unknown;
-    try { payload = JSON.parse(value); } catch { throw new BadRequestException({ code: 'INVALID_EMPLOYEE_DATA', message: 'employeeData must be valid JSON.' }); }
+    try {
+      payload = JSON.parse(value);
+    } catch {
+      throw new BadRequestException({
+        code: 'INVALID_EMPLOYEE_DATA',
+        message: 'employeeData must be valid JSON.',
+      });
+    }
     const dto = plainToInstance(CreateEmployeeDto, payload);
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: false });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: false,
+    });
     if (errors.length) {
       const first = errors[0];
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: Object.values(first.constraints || {})[0] || 'Validation failed.', field: first.property });
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          Object.values(first.constraints || {})[0] || 'Validation failed.',
+        field: first.property,
+      });
     }
     (dto as any).additionalDocuments = (payload as any).additionalDocuments;
     return dto;
@@ -40,7 +69,11 @@ export class EmployeesController {
 
   @Get('employees/:employeeId/attendance-summary')
   @Permissions('hr.payroll.read')
-  attendanceSummary(@Param('employeeId') id: string, @Query() query: any, @Req() req: any) {
+  attendanceSummary(
+    @Param('employeeId') id: string,
+    @Query() query: any,
+    @Req() req: any,
+  ) {
     return this.employees.attendanceSummary(id, query, req.user);
   }
 
@@ -82,13 +115,30 @@ export class EmployeesController {
 
   @Post('employees')
   @Permissions('hr.employees.create')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'aadhaarCard', maxCount: 1 }, { name: 'panCard', maxCount: 1 },
-    { name: 'bankDocument', maxCount: 1 }, { name: 'photograph', maxCount: 1 },
-    { name: 'signature', maxCount: 1 }, { name: 'additionalDocuments', maxCount: 20 },
-  ], { storage: undefined, limits: { fileSize: 5 * 1024 * 1024, files: 25 } }))
-  async create(@Body('employeeData') employeeData: string, @UploadedFiles() files: Record<string, any[]>, @Req() req: any) {
-    return this.employees.create(await this.parseEmployeeData(employeeData), files || {}, req.user, req.requestId);
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'aadhaarCard', maxCount: 1 },
+        { name: 'panCard', maxCount: 1 },
+        { name: 'bankDocument', maxCount: 1 },
+        { name: 'photograph', maxCount: 1 },
+        { name: 'signature', maxCount: 1 },
+        { name: 'additionalDocuments', maxCount: 20 },
+      ],
+      { storage: undefined, limits: { fileSize: 5 * 1024 * 1024, files: 25 } },
+    ),
+  )
+  async create(
+    @Body('employeeData') employeeData: string,
+    @UploadedFiles() files: Record<string, any[]>,
+    @Req() req: any,
+  ) {
+    return this.employees.create(
+      await this.parseEmployeeData(employeeData),
+      files || {},
+      req.user,
+      req.requestId,
+    );
   }
 
   @Post('employees/drafts')
@@ -111,15 +161,34 @@ export class EmployeesController {
 
   @Post('employees/:id/documents')
   @Permissions('hr.employees.documents.upload')
-  @UseInterceptors(FileInterceptor('file', { storage: undefined, limits: { fileSize: 5 * 1024 * 1024 } }))
-  addDocument(@Param('id') id: string, @UploadedFile() file: any, @Body() body: any, @Req() req: any) {
-    if (!file) throw new BadRequestException({ code: 'MANDATORY_DOCUMENT_MISSING', message: 'A file is required.', field: 'file' });
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: undefined,
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  addDocument(
+    @Param('id') id: string,
+    @UploadedFile() file: any,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    if (!file)
+      throw new BadRequestException({
+        code: 'MANDATORY_DOCUMENT_MISSING',
+        message: 'A file is required.',
+        field: 'file',
+      });
     return this.employees.addDocument(id, file, body, req.user);
   }
 
   @Delete('employees/:employeeId/documents/:documentId')
   @Permissions('hr.employees.documents.delete')
-  deleteDocument(@Param('employeeId') employeeId: string, @Param('documentId') documentId: string, @Req() req: any) {
+  deleteDocument(
+    @Param('employeeId') employeeId: string,
+    @Param('documentId') documentId: string,
+    @Req() req: any,
+  ) {
     return this.employees.deleteDocument(employeeId, documentId, req.user);
   }
 }

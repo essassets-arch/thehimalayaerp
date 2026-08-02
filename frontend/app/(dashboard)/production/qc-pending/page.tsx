@@ -1,269 +1,270 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ClipboardCheck, Search } from "lucide-react";
-import { ColumnDef } from "@tanstack/react-table";
-import Swal from "sweetalert2";
+import React, { useEffect, useState } from 'react';
+import { Check, X, Search, RefreshCw, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import styles from '../testing/testing.module.css';
 
-import { DataTable } from "@/components/erp/data-table/DataTable";
-import { StatusBadge } from "@/components/erp/common/StatusBadge";
-import { backendFetch } from "@/lib/backendFetch";
-import styles from "./qc-pending.module.css";
-
-interface QCInspection {
-  id: string;
-  status: string;
-  workOrder: {
-    workOrderNumber: string;
-    quantity: number;
-    duration: number | null;
-    completedAt: string | null;
-    salesOrderItem: { productNameSnapshot: string } | null;
-  };
-  workflowState: { name: string } | null;
-}
-
-function isApproved(inspection: QCInspection): boolean {
-  return (
-    inspection.status.toUpperCase() === "APPROVED" ||
-    inspection.workflowState?.name.toUpperCase().includes("APPROV") === true
-  );
-}
+import { backendFetch } from '@/lib/backendFetch';
 
 export default function QCPendingPage() {
-  const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
-  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["qc-pending"],
-    queryFn: async () => {
-      const payload = await backendFetch<QCInspection[]>("/api/backend/qc/inspections");
-      return Array.isArray(payload) ? payload : [];
-    },
-  });
+  // Modal State
+  const [failModalOpen, setFailModalOpen] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState('');
+  const [failureReason, setFailureReason] = useState('');
+  const [qcRemarks, setQcRemarks] = useState('');
 
-  const allData = Array.isArray(data) ? data : [];
-  const pendingCount = allData.filter((i) => !isApproved(i)).length;
-  const historyCount = allData.filter(isApproved).length;
-
-  const filteredData = React.useMemo(() => {
-    const tab = allData.filter((i) =>
-      activeTab === "pending" ? !isApproved(i) : isApproved(i)
-    );
-    if (!search) return tab;
-    const lower = search.toLowerCase();
-    return tab.filter(
-      (i) =>
-        i.workOrder?.workOrderNumber.toLowerCase().includes(lower) ||
-        i.workOrder?.salesOrderItem?.productNameSnapshot?.toLowerCase().includes(lower)
-    );
-  }, [activeTab, data, search]);
-
-  const handleApprove = async (inspection: QCInspection) => {
-    if (approvingId) return;
-    const maxQty = Number(inspection.workOrder.quantity) || 0;
-
-    const { value: formValues, isConfirmed } = await Swal.fire({
-      title: "QC Inspection",
-      html: `
-        <div style="text-align:left;margin-top:10px">
-          <label style="display:block;font-size:14px;font-weight:500;margin-bottom:5px">Approved Quantity (Max: ${maxQty})</label>
-          <input type="number" id="swal-approved" class="swal2-input" style="width:100%;margin:0 0 15px;max-width:100%;box-sizing:border-box" value="${maxQty}">
-          <label style="display:block;font-size:14px;font-weight:500;margin-bottom:5px">Rejected Quantity</label>
-          <input type="number" id="swal-rejected" class="swal2-input" style="width:100%;margin:0 0 15px;max-width:100%;box-sizing:border-box" value="0">
-          <label style="display:block;font-size:14px;font-weight:500;margin-bottom:5px">Remarks (Optional)</label>
-          <textarea id="swal-remarks" class="swal2-textarea" style="width:100%;margin:0;box-sizing:border-box"></textarea>
-        </div>`,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: "Approve & Close",
-      confirmButtonColor: "#059669",
-      preConfirm: () => {
-        const approved = (document.getElementById("swal-approved") as HTMLInputElement).value;
-        const rejected = (document.getElementById("swal-rejected") as HTMLInputElement).value;
-        const remarks = (document.getElementById("swal-remarks") as HTMLTextAreaElement).value;
-        if (!approved || Number(approved) < 0) {
-          Swal.showValidationMessage("Please enter a valid approved quantity");
-          return false;
-        }
-        return { approvedQuantity: Number(approved), rejectedQuantity: Number(rejected) || 0, remarks };
-      },
-    });
-
-    if (!isConfirmed || !formValues) return;
-    setApprovingId(inspection.id);
+  const fetchJobs = async () => {
     try {
-      await backendFetch(`/api/backend/qc/inspections/${inspection.id}/approve`, {
-        method: "POST",
-        body: formValues,
-      });
-      await refetch();
-      await Swal.fire({ icon: "success", title: "QC Approved", text: "The order has been sent to Finished Goods.", timer: 1600, showConfirmButton: false });
-    } catch (err) {
-      await Swal.fire({ icon: "error", title: "Unable to Approve", text: err instanceof Error ? err.message : "The inspection could not be approved." });
+      setLoading(true);
+      const endpoint = activeTab === 'pending' 
+        ? '/api/backend/production/qc-pending' 
+        : '/api/backend/production/qc-history';
+      const data = await backendFetch(endpoint);
+      if (data && (data as any).success && Array.isArray((data as any).data)) {
+        setJobs((data as any).data);
+      } else if (Array.isArray(data)) {
+        setJobs(data as any);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load QC list');
     } finally {
-      setApprovingId(null);
+      setLoading(false);
     }
   };
 
-  const pendingColumns: ColumnDef<QCInspection>[] = [
-    {
-      id: "woNumber",
-      header: "WO Number",
-      size: 160,
-      cell: ({ row }) => <strong>{row.original.workOrder?.workOrderNumber}</strong>,
-    },
-    {
-      id: "product",
-      header: "Product",
-      size: 180,
-      cell: ({ row }) => row.original.workOrder?.salesOrderItem?.productNameSnapshot || "—",
-    },
-    {
-      id: "qty",
-      header: "Produced Qty",
-      size: 110,
-      cell: ({ row }) => row.original.workOrder?.quantity ?? "—",
-    },
-    {
-      id: "duration",
-      header: "Production Duration",
-      size: 150,
-      cell: ({ row }) => {
-        const d = row.original.workOrder?.duration;
-        if (d == null) return "—";
-        return <span className={styles.durationChip}>{Math.floor(d / 60)}h {d % 60}m</span>;
-      },
-    },
-    {
-      id: "completedAt",
-      header: "Production Completed Time",
-      size: 185,
-      cell: ({ row }) => {
-        const d = row.original.workOrder?.completedAt;
-        return d ? new Date(d).toLocaleString() : "—";
-      },
-    },
-    {
-      id: "status",
-      header: "Status",
-      size: 110,
-      cell: ({ row }) => (
-        <StatusBadge status={row.original.workflowState?.name || row.original.status || "UNKNOWN"} />
-      ),
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      size: 170,
-      cell: ({ row }) => (
-        <button
-          type="button"
-          className={styles.btnApprove}
-          onClick={() => handleApprove(row.original)}
-          disabled={approvingId === row.original.id}
-        >
-          {approvingId === row.original.id ? "Approving…" : "Inspect & Approve"}
-        </button>
-      ),
-    },
-  ];
+  useEffect(() => { fetchJobs(); }, [activeTab]);
 
-  const historyColumns = pendingColumns.filter((c) => c.id !== "actions");
+  const handlePass = async (job: any) => {
+    if (!confirm('Mark this job as QC Passed? It will be sent to dispatch.')) return;
+    try {
+      const producedQuantity = Number(
+        job.producedQuantity ??
+        job.completedQuantity ??
+        job.quantity ??
+        0
+      );
 
-  if (error) {
-    return (
-      <main className={styles.page}>
-        <div className={styles.loading}>Error loading QC inspections: {(error as Error).message}</div>
-      </main>
-    );
-  }
+      if (!producedQuantity || producedQuantity <= 0) {
+        throw new Error("Approved quantity must be greater than zero.");
+      }
+
+      await backendFetch(`/api/backend/production/${job.id}/qc-pass`, {
+        method: 'POST',
+        body: {
+          approvedQuantity: producedQuantity,
+          rejectedQuantity: 0,
+          remarks: 'QC passed',
+        }
+      });
+      toast.success('QC Passed. Sent to dispatch.');
+      fetchJobs();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update job');
+    }
+  };
+
+  const openFailModal = (id: string) => {
+    setSelectedJobId(id);
+    setFailureReason('');
+    setQcRemarks('');
+    setFailModalOpen(true);
+  };
+
+  const handleFailSubmit = async (e: any) => {
+    e.preventDefault();
+    if (!failureReason.trim()) return toast.error('Failure reason is required');
+    try {
+      await backendFetch(`/api/backend/production/${selectedJobId}/qc-fail`, {
+        method: 'POST',
+        body: { failureReason, remarks: qcRemarks },
+      });
+      toast.success('QC Failed. Job sent back.');
+      setFailModalOpen(false);
+      fetchJobs();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update job');
+    }
+  };
+
+  const filteredJobs = jobs.filter((job: any) =>
+    (job.workOrderNumber || job.id)?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <main className={styles.page}>
-      {/* ── Hero ── */}
-      <header className={styles.hero}>
-        <div className={styles.heroIcon}>
-          <ClipboardCheck size={22} />
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <div className={styles.headerText}>
+          <h1 className={styles.title}>QC Inspections</h1>
+          <p className={styles.subtitle}>Review items completed by production</p>
         </div>
-        <div className={styles.heroText}>
-          <span className={styles.eyebrow}>Quality Control</span>
-          <h1>QC Pending</h1>
-          <p>Inspect and approve completed production orders.</p>
-        </div>
-        <div className={styles.summaryBadge}>
-          <strong>{pendingCount}</strong>
-          <span>Pending</span>
-        </div>
-      </header>
-
-      {/* ── Panel ── */}
-      <section className={styles.panel}>
-        {/* Tabs */}
-        <div className={styles.tabs} role="tablist" aria-label="QC inspections">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "pending"}
-            className={activeTab === "pending" ? styles.activeTab : ""}
-            onClick={() => setActiveTab("pending")}
-          >
-            Pending <span>{pendingCount}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "history"}
-            className={activeTab === "history" ? styles.activeTab : ""}
-            onClick={() => setActiveTab("history")}
-          >
-            Approval History <span>{historyCount}</span>
-          </button>
-        </div>
-
-        {/* Toolbar */}
-        <div className={styles.toolbar}>
-          <div>
-            <h2>{activeTab === "pending" ? "Pending Inspections" : "Approved Inspection History"}</h2>
-            <p>{activeTab === "pending" ? "Orders waiting for quality control approval." : "All completed and approved quality inspections."}</p>
-          </div>
-          <label className={styles.search}>
-            <Search size={16} aria-hidden="true" />
+        <div className={styles.headerActions}>
+          <div className={styles.searchWrap}>
+            <Search className={styles.searchIcon} size={15} />
             <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={activeTab === "pending" ? "Search pending inspection..." : "Search approval history..."}
-              aria-label="Search inspections"
+              type="text"
+              placeholder="Search jobs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={styles.searchInput}
             />
-            {search && (
-              <button type="button" onClick={() => setSearch("")} aria-label="Clear search">Clear</button>
-            )}
-          </label>
+          </div>
+          <button onClick={fetchJobs} className={`${styles.btn} ${styles.btnPrimary}`}>
+            <RefreshCw size={14} /> <span className={styles.btnLabel}>Refresh</span>
+          </button>
         </div>
+      </div>
 
-        {/* Table */}
-        <div className={styles.tableScrollArea}>
-          {isLoading ? (
-            <div className={styles.loading}>Loading pending QC…</div>
-          ) : (
-            <DataTable
-              columns={activeTab === "pending" ? pendingColumns : historyColumns}
-              data={filteredData}
-              serverSide={false}
-              emptyMessage={
-                search
-                  ? "No inspections match your search."
-                  : activeTab === "pending"
-                  ? "No orders pending QC."
-                  : "No approved inspection history yet."
-              }
-            />
-          )}
+      <div style={{ display: 'flex', gap: '20px', padding: '0 24px', borderBottom: '1px solid #e2e8f0', marginBottom: '24px' }}>
+        <button 
+          onClick={() => setActiveTab('pending')}
+          style={{ padding: '12px 4px', borderBottom: activeTab === 'pending' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'pending' ? '#3b82f6' : '#64748b', background: 'none', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', fontWeight: 500, fontSize: '14px' }}
+        >
+          Pending QC
+        </button>
+        <button 
+          onClick={() => setActiveTab('history')}
+          style={{ padding: '12px 4px', borderBottom: activeTab === 'history' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'history' ? '#3b82f6' : '#64748b', background: 'none', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', fontWeight: 500, fontSize: '14px' }}
+        >
+          QC History
+        </button>
+      </div>
+
+      <div className={styles.tableCard}>
+        {loading ? (
+          <div className={styles.stateBox}>
+            <div className={styles.spinner}></div>
+            <p className={styles.stateTitle}>Loading jobs...</p>
+          </div>
+        ) : filteredJobs.length === 0 ? (
+          <div className={styles.stateBox}>
+            <div className={styles.stateIcon}>
+              <AlertCircle size={28} />
+            </div>
+            <h3 className={styles.stateTitle}>No Jobs Pending QC</h3>
+            <p className={styles.stateHint}>Production has not sent any items for review yet.</p>
+          </div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead className={styles.thead}>
+                <tr>
+                  <th>WO Number</th>
+                  <th>Production Plan</th>
+                  <th>Customer</th>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Status</th>
+                  {activeTab === 'pending' ? (
+                    <>
+                      <th>Production Ended</th>
+                      <th>Actions</th>
+                    </>
+                  ) : (
+                    <>
+                      <th>Inspected At</th>
+                      <th>Notes</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody className={styles.tbody}>
+                {filteredJobs.map((job: any) => (
+                  <tr key={job.id}>
+                    <td className={styles.refNo}>{job.workOrderNumber || job.id}</td>
+                    <td className={styles.refNo}>{job.productionPlan?.planNumber || 'N/A'}</td>
+                    <td>{job.productionPlan?.salesOrder?.customer?.name || 'Internal'}</td>
+                    <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.salesOrderItem?.product?.name || 'N/A'}>
+                      {job.salesOrderItem?.product?.name || 'N/A'}
+                    </td>
+                    <td className={styles.qty}>{job.quantity}</td>
+                    <td>
+                      <span className={`${styles.badge} ${
+                        job.qcInspectionStatus === 'PASSED' ? styles.badgeActive : 
+                        job.qcInspectionStatus === 'FAILED' ? styles.badgeDraft : 
+                        styles.badgePending
+                      }`}>
+                        {job.qcInspectionStatus || 'QC PENDING'}
+                      </span>
+                    </td>
+                    {activeTab === 'pending' ? (
+                      <>
+                        <td className={styles.refDate}>{job.productionEndTime ? new Date(job.productionEndTime).toLocaleString() : 'N/A'}</td>
+                        <td>
+                          <div className={styles.actions}>
+                            <button onClick={() => handlePass(job)} className={`${styles.actionBtn} ${styles.edit}`} style={{ color: '#15803d' }} title="Pass QC">
+                              <Check size={18} />
+                            </button>
+                            <button onClick={() => openFailModal(job.id)} className={`${styles.actionBtn} ${styles.del}`} style={{ color: '#dc2626' }} title="Fail QC">
+                              <X size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className={styles.refDate}>{job.qcApprovedAt ? new Date(job.qcApprovedAt).toLocaleString() : 'N/A'}</td>
+                        <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.qcInspectionNotes || ''}>
+                          {job.qcInspectionNotes || '-'}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {failModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className={styles.formCard} style={{ width: '100%', maxWidth: '420px', margin: '0 16px' }}>
+            <div className={styles.formHeader}>
+              <h3 className={styles.formTitle}>Fail QC</h3>
+              <button type="button" onClick={() => setFailModalOpen(false)} className={styles.formClose}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleFailSubmit} className={styles.formGrid}>
+              <div className={`${styles.formField} ${styles.wide}`}>
+                <label className={styles.formLabel}>Failure Reason *</label>
+                <input
+                  type="text"
+                  required
+                  value={failureReason}
+                  onChange={(e) => setFailureReason(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. Scratches on surface"
+                />
+              </div>
+              <div className={`${styles.formField} ${styles.wide}`}>
+                <label className={styles.formLabel}>QC Remarks</label>
+                <textarea
+                  value={qcRemarks}
+                  onChange={(e) => setQcRemarks(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="Additional context for production team"
+                  rows={3}
+                />
+              </div>
+              <div className={`${styles.formActions} ${styles.wide}`} style={{ marginTop: '12px' }}>
+                <button type="button" onClick={() => setFailModalOpen(false)} className={`${styles.btn} ${styles.btnCancel}`} style={{ flex: 1 }}>
+                  Cancel
+                </button>
+                <button type="submit" className={`${styles.btn} ${styles.btnRed}`} style={{ flex: 1, justifyContent: 'center' }}>
+                  Confirm Failure
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </section>
-    </main>
+      )}
+    </div>
   );
 }

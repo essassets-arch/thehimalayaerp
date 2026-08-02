@@ -927,7 +927,7 @@ async function handlePatch(path, body = {}) {
   // Generic PATCH
   const segments = path.split('/').filter(Boolean);
   for (let i = 0; i < segments.length - 1; i++) {
-    const collections = ['customers', 'payments'];
+    const collections = ['customers', 'payments', 'samples', 'leads'];
     if (collections.includes(segments[i])) {
       const id = segments[i + 1];
       const updated = mockDB.update(segments[i], id, body);
@@ -1009,10 +1009,74 @@ async function handleDelete(path) {
 }
 
 // ── Exported API Client ───────────────────────────────────────
+const NESTJS_URL = 'http://localhost:3001/api/v1';
+
+function shouldProxyToBackend(path) {
+  // If the path includes these keys, we route them to the real Postgres NestJS backend!
+  return path.includes('/sales/samples') || path.includes('/crm/leads') || path.includes('/logistics/dispatches') || path.includes('/plant-head/dashboard-data') || path.includes('/plant-head/analytics/production') || path.includes('/plant-head/analytics/material') || path.includes('/plant-head/overview/departments') || path.includes('/plant-head/reports/generate-ai') || path.includes('/plant-head/incoming-orders') || path.includes('/plant-head/planning-orders') || path.includes('/plant-head/planning') || path.includes('/replacements') || path.includes('/sales-returns') || path.includes('/inventory') || path.includes('/qc') || path.includes('/production/finished-goods') || path.includes('/material-requests') || path.includes('/plant-head/material-indents') || path.includes('/hr/') || path.includes('/store-reports');
+}
+
+async function proxyRequest(method, path, body = null) {
+  const cleanPath = path.replace('/api/backend', '')
+    .replace('/reports/inventory/stock-levels', '/inventory/stock-levels')
+    .replace('/store/material-requests', '/material-requests');
+  const url = `${NESTJS_URL}${cleanPath}`;
+  
+  const authStorageStr = typeof window !== 'undefined' ? window.localStorage.getItem('auth-storage') : null;
+  let token = typeof window !== 'undefined' ? (window.localStorage.getItem('token') || window.localStorage.getItem('himalaya_token')) : null;
+  
+  if (!token && authStorageStr) {
+    try {
+      const parsed = JSON.parse(authStorageStr);
+      if (parsed?.state?.accessToken) {
+        token = parsed.state.accessToken;
+      }
+    } catch (e) {
+      console.error('Failed to parse auth token', e);
+    }
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-company-id': 'd039cfa4-e78b-4138-adfc-1b0f14cffa91', // Real company ID from local DB
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    
+    // Some routes return empty or non-JSON on DELETE, handle text safely
+    const text = await res.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch(e) {
+      data = text;
+    }
+
+    if (!res.ok) {
+      console.warn(`NestJS Proxy Error [${method} ${url}]:`, data);
+      return err(data?.message || 'Backend error', data?.errors);
+    }
+
+    if (data && typeof data === 'object' && 'success' in data) {
+      return data;
+    }
+    return ok(data, 'Success (via NestJS)');
+  } catch (e) {
+    console.error(`Fetch failed [${method} ${url}]:`, e);
+    return err(e.message);
+  }
+}
+
 export const apiClient = {
-  get:    (path, options = {}) => handleGet(path, options),
-  post:   (path, body, options = {}) => handlePost(path, body),
-  patch:  (path, body = {}, options = {}) => handlePatch(path, body),
-  put:    (path, body, options = {}) => handlePut(path, body),
-  delete: (path, options = {}) => handleDelete(path),
+  get:    (path, options = {}) => shouldProxyToBackend(path) ? proxyRequest('GET', path) : handleGet(path, options),
+  post:   (path, body, options = {}) => shouldProxyToBackend(path) ? proxyRequest('POST', path, body) : handlePost(path, body),
+  patch:  (path, body = {}, options = {}) => shouldProxyToBackend(path) ? proxyRequest('PATCH', path, body) : handlePatch(path, body),
+  put:    (path, body, options = {}) => shouldProxyToBackend(path) ? proxyRequest('PUT', path, body) : handlePut(path, body),
+  delete: (path, options = {}) => shouldProxyToBackend(path) ? proxyRequest('DELETE', path) : handleDelete(path),
 };

@@ -51,7 +51,6 @@ export const navigationConfig = {
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' },
 
     { type: 'badge', label: 'QUALITY CONTROL' },
-    { id: 'qc-dashboard', label: 'QC Dashboard', icon: LayoutGrid, path: '/production/qc-dashboard' },
     { id: 'qc-pending', label: 'Pending Inspections', icon: Clock, path: '/production/qc-pending' },
     { id: 'qc-history', label: 'Inspected History', icon: ClipboardList, path: '/production/qc-history' }
   ],
@@ -59,7 +58,6 @@ export const navigationConfig = {
   'Plant Head': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/plant-head/dashboard' },
     { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/plant-head/incoming-orders', group: 'Planning Board' },
-    { id: 'product-approval', label: 'Product Approval', icon: FileCheck, path: '/plant-head/product-approval', group: 'Planning Board' },
     { id: 'recruitment-request', label: 'Recruitment Request', icon: UserPlus, path: '/plant-head/recruitment-request', group: 'Planning Board' },
     { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods', group: 'Planning Board' },
     { id: 'planning', label: 'Planning', icon: Wrench, path: '/plant-head/planning', group: 'Planning Board' },
@@ -80,7 +78,8 @@ export const navigationConfig = {
       ]
     },
     { id: 'raw-inventory', label: 'Raw Inventory', icon: Layers, path: '/plant-head/raw-inventory' },
-    { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' }
+    { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' },
+    { id: 'testing', label: 'Production Testing', icon: ClipboardCheck, path: '/plant-head/testing' }
   ],
 
   'Store': [
@@ -127,6 +126,7 @@ export const navigationConfig = {
       id: 'sample-dispatch', label: 'Sample Dispatch', icon: FlaskConical, path: '/dispatch/sample-dispatch', group: 'Logistics',
       subItems: [
         { id: 'sample-pending', label: 'Pending Dispatch', path: '/dispatch/sample-dispatch?status=pending' },
+        { id: 'sample-create', label: 'Create Sample Dispatch', path: '/dispatch/sample-dispatch/create/new' },
         { id: 'sample-transit', label: 'In Transit', path: '/dispatch/sample-dispatch?status=in-transit' },
         { id: 'sample-delivered', label: 'Delivered', path: '/dispatch/sample-dispatch?status=delivered' },
         { id: 'sample-all', label: 'All', path: '/dispatch/sample-dispatch?status=all' },

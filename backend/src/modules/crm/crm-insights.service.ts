@@ -6,56 +6,78 @@ import { getSalesScope } from '../../common/utils/rbac.util';
 export class CrmInsightsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async customer360(customerId: string, companyId?: string, userId?: string, role?: string) {
+  async customer360(
+    customerId: string,
+    companyId?: string,
+    userId?: string,
+    role?: string,
+  ) {
     const scope = getSalesScope(userId, role, 'createdById');
     const customer = await this.prisma.customer.findFirst({
-      where: { id: customerId, deletedAt: null, ...scope, ...(companyId ? { companyId } : {}) },
+      where: {
+        id: customerId,
+        deletedAt: null,
+        ...scope,
+        ...(companyId ? { companyId } : {}),
+      },
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const [leads, quotations, orders, invoices, payments, ledger] = await Promise.all([
-      this.prisma.lead.findMany({
-        where: { OR: [{ customerId }, { convertedCustomerId: customerId }] },
-        include: { workflowState: true, activities: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.quotation.findMany({
-        where: {
-          OR: [
-            { customerId },
-            { lead: { OR: [{ customerId }, { convertedCustomerId: customerId }] } },
-          ],
-        },
-        include: { workflowState: true, items: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.salesOrder.findMany({
-        where: { customerId, deletedAt: null },
-        include: { workflowState: true, items: true, dispatches: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.salesInvoice.findMany({
-        where: { salesOrder: { customerId } },
-        include: { workflowState: true, items: true, paymentAllocations: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.customerPayment.findMany({
-        where: { customerId },
-        include: { workflowState: true, allocations: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.customerLedger.findMany({
-        where: { customerId },
-        orderBy: { createdAt: 'asc' },
-      }),
-    ]);
+    const [leads, quotations, orders, invoices, payments, ledger] =
+      await Promise.all([
+        this.prisma.lead.findMany({
+          where: { OR: [{ customerId }, { convertedCustomerId: customerId }] },
+          include: { workflowState: true, activities: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.quotation.findMany({
+          where: {
+            OR: [
+              { customerId },
+              {
+                lead: {
+                  OR: [{ customerId }, { convertedCustomerId: customerId }],
+                },
+              },
+            ],
+          },
+          include: { workflowState: true, items: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.salesOrder.findMany({
+          where: { customerId, deletedAt: null },
+          include: { workflowState: true, items: true, dispatches: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.salesInvoice.findMany({
+          where: { salesOrder: { customerId } },
+          include: {
+            workflowState: true,
+            items: true,
+            paymentAllocations: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.customerPayment.findMany({
+          where: { customerId },
+          include: { workflowState: true, allocations: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.customerLedger.findMany({
+          where: { customerId },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
 
     let outstandingBalance = 0;
     const ledgerWithBalance = ledger.map((entry) => {
       outstandingBalance += Number(entry.debit) - Number(entry.credit);
       return { ...entry, balance: outstandingBalance };
     });
-    const totalSales = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+    const totalSales = orders.reduce(
+      (sum, order) => sum + Number(order.totalAmount),
+      0,
+    );
     const entityIds = [
       ...leads.map((record) => record.id),
       ...quotations.map((record) => record.id),
@@ -70,7 +92,11 @@ export class CrmInsightsService {
         })
       : [];
     const activities = leads.flatMap((lead) =>
-      lead.activities.map((activity) => ({ ...activity, entityType: 'LEAD', entityId: lead.id })),
+      lead.activities.map((activity) => ({
+        ...activity,
+        entityType: 'LEAD',
+        entityId: lead.id,
+      })),
     );
     const timeline = [...workflowHistory, ...activities].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -87,7 +113,10 @@ export class CrmInsightsService {
         paymentStatus: outstandingBalance > 0 ? 'OUTSTANDING' : 'CURRENT',
       },
       crm: { leads, activities, quotations },
-      sales: { orders, deliveries: orders.flatMap((order) => order.dispatches) },
+      sales: {
+        orders,
+        deliveries: orders.flatMap((order) => order.dispatches),
+      },
       finance: { invoices, payments, ledger: ledgerWithBalance },
       timeline,
     };
@@ -98,43 +127,55 @@ export class CrmInsightsService {
     const leadScope = getSalesScope(userId, role, 'assignedToId');
     const orderScope = getSalesScope(userId, role, 'createdById');
 
-    const [leadStates, quotationStates, leads, quotations, orders, ledger, users] =
-      await Promise.all([
-        this.prisma.lead.groupBy({
-          by: ['workflowStateId'],
-          where: { deletedAt: null, ...companyFilter, ...leadScope },
-          _count: { _all: true },
-        }),
-        this.prisma.quotation.groupBy({
-          by: ['workflowStateId'],
-          where: { deletedAt: null, ...companyFilter, ...orderScope },
-          _count: { _all: true },
-        }),
-        this.prisma.lead.findMany({
-          where: { deletedAt: null, ...companyFilter, ...leadScope },
-          select: { id: true, assignedToId: true, convertedAt: true, workflowStateId: true },
-        }),
-        this.prisma.quotation.findMany({
-          where: { deletedAt: null, ...companyFilter, ...orderScope },
-          select: { id: true, total: true, workflowStateId: true },
-        }),
-        this.prisma.salesOrder.findMany({
-          where: {
-            deletedAt: null,
-            ...(companyId ? { customer: { companyId } } : {}),
-            ...orderScope,
-          },
-          select: { totalAmount: true, createdById: true },
-        }),
-        this.prisma.customerLedger.findMany({
-          where: { customer: { ...companyFilter, ...orderScope } },
-          select: { debit: true, credit: true },
-        }),
-        this.prisma.user.findMany({
-          where: companyId ? { companyId } : {},
-          select: { id: true, name: true },
-        }),
-      ]);
+    const [
+      leadStates,
+      quotationStates,
+      leads,
+      quotations,
+      orders,
+      ledger,
+      users,
+    ] = await Promise.all([
+      this.prisma.lead.groupBy({
+        by: ['workflowStateId'],
+        where: { deletedAt: null, ...companyFilter, ...leadScope },
+        _count: { _all: true },
+      }),
+      this.prisma.quotation.groupBy({
+        by: ['workflowStateId'],
+        where: { deletedAt: null, ...companyFilter, ...orderScope },
+        _count: { _all: true },
+      }),
+      this.prisma.lead.findMany({
+        where: { deletedAt: null, ...companyFilter, ...leadScope },
+        select: {
+          id: true,
+          assignedToId: true,
+          convertedAt: true,
+          workflowStateId: true,
+        },
+      }),
+      this.prisma.quotation.findMany({
+        where: { deletedAt: null, ...companyFilter, ...orderScope },
+        select: { id: true, total: true, workflowStateId: true },
+      }),
+      this.prisma.salesOrder.findMany({
+        where: {
+          deletedAt: null,
+          ...(companyId ? { customer: { companyId } } : {}),
+          ...orderScope,
+        },
+        select: { totalAmount: true, createdById: true },
+      }),
+      this.prisma.customerLedger.findMany({
+        where: { customer: { ...companyFilter, ...orderScope } },
+        select: { debit: true, credit: true },
+      }),
+      this.prisma.user.findMany({
+        where: companyId ? { companyId } : {},
+        select: { id: true, name: true },
+      }),
+    ]);
     const stateIds = [
       ...leadStates.map((row) => row.workflowStateId),
       ...quotationStates.map((row) => row.workflowStateId),
@@ -145,17 +186,23 @@ export class CrmInsightsService {
     });
     const stateById = new Map(states.map((state) => [state.id, state]));
     const acceptedStateIds = new Set(
-      states.filter((state) => ['APPROVED', 'CONVERTED_TO_SO'].includes(state.code)).map((state) => state.id),
+      states
+        .filter((state) => ['APPROVED', 'CONVERTED_TO_SO'].includes(state.code))
+        .map((state) => state.id),
     );
     const wonLeads = leads.filter((lead) => lead.convertedAt).length;
     const acceptedQuotations = quotations.filter(
-      (quotation) => quotation.workflowStateId && acceptedStateIds.has(quotation.workflowStateId),
+      (quotation) =>
+        quotation.workflowStateId &&
+        acceptedStateIds.has(quotation.workflowStateId),
     ).length;
     const salespersonPerformance = users.map((user) => ({
       userId: user.id,
       name: user.name,
       leads: leads.filter((lead) => lead.assignedToId === user.id).length,
-      won: leads.filter((lead) => lead.assignedToId === user.id && lead.convertedAt).length,
+      won: leads.filter(
+        (lead) => lead.assignedToId === user.id && lead.convertedAt,
+      ).length,
       revenue: orders
         .filter((order) => order.createdById === user.id)
         .reduce((sum, order) => sum + Number(order.totalAmount), 0),
@@ -163,12 +210,18 @@ export class CrmInsightsService {
 
     return {
       pipeline: leadStates.map((row) => ({
-        state: row.workflowStateId ? stateById.get(row.workflowStateId)?.code : 'UNASSIGNED',
-        label: row.workflowStateId ? stateById.get(row.workflowStateId)?.name : 'Unassigned',
+        state: row.workflowStateId
+          ? stateById.get(row.workflowStateId)?.code
+          : 'UNASSIGNED',
+        label: row.workflowStateId
+          ? stateById.get(row.workflowStateId)?.name
+          : 'Unassigned',
         count: row._count._all,
       })),
       quotationPipeline: quotationStates.map((row) => ({
-        state: row.workflowStateId ? stateById.get(row.workflowStateId)?.code : 'UNASSIGNED',
+        state: row.workflowStateId
+          ? stateById.get(row.workflowStateId)?.code
+          : 'UNASSIGNED',
         count: row._count._all,
       })),
       metrics: {
@@ -177,13 +230,20 @@ export class CrmInsightsService {
         quotationAcceptanceRate: quotations.length
           ? (acceptedQuotations / quotations.length) * 100
           : 0,
-        salesRevenue: orders.reduce((sum, order) => sum + Number(order.totalAmount), 0),
+        salesRevenue: orders.reduce(
+          (sum, order) => sum + Number(order.totalAmount),
+          0,
+        ),
         outstandingAmount: ledger.reduce(
           (sum, entry) => sum + Number(entry.debit) - Number(entry.credit),
           0,
         ),
         forecastRevenue: quotations
-          .filter((quotation) => !quotation.workflowStateId || !acceptedStateIds.has(quotation.workflowStateId))
+          .filter(
+            (quotation) =>
+              !quotation.workflowStateId ||
+              !acceptedStateIds.has(quotation.workflowStateId),
+          )
           .reduce((sum, quotation) => sum + Number(quotation.total), 0),
       },
       salespersonPerformance,

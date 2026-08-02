@@ -22,7 +22,9 @@ export class SalesTargetService {
       });
 
       if (existing) {
-        throw new BadRequestException('An active target already exists for this salesperson during the selected period.');
+        throw new BadRequestException(
+          'An active target already exists for this salesperson during the selected period.',
+        );
       }
 
       return tx.salesTarget.create({
@@ -120,14 +122,16 @@ export class SalesTargetService {
 
     const achievedSales = Number(achieved._sum.totalAmount ?? 0);
     const targetAmount = Number(target.revenueTarget);
-    
-    const achievement = targetAmount > 0 ? (achievedSales / targetAmount) * 100 : 0;
+
+    const achievement =
+      targetAmount > 0 ? (achievedSales / targetAmount) * 100 : 0;
     const remainingTarget = Math.max(targetAmount - achievedSales, 0);
 
     const ms = target.endDate.getTime() - today.getTime();
     const daysRemaining = Math.max(Math.ceil(ms / (1000 * 60 * 60 * 24)), 0);
 
-    const requiredDailySales = daysRemaining > 0 ? remainingTarget / daysRemaining : remainingTarget;
+    const requiredDailySales =
+      daysRemaining > 0 ? remainingTarget / daysRemaining : remainingTarget;
 
     return {
       target: {

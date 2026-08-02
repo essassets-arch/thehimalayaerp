@@ -5,10 +5,9 @@ export default async function LegacyQCPage({ params }) {
   const slug = resolvedParams?.slug?.[0];
 
   const routeMap = {
-    dashboard: "/production/qc-dashboard",
     pending: "/production/qc-pending",
     history: "/production/qc-history",
   };
 
-  redirect(routeMap[slug] || "/production/qc-dashboard");
+  redirect(routeMap[slug] || "/production/qc-pending");
 }

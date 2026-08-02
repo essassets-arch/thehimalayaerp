@@ -42,7 +42,6 @@ export class SamplesService {
           expectedDeliveryDate: createSampleDto.expectedDeliveryDate ? new Date(createSampleDto.expectedDeliveryDate) : null,
           testingDeadline: createSampleDto.testingDeadline ? new Date(createSampleDto.testingDeadline) : null,
           returnDeadline: createSampleDto.returnDeadline ? new Date(createSampleDto.returnDeadline) : null,
-          dispatchReference: createSampleDto.dispatchReference,
           status: createSampleDto.status || SampleStatus.CREATED,
           createdById: userId,
           items: {
@@ -168,10 +167,18 @@ export class SamplesService {
         PENDING_DISPATCH: [SampleStatus.DISPATCHED],
         DISPATCHED: [SampleStatus.DELIVERED],
         DELIVERED: [SampleStatus.TESTING, SampleStatus.RETURN_REQUIRED],
-        TESTING: [SampleStatus.APPROVED, SampleStatus.REJECTED, SampleStatus.RETURN_REQUIRED],
+        TESTING: [
+          SampleStatus.APPROVED,
+          SampleStatus.REJECTED,
+          SampleStatus.RETURN_REQUIRED,
+        ],
         APPROVED: [],
         REJECTED: [],
-        RETURN_REQUIRED: [],
+        RETURN_REQUIRED: [SampleStatus.RETURN_REQUESTED],
+        RETURN_REQUESTED: [SampleStatus.RETURN_IN_TRANSIT],
+        RETURN_IN_TRANSIT: [SampleStatus.RETURNED],
+        RETURNED: [SampleStatus.COMPLETED],
+        COMPLETED: [],
       };
       if (!allowed[current.status].includes(status)) {
         throw new BadRequestException(`Sample cannot transition from ${current.status} to ${status}`);

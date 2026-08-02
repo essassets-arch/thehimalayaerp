@@ -14,33 +14,39 @@ export class POReportService {
         supplier: true,
         items: true,
         grns: {
-          include: { items: true }
+          include: { items: true },
         },
         materialRejections: {
-          include: { items: true }
-        }
+          include: { items: true },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
-    return pos.map(po => {
+    return pos.map((po) => {
       let totalOrderedQty = 0;
       let totalReceivedQty = 0;
       let totalRejectedQty = 0;
       let totalReplacementQty = 0;
 
       // Ordered
-      po.items.forEach(item => {
+      po.items.forEach((item) => {
         totalOrderedQty += Number(item.quantity) || 0;
       });
 
       // Received and Replacement (from GRNs)
-      po.grns.forEach(grn => {
-        if (grn.status === 'FINANCE_AUDIT_APPROVED' || grn.status === 'APPROVED' || grn.status === 'INVENTORY_UPDATED' || grn.status === 'CLOSED') {
+      po.grns.forEach((grn) => {
+        if (
+          grn.status === 'FINANCE_AUDIT_APPROVED' ||
+          grn.status === 'APPROVED' ||
+          grn.status === 'INVENTORY_UPDATED' ||
+          grn.status === 'CLOSED'
+        ) {
           // Check if it's a replacement using snapshot metadata
-          const isReplacement = grn.snapshot && (grn.snapshot as any).isReplacement;
-          
-          grn.items.forEach(item => {
+          const isReplacement =
+            grn.snapshot && (grn.snapshot as any).isReplacement;
+
+          grn.items.forEach((item) => {
             if (isReplacement) {
               totalReplacementQty += Number(item.acceptedQuantity) || 0;
             } else {
@@ -51,14 +57,20 @@ export class POReportService {
       });
 
       // Rejected
-      po.materialRejections.forEach(rej => {
-        rej.items.forEach(item => {
+      po.materialRejections.forEach((rej) => {
+        rej.items.forEach((item) => {
           totalRejectedQty += Number(item.quantity) || 0;
         });
       });
 
       // User's formula: Pending Qty = Ordered - Received + Rejected - Replacement
-      const totalPendingQty = Math.max(0, totalOrderedQty - totalReceivedQty + totalRejectedQty - totalReplacementQty);
+      const totalPendingQty = Math.max(
+        0,
+        totalOrderedQty -
+          totalReceivedQty +
+          totalRejectedQty -
+          totalReplacementQty,
+      );
 
       // Status Rules from user:
       // No GRNs => OPEN
@@ -69,10 +81,20 @@ export class POReportService {
       // Completed and closed => CLOSED
 
       let derivedStatus = 'OPEN';
-      
+
       const hasGRNs = po.grns.length > 0;
-      const hasReplacementsUnderReview = po.grns.some(g => (g.snapshot as any)?.isReplacement && (g.status === 'PENDING_FINANCE_AUDIT' || g.status === 'SUBMITTED_FOR_FINANCE_AUDIT'));
-      const hasPendingRejections = po.materialRejections.some(r => r.status === 'REPLACEMENT_EXPECTED' || r.status === 'SUBMITTED' || r.status === 'UNDER_REVIEW');
+      const hasReplacementsUnderReview = po.grns.some(
+        (g) =>
+          (g.snapshot as any)?.isReplacement &&
+          (g.status === 'PENDING_FINANCE_AUDIT' ||
+            g.status === 'SUBMITTED_FOR_FINANCE_AUDIT'),
+      );
+      const hasPendingRejections = po.materialRejections.some(
+        (r) =>
+          r.status === 'REPLACEMENT_EXPECTED' ||
+          r.status === 'SUBMITTED' ||
+          r.status === 'UNDER_REVIEW',
+      );
 
       if (po.status === 'CLOSED' || po.status === 'PO_CLOSED') {
         derivedStatus = 'CLOSED';
@@ -99,7 +121,7 @@ export class POReportService {
         replacementQty: totalReplacementQty,
         pendingQty: totalPendingQty,
         status: derivedStatus,
-        rawStatus: po.status
+        rawStatus: po.status,
       };
     });
   }

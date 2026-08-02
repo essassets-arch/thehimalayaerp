@@ -208,18 +208,8 @@ export default function CreateSample({ leads = [], defaultLeadId, onAddSample, o
     const submitResult = async () => {
       let success = false;
       try {
-        if (targetSampleId) {
-          const res = erpStore.finalizeSample(targetSampleId, payload);
-          if (res.success) {
-            success = true;
-            onCancel();
-          } else {
-            alert(res.message);
-          }
-        } else {
-          const res = await onAddSample(payload);
-          success = res?.success !== false;
-        }
+        const res = await onAddSample(payload);
+        success = res?.success !== false;
       } catch (err) {
         console.error(err);
       }

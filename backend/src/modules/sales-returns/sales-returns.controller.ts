@@ -1,4 +1,13 @@
-import { Controller, Post, Patch, Param, Body, Get, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Get,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { SalesReturnsService } from './sales-returns.service';
 import { RequestSalesReturnDto } from './dto/request-sales-return.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -15,8 +24,9 @@ export class SalesReturnsController {
   }
 
   @Get()
-  findAll() {
-    return this.returnsService.findAll();
+  findAll(@Req() req: any) {
+    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    return this.returnsService.findAll(companyId);
   }
 
   @Patch(':id/approve')

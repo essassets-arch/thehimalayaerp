@@ -2809,51 +2809,75 @@ export default function DispatchPortal() {
     const { value } = await Swal.fire({
       title: `Deliver ${row.request_no}`,
       html: `
-        <div style="text-align:left; display:flex; flex-direction:column; gap:10px; font-size:13px;">
-          <label style="font-weight:800;">Receiver *</label>
-          <input id="rep-receiver" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">Delivery proof image *</label>
-          <input id="rep-pod" type="file" accept="image/jpeg,image/png,image/webp" style="width:100%;" />
-          <label style="font-weight:800;">Signature URL</label>
-          <input id="rep-signature" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">Remarks</label>
-          <textarea id="rep-delivery-remarks" style="width:100%; min-height:70px; border:1px solid var(--color-border); border-radius:8px; padding:10px;"></textarea>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div id="upload-area" style="border: 2px dashed var(--color-border); border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; position: relative; transition: all 0.2s ease; background: var(--color-background-subtle);">
+            <input id="rep-pod" type="file" accept="image/jpeg,image/png,image/webp" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" />
+            
+            <div id="upload-placeholder" style="display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-secondary);"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              <div style="font-size: 14px; font-weight: 600; color: var(--color-text-primary);">Click to upload delivery proof</div>
+              <div style="font-size: 12px; color: var(--color-text-secondary);">JPG, PNG or WebP (max. 5MB)</div>
+            </div>
+            
+            <img id="upload-preview" src="" style="display: none; max-width: 100%; max-height: 200px; border-radius: 4px; margin: 0 auto; object-fit: contain; pointer-events: none;" />
+          </div>
         </div>
       `,
       showCancelButton: true,
       confirmButtonText: 'Confirm Delivery',
+      didOpen: () => {
+        const input = document.getElementById('rep-pod');
+        const preview = document.getElementById('upload-preview');
+        const placeholder = document.getElementById('upload-placeholder');
+        const area = document.getElementById('upload-area');
+        
+        input.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const url = URL.createObjectURL(file);
+            preview.src = url;
+            preview.style.display = 'block';
+            placeholder.style.display = 'none';
+            area.style.padding = '8px';
+            area.style.borderStyle = 'solid';
+            area.style.borderColor = 'var(--color-primary)';
+          } else {
+            preview.src = '';
+            preview.style.display = 'none';
+            placeholder.style.display = 'flex';
+            area.style.padding = '32px';
+            area.style.borderStyle = 'dashed';
+            area.style.borderColor = 'var(--color-border)';
+          }
+        });
+      },
       preConfirm: () => {
-        const receiverName = document.getElementById('rep-receiver').value.trim();
-        if (!receiverName) {
-          Swal.showValidationMessage('Receiver is required.');
-          return false;
-        }
         const proofFile = document.getElementById('rep-pod').files?.[0];
         if (!proofFile) {
           Swal.showValidationMessage('Delivery proof image is required.');
           return false;
         }
-        return {
-          receiverName,
-          proofFile,
-          signatureUrl: document.getElementById('rep-signature').value.trim() || null,
-          remarks: document.getElementById('rep-delivery-remarks').value.trim()
-        };
+        return { proofFile };
       }
     });
     if (!value) return;
-    const upload = new FormData();
-    upload.append('file', value.proofFile);
-    upload.append('category', 'pod');
-    const uploadResponse = await fetch('/api/upload', { method: 'POST', body: upload });
-    if (!uploadResponse.ok) throw new Error((await uploadResponse.json()).message || 'Delivery proof upload failed');
-    const uploaded = await uploadResponse.json();
-    await backendFetch(`/api/backend/replacements/${row.id}/deliver`, {
-      method: 'PATCH',
-      body: { ...value, proofFile: undefined, proofUrl: uploaded.url },
-    });
-    showToast?.('Replacement delivered.');
-    fetchReplacementDispatches();
+    try {
+      const upload = new FormData();
+      upload.append('file', value.proofFile);
+      upload.append('category', 'pod');
+      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: upload });
+      if (!uploadResponse.ok) throw new Error((await uploadResponse.json()).message || 'Delivery proof upload failed');
+      const uploaded = await uploadResponse.json();
+      await backendFetch(`/api/backend/replacements/${row.id}/deliver`, {
+        method: 'PATCH',
+        body: { ...value, proofFile: undefined, proofUrl: uploaded.url },
+      });
+      showToast?.('Replacement delivered.');
+      fetchReplacementDispatches();
+    } catch (err) {
+      console.error('Delivery confirmation failed:', err);
+      showToast?.(err?.message || 'Failed to confirm delivery.');
+    }
   };
 
   const handleStartReplacementDelivery = async (row) => {

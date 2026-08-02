@@ -18,7 +18,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());
-  
+
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
   const frontendUrl =

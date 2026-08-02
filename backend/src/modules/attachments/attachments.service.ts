@@ -38,7 +38,9 @@ export class AttachmentsService {
 
   async deleteAttachment(id: string) {
     // Should check permissions here in a real app
-    const attachment = await this.prisma.attachment.findUnique({ where: { id } });
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id },
+    });
     if (!attachment) throw new NotFoundException('Attachment not found');
 
     await this.prisma.attachment.delete({ where: { id } });

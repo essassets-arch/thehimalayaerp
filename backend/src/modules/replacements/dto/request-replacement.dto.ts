@@ -1,4 +1,14 @@
-import { IsString, IsEnum, IsUUID, IsOptional, IsObject, IsArray, ValidateNested, Min, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsUUID,
+  IsOptional,
+  IsObject,
+  IsArray,
+  ValidateNested,
+  Min,
+  IsNumber,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReplacementReasonCode } from '@prisma/client';
 

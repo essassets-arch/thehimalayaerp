@@ -38,14 +38,16 @@ function getScopedKey(baseKey: string) {
 
 const GLOBAL_KEYS = ['himalaya-material-flow-cleanup-version', 'himalaya-transactional-reset-version', 'himalaya-ess-browser-seed-version', 'erp_procurement_data_version_2'];
 
+import { SafeStorage } from '../utils/storage';
+
 function getStorageItem(key: string) {
   if (GLOBAL_KEYS.includes(key) || key === 'auth-storage') return window.localStorage.getItem(key);
   return window.localStorage.getItem(getScopedKey(key));
 }
 
 function setStorageItem(key: string, value: string) {
-  if (GLOBAL_KEYS.includes(key)) return window.localStorage.setItem(key, value);
-  return window.localStorage.setItem(getScopedKey(key), value);
+  const targetKey = GLOBAL_KEYS.includes(key) ? key : getScopedKey(key);
+  return SafeStorage.setItemString(targetKey, value);
 }
 
 function removeStorageItem(key: string) {
@@ -335,11 +337,7 @@ const persistToStorage = (state: any) => {
       }
     }
   } catch (e: any) {
-    if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
-      console.warn('LocalStorage quota exceeded. Some data was not saved locally. Stripping large images may help.');
-    } else {
-      console.error('Failed to persist ERP state to localStorage', e);
-    }
+    console.error('Failed to persist ERP state to localStorage', e);
   }
 };
 
@@ -2271,10 +2269,10 @@ export const useERPStore = create((set: any, get: any) => ({
     }));
     return { success: true, resumed: false, quotationId };
   },
-  createOrResumeSampleFromLead: (leadId: string) => {
+  createOrResumeSampleFromLead: (leadId: string, leadObj?: any) => {
     const state = get();
     const leads = state.state?.sales?.leads || [];
-    const lead = leads.find((item: any) => item.id === leadId || item.leadId === leadId);
+    const lead = leadObj || leads.find((item: any) => item.id === leadId || item.leadId === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
     const samples = state.state?.sales?.samples || [];
@@ -3627,6 +3625,7 @@ export const useERPStore = create((set: any, get: any) => ({
         acceptedQuantity: Number(it.acceptedQuantity || 0),
         rejectedQuantity: Number(it.rejectedQuantity || 0)
       })),
+      snapshot: grnData.snapshot || {},
       remarks: grnData.remarks || '',
       createdAt: new Date().toISOString(),
       history: [

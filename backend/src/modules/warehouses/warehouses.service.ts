@@ -20,7 +20,7 @@ export class WarehousesService {
 
   async findAll(companyId: string, search?: string) {
     const where: any = { companyId };
-    
+
     if (search) {
       where.name = { contains: search, mode: 'insensitive' };
     }

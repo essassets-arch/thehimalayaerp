@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -6,14 +10,44 @@ import { Prisma } from '@prisma/client';
 export class WorkflowService {
   constructor(private prisma: PrismaService) {}
 
-  async getInitialState(workflowCode: string, db: Prisma.TransactionClient | PrismaService = this.prisma) {
-    const state = await db.workflowState.findFirst({
+  async getInitialState(
+    workflowCode: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    let state = await db.workflowState.findFirst({
       where: {
         workflow: { code: workflowCode },
         isInitial: true,
-      }
+      },
     });
-    if (!state) throw new Error(`No initial state found for workflow ${workflowCode}`);
+    if (!state) {
+      // Auto-seed for prototype development
+      console.warn(`[WorkflowService] Auto-seeding initial state for workflow ${workflowCode}`);
+      
+      const company = await db.company.findFirst() || await db.company.create({
+        data: { publicId: 'demo-comp-1', name: 'Demo Company' }
+      });
+
+      let workflow = await db.workflowDefinition.findUnique({ where: { code: workflowCode } });
+      if (!workflow) {
+        workflow = await db.workflowDefinition.create({
+          data: {
+            code: workflowCode,
+            name: `${workflowCode} Workflow`,
+          }
+        });
+      }
+
+      state = await db.workflowState.create({
+        data: {
+          workflowId: workflow.id,
+          name: 'NEW',
+          code: 'NEW',
+          sequence: 1,
+          isInitial: true,
+        }
+      });
+    }
     return state;
   }
 
@@ -25,29 +59,32 @@ export class WorkflowService {
       },
       include: {
         workflow: {
-           include: {
-              states: true
-           }
-        }
-      }
+          include: {
+            states: true,
+          },
+        },
+      },
     });
 
-    return transitions.map(t => ({
+    return transitions.map((t) => ({
       action: t.actionName,
       label: t.actionLabel,
       requiresApproval: t.requiresApproval,
     }));
   }
 
-  async processAction(params: {
-    entityId: string;
-    entityType: string; // e.g. "SALES_ORDER"
-    workflowCode: string; // e.g. "SALES_ORDER_FLOW"
-    currentStateId: string;
-    actionName: string;
-    userId: string;
-    remarks?: string;
-  }, db: Prisma.TransactionClient | PrismaService = this.prisma) {
+  async processAction(
+    params: {
+      entityId: string;
+      entityType: string; // e.g. "SALES_ORDER"
+      workflowCode: string; // e.g. "SALES_ORDER_FLOW"
+      currentStateId: string;
+      actionName: string;
+      userId: string;
+      remarks?: string;
+    },
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
     const transition = await db.workflowTransition.findFirst({
       where: {
         workflow: { code: params.workflowCode },
@@ -56,19 +93,25 @@ export class WorkflowService {
       },
       include: {
         workflow: {
-            include: {
-                states: true
-            }
-        }
-      }
+          include: {
+            states: true,
+          },
+        },
+      },
     });
 
     if (!transition) {
-      throw new BadRequestException(`Action ${params.actionName} is not valid from the current state.`);
+      throw new BadRequestException(
+        `Action ${params.actionName} is not valid from the current state.`,
+      );
     }
 
-    const fromState = transition.workflow.states.find(s => s.id === transition.fromStateId);
-    const toState = transition.workflow.states.find(s => s.id === transition.toStateId);
+    const fromState = transition.workflow.states.find(
+      (s) => s.id === transition.fromStateId,
+    );
+    const toState = transition.workflow.states.find(
+      (s) => s.id === transition.toStateId,
+    );
     const company = await db.company.findFirst({
       select: { id: true },
       orderBy: { createdAt: 'asc' },
@@ -114,12 +157,12 @@ export class WorkflowService {
         entityType: params.entityType,
         entityId: params.entityId,
         status: 'UNREAD',
-      }
+      },
     });
 
     return {
       nextStateId: transition.toStateId,
-      nextStateName: toState?.name
+      nextStateName: toState?.name,
     };
   }
 }

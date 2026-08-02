@@ -29,22 +29,20 @@ export function DeliveryDocumentUploader({ entityId, entityType, onUploadComplet
     });
 
     Promise.all(readers).then(newDocs => {
-      setDocuments(prev => {
-        const updated = [...prev, ...newDocs];
-        if (onUploadComplete) onUploadComplete(updated);
-        return updated;
-      });
+      setDocuments(prev => [...prev, ...newDocs]);
       setIsUploading(false);
     });
   };
 
   const removeDocument = (id) => {
-    setDocuments(prev => {
-      const updated = prev.filter(d => d.id !== id);
-      if (onUploadComplete) onUploadComplete(updated);
-      return updated;
-    });
+    setDocuments(prev => prev.filter(d => d.id !== id));
   };
+
+  React.useEffect(() => {
+    if (onUploadComplete) {
+      onUploadComplete(documents);
+    }
+  }, [documents, onUploadComplete]);
 
   return (
     <div style={{ marginTop: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', background: '#f8fafc' }}>

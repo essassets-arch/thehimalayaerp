@@ -65,10 +65,9 @@ export default function InTransitPage() {
     queryKey: ["in-transit-dispatches"],
     queryFn: async () => {
       const payload = await backendFetch<Dispatch[]>(
-        "/api/backend/logistics/dispatches",
+        "/api/backend/logistics/dispatches?status=IN_TRANSIT",
       );
-      const list = Array.isArray(payload) ? payload : [];
-      return list.filter((d) => d.status === "IN_TRANSIT");
+      return Array.isArray(payload) ? payload : [];
     },
     refetchInterval: 30000, // auto-refresh every 30s
   });

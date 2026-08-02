@@ -14,16 +14,29 @@ export class EmployeeFilesService {
     const allowed = imageOnly ? IMAGE_TYPES : DOCUMENT_TYPES;
     const limit = imageOnly ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
     if (!allowed.has(file.mimetype)) {
-      throw new BadRequestException({ code: 'INVALID_FILE_TYPE', message: `Unsupported file type for ${file.fieldname}.`, field: file.fieldname });
+      throw new BadRequestException({
+        code: 'INVALID_FILE_TYPE',
+        message: `Unsupported file type for ${file.fieldname}.`,
+        field: file.fieldname,
+      });
     }
     if (file.size > limit) {
-      throw new BadRequestException({ code: 'FILE_SIZE_EXCEEDED', message: `${file.fieldname} exceeds the upload limit.`, field: file.fieldname });
+      throw new BadRequestException({
+        code: 'FILE_SIZE_EXCEEDED',
+        message: `${file.fieldname} exceeds the upload limit.`,
+        field: file.fieldname,
+      });
     }
   }
 
   async store(employeeId: string, file: any, folder: string) {
     this.validate(file, folder === 'photograph' || folder === 'signature');
-    const extension = basename(file.originalname).split('.').pop()?.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'bin';
+    const extension =
+      basename(file.originalname)
+        .split('.')
+        .pop()
+        ?.replace(/[^a-z0-9]/gi, '')
+        .toLowerCase() || 'bin';
     const storedFileName = `${randomUUID()}.${extension}`;
     const storageKey = `${employeeId}/${folder}/${storedFileName}`;
     const directory = join(this.root, employeeId, folder);
@@ -38,7 +51,8 @@ export class EmployeeFilesService {
 
   async remove(storageKey: string) {
     const resolved = join(this.root, storageKey);
-    if (!resolved.startsWith(this.root)) throw new BadRequestException('Invalid storage key');
+    if (!resolved.startsWith(this.root))
+      throw new BadRequestException('Invalid storage key');
     await fs.rm(resolved, { force: true });
   }
 }

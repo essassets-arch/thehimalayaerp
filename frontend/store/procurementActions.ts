@@ -55,6 +55,14 @@ export async function syncProcurementData() {
   const goodsReceiptNotes = await safeList('grns', () => grnService.list({ limit: 100 }));
   const vendorInvoices  = await safeList('vendor-invoices', () => vendorInvoiceService.list({ limit: 100 }));
   const vendorPayments  = await safeList('vendor-payments', () => vendorPaymentService.list({ limit: 100 }));
+  const materialRejectionsRaw = await safeList('material-rejections', () => procurementRequest<any>('material-rejections', 'GET'));
+  const materialRejections = materialRejectionsRaw.map((rej: any) => ({
+    ...rej,
+    poId: rej.purchaseOrder?.poNumber || rej.purchaseOrderId || rej.poId,
+    materialId: rej.items?.[0]?.productId || rej.materialId,
+    materialName: rej.items?.[0]?.product?.name || rej.materialName,
+    rejectedQty: rej.items?.[0]?.quantity || rej.rejectedQty,
+  }));
 
   // Use backendFetch (auto-injects Authorization header from authStore)
   const productsRaw   = await backendFetch<any>('/api/backend/products').catch((e: any) => { console.warn('[syncProcurementData] products:', e?.message); return []; });
@@ -97,6 +105,7 @@ export async function syncProcurementData() {
     goodsReceipts: goodsReceiptNotes,
     vendorInvoices,
     vendorPayments,
+    materialRejections,
     rawInventory,
     warehouses,
     suppliers,

@@ -12,23 +12,27 @@ import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
 import styles from "./finished-goods.module.css";
 
-interface QCInspection {
+interface FinishedGoodsRow {
   id: string;
   workOrderId: string;
+  jobNo: string;
+  productName: string;
+  productCode: string;
+  customerName: string;
+  quantity: number;
+  availableQuantity: number;
+  unit: string;
   status: string;
-  approvedQuantity: string | number | null;
-  rejectedQuantity: string | number | null;
-  approvedAt: string | null;
-  inspectorId: string | null;
-  remarks: string | null;
-  workOrder: {
+  receivedAt: string;
+  receivedById: string | null;
+  workOrder?: {
     id: string;
     workOrderNumber: string;
+    productionStatus: string;
     duration: number | null;
     startedAt: string | null;
     completedAt: string | null;
     status: string;
-    salesOrderItem: { productNameSnapshot: string } | null;
   };
 }
 
@@ -39,27 +43,25 @@ export default function FinishedGoodsPage() {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["qc-all-approved"],
+    queryKey: ["finished-goods"],
     queryFn: async () => {
-      const payload = await backendFetch<QCInspection[]>("/api/backend/qc/inspections");
-      return Array.isArray(payload)
-        ? payload.filter((insp) => insp.status === "APPROVED")
-        : [];
+      const payload = await backendFetch<any>("/api/backend/production/finished-goods");
+      return Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
     },
   });
 
   const allItems = Array.isArray(data) ? data : [];
 
-  // Ready = QC_APPROVED (not yet dispatched); History = already sent
-  const readyItems = allItems.filter((i) => i.workOrder?.status === "QC_APPROVED");
-  const historyItems = allItems.filter((i) => i.workOrder?.status !== "QC_APPROVED");
+  // Ready = AVAILABLE / READY_FOR_DISPATCH; History = ALLOCATED / DISPATCHED
+  const readyItems = allItems.filter((i) => i.status === "AVAILABLE");
+  const historyItems = allItems.filter((i) => i.status !== "AVAILABLE");
 
   const filteredData = React.useMemo(() => {
     const base = activeTab === "ready" ? readyItems : historyItems;
     if (!search) return base;
     const lower = search.toLowerCase();
     return base.filter((i) =>
-      i.workOrder?.workOrderNumber.toLowerCase().includes(lower)
+      i.jobNo?.toLowerCase().includes(lower) || i.productName?.toLowerCase().includes(lower)
     );
   }, [data, search, activeTab]);
 
@@ -71,7 +73,7 @@ export default function FinishedGoodsPage() {
         method: "POST",
       });
       toast.success("Sent to Dispatch");
-      queryClient.invalidateQueries({ queryKey: ["qc-approved"] });
+      queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
       queryClient.invalidateQueries({ queryKey: ["dispatch-orders"] });
       router.push("/dispatch/orders");
     } catch (err) {
@@ -79,27 +81,27 @@ export default function FinishedGoodsPage() {
     }
   };
 
-  const columns: ColumnDef<QCInspection>[] = [
+  const columns: ColumnDef<FinishedGoodsRow>[] = [
     {
       id: "woNumber",
       header: "WO Number",
       size: 145,
-      cell: ({ row }) => <strong>{row.original.workOrder?.workOrderNumber}</strong>,
+      cell: ({ row }) => <strong>{row.original.jobNo}</strong>,
     },
     {
       id: "product",
       header: "Product",
       size: 160,
-      cell: ({ row }) => row.original.workOrder?.salesOrderItem?.productNameSnapshot || "—",
+      cell: ({ row }) => row.original.productName || "—",
     },
     {
-      accessorKey: "approvedQuantity",
-      header: "Approved Qty",
+      accessorKey: "quantity",
+      header: "Qty",
       size: 110,
     },
     {
-      accessorKey: "rejectedQuantity",
-      header: "Rejected Qty",
+      accessorKey: "availableQuantity",
+      header: "Available Qty",
       size: 110,
     },
     {
@@ -137,14 +139,14 @@ export default function FinishedGoodsPage() {
     },
     {
       id: "qcDetails",
-      header: "QC Details",
+      header: "Received",
       size: 155,
       cell: ({ row }) => {
-        const at = row.original.approvedAt
-          ? new Date(row.original.approvedAt).toLocaleString()
+        const at = row.original.receivedAt
+          ? new Date(row.original.receivedAt).toLocaleString()
           : "—";
-        const by = row.original.inspectorId
-          ? `User ${row.original.inspectorId.slice(0, 8)}`
+        const by = row.original.receivedById
+          ? `User ${row.original.receivedById.slice(0, 8)}`
           : "—";
         return (
           <div className={styles.cellStack}>
@@ -156,10 +158,10 @@ export default function FinishedGoodsPage() {
     },
     {
       id: "woStatus",
-      header: "WO Status",
+      header: "FG Status",
       size: 130,
       cell: ({ row }) => (
-        <StatusBadge status={row.original.workOrder?.status || "UNKNOWN"} />
+        <StatusBadge status={row.original.status || "UNKNOWN"} />
       ),
     },
     {

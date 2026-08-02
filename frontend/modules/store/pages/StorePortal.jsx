@@ -2701,8 +2701,19 @@ export default function StorePortal() {
       transition: 'all 0.2s',
     });
 
-    const handleCreateGRN = (e) => {
+    const handleCreateGRN = async (e) => {
       e?.preventDefault();
+      
+      const attachments = [];
+      const readFileAsDataURL = (file) => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve({ name: file.name, size: (file.size / 1024).toFixed(2) + ' KB', previewUrl: ev.target.result });
+        reader.readAsDataURL(file);
+      });
+
+      if (delLegalDoc1) attachments.push(await readFileAsDataURL(delLegalDoc1));
+      if (delLegalDoc2) attachments.push(await readFileAsDataURL(delLegalDoc2));
+
       const payload = {
         id: 'GRN-' + Math.floor(1000 + Math.random() * 9000),
         receivedQty: Number(delReceived || 0),
@@ -2711,7 +2722,8 @@ export default function StorePortal() {
         invoiceNo: delInvoice || `INV-${Date.now()}`,
         challanNo: delChallan || 'N/A',
         batchNo: delBatch || 'BATCH-01',
-        remarks: delRemarks || 'Received in good condition.'
+        remarks: delRemarks || 'Received in good condition.',
+        snapshot: { attachments }
       };
 
       if (!payload.receivedQty || payload.receivedQty <= 0) {

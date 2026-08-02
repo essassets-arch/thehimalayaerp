@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  Min,
+  IsEnum,
+} from 'class-validator';
 import { BrandAnalysisRecommendation } from '@prisma/client';
 
 export class CreateBrandAnalysisDto {

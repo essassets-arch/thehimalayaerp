@@ -7,12 +7,20 @@ import { isRestrictedRole } from '../../common/utils/rbac.util';
 export class SalesReportsService {
   constructor(private prisma: PrismaService) {}
 
-  async getSalesSummary(dateFrom: string, dateTo: string, userId?: string, role?: string) {
+  async getSalesSummary(
+    dateFrom: string,
+    dateTo: string,
+    userId?: string,
+    role?: string,
+  ) {
     const from = new Date(dateFrom);
     const to = new Date(dateTo);
     to.setHours(23, 59, 59, 999);
 
-    const userFilter = isRestrictedRole(role) && userId ? Prisma.sql`AND "createdById" = ${userId}` : Prisma.empty;
+    const userFilter =
+      isRestrictedRole(role) && userId
+        ? Prisma.sql`AND "createdById" = ${userId}`
+        : Prisma.empty;
 
     const result = await this.prisma.$queryRaw`
       SELECT
@@ -29,16 +37,25 @@ export class SalesReportsService {
       GROUP BY TO_CHAR("orderDate", 'YYYY-MM')
       ORDER BY month DESC
     `;
-    
+
     return result;
   }
 
-  async getTopProducts(dateFrom: string, dateTo: string, limit: number, userId?: string, role?: string) {
+  async getTopProducts(
+    dateFrom: string,
+    dateTo: string,
+    limit: number,
+    userId?: string,
+    role?: string,
+  ) {
     const from = new Date(dateFrom);
     const to = new Date(dateTo);
     to.setHours(23, 59, 59, 999);
 
-    const userFilter = isRestrictedRole(role) && userId ? Prisma.sql`AND o."createdById" = ${userId}` : Prisma.empty;
+    const userFilter =
+      isRestrictedRole(role) && userId
+        ? Prisma.sql`AND o."createdById" = ${userId}`
+        : Prisma.empty;
 
     const result = await this.prisma.$queryRaw`
       SELECT 
@@ -60,12 +77,20 @@ export class SalesReportsService {
     return result;
   }
 
-  async getCustomerPerformance(dateFrom: string, dateTo: string, userId?: string, role?: string) {
+  async getCustomerPerformance(
+    dateFrom: string,
+    dateTo: string,
+    userId?: string,
+    role?: string,
+  ) {
     const from = new Date(dateFrom);
     const to = new Date(dateTo);
     to.setHours(23, 59, 59, 999);
 
-    const userFilter = isRestrictedRole(role) && userId ? Prisma.sql`AND o."createdById" = ${userId}` : Prisma.empty;
+    const userFilter =
+      isRestrictedRole(role) && userId
+        ? Prisma.sql`AND o."createdById" = ${userId}`
+        : Prisma.empty;
 
     const result = await this.prisma.$queryRaw`
       SELECT 

@@ -28,6 +28,7 @@ export class PermissionsGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
 
     if (!user || !user.sub) {
+      require('fs').appendFileSync('permissions.log', `[PermissionsGuard] Missing user or user.sub. User object: ${JSON.stringify(user || null)}\n`);
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -51,6 +52,7 @@ export class PermissionsGuard implements CanActivate {
     });
 
     if (!userRole) {
+      require('fs').appendFileSync('permissions.log', `[PermissionsGuard] Role not found: ${user.role}\n`);
       throw new ForbiddenException('Role not found');
     }
 
@@ -62,8 +64,8 @@ export class PermissionsGuard implements CanActivate {
       userPermissions.includes(perm),
     );
 
-
     if (!hasPermission) {
+      require('fs').appendFileSync('permissions.log', `[PermissionsGuard] Insufficient permissions for user ${user.sub} (role: ${user.role}). Required: ${requiredPermissions.join(', ')}. Has: ${userPermissions.join(', ')}\n`);
       throw new ForbiddenException('Insufficient permissions');
     }
 

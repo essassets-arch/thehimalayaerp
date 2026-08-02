@@ -1,9 +1,22 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  IsDateString, IsEmail, IsEnum, IsInt, IsNotEmpty, IsOptional,
-  IsString, Matches, Min, ValidateIf,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+  ValidateIf,
 } from 'class-validator';
-import { BankAccountType, EmployeeStatus, EmploymentType, Gender } from '@prisma/client';
+import {
+  BankAccountType,
+  EmployeeStatus,
+  EmploymentType,
+  Gender,
+} from '@prisma/client';
 
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
@@ -36,7 +49,9 @@ export class CreateEmployeeDto {
   @IsString() @IsNotEmpty() accountHolderName!: string;
   @IsEnum(BankAccountType) bankAccountType!: BankAccountType;
   @Matches(/^\d{6,20}$/) bankAccountNumber!: string;
-  @ValidateIf((o) => o.confirmAccountNumber !== undefined) @IsString() confirmAccountNumber?: string;
+  @ValidateIf((o) => o.confirmAccountNumber !== undefined)
+  @IsString()
+  confirmAccountNumber?: string;
   @Transform(upper) @Matches(/^[A-Z]{4}0[A-Z0-9]{6}$/) ifscCode!: string;
   @IsOptional() @IsString() branchName?: string;
   @IsOptional() @IsString() draftId?: string;

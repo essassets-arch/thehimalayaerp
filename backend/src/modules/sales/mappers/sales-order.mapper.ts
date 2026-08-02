@@ -10,8 +10,10 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
   };
 }> & {
   dispatches?: Prisma.DispatchGetPayload<{ include: { items: true } }>[];
-  returns?: Prisma.SalesReturnGetPayload<Record<string, never>>[];
-  replacementRequests?: Prisma.ReplacementRequestGetPayload<Record<string, never>>[];
+  returns?: Prisma.SalesReturnGetPayload<{ include: { items: true } }>[];
+  replacementRequests?: Prisma.ReplacementRequestGetPayload<{
+    include: { items: true };
+  }>[];
   customerPayments?: Prisma.CustomerPaymentGetPayload<Record<string, never>>[];
 };
 
@@ -19,11 +21,12 @@ export function mapSalesOrder(
   order: SalesOrderWithRelations,
 ): SalesOrderResponseDto {
   const productionPlan = order.productionPlans[0];
-  const workflowStatus = order.workflowState?.code as typeof order.status | undefined;
+  const workflowStatus = order.workflowState?.code as
+    typeof order.status | undefined;
   const effectiveStatus =
     order.status === 'SENT_TO_PLANT_HEAD'
       ? order.status
-      : workflowStatus ?? order.status;
+      : (workflowStatus ?? order.status);
   const completedDispatchStatuses = new Set([
     'DELIVERED',
     'POD_RECEIVED',
@@ -56,14 +59,19 @@ export function mapSalesOrder(
   const verifiedPaidAmount = (order.customerPayments ?? [])
     .filter((payment) => financeApprovedStatuses.has(payment.status))
     .reduce((total, payment) => total + Number(payment.amount), 0);
-  const balanceAmount = Math.max(0, Number(order.totalAmount) - verifiedPaidAmount);
+  const balanceAmount = Math.max(
+    0,
+    Number(order.totalAmount) - verifiedPaidAmount,
+  );
   const paymentStatus =
     verifiedPaidAmount >= Number(order.totalAmount)
       ? 'FULLY_PAID'
       : verifiedPaidAmount > 0
         ? 'PARTIALLY_PAID'
         : (order.customerPayments ?? []).some((payment) =>
-              ['SUBMITTED', 'UNDER_VERIFICATION', 'RECEIVED'].includes(payment.status),
+              ['SUBMITTED', 'UNDER_VERIFICATION', 'RECEIVED'].includes(
+                payment.status,
+              ),
             )
           ? 'FINANCE_VERIFICATION_PENDING'
           : 'NOT_DUE';
@@ -75,7 +83,7 @@ export function mapSalesOrder(
   const replacementStatus = latestReplacement
     ? latestReplacement.dispatchStatus === 'DELIVERED'
       ? 'COMPLETED'
-      : latestReplacement.dispatchStatus ?? latestReplacement.status
+      : (latestReplacement.dispatchStatus ?? latestReplacement.status)
     : undefined;
   return {
     id: order.id,
@@ -94,6 +102,21 @@ export function mapSalesOrder(
           0,
         );
 
+      const returnedQuantity = (order.returns ?? [])
+        .filter((r) => r.status !== 'REJECTED' && r.status !== 'CANCELLED')
+        .flatMap((r) => r.items)
+        .filter((rItem) => rItem.salesOrderItemId === item.id)
+        .reduce((total, rItem) => total + Number(rItem.requestedQuantity || 0), 0);
+
+      const replacedQuantity = (order.replacementRequests ?? [])
+        .filter((r) => r.status !== 'REJECTED')
+        .flatMap((r) => r.items)
+        .filter((rItem) => rItem.salesOrderItemId === item.id)
+        .reduce((total, rItem) => total + Number(rItem.requestedQuantity || 0), 0);
+
+      const availableForReturn = Math.max(0, deliveredQuantity - returnedQuantity - replacedQuantity);
+      const availableForReplacement = Math.max(0, deliveredQuantity - returnedQuantity - replacedQuantity);
+
       return {
         id: item.id,
         productId: item.productId,
@@ -101,6 +124,10 @@ export function mapSalesOrder(
         productCode: item.productCodeSnapshot,
         orderedQuantity: Number(item.orderedQuantity),
         deliveredQuantity,
+        returnedQuantity,
+        replacedQuantity,
+        availableForReturn,
+        availableForReplacement,
         unit: item.unit,
         unitPrice: Number(item.unitPrice),
         lineTotal: Number(item.lineTotal),

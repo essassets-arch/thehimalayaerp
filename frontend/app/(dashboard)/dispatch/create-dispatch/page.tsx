@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Truck, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
@@ -110,6 +110,7 @@ function availableQuantity(workOrder: WorkOrder): number {
 export default function CreateDispatchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const workOrderId = searchParams.get("workOrderId");
 
   // Form State
@@ -119,6 +120,7 @@ export default function CreateDispatchPage() {
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
   const [transporterName, setTransporterName] = useState("");
+  const [dispatchRemarks, setDispatchRemarks] = useState("");
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [ewayBillNumber, setEwayBillNumber] = useState("");
@@ -310,6 +312,7 @@ export default function CreateDispatchPage() {
             transporterName,
             driverName,
             driverPhone,
+            dispatchRemarks,
             expectedDeliveryDate:
               group.salesOrder.requestedDeliveryDate ||
               expectedDeliveryDate ||
@@ -340,9 +343,20 @@ export default function CreateDispatchPage() {
       );
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
       router.push("/dispatch/in-transit");
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to create dispatch record",
+    } catch (err: any) {
+      console.error(
+        "Create dispatch failed. Exact Backend Message:\n" +
+          (err?.details?.message?.join?.("\n") ||
+            err?.details?.message ||
+            err?.message ||
+            "Unknown error")
+      );
+
+      alert(
+        err?.details?.message?.join?.("\n") ||
+          err?.details?.message ||
+          err?.message ||
+          "Failed to create dispatch"
       );
     }
   };
@@ -531,6 +545,19 @@ export default function CreateDispatchPage() {
         <div className={styles.formGrid}>
 
           <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Total Weight (Tons)<span className={styles.required}>*</span></label>
+            <input
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={totalWeight || ""}
+              onChange={(e) => setTotalWeight(Number(e.target.value))}
+              className={styles.formInput}
+              placeholder="e.g. 15.5"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
             <label className={styles.formLabel}>Vehicle No<span className={styles.required}>*</span></label>
             <input
               type="text"
@@ -560,6 +587,16 @@ export default function CreateDispatchPage() {
               onChange={(e) => setDriverPhone(e.target.value)}
               className={styles.formInput}
               placeholder="e.g. 9876543210"
+            />
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Dispatch Remarks</label>
+            <input
+              type="text"
+              value={dispatchRemarks}
+              onChange={(e) => setDispatchRemarks(e.target.value)}
+              className={styles.formInput}
+              placeholder="e.g. Fragile items loaded carefully"
             />
           </div>
 

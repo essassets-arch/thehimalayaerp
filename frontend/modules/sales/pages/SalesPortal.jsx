@@ -126,7 +126,7 @@ export default function SalesPortal() {
 
   const orders = backendOrders;
 
-  const { refreshSamples, loadLeads, loadCustomers } = useSalesBackend();
+  const { refreshSamples, loadLeads, loadCustomers, createSample } = useSalesBackend();
 
   useEffect(() => {
     // Load orders on orders view or dashboard
@@ -629,8 +629,9 @@ export default function SalesPortal() {
       const itemId = item.id || item.order_item_id || item.orderItemId || index + 1;
       const productName = item.product_name || item.productName || order.products || `Item ${index + 1}`;
       const deliveredQty = Number(item.deliveredQuantity ?? item.quantity_dispatched ?? item.delivered_qty ?? item.quantity ?? item.orderedQuantity ?? item.quantity_ordered ?? 0) || 0;
-      return `<option value="${itemId}" data-delivered="${deliveredQty}" data-product="${escapeHtml(productName)}">${escapeHtml(productName)} (Delivered: ${deliveredQty})</option>`;
-    }).join('') : `<option value="all" data-delivered="${order.quantity || order.totalQty || 10}" data-product="${escapeHtml(order.products || 'Overall Order')}">${escapeHtml(order.products || 'Overall Order')}</option>`;
+      const availableQty = item.availableForReturn !== undefined ? Number(item.availableForReturn) : deliveredQty;
+      return `<option value="${itemId}" data-available="${availableQty}" data-product="${escapeHtml(productName)}">${escapeHtml(productName)} (Available: ${availableQty})</option>`;
+    }).join('') : `<option value="all" data-available="${order.quantity || order.totalQty || 10}" data-product="${escapeHtml(order.products || 'Overall Order')}">${escapeHtml(order.products || 'Overall Order')}</option>`;
 
     const { value } = await Swal.fire({
       title: 'Request Order Return / Take Back',
@@ -701,14 +702,17 @@ export default function SalesPortal() {
         const qtyInput = document.getElementById('return-qty');
         const syncSelectedItem = () => {
           const selected = select.options[select.selectedIndex];
-          const deliveredQty = Number(selected?.dataset.delivered || 0);
-          if (deliveredQty > 0) {
-            qtyInput.max = String(deliveredQty);
-            qtyInput.value = Math.min(1, deliveredQty);
-            qtyInput.placeholder = `Max ${deliveredQty}`;
+          const availableQty = Number(selected?.dataset.available || 0);
+          if (availableQty > 0) {
+            qtyInput.max = String(availableQty);
+            qtyInput.value = Math.min(1, availableQty);
+            qtyInput.placeholder = `Max ${availableQty}`;
+            qtyInput.disabled = false;
           } else {
-            qtyInput.value = '1';
-            qtyInput.placeholder = 'Enter Qty';
+            qtyInput.value = '0';
+            qtyInput.max = '0';
+            qtyInput.placeholder = 'None available';
+            qtyInput.disabled = true;
           }
         };
         select.addEventListener('change', syncSelectedItem);
@@ -729,6 +733,13 @@ export default function SalesPortal() {
 
         if (!qty || qty <= 0 || !reason || !description) {
           Swal.showValidationMessage('Return quantity, reason, and description are required.');
+          return false;
+        }
+
+        const selected = select.options[select.selectedIndex];
+        const maxReturnable = Number(selected?.dataset.available || 0);
+        if (qty > maxReturnable) {
+          Swal.showValidationMessage(`Maximum returnable quantity is ${maxReturnable}.`);
           return false;
         }
 
@@ -934,8 +945,10 @@ export default function SalesPortal() {
            leads={leads}
            defaultLeadId={leadIdFromUrl}
            onAddSample={async (data) => {
-               const targetLead = leads.find(l => String(l.id) === String(data.leadId));
-               if(targetLead) convertToSample(targetLead, data);
+               const res = await createSample(data);
+               await refreshSamples();
+               navigate.push('/sales/samples');
+               return { success: true };
            }}
            onCancel={() => navigate.push('/sales/leads')}
         />

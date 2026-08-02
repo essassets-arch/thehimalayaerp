@@ -5,9 +5,13 @@ import { PrismaService } from '../../database/prisma.service';
 export class CommentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listComments(entityType: string, entityId: string, includeInternal = false) {
+  async listComments(
+    entityType: string,
+    entityId: string,
+    includeInternal = false,
+  ) {
     const whereClause: any = { entityType, entityId };
-    
+
     // If not including internal comments, only return public ones
     if (!includeInternal) {
       whereClause.isInternal = false;
@@ -15,7 +19,7 @@ export class CommentsService {
 
     return this.prisma.comment.findMany({
       where: whereClause,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -35,7 +39,7 @@ export class CommentsService {
         isInternal: data.isInternal,
         userId: data.userId,
         companyId: data.companyId,
-      }
+      },
     });
   }
 
@@ -44,9 +48,9 @@ export class CommentsService {
     if (!comment) throw new NotFoundException('Comment not found');
 
     // Soft delete
-    await this.prisma.comment.update({ 
+    await this.prisma.comment.update({
       where: { id },
-      data: { deletedAt: new Date() }
+      data: { deletedAt: new Date() },
     });
     return { success: true };
   }

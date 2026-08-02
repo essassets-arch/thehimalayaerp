@@ -1,72 +1,124 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { PackageCheck } from 'lucide-react';
-import { PageSearchInput, StandardActionButtons } from '@/components/GlobalUIComponents';
-import '@/components/erp-premium-ui.css';
+import { useCallback, useEffect, useState } from "react";
+import { getFinishedGoods } from "@/services/finishedGoodsService";
+import FinishedGoodsTable from "@/components/shared/FinishedGoodsTable";
 
-export default function FinishedGoodsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const items = [
-    { id: 'FG-801', name: 'High-Tensile Galvanized Bolts M12', category: 'Fasteners', batchNo: 'B-2026-0711', readyStock: 2500, unit: 'PCS', location: 'Warehouse A-04', dispatchReady: true },
-    { id: 'FG-802', name: 'Precision CNC Aluminum Joints', category: 'Structural', batchNo: 'B-2026-0715', readyStock: 450, unit: 'SET', location: 'Warehouse B-12', dispatchReady: true },
-    { id: 'FG-803', name: 'Industrial Rubber Gaskets HD-100', category: 'Seals', batchNo: 'B-2026-0719', readyStock: 1200, unit: 'PCS', location: 'Warehouse A-01', dispatchReady: false }
-  ];
+export default function PlantHeadFinishedGoodsPage() {
+  const [finishedGoods, setFinishedGoods] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("not-dispatched");
 
-  const filtered = items.filter(i => 
-    i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    i.batchNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    i.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const loadFinishedGoods = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await getFinishedGoods({
+        page: 1,
+        pageSize: 100,
+      });
+
+      const rows = Array.isArray(response)
+        ? response
+        : response?.data ?? response?.items ?? [];
+
+      setFinishedGoods(rows);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load finished goods.",
+      );
+      setFinishedGoods([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFinishedGoods();
+  }, [loadFinishedGoods]);
+
+  if (loading) {
+    return <div className="p-6 text-gray-500 font-medium">Loading finished goods...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <p className="text-red-600 font-medium">{error}</p>
+        <button
+          type="button"
+          onClick={() => loadFinishedGoods()}
+          className="mt-3 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-50 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const notDispatchedRecords = finishedGoods.filter(r => r.status !== 'DISPATCHED' && r.status !== 'SENT_TO_DISPATCH');
+  const dispatchedRecords = finishedGoods.filter(r => r.status === 'DISPATCHED' || r.status === 'SENT_TO_DISPATCH');
+
+  const displayedRecords = activeTab === 'not-dispatched' ? notDispatchedRecords : dispatchedRecords;
 
   return (
-    <div className="erp-page-container">
-      <div className="erp-header-card">
-        <div className="erp-header-title-group">
-          <h2 className="erp-header-title">
-            <PackageCheck style={{ width: 24, height: 24, color: '#059669' }} />
-            Plant Head → Finished Goods Inventory
-          </h2>
-          <p className="erp-header-subtitle">Live visibility into quality-approved manufactured stock ready for dispatch.</p>
+    <div className="space-y-6 p-4 md:p-6" style={{ padding: '24px' }}>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 className="text-2xl font-bold" style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--color-text-primary)', marginBottom: '8px' }}>Finished Goods Inventory</h1>
+          <p className="text-sm text-muted-foreground" style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>
+            View-only access to finished goods completed by the Production department.
+          </p>
         </div>
-        <PageSearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search finished product..." />
       </div>
 
-      <div className="erp-table-card">
-        <div className="erp-table-responsive">
-          <table className="erp-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Product Name</th>
-                <th>Category</th>
-                <th>Batch No.</th>
-                <th>Ready Stock</th>
-                <th>Storage Location</th>
-                <th>Dispatch Ready</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(i => (
-                <tr key={i.id}>
-                  <td style={{ fontWeight: 800, color: '#1e1b4b' }}>{i.id}</td>
-                  <td style={{ fontWeight: 700, color: '#24345C' }}>{i.name}</td>
-                  <td style={{ color: '#475569' }}>{i.category}</td>
-                  <td style={{ fontFamily: 'monospace', color: '#334155' }}>{i.batchNo}</td>
-                  <td style={{ fontWeight: 800, color: '#047857' }}>{i.readyStock} {i.unit}</td>
-                  <td style={{ color: '#475569' }}>{i.location}</td>
-                  <td>
-                    <span className={`erp-badge ${i.dispatchReady ? 'erp-badge-green' : 'erp-badge-orange'}`}>
-                      {i.dispatchReady ? 'Ready for Dispatch' : 'In Packaging'}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}><StandardActionButtons compact /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', borderBottom: '1px solid var(--color-border)' }}>
+        <button 
+          onClick={() => setActiveTab('not-dispatched')}
+          style={{ 
+            padding: '12px 16px', 
+            fontWeight: '600', 
+            fontSize: '14px',
+            color: activeTab === 'not-dispatched' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+            borderBottom: activeTab === 'not-dispatched' ? '3px solid var(--color-primary)' : '3px solid transparent',
+            background: 'none',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Not Dispatched ({notDispatchedRecords.length})
+        </button>
+        <button 
+          onClick={() => setActiveTab('dispatched')}
+          style={{ 
+            padding: '12px 16px', 
+            fontWeight: '600', 
+            fontSize: '14px',
+            color: activeTab === 'dispatched' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+            borderBottom: activeTab === 'dispatched' ? '3px solid var(--color-primary)' : '3px solid transparent',
+            background: 'none',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Dispatched ({dispatchedRecords.length})
+        </button>
+      </div>
+
+      <div className="app-card">
+        <FinishedGoodsTable
+          records={displayedRecords}
+          readOnly={true}
+          showActions={false}
+        />
       </div>
     </div>
   );

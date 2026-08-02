@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
@@ -13,37 +17,57 @@ export class QuotationsService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async listQuotations(companyId?: string, search?: string, userId?: string, role?: string) {
+  async listQuotations(
+    companyId?: string,
+    search?: string,
+    userId?: string,
+    role?: string,
+  ) {
     const scope = getSalesScope(userId, role, 'createdById');
     return this.prisma.quotation.findMany({
       where: {
         ...scope,
         deletedAt: null,
         ...(companyId ? { companyId } : {}),
-        ...(search ? { quotationNumber: { contains: search, mode: 'insensitive' } } : {}),
+        ...(search
+          ? { quotationNumber: { contains: search, mode: 'insensitive' } }
+          : {}),
       },
       include: {
         workflowState: true,
         lead: true,
         items: { include: { product: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getQuotation(id: string, companyId?: string, userId?: string, role?: string) {
+  async getQuotation(
+    id: string,
+    companyId?: string,
+    userId?: string,
+    role?: string,
+  ) {
     const scope = getSalesScope(userId, role, 'createdById');
     const quotation = await this.prisma.quotation.findFirst({
-      where: { id, ...scope, deletedAt: null, ...(companyId ? { companyId } : {}) },
+      where: {
+        id,
+        ...scope,
+        deletedAt: null,
+        ...(companyId ? { companyId } : {}),
+      },
       include: {
         workflowState: true,
         items: true,
         lead: true,
         parentQuotation: true,
-        childQuotations: { include: { workflowState: true }, orderBy: { version: 'asc' } },
+        childQuotations: {
+          include: { workflowState: true },
+          orderBy: { version: 'asc' },
+        },
         salesOrder: true,
         sourceSalesOrders: true,
-      }
+      },
     });
     if (!quotation) throw new NotFoundException('Quotation not found');
     return quotation;
@@ -73,40 +97,74 @@ export class QuotationsService {
     };
   }
 
-  async createQuotation(dto: any, userId: string, companyId?: string, role?: string) {
-    const initialState = await this.workflowService.getInitialState('QUOTATION');
-    const resolvedCompanyId = companyId || dto.companyId || (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
-    if (!resolvedCompanyId) throw new BadRequestException('Company is required');
-    if (!dto.leadId && !dto.customerId) throw new BadRequestException('Lead or customer is required');
+  async createQuotation(
+    dto: any,
+    userId: string,
+    companyId?: string,
+    role?: string,
+  ) {
+    const initialState =
+      await this.workflowService.getInitialState('QUOTATION');
+    const resolvedCompanyId =
+      companyId ||
+      dto.companyId ||
+      (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
+    if (!resolvedCompanyId)
+      throw new BadRequestException('Company is required');
+    if (!dto.leadId && !dto.customerId)
+      throw new BadRequestException('Lead or customer is required');
     if (dto.leadId) {
       const samples = await this.prisma.sampleRequest.findMany({
         where: { leadId: dto.leadId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
       });
       if (samples.length && samples[0].status !== 'APPROVED') {
-        throw new BadRequestException('The latest required sample must be approved before quotation creation');
+        throw new BadRequestException(
+          'The latest required sample must be approved before quotation creation',
+        );
       }
     }
-    const resolvedItems = await Promise.all((dto.items || []).map(async (item: any) => {
-      const product = await this.prisma.product.findFirst({
-        where: {
-          isActive: true,
-          OR: [
-            ...(item.productId ? [{ id: item.productId }, { publicId: item.productId }] : []),
-            ...(item.productCode ? [{ sku: item.productCode }, { publicId: item.productCode }] : []),
-            ...(item.productName ? [{ name: { equals: item.productName, mode: 'insensitive' as const } }] : []),
-          ],
-        },
-        select: { id: true },
-      });
-      if (!product) {
-        throw new BadRequestException(`Product "${item.productName || item.productCode || item.productId || 'Unknown'}" was not found in the product database.`);
-      }
-      return { ...item, productId: product.id };
-    }));
+    const resolvedItems = await Promise.all(
+      (dto.items || []).map(async (item: any) => {
+        const product = await this.prisma.product.findFirst({
+          where: {
+            isActive: true,
+            OR: [
+              ...(item.productId
+                ? [{ id: item.productId }, { publicId: item.productId }]
+                : []),
+              ...(item.productCode
+                ? [{ sku: item.productCode }, { publicId: item.productCode }]
+                : []),
+              ...(item.productName
+                ? [
+                    {
+                      name: {
+                        equals: item.productName,
+                        mode: 'insensitive' as const,
+                      },
+                    },
+                  ]
+                : []),
+            ],
+          },
+          select: { id: true },
+        });
+        if (!product) {
+          throw new BadRequestException(
+            `Product "${item.productName || item.productCode || item.productId || 'Unknown'}" was not found in the product database.`,
+          );
+        }
+        return { ...item, productId: product.id };
+      }),
+    );
     const totals = this.calculate(resolvedItems);
-    if (!totals.processedItems.length) throw new BadRequestException('At least one quotation item is required');
-    const quotationNumber = await this.sequenceService.generateNext('quotation_number', `QT-${new Date().getFullYear()}-`);
+    if (!totals.processedItems.length)
+      throw new BadRequestException('At least one quotation item is required');
+    const quotationNumber = await this.sequenceService.generateNext(
+      'quotation_number',
+      `QT-${new Date().getFullYear()}-`,
+    );
 
     return this.prisma.quotation.create({
       data: {
@@ -131,18 +189,33 @@ export class QuotationsService {
             discount: item.discount || 0,
             tax: item.tax || 0,
             lineTotal: item.lineTotal,
-          }))
-        }
+          })),
+        },
       },
-      include: { workflowState: true, items: { include: { product: true } }, lead: true }
+      include: {
+        workflowState: true,
+        items: { include: { product: true } },
+        lead: true,
+      },
     });
   }
 
-  async updateQuotation(id: string, dto: any, userId: string, companyId?: string, role?: string) {
+  async updateQuotation(
+    id: string,
+    dto: any,
+    userId: string,
+    companyId?: string,
+    role?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const scope = getSalesScope(userId, role, 'createdById');
       const quotation = await tx.quotation.findFirst({
-        where: { id, ...scope, deletedAt: null, ...(companyId ? { companyId } : {}) },
+        where: {
+          id,
+          ...scope,
+          deletedAt: null,
+          ...(companyId ? { companyId } : {}),
+        },
         include: { workflowState: true },
       });
       if (!quotation) throw new NotFoundException('Quotation not found');
@@ -150,60 +223,80 @@ export class QuotationsService {
         throw new BadRequestException('Only DRAFT quotations can be edited');
       }
       const totals = dto.items ? this.calculate(dto.items) : null;
-      if (dto.items && !totals?.processedItems.length) throw new BadRequestException('At least one quotation item is required');
-      if (dto.items) await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+      if (dto.items && !totals?.processedItems.length)
+        throw new BadRequestException(
+          'At least one quotation item is required',
+        );
+      if (dto.items)
+        await tx.quotationItem.deleteMany({ where: { quotationId: id } });
       return tx.quotation.update({
         where: { id },
         data: {
           validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
           remarks: dto.remarks,
           updatedById: userId,
-          ...(totals ? {
-            subtotal: totals.subtotal,
-            discount: totals.discount,
-            tax: totals.tax,
-            total: totals.total,
-            items: {
-              create: totals.processedItems.map((item: any) => ({
-                productId: item.productId,
-                description: item.description,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discount: item.discount || 0,
-                tax: item.tax || 0,
-                lineTotal: item.lineTotal,
-              })),
-            },
-          } : {}),
+          ...(totals
+            ? {
+                subtotal: totals.subtotal,
+                discount: totals.discount,
+                tax: totals.tax,
+                total: totals.total,
+                items: {
+                  create: totals.processedItems.map((item: any) => ({
+                    productId: item.productId,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    discount: item.discount || 0,
+                    tax: item.tax || 0,
+                    lineTotal: item.lineTotal,
+                  })),
+                },
+              }
+            : {}),
         },
         include: { workflowState: true, items: true },
       });
     });
   }
 
-  async processAction(id: string, actionName: string, remarks?: string, userId?: string, role?: string) {
+  async processAction(
+    id: string,
+    actionName: string,
+    remarks?: string,
+    userId?: string,
+    role?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const scope = getSalesScope(userId, role, 'createdById');
-      const quotation = await tx.quotation.findFirst({ where: { id, ...scope }, include: { workflowState: true } });
+      const quotation = await tx.quotation.findFirst({
+        where: { id, ...scope },
+        include: { workflowState: true },
+      });
       if (!quotation) throw new NotFoundException('Quotation not found');
 
-      const result = await this.workflowService.processAction({
-        entityId: id,
-        entityType: 'QUOTATION',
-        workflowCode: 'QUOTATION',
-        currentStateId: quotation.workflowStateId!,
-        actionName,
-        userId: userId || 'SYSTEM',
-        remarks
-      }, tx);
+      const result = await this.workflowService.processAction(
+        {
+          entityId: id,
+          entityType: 'QUOTATION',
+          workflowCode: 'QUOTATION',
+          currentStateId: quotation.workflowStateId!,
+          actionName,
+          userId: userId || 'SYSTEM',
+          remarks,
+        },
+        tx,
+      );
 
       return tx.quotation.update({
         where: { id },
         data: {
           workflowStateId: result.nextStateId,
-          ...(actionName === 'APPROVE' ? { approvedById: userId || 'SYSTEM', approvedAt: new Date() } : {}),
+          ...(actionName === 'APPROVE'
+            ? { approvedById: userId || 'SYSTEM', approvedAt: new Date() }
+            : {}),
         },
-        include: { workflowState: true }
+        include: { workflowState: true },
       });
     });
   }
@@ -213,13 +306,13 @@ export class QuotationsService {
       const scope = getSalesScope(userId, role, 'createdById');
       const original = await tx.quotation.findFirst({
         where: { id, ...scope },
-        include: { items: true, workflowState: true }
+        include: { items: true, workflowState: true },
       });
-      
+
       if (!original) throw new NotFoundException('Quotation not found');
 
       const supersededState = await tx.workflowState.findFirst({
-        where: { workflow: { code: 'QUOTATION' }, code: 'SUPERSEDED' }
+        where: { workflow: { code: 'QUOTATION' }, code: 'SUPERSEDED' },
       });
 
       if (supersededState && original.workflowState?.code !== 'SUPERSEDED') {
@@ -232,17 +325,17 @@ export class QuotationsService {
             toStatus: supersededState.name,
             action: 'DUPLICATE',
             remarks: 'Duplicated to create a new version',
-            userId: userId
-          }
+            userId: userId,
+          },
         });
         await tx.quotation.update({
           where: { id },
-          data: { workflowStateId: supersededState.id }
+          data: { workflowStateId: supersededState.id },
         });
       }
 
       const initialState = await tx.workflowState.findFirst({
-        where: { workflow: { code: 'QUOTATION' }, isInitial: true }
+        where: { workflow: { code: 'QUOTATION' }, isInitial: true },
       });
 
       const rootId = original.parentQuotationId || original.id;
@@ -271,18 +364,18 @@ export class QuotationsService {
           workflowStateId: initialState?.id,
           createdById: userId,
           items: {
-            create: original.items.map(item => ({
+            create: original.items.map((item) => ({
               productId: item.productId,
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               discount: item.discount,
               tax: item.tax,
-              lineTotal: item.lineTotal
-            }))
-          }
+              lineTotal: item.lineTotal,
+            })),
+          },
         },
-        include: { workflowState: true, items: true }
+        include: { workflowState: true, items: true },
       });
     });
   }
@@ -292,12 +385,14 @@ export class QuotationsService {
       const scope = getSalesScope(userId, role, 'createdById');
       const quotation = await tx.quotation.findFirst({
         where: { id, ...scope },
-        include: { items: true, workflowState: true, lead: true }
+        include: { items: true, workflowState: true, lead: true },
       });
 
       if (!quotation) throw new NotFoundException('Quotation not found');
       if (quotation.workflowState?.code !== 'APPROVED') {
-        throw new BadRequestException('Only APPROVED quotations can be converted to Sales Orders');
+        throw new BadRequestException(
+          'Only APPROVED quotations can be converted to Sales Orders',
+        );
       }
       const rootId = quotation.parentQuotationId || quotation.id;
       const newerVersion = await tx.quotation.findFirst({
@@ -306,23 +401,43 @@ export class QuotationsService {
           version: { gt: quotation.version },
         },
       });
-      if (newerVersion) throw new BadRequestException('Only the latest quotation version can be converted');
-      const existingOrder = await tx.salesOrder.findFirst({ where: { sourceQuotationId: id } });
+      if (newerVersion)
+        throw new BadRequestException(
+          'Only the latest quotation version can be converted',
+        );
+      const existingOrder = await tx.salesOrder.findFirst({
+        where: { sourceQuotationId: id },
+      });
       if (existingOrder) return existingOrder;
 
-      let customerId = quotation.customerId || quotation.lead?.convertedCustomerId || quotation.lead?.customerId;
+      let customerId =
+        quotation.customerId ||
+        quotation.lead?.convertedCustomerId ||
+        quotation.lead?.customerId;
       if (!customerId) {
         if (!quotation.lead) {
-          throw new BadRequestException('Quotation must be linked to a valid Customer before conversion.');
+          throw new BadRequestException(
+            'Quotation must be linked to a valid Customer before conversion.',
+          );
         }
         const existingCustomer = await tx.customer.findFirst({
           where: {
-            companyId: quotation.companyId || quotation.lead.companyId || undefined,
+            companyId:
+              quotation.companyId || quotation.lead.companyId || undefined,
             deletedAt: null,
             OR: [
-              ...(quotation.lead.email ? [{ email: quotation.lead.email }] : []),
-              ...(quotation.lead.phone ? [{ phone: quotation.lead.phone }] : []),
-              { companyName: { equals: quotation.lead.companyName, mode: 'insensitive' as const } },
+              ...(quotation.lead.email
+                ? [{ email: quotation.lead.email }]
+                : []),
+              ...(quotation.lead.phone
+                ? [{ phone: quotation.lead.phone }]
+                : []),
+              {
+                companyName: {
+                  equals: quotation.lead.companyName,
+                  mode: 'insensitive' as const,
+                },
+              },
             ],
           },
         });
@@ -330,8 +445,15 @@ export class QuotationsService {
           customerId = existingCustomer.id;
         } else {
           const companyId = quotation.companyId || quotation.lead.companyId;
-          if (!companyId) throw new BadRequestException('Lead company is required for customer creation.');
-          const customerCode = await this.sequenceService.generateNextWithTx(tx, 'customer_number', 'CUST-');
+          if (!companyId)
+            throw new BadRequestException(
+              'Lead company is required for customer creation.',
+            );
+          const customerCode = await this.sequenceService.generateNextWithTx(
+            tx,
+            'customer_number',
+            'CUST-',
+          );
           const customer = await tx.customer.create({
             data: {
               customerCode,
@@ -350,22 +472,33 @@ export class QuotationsService {
         }
         await tx.lead.update({
           where: { id: quotation.lead.id },
-          data: { customerId, convertedCustomerId: customerId, convertedAt: new Date(), convertedById: userId },
+          data: {
+            customerId,
+            convertedCustomerId: customerId,
+            convertedAt: new Date(),
+            convertedById: userId,
+          },
         });
         await tx.quotation.update({ where: { id }, data: { customerId } });
       }
 
       const soInitialState = await tx.workflowState.findFirst({
-        where: { workflow: { code: 'SALES_ORDER' }, isInitial: true }
+        where: { workflow: { code: 'SALES_ORDER' }, isInitial: true },
       });
 
       const count = await tx.salesOrder.count();
-      const orderNumber = await this.sequenceService.generateNextWithTx(tx, 'sales_order_number', `SO-${new Date().getFullYear()}-`);
+      const orderNumber = await this.sequenceService.generateNextWithTx(
+        tx,
+        'sales_order_number',
+        `SO-${new Date().getFullYear()}-`,
+      );
       const products = await tx.product.findMany({
         where: { id: { in: quotation.items.map((item) => item.productId) } },
         select: { id: true, name: true, sku: true, unit: true },
       });
-      const productById = new Map(products.map((product) => [product.id, product]));
+      const productById = new Map(
+        products.map((product) => [product.id, product]),
+      );
 
       // Snapshot exactly from quotation items
       const salesOrder = await tx.salesOrder.create({
@@ -378,13 +511,17 @@ export class QuotationsService {
           subtotal: quotation.subtotal,
           discountAmount: quotation.discount,
           taxAmount: quotation.tax,
-          taxableAmount: Number(quotation.subtotal) - Number(quotation.discount),
+          taxableAmount:
+            Number(quotation.subtotal) - Number(quotation.discount),
           freightAmount: 0,
           totalAmount: quotation.total,
           items: {
-            create: quotation.items.map(item => ({
+            create: quotation.items.map((item) => ({
               productId: item.productId,
-              productNameSnapshot: productById.get(item.productId)?.name || item.description || 'Unknown Product',
+              productNameSnapshot:
+                productById.get(item.productId)?.name ||
+                item.description ||
+                'Unknown Product',
               productCodeSnapshot: productById.get(item.productId)?.sku,
               orderedQuantity: item.quantity,
               unit: productById.get(item.productId)?.unit || 'NOS',
@@ -393,14 +530,14 @@ export class QuotationsService {
               taxableAmount: Number(item.lineTotal) - Number(item.tax),
               taxRate: 0,
               taxAmount: item.tax,
-              lineTotal: item.lineTotal
-            }))
-          }
-        }
+              lineTotal: item.lineTotal,
+            })),
+          },
+        },
       });
 
       const convertedState = await tx.workflowState.findFirst({
-        where: { workflow: { code: 'QUOTATION' }, code: 'CONVERTED_TO_SO' }
+        where: { workflow: { code: 'QUOTATION' }, code: 'CONVERTED_TO_SO' },
       });
 
       if (convertedState) {
@@ -412,12 +549,12 @@ export class QuotationsService {
             toStatus: convertedState.name,
             action: 'CONVERT',
             remarks: `Converted to Sales Order ${orderNumber}`,
-            userId: userId
-          }
+            userId: userId,
+          },
         });
         await tx.quotation.update({
           where: { id },
-          data: { workflowStateId: convertedState.id }
+          data: { workflowStateId: convertedState.id },
         });
       }
 

@@ -6,11 +6,17 @@ import { LedgerService } from './ledger.service';
 export class CreditService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ledgerService: LedgerService
+    private readonly ledgerService: LedgerService,
   ) {}
 
-  async checkCreditLimit(customerId: string, newAmount: number, stage: 'SALES_ORDER' | 'DISPATCH') {
-    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+  async checkCreditLimit(
+    customerId: string,
+    newAmount: number,
+    stage: 'SALES_ORDER' | 'DISPATCH',
+  ) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+    });
     if (!customer) throw new BadRequestException('Customer not found');
 
     if (!customer.creditLimit) {
@@ -27,23 +33,25 @@ export class CreditService {
 
     if (projectedBalance > Number(customer.creditLimit)) {
       if (stage === 'DISPATCH') {
-        throw new BadRequestException(`Credit limit exceeded. Limit: ${customer.creditLimit}, Projected: ${projectedBalance}. Dispatch blocked.`);
+        throw new BadRequestException(
+          `Credit limit exceeded. Limit: ${customer.creditLimit}, Projected: ${projectedBalance}. Dispatch blocked.`,
+        );
       }
-      return { 
-        allowed: false, 
-        requiresApproval: true, 
-        currentBalance, 
-        creditLimit: Number(customer.creditLimit), 
-        projectedBalance 
+      return {
+        allowed: false,
+        requiresApproval: true,
+        currentBalance,
+        creditLimit: Number(customer.creditLimit),
+        projectedBalance,
       };
     }
 
-    return { 
-      allowed: true, 
-      requiresApproval: false, 
-      currentBalance, 
-      creditLimit: Number(customer.creditLimit), 
-      projectedBalance 
+    return {
+      allowed: true,
+      requiresApproval: false,
+      currentBalance,
+      creditLimit: Number(customer.creditLimit),
+      projectedBalance,
     };
   }
 }

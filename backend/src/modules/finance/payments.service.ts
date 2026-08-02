@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
@@ -15,8 +19,7 @@ export class PaymentsService {
 
   async listPayments(userId?: string, role?: string) {
     const scope = getAdvancedScope(userId, role, {
-      'FINANCE': { createdById: userId },
-      'SALES': { customer: { createdById: userId } }
+      SALES: { customer: { createdById: userId } },
     });
     return this.prisma.customerPayment.findMany({
       where: scope,
@@ -30,16 +33,15 @@ export class PaymentsService {
           },
         },
         workflowState: true,
-        allocations: true
+        allocations: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async listSalesRecordedPayments(userId?: string, role?: string) {
     const scope = getAdvancedScope(userId, role, {
-      'FINANCE': { createdById: userId },
-      'SALES': { customer: { createdById: userId } }
+      SALES: { customer: { createdById: userId } },
     });
     return this.prisma.customerPayment.findMany({
       where: { salesOrderId: { not: null }, ...scope },
@@ -73,7 +75,11 @@ export class PaymentsService {
   }
 
   async listDeliveredOrders() {
-    const completedStatuses = ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'] as any[];
+    const completedStatuses = [
+      'DELIVERED',
+      'POD_RECEIVED',
+      'DISPATCH_CLOSED',
+    ] as any[];
     const orders = await this.prisma.salesOrder.findMany({
       where: {
         deletedAt: null,
@@ -94,12 +100,16 @@ export class PaymentsService {
       },
       orderBy: { updatedAt: 'desc' },
     });
-    const salespersonIds = [...new Set(orders.map((order) => order.createdById).filter(Boolean))];
+    const salespersonIds = [
+      ...new Set(orders.map((order) => order.createdById).filter(Boolean)),
+    ];
     const salespeople = await this.prisma.user.findMany({
       where: { id: { in: salespersonIds } },
       select: { id: true, name: true },
     });
-    const salespersonNames = new Map(salespeople.map((person) => [person.id, person.name]));
+    const salespersonNames = new Map(
+      salespeople.map((person) => [person.id, person.name]),
+    );
 
     return orders.map((order) => {
       const deliveredDispatches = order.dispatches.filter((dispatch) =>
@@ -130,56 +140,86 @@ export class PaymentsService {
 
   async getPayment(id: string, userId?: string, role?: string) {
     const scope = getAdvancedScope(userId, role, {
-      'FINANCE': { createdById: userId },
-      'SALES': { customer: { createdById: userId } }
+      SALES: { customer: { createdById: userId } },
     });
     const payment = await this.prisma.customerPayment.findFirst({
       where: {
         id,
-        ...scope
-      },include: {
+        ...scope,
+      },
+      include: {
         customer: true,
         workflowState: true,
-        allocations: { include: { invoice: true } }
-      }
+        allocations: { include: { invoice: true } },
+      },
     });
     if (!payment) throw new NotFoundException('Payment not found');
     return payment;
   }
 
-  async createPayment(dto: { customerId: string, salesOrderId?: string, amount: number, proofUrl?: string }, userId?: string) {
-    if (Number(dto.amount) <= 0) throw new BadRequestException('Payment amount must be greater than zero');
+  async createPayment(
+    dto: {
+      customerId: string;
+      salesOrderId?: string;
+      amount: number;
+      proofUrl?: string;
+    },
+    userId?: string,
+  ) {
+    if (Number(dto.amount) <= 0)
+      throw new BadRequestException('Payment amount must be greater than zero');
     return this.prisma.$transaction(async (tx) => {
-    const customer = await tx.customer.findUnique({ where: { id: dto.customerId } });
-    if (!customer) throw new NotFoundException('Customer not found');
-    const initialState = await this.workflowService.getInitialState('CUSTOMER_PAYMENT', tx);
-    const paymentNo = await this.sequenceService.generateNextWithTx(tx, 'payment_number', `PAY-${new Date().getFullYear()}-`);
+      const customer = await tx.customer.findUnique({
+        where: { id: dto.customerId },
+      });
+      if (!customer) throw new NotFoundException('Customer not found');
+      const initialState = await this.workflowService.getInitialState(
+        'CUSTOMER_PAYMENT',
+        tx,
+      );
+      const paymentNo = await this.sequenceService.generateNextWithTx(
+        tx,
+        'payment_number',
+        `PAY-${new Date().getFullYear()}-`,
+      );
 
-    const payment = await tx.customerPayment.create({
-      data: {
-        paymentNo,
-        customerId: dto.customerId,
-        salesOrderId: dto.salesOrderId,
-        proofUrl: dto.proofUrl,
-        amount: dto.amount,
-        status: 'SUBMITTED',
-        workflowStateId: initialState.id,
-      }
-    });
+      const payment = await tx.customerPayment.create({
+        data: {
+          paymentNo,
+          customerId: dto.customerId,
+          salesOrderId: dto.salesOrderId,
+          proofUrl: dto.proofUrl,
+          amount: dto.amount,
+          status: 'SUBMITTED',
+          workflowStateId: initialState.id,
+        },
+      });
 
-    return payment;
+      return payment;
     });
   }
 
-  async recordPaymentFromSales(dto: { customerId: string, salesOrderId: string, amount: number, proofUrl: string }, userId?: string) {
-    if (!dto.proofUrl) throw new BadRequestException('Payment proof image is required');
+  async recordPaymentFromSales(
+    dto: {
+      customerId: string;
+      salesOrderId: string;
+      amount: number;
+      proofUrl: string;
+    },
+    userId?: string,
+  ) {
+    if (!dto.proofUrl)
+      throw new BadRequestException('Payment proof image is required');
     const order = await this.prisma.salesOrder.findUnique({
       where: { id: dto.salesOrderId },
       select: { id: true, customerId: true },
     });
-    if (!order) throw new NotFoundException(`Order ${dto.salesOrderId} not found`);
+    if (!order)
+      throw new NotFoundException(`Order ${dto.salesOrderId} not found`);
     if (order.customerId !== dto.customerId) {
-      throw new BadRequestException('The selected customer does not match this sales order');
+      throw new BadRequestException(
+        'The selected customer does not match this sales order',
+      );
     }
     const payment = await this.createPayment(dto, userId);
     return this.submitForVerification(payment.id, userId);
@@ -196,17 +236,24 @@ export class PaymentsService {
         include: { workflowState: true },
       });
       if (!payment) throw new NotFoundException('Payment not found');
-      const result = await this.workflowService.processAction({
-        entityId: id,
-        entityType: 'CUSTOMER_PAYMENT',
-        workflowCode: 'CUSTOMER_PAYMENT',
-        currentStateId: payment.workflowStateId!,
-        actionName: 'VERIFY',
-        userId: userId || 'SYSTEM',
-        remarks: 'Payment verified by Finance',
-      }, tx);
+      const result = await this.workflowService.processAction(
+        {
+          entityId: id,
+          entityType: 'CUSTOMER_PAYMENT',
+          workflowCode: 'CUSTOMER_PAYMENT',
+          currentStateId: payment.workflowStateId!,
+          actionName: 'VERIFY',
+          userId: userId || 'SYSTEM',
+          remarks: 'Payment verified by Finance',
+        },
+        tx,
+      );
       const existingLedger = await tx.customerLedger.findFirst({
-        where: { referenceType: 'CustomerPayment', referenceId: id, type: 'PAYMENT' },
+        where: {
+          referenceType: 'CustomerPayment',
+          referenceId: id,
+          type: 'PAYMENT',
+        },
       });
       if (!existingLedger) {
         await tx.customerLedger.create({
@@ -235,94 +282,138 @@ export class PaymentsService {
     });
   }
 
-  private async transitionPayment(id: string, actionName: string, userId?: string) {
+  private async transitionPayment(
+    id: string,
+    actionName: string,
+    userId?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.customerPayment.findUnique({ where: { id } });
       if (!payment) throw new NotFoundException('Payment not found');
-      const result = await this.workflowService.processAction({
-        entityId: id,
-        entityType: 'CUSTOMER_PAYMENT',
-        workflowCode: 'CUSTOMER_PAYMENT',
-        currentStateId: payment.workflowStateId!,
-        actionName,
-        userId: userId || 'SYSTEM',
-      }, tx);
+      const result = await this.workflowService.processAction(
+        {
+          entityId: id,
+          entityType: 'CUSTOMER_PAYMENT',
+          workflowCode: 'CUSTOMER_PAYMENT',
+          currentStateId: payment.workflowStateId!,
+          actionName,
+          userId: userId || 'SYSTEM',
+        },
+        tx,
+      );
       return tx.customerPayment.update({
         where: { id },
         data: {
           workflowStateId: result.nextStateId,
-          status: actionName === 'SUBMIT_VERIFICATION' ? 'UNDER_VERIFICATION' : payment.status,
+          status:
+            actionName === 'SUBMIT_VERIFICATION'
+              ? 'UNDER_VERIFICATION'
+              : payment.status,
         },
         include: { workflowState: true },
       });
     });
   }
 
-  async allocatePayment(id: string, allocations: { invoiceId: string, amount: number }[], userId?: string) {
+  async allocatePayment(
+    id: string,
+    allocations: { invoiceId: string; amount: number }[],
+    userId?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.customerPayment.findUnique({
         where: { id },
-        include: { allocations: true, workflowState: true }
+        include: { allocations: true, workflowState: true },
       });
       if (!payment) throw new NotFoundException('Payment not found');
       if (!['VERIFIED', 'PARTIALLY_ALLOCATED'].includes(payment.status)) {
-        throw new BadRequestException('Payment must be finance verified before allocation');
+        throw new BadRequestException(
+          'Payment must be finance verified before allocation',
+        );
       }
 
-      const currentlyAllocated = payment.allocations.reduce((sum, a) => sum + Number(a.amount), 0);
-      const newAllocationTotal = allocations.reduce((sum, a) => sum + Number(a.amount), 0);
+      const currentlyAllocated = payment.allocations.reduce(
+        (sum, a) => sum + Number(a.amount),
+        0,
+      );
+      const newAllocationTotal = allocations.reduce(
+        (sum, a) => sum + Number(a.amount),
+        0,
+      );
 
       if (currentlyAllocated + newAllocationTotal > Number(payment.amount)) {
-        throw new BadRequestException('Cannot allocate more than the available payment amount');
+        throw new BadRequestException(
+          'Cannot allocate more than the available payment amount',
+        );
       }
 
       // Check each invoice
       for (const alloc of allocations) {
         const invoice = await tx.salesInvoice.findUnique({
           where: { id: alloc.invoiceId },
-          include: { items: true, paymentAllocations: true }
+          include: { items: true, paymentAllocations: true },
         });
-        if (!invoice) throw new BadRequestException(`Invoice ${alloc.invoiceId} not found`);
-        if (invoice.status !== 'POSTED' && invoice.status !== 'PARTIALLY_PAID') {
-          throw new BadRequestException(`Invoice ${alloc.invoiceId} must be posted before payment allocation`);
+        if (!invoice)
+          throw new BadRequestException(`Invoice ${alloc.invoiceId} not found`);
+        if (
+          invoice.status !== 'POSTED' &&
+          invoice.status !== 'PARTIALLY_PAID'
+        ) {
+          throw new BadRequestException(
+            `Invoice ${alloc.invoiceId} must be posted before payment allocation`,
+          );
         }
 
         const totalInvoice = Number(invoice.totalAmount);
-        const paidSoFar = invoice.paymentAllocations.reduce((s, a) => s + Number(a.amount), 0);
-        
+        const paidSoFar = invoice.paymentAllocations.reduce(
+          (s, a) => s + Number(a.amount),
+          0,
+        );
+
         if (paidSoFar + alloc.amount > totalInvoice) {
-          throw new BadRequestException(`Cannot overpay invoice ${alloc.invoiceId}. Due: ${totalInvoice - paidSoFar}, Attempted: ${alloc.amount}`);
+          throw new BadRequestException(
+            `Cannot overpay invoice ${alloc.invoiceId}. Due: ${totalInvoice - paidSoFar}, Attempted: ${alloc.amount}`,
+          );
         }
       }
 
-      const actionName = (currentlyAllocated + newAllocationTotal === Number(payment.amount)) ? 'ALLOCATE_FULL' : 'ALLOCATE';
+      const actionName =
+        currentlyAllocated + newAllocationTotal === Number(payment.amount)
+          ? 'ALLOCATE_FULL'
+          : 'ALLOCATE';
 
       // Save allocations
       await tx.paymentAllocation.createMany({
-        data: allocations.map(a => ({
+        data: allocations.map((a) => ({
           paymentId: payment.id,
           invoiceId: a.invoiceId,
-          amount: a.amount
-        }))
+          amount: a.amount,
+        })),
       });
 
       // Update workflow for payment
-      const result = await this.workflowService.processAction({
-        entityId: id,
-        entityType: 'CUSTOMER_PAYMENT',
-        workflowCode: 'CUSTOMER_PAYMENT',
-        currentStateId: payment.workflowStateId!,
-        actionName,
-        userId: userId || 'SYSTEM',
-        remarks: 'Allocated to invoices'
-      }, tx);
+      const result = await this.workflowService.processAction(
+        {
+          entityId: id,
+          entityType: 'CUSTOMER_PAYMENT',
+          workflowCode: 'CUSTOMER_PAYMENT',
+          currentStateId: payment.workflowStateId!,
+          actionName,
+          userId: userId || 'SYSTEM',
+          remarks: 'Allocated to invoices',
+        },
+        tx,
+      );
 
       await tx.customerPayment.update({
         where: { id },
         data: {
           workflowStateId: result.nextStateId,
-          status: actionName === 'ALLOCATE_FULL' ? 'ALLOCATED' : 'PARTIALLY_ALLOCATED',
-        }
+          status:
+            actionName === 'ALLOCATE_FULL'
+              ? 'ALLOCATED'
+              : 'PARTIALLY_ALLOCATED',
+        },
       });
 
       // Update invoice workflow states
@@ -330,30 +421,40 @@ export class PaymentsService {
       for (const alloc of allocations) {
         const invoice = await tx.salesInvoice.findUnique({
           where: { id: alloc.invoiceId },
-          include: { paymentAllocations: true, items: true, workflowState: true }
+          include: {
+            paymentAllocations: true,
+            items: true,
+            workflowState: true,
+          },
         });
         if (invoice && invoice.workflowStateId) {
           affectedOrderIds.add(invoice.salesOrderId);
           const totalInvoice = Number(invoice.totalAmount);
-          const paidSoFar = invoice.paymentAllocations.reduce((s, a) => s + Number(a.amount), 0);
-          
+          const paidSoFar = invoice.paymentAllocations.reduce(
+            (s, a) => s + Number(a.amount),
+            0,
+          );
+
           const invAction = paidSoFar >= totalInvoice ? 'PAY' : 'PARTIAL';
           try {
-            const invResult = await this.workflowService.processAction({
-              entityId: invoice.id,
-              entityType: 'INVOICE',
-              workflowCode: 'INVOICE',
-              currentStateId: invoice.workflowStateId,
-              actionName: invAction,
-              userId: userId || 'SYSTEM',
-              remarks: `Payment allocated: ${payment.paymentNo}`
-            }, tx);
+            const invResult = await this.workflowService.processAction(
+              {
+                entityId: invoice.id,
+                entityType: 'INVOICE',
+                workflowCode: 'INVOICE',
+                currentStateId: invoice.workflowStateId,
+                actionName: invAction,
+                userId: userId || 'SYSTEM',
+                remarks: `Payment allocated: ${payment.paymentNo}`,
+              },
+              tx,
+            );
             await tx.salesInvoice.update({
               where: { id: invoice.id },
               data: {
                 workflowStateId: invResult.nextStateId,
                 status: invAction === 'PAY' ? 'PAID' : 'PARTIALLY_PAID',
-              }
+              },
             });
           } catch (e) {
             // Ignore if workflow cannot transition (e.g. already paid)
@@ -387,34 +488,52 @@ export class PaymentsService {
 
     const deliveredByItem = new Map<string, number>();
     for (const dispatch of order.dispatches) {
-      if (!['DELIVERED', 'COMPLETED'].includes(dispatch.workflowState?.code || '')) continue;
+      if (
+        !['DELIVERED', 'COMPLETED'].includes(dispatch.workflowState?.code || '')
+      )
+        continue;
       for (const item of dispatch.items) {
         deliveredByItem.set(
           item.salesOrderItemId,
-          (deliveredByItem.get(item.salesOrderItemId) || 0) + Number(item.quantity),
+          (deliveredByItem.get(item.salesOrderItemId) || 0) +
+            Number(item.quantity),
         );
       }
     }
     const deliveryComplete = order.items.every(
-      (item) => (deliveredByItem.get(item.id) || 0) >= Number(item.orderedQuantity),
+      (item) =>
+        (deliveredByItem.get(item.id) || 0) >= Number(item.orderedQuantity),
     );
-    const invoicesPaid = order.invoices.length > 0 &&
+    const invoicesPaid =
+      order.invoices.length > 0 &&
       order.invoices.every((invoice) => invoice.status === 'PAID');
-    const noOpenReturns = order.returns.every((record) => record.workflowState?.isFinal);
-    const noOpenReplacements = order.replacementOrders.every(
-      (record) => ['CLOSED', 'CANCELLED'].includes(record.status),
+    const noOpenReturns = order.returns.every(
+      (record) => record.workflowState?.isFinal,
     );
-    if (!deliveryComplete || !invoicesPaid || !noOpenReturns || !noOpenReplacements) return;
+    const noOpenReplacements = order.replacementOrders.every((record) =>
+      ['CLOSED', 'CANCELLED'].includes(record.status),
+    );
+    if (
+      !deliveryComplete ||
+      !invoicesPaid ||
+      !noOpenReturns ||
+      !noOpenReplacements
+    )
+      return;
 
-    const result = await this.workflowService.processAction({
-      entityId: order.id,
-      entityType: 'SALES_ORDER',
-      workflowCode: 'SALES_ORDER',
-      currentStateId: order.workflowStateId!,
-      actionName: 'COMPLETE',
-      userId,
-      remarks: 'Automatically closed after complete delivery, verified settlement, and after-sales clearance',
-    }, tx);
+    const result = await this.workflowService.processAction(
+      {
+        entityId: order.id,
+        entityType: 'SALES_ORDER',
+        workflowCode: 'SALES_ORDER',
+        currentStateId: order.workflowStateId!,
+        actionName: 'COMPLETE',
+        userId,
+        remarks:
+          'Automatically closed after complete delivery, verified settlement, and after-sales clearance',
+      },
+      tx,
+    );
     const updated = await tx.salesOrder.update({
       where: { id: order.id },
       data: {
@@ -436,7 +555,9 @@ export class PaymentsService {
   }
 
   async markBounced(id: string, remarks?: string, userId?: string) {
-    const payment = await this.prisma.customerPayment.findUnique({ where: { id } });
+    const payment = await this.prisma.customerPayment.findUnique({
+      where: { id },
+    });
     if (!payment) throw new NotFoundException('Payment not found');
 
     const result = await this.workflowService.processAction({
@@ -446,17 +567,17 @@ export class PaymentsService {
       currentStateId: payment.workflowStateId!,
       actionName: 'MARK_BOUNCED',
       userId: userId || 'SYSTEM',
-      remarks
+      remarks,
     });
 
     await this.prisma.customerPayment.update({
       where: { id },
-      data: { workflowStateId: result.nextStateId }
+      data: { workflowStateId: result.nextStateId },
     });
 
     // Revert ledger
     const existingLedger = await this.prisma.customerLedger.findFirst({
-      where: { referenceId: payment.id, type: 'PAYMENT' }
+      where: { referenceId: payment.id, type: 'PAYMENT' },
     });
 
     if (existingLedger) {
@@ -470,8 +591,8 @@ export class PaymentsService {
           amount: payment.amount,
           debit: payment.amount, // debit to increase balance again (reverse the credit)
           description: `Payment Bounced: ${payment.paymentNo}`,
-          createdById: userId || 'SYSTEM'
-        }
+          createdById: userId || 'SYSTEM',
+        },
       });
     }
 

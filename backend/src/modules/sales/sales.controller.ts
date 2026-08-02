@@ -63,7 +63,11 @@ export class SalesController {
     @Body() dto: ConvertQuotationToOrderDto,
     @Req() req: any,
   ): Promise<SalesOrderResponseDto> {
-    return this.salesService.convertQuotationToOrder(dto, req.user?.sub, req.user?.role);
+    return this.salesService.convertQuotationToOrder(
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Post(':id/action')
@@ -74,42 +78,92 @@ export class SalesController {
     @Body() dto: WorkflowActionDto,
     @Req() req: any,
   ) {
-    return this.salesService.processAction(id, dto, req.user?.sub, req.user?.role);
+    return this.salesService.processAction(
+      id,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Post(':id/submit')
   @Permissions('sales.orders.update')
-  async submitOrder(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+  async submitOrder(
+    @Param('id') id: string,
+    @Body() dto: WorkflowActionDto,
+    @Req() req: any,
+  ) {
     dto.action = 'SUBMIT';
-    return this.salesService.processAction(id, dto, req.user?.sub, req.user?.role);
+    return this.salesService.processAction(
+      id,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Post(':id/approve')
   @Permissions('sales.orders.approve')
-  async approveOrder(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+  async approveOrder(
+    @Param('id') id: string,
+    @Body() dto: WorkflowActionDto,
+    @Req() req: any,
+  ) {
     dto.action = 'CONFIRM';
-    return this.salesService.processAction(id, dto, req.user?.sub, req.user?.role);
+    return this.salesService.processAction(
+      id,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Post(':id/reject')
   @Permissions('sales.orders.approve')
-  async rejectOrder(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+  async rejectOrder(
+    @Param('id') id: string,
+    @Body() dto: WorkflowActionDto,
+    @Req() req: any,
+  ) {
     dto.action = 'REJECT';
-    return this.salesService.processAction(id, dto, req.user?.sub, req.user?.role);
+    return this.salesService.processAction(
+      id,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Post(':id/send-to-plant')
   @Permissions('sales.orders.update')
-  async sendToPlant(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+  async sendToPlant(
+    @Param('id') id: string,
+    @Body() dto: WorkflowActionDto,
+    @Req() req: any,
+  ) {
     dto.action = 'SEND_TO_PLANT';
-    return this.salesService.processAction(id, dto, req.user?.sub, req.user?.role);
+    return this.salesService.processAction(
+      id,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Post(':id/send-to-plant-head')
   @Permissions('sales.orders.update')
   @UseInterceptors(IdempotencyInterceptor)
-  async sendToPlantHead(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Req() req: any) {
+  async sendToPlantHead(
+    @Param('id') id: string,
+    @Body() dto: WorkflowActionDto,
+    @Req() req: any,
+  ) {
     dto.action = 'SEND_TO_PLANT';
-    return this.salesService.processAction(id, dto, req.user?.sub, req.user?.role);
+    return this.salesService.processAction(
+      id,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 }

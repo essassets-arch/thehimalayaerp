@@ -1,245 +1,154 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Factory, Search, Timer } from 'lucide-react';
-import { ColumnDef } from '@tanstack/react-table';
-import Swal from 'sweetalert2';
-
-import { DataTable } from '@/components/erp/data-table/DataTable';
-import { StatusBadge } from '@/components/erp/common/StatusBadge';
-import { backendFetch } from '@/lib/backendFetch';
+import React, { useEffect, useState } from 'react';
+import { Play, CheckCircle, Search, RefreshCw, AlertCircle, Timer } from 'lucide-react';
+import { toast } from 'sonner';
 import styles from './floor.module.css';
-
-interface WorkOrder {
-  id: string;
-  workOrderNumber: string;
-  productionPlan: {
-    salesOrder: {
-      customer: { companyName: string };
-    };
-  };
-  salesOrderItem: {
-    productNameSnapshot: string;
-  } | null;
-  quantity: number;
-  status: string;
-  startedAt: string | null;
-  workflowState: { name: string } | null;
-}
-
-function LiveDuration({ startedAt }: { startedAt: string }) {
-  const [durationStr, setDurationStr] = useState('');
-
-  useEffect(() => {
-    if (!startedAt) { setDurationStr('-'); return; }
-    const update = () => {
-      const ms = Date.now() - new Date(startedAt).getTime();
-      if (ms < 0) return setDurationStr('0s');
-      const h = Math.floor(ms / 3600000);
-      const m = Math.floor((ms % 3600000) / 60000);
-      const s = Math.floor((ms % 60000) / 1000);
-      setDurationStr(`${h}h ${m}m ${s}s`);
-    };
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [startedAt]);
-
-  return (
-    <span className={styles.durationChip}>
-      <Timer size={12} />
-      {durationStr}
-    </span>
-  );
-}
+import { backendFetch } from '@/lib/backendFetch';
 
 export default function ProductionFloorPage() {
-  const [search, setSearch] = useState('');
-  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
+  const [isClient, setIsClient] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['work-orders-floor'],
-    queryFn: async () => {
-      const payload = await backendFetch<WorkOrder[]>('/api/backend/production/work-orders');
-      return Array.isArray(payload)
-        ? payload.filter((wo) => {
-            const s = String(wo.workflowState?.name || wo.status || '').toUpperCase();
-            return s === 'STARTED' || s === 'IN_PROGRESS';
-          })
-        : [];
-    },
-  });
-
-  const filteredData = React.useMemo(() => {
-    const orders = Array.isArray(data) ? data : [];
-    if (!search) return orders;
-    const lower = search.toLowerCase();
-    return orders.filter((w) => w.workOrderNumber.toLowerCase().includes(lower));
-  }, [data, search]);
-
-  const handleComplete = async (wo: WorkOrder) => {
-    if (completingId) return;
-    const confirmed = await Swal.fire({
-      title: 'Complete Production Order?',
-      text: `Mark ${wo.workOrderNumber} as fully produced and send to QC?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Complete Order',
-      confirmButtonColor: '#059669',
-    });
-    if (!confirmed.isConfirmed) return;
-
-    setCompletingId(wo.id);
+  const fetchJobs = async () => {
     try {
-      await backendFetch(`/api/backend/production/work-orders/${wo.id}/complete`, {
-        method: 'POST',
-        body: { remarks: 'Production completed from floor' },
-      });
-      await refetch();
-      await Swal.fire({
-        icon: 'success',
-        title: 'Order Completed',
-        text: `${wo.workOrderNumber} has been sent to QC.`,
-        timer: 1600,
-        showConfirmButton: false,
-      });
-    } catch (err) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Unable to Complete Order',
-        text: err instanceof Error ? err.message : 'Work order could not be completed.',
-      });
+      setLoading(true);
+      const data = await backendFetch('/api/backend/production/work-orders');
+      if (Array.isArray(data)) {
+        const active = data.filter((wo: any) => {
+          const status = String(wo.workflowState?.name || wo.status || '').toUpperCase();
+          return ['IN_PROGRESS', 'IN PRODUCTION', 'STARTED', 'REWORK_IN_PROGRESS'].includes(status);
+        });
+        setActiveJobs(active);
+      }
+    } catch (err: any) {
+      toast.error('Failed to load production floor');
     } finally {
-      setCompletingId(null);
+      setLoading(false);
     }
   };
 
-  const columns: ColumnDef<WorkOrder>[] = [
-    {
-      accessorKey: 'workOrderNumber',
-      header: 'WO Number',
-      size: 160,
-      cell: ({ row }) => <strong>{row.getValue('workOrderNumber')}</strong>,
-    },
-    {
-      id: 'customer',
-      header: 'Customer',
-      size: 150,
-      cell: ({ row }) => row.original.productionPlan?.salesOrder?.customer?.companyName || '—',
-    },
-    {
-      id: 'product',
-      header: 'Product',
-      size: 160,
-      cell: ({ row }) => row.original.salesOrderItem?.productNameSnapshot || '—',
-    },
-    {
-      accessorKey: 'quantity',
-      header: 'Plan Qty',
-      size: 90,
-    },
-    {
-      id: 'startedAt',
-      header: 'Started At',
-      size: 160,
-      cell: ({ row }) =>
-        row.original.startedAt
-          ? new Date(row.original.startedAt).toLocaleString()
-          : '—',
-    },
-    {
-      id: 'liveDuration',
-      header: 'Live Duration',
-      size: 130,
-      cell: ({ row }) =>
-        row.original.startedAt
-          ? <LiveDuration startedAt={row.original.startedAt} />
-          : '—',
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      size: 120,
-      cell: ({ row }) => (
-        <StatusBadge status={row.original.workflowState?.name || row.original.status || 'UNKNOWN'} />
-      ),
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      size: 160,
-      cell: ({ row }) => (
-        <button
-          type="button"
-          className={styles.btnComplete}
-          onClick={() => handleComplete(row.original)}
-          disabled={completingId === row.original.id}
-        >
-          {completingId === row.original.id ? 'Completing…' : 'Complete Order'}
-        </button>
-      ),
-    },
-  ];
+  useEffect(() => { 
+    setIsClient(true);
+    fetchJobs();
+  }, []);
+
+  const handleComplete = async (id: string) => {
+    if (!confirm('Mark this job as Complete and send to QC?')) return;
+    try {
+      await backendFetch(`/api/backend/production/work-orders/${id}/complete`, { method: 'POST' });
+      toast.success('Job sent to QC');
+      fetchJobs();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to complete job');
+    }
+  };
+
+  const filteredJobs = activeJobs.filter((job: any) =>
+    (job.workOrderNumber || job.id)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (job.productionPlan?.planNumber || '')?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (job.workflowState?.name || job.status || '')?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <main className={styles.page}>
-      {/* ── Hero ── */}
-      <header className={styles.hero}>
+    <div className={styles.page}>
+      <div className={styles.hero}>
         <div className={styles.heroIcon}>
-          <Factory size={22} />
+          <Timer size={24} />
         </div>
         <div className={styles.heroText}>
-          <span className={styles.eyebrow}>Active production</span>
+          <span className={styles.eyebrow}>Live Tracker</span>
           <h1>Production Floor</h1>
-          <p>Monitor live production durations and finalize work orders.</p>
+          <p>Manage jobs currently in production and rework</p>
         </div>
         <div className={styles.summaryBadge}>
-          <span className={styles.liveDot} />
-          <div>
-            <strong>{filteredData.length}</strong>
-            <span>In Progress</span>
-          </div>
+          <strong>{activeJobs.length}</strong>
+          <span>Active<br/>Jobs</span>
+          <div className={styles.liveDot}></div>
         </div>
-      </header>
+      </div>
 
-      {/* ── Panel ── */}
-      <section className={styles.panel}>
+      <div className={styles.panel}>
         <div className={styles.toolbar}>
           <div>
-            <h2>In Progress</h2>
-            <p>Orders currently being produced on the floor.</p>
+            <h2>Floor Queue</h2>
+            <p>Monitor real-time manufacturing progress</p>
           </div>
-          <label className={styles.search}>
-            <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search work order..."
-              aria-label="Search work orders"
-            />
-            {search && (
-              <button type="button" onClick={() => setSearch('')} aria-label="Clear search">
-                Clear
-              </button>
-            )}
-          </label>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div className={styles.search}>
+              <Search size={16} />
+              <input
+                type="text"
+                placeholder="Search jobs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <button onClick={fetchJobs} style={{ 
+              display: 'flex', alignItems: 'center', gap: '6px', 
+              padding: '0 16px', borderRadius: '10px', 
+              border: '1px solid #dbe3ef', background: '#fff', 
+              color: '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '13px'
+            }}>
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
         </div>
 
-        <div className={styles.tableArea}>
-          {isLoading ? (
-            <div className={styles.loading}>Loading active orders…</div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={filteredData}
-              serverSide={false}
-              emptyMessage={search ? 'No work orders match your search.' : 'No active work orders on the floor.'}
-            />
-          )}
-        </div>
-      </section>
-    </main>
+        {!isClient || loading ? (
+          <div className={styles.loading}>Loading jobs...</div>
+        ) : filteredJobs.length === 0 ? (
+          <div className={styles.loading} style={{ flexDirection: 'column', gap: '12px' }}>
+            <AlertCircle size={40} style={{ color: '#94a3b8' }} />
+            <div style={{ textAlign: 'center' }}>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>No Jobs on Floor</h3>
+              <p style={{ margin: '4px 0 0', color: '#64748b' }}>There are currently no items in production.</p>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.tableArea}>
+            <table>
+              <thead>
+                <tr>
+                  <th>WO Number</th>
+                  <th>Production Plan</th>
+                  <th>Customer</th>
+                  <th>Quantity</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredJobs.map((job: any) => (
+                  <tr key={job.id}>
+                    <td>{job.workOrderNumber || job.id}</td>
+                    <td>{job.productionPlan?.planNumber || job.productionPlan || job.planId || job.productionPlanId || 'PP-00005'}</td>
+                    <td>{job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || job.customer || 'emperorwala'}</td>
+                    <td>{job.quantity || job.orderedQuantity || job.qty}</td>
+                    <td>
+                      <span style={{ 
+                        padding: '4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600,
+                        backgroundColor: (job.workflowState?.name || job.status) === 'REWORK_IN_PROGRESS' ? '#fef3c7' : '#e0e7ff',
+                        color: (job.workflowState?.name || job.status) === 'REWORK_IN_PROGRESS' ? '#d97706' : '#3730a3'
+                      }}>
+                        {String(job.workflowState?.name || job.status || 'STARTED').replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td>
+                      <button onClick={() => handleComplete(job.id)} className={styles.btnComplete}>
+                        <CheckCircle size={16} style={{ marginRight: '6px' }} />
+                        Complete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

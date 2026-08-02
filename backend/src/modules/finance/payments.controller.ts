@@ -15,7 +15,10 @@ export class PaymentsController {
   @Get('sales-recorded')
   @Permissions('sales.orders.read')
   async listSalesRecordedPayments(@Req() req: any) {
-    return this.paymentsService.listSalesRecordedPayments(req.user?.sub, req.user?.role);
+    return this.paymentsService.listSalesRecordedPayments(
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Get('delivered-orders')
@@ -32,14 +35,23 @@ export class PaymentsController {
 
   @Post()
   @Permissions('finance.payment.create')
-  async createPayment(@Body() dto: { customerId: string, amount: number }, @Req() req: any) {
+  async createPayment(
+    @Body() dto: { customerId: string; amount: number },
+    @Req() req: any,
+  ) {
     return this.paymentsService.createPayment(dto, req.user?.sub);
   }
 
   @Post('sales-record')
   @Permissions('sales.orders.update')
   async recordPaymentFromSales(
-    @Body() dto: { customerId: string, salesOrderId: string, amount: number, proofUrl: string },
+    @Body()
+    dto: {
+      customerId: string;
+      salesOrderId: string;
+      amount: number;
+      proofUrl: string;
+    },
     @Req() req: any,
   ) {
     return this.paymentsService.recordPaymentFromSales(dto, req.user?.sub);
@@ -59,13 +71,25 @@ export class PaymentsController {
 
   @Post(':id/allocate')
   @Permissions('finance.payment.update')
-  async allocatePayment(@Param('id') id: string, @Body() dto: { allocations: { invoiceId: string, amount: number }[] }, @Req() req: any) {
-    return this.paymentsService.allocatePayment(id, dto.allocations, req.user?.sub);
+  async allocatePayment(
+    @Param('id') id: string,
+    @Body() dto: { allocations: { invoiceId: string; amount: number }[] },
+    @Req() req: any,
+  ) {
+    return this.paymentsService.allocatePayment(
+      id,
+      dto.allocations,
+      req.user?.sub,
+    );
   }
 
   @Post(':id/bounce')
   @Permissions('finance.payment.update')
-  async markBounced(@Param('id') id: string, @Body() dto: { remarks?: string }, @Req() req: any) {
+  async markBounced(
+    @Param('id') id: string,
+    @Body() dto: { remarks?: string },
+    @Req() req: any,
+  ) {
     return this.paymentsService.markBounced(id, dto.remarks, req.user?.sub);
   }
 }

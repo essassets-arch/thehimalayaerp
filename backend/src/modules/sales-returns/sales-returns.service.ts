@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestSalesReturnDto } from './dto/request-sales-return.dto';
 
@@ -18,15 +22,21 @@ export class SalesReturnsService {
 
     // Validate quantities
     for (const item of dto.items) {
-      const orderItem = order.items.find(i => i.id === item.salesOrderItemId);
+      const orderItem = order.items.find((i) => i.id === item.salesOrderItemId);
       if (!orderItem) {
-        throw new BadRequestException(`Order item ${item.salesOrderItemId} not found in this order.`);
+        throw new BadRequestException(
+          `Order item ${item.salesOrderItemId} not found in this order.`,
+        );
       }
 
       const delivered = order.dispatches
-        .filter((dispatch) => ['DELIVERED', 'COMPLETED'].includes(dispatch.status))
+        .filter((dispatch) =>
+          ['DELIVERED', 'COMPLETED'].includes(dispatch.status),
+        )
         .flatMap((dispatch) => dispatch.items)
-        .filter((dispatchItem) => dispatchItem.salesOrderItemId === orderItem.id)
+        .filter(
+          (dispatchItem) => dispatchItem.salesOrderItemId === orderItem.id,
+        )
         .reduce((sum, dispatchItem) => sum + Number(dispatchItem.quantity), 0);
       const [returned, replaced] = await Promise.all([
         this.prisma.salesReturnItem.aggregate({
@@ -46,13 +56,15 @@ export class SalesReturnsService {
       ]);
       const availableForReturn = Math.max(
         0,
-        delivered
-          - Number(returned._sum.requestedQuantity || 0)
-          - Number(replaced._sum.requestedQuantity || 0),
+        delivered -
+          Number(returned._sum.requestedQuantity || 0) -
+          Number(replaced._sum.requestedQuantity || 0),
       );
 
       if (item.requestedQuantity > availableForReturn) {
-        throw new BadRequestException(`Requested quantity ${item.requestedQuantity} exceeds available delivered quantity for return (${availableForReturn}) for item ${orderItem.productNameSnapshot}.`);
+        throw new BadRequestException(
+          `Requested quantity ${item.requestedQuantity} exceeds available delivered quantity for return (${availableForReturn}) for item ${orderItem.productNameSnapshot}.`,
+        );
       }
     }
 
@@ -64,7 +76,7 @@ export class SalesReturnsService {
       });
     } catch {
       seq = await this.prisma.idSequence.create({
-        data: { key: 'RETURN_NO', nextValue: 2 }
+        data: { key: 'RETURN_NO', nextValue: 2 },
       });
     }
     const nextVal = seq.nextValue - 1;
@@ -85,31 +97,45 @@ export class SalesReturnsService {
           // workflowStateId: null,
           requestedById: userId,
           items: {
-            create: dto.items.map(i => ({
+            create: dto.items.map((i) => ({
               salesOrderItemId: i.salesOrderItemId,
-              productId: order.items.find(oi => oi.id === i.salesOrderItemId)!.productId,
+              productId: order.items.find((oi) => oi.id === i.salesOrderItemId)!
+                .productId,
               deliveredQuantity: order.dispatches
-                .filter((dispatch) => ['DELIVERED', 'COMPLETED'].includes(dispatch.status))
+                .filter((dispatch) =>
+                  ['DELIVERED', 'COMPLETED'].includes(dispatch.status),
+                )
                 .flatMap((dispatch) => dispatch.items)
-                .filter((dispatchItem) => dispatchItem.salesOrderItemId === i.salesOrderItemId)
-                .reduce((sum, dispatchItem) => sum + Number(dispatchItem.quantity), 0),
+                .filter(
+                  (dispatchItem) =>
+                    dispatchItem.salesOrderItemId === i.salesOrderItemId,
+                )
+                .reduce(
+                  (sum, dispatchItem) => sum + Number(dispatchItem.quantity),
+                  0,
+                ),
               previouslyReturnedQty: 0,
               requestedQuantity: i.requestedQuantity,
               reason: i.reason,
               conditionReported: i.conditionReported,
               evidence: i.evidence || {},
-            }))
-          }
+            })),
+          },
         },
-        include: { items: true }
+        include: { items: true },
       });
 
       return salesReturn;
     });
   }
 
-  async findAll() {
+  async findAll(companyId: string) {
     return this.prisma.salesReturn.findMany({
+      where: {
+        salesOrder: {
+          customer: { companyId }
+        }
+      },
       orderBy: { requestedAt: 'desc' },
       include: {
         workflowState: true,
@@ -123,7 +149,9 @@ export class SalesReturnsService {
     const request = await this.prisma.salesReturn.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('Return request not found');
     if (!['REQUESTED', 'UNDER_REVIEW'].includes(request.status)) {
-      throw new BadRequestException('Only a pending return request can be approved');
+      throw new BadRequestException(
+        'Only a pending return request can be approved',
+      );
     }
     return this.prisma.$transaction(async (tx) => {
       if (Array.isArray(body?.items)) {
@@ -138,7 +166,9 @@ export class SalesReturnsService {
           where: { salesReturnId: id },
           data: { approvedQuantity: { set: 0 } },
         });
-        const items = await tx.salesReturnItem.findMany({ where: { salesReturnId: id } });
+        const items = await tx.salesReturnItem.findMany({
+          where: { salesReturnId: id },
+        });
         for (const item of items) {
           await tx.salesReturnItem.update({
             where: { id: item.id },
@@ -156,7 +186,10 @@ export class SalesReturnsService {
           approvedAt: new Date(),
           internalRemarks: body?.remarks || request.internalRemarks,
         },
-        include: { salesOrder: { include: { customer: true } }, items: { include: { product: true } } },
+        include: {
+          salesOrder: { include: { customer: true } },
+          items: { include: { product: true } },
+        },
       });
     });
   }
@@ -164,7 +197,8 @@ export class SalesReturnsService {
   async reject(id: string, body: any, userId: string) {
     const request = await this.prisma.salesReturn.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('Return request not found');
-    if (!body?.reason?.trim()) throw new BadRequestException('Rejection reason is required');
+    if (!body?.reason?.trim())
+      throw new BadRequestException('Rejection reason is required');
     return this.prisma.salesReturn.update({
       where: { id },
       data: {
@@ -179,7 +213,8 @@ export class SalesReturnsService {
   async dispatch(id: string, body: any) {
     const request = await this.prisma.salesReturn.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('Return request not found');
-    if (request.status !== 'APPROVED') throw new BadRequestException('Plant Head approval is required');
+    if (request.status !== 'APPROVED')
+      throw new BadRequestException('Plant Head approval is required');
     return this.prisma.salesReturn.update({
       where: { id },
       data: { status: 'PICKUP_ASSIGNED', dispatchDetails: body || {} },
@@ -189,17 +224,24 @@ export class SalesReturnsService {
   async inTransit(id: string) {
     const request = await this.prisma.salesReturn.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('Return request not found');
-    if (request.status !== 'PICKUP_ASSIGNED') throw new BadRequestException('Create the return dispatch first');
-    return this.prisma.salesReturn.update({ where: { id }, data: { status: 'IN_TRANSIT' } });
+    if (request.status !== 'PICKUP_ASSIGNED')
+      throw new BadRequestException('Create the return dispatch first');
+    return this.prisma.salesReturn.update({
+      where: { id },
+      data: { status: 'IN_TRANSIT' },
+    });
   }
 
   async deliver(id: string, body: any) {
     const request = await this.prisma.salesReturn.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('Return request not found');
     if (!['PICKUP_ASSIGNED', 'IN_TRANSIT'].includes(request.status)) {
-      throw new BadRequestException('Return must be dispatched before delivery');
+      throw new BadRequestException(
+        'Return must be dispatched before delivery',
+      );
     }
-    if (!body?.proofUrl) throw new BadRequestException('Delivery proof is required');
+    if (!body?.proofUrl)
+      throw new BadRequestException('Delivery proof is required');
     return this.prisma.salesReturn.update({
       where: { id },
       data: {

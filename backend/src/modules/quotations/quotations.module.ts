@@ -6,6 +6,6 @@ import { WorkflowModule } from '../workflow/workflow.module';
 @Module({
   imports: [WorkflowModule],
   controllers: [QuotationsController],
-  providers: [QuotationsService]
+  providers: [QuotationsService],
 })
 export class QuotationsModule {}

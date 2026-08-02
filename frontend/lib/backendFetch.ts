@@ -101,18 +101,24 @@ async function performBackendFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    const validationDetails = Array.isArray(envelope?.error?.details)
-      ? envelope.error.details.filter(Boolean).join(' ')
-      : '';
-    const backendMessage =
-      envelope?.error?.message ||
-      envelope?.message ||
-      validationDetails;
-    const error = new Error(backendMessage || `Request failed: ${res.status}`);
-    (error as any).status = res.status;
-    (error as any).code = envelope?.error?.code || envelope?.code;
-    (error as any).details = envelope?.error?.details;
-    (error as any).field = envelope?.error?.field;
+    const message = Array.isArray(envelope?.message)
+      ? envelope.message.join(", ")
+      : envelope?.error?.message ||
+        envelope?.message ||
+        envelope?.error ||
+        `Request failed with status ${res.status}`;
+
+    const error = new Error(message) as Error & {
+      status?: number;
+      details?: unknown;
+      code?: string;
+      field?: string;
+    };
+
+    error.status = res.status;
+    error.code = envelope?.error?.code || envelope?.code;
+    error.details = envelope?.error?.details || envelope; // Attach the full envelope as details for logging
+    error.field = envelope?.error?.field;
     throw error;
   }
 

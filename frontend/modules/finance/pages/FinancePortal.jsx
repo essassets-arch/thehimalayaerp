@@ -2424,11 +2424,11 @@ export default function FinancePortal() {
                     <tbody>
                       {(selectedApprovedPO.items || []).map((item, idx) => {
                         const qty = Number(item.quantity || 0);
-                        const rate = Number(item.unitRate || item.rate || 0);
+                        const rate = Number(item.unitPrice || item.unitRate || item.rate || 0);
                         return (
                           <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '12px 16px', fontWeight: 700, color: '#24345C' }}>{item.name || item.material}</td>
-                            <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{qty} {item.unit || 'Units'}</td>
+                            <td style={{ padding: '12px 16px', fontWeight: 700, color: '#24345C' }}>{item.product?.name || item.name || item.material || 'Unknown Material'}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
                             <td style={{ padding: '12px 16px', textAlign: 'right' }}>₹{rate.toLocaleString()}</td>
                             <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800 }}>₹{(qty * rate).toLocaleString()}</td>
                           </tr>
@@ -2638,6 +2638,38 @@ export default function FinancePortal() {
                   >
                     Submit for Approval
                   </button>
+                )}
+                {row.status === 'PENDING_SUPER_ADMIN_APPROVAL' && (
+                  <>
+                    <button
+                      style={{ background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      onClick={async () => {
+                        try {
+                          await approvePurchaseOrder(row.id, 'Approved by Super Admin', user?.name); 
+                          showToast(`PO ${row.poNumber || row.id} approved successfully!`, 'success'); 
+                        } catch (err) {
+                          console.error(err);
+                          showToast(`Failed to approve PO: ${err?.message || 'Unknown error'}`, 'error');
+                        }
+                      }}
+                    >
+                      <CheckCircle2 size={14} /> Approve PO
+                    </button>
+                    <button
+                      style={{ background: '#dc2626', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      onClick={async () => {
+                        try {
+                          await rejectPurchaseOrder(row.id, 'Rejected by Super Admin', user?.name); 
+                          showToast(`PO ${row.poNumber || row.id} rejected.`, 'error'); 
+                        } catch (err) {
+                          console.error(err);
+                          showToast(`Failed to reject PO: ${err?.message || 'Unknown error'}`, 'error');
+                        }
+                      }}
+                    >
+                      <XCircle size={14} /> Reject
+                    </button>
+                  </>
                 )}
                 {row.status === 'PO_ISSUED' && (
                   <button className="btn-small btn-outline-small" onClick={() => handleVendorAccept(row)}>

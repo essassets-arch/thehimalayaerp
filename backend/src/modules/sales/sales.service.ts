@@ -42,7 +42,9 @@ export class SalesService {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
         { customerPurchaseOrderNo: { contains: search, mode: 'insensitive' } },
-        { customer: { companyName: { contains: search, mode: 'insensitive' } } },
+        {
+          customer: { companyName: { contains: search, mode: 'insensitive' } },
+        },
       ];
     }
     // Dynamic statuses are not part of query natively anymore, but could be filtered via workflowStateId
@@ -60,8 +62,8 @@ export class SalesService {
             include: { items: true },
             orderBy: { updatedAt: 'desc' },
           },
-          returns: { orderBy: { requestedAt: 'desc' } },
-          replacementRequests: { orderBy: { requestedAt: 'desc' } },
+          returns: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
+          replacementRequests: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
           customerPayments: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -93,21 +95,25 @@ export class SalesService {
           include: { items: true },
           orderBy: { updatedAt: 'desc' },
         },
-        returns: { orderBy: { requestedAt: 'desc' } },
-        replacementRequests: { orderBy: { requestedAt: 'desc' } },
+        returns: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
+        replacementRequests: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
         customerPayments: true,
       },
     });
-    if (!order) throw new NotFoundException(`SalesOrder with ID ${id} not found`);
-    
+    if (!order)
+      throw new NotFoundException(`SalesOrder with ID ${id} not found`);
+
     let availableActions: any[] = [];
     if (order.workflowStateId) {
-       availableActions = await this.workflowService.getAvailableActions("SALES_ORDER_FLOW", order.workflowStateId);
+      availableActions = await this.workflowService.getAvailableActions(
+        'SALES_ORDER_FLOW',
+        order.workflowStateId,
+      );
     }
-    
+
     return {
-       ...mapSalesOrder(order),
-       availableActions
+      ...mapSalesOrder(order),
+      availableActions,
     };
   }
 
@@ -157,7 +163,8 @@ export class SalesService {
     userId: string,
     role?: string,
   ): Promise<SalesOrderResponseDto> {
-    const initialState = await this.workflowService.getInitialState('SALES_ORDER');
+    const initialState =
+      await this.workflowService.getInitialState('SALES_ORDER');
 
     return this.prisma.$transaction(async (tx) => {
       const { processedItems, ...totals } = this.calculateTotals(dto.items);
@@ -171,7 +178,9 @@ export class SalesService {
         where: { id: { in: processedItems.map((item) => item.productId) } },
         select: { id: true, name: true, sku: true },
       });
-      const productById = new Map(products.map((product) => [product.id, product]));
+      const productById = new Map(
+        products.map((product) => [product.id, product]),
+      );
       const order = await tx.salesOrder.create({
         data: {
           orderNumber,
@@ -227,100 +236,125 @@ export class SalesService {
 
   async processAction(
     id: string,
-    dto: { action: string, remarks?: string },
+    dto: { action: string; remarks?: string },
     userId: string,
     role?: string,
   ) {
     const scope = getSalesScope(userId, role, 'createdById');
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
-        where: { id, ...scope }, include: { items: true } });
-    if (!order) throw new NotFoundException('Sales Order not found');
+        where: { id, ...scope },
+        include: { items: true },
+      });
+      if (!order) throw new NotFoundException('Sales Order not found');
 
-    if (dto.action === 'SUBMIT') {
-      const orderTotal = order.items.reduce((sum, item) => sum + Number(item.lineTotal), 0);
-      const creditCheck = await this.creditService.checkCreditLimit(order.customerId, orderTotal, 'SALES_ORDER');
-      
-      if (!creditCheck.allowed && creditCheck.requiresApproval) {
-        // We will allow submission but the state will naturally move to PENDING_APPROVAL and require an authorized user.
-        // For strictness, if we wanted to block it:
-        // throw new BadRequestException(`Credit limit exceeded. Current Balance: ${creditCheck.currentBalance}, Limit: ${creditCheck.creditLimit}`);
+      if (dto.action === 'SUBMIT') {
+        const orderTotal = order.items.reduce(
+          (sum, item) => sum + Number(item.lineTotal),
+          0,
+        );
+        const creditCheck = await this.creditService.checkCreditLimit(
+          order.customerId,
+          orderTotal,
+          'SALES_ORDER',
+        );
+
+        if (!creditCheck.allowed && creditCheck.requiresApproval) {
+          // We will allow submission but the state will naturally move to PENDING_APPROVAL and require an authorized user.
+          // For strictness, if we wanted to block it:
+          // throw new BadRequestException(`Credit limit exceeded. Current Balance: ${creditCheck.currentBalance}, Limit: ${creditCheck.creditLimit}`);
+        }
       }
-    }
 
-    const result = await this.workflowService.processAction({
-       entityId: order.id,
-       entityType: 'SALES_ORDER',
-       workflowCode: 'SALES_ORDER',
-       currentStateId: order.workflowStateId!,
-       actionName: dto.action,
-       userId,
-       remarks: dto.remarks
-    }, tx);
+      const result = await this.workflowService.processAction(
+        {
+          entityId: order.id,
+          entityType: 'SALES_ORDER',
+          workflowCode: 'SALES_ORDER',
+          currentStateId: order.workflowStateId!,
+          actionName: dto.action,
+          userId,
+          remarks: dto.remarks,
+        },
+        tx,
+      );
 
-    const statusByAction: Partial<Record<string, SalesOrderStatus>> = {
-      SUBMIT: SalesOrderStatus.PENDING_APPROVAL,
-      CONFIRM: SalesOrderStatus.CONFIRMED,
-      SEND_TO_PLANT: SalesOrderStatus.SENT_TO_PLANT_HEAD,
-      PLANT_APPROVE: SalesOrderStatus.PLANT_APPROVED,
-      PLAN_PRODUCTION: SalesOrderStatus.READY_FOR_PRODUCTION,
-      START_PRODUCTION: SalesOrderStatus.IN_PRODUCTION,
-      MARK_READY: SalesOrderStatus.READY_FOR_DISPATCH,
-      COMPLETE: SalesOrderStatus.COMPLETED,
-      CANCEL: SalesOrderStatus.CANCELLED,
-    };
-    const updated = await tx.salesOrder.update({
+      const statusByAction: Partial<Record<string, SalesOrderStatus>> = {
+        SUBMIT: SalesOrderStatus.PENDING_APPROVAL,
+        CONFIRM: SalesOrderStatus.CONFIRMED,
+        SEND_TO_PLANT: SalesOrderStatus.SENT_TO_PLANT_HEAD,
+        PLANT_APPROVE: SalesOrderStatus.PLANT_APPROVED,
+        PLAN_PRODUCTION: SalesOrderStatus.READY_FOR_PRODUCTION,
+        START_PRODUCTION: SalesOrderStatus.IN_PRODUCTION,
+        MARK_READY: SalesOrderStatus.READY_FOR_DISPATCH,
+        COMPLETE: SalesOrderStatus.COMPLETED,
+        CANCEL: SalesOrderStatus.CANCELLED,
+      };
+      const updated = await tx.salesOrder.update({
         where: { id },
         data: {
-           workflowStateId: result.nextStateId,
-           ...(statusByAction[dto.action] ? { status: statusByAction[dto.action] } : {}),
-           ...(dto.action === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
-           version: { increment: 1 }
+          workflowStateId: result.nextStateId,
+          ...(statusByAction[dto.action]
+            ? { status: statusByAction[dto.action] }
+            : {}),
+          ...(dto.action === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
+          version: { increment: 1 },
         },
         include: {
           customer: true,
           items: true,
           workflowState: true,
           productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
-        }
-    });
-
-    if (dto.action === 'SEND_TO_PLANT' && updated.productionPlans.length === 0) {
-      const [initialPlanState, plantHead, planNumber] = await Promise.all([
-        this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
-        tx.user.findFirst({
-          where: { isActive: true, deletedAt: null, role: { code: 'PLANT_HEAD' } },
-          select: { id: true },
-          orderBy: { createdAt: 'asc' },
-        }),
-        this.sequenceService.generateNextWithTx(tx, 'production_plan_number', 'PP-'),
-      ]);
-      await tx.productionPlan.create({
-        data: {
-          planNumber,
-          salesOrderId: order.id,
-          status: 'PENDING_PLANNING',
-          assignedToId: plantHead?.id,
-          workflowStateId: initialPlanState.id,
         },
       });
-    }
 
-    const orderWithPlan = await tx.salesOrder.findUniqueOrThrow({
-      where: { id },
-      include: {
-        customer: true,
-        items: true,
-        workflowState: true,
-        productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
-    });
+      if (
+        dto.action === 'SEND_TO_PLANT' &&
+        updated.productionPlans.length === 0
+      ) {
+        const [initialPlanState, plantHead, planNumber] = await Promise.all([
+          this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
+          tx.user.findFirst({
+            where: {
+              isActive: true,
+              deletedAt: null,
+              role: { code: 'PLANT_HEAD' },
+            },
+            select: { id: true },
+            orderBy: { createdAt: 'asc' },
+          }),
+          this.sequenceService.generateNextWithTx(
+            tx,
+            'production_plan_number',
+            'PP-',
+          ),
+        ]);
+        await tx.productionPlan.create({
+          data: {
+            planNumber,
+            salesOrderId: order.id,
+            status: 'PENDING_PLANNING',
+            assignedToId: plantHead?.id,
+            workflowStateId: initialPlanState.id,
+          },
+        });
+      }
 
-    return {
+      const orderWithPlan = await tx.salesOrder.findUniqueOrThrow({
+        where: { id },
+        include: {
+          customer: true,
+          items: true,
+          workflowState: true,
+          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+      });
+
+      return {
         success: true,
         message: `Action ${dto.action} processed successfully. New state: ${result.nextStateName}`,
-        order: mapSalesOrder(orderWithPlan)
-    };
+        order: mapSalesOrder(orderWithPlan),
+      };
     });
   }
 

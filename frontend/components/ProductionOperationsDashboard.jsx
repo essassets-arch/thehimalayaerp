@@ -3,11 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ClipboardPlus, Factory, RefreshCw, Trash2, X } from 'lucide-react';
-
-const readSaved = (key) => {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
-};
+import { backendFetch } from '../lib/backendFetch';
 const number = (value) => Number(value) || 0;
 const workOrderRef = (wo) => wo.workOrderNo || wo.workOrderId || wo.id || wo.orderNo || '—';
 const productName = (wo) => wo.productName || wo.product || wo.itemName || wo.order?.product || '—';
@@ -24,21 +20,21 @@ function Modal({ title, onClose, children }) {
 
 const Field = ({ label, children }) => <label className="pod-field"><span>{label}</span>{children}</label>;
 
-export default function ProductionOperationsDashboard({ workOrders = [], onCompleteRework }) {
-  const [shiftEntries, setShiftEntries] = useState([]);
-  const [scrapEntries, setScrapEntries] = useState([]);
+export default function ProductionOperationsDashboard({ workOrders = [], initialShiftEntries = [], initialScrapEntries = [], onCompleteRework }) {
+  const [shiftEntries, setShiftEntries] = useState(initialShiftEntries);
+  const [scrapEntries, setScrapEntries] = useState(initialScrapEntries);
   const [completedRework, setCompletedRework] = useState([]);
   const [modal, setModal] = useState(null);
   const [shiftForm, setShiftForm] = useState({ workOrderId: '', shift: 'Morning', supervisor: '', targetQty: '', producedQty: '', rejectedQty: '', reworkQty: '', date: new Date().toISOString().slice(0, 10) });
   const [scrapForm, setScrapForm] = useState({ workOrderId: '', shift: 'Morning', scrapQty: '', wastageQty: '', category: 'Process Scrap', supervisor: '', date: new Date().toISOString().slice(0, 10), remarks: '' });
 
   useEffect(() => {
-    setShiftEntries(readSaved('production-shift-entries'));
-    setScrapEntries(readSaved('production-scrap-entries'));
-    setCompletedRework(readSaved('production-completed-rework'));
-  }, []);
+    if (initialShiftEntries.length > 0) setShiftEntries(initialShiftEntries);
+  }, [initialShiftEntries]);
 
-  const save = (key, value, setter) => { setter(value); localStorage.setItem(key, JSON.stringify(value)); };
+  useEffect(() => {
+    if (initialScrapEntries.length > 0) setScrapEntries(initialScrapEntries);
+  }, [initialScrapEntries]);
   const selectedShiftWO = workOrders.find((wo) => String(wo.id || wo.workOrderId || wo.workOrderNo) === shiftForm.workOrderId);
   const selectedScrapWO = workOrders.find((wo) => String(wo.id || wo.workOrderId || wo.workOrderNo) === scrapForm.workOrderId);
   const reworkJobs = workOrders.filter((wo) => ['REWORK', 'REWORK_REQUIRED', 'REWORK_IN_PROGRESS', 'QC_FAILED', 'FAILED'].includes(statusText(wo)) || number(wo.reworkCount) > 0).filter((wo) => !completedRework.includes(String(wo.id || workOrderRef(wo))));
@@ -63,19 +59,45 @@ export default function ProductionOperationsDashboard({ workOrders = [], onCompl
   });
   const targetActual = shiftEntries.slice(-8).map((item, index) => ({ name: `${item.date.slice(5)} ${item.shift[0]}`, Target: number(item.targetQty), Actual: Math.max(0, number(item.producedQty) - number(item.rejectedQty)), key: `${item.id}-${index}` }));
 
-  const submitShift = (event) => {
+  const submitShift = async (event) => {
     event.preventDefault();
-    const entry = { ...shiftForm, id: `SHIFT-${Date.now()}`, workOrder: workOrderRef(selectedShiftWO || {}), product: productName(selectedShiftWO || {}), efficiency: number(shiftForm.targetQty) ? Math.max(0, number(shiftForm.producedQty) - number(shiftForm.rejectedQty)) / number(shiftForm.targetQty) * 100 : 0 };
-    save('production-shift-entries', [...shiftEntries, entry], setShiftEntries); setModal(null);
+    try {
+      const entryPayload = { ...shiftForm, targetQty: number(shiftForm.targetQty), producedQty: number(shiftForm.producedQty), rejectedQty: number(shiftForm.rejectedQty), reworkQty: number(shiftForm.reworkQty) };
+      const res = await backendFetch('/api/backend/production/shift-entries', { method: 'POST', body: JSON.stringify(entryPayload) });
+      if (res?.success) {
+        setShiftEntries([...shiftEntries, { ...res.data, workOrder: workOrderRef(selectedShiftWO || {}), product: productName(selectedShiftWO || {}), efficiency: number(shiftForm.targetQty) ? Math.max(0, number(shiftForm.producedQty) - number(shiftForm.rejectedQty)) / number(shiftForm.targetQty) * 100 : 0 }]);
+        setModal(null);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to save shift entry');
+    }
   };
-  const submitScrap = (event) => {
+
+  const submitScrap = async (event) => {
     event.preventDefault();
-    const entry = { ...scrapForm, id: `SCRAP-${Date.now()}`, workOrder: workOrderRef(selectedScrapWO || {}), product: productName(selectedScrapWO || {}) };
-    save('production-scrap-entries', [...scrapEntries, entry], setScrapEntries); setModal(null);
+    try {
+      const entryPayload = { ...scrapForm, scrapQty: number(scrapForm.scrapQty), wastageQty: number(scrapForm.wastageQty) };
+      const res = await backendFetch('/api/backend/production/scrap-entries', { method: 'POST', body: JSON.stringify(entryPayload) });
+      if (res?.success) {
+        setScrapEntries([...scrapEntries, { ...res.data, workOrder: workOrderRef(selectedScrapWO || {}), product: productName(selectedScrapWO || {}) }]);
+        setModal(null);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to save scrap entry');
+    }
   };
+
   const completeRework = async (wo) => {
-    await onCompleteRework?.(wo);
-    save('production-completed-rework', [...completedRework, String(wo.id || workOrderRef(wo))], setCompletedRework);
+    try {
+      await backendFetch(`/api/backend/production/${wo.id || wo.workOrderId}/complete-rework`, { method: 'POST' });
+      await onCompleteRework?.(wo);
+      setCompletedRework([...completedRework, String(wo.id || workOrderRef(wo))]);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to complete rework');
+    }
   };
 
   const kpis = [

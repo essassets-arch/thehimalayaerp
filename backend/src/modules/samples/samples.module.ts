@@ -4,6 +4,6 @@ import { SamplesService } from './samples.service';
 
 @Module({
   controllers: [SamplesController],
-  providers: [SamplesService]
+  providers: [SamplesService],
 })
 export class SamplesModule {}

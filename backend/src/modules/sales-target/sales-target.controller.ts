@@ -1,4 +1,15 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Req,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { SalesTargetService } from './sales-target.service';
 import { CreateSalesTargetDto } from './dto/create-sales-target.dto';
 import { UpdateSalesTargetDto } from './dto/update-sales-target.dto';
@@ -43,7 +54,11 @@ export class SalesTargetController {
 
   @Patch(':id')
   @Permissions('sales.targets.update', 'super-admin')
-  async update(@Req() req, @Param('id') id: string, @Body() dto: UpdateSalesTargetDto) {
+  async update(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: UpdateSalesTargetDto,
+  ) {
     const userId = req.user?.sub || req.user?.id;
     const data = await this.service.update(id, dto, userId);
     return { message: 'Sales target updated successfully.', data };

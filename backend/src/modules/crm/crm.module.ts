@@ -8,7 +8,11 @@ import { SalesRemindersController } from './sales-reminders.controller';
 
 @Module({
   imports: [WorkflowModule],
-  controllers: [LeadsController, CrmInsightsController, SalesRemindersController],
-  providers: [LeadsService, CrmInsightsService]
+  controllers: [
+    LeadsController,
+    CrmInsightsController,
+    SalesRemindersController,
+  ],
+  providers: [LeadsService, CrmInsightsService],
 })
 export class CrmModule {}

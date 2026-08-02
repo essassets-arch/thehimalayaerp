@@ -12,6 +12,6 @@ import { WorkflowModule } from '../workflow/workflow.module';
   imports: [WorkflowModule],
   controllers: [InvoicesController, PaymentsController, LedgerController],
   providers: [InvoicesService, PaymentsService, LedgerService, CreditService],
-  exports: [LedgerService, CreditService]
+  exports: [LedgerService, CreditService],
 })
 export class FinanceModule {}

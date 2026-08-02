@@ -162,7 +162,7 @@ export default function LeadsView({
   };
 
   const handleGenerateSampleClick = (lead) => {
-    const res = erpStore.createOrResumeSampleFromLead(lead.id || lead.leadId);
+    const res = erpStore.createOrResumeSampleFromLead(lead.id || lead.leadId, lead);
     if (res.success) {
       router.push(`/sales/create-sample?sampleId=${res.sampleId}&leadId=${lead.id || lead.leadId}`);
     } else {

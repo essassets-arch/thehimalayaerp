@@ -50,6 +50,7 @@ async function main() {
 
     'crm.quotation.create', 'crm.quotation.read', 'crm.quotation.update',
     'dispatch.create', 'dispatch.read', 'dispatch.update',
+    'logistics.dispatches.read', 'logistics.dispatches.create', 'logistics.dispatches.start-delivery', 'logistics.dispatches.confirm-delivery',
     'finance.invoice.read', 'finance.invoice.update',
     'finance.ledger.read',
     'finance.payment.create', 'finance.payment.read', 'finance.payment.update',
@@ -292,6 +293,13 @@ async function main() {
           'production.plan.release',
           'production.workorder.update',
           'qc.inspection.read',
+          'dispatch.create',
+          'dispatch.read',
+          'dispatch.update',
+          'logistics.dispatches.read',
+          'logistics.dispatches.create',
+          'logistics.dispatches.start-delivery',
+          'logistics.dispatches.confirm-delivery',
           'hr.recruitment.requests.create',
           'hr.recruitment.requests.read.own',
           'hr.recruitment.requests.update.own',
@@ -387,6 +395,10 @@ async function main() {
           'dispatch.create',
           'dispatch.read',
           'dispatch.update',
+          'logistics.dispatches.read',
+          'logistics.dispatches.create',
+          'logistics.dispatches.start-delivery',
+          'logistics.dispatches.confirm-delivery',
         ],
       },
     },
@@ -405,6 +417,36 @@ async function main() {
           roleId: dispatchRole.id,
           permissionId: permission.id,
         },
+      });
+    }
+  }
+
+  // Temporarily grant dispatch creation to all roles for end-to-end testing convenience
+  console.log('🔗 Assigning dispatch permissions to all roles for testing...');
+  const everyRoleAgain = await prisma.role.findMany();
+  const allDispatchPerms = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'dispatch.create',
+          'dispatch.read',
+          'dispatch.update',
+          'logistics.dispatches.read',
+          'logistics.dispatches.create',
+          'logistics.dispatches.start-delivery',
+          'logistics.dispatches.confirm-delivery',
+        ],
+      },
+    },
+  });
+  for (const role of everyRoleAgain) {
+    for (const permission of allDispatchPerms) {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: { roleId: role.id, permissionId: permission.id },
+        },
+        update: {},
+        create: { roleId: role.id, permissionId: permission.id },
       });
     }
   }

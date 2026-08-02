@@ -1,6 +1,8 @@
 /* ── Page Shell ── */
 .page {
   width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   min-height: 100vh;
   padding: 28px 32px 60px;
   box-sizing: border-box;

@@ -1,13 +1,27 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { CreateBrandAnalysisDto, ApproveBrandAnalysisDto, RejectBrandAnalysisDto, StartBrandAnalysisDto, CompleteBrandAnalysisDto } from './dto/brand-analysis.dto';
+import {
+  CreateBrandAnalysisDto,
+  ApproveBrandAnalysisDto,
+  RejectBrandAnalysisDto,
+  StartBrandAnalysisDto,
+  CompleteBrandAnalysisDto,
+} from './dto/brand-analysis.dto';
 import { BrandAnalysisRequestStatus } from '@prisma/client';
 
 @Injectable()
 export class BrandAnalysisService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async generateRequestNumber(companyId: string = 'COMP-000001'): Promise<string> {
+  private async generateRequestNumber(
+    companyId: string = 'COMP-000001',
+  ): Promise<string> {
     const year = new Date().getFullYear();
     const result = await this.prisma.$transaction(async (tx) => {
       const sequence = await tx.documentSequence.upsert({
@@ -15,19 +29,19 @@ export class BrandAnalysisService {
           companyId_documentType_year: {
             companyId,
             documentType: 'BAR',
-            year
-          }
+            year,
+          },
         },
         update: {
-          currentNumber: { increment: 1 }
+          currentNumber: { increment: 1 },
         },
         create: {
           companyId,
           documentType: 'BAR',
           prefix: 'BAR',
           year,
-          currentNumber: 1
-        }
+          currentNumber: 1,
+        },
       });
       return sequence;
     });
@@ -51,7 +65,9 @@ export class BrandAnalysisService {
           imageOriginalName: dto.imageOriginalName,
           reason: dto.reason,
           orderDetails: dto.orderDetails,
-          requiredByDate: dto.requiredByDate ? new Date(dto.requiredByDate) : null,
+          requiredByDate: dto.requiredByDate
+            ? new Date(dto.requiredByDate)
+            : null,
           remarks: dto.remarks,
           requestedById: userId,
           status: 'PENDING_SUPER_ADMIN_APPROVAL',
@@ -83,7 +99,7 @@ export class BrandAnalysisService {
       orderBy: { createdAt: 'desc' },
       include: {
         requestedBy: { select: { id: true, name: true } },
-      }
+      },
     });
   }
 
@@ -91,14 +107,18 @@ export class BrandAnalysisService {
     return this.prisma.brandAnalysisRequest.findMany({
       where: {
         status: {
-          in: ['SUPER_ADMIN_APPROVED', 'FINANCE_ANALYSIS_IN_PROGRESS', 'FINANCE_ANALYSIS_COMPLETED']
-        }
+          in: [
+            'SUPER_ADMIN_APPROVED',
+            'FINANCE_ANALYSIS_IN_PROGRESS',
+            'FINANCE_ANALYSIS_COMPLETED',
+          ],
+        },
       },
       orderBy: { createdAt: 'desc' },
       include: {
         requestedBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
-      }
+      },
     });
   }
 
@@ -127,10 +147,16 @@ export class BrandAnalysisService {
 
   async approve(id: string, dto: ApproveBrandAnalysisDto, userId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.brandAnalysisRequest.findUnique({ where: { id } });
+      const request = await tx.brandAnalysisRequest.findUnique({
+        where: { id },
+      });
       if (!request) throw new NotFoundException('Request not found');
-      if (request.version !== dto.version) throw new ConflictException('Data has been modified by another user. Please refresh and try again.');
-      if (request.status !== 'PENDING_SUPER_ADMIN_APPROVAL') throw new BadRequestException('Request is not in pending state');
+      if (request.version !== dto.version)
+        throw new ConflictException(
+          'Data has been modified by another user. Please refresh and try again.',
+        );
+      if (request.status !== 'PENDING_SUPER_ADMIN_APPROVAL')
+        throw new BadRequestException('Request is not in pending state');
 
       const updated = await tx.brandAnalysisRequest.update({
         where: { id },
@@ -160,10 +186,16 @@ export class BrandAnalysisService {
 
   async reject(id: string, dto: RejectBrandAnalysisDto, userId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.brandAnalysisRequest.findUnique({ where: { id } });
+      const request = await tx.brandAnalysisRequest.findUnique({
+        where: { id },
+      });
       if (!request) throw new NotFoundException('Request not found');
-      if (request.version !== dto.version) throw new ConflictException('Data has been modified by another user. Please refresh and try again.');
-      if (request.status !== 'PENDING_SUPER_ADMIN_APPROVAL') throw new BadRequestException('Request is not in pending state');
+      if (request.version !== dto.version)
+        throw new ConflictException(
+          'Data has been modified by another user. Please refresh and try again.',
+        );
+      if (request.status !== 'PENDING_SUPER_ADMIN_APPROVAL')
+        throw new BadRequestException('Request is not in pending state');
 
       const updated = await tx.brandAnalysisRequest.update({
         where: { id },
@@ -193,10 +225,16 @@ export class BrandAnalysisService {
 
   async startAnalysis(id: string, dto: StartBrandAnalysisDto, userId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.brandAnalysisRequest.findUnique({ where: { id } });
+      const request = await tx.brandAnalysisRequest.findUnique({
+        where: { id },
+      });
       if (!request) throw new NotFoundException('Request not found');
-      if (request.version !== dto.version) throw new ConflictException('Data has been modified by another user. Please refresh and try again.');
-      if (request.status !== 'SUPER_ADMIN_APPROVED') throw new BadRequestException('Request is not approved by super admin');
+      if (request.version !== dto.version)
+        throw new ConflictException(
+          'Data has been modified by another user. Please refresh and try again.',
+        );
+      if (request.status !== 'SUPER_ADMIN_APPROVED')
+        throw new BadRequestException('Request is not approved by super admin');
 
       const updated = await tx.brandAnalysisRequest.update({
         where: { id },
@@ -224,12 +262,22 @@ export class BrandAnalysisService {
     });
   }
 
-  async completeAnalysis(id: string, dto: CompleteBrandAnalysisDto, userId: string) {
+  async completeAnalysis(
+    id: string,
+    dto: CompleteBrandAnalysisDto,
+    userId: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.brandAnalysisRequest.findUnique({ where: { id } });
+      const request = await tx.brandAnalysisRequest.findUnique({
+        where: { id },
+      });
       if (!request) throw new NotFoundException('Request not found');
-      if (request.version !== dto.version) throw new ConflictException('Data has been modified by another user. Please refresh and try again.');
-      if (request.status !== 'FINANCE_ANALYSIS_IN_PROGRESS') throw new BadRequestException('Request is not in progress');
+      if (request.version !== dto.version)
+        throw new ConflictException(
+          'Data has been modified by another user. Please refresh and try again.',
+        );
+      if (request.status !== 'FINANCE_ANALYSIS_IN_PROGRESS')
+        throw new BadRequestException('Request is not in progress');
 
       const updated = await tx.brandAnalysisRequest.update({
         where: { id },

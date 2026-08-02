@@ -47,23 +47,50 @@ export default function SamplesView({
     return sample?.dispatchStatus || (sample?.dispatchDate ? 'In Transit' : 'Pending Dispatch');
   };
 
-  const handleRequestReturn = (sampleId) => {
+  const handleRequestReturn = async (sampleId) => {
+    const { value: confirmed } = await Swal.fire({
+      title: 'Request Sample Return?',
+      text: 'This will send a Return Pick-up request to the Dispatch team. The sample will be collected back from the customer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Request Return',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        htmlContainer: 'swal-premium-text',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      buttonsStyling: false
+    });
+    if (!confirmed) return;
+
+    try {
+      const { apiClient } = await import('@/lib/apiClient');
+      await apiClient.patch(`/api/backend/sales/samples/${sampleId}`, {
+        status: 'RETURN_REQUESTED',
+        retrievalStatus: 'Requested',
+        returnRequestedDate: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('apiClient patch failed, falling back to local state', e);
+    }
+
     if (onUpdateSample) {
       onUpdateSample(sampleId, {
-        status: 'Sample Back Requested',
+        status: 'RETURN_REQUESTED',
+        retrievalStatus: 'Requested',
         returnRequestedDate: new Date().toISOString(),
       });
     }
     Swal.fire({
       icon: 'success',
-      title: 'Sample Back Initiated',
-      text: 'Sample Back request sent to Dispatch department successfully!',
-      timer: 1800,
+      title: 'Return Requested!',
+      text: 'Return pick-up request sent to Dispatch department. They will arrange collection.',
+      timer: 2000,
       showConfirmButton: false
     });
-    navigate.push(
-      `/dispatch/sample-dispatch?sampleId=${encodeURIComponent(sampleId)}&mode=return`
-    );
   };
 
   const handleCreateQuotation = (sample) => {
@@ -415,39 +442,7 @@ export default function SamplesView({
     });
   };
 
-  const handleRequestTakeBack = (sampleId) => {
-    Swal.fire({
-      title: 'Take Back Sample?',
-      text: 'This will mark the client feedback/deal status as "Lost" and issue an immediate return pick-up order to the Dispatch department to take back this sample.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, Take Back',
-      cancelButtonText: 'Cancel',
-      customClass: {
-        popup: 'swal-premium-popup',
-        title: 'swal-premium-title',
-        htmlContainer: 'swal-premium-text',
-        confirmButton: 'swal-premium-confirm-btn',
-        cancelButton: 'swal-premium-cancel-btn'
-      },
-      buttonsStyling: false
-    }).then((result) => {
-      if (result.isConfirmed) {
-        onUpdateSample(sampleId, { status: 'Lost', retrievalStatus: 'Requested' });
-        Swal.fire({
-          icon: 'success',
-          title: 'Take Back Initiated',
-          text: 'Return pickup request submitted to the dispatch department successfully.',
-          customClass: {
-            popup: 'swal-premium-popup',
-            title: 'swal-premium-title',
-            confirmButton: 'swal-premium-confirm-btn'
-          },
-          buttonsStyling: false
-        });
-      }
-    });
-  };
+  const handleRequestTakeBack = (sampleId) => handleRequestReturn(sampleId);
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -501,7 +496,7 @@ export default function SamplesView({
     const dispatchStatus = getDispatchStatus(sample);
     const hasQuotation = (state.quotations || []).some(q => q.sampleId === sample.id);
     const timelineMilestones = getTimelineMilestones(sample, hasQuotation);
-    const podImage = sample.podImage || sample.pod_image;
+    const podImage = sample.proofOfDelivery || sample.podImage || sample.pod_image;
     const dispatchDoc = sample.dispatchDocument || sample.dispatch_document;
 
     return (
@@ -564,9 +559,9 @@ export default function SamplesView({
               <p style={{ fontSize: '13px', color: '#7f1d1d', margin: 0, lineHeight: '1.5' }}>
                 This sample has been at the customer site for {getElapsedDays(sample)} days since dispatch (20-day evaluation limit exceeded). Please initiate sample collection to take it back to the Haridwar factory.
               </p>
-              {sample.retrievalStatus && sample.retrievalStatus !== 'None' ? (
+              {(sample.retrievalStatus && sample.retrievalStatus !== 'None') || sample.status === 'RETURN_REQUESTED' || sample.status === 'RETURN_IN_TRANSIT' || sample.status === 'RETURNED' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '700', color: '#c2410c', marginTop: '6px' }}>
-                  <span>🚛 Return collection is already {sample.retrievalStatus === 'Requested' ? 'Requested' : sample.retrievalStatus === 'In Transit' ? 'In Return Transit' : 'Completed (Returned)'}.</span>
+                  <span>🚛 Return collection is already {sample.status === 'RETURN_REQUESTED' || sample.retrievalStatus === 'Requested' ? 'Requested' : sample.status === 'RETURN_IN_TRANSIT' || sample.retrievalStatus === 'In Transit' ? 'In Return Transit' : 'Completed (Returned)'}.</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
@@ -588,7 +583,7 @@ export default function SamplesView({
                       transition: 'background 0.2s'
                     }}
                   >
-                    <Truck size={14} /> Take Back Sample
+                    <Truck size={14} /> Return Sample
                   </button>
                 </div>
               )}
@@ -652,7 +647,28 @@ export default function SamplesView({
                       {renderDetailRow('Delivered On', formatDateClean(sample.deliveredDate || sample.deliveredAt || sample.deliveryDate))}
                       {renderDetailRow('Delivered Time', sample.deliveredTime || '06:42 PM')}
                       {renderDetailRow('Received By', sample.receiverName || sample.receiver_name || 'Rajesh Sharma')}
-                      {renderDetailRow('POD Uploaded', 'Yes')}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>POD Uploaded</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{podImage ? 'Yes' : 'No'}</span>
+                          {podImage && (
+                            <button 
+                              style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                              onClick={() => {
+                                Swal.fire({
+                                  title: 'Proof of Delivery',
+                                  imageUrl: podImage,
+                                  imageAlt: 'Proof of Delivery',
+                                  width: '500px',
+                                  customClass: { popup: 'swal-premium-popup' }
+                                })
+                              }}
+                            >
+                              View Photo
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </>
                   )}
 
@@ -1433,11 +1449,19 @@ export default function SamplesView({
                     </td>
                     <td data-label="Days Left">
                       {(() => {
-                        if (sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
+                        if (sample.status === 'RETURNED' || sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                               <span style={{ fontWeight: '700', color: '#166534' }}>Evaluation Completed</span>
                               <span style={{ fontSize: '11px', color: '#15803d' }}>Returned on {sample.returnedDate ? sample.returnedDate.split('T')[0] : formatDateClean(sample.updatedAt || new Date().toISOString())}</span>
+                            </div>
+                          );
+                        }
+                        if (sample.status === 'RETURN_REQUESTED' || sample.status === 'RETURN_IN_TRANSIT') {
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: '700', color: '#b91c1c' }}>↩ Return {sample.status === 'RETURN_IN_TRANSIT' ? 'In Transit' : 'Requested'}</span>
+                              <span style={{ fontSize: '11px', color: '#dc2626' }}>Pick-up {sample.status === 'RETURN_IN_TRANSIT' ? 'underway' : 'pending logistics'}</span>
                             </div>
                           );
                         }
@@ -1460,11 +1484,14 @@ export default function SamplesView({
                     </td>
                     <td data-label="Status">
                       {(() => {
-                        if (sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
+                        if (sample.status === 'RETURNED' || sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
                           return <span className="badge badge-returned">✓ Sample Returned</span>;
                         }
-                        if (sample.status === 'Sample Back Requested' || sample.status === 'Return Requested' || sample.retrievalStatus === 'Requested') {
-                          return <span className="badge badge-sample-back">↩ Sample Back</span>;
+                        if (sample.status === 'RETURN_IN_TRANSIT') {
+                          return <span style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 6, padding: '3px 8px', fontWeight: 800, fontSize: 11 }}>↩ Return In Transit</span>;
+                        }
+                        if (sample.status === 'RETURN_REQUESTED' || sample.status === 'Sample Back Requested' || sample.status === 'Return Requested' || sample.retrievalStatus === 'Requested') {
+                          return <span className="badge badge-sample-back">↩ Return Requested</span>;
                         }
                         if (isDeliveredOrActive) {
                           if (exactInfo.isExpired) {
@@ -1506,7 +1533,7 @@ export default function SamplesView({
                           <Edit size={14} />
                         </button>
 
-                        {isDeliveredOrActive && sample.status !== 'Sample Back Requested' && sample.status !== 'Return Requested' && sample.status !== 'Return In Transit' && sample.status !== 'Returned' && (
+                        {isDeliveredOrActive && sample.status !== 'RETURN_REQUESTED' && sample.status !== 'RETURN_IN_TRANSIT' && sample.status !== 'RETURNED' && sample.status !== 'Sample Back Requested' && sample.status !== 'Return Requested' && sample.status !== 'Return In Transit' && sample.status !== 'Returned' && (
                           <button
                             type="button"
                             onClick={() => handleRequestReturn(sample.id)}
@@ -1527,7 +1554,7 @@ export default function SamplesView({
                               boxShadow: '0 1px 2px rgba(234,88,12,0.2)'
                             }}
                           >
-                            ↩ Sample Back
+                            ↩ Return Sample
                           </button>
                         )}
 

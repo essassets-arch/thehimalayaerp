@@ -49,13 +49,23 @@ export class UsersService {
     });
   }
 
-  async create(data: { email: string; password?: string; name: string; roleCode: string; companyId?: string }) {
-    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+  async create(data: {
+    email: string;
+    password?: string;
+    name: string;
+    roleCode: string;
+    companyId?: string;
+  }) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
     if (existing) {
       throw new BadRequestException('User with this email already exists.');
     }
 
-    const role = await this.prisma.role.findUnique({ where: { code: data.roleCode } });
+    const role = await this.prisma.role.findUnique({
+      where: { code: data.roleCode },
+    });
     if (!role) {
       throw new BadRequestException('Invalid role code.');
     }
@@ -64,7 +74,9 @@ export class UsersService {
     if (!companyId) {
       const company = await this.prisma.company.findFirst();
       if (!company) {
-        throw new BadRequestException('No company found in database to assign.');
+        throw new BadRequestException(
+          'No company found in database to assign.',
+        );
       }
       companyId = company.id;
     }

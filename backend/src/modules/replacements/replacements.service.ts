@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestReplacementDto } from './dto/request-replacement.dto';
 
@@ -18,15 +22,21 @@ export class ReplacementsService {
 
     // Validate quantities based on delivered quantity
     for (const item of dto.items) {
-      const orderItem = order.items.find(i => i.id === item.salesOrderItemId);
+      const orderItem = order.items.find((i) => i.id === item.salesOrderItemId);
       if (!orderItem) {
-        throw new BadRequestException(`Order item ${item.salesOrderItemId} not found.`);
+        throw new BadRequestException(
+          `Order item ${item.salesOrderItemId} not found.`,
+        );
       }
 
       const delivered = order.dispatches
-        .filter((dispatch) => ['DELIVERED', 'COMPLETED'].includes(dispatch.status))
+        .filter((dispatch) =>
+          ['DELIVERED', 'COMPLETED'].includes(dispatch.status),
+        )
         .flatMap((dispatch) => dispatch.items)
-        .filter((dispatchItem) => dispatchItem.salesOrderItemId === orderItem.id)
+        .filter(
+          (dispatchItem) => dispatchItem.salesOrderItemId === orderItem.id,
+        )
         .reduce((sum, dispatchItem) => sum + Number(dispatchItem.quantity), 0);
       const [replacementReserved, returnReserved] = await Promise.all([
         this.prisma.replacementRequestItem.aggregate({
@@ -46,13 +56,15 @@ export class ReplacementsService {
       ]);
       const availableForReplacement = Math.max(
         0,
-        delivered
-          - Number(replacementReserved._sum.requestedQuantity || 0)
-          - Number(returnReserved._sum.requestedQuantity || 0),
+        delivered -
+          Number(replacementReserved._sum.requestedQuantity || 0) -
+          Number(returnReserved._sum.requestedQuantity || 0),
       );
 
       if (item.requestedQuantity > availableForReplacement) {
-        throw new BadRequestException(`Requested replacement quantity ${item.requestedQuantity} exceeds available delivered quantity (${availableForReplacement}) for item ${orderItem.productNameSnapshot}.`);
+        throw new BadRequestException(
+          `Requested replacement quantity ${item.requestedQuantity} exceeds available delivered quantity (${availableForReplacement}) for item ${orderItem.productNameSnapshot}.`,
+        );
       }
     }
 
@@ -64,7 +76,7 @@ export class ReplacementsService {
       });
     } catch {
       seq = await this.prisma.idSequence.create({
-        data: { key: 'REPLACE_REQ_NO', nextValue: 2 }
+        data: { key: 'REPLACE_REQ_NO', nextValue: 2 },
       });
     }
     const nextVal = seq.nextValue - 1;
@@ -84,23 +96,29 @@ export class ReplacementsService {
           internalRemarks: (dto as any).internalRemarks,
           requestedById: userId,
           items: {
-            create: dto.items.map(i => ({
+            create: dto.items.map((i) => ({
               salesOrderItemId: i.salesOrderItemId,
-              productId: order.items.find(oi => oi.id === i.salesOrderItemId)!.productId,
+              productId: order.items.find((oi) => oi.id === i.salesOrderItemId)!
+                .productId,
               requestedQuantity: i.requestedQuantity,
-              reason: i.reason
-            }))
-          }
+              reason: i.reason,
+            })),
+          },
         },
-        include: { items: true }
+        include: { items: true },
       });
 
       return replacementReq;
     });
   }
 
-  async findAll() {
+  async findAll(companyId: string) {
     return this.prisma.replacementRequest.findMany({
+      where: {
+        salesOrder: {
+          customer: { companyId }
+        }
+      },
       orderBy: { requestedAt: 'desc' },
       include: {
         workflowState: true,
@@ -111,10 +129,14 @@ export class ReplacementsService {
   }
 
   async approve(id: string, body: any, userId: string) {
-    const request = await this.prisma.replacementRequest.findUnique({ where: { id } });
+    const request = await this.prisma.replacementRequest.findUnique({
+      where: { id },
+    });
     if (!request) throw new NotFoundException('Replacement request not found');
     if (!['REQUESTED', 'UNDER_REVIEW'].includes(request.status)) {
-      throw new BadRequestException('Only a pending replacement request can be approved');
+      throw new BadRequestException(
+        'Only a pending replacement request can be approved',
+      );
     }
     return this.prisma.replacementRequest.update({
       where: { id },
@@ -126,14 +148,20 @@ export class ReplacementsService {
         approvedAt: new Date(),
         internalRemarks: body?.remarks || request.internalRemarks,
       },
-      include: { salesOrder: { include: { customer: true } }, items: { include: { product: true } } },
+      include: {
+        salesOrder: { include: { customer: true } },
+        items: { include: { product: true } },
+      },
     });
   }
 
   async reject(id: string, body: any, userId: string) {
-    const request = await this.prisma.replacementRequest.findUnique({ where: { id } });
+    const request = await this.prisma.replacementRequest.findUnique({
+      where: { id },
+    });
     if (!request) throw new NotFoundException('Replacement request not found');
-    if (!body?.reason?.trim()) throw new BadRequestException('Rejection reason is required');
+    if (!body?.reason?.trim())
+      throw new BadRequestException('Rejection reason is required');
     return this.prisma.replacementRequest.update({
       where: { id },
       data: {
@@ -147,9 +175,12 @@ export class ReplacementsService {
   }
 
   async dispatch(id: string, body: any) {
-    const request = await this.prisma.replacementRequest.findUnique({ where: { id } });
+    const request = await this.prisma.replacementRequest.findUnique({
+      where: { id },
+    });
     if (!request) throw new NotFoundException('Replacement request not found');
-    if (request.status !== 'APPROVED') throw new BadRequestException('Plant Head approval is required');
+    if (request.status !== 'APPROVED')
+      throw new BadRequestException('Plant Head approval is required');
     return this.prisma.replacementRequest.update({
       where: { id },
       data: { dispatchStatus: 'DISPATCHED', dispatchDetails: body || {} },
@@ -157,9 +188,15 @@ export class ReplacementsService {
   }
 
   async inTransit(id: string) {
-    const request = await this.prisma.replacementRequest.findUnique({ where: { id } });
+    const request = await this.prisma.replacementRequest.findUnique({
+      where: { id },
+    });
     if (!request) throw new NotFoundException('Replacement request not found');
-    if (!['DISPATCHED', 'READY_FOR_DISPATCH'].includes(request.dispatchStatus || '')) {
+    if (
+      !['DISPATCHED', 'READY_FOR_DISPATCH'].includes(
+        request.dispatchStatus || '',
+      )
+    ) {
       throw new BadRequestException('Create the replacement dispatch first');
     }
     return this.prisma.replacementRequest.update({
@@ -169,12 +206,17 @@ export class ReplacementsService {
   }
 
   async deliver(id: string, body: any) {
-    const request = await this.prisma.replacementRequest.findUnique({ where: { id } });
+    const request = await this.prisma.replacementRequest.findUnique({
+      where: { id },
+    });
     if (!request) throw new NotFoundException('Replacement request not found');
     if (!['DISPATCHED', 'IN_TRANSIT'].includes(request.dispatchStatus || '')) {
-      throw new BadRequestException('Replacement must be dispatched before delivery');
+      throw new BadRequestException(
+        'Replacement must be dispatched before delivery',
+      );
     }
-    if (!body?.proofUrl) throw new BadRequestException('Delivery proof is required');
+    if (!body?.proofUrl)
+      throw new BadRequestException('Delivery proof is required');
     return this.prisma.replacementRequest.update({
       where: { id },
       data: {

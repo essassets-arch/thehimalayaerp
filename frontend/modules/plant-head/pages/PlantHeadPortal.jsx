@@ -213,6 +213,31 @@ export default function PlantHeadPortal() {
   const salesOrdersStore = useERPStore(s => s.state?.sales?.orders) || [];
   const canonicalWorkOrders = useERPStore(s => s.state?.production?.workOrders) || [];
   const [directBackendOrders, setDirectBackendOrders] = useState([]);
+  const [directRawInventory, setDirectRawInventory] = useState([]);
+  const [directQCFailures, setDirectQCFailures] = useState([]);
+
+  useEffect(() => {
+    if (currentView === 'raw-inventory') {
+      backendFetch('/api/backend/inventory/stock-levels').then(res => {
+        const catalog = useERPStore.getState().state?.productCatalog || [];
+        const formatted = (res || []).map(r => {
+          const product = catalog.find(p => p.id === r.productId);
+          return {
+            id: r.productId,
+            material: product ? product.name : r.productId,
+            stock: r.quantity || 0,
+            unit: product?.unit || 'Kg'
+          };
+        });
+        setDirectRawInventory(formatted);
+      }).catch(console.error);
+    } else if (currentView === 'qc-failures') {
+      backendFetch('/api/backend/qc/inspections').then(res => {
+        setDirectQCFailures(res || []);
+      }).catch(console.error);
+    }
+  }, [currentView]);
+
   useEffect(() => {
     if (canReadSalesOrders && (currentView === 'incoming-orders' || currentView === 'planning')) {
       void loadSalesOrders();
@@ -276,6 +301,7 @@ export default function PlantHeadPortal() {
   const [replacementLoading, setReplacementLoading] = useState(false);
 
   // ── MATERIAL INDENTS STATE ──
+  const [directMaterialIndents, setDirectMaterialIndents] = useState([]);
   const [indentsLoading, setIndentsLoading] = useState(false);
   const [indentSearch, setIndentSearch] = useState('');
   const [indentStatusFilter, setIndentStatusFilter] = useState('PENDING');
@@ -293,8 +319,22 @@ export default function PlantHeadPortal() {
   }, []);
 
   const fetchMaterialIndents = async () => {
-    // Reading directly from global Zustand store
+    setIndentsLoading(true);
+    try {
+      const res = await apiClient.get('/procurement/plant-head/material-indents');
+      setDirectMaterialIndents(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch indents', err);
+    } finally {
+      setIndentsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (currentView === 'material-indents') {
+      fetchMaterialIndents();
+    }
+  }, [currentView]);
 
   useEffect(() => {
     // Direct store sync is reactive, no-op needed here
@@ -401,7 +441,7 @@ export default function PlantHeadPortal() {
   const fetchReplacementRequests = async () => {
     setReplacementLoading(true);
     try {
-      const res = await apiClient.get('/plant-head/replacements');
+      const res = await apiClient.get('/replacements');
       setReplacementRequests(res.data || []);
     } catch (err) {
       console.error('Failed to fetch replacement requests', err);
@@ -1411,7 +1451,7 @@ export default function PlantHeadPortal() {
 
     const filteredProductivity = employeeProductivity.filter(ep => {
       if (shiftFilter === 'All') return true;
-      return ep.shift.toLowerCase().startsWith(shiftFilter.toLowerCase());
+      return (ep.shift || '').toLowerCase().startsWith(shiftFilter.toLowerCase());
     });
 
     const machineChartData = filteredMachines.map(m => ({
@@ -1422,7 +1462,7 @@ export default function PlantHeadPortal() {
     }));
 
     const shiftChartData = filteredProductivity.map(ep => ({
-      name: ep.shift.split(' ')[0] || ep.shift,
+      name: (ep.shift || 'Unknown').split(' ')[0],
       Output: parseInt(ep.output || 0),
       Workers: parseInt(ep.workers || 0),
       Efficiency: parseInt(ep.efficiency || 0)
@@ -2919,32 +2959,55 @@ export default function PlantHeadPortal() {
   };
 
   const renderQCFailures = () => {
-    const qcFailedOrders = (state.workOrders || []).flatMap(wo => {
-      const latestFail = [...(wo.qcHistory || [])].reverse().find(h => h.result === 'Failed' || h.qcStatus === 'Failed');
-      if (!latestFail) return [];
-      
-      const order = orders.find(o => o.orderNo === wo.orderNo);
-      
-      let mappedStatus = 'Reworking';
-      if (wo.status === STATUS.CLOSED || wo.status === STATUS.QC_PASSED) {
-        mappedStatus = 'Completed';
-      } else if (wo.status === 'Rejected') {
-        mappedStatus = 'Scrapped';
-      }
+    let qcFailedOrders = [];
+    if (directQCFailures.length > 0) {
+      qcFailedOrders = directQCFailures
+        .filter(insp => insp.status === 'REJECTED' || insp.status === 'REWORK')
+        .map(insp => {
+          const wo = insp.workOrder || {};
+          const customerName = wo.productionPlan?.salesOrder?.customer?.name || '—';
+          const productName = wo.salesOrderItem?.productNameSnapshot || 'Unknown Product';
+          return {
+            id: insp.id,
+            orderNo: wo.orderNo || `WO-${insp.id.substring(0, 4)}`,
+            customerName,
+            productName,
+            quantity: wo.quantity || 0,
+            defects: insp.remarks ? [insp.remarks] : ['Failed quality standards'],
+            inspector: 'QC Inspector',
+            date: insp.createdAt,
+            status: insp.status === 'REWORK' ? 'Reworking' : 'Scrapped',
+            orderObj: wo.productionPlan?.salesOrder
+          };
+        });
+    } else {
+      qcFailedOrders = (state.workOrders || []).flatMap(wo => {
+        const latestFail = [...(wo.qcHistory || [])].reverse().find(h => h.result === 'Failed' || h.qcStatus === 'Failed');
+        if (!latestFail) return [];
+        
+        const order = orders.find(o => o.orderNo === wo.orderNo);
+        
+        let mappedStatus = 'Reworking';
+        if (wo.status === STATUS.CLOSED || wo.status === STATUS.QC_PASSED) {
+          mappedStatus = 'Completed';
+        } else if (wo.status === 'Rejected') {
+          mappedStatus = 'Scrapped';
+        }
 
-      return [{
-        id: wo.id,
-        orderNo: wo.orderNo,
-        customerName: order?.customer?.name || '—',
-        productName: wo.productName,
-        quantity: wo.quantity,
-        defects: latestFail.failureReasons || latestFail.defects || [],
-        inspector: latestFail.inspectorName || latestFail.inspector || 'QC Inspector',
-        date: latestFail.inspectionDate || latestFail.date || '—',
-        status: mappedStatus,
-        orderObj: order
-      }];
-    });
+        return [{
+          id: wo.id,
+          orderNo: wo.orderNo,
+          customerName: order?.customer?.name || '—',
+          productName: wo.productName,
+          quantity: wo.quantity,
+          defects: latestFail.failureReasons || latestFail.defects || [],
+          inspector: latestFail.inspectorName || latestFail.inspector || 'QC Inspector',
+          date: latestFail.inspectionDate || latestFail.date || '—',
+          status: mappedStatus,
+          orderObj: order
+        }];
+      });
+    }
 
     return (
       <div className="app-card">
@@ -3013,8 +3076,15 @@ export default function PlantHeadPortal() {
   };
 
   const renderRawInventory = () => {
-    const rawInventoryList = state.rawInventory || [];
-    const mappedInventory = getMappedInventory(rawInventoryList);
+    // If backend data exists, use it. Otherwise fallback to mock state rawInventory
+    const rawInventoryList = directRawInventory.length > 0 
+      ? directRawInventory 
+      : (state.rawInventory || []);
+    
+    // For directRawInventory, it is already mapped, so we can bypass getMappedInventory if it has material field
+    const mappedInventory = directRawInventory.length > 0 
+      ? directRawInventory.map(item => ({...item, code: item.id?.substring(0, 8).toUpperCase(), category: 'Raw Material', reorderLevel: 50, rate: 0}))
+      : getMappedInventory(rawInventoryList);
 
     const filteredItems = mappedInventory.filter(item => {
       const q = rawSearchQuery.toLowerCase();
@@ -3812,7 +3882,7 @@ export default function PlantHeadPortal() {
       }
     });
     if (!value) return;
-    await apiClient.put(`/plant-head/replacements/${row.id}/approve`, value);
+    await apiClient.patch(`/replacements/${row.id}/approve`, value);
     showToast?.('Replacement approved.');
     fetchReplacementRequests();
   };
@@ -3828,7 +3898,7 @@ export default function PlantHeadPortal() {
       inputValidator: (value) => !value?.trim() ? 'Reason is mandatory.' : undefined
     });
     if (!reason) return;
-    await apiClient.put(`/plant-head/replacements/${row.id}/reject`, { reason });
+    await apiClient.patch(`/replacements/${row.id}/reject`, { reason });
     showToast?.('Replacement rejected.');
     fetchReplacementRequests();
   };
@@ -3858,7 +3928,7 @@ export default function PlantHeadPortal() {
         </div>
       );
     }
-    const allIndents = materialIndents;
+    const allIndents = directMaterialIndents.length > 0 ? directMaterialIndents : materialIndents;
     console.log('[PlantHeadPortal] Loaded material indents:', allIndents);
 
     const pendingCount = allIndents.filter(i => i.status === 'PENDING_PLANT_HEAD_APPROVAL' || i.status === 'PENDING_PLANT_HEAD' || i.status === 'PENDING').length;

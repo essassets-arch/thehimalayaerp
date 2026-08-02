@@ -56,7 +56,8 @@ export const navigationConfig = {
       ]
     },
     { id: 'raw-inventory', label: 'Raw Inventory', icon: Layers, path: '/plant-head/raw-inventory' },
-    { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' }
+    { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' },
+    { id: 'testing', label: 'Production Testing', icon: ClipboardCheck, path: '/plant-head/testing' }
   ],
   'Store': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/store/dashboard' },

@@ -7,6 +7,11 @@ import { MaterialRejectionService } from './material-rejection.service';
 
 @Module({
   controllers: [ProcurementController],
-  providers: [ProcurementService, ProcurementClosureService, POReportService, MaterialRejectionService]
+  providers: [
+    ProcurementService,
+    ProcurementClosureService,
+    POReportService,
+    MaterialRejectionService,
+  ],
 })
 export class ProcurementModule {}

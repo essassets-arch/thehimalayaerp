@@ -1,0 +1,230 @@
+/* ═══════════════════════════════════════════════════════
+   SAMPLE DISPATCH LIST PAGE — Premium Responsive CSS
+   ═══════════════════════════════════════════════════════ */
+
+.page {
+  width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 24px 16px 48px;
+}
+
+@media (min-width: 640px) {
+  .page { padding: 28px 24px 64px; }
+}
+
+@media (min-width: 1024px) {
+  .page { padding: 32px 40px 80px; }
+}
+
+.content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ─── Header ─── */
+.header {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.headerMain {
+  position: relative;
+  padding: 32px 28px;
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.watermark {
+  position: absolute;
+  right: -20px;
+  top: -40px;
+  color: rgba(255, 255, 255, 0.1);
+  transform: rotate(-10deg);
+  pointer-events: none;
+}
+
+.headerLayout {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (min-width: 768px) {
+  .headerLayout {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.headerCopy {
+  max-width: 500px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  backdrop-filter: blur(4px);
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 12px 0 8px;
+}
+
+.description {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 16px 24px;
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.summaryCount {
+  display: flex;
+  flex-direction: column;
+}
+.summaryCount strong {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+}
+.summaryCount span {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 4px;
+}
+
+.headerFooter {
+  background: #f8fafc;
+  padding: 12px 28px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* ─── Filter Tabs ─── */
+.filters {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.filterTab {
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.filterTab:hover {
+  background: #f1f5f9;
+}
+.filterTab.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+/* ─── Table container ─── */
+.tableContainer {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  background: #f8fafc;
+  padding: 16px 20px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 16px 20px;
+  font-size: 13px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover { background: #f8fafc; }
+
+.tableRowId {
+  font-weight: 700;
+  color: #0f172a;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tableActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.tableActionBtn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}

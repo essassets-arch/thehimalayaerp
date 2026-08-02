@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -36,8 +40,8 @@ export class CustomersService {
         where: {
           companyId,
           OR: checks,
-          deletedAt: null
-        }
+          deletedAt: null,
+        },
       });
 
       if (existing) {
@@ -46,8 +50,8 @@ export class CustomersService {
           message: 'A customer with matching details already exists.',
           details: {
             customerId: existing.id,
-            customerCode: existing.customerCode
-          }
+            customerCode: existing.customerCode,
+          },
         });
       }
     }
@@ -76,8 +80,6 @@ export class CustomersService {
 
     return customer;
   }
-
-
 
   async list(
     companyId: string,

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -14,7 +18,9 @@ export class ProductsService {
         where: { companyId, sku: dto.sku },
       });
       if (existing) {
-        throw new ConflictException(`Product with SKU ${dto.sku} already exists.`);
+        throw new ConflictException(
+          `Product with SKU ${dto.sku} already exists.`,
+        );
       }
     }
 
@@ -34,7 +40,7 @@ export class ProductsService {
 
   async findAll(companyId: string, search?: string) {
     const where: any = { companyId };
-    
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -64,7 +70,9 @@ export class ProductsService {
         where: { companyId, sku: dto.sku, id: { not: id } },
       });
       if (existing) {
-        throw new ConflictException(`Product with SKU ${dto.sku} already exists.`);
+        throw new ConflictException(
+          `Product with SKU ${dto.sku} already exists.`,
+        );
       }
     }
 

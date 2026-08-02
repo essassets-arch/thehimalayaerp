@@ -1,6 +1,20 @@
-import { Controller, Get, Post, Body, Param, Request, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { BrandAnalysisService } from './brand-analysis.service';
-import { CreateBrandAnalysisDto, ApproveBrandAnalysisDto, RejectBrandAnalysisDto, StartBrandAnalysisDto, CompleteBrandAnalysisDto } from './dto/brand-analysis.dto';
+import {
+  CreateBrandAnalysisDto,
+  ApproveBrandAnalysisDto,
+  RejectBrandAnalysisDto,
+  StartBrandAnalysisDto,
+  CompleteBrandAnalysisDto,
+} from './dto/brand-analysis.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -37,35 +51,55 @@ export class BrandAnalysisController {
   }
 
   @Get(':id')
-  @Permissions('store.brand-analysis.read', 'super-admin.brand-analysis.read', 'finance.brand-analysis.read')
+  @Permissions(
+    'store.brand-analysis.read',
+    'super-admin.brand-analysis.read',
+    'finance.brand-analysis.read',
+  )
   findOne(@Param('id') id: string) {
     return this.brandAnalysisService.findOne(id);
   }
 
   @Post(':id/approve')
   @Permissions('super-admin.brand-analysis.approve')
-  approve(@Param('id') id: string, @Body() dto: ApproveBrandAnalysisDto, @Request() req) {
+  approve(
+    @Param('id') id: string,
+    @Body() dto: ApproveBrandAnalysisDto,
+    @Request() req,
+  ) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.approve(id, dto, userId);
   }
 
   @Post(':id/reject')
   @Permissions('super-admin.brand-analysis.reject')
-  reject(@Param('id') id: string, @Body() dto: RejectBrandAnalysisDto, @Request() req) {
+  reject(
+    @Param('id') id: string,
+    @Body() dto: RejectBrandAnalysisDto,
+    @Request() req,
+  ) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.reject(id, dto, userId);
   }
 
   @Post(':id/start-analysis')
   @Permissions('finance.brand-analysis.start')
-  startAnalysis(@Param('id') id: string, @Body() dto: StartBrandAnalysisDto, @Request() req) {
+  startAnalysis(
+    @Param('id') id: string,
+    @Body() dto: StartBrandAnalysisDto,
+    @Request() req,
+  ) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.startAnalysis(id, dto, userId);
   }
 
   @Post(':id/complete-analysis')
   @Permissions('finance.brand-analysis.complete')
-  completeAnalysis(@Param('id') id: string, @Body() dto: CompleteBrandAnalysisDto, @Request() req) {
+  completeAnalysis(
+    @Param('id') id: string,
+    @Body() dto: CompleteBrandAnalysisDto,
+    @Request() req,
+  ) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.completeAnalysis(id, dto, userId);
   }

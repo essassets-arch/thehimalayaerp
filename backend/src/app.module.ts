@@ -47,6 +47,8 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { BrandAnalysisModule } from './modules/brand-analysis/brand-analysis.module';
 import { SalesReportsModule } from './modules/sales-reports/sales-reports.module';
 import { SalesTargetModule } from './modules/sales-target/sales-target.module';
+import { PlantHeadModule } from './modules/plant-head/plant-head.module';
+import { StoreReportsModule } from './modules/store-reports/store-reports.module';
 
 @Module({
   imports: [
@@ -90,6 +92,8 @@ import { SalesTargetModule } from './modules/sales-target/sales-target.module';
     EmployeesModule,
     PayrollModule,
     SalesReportsModule,
+    PlantHeadModule,
+    StoreReportsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,4 +1,10 @@
-import { IsDateString, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateCustomerComplaintDto {
   @IsString() customerId: string;
@@ -10,7 +16,8 @@ export class CreateCustomerComplaintDto {
   @IsString() description: string;
   @IsOptional() @IsString() salesRemarks?: string;
   @IsOptional() @IsString() attachment?: string;
-  @IsOptional() @IsIn(['DRAFT', 'PENDING_SUPER_ADMIN']) status?: 'DRAFT' | 'PENDING_SUPER_ADMIN';
+  @IsOptional() @IsIn(['DRAFT', 'PENDING_SUPER_ADMIN']) status?:
+    'DRAFT' | 'PENDING_SUPER_ADMIN';
 }
 
 export class AdminRemarksDto {

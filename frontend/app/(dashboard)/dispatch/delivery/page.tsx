@@ -19,6 +19,7 @@ import { DataTable } from "@/components/erp/data-table/DataTable";
 import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import responsive from "../dispatch-responsive.module.css";
 import pageStyles from "../orders/orders.module.css";
 import styles from "./delivery.module.css";
@@ -49,6 +50,7 @@ interface Dispatch {
   id: string;
   dispatchNo: string;
   status: string;
+  version: number;
   deliveryAddress: string | null;
   transporterName: string | null;
   vehicleNumber: string | null;
@@ -69,7 +71,7 @@ interface Dispatch {
 
 export default function DeliveryRunPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"queue" | "history">("queue");
+  const router = useRouter();
   const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(
     null,
   );
@@ -115,7 +117,7 @@ export default function DeliveryRunPage() {
     queryKey: ["delivery-run-dispatches"],
     queryFn: async () => {
       const payload = await backendFetch<Dispatch[]>(
-        "/api/backend/logistics/dispatches",
+        "/api/backend/logistics/dispatches?status=OUT_FOR_DELIVERY",
       );
       return Array.isArray(payload) ? payload : [];
     },
@@ -125,7 +127,6 @@ export default function DeliveryRunPage() {
   const activeDeliveryQueue = dispatches.filter(
     (d) => d.status === "OUT_FOR_DELIVERY",
   );
-  const deliveredHistory = dispatches.filter((d) => d.status === "DELIVERED");
 
   // Handle row selection
   const handleSelectDispatch = (dispatch: Dispatch) => {
@@ -165,14 +166,10 @@ export default function DeliveryRunPage() {
       }
 
       const payload = {
-        deliveredQuantity:
-          selectedDispatch.items?.reduce(
-            (sum, item) => sum + Number(item.quantity),
-            0,
-          ) || 0,
-        receivedBy: receiverName,
+        receiverName: receiverName,
         receiverPhone: receiverMobile,
-        podUrl: uploadResult.url,
+        podImageUrl: uploadResult.url,
+        version: selectedDispatch.version || 1, // Assume version is returned by GET
       };
 
       await backendFetch(
@@ -188,6 +185,7 @@ export default function DeliveryRunPage() {
       );
       setSelectedDispatch(null);
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
+      router.push("/dispatch/history");
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Failed to confirm delivery",
@@ -227,9 +225,10 @@ export default function DeliveryRunPage() {
     },
     {
       id: "actions",
-      header: "Action",
+      header: () => <div className="text-right">Action</div>,
       cell: ({ row }) => (
-        <Button
+        <div className="flex justify-end">
+          <Button
           variant="outline"
           size="sm"
           onClick={() => handleSelectDispatch(row.original)}
@@ -237,57 +236,17 @@ export default function DeliveryRunPage() {
         >
           Confirm Delivery
           <ArrowRight className="h-3 w-3" />
-        </Button>
+          </Button>
+        </div>
       ),
-    },
-  ];
-
-  // History columns
-  const historyColumns: ColumnDef<Dispatch>[] = [
-    {
-      accessorKey: "dispatchNo",
-      header: "Dispatch Number",
-      cell: ({ row }) => (
-        <span className="font-semibold text-gray-700">
-          {row.original.dispatchNo}
-        </span>
-      ),
-    },
-    {
-      id: "customer",
-      header: "Customer",
-      cell: ({ row }) => (
-        <span>{row.original.salesOrder?.customer?.companyName}</span>
-      ),
-    },
-    {
-      accessorKey: "receivedBy",
-      header: "Received By",
-      cell: ({ row }) => <span>{row.original.receivedBy || "-"}</span>,
-    },
-    {
-      id: "deliveredAt",
-      header: "Delivery Timestamp",
-      cell: ({ row }) => {
-        const date = row.original.deliveredAt
-          ? new Date(row.original.deliveredAt).toLocaleString()
-          : "-";
-        return (
-          <span className="text-xs text-gray-500 font-medium">{date}</span>
-        );
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
   ];
 
   return (
-    <div className={`${responsive.page} ${styles.pageFlow}`}>
-      {/* Header */}
-      <div className={pageStyles.header}>
+    <div className={responsive.flushPage}>
+      <div className={`${responsive.content} ${styles.pageFlow}`}>
+        {/* Header */}
+        <div className={pageStyles.header}>
         <div className={pageStyles.watermark}>
           <Truck size={140} />
         </div>
@@ -318,36 +277,8 @@ export default function DeliveryRunPage() {
         </div>
       </div>
 
-      <div className={styles.deliveryTabs}>
-        <div className={styles.tabList} role="tablist" aria-label="Delivery lists">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "queue"}
-            className={activeTab === "queue" ? styles.activeTab : ""}
-            onClick={() => setActiveTab("queue")}
-          >
-            <Truck size={16} />
-            <span>Out for Delivery</span>
-            <strong>{activeDeliveryQueue.length}</strong>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "history"}
-            className={activeTab === "history" ? styles.activeTab : ""}
-            onClick={() => setActiveTab("history")}
-          >
-            <CheckCircle2 size={16} />
-            <span>Delivery History</span>
-            <strong>{deliveredHistory.length}</strong>
-          </button>
-        </div>
-      </div>
-
-      {activeTab === "queue" ? (
-        /* Active delivery queue */
-        <div className={styles.workspace} role="tabpanel">
+      {/* Active delivery queue */}
+      <div className={styles.workspace} role="tabpanel">
           <div className={styles.queueColumn}>
             <div className={styles.panel}>
               <h2 className={styles.panelTitle}>Out for Delivery Queue</h2>
@@ -366,20 +297,7 @@ export default function DeliveryRunPage() {
             </div>
           </div>
         </div>
-      ) : (
-        <div className={styles.history} role="tabpanel">
-          <h2 className={styles.panelTitle}>
-            <CheckCircle2 className="text-emerald-500 h-5 w-5" />
-            Delivery History (Delivered Shipments)
-          </h2>
-          <DataTable
-            columns={historyColumns}
-            data={deliveredHistory}
-            className={styles.tableFrame}
-            emptyMessage="No shipments have been recorded as delivered yet."
-          />
-        </div>
-      )}
+      </div>
 
       {selectedDispatch && (
         <div

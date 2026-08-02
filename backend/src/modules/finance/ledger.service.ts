@@ -6,16 +6,18 @@ export class LedgerService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getCustomerLedger(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+    });
     if (!customer) return { customer: null, entries: [], balance: 0 };
 
     const entries = await this.prisma.customerLedger.findMany({
       where: { customerId },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
     });
 
     let balance = 0;
-    const entriesWithBalance = entries.map(entry => {
+    const entriesWithBalance = entries.map((entry) => {
       balance += Number(entry.debit);
       balance -= Number(entry.credit);
       return { ...entry, balance };
@@ -24,7 +26,7 @@ export class LedgerService {
     return {
       customer,
       entries: entriesWithBalance,
-      balance
+      balance,
     };
   }
 }
