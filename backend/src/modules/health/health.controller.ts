@@ -1,6 +1,6 @@
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UseGuards, Controller, Get } from '@nestjs/common';
+import { UseGuards, Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Public } from '../../common/decorators/public.decorator';
 
@@ -14,6 +14,7 @@ export class HealthController {
   check() {
     return {
       status: 'ok',
+      service: 'backend',
       timestamp: new Date().toISOString(),
     };
   }
@@ -25,15 +26,17 @@ export class HealthController {
       await this.prisma.$queryRaw`SELECT 1`;
       return {
         status: 'ok',
+        service: 'backend',
         database: 'connected',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      return {
+      throw new ServiceUnavailableException({
         status: 'error',
+        service: 'backend',
         database: 'disconnected',
         timestamp: new Date().toISOString(),
-      };
+      });
     }
   }
 }

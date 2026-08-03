@@ -51,6 +51,7 @@ RUN mkdir -p /app/uploads && chown -R nestjs:nestjs /app/uploads
 # Copy node_modules, generated Prisma client, and built dist from builder
 COPY --from=builder --chown=nestjs:nestjs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nestjs /app/dist ./dist
+COPY --from=builder --chown=nestjs:nestjs /app/dist-seed ./dist-seed
 COPY --from=builder --chown=nestjs:nestjs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nestjs /app/package.json ./package.json
 
@@ -58,7 +59,7 @@ USER nestjs
 
 EXPOSE 4000
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
-  CMD curl -f http://localhost:4000/api/v1/health || exit 1
+HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=5 \
+  CMD curl -f http://127.0.0.1:4000/api/v1/health/readiness || exit 1
 
 CMD ["node", "dist/main.js"]

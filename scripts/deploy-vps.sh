@@ -2,7 +2,18 @@
 # ==============================================================================
 # HIMALAYA ERP — AUTOMATED VPS DEPLOYMENT SCRIPT
 # ==============================================================================
-set -euo pipefail
+set -Eeuo pipefail
+
+catch_error() {
+    local exit_code=$1
+    local line_number=$2
+    echo ""
+    echo "❌ DEPLOYMENT FAILED at line ${line_number} with exit code ${exit_code}!"
+    echo "🔍 Recent service logs:"
+    docker compose logs --tail=100 backend migrate || true
+    exit "${exit_code}"
+}
+trap 'catch_error $? $LINENO' ERR
 
 echo "======================================================================"
 echo "🚀 HIMALAYA ERP — AUTOMATED DEPLOYMENT STAGE"
@@ -32,19 +43,26 @@ echo " ✅ PostgreSQL healthy."
 
 echo ""
 echo "⚙️ Step 4: Running Prisma database migrations..."
-if ! docker compose run --rm migrate; then
-    echo "❌ Migration failed! Aborting deployment."
-    echo "🔍 Recent logs:"
-    docker compose logs --tail=50 postgres
-    exit 1
-fi
+docker compose run --rm migrate
+echo " ✅ Database migrations completed."
 
 echo ""
-echo "🚀 Step 5: Updating backend, frontend, and reverse proxy..."
-docker compose up -d backend frontend reverse-proxy
+echo "🚀 Step 5: Updating backend service..."
+docker compose up -d backend
+
+echo "⏳ Waiting for backend to pass health check..."
+until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-backend 2>/dev/null)" == "healthy" ]; do
+    sleep 3
+    echo -n "."
+done
+echo " ✅ Backend is healthy!"
 
 echo ""
-echo "🧹 Step 6: Cleaning up unused build caches safely..."
+echo "🌐 Step 6: Updating frontend and reverse proxy..."
+docker compose up -d frontend reverse-proxy
+
+echo ""
+echo "🧹 Step 7: Cleaning up unused build caches safely..."
 docker image prune -f
 
 echo ""

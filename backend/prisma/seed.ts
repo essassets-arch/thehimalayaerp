@@ -661,12 +661,16 @@ async function main() {
     }
   }
 
-  const hashedPassword = await bcrypt.hash('admin123', 12);
+  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
+  const hashedPassword = await bcrypt.hash(adminPassword, 12);
   const allRoles = await prisma.role.findMany();
 
   for (const role of allRoles) {
     const emailSlug = role.code.toLowerCase().replace(/_/g, '.');
-    const email = `${emailSlug}@himalayaerp.com`;
+    const email = (role.code === 'SUPER_ADMIN' && process.env.INITIAL_ADMIN_EMAIL)
+      ? process.env.INITIAL_ADMIN_EMAIL
+      : `${emailSlug}@himalayaerp.com`;
+
     await prisma.user.upsert({
       where: { email },
       update: { password: hashedPassword },

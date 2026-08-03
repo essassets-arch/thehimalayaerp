@@ -2,7 +2,18 @@
 # ==============================================================================
 # HIMALAYA ERP — INITIAL VPS DEPLOYMENT SCRIPT
 # ==============================================================================
-set -euo pipefail
+set -Eeuo pipefail
+
+catch_error() {
+    local exit_code=$1
+    local line_number=$2
+    echo ""
+    echo "❌ DEPLOYMENT FAILED at line ${line_number} with exit code ${exit_code}!"
+    echo "🔍 Recent service logs:"
+    docker compose logs --tail=100 backend migrate seed || true
+    exit "${exit_code}"
+}
+trap 'catch_error $? $LINENO' ERR
 
 echo "======================================================================"
 echo "🚀 HIMALAYA ERP — FIRST VPS DEPLOYMENT SETUP"
@@ -46,10 +57,7 @@ echo " ✅ PostgreSQL is healthy!"
 # 4. Run Prisma database migrations
 echo ""
 echo "⚙️ Step 3: Running Prisma migrations..."
-if ! docker compose run --rm migrate; then
-    echo "❌ Error: Prisma migration failed. Halting deployment."
-    exit 1
-fi
+docker compose run --rm migrate
 echo " ✅ Database migrations completed successfully!"
 
 # 5. Optional Base Seeding
@@ -58,15 +66,35 @@ read -p "🌱 Do you want to run the base seed script to populate roles, permiss
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "🌱 Seeding initial system data..."
-    docker compose run --rm backend npm run prisma:seed || echo "⚠️ Base seed encountered warnings."
+    docker compose run --rm seed
+    echo " ✅ Base data seeded successfully!"
 fi
 
-# 6. Start all services
+# 6. Start backend container and wait for health
 echo ""
-echo "🚀 Step 4: Starting backend, frontend, and reverse proxy..."
-docker compose up -d backend frontend reverse-proxy
+echo "🚀 Step 4: Starting backend service..."
+docker compose up -d backend
 
-# 7. Check container status
+echo "⏳ Waiting for backend to pass health check..."
+until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-backend 2>/dev/null)" == "healthy" ]; do
+    sleep 3
+    echo -n "."
+done
+echo " ✅ Backend is healthy!"
+
+# 7. Start frontend and reverse proxy
+echo ""
+echo "🌐 Step 5: Starting frontend and reverse proxy..."
+docker compose up -d frontend reverse-proxy
+
+echo "⏳ Waiting for frontend to pass health check..."
+until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-frontend 2>/dev/null)" == "healthy" ]; do
+    sleep 3
+    echo -n "."
+done
+echo " ✅ Frontend is healthy!"
+
+# 8. Check container status
 echo ""
 echo "======================================================================"
 echo "📊 CONTAINER STATUS REPORT"
