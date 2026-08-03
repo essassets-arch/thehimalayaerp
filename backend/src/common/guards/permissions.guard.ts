@@ -170,6 +170,8 @@ export class PermissionsGuard implements CanActivate {
       'crm.quotations.create': ['crm.quotations.create', 'crm.quotation.create'],
       'crm.quotations.update': ['crm.quotations.update', 'crm.quotation.update'],
       'crm.quotations.send': ['crm.quotations.send', 'crm.quotation.send'],
+      'crm.quotations.convert': ['crm.quotations.convert', 'crm.quotation.convert', 'crm.quotations.update', 'sales.orders.create'],
+      'crm.quotations.accept': ['crm.quotations.accept', 'crm.quotation.accept', 'crm.quotations.update', 'sales.orders.create'],
       'procurement.procurement.read': ['procurement.procurement.read', 'procurement.indents.read', 'procurement.po.read', 'procurement.grn.read', 'procurement.invoices.read', 'procurement.payments.read', 'procurement.read', 'inventory.stock.read', 'inventory.inventory.read'],
       'procurement.procurement.create': ['procurement.procurement.create', 'procurement.indents.create', 'procurement.po.create', 'procurement.create'],
       'procurement.procurement.reject': ['procurement.procurement.reject', 'procurement.indents.reject', 'procurement.po.reject', 'procurement.reject'],

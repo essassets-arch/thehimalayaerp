@@ -263,6 +263,7 @@ async function main() {
   const salesExecPermsList = [
     ...commonSalesPerms,
     'crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update', 'crm.quotations.send',
+    'crm.quotations.accept', 'crm.quotations.convert',
   ];
 
   const salesMgrPermsList = [
