@@ -219,8 +219,8 @@ export class QuotationsService {
         include: { workflowState: true },
       });
       if (!quotation) throw new NotFoundException('Quotation not found');
-      if (quotation.workflowState?.code !== 'DRAFT') {
-        throw new BadRequestException('Only DRAFT quotations can be edited');
+      if (!['DRAFT', 'NEW'].includes(quotation.workflowState?.code || '')) {
+        throw new BadRequestException('Only DRAFT or NEW quotations can be edited');
       }
       const totals = dto.items ? this.calculate(dto.items) : null;
       if (dto.items && !totals?.processedItems.length)
