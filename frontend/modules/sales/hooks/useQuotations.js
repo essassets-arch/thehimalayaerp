@@ -135,13 +135,6 @@ export function useQuotations(showToast, autoLoad = true) {
 
   const confirmOrder = useCallback(async (quotation) => {
     try {
-      const currentStatus = String(quotation.status || '').trim().toUpperCase().replaceAll(' ', '_');
-      if (['SENT', 'NEGOTIATION', 'UNDER_NEGOTIATION'].includes(currentStatus)) {
-        await backendFetch(`/api/backend/crm/quotations/${quotation.id}/action`, {
-          method: 'POST',
-          body: { action: 'APPROVE' },
-        });
-      }
       const order = await backendFetch(`/api/backend/crm/quotations/${quotation.id}/convert`, {
         method: 'POST',
         body: {},
