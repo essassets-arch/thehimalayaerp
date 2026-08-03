@@ -14,7 +14,7 @@ RUN apk add --no-cache openssl ca-certificates
 COPY package.json package-lock.json* ./
 
 # Install all dependencies (including devDependencies needed for build & Prisma)
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npm install
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma/
