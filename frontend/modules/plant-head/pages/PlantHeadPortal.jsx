@@ -2665,7 +2665,7 @@ export default function PlantHeadPortal() {
   const renderIncomingOrders = () => {
     const allIncomingOrders = orders.filter(order => {
       const status = String(order.workflowStateCode || order.status || '').toUpperCase();
-      return ['SENT_TO_PLANT_HEAD', 'SENT_TO_PLANT'].includes(status) ||
+      return ['SENT_TO_PLANT_HEAD', 'SENT_TO_PLANT', 'CONFIRMED', 'DRAFT', 'PENDING_APPROVAL', 'SUBMITTED'].includes(status) ||
         (!order.workflowStateCode && order.productionStatus === 'PENDING_PLANNING' &&
           order.planningStatus !== 'PLANT_HEAD_ACCEPTED');
     });

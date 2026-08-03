@@ -496,9 +496,14 @@ export class QuotationsService {
         await tx.quotation.update({ where: { id }, data: { customerId } });
       }
 
-      const soInitialState = await tx.workflowState.findFirst({
-        where: { workflow: { code: 'SALES_ORDER' }, isInitial: true },
+      const sentToPlantState = await tx.workflowState.findFirst({
+        where: { workflow: { code: 'SALES_ORDER' }, code: 'SENT_TO_PLANT' },
       });
+      const soInitialState =
+        sentToPlantState ||
+        (await tx.workflowState.findFirst({
+          where: { workflow: { code: 'SALES_ORDER' }, isInitial: true },
+        }));
 
       const count = await tx.salesOrder.count();
       const orderNumber = await this.sequenceService.generateNextWithTx(
