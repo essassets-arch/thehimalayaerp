@@ -1,5 +1,3 @@
-name: himalaya-erp-management
-
 services:
   # ── 1. pgAdmin 4 Database Administration UI ────────────────────────────────
   pgadmin:
@@ -75,5 +73,3 @@ volumes:
 # ── Shared Internal ERP Network ──────────────────────────────────────────────
 networks:
   erp-network:
-    name: himalaya-erp_erp-network
-    external: true
