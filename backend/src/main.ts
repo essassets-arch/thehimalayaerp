@@ -69,7 +69,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const port = configService.get<number>('port') || 4000;
-  await app.listen(port);
-  console.log(`Backend is running on: http://localhost:${port}/${apiPrefix}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`Backend is running on: http://0.0.0.0:${port}/${apiPrefix}`);
 }
 bootstrap();
