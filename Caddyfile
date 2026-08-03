@@ -1,21 +1,76 @@
-
 # ==============================================================================
-# HIMALAYA ERP — CADDY REVERSE PROXY CONFIGURATION
-# Replace "erp.example.com" with your actual domain or ":80" for raw IP testing.
+# HIMALAYA ERP — PRODUCTION CADDY REVERSE PROXY & MANAGEMENT SUBDOMAINS
 # ==============================================================================
 
-{$APP_URL:thehimalaya.cloud} {
-    # Compression for text, JSON, and SVG assets
+# ── 1. Primary ERP Application ────────────────────────────────────────────────
+{$APP_DOMAIN:thehimalaya.cloud} {
     encode gzip zstd
 
-    # Support up to 100MB body payloads for document & image uploads
     request_body {
         max_size 100MB
     }
 
-    # Proxy all traffic to the Next.js frontend container
-    # Next.js API Bridge (/api/backend/*) internally handles backend communication
+    # Security Headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
     reverse_proxy frontend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# ── 2. pgAdmin 4 Database Administration UI ───────────────────────────────────
+dbadmin.{$APP_DOMAIN:thehimalaya.cloud} {
+    encode gzip zstd
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+
+    reverse_proxy pgadmin:80 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Script-Name /
+    }
+}
+
+# ── 3. Portainer CE Container Management UI ──────────────────────────────────
+portainer.{$APP_DOMAIN:thehimalaya.cloud} {
+    encode gzip zstd
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+
+    reverse_proxy portainer:9000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# ── 4. Dozzle Real-time Docker Log Viewer ─────────────────────────────────────
+logs.{$APP_DOMAIN:thehimalaya.cloud} {
+    encode gzip zstd
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+
+    reverse_proxy dozzle:8080 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}

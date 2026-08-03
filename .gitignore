@@ -55,3 +55,4 @@ test-results/
 frontend/playwright-report/
 playwright-report/
 
+.setup.txt

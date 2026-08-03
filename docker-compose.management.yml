@@ -1,0 +1,79 @@
+name: himalaya-erp-management
+
+services:
+  # ── 1. pgAdmin 4 Database Administration UI ────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: himalaya-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@thehimalaya.cloud}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-ChangeMePgAdminPassword123!}
+      PGADMIN_CONFIG_SERVER_MODE: 'true'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'true'
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - erp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── 2. Portainer CE Container Management UI ─────────────────────────────────
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: himalaya-portainer
+    restart: unless-stopped
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - erp-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── 3. Dozzle Real-time Docker Log Viewer ──────────────────────────────────
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: himalaya-dozzle
+    restart: unless-stopped
+    environment:
+      DOZZLE_AUTH_PROVIDER: simple
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./dozzle-users.yml:/data/users.yml:ro
+    networks:
+      - erp-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+# ── Persistent Storage Volumes ────────────────────────────────────────────────
+volumes:
+  pgadmin_data:
+    driver: local
+  portainer_data:
+    driver: local
+
+# ── Shared Internal ERP Network ──────────────────────────────────────────────
+networks:
+  erp-network:
+    name: himalaya-erp_erp-network
+    external: true

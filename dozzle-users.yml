@@ -1,0 +1,10 @@
+# Dozzle User Authentication Configuration
+# Default Admin User: admin / AdminLogsPass123!
+# Note: In production, generate custom bcrypt password hashes for new users.
+
+users:
+  admin:
+    name: Administrator
+    email: admin@thehimalaya.cloud
+    # Password: AdminLogsPass123! (Bcrypt hash)
+    password: $2a$12$R.jS.4YQ5r/03f0b2fR02.A6kFqQ0H2H4H2H4H2H4H2H4H2H4H2H4

@@ -108,7 +108,17 @@ until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-frontend 2>/dev
 done
 echo " ✅ Frontend is healthy!"
 
-# 8. Check container status
+# 8. Optional Management & Observability Stack Setup
+echo ""
+read -p "🛠️ Do you want to deploy management & log tools (pgAdmin, Portainer, Dozzle)? (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "🛠️ Starting management tools (pgAdmin, Portainer, Dozzle)..."
+    docker compose -f docker-compose.yml -f docker-compose.management.yml up -d pgadmin portainer dozzle
+    echo " ✅ Management stack deployed!"
+fi
+
+# 9. Check container status
 echo ""
 echo "======================================================================"
 echo "📊 CONTAINER STATUS REPORT"
@@ -118,3 +128,4 @@ docker compose ps
 echo ""
 echo "✅ First deployment completed successfully!"
 echo "🌐 Access your ERP at the domain configured in your .env / Caddyfile."
+echo "📘 See README-PRODUCTION.md for management subdomains and security docs."
