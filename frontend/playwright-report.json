@@ -1,0 +1,202 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "D:\\prototype-next-main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "tests/browser/certification/sales-order/02-sample-dispatch.spec.ts",
+      "--project=desktop-chromium",
+      "--workers=1",
+      "--retries=0",
+      "--reporter=line,json,html"
+    ],
+    "configFile": "D:\\prototype-next-main\\frontend\\playwright.config.ts",
+    "rootDir": "D:/prototype-next-main/frontend/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/prototype-next-main/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "D:/prototype-next-main/frontend/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/api-bridge/**/*.spec.ts",
+          "**/browser/**/*.spec.ts"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "D:/prototype-next-main/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "D:/prototype-next-main/frontend/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/api-bridge/**/*.spec.ts",
+          "**/browser/**/*.spec.ts"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "D:/prototype-next-main/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-firefox",
+        "name": "desktop-firefox",
+        "testDir": "D:/prototype-next-main/frontend/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/api-bridge/**/*.spec.ts",
+          "**/browser/**/*.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "line"
+      ],
+      [
+        "json"
+      ],
+      [
+        "html"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "browser\\certification\\sales-order\\02-sample-dispatch.spec.ts",
+      "file": "browser/certification/sales-order/02-sample-dispatch.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "02 - Sample Dispatch",
+          "file": "browser/certification/sales-order/02-sample-dispatch.spec.ts",
+          "line": 6,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Dispatch sample, update transit and confirm delivery",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chromium",
+                  "projectName": "desktop-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 0,
+                      "error": {
+                        "message": "Error: Sales Executive user not found for seeding",
+                        "stack": "Error: Sales Executive user not found for seeding\n    at D:\\prototype-next-main\\frontend\\tests\\browser\\certification\\sales-order\\02-sample-dispatch.spec.ts:16:22",
+                        "location": {
+                          "file": "D:\\prototype-next-main\\frontend\\tests\\browser\\certification\\sales-order\\02-sample-dispatch.spec.ts",
+                          "column": 22,
+                          "line": 16
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 14 |\u001b[39m     \u001b[90m// We assume the E2E_SALES_EXECUTIVE user exists in the DB, or we can just fetch the first user\u001b[39m\n \u001b[90m 15 |\u001b[39m     \u001b[36mconst\u001b[39m user \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m prisma\u001b[33m.\u001b[39muser\u001b[33m.\u001b[39mfindFirst({ where\u001b[33m:\u001b[39m { email\u001b[33m:\u001b[39m process\u001b[33m.\u001b[39menv\u001b[33m.\u001b[39m\u001b[33mE2E_SALES_EXECUTIVE_EMAIL\u001b[39m \u001b[33m||\u001b[39m \u001b[32m'sales.executive@himalayaerp.com'\u001b[39m } })\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 16 |\u001b[39m     \u001b[36mif\u001b[39m (\u001b[33m!\u001b[39muser) \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m'Sales Executive user not found for seeding'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 17 |\u001b[39m     \u001b[36mconst\u001b[39m company \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m prisma\u001b[33m.\u001b[39mcompany\u001b[33m.\u001b[39mfindFirst()\u001b[33m;\u001b[39m\n \u001b[90m 18 |\u001b[39m\n \u001b[90m 19 |\u001b[39m     \u001b[36mconst\u001b[39m lead \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m prisma\u001b[33m.\u001b[39mlead\u001b[33m.\u001b[39mcreate({\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\prototype-next-main\\frontend\\tests\\browser\\certification\\sales-order\\02-sample-dispatch.spec.ts",
+                            "column": 22,
+                            "line": 16
+                          },
+                          "message": "Error: Sales Executive user not found for seeding\n\n  14 |     // We assume the E2E_SALES_EXECUTIVE user exists in the DB, or we can just fetch the first user\n  15 |     const user = await prisma.user.findFirst({ where: { email: process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive@himalayaerp.com' } });\n> 16 |     if (!user) throw new Error('Sales Executive user not found for seeding');\n     |                      ^\n  17 |     const company = await prisma.company.findFirst();\n  18 |\n  19 |     const lead = await prisma.lead.create({\n    at D:\\prototype-next-main\\frontend\\tests\\browser\\certification\\sales-order\\02-sample-dispatch.spec.ts:16:22"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-03T08:31:17.860Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\prototype-next-main\\frontend\\test-results\\browser-certification-sale-553be-ransit-and-confirm-delivery-desktop-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\prototype-next-main\\frontend\\test-results\\browser-certification-sale-553be-ransit-and-confirm-delivery-desktop-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\prototype-next-main\\frontend\\tests\\browser\\certification\\sales-order\\02-sample-dispatch.spec.ts",
+                        "column": 22,
+                        "line": 16
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3a8c5de992d6c407e284-b5bf72619059ebe3cb2f",
+              "file": "browser/certification/sales-order/02-sample-dispatch.spec.ts",
+              "line": 45,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-08-03T08:31:17.382Z",
+    "duration": 574.898,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

@@ -228,7 +228,7 @@ export default function FinancePortal() {
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [draftPOsSubTab, setDraftPOsSubTab] = useState('Pending Drafts');
-  const [pendingApprovalSubTab, setPendingApprovalSubTab] = useState('Pending');
+  const [pendingApprovalSubTab, setPendingApprovalSubTab] = useState('Pending'); // Sub-tab for PO Pending Approval
   const [approvedPOsSubTab, setApprovedPOsSubTab] = useState('Approved');
 
   // Vendor & PO Generation states
@@ -2526,13 +2526,12 @@ export default function FinancePortal() {
       showToast('Vendor acceptance simulated!');
     };
 
+    const pendingPOsList = purchaseOrders.filter(po => ['PENDING_SUPER_ADMIN_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE_APPROVAL', 'PLANT_HEAD_APPROVED'].includes(po.status));
+    const historyPOsList = purchaseOrders.filter(po => ['SUPER_ADMIN_APPROVED', 'SUPER_ADMIN_REJECTED', 'PO_ISSUED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED', 'APPROVED', 'REJECTED'].includes(po.status));
+
     let filteredData = purchaseOrders;
     if (filterType === 'PENDING_APPROVAL') {
-      if (pendingApprovalSubTab === 'Pending') {
-        filteredData = purchaseOrders.filter(po => ['DRAFT', 'PLANT_HEAD_APPROVED', 'PENDING_FINANCE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(po.status));
-      } else {
-        filteredData = purchaseOrders.filter(po => ['SUPER_ADMIN_APPROVED', 'SUPER_ADMIN_REJECTED', 'PO_ISSUED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
-      }
+      filteredData = pendingApprovalSubTab === 'Pending' ? pendingPOsList : historyPOsList;
     } else if (filterType === 'CLOSED') {
       filteredData = purchaseOrders.filter(po => ['RECEIVED', 'PARTIALLY_RECEIVED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED', 'FINANCE_AUDIT_APPROVED'].includes(po.status));
     } else if (filterType === 'HISTORY') {
@@ -2542,18 +2541,36 @@ export default function FinancePortal() {
     return (
       <div className="app-card">
         {filterType === 'PENDING_APPROVAL' ? (
-          <div className="card-top-bar" style={{ display: 'flex', gap: '20px', borderBottom: '1px solid #E2E8F0', paddingBottom: '0' }}>
+          <div className="card-top-bar" style={{ display: 'flex', gap: '12px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px', marginBottom: '16px' }}>
             <button
               onClick={() => setPendingApprovalSubTab('Pending')}
-              style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: pendingApprovalSubTab === 'Pending' ? '2px solid #4F46E5' : '2px solid transparent', color: pendingApprovalSubTab === 'Pending' ? '#4F46E5' : '#64748B', fontWeight: pendingApprovalSubTab === 'Pending' ? 700 : 500, cursor: 'pointer', fontSize: '14px' }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid #D6E2F0',
+                background: pendingApprovalSubTab === 'Pending' ? 'var(--color-primary, #2F4375)' : '#ffffff',
+                color: pendingApprovalSubTab === 'Pending' ? '#ffffff' : '#5E6B82',
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
             >
-              Pending Approval
+              Pending Super Admin Approval ({pendingPOsList.length})
             </button>
             <button
               onClick={() => setPendingApprovalSubTab('History')}
-              style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: pendingApprovalSubTab === 'History' ? '2px solid #4F46E5' : '2px solid transparent', color: pendingApprovalSubTab === 'History' ? '#4F46E5' : '#64748B', fontWeight: pendingApprovalSubTab === 'History' ? 700 : 500, cursor: 'pointer', fontSize: '14px' }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid #D6E2F0',
+                background: pendingApprovalSubTab === 'History' ? 'var(--color-primary, #2F4375)' : '#ffffff',
+                color: pendingApprovalSubTab === 'History' ? '#ffffff' : '#5E6B82',
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
             >
-              Approval History
+              Approval History (Sent to Super Admin) ({historyPOsList.length})
             </button>
           </div>
         ) : (

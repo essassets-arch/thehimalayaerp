@@ -456,8 +456,8 @@ export default function DeliveryRunPage() {
               <div className={styles.formActions}>
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={() => setSelectedDispatch(null)}
+                  className="px-5 py-2.5 text-sm font-semibold rounded-xl"
                 >
                   Cancel
                 </Button>
@@ -469,9 +469,9 @@ export default function DeliveryRunPage() {
                     isSubmitting
                   }
                   onClick={handleConfirmDelivery}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold rounded-xl flex items-center gap-2"
                 >
-                  <CheckSquare className="h-4 w-4" />
+                  <CheckSquare className="h-4.5 w-4.5" />
                   Confirm Delivery
                 </Button>
               </div>

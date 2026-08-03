@@ -20,7 +20,7 @@ export class QuotationsController {
   constructor(private readonly quotationsService: QuotationsService) {}
 
   @Get()
-  @RequirePermissions('crm.quotation.read')
+  @RequirePermissions('crm.quotations.read')
   async listQuotations(@Req() req: any, @Query('search') search?: string) {
     return this.quotationsService.listQuotations(
       req.user?.companyId,
@@ -31,7 +31,7 @@ export class QuotationsController {
   }
 
   @Get(':id')
-  @RequirePermissions('crm.quotation.read')
+  @RequirePermissions('crm.quotations.read')
   async getQuotation(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.getQuotation(
       id,
@@ -42,7 +42,7 @@ export class QuotationsController {
   }
 
   @Post()
-  @RequirePermissions('crm.quotation.create')
+  @RequirePermissions('crm.quotations.create')
   async createQuotation(@Body() dto: any, @Req() req: any) {
     return this.quotationsService.createQuotation(
       dto,
@@ -53,7 +53,7 @@ export class QuotationsController {
   }
 
   @Patch(':id')
-  @RequirePermissions('crm.quotation.update')
+  @RequirePermissions('crm.quotations.update')
   async updateQuotation(
     @Param('id') id: string,
     @Body() dto: any,
@@ -69,7 +69,7 @@ export class QuotationsController {
   }
 
   @Post(':id/action')
-  @RequirePermissions('crm.quotation.update')
+  @RequirePermissions('crm.quotations.update')
   async processAction(
     @Param('id') id: string,
     @Body() dto: { action: string; remarks?: string },
@@ -85,7 +85,7 @@ export class QuotationsController {
   }
 
   @Post(':id/duplicate')
-  @RequirePermissions('crm.quotation.create')
+  @RequirePermissions('crm.quotations.create')
   async duplicateVersion(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.duplicateVersion(
       id,
@@ -95,7 +95,7 @@ export class QuotationsController {
   }
 
   @Post(':id/version')
-  @RequirePermissions('crm.quotation.create')
+  @RequirePermissions('crm.quotations.create')
   async createVersion(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.duplicateVersion(
       id,
@@ -105,7 +105,7 @@ export class QuotationsController {
   }
 
   @Post(':id/convert')
-  @RequirePermissions('crm.quotation.update', 'sales.orders.create')
+  @RequirePermissions('crm.quotations.convert', 'sales.orders.create')
   async convertToSalesOrder(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.convertToSalesOrder(
       id,

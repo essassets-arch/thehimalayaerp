@@ -1,0 +1,18 @@
+{
+  "url": "http://127.0.0.1:4000/api/v1/products",
+  "status": 200,
+  "count": 10,
+  "productIds": [
+    "FG-DRAIN-COVER",
+    "FG-KERB-STD",
+    "FG-PAVER-STD",
+    "FG-AGG-20MM",
+    "FG-SAND-FINE",
+    "FG-RMC-M35",
+    "FG-RMC-M30",
+    "FG-RMC-M25",
+    "FG-RMC-M20",
+    "FG-CEMENT-53"
+  ],
+  "timestamp": "2026-08-03T12:06:08.121Z"
+}

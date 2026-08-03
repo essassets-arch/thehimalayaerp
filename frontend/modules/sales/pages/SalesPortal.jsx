@@ -882,11 +882,15 @@ export default function SalesPortal() {
       return <DailyTaskView state={{ ...state, leads, samples, quotations, orders, customers, reminders }} dispatch={dispatch} navigate={navigate} showToast={showToast} completeReminder={completeReminder} updateReminder={updateReminder} />;
 
     case 'dashboard':
-      return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />;
+      return (
+        <div data-testid="sales-dashboard-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />
+        </div>
+      );
 
     case 'leads':
       return (
-        <>
+        <div data-testid="sales-leads-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <O2PWorkflowBanner accentColor="#3b82f6" />
           <LeadsView
             leads={leads}
@@ -907,7 +911,7 @@ export default function SalesPortal() {
             onCompleteReminder={completeReminder}
             searchQuery={globalSearch}
           />
-        </>
+        </div>
       );
 
     case 'create-lead':
@@ -918,7 +922,8 @@ export default function SalesPortal() {
         ? leads.find((lead) => String(lead.id ?? lead.leadId) === String(leadId))
         : null;
       return (
-        <CreateLead
+        <div data-testid="sales-create-lead-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <CreateLead
           key={leadToEdit ? `edit-${leadToEdit.id}` : 'new'}
           leads={leads}
           onAddLead={
@@ -931,6 +936,7 @@ export default function SalesPortal() {
           onCancel={() => navigate.push('/sales/leads')}
           editingLead={leadToEdit}
         />
+        </div>
       );
     }
 
@@ -972,18 +978,20 @@ export default function SalesPortal() {
 
     case 'samples':
       return (
-        <SamplesView
-          samples={samples}
-          onUpdateSampleStatus={updateSampleStatus}
-          onUpdateSample={updateSample}
-          onMoveToQuotation={onMoveToQuotation}
-          onCreateReplacementSample={createReplacementSample}
-        />
+        <div data-testid="sales-samples-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <SamplesView
+            samples={samples}
+            onUpdateSampleStatus={updateSampleStatus}
+            onUpdateSample={updateSample}
+            onMoveToQuotation={onMoveToQuotation}
+            onCreateReplacementSample={createReplacementSample}
+          />
+        </div>
       );
 
     case 'quotations':
       return (
-        <>
+        <div data-testid="sales-quotations-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <O2PWorkflowBanner accentColor="#8b5cf6" />
           <QuotationsView
             quotations={quotations}
@@ -1006,25 +1014,27 @@ export default function SalesPortal() {
             clearPrefill={() => setPrefillQuotationData(null)}
             searchQuery={globalSearch}
           />
-        </>
+        </div>
       );
 
     case 'create-quotation':
       return (
-        <CreateQuotation
-          key={prefillQuotationData?.id || 'new'}
-          leads={leads}
-          customers={customers}
-          prefilledCustomer={prefillQuotationData?.leadName || ''}
-          prefilledProduct={prefillQuotationData?.product || prefillQuotationData?.productName || ''}
-          prefilledQuantity={prefillQuotationData?.quantity || 1}
-          onAddQuotation={onAddQuotation}
-          onCreateLead={() => navigate.push('/sales/create-lead')}
-          onCancel={() => {
-            setPrefillQuotationData(null);
-            navigate.push('/sales/quotations');
-          }}
-        />
+        <div data-testid="sales-create-quotation-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <CreateQuotation
+            key={prefillQuotationData?.id || 'new'}
+            leads={leads}
+            customers={customers}
+            prefilledCustomer={prefillQuotationData?.leadName || ''}
+            prefilledProduct={prefillQuotationData?.product || prefillQuotationData?.productName || ''}
+            prefilledQuantity={prefillQuotationData?.quantity || 1}
+            onAddQuotation={onAddQuotation}
+            onCreateLead={() => navigate.push('/sales/create-lead')}
+            onCancel={() => {
+              setPrefillQuotationData(null);
+              navigate.push('/sales/quotations');
+            }}
+          />
+        </div>
       );
 
     case 'create-order':
@@ -1177,7 +1187,7 @@ export default function SalesPortal() {
       };
 
       return (
-        <>
+        <div data-testid="sales-orders-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <O2PWorkflowBanner accentColor="#a855f7" />
           <OrdersView
             orders={orders}
@@ -1201,7 +1211,7 @@ export default function SalesPortal() {
             onUpdateReminder={updateReminder}
             onCompleteReminder={completeReminder}
           />
-        </>
+        </div>
       );
     }
 

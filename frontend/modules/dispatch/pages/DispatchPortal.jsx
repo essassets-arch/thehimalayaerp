@@ -2886,6 +2886,7 @@ export default function DispatchPortal() {
         method: 'PATCH',
       });
       showToast?.('Replacement delivery started.');
+      fetchReplacementDispatches();
       navigate.push('/dispatch/replacements?status=delivered');
     } catch (err) {
       console.error('Failed to start replacement delivery', err);
@@ -2899,7 +2900,7 @@ export default function DispatchPortal() {
       if (replacementFilter === 'all') return true;
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
       if (replacementFilter === 'delivered') return status === 'IN TRANSIT' || status === 'DELIVERED';
-      if (replacementFilter === 'in-transit') return status === 'DISPATCHED' || status === 'IN TRANSIT';
+      if (replacementFilter === 'in-transit') return status === 'DISPATCHED' || status === 'IN TRANSIT' || status === 'APPROVED' || status === 'READY FOR DISPATCH';
       return status !== 'DISPATCHED' && status !== 'IN TRANSIT' && status !== 'DELIVERED';
     });
 
@@ -2944,7 +2945,7 @@ export default function DispatchPortal() {
                           {replacementFilter === 'pending' && !['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(row.dispatch_status) && (
                             <button className="btn-small btn-outline-small" onClick={() => handleShipReplacement(row)}>Create Dispatch</button>
                           )}
-                          {replacementFilter === 'in-transit' && row.dispatch_status === 'DISPATCHED' && (
+                          {replacementFilter === 'in-transit' && ['DISPATCHED', 'APPROVED', 'READY_FOR_DISPATCH'].includes(row.dispatch_status) && (
                             <button className="btn-small btn-outline-small" onClick={() => handleStartReplacementDelivery(row)}>Start Delivery</button>
                           )}
                           {replacementFilter === 'delivered' && row.dispatch_status === 'IN_TRANSIT' && (

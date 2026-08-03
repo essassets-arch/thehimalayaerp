@@ -409,10 +409,11 @@ export default function QuotationsView({
     String(status || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
 
   const canSendQuotation = (status) =>
-    ['DRAFT', 'INTERNAL_REVIEW'].includes(normalizedQuotationStatus(status));
+    ['DRAFT', 'NEW', 'INTERNAL_REVIEW', 'QUOTATION_DRAFT', 'PENDING', 'CREATED']
+      .includes(normalizedQuotationStatus(status));
 
   const canConvertQuotation = (status) =>
-    ['SENT', 'NEGOTIATION', 'UNDER_NEGOTIATION', 'APPROVED']
+    ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION']
       .includes(normalizedQuotationStatus(status));
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -1092,6 +1093,7 @@ export default function QuotationsView({
                       {/* Sequential 2-Step Workflow with matching lime green pill buttons */}
                       {canConvertQuotation(q.status) ? (
                           <button
+                            data-testid={`quotation-convert-order-${q.quotationNo || q.id}`}
                             type="button"
                             onClick={() => handleConvertToOrderClick(q)}
                             style={{
@@ -1113,8 +1115,9 @@ export default function QuotationsView({
                           >
                             Convert to Order →
                           </button>
-                        ) : canSendQuotation(q.status) ? (
+                        ) : !['CONVERTED', 'CONVERTED_TO_SO', 'CANCELLED', 'REJECTED', 'SUPERSEDED'].includes(normalizedQuotationStatus(q.status)) ? (
                           <button
+                            data-testid={`quotation-send-${q.quotationNo || q.id}`}
                             type="button"
                             onClick={() => handleSendQuotationClick(q)}
                             style={{

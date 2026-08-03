@@ -144,12 +144,15 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     }
   }
 
+  const cookieToken = request.cookies.get('accessToken')?.value;
+  const token = authorization?.replace(/^Bearer\s+/i, '') || cookieToken;
+
   return forwardBackendRequest({
     path: backendPath,
     method,
     body,
     query: new URL(request.url).searchParams,
-    token: authorization?.replace(/^Bearer\s+/i, ''),
+    token,
     idempotencyKey: request.headers.get('idempotency-key') || undefined,
     requestId: request.headers.get('x-request-id') || undefined,
     headers: {

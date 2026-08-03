@@ -1,0 +1,31 @@
+{
+  "environments": {
+    "frontend": {
+      "hasEmail": true,
+      "password": "E2E_COMMON_PASSWORD=admin123",
+      "hasCr": false
+    },
+    "backend": {
+      "hasUrl": true,
+      "hasCr": false
+    }
+  },
+  "user": {
+    "email": "sales.executive.browser@himalayaerp.test",
+    "role": "SALES_EXECUTIVE",
+    "isActive": true,
+    "deletedAt": null,
+    "passwordHashLength": 60
+  },
+  "passwordVerification": {
+    "rawCommonPasswordMatch": true,
+    "cleanCommonPasswordMatch": true,
+    "admin123Match": true,
+    "admin123CrMatch": false
+  },
+  "devUserExists": false,
+  "httpLogin": {
+    "status": 401,
+    "body": "{\"success\":false,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"Invalid credentials\",\"details\":[]},\"meta\":{\"requestId\":\"b9a5faeb-e4dd-49c8-95b1-e944b548f7f5\"}}"
+  }
+}

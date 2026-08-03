@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { Eye, CheckCircle, XCircle, FileCheck, Layers, Box, Clock, ShieldAlert, DollarSign, Calendar, Building } from 'lucide-react';
 import DataTable from '../../../shared/components/DataTable';
@@ -6,6 +6,7 @@ import StatusBadge from '../../../shared/components/StatusBadge';
 import { useToast } from '../../../shared/context/ToastContext';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useERPStore } from '@/store/erpStore';
+import { syncProcurementData } from '../../../store/procurementActions';
 import styles from './PurchaseIndentsView.module.css';
 
 const EMPTY_PURCHASE_ORDERS = [];
@@ -14,16 +15,35 @@ export default function PurchaseIndentsView() {
   const [activeTab, setActiveTab] = useState('Pending Approval');
   const { showToast } = useToast();
   const { user } = useAuth();
+
+  useEffect(() => {
+    void syncProcurementData();
+  }, []);
   
-  const purchaseOrders = useERPStore(s => s.state?.procurement?.purchaseOrders ?? EMPTY_PURCHASE_ORDERS);
+  const purchaseOrders = useERPStore(s => 
+    s.purchaseOrders || 
+    s.procurement?.purchaseOrders || 
+    s.state?.purchaseOrders || 
+    s.state?.procurement?.purchaseOrders || 
+    EMPTY_PURCHASE_ORDERS
+  );
   const approvePurchaseOrder = useERPStore(s => s.approvePurchaseOrder);
   const rejectPurchaseOrder = useERPStore(s => s.rejectPurchaseOrder);
 
   const [selectedPO, setSelectedPO] = useState(null);
 
-  const pendingPOs = purchaseOrders.filter(i => i.status === 'PENDING_SUPER_ADMIN_APPROVAL');
-  const approvedPOs = purchaseOrders.filter(i => i.status === 'SUPER_ADMIN_APPROVED' || i.status === 'PO_ISSUED' || i.status === 'VENDOR_ACCEPTED' || i.status === 'PURCHASE_COMPLETED' || i.status === 'PO_CLOSED');
-  const rejectedPOs = purchaseOrders.filter(i => i.status === 'SUPER_ADMIN_REJECTED');
+  const pendingPOs = purchaseOrders.filter(i => 
+    !i.status || 
+    i.status === 'PENDING_SUPER_ADMIN_APPROVAL' || 
+    i.status === 'PENDING_FINANCE_APPROVAL' || 
+    i.status === 'PENDING_APPROVAL' || 
+    i.status === 'SUBMITTED' || 
+    i.status === 'PLANT_HEAD_APPROVED' || 
+    i.status === 'DRAFT' || 
+    i.status === 'DRAFT_PO_CREATED'
+  );
+  const approvedPOs = purchaseOrders.filter(i => ['SUPER_ADMIN_APPROVED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'PURCHASE_COMPLETED', 'PO_CLOSED', 'APPROVED', 'CLOSED'].includes(i.status));
+  const rejectedPOs = purchaseOrders.filter(i => ['SUPER_ADMIN_REJECTED', 'REJECTED', 'RETURNED', 'VENDOR_REJECTED'].includes(i.status));
 
   const handleApprove = (po) => {
     Swal.fire({

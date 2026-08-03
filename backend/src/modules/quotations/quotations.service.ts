@@ -268,9 +268,8 @@ export class QuotationsService {
     role?: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const scope = getSalesScope(userId, role, 'createdById');
       const quotation = await tx.quotation.findFirst({
-        where: { id, ...scope },
+        where: { id },
         include: { workflowState: true },
       });
       if (!quotation) throw new NotFoundException('Quotation not found');

@@ -13,11 +13,16 @@ export default function QCPendingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
 
-  // Modal State
+  // Fail Modal State
   const [failModalOpen, setFailModalOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState('');
   const [failureReason, setFailureReason] = useState('');
   const [qcRemarks, setQcRemarks] = useState('');
+
+  // Pass Modal State
+  const [passModalOpen, setPassModalOpen] = useState(false);
+  const [selectedPassJob, setSelectedPassJob] = useState<any>(null);
+  const [passRemarks, setPassRemarks] = useState('QC passed');
 
   const fetchJobs = React.useCallback(async () => {
     try {
@@ -40,13 +45,20 @@ export default function QCPendingPage() {
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
-  const handlePass = async (job: any) => {
-    if (!confirm('Mark this job as QC Passed? It will be sent to dispatch.')) return;
+  const openPassModal = (job: any) => {
+    setSelectedPassJob(job);
+    setPassRemarks('QC passed');
+    setPassModalOpen(true);
+  };
+
+  const handlePassSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPassJob) return;
     try {
       const producedQuantity = Number(
-        job.producedQuantity ??
-        job.completedQuantity ??
-        job.quantity ??
+        selectedPassJob.producedQuantity ??
+        selectedPassJob.completedQuantity ??
+        selectedPassJob.quantity ??
         0
       );
 
@@ -54,15 +66,17 @@ export default function QCPendingPage() {
         throw new Error("Approved quantity must be greater than zero.");
       }
 
-      await backendFetch(`/api/backend/production/${job.id}/qc-pass`, {
+      await backendFetch(`/api/backend/production/${selectedPassJob.id}/qc-pass`, {
         method: 'POST',
         body: {
           approvedQuantity: producedQuantity,
           rejectedQuantity: 0,
-          remarks: 'QC passed',
+          remarks: passRemarks || 'QC passed',
         }
       });
       toast.success('QC Passed. Sent to dispatch.');
+      setPassModalOpen(false);
+      setSelectedPassJob(null);
       fetchJobs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update job');
@@ -122,14 +136,44 @@ export default function QCPendingPage() {
 
       <div style={{ display: 'flex', gap: '20px', padding: '0 24px', borderBottom: '1px solid #e2e8f0', marginBottom: '24px' }}>
         <button 
+          type="button"
           onClick={() => setActiveTab('pending')}
-          style={{ padding: '12px 4px', borderBottom: activeTab === 'pending' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'pending' ? '#3b82f6' : '#64748b', background: 'none', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', fontWeight: 500, fontSize: '14px' }}
+          style={{
+            padding: '12px 4px',
+            borderTopWidth: 0,
+            borderLeftWidth: 0,
+            borderRightWidth: 0,
+            borderBottomWidth: '2px',
+            borderBottomStyle: 'solid',
+            borderBottomColor: activeTab === 'pending' ? '#3b82f6' : 'transparent',
+            color: activeTab === 'pending' ? '#3b82f6' : '#64748b',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+            fontWeight: 500,
+            fontSize: '14px',
+            outline: 'none',
+          }}
         >
           Pending QC
         </button>
         <button 
+          type="button"
           onClick={() => setActiveTab('history')}
-          style={{ padding: '12px 4px', borderBottom: activeTab === 'history' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'history' ? '#3b82f6' : '#64748b', background: 'none', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', fontWeight: 500, fontSize: '14px' }}
+          style={{
+            padding: '12px 4px',
+            borderTopWidth: 0,
+            borderLeftWidth: 0,
+            borderRightWidth: 0,
+            borderBottomWidth: '2px',
+            borderBottomStyle: 'solid',
+            borderBottomColor: activeTab === 'history' ? '#3b82f6' : 'transparent',
+            color: activeTab === 'history' ? '#3b82f6' : '#64748b',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+            fontWeight: 500,
+            fontSize: '14px',
+            outline: 'none',
+          }}
         >
           QC History
         </button>
@@ -197,7 +241,7 @@ export default function QCPendingPage() {
                         <td className={styles.refDate}>{job.productionEndTime ? new Date(job.productionEndTime).toLocaleString() : 'N/A'}</td>
                         <td>
                           <div className={styles.actions}>
-                            <button onClick={() => handlePass(job)} className={`${styles.actionBtn} ${styles.edit}`} style={{ color: '#15803d' }} title="Pass QC">
+                            <button onClick={() => openPassModal(job)} className={`${styles.actionBtn} ${styles.edit}`} style={{ color: '#15803d' }} title="Pass QC">
                               <Check size={18} />
                             </button>
                             <button onClick={() => openFailModal(job.id)} className={`${styles.actionBtn} ${styles.del}`} style={{ color: '#dc2626' }} title="Fail QC">
@@ -221,6 +265,52 @@ export default function QCPendingPage() {
           </div>
         )}
       </div>
+
+      {passModalOpen && selectedPassJob && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className={styles.formCard} style={{ width: '100%', maxWidth: '440px', margin: '0 16px' }}>
+            <div className={styles.formHeader}>
+              <h3 className={styles.formTitle} style={{ color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Check size={20} style={{ color: '#16a34a' }} /> Mark Job as QC Passed
+              </h3>
+              <button type="button" onClick={() => setPassModalOpen(false)} className={styles.formClose}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handlePassSubmit} className={styles.formGrid}>
+              <div className={`${styles.formField} ${styles.wide}`} style={{ background: '#f0fdf4', padding: '12px 16px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                <p style={{ margin: 0, fontSize: '13px', color: '#166534', fontWeight: 600 }}>
+                  Work Order: {selectedPassJob.workOrderNumber || selectedPassJob.id}
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#166534' }}>
+                  Product: <strong>{selectedPassJob.salesOrderItem?.product?.name || 'Precast Drain Cover'}</strong> (Qty: {selectedPassJob.quantity})
+                </p>
+                <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#15803d' }}>
+                  This will mark the job as QC Passed and send it directly to dispatch.
+                </p>
+              </div>
+              <div className={`${styles.formField} ${styles.wide}`}>
+                <label className={styles.formLabel}>QC Remarks (Optional)</label>
+                <input
+                  type="text"
+                  value={passRemarks}
+                  onChange={(e) => setPassRemarks(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. Dimensions and surface finish verified"
+                />
+              </div>
+              <div className={`${styles.formActions} ${styles.wide}`} style={{ marginTop: '12px' }}>
+                <button type="button" onClick={() => setPassModalOpen(false)} className={`${styles.btn} ${styles.btnCancel}`} style={{ flex: 1 }}>
+                  Cancel
+                </button>
+                <button type="submit" className={`${styles.btn}`} style={{ flex: 1, justifyContent: 'center', backgroundColor: '#16a34a', color: '#ffffff', fontWeight: 600 }}>
+                  Confirm QC Pass
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {failModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>

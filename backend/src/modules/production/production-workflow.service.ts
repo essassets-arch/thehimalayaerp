@@ -529,30 +529,45 @@ export class ProductionWorkflowService {
     return entry;
   }
 
-  async getFinishedGoods(companyId: string) {
-    const records = await this.prisma.finishedGoods.findMany({
-      where: {
-        status: {
-          in: [
-            'AVAILABLE',
-            'PARTIALLY_ALLOCATED',
-            'ALLOCATED',
-            'READY_FOR_DISPATCH',
-            'DISPATCHED',
-          ],
-        },
-        workOrder: {
-          productionPlan: {
-            salesOrder: {
-              customer: { companyId },
+  async getFinishedGoods(companyId?: string) {
+    const whereClause: any = {
+      status: {
+        in: [
+          'AVAILABLE',
+          'PARTIALLY_ALLOCATED',
+          'ALLOCATED',
+          'READY_FOR_DISPATCH',
+          'DISPATCHED',
+        ],
+      },
+    };
+
+    if (companyId) {
+      whereClause.OR = [
+        {
+          workOrder: {
+            productionPlan: {
+              salesOrder: {
+                customer: { companyId },
+              },
             },
           },
         },
-      },
+        {
+          product: { companyId },
+        },
+      ];
+    }
+
+    const records = await this.prisma.finishedGoods.findMany({
+      where: whereClause,
       include: {
         product: true,
         workOrder: {
           include: {
+            salesOrderItem: {
+              include: { product: true },
+            },
             productionPlan: {
               include: {
                 salesOrder: {
@@ -568,18 +583,19 @@ export class ProductionWorkflowService {
 
     return records.map((entry: any) => {
       const wo = entry.workOrder;
-      const so = wo?.salesOrder;
-      const product = entry.product;
+      const so = wo?.productionPlan?.salesOrder;
+      const product = entry.product || wo?.salesOrderItem?.product;
       const customer = so?.customer;
 
       return {
         ...entry,
-        jobNo: wo?.workOrderNumber,
+        jobNo: wo?.workOrderNumber || entry.jobNo || entry.workOrderId,
         productionPlanId: wo?.productionPlanId,
-        customerName: customer?.name || 'Internal',
-        productName: product?.name || 'Unknown',
-        productCode: product?.sku || '-',
-        quantity: Number(entry.quantity),
+        customerName: customer?.companyName || customer?.contactPerson || customer?.name || 'Internal',
+        productName: product?.name || wo?.salesOrderItem?.productNameSnapshot || 'Finished Good',
+        productCode: product?.sku || product?.publicId || wo?.salesOrderItem?.productCodeSnapshot || '-',
+        quantity: Number(entry.quantity ?? 0),
+        availableQuantity: Number(entry.availableQuantity ?? entry.quantity ?? 0),
       };
     });
   }

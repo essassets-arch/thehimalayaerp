@@ -39,7 +39,7 @@ export class ProductsService {
   }
 
   async findAll(companyId: string, search?: string) {
-    const where: any = { companyId };
+    const where: any = { companyId, isActive: true };
 
     if (search) {
       where.OR = [

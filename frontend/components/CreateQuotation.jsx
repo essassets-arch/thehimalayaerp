@@ -1015,7 +1015,7 @@ export default function CreateQuotation({
 
         {/* Action Buttons */}
         <div className="form-actions">
-          <button type="submit" className="form-submit-btn">Publish Quotation Proposal</button>
+          <button data-testid="quotation-submit" type="submit" className="form-submit-btn">Publish Quotation Proposal</button>
           <button 
             type="button" 
             className="btn-small btn-outline-small" 

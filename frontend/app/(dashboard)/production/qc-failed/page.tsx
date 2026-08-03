@@ -15,10 +15,18 @@ export default function QCFailedPage() {
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      const data = await backendFetch('/api/v1/production/qc-failed');
-      setJobs((data as any) || []);
+      const res: any = await backendFetch('/api/v1/production/qc-failed');
+      const list = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.items)
+        ? res.items
+        : [];
+      setJobs(list as any);
     } catch (err: any) {
       toast.error(err.message || 'Failed to load QC failed list');
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -37,7 +45,8 @@ export default function QCFailedPage() {
     }
   };
 
-  const filteredJobs = jobs.filter((job: any) =>
+  const jobsList = Array.isArray(jobs) ? jobs : [];
+  const filteredJobs = jobsList.filter((job: any) =>
     job.workOrderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     job.failureReason?.toLowerCase().includes(searchQuery.toLowerCase())
   );

@@ -49,6 +49,7 @@ async function main() {
     'sales.orders.approve', 'sales.orders.create', 'sales.orders.read', 'sales.orders.update',
 
     'crm.quotation.create', 'crm.quotation.read', 'crm.quotation.update',
+    'crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update', 'crm.quotations.send', 'crm.quotations.accept', 'crm.quotations.convert', 'crm.quotations.delete',
     'dispatch.create', 'dispatch.read', 'dispatch.update',
     'logistics.dispatches.read', 'logistics.dispatches.create', 'logistics.dispatches.start-delivery', 'logistics.dispatches.confirm-delivery',
     'finance.invoice.read', 'finance.invoice.update',
@@ -241,29 +242,53 @@ async function main() {
   }
 
   console.log('🔗 Assigning permissions to sales roles...');
-  const salesRoles = await prisma.role.findMany({
-    where: { code: { in: ['SALES_EXECUTIVE', 'SALES_MANAGER'] } },
-  });
-  const salesPerms = await prisma.permission.findMany({
-    where: {
-      code: {
-        in: [
-          'sales.customers.read', 'sales.customers.create', 'sales.customers.update',
-          'sales.leads.read', 'sales.leads.create', 'sales.leads.update', 'sales.leads.convert',
-          'sales.dashboard.read',
-          'sales.orders.read', 'sales.orders.create', 'sales.orders.update',
-          'crm.quotation.read', 'crm.quotation.create', 'crm.quotation.update'
-        ]
-      }
-    }
-  });
+  const salesExecRole = await prisma.role.findUnique({ where: { code: 'SALES_EXECUTIVE' } });
+  const salesMgrRole = await prisma.role.findUnique({ where: { code: 'SALES_MANAGER' } });
 
-  for (const role of salesRoles) {
-    for (const perm of salesPerms) {
+  const commonSalesPerms = [
+    'sales.customers.read', 'sales.customers.create', 'sales.customers.update',
+    'sales.leads.read', 'sales.leads.create', 'sales.leads.update', 'sales.leads.convert',
+    'sales.dashboard.read',
+    'sales.orders.read', 'sales.orders.create', 'sales.orders.update',
+    'crm.quotation.read', 'crm.quotation.create', 'crm.quotation.update',
+    'sales.customercomplaints.read', 'sales.customercomplaints.create', 'sales.customercomplaints.update',
+    'sales.complaints.read', 'sales.complaints.create', 'sales.complaints.update',
+    'inventory.warehouses.read', 'warehouses.read',
+    'procurement.suppliers.read', 'suppliers.read',
+    'inventory.inventory.read', 'inventory.stock.read',
+    'products.read', 'admin.products.read',
+    'admin.materialrequests.read', 'admin.materialrequests.create', 'materialrequests.read',
+  ];
+
+  const salesExecPermsList = [
+    ...commonSalesPerms,
+    'crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update', 'crm.quotations.send',
+  ];
+
+  const salesMgrPermsList = [
+    ...commonSalesPerms,
+    'crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update', 'crm.quotations.send',
+    'crm.quotations.accept', 'crm.quotations.convert', 'crm.quotations.delete',
+  ];
+
+  if (salesExecRole) {
+    const perms = await prisma.permission.findMany({ where: { code: { in: salesExecPermsList } } });
+    for (const perm of perms) {
       await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
+        where: { roleId_permissionId: { roleId: salesExecRole.id, permissionId: perm.id } },
         update: {},
-        create: { roleId: role.id, permissionId: perm.id },
+        create: { roleId: salesExecRole.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  if (salesMgrRole) {
+    const perms = await prisma.permission.findMany({ where: { code: { in: salesMgrPermsList } } });
+    for (const perm of perms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: salesMgrRole.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: salesMgrRole.id, permissionId: perm.id },
       });
     }
   }
@@ -333,10 +358,10 @@ async function main() {
   // inferred in controllers; users must sign in again after reseeding so JWT
   // permission claims are refreshed.
   const procurementRolePermissions: Record<string, string[]> = {
-    STORE_MANAGER: ['procurement.indents.create','procurement.indents.read','procurement.indents.update','procurement.indents.submit','procurement.indents.resubmit','procurement.indents.cancel','procurement.purchase_orders.read','procurement.purchase_orders.delivery_read','procurement.purchase_orders.closure_read','procurement.grns.create','procurement.grns.read','procurement.grns.update','procurement.grns.submit','procurement.grns.resubmit','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.audit.read','suppliers.read','products.read','warehouses.read','inventory.stock.read'],
-    PLANT_HEAD: ['procurement.indents.read','procurement.indents.approve','procurement.indents.return','procurement.indents.reject','procurement.purchase_orders.read','procurement.purchase_orders.closure_read','procurement.grns.read','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.audit.read','products.read','warehouses.read','inventory.stock.read'],
-    FINANCE_EXECUTIVE: ['procurement.indents.read','procurement.purchase_orders.create','procurement.purchase_orders.read','procurement.purchase_orders.update','procurement.purchase_orders.submit','procurement.purchase_orders.issue','procurement.purchase_orders.vendor_status','procurement.purchase_orders.dispatch','procurement.purchase_orders.closure_read','procurement.purchase_orders.close','procurement.grns.read','procurement.grns.audit','procurement.grns.return','procurement.vendor_invoices.create','procurement.vendor_invoices.read','procurement.vendor_invoices.update','procurement.vendor_invoices.submit','procurement.vendor_invoices.match','procurement.vendor_invoices.resolve_exception','procurement.vendor_invoices.verify','procurement.vendor_invoices.request_payment','procurement.vendor_invoices.cancel','procurement.vendor_payments.create','procurement.vendor_payments.read','procurement.vendor_payments.update','procurement.vendor_payments.submit','procurement.vendor_payments.process','procurement.vendor_payments.complete','procurement.vendor_payments.fail','procurement.vendor_payments.cancel','inventory.receipts.post','suppliers.read','products.read','warehouses.read'],
-    FINANCE_MANAGER: ['procurement.indents.read','procurement.purchase_orders.create','procurement.purchase_orders.read','procurement.purchase_orders.update','procurement.purchase_orders.submit','procurement.purchase_orders.issue','procurement.purchase_orders.vendor_status','procurement.purchase_orders.dispatch','procurement.purchase_orders.closure_read','procurement.purchase_orders.close','procurement.grns.read','procurement.grns.audit','procurement.grns.return','procurement.vendor_invoices.create','procurement.vendor_invoices.read','procurement.vendor_invoices.update','procurement.vendor_invoices.submit','procurement.vendor_invoices.match','procurement.vendor_invoices.resolve_exception','procurement.vendor_invoices.verify','procurement.vendor_invoices.request_payment','procurement.vendor_invoices.cancel','procurement.vendor_payments.create','procurement.vendor_payments.read','procurement.vendor_payments.update','procurement.vendor_payments.submit','procurement.vendor_payments.process','procurement.vendor_payments.complete','procurement.vendor_payments.fail','procurement.vendor_payments.cancel','inventory.receipts.post','suppliers.read','products.read','warehouses.read'],
+    STORE_MANAGER: ['procurement.indents.create','procurement.indents.read','procurement.indents.update','procurement.indents.submit','procurement.indents.resubmit','procurement.indents.cancel','procurement.purchase_orders.read','procurement.purchase_orders.delivery_read','procurement.purchase_orders.closure_read','procurement.grns.create','procurement.grns.read','procurement.grns.update','procurement.grns.submit','procurement.grns.resubmit','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.audit.read','suppliers.read','procurement.suppliers.read','products.read','warehouses.read','inventory.warehouses.read','inventory.stock.read','inventory.inventory.read'],
+    PLANT_HEAD: ['procurement.indents.read','procurement.indents.approve','procurement.indents.return','procurement.indents.reject','procurement.purchase_orders.read','procurement.purchase_orders.closure_read','procurement.grns.read','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.audit.read','products.read','warehouses.read','inventory.warehouses.read','inventory.stock.read','inventory.inventory.read','procurement.suppliers.read','suppliers.read'],
+    FINANCE_EXECUTIVE: ['procurement.indents.read','procurement.purchase_orders.create','procurement.purchase_orders.read','procurement.purchase_orders.update','procurement.purchase_orders.submit','procurement.purchase_orders.issue','procurement.purchase_orders.vendor_status','procurement.purchase_orders.dispatch','procurement.purchase_orders.closure_read','procurement.purchase_orders.close','procurement.grns.read','procurement.grns.audit','procurement.grns.return','procurement.vendor_invoices.create','procurement.vendor_invoices.read','procurement.vendor_invoices.update','procurement.vendor_invoices.submit','procurement.vendor_invoices.match','procurement.vendor_invoices.resolve_exception','procurement.vendor_invoices.verify','procurement.vendor_invoices.request_payment','procurement.vendor_invoices.cancel','procurement.vendor_payments.create','procurement.vendor_payments.read','procurement.vendor_payments.update','procurement.vendor_payments.submit','procurement.vendor_payments.process','procurement.vendor_payments.complete','procurement.vendor_payments.fail','procurement.vendor_payments.cancel','inventory.receipts.post','suppliers.read','procurement.suppliers.read','products.read','warehouses.read','inventory.warehouses.read','inventory.inventory.read'],
+    FINANCE_MANAGER: ['procurement.indents.read','procurement.purchase_orders.create','procurement.purchase_orders.read','procurement.purchase_orders.update','procurement.purchase_orders.submit','procurement.purchase_orders.issue','procurement.purchase_orders.vendor_status','procurement.purchase_orders.dispatch','procurement.purchase_orders.closure_read','procurement.purchase_orders.close','procurement.grns.read','procurement.grns.audit','procurement.grns.return','procurement.vendor_invoices.create','procurement.vendor_invoices.read','procurement.vendor_invoices.update','procurement.vendor_invoices.submit','procurement.vendor_invoices.match','procurement.vendor_invoices.resolve_exception','procurement.vendor_invoices.verify','procurement.vendor_invoices.request_payment','procurement.vendor_invoices.cancel','procurement.vendor_payments.create','procurement.vendor_payments.read','procurement.vendor_payments.update','procurement.vendor_payments.submit','procurement.vendor_payments.process','procurement.vendor_payments.complete','procurement.vendor_payments.fail','procurement.vendor_payments.cancel','inventory.receipts.post','suppliers.read','procurement.suppliers.read','products.read','warehouses.read','inventory.warehouses.read','inventory.inventory.read'],
     SUPER_ADMIN: ['procurement.purchase_orders.read','procurement.purchase_orders.approve','procurement.purchase_orders.return','procurement.purchase_orders.reject','procurement.purchase_orders.closure_read','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.vendor_payments.approve','procurement.audit.read'],
   };
   for (const [roleCode, codes] of Object.entries(procurementRolePermissions)) {
@@ -423,6 +448,10 @@ async function main() {
           'production.workorder.complete',
           'production.workorder.update',
           'qc.inspection.read',
+          'admin.materialrequests.read',
+          'admin.materialrequests.create',
+          'admin.materialrequests.approve',
+          'materialrequests.read',
         ],
       },
     },
@@ -512,6 +541,122 @@ async function main() {
         },
         update: {},
         create: { roleId: role.id, permissionId: permission.id },
+      });
+    }
+  }
+
+  console.log('🔗 Assigning catalog and QC permissions to all roles...');
+  const globalCatalogPerms = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'products.read',
+          'admin.products.read',
+          'warehouses.read',
+          'inventory.warehouses.read',
+          'suppliers.read',
+          'procurement.suppliers.read',
+          'inventory.stock.read',
+          'inventory.inventory.read',
+          'admin.materialrequests.read',
+          'materialrequests.read',
+          'production.qc.read',
+          'qc.inspection.read',
+          'production.productionworkflow.read',
+          'production.finishedgoods.read',
+          'finance.brand-analysis.read',
+          'store.brand-analysis.read',
+          'super-admin.brand-analysis.read',
+          'admin.replacements.create',
+          'admin.replacements.read',
+          'admin.replacements.approve',
+          'admin.replacements.reject',
+          'admin.replacements.update',
+          'production.qc.approve',
+          'qc.inspection.approve',
+          'production.qc.reject',
+          'qc.inspection.reject',
+          'production.floor.complete',
+        ],
+      },
+    },
+  });
+
+  const allRolesInSystem = await prisma.role.findMany();
+  for (const role of allRolesInSystem) {
+    for (const perm of globalCatalogPerms) {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: { roleId: role.id, permissionId: perm.id },
+        },
+        update: {},
+        create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  console.log('👤 Seeding sample customers & products...');
+  const sampleCustomers = [
+    { companyName: 'Karan Enterprises', customerCode: 'CUST-001', email: 'karan@enterprises.com', phone: '+91 9876543210', contactPerson: 'Karan Sharma' },
+    { companyName: 'Himalaya Distributors', customerCode: 'CUST-002', email: 'contact@himalayadist.com', phone: '+91 9812345678', contactPerson: 'Rahul Verma' },
+    { companyName: 'Acme Health & Care', customerCode: 'CUST-003', email: 'orders@acmehealth.com', phone: '+91 9898989898', contactPerson: 'Priya Gupta' },
+    { companyName: 'Lead Company 663544576', customerCode: 'CUST-004', email: 'info@leadco.com', phone: '+91 9777666555', contactPerson: 'Suresh Kumar' },
+  ];
+
+  for (const cust of sampleCustomers) {
+    const existing = await prisma.customer.findFirst({
+      where: {
+        OR: [
+          { companyName: cust.companyName },
+          { customerCode: cust.customerCode },
+        ],
+      },
+    });
+    if (!existing) {
+      await prisma.customer.create({
+        data: {
+          companyId: company.id,
+          companyName: cust.companyName,
+          customerCode: cust.customerCode,
+          email: cust.email,
+          phone: cust.phone,
+          contactPerson: cust.contactPerson,
+          status: 'ACTIVE',
+        },
+      });
+    }
+  }
+
+  const sampleProducts = [
+    { publicId: 'PROD-001', name: 'Herbal Shampoo 500ml', sku: 'SKU-HS500', unit: 'Bottle', unitPrice: 350.00, category: 'Personal Care' },
+    { publicId: 'PROD-002', name: 'Organic Neem Face Wash 150ml', sku: 'SKU-NFW150', unit: 'Tube', unitPrice: 180.00, category: 'Skincare' },
+    { publicId: 'PROD-003', name: 'Ayurvedic Toothpaste 200g', sku: 'SKU-ATP200', unit: 'Pack', unitPrice: 120.00, category: 'Oral Care' },
+    { publicId: 'PROD-004', name: 'Item (1 Qty)', sku: 'SKU-ITEM1', unit: 'Unit', unitPrice: 1416.00, category: 'General' },
+    { publicId: 'PROD-005', name: 'Item (100 Qty)', sku: 'SKU-ITEM100', unit: 'Box', unitPrice: 42000.00, category: 'Bulk' },
+  ];
+
+  for (const prod of sampleProducts) {
+    const existing = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { publicId: prod.publicId },
+          { name: prod.name },
+          { sku: prod.sku },
+        ],
+      },
+    });
+    if (!existing) {
+      await prisma.product.create({
+        data: {
+          companyId: company.id,
+          publicId: prod.publicId,
+          name: prod.name,
+          sku: prod.sku,
+          unit: prod.unit,
+          unitPrice: prod.unitPrice,
+          category: prod.category,
+          isActive: true,
+        },
       });
     }
   }
@@ -613,6 +758,7 @@ async function main() {
       code: 'QUOTATION',
       name: 'Quotation Workflow',
       states: [
+        { code: 'NEW',              name: 'New',               sequence: 0, isInitial: true },
         { code: 'DRAFT',            name: 'Draft',             sequence: 1, isInitial: true },
         { code: 'INTERNAL_REVIEW',  name: 'Internal Review',   sequence: 2 },
         { code: 'SENT',             name: 'Sent',              sequence: 3 },
@@ -625,6 +771,10 @@ async function main() {
         { code: 'SUPERSEDED',       name: 'Superseded',        sequence: 10, isFinal: true },
       ],
       transitions: [
+        { from: 'NEW',               to: 'SENT',              actionName: 'SEND',          actionLabel: 'Send directly to Customer' },
+        { from: 'NEW',               to: 'INTERNAL_REVIEW',   actionName: 'SUBMIT_REVIEW', actionLabel: 'Submit for Review' },
+        { from: 'NEW',               to: 'APPROVED',          actionName: 'APPROVE',       actionLabel: 'Approve' },
+        { from: 'NEW',               to: 'CANCELLED',         actionName: 'CANCEL',        actionLabel: 'Cancel' },
         { from: 'DRAFT',             to: 'INTERNAL_REVIEW',   actionName: 'SUBMIT_REVIEW', actionLabel: 'Submit for Review' },
         { from: 'INTERNAL_REVIEW',   to: 'SENT',              actionName: 'SEND',          actionLabel: 'Send to Customer' },
         { from: 'DRAFT',             to: 'SENT',              actionName: 'SEND',          actionLabel: 'Send directly to Customer' },

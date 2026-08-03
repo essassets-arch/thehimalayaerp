@@ -1,0 +1,10 @@
+{
+    "specs":  [
+                  "tests/browser/certification/sales-order/04-quotation.spec.ts",
+                  "tests/browser/certification/sales-order/05-order-conversion.spec.ts"
+              ],
+    "status":  "PASSED",
+    "timestamp":  "2026-08-03T18:46:06.9221109+05:30",
+    "durationSeconds":  110.74,
+    "exitCode":  0
+}

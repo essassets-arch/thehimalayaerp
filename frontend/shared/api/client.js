@@ -81,30 +81,37 @@ async function performRequest(method, path, body = null, options = {}) {
            const id = path.split('/').pop();
            const idx = items.findIndex(i => i.id === id);
            const bodyData = body instanceof FormData ? Object.fromEntries(body.entries()) : (typeof body === 'string' ? JSON.parse(body) : body);
+           let itemToReturn;
            if (idx > -1) {
              items[idx] = { ...items[idx], ...bodyData, updatedAt: new Date().toISOString() };
-             if (typeof window !== 'undefined') {
-               localStorage.setItem(LS_KEY, JSON.stringify(items));
-               window.dispatchEvent(new Event('storage'));
-             }
-             return { data: items[idx], success: true };
+             itemToReturn = items[idx];
+           } else {
+             itemToReturn = { id, ...bodyData, updatedAt: new Date().toISOString() };
+             items.push(itemToReturn);
            }
-           throw new Error('Reminder not found');
+           if (typeof window !== 'undefined') {
+             localStorage.setItem(LS_KEY, JSON.stringify(items));
+             window.dispatchEvent(new Event('storage'));
+           }
+           return { data: itemToReturn, success: true };
         }
         if (method === 'PATCH' && path.endsWith('/complete')) {
            const match = path.match(/\/sales\/reminders\/(.+)\/complete/);
-           if (match) {
-             const idx = items.findIndex(i => i.id === match[1]);
-             if (idx > -1) {
-               items[idx].status = 'Completed';
-               if (typeof window !== 'undefined') {
-                 localStorage.setItem(LS_KEY, JSON.stringify(items));
-                 window.dispatchEvent(new Event('storage'));
-               }
-               return { data: items[idx], success: true };
-             }
+           const targetId = match ? match[1] : path.split('/').slice(-2)[0];
+           const idx = items.findIndex(i => i.id === targetId || i.id?.toString() === targetId || i.reminderId === targetId);
+           let itemToReturn;
+           if (idx > -1) {
+             items[idx] = { ...items[idx], status: 'Completed', completedAt: new Date().toISOString() };
+             itemToReturn = items[idx];
+           } else {
+             itemToReturn = { id: targetId, status: 'Completed', completedAt: new Date().toISOString() };
+             items.push(itemToReturn);
            }
-           throw new Error('Reminder not found');
+           if (typeof window !== 'undefined') {
+             localStorage.setItem(LS_KEY, JSON.stringify(items));
+             window.dispatchEvent(new Event('storage'));
+           }
+           return { data: itemToReturn, success: true };
         }
         if (method === 'DELETE') {
            const id = path.split('/').pop();

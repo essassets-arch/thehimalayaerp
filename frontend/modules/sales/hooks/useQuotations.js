@@ -102,7 +102,7 @@ export function useQuotations(showToast, autoLoad = true) {
         if (terminalStatuses.includes(currentStatus)) {
           throw new Error(`Quotation is already ${currentQuotation.status} and cannot be updated.`);
         }
-        if (status === 'Sent' && !['DRAFT', 'INTERNAL_REVIEW'].includes(currentStatus)) {
+        if (status === 'Sent' && !['DRAFT', 'INTERNAL_REVIEW', 'NEW', 'CREATED', 'PENDING'].includes(currentStatus)) {
           throw new Error(`Quotation cannot be sent from ${currentQuotation?.status || 'its current state'}.`);
         }
         const actionByStatus = {

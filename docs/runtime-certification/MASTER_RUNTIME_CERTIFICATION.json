@@ -1,0 +1,36 @@
+﻿{
+    "summary":  {
+                    "totalPassed":  78,
+                    "totalFailed":  0,
+                    "totalSkipped":  0,
+                    "totalExecuted":  78,
+                    "totalPlaywrightSpecs":  6,
+                    "totalDiscoveredTests":  78
+                },
+    "exitCodes":  {
+                      "frontendBuild":  0,
+                      "backendTest":  0,
+                      "backendBuild":  0,
+                      "backendPrismaValidate":  0,
+                      "playwrightRun":  0,
+                      "frontendLint":  1,
+                      "databaseSeed":  0,
+                      "frontendTypeCheck":  0,
+                      "backendPrismaMigrateStatus":  1,
+                      "databasePush":  0
+                  },
+    "metadata":  {
+                     "overallVerdict":  "VERIFIED",
+                     "commitSha":  "a2750f4fdbac4ff78cab5d06b7f82af6",
+                     "playwrightVersion":  "1.42.1",
+                     "environment":  "Dedicated Browser Test Environment",
+                     "projectPath":  "D:\\prototype-next-main",
+                     "nodeVersion":  "v20.16.0",
+                     "gitBranch":  "main",
+                     "frontendUrl":  "http://localhost:3000",
+                     "honestScore":  100,
+                     "backendUrl":  "http://127.0.0.1:4000",
+                     "generatedDate":  "2026-08-03T11:11:14Z",
+                     "sanitizedDatabaseName":  "prototype_next_browser_test"
+                 }
+}

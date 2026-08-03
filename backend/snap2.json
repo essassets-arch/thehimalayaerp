@@ -1,0 +1,19 @@
+{
+  "company": 2,
+  "branch": 2,
+  "department": 7,
+  "role": 14,
+  "permission": 70,
+  "user": 14,
+  "employee": 14,
+  "product": 12,
+  "customer": 3,
+  "supplier": 3,
+  "documentSequence": 12,
+  "lead": 1,
+  "duplicates": {
+    "emails": 0,
+    "perms": 0,
+    "products": 0
+  }
+}

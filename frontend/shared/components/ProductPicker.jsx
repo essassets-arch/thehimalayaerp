@@ -29,6 +29,7 @@ export default function ProductPicker({
   label,
   required = false,
   error,
+  testId = 'product-picker'
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -146,6 +147,8 @@ export default function ProductPicker({
       {/* Selected value display */}
       {value && !open ? (
         <div
+          data-testid="selected-product"
+          data-product-code={value.product_code}
           onClick={() => !disabled && setOpen(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px',
@@ -182,6 +185,7 @@ export default function ProductPicker({
       ) : (
         <div style={{ position: 'relative' }}>
           <input
+            data-testid={testId}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -247,6 +251,7 @@ export default function ProductPicker({
               {products.map((p) => (
                 <div
                   key={p.id}
+                  data-testid={`product-option-${p.public_id}`}
                   onClick={() => handleSelect(p)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '10px',

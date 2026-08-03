@@ -1,0 +1,106 @@
+﻿{
+    "summary":  {
+                    "totalDiscoveredTests":  0,
+                    "totalSkipped":  0,
+                    "totalPlaywrightSpecs":  0,
+                    "totalPassed":  0,
+                    "totalFailed":  0
+                },
+    "stages":  {
+                   "05-order-conversion.spec.ts":  {
+                                                       "Passed":  0,
+                                                       "Stage":  "Order conversion",
+                                                       "Executed":  0,
+                                                       "Failed":  0,
+                                                       "Skipped":  0,
+                                                       "Status":  "PENDING"
+                                                   },
+                   "07-production-qc.spec.ts":  {
+                                                    "Passed":  0,
+                                                    "Stage":  "Production/QC",
+                                                    "Executed":  0,
+                                                    "Failed":  0,
+                                                    "Skipped":  0,
+                                                    "Status":  "PENDING"
+                                                },
+                   "04-quotation.spec.ts":  {
+                                                "Passed":  0,
+                                                "Stage":  "Quotation",
+                                                "Executed":  0,
+                                                "Failed":  0,
+                                                "Skipped":  0,
+                                                "Status":  "PENDING"
+                                            },
+                   "10-replacement.spec.ts":  {
+                                                  "Passed":  0,
+                                                  "Stage":  "Replacement",
+                                                  "Executed":  0,
+                                                  "Failed":  0,
+                                                  "Skipped":  0,
+                                                  "Status":  "PENDING"
+                                              },
+                   "02-sample-dispatch.spec.ts":  {
+                                                      "Passed":  0,
+                                                      "Stage":  "Sample dispatch",
+                                                      "Executed":  0,
+                                                      "Failed":  0,
+                                                      "Skipped":  0,
+                                                      "Status":  "PENDING"
+                                                  },
+                   "08-dispatch-delivery.spec.ts":  {
+                                                        "Passed":  0,
+                                                        "Stage":  "Dispatch/delivery",
+                                                        "Executed":  0,
+                                                        "Failed":  0,
+                                                        "Skipped":  0,
+                                                        "Status":  "PENDING"
+                                                    },
+                   "01-lead-actions.spec.ts":  {
+                                                   "Passed":  0,
+                                                   "Stage":  "Lead actions",
+                                                   "Executed":  0,
+                                                   "Failed":  0,
+                                                   "Skipped":  0,
+                                                   "Status":  "PENDING"
+                                               },
+                   "09-payment-closure.spec.ts":  {
+                                                      "Passed":  0,
+                                                      "Stage":  "Payment/closure",
+                                                      "Executed":  0,
+                                                      "Failed":  0,
+                                                      "Skipped":  0,
+                                                      "Status":  "PENDING"
+                                                  },
+                   "03-sample-return.spec.ts":  {
+                                                    "Passed":  0,
+                                                    "Stage":  "Sample return",
+                                                    "Executed":  0,
+                                                    "Failed":  0,
+                                                    "Skipped":  0,
+                                                    "Status":  "PENDING"
+                                                },
+                   "06-plant-head-handoff.spec.ts":  {
+                                                         "Passed":  0,
+                                                         "Stage":  "Plant Head handoff",
+                                                         "Executed":  0,
+                                                         "Failed":  0,
+                                                         "Skipped":  0,
+                                                         "Status":  "PENDING"
+                                                     },
+                   "11-return.spec.ts":  {
+                                             "Passed":  0,
+                                             "Stage":  "Return",
+                                             "Executed":  0,
+                                             "Failed":  0,
+                                             "Skipped":  0,
+                                             "Status":  "PENDING"
+                                         }
+               },
+    "metadata":  {
+                     "gitBranch":  "main",
+                     "overallVerdict":  "FAILED",
+                     "projectPath":  "D:\\prototype-next-main",
+                     "generatedDate":  "2026-08-03T12:03:21Z",
+                     "environment":  "Dedicated Browser Test Environment"
+                 }
+}

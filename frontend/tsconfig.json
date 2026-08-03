@@ -31,9 +31,13 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-browser-test-56020/types/**/*.ts",
+    ".next-browser-test-61701/types/**/*.ts",
+    ".next-browser-test/types/**/*.ts",
+    ".next-build/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-build/types/**/*.ts"
+    ".next-browser-test-55758/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

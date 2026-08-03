@@ -24,17 +24,20 @@ export class CustomerComplaintsController {
   @RequirePermissions('sales.customercomplaints.create')
   @Post('sales/complaints')
   create(@Body() dto: CreateCustomerComplaintDto, @Req() req: any) {
-    return this.service.create(dto, req.user.id);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.create(dto, userId);
   }
   @RequirePermissions('sales.customercomplaints.read')
   @Get('sales/complaints')
   listSales(@Req() req: any) {
-    return this.service.listSales(req.user.id);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.listSales(userId);
   }
   @RequirePermissions('sales.customercomplaints.read')
   @Get('sales/complaints/:id')
   salesOne(@Param('id') id: string, @Req() req: any) {
-    return this.service.findSales(id, req.user.id);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.findSales(id, userId);
   }
   @RequirePermissions('sales.customercomplaints.update')
   @Put('sales/complaints/:id')
@@ -43,17 +46,20 @@ export class CustomerComplaintsController {
     @Body() dto: CreateCustomerComplaintDto,
     @Req() req: any,
   ) {
-    return this.service.updateSales(id, dto, req.user.id);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.updateSales(id, dto, userId);
   }
   @RequirePermissions('sales.customercomplaints.delete')
   @Delete('sales/complaints/:id')
   remove(@Param('id') id: string, @Req() req: any) {
-    return this.service.removeSales(id, req.user.id);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.removeSales(id, userId);
   }
   @RequirePermissions('sales.customercomplaints.submit')
   @Post('sales/complaints/:id/resubmit')
   resubmit(@Param('id') id: string, @Req() req: any) {
-    return this.service.resubmit(id, req.user.id);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.resubmit(id, userId);
   }
   @RequirePermissions('sales.customercomplaints.read')
   @Get('admin/complaints')
@@ -72,7 +78,8 @@ export class CustomerComplaintsController {
     @Body() dto: Partial<AdminRemarksDto>,
     @Req() req: any,
   ) {
-    return this.service.approve(id, req.user.id, dto.adminRemarks);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.approve(id, userId, dto.adminRemarks);
   }
   @RequirePermissions('sales.customercomplaints.reject')
   @Put('admin/complaints/:id/reject')
@@ -81,7 +88,8 @@ export class CustomerComplaintsController {
     @Body() dto: AdminRemarksDto,
     @Req() req: any,
   ) {
-    return this.service.reject(id, req.user.id, dto.adminRemarks);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.reject(id, userId, dto.adminRemarks);
   }
   @RequirePermissions('sales.customercomplaints.update')
   @Put('admin/complaints/:id/remarks')
@@ -90,6 +98,7 @@ export class CustomerComplaintsController {
     @Body() dto: AdminRemarksDto,
     @Req() req: any,
   ) {
-    return this.service.remarks(id, req.user.id, dto.adminRemarks);
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.remarks(id, userId, dto.adminRemarks);
   }
 }

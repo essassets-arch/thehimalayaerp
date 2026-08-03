@@ -361,6 +361,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   id="login-email"
+                  data-testid="login-email"
                   className="login-input"
                   placeholder="user@himalayaerp.com"
                   value={email}
@@ -379,6 +380,7 @@ export default function LoginPage() {
                 <input
                   type={showPass ? 'text' : 'password'}
                   id="login-password"
+                  data-testid="login-password"
                   className="login-input login-input-pr"
                   placeholder="••••••••••••"
                   value={password}
@@ -399,7 +401,7 @@ export default function LoginPage() {
             </div>
 
             {/* Submit */}
-            <button type="submit" id="login-submit" disabled={loading} className="login-btn">
+            <button type="submit" id="login-submit" data-testid="login-submit" disabled={loading} className="login-btn">
               <ShieldCheck size={16} />
               {loading ? 'Authenticating…' : 'Sign In'}
             </button>

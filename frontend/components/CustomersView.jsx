@@ -16,7 +16,7 @@ export default function CustomersView({
 
   // Enrich customers with live metrics from orders
   const enrichedCustomers = customers.map(c => {
-    const custName = c.name || c.companyName || c.customerName || c.company_name || 'Unknown Customer';
+    const custName = c.companyName || c.name || c.company_name || c.customerName || c.customer_name || c.contactPerson || c.contact_person || c.leadName || 'Customer';
     
     const custOrders = orders.filter(o => 
       String(o.customerId) === String(c.id) || 

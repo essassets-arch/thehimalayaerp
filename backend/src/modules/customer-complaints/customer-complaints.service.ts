@@ -27,12 +27,16 @@ export class CustomerComplaintsService {
   }
 
   private async number() {
-    const sequence = await this.prisma.idSequence.upsert({
-      where: { key: 'COMPLAINT_NO' },
-      update: { nextValue: { increment: 1 } },
-      create: { key: 'COMPLAINT_NO', nextValue: 2 },
+    const count = await this.prisma.customerComplaint.count();
+    const year = new Date().getFullYear();
+    let num = `CMP-${year}-${String(count + 1).padStart(4, '0')}`;
+    const existing = await this.prisma.customerComplaint.findUnique({
+      where: { complaintNo: num },
     });
-    return `CMP-${new Date().getFullYear()}-${String(sequence.nextValue - 1).padStart(4, '0')}`;
+    if (existing) {
+      num = `CMP-${year}-${String(count + 1).padStart(4, '0')}-${Date.now().toString().slice(-4)}`;
+    }
+    return num;
   }
 
   async create(dto: CreateCustomerComplaintDto, userId: string) {

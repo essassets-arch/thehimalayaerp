@@ -23,8 +23,15 @@ export async function resetBrowserTestDb() {
   };
 
   try {
-    console.log('🔄 Executing Prisma db push on test database...');
-    execSync('npx prisma db push --skip-generate --accept-data-loss', {
+    console.log('🔄 Cleaning test database schema...');
+    execSync('node scripts/clean-db.js', {
+      cwd: backendDir,
+      env,
+      stdio: 'inherit',
+    });
+
+    console.log('🔄 Executing Prisma migrate deploy on test database...');
+    execSync('npx prisma migrate deploy', {
       cwd: backendDir,
       env,
       stdio: 'inherit',

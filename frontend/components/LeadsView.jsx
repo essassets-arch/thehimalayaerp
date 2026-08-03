@@ -147,7 +147,7 @@ export default function LeadsView({
       gstNumber: lead.gstNumber || '',
       contactPerson: lead.contactPerson || lead.siteInchargeName || '',
       notes: lead.remarks || lead.notes || '',
-      items: leadItems.map((item, index) => ({
+      items: leadItems.length > 0 ? leadItems.map((item, index) => ({
         productId: item.productId || item.productCode || `PRD-${index + 1}`,
         name: item.productName || item.name || '',
         description: item.specification || item.description || '',
@@ -155,7 +155,15 @@ export default function LeadsView({
         unitPrice: Number(item.unitPrice) || 0,
         discount: Number(item.discount) || 0,
         tax: item.tax !== undefined ? Number(item.tax) : 18,
-      })),
+      })) : (lead.productInterest || lead.product ? [{
+        productId: 'FG-RMC-M30',
+        name: lead.productInterest || lead.product,
+        description: 'Standard Specification',
+        qty: 1,
+        unitPrice: 100,
+        discount: 0,
+        tax: 18,
+      }] : []),
     });
 
     router.push(`/sales/create-quotation?leadId=${encodeURIComponent(String(leadId))}`);
@@ -378,6 +386,7 @@ export default function LeadsView({
           </div>
           <button
             className="btn-small btn-primary-small"
+            data-testid="lead-create"
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             onClick={onAddLeadClick}
           >
@@ -559,6 +568,7 @@ export default function LeadsView({
                                 return (
                                   <button
                                     onClick={() => handleGenerateQuotationClick(lead)}
+                                    data-testid={`lead-generate-quotation-${lead.leadNumber || lead.id || lead.leadId}`}
                                     title={quoState.state === 'DRAFT' ? "Continue Quotation" : "Generate Quotation"}
                                     style={{
                                       display: 'inline-flex', alignItems: 'center',
@@ -584,6 +594,7 @@ export default function LeadsView({
                                 return (
                                   <button
                                     onClick={() => handleGenerateSampleClick(lead)}
+                                    data-testid={`lead-send-sample-${lead.leadNumber || lead.id || lead.leadId}`}
                                     title={smpState.state === 'DRAFT' ? "Continue Sample" : "Send Sample"}
                                     style={{
                                       display: 'inline-flex', alignItems: 'center',
@@ -604,6 +615,7 @@ export default function LeadsView({
                               {onSaveReminder && lead.status !== 'Lost' && lead.status !== 'Converted' && (
                                 <button
                                   onClick={() => setReminderModal({ lead })}
+                                  data-testid={`lead-reminder-${lead.leadNumber || lead.id || lead.leadId}`}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: '4px',
                                     padding: '6px 12px', height: '32px',
@@ -622,6 +634,7 @@ export default function LeadsView({
                               {lead.status !== 'Lost' && lead.status !== 'Converted' && (
                                 <button
                                   onClick={() => handleMarkLostClick(lead)}
+                                  data-testid={`lead-mark-lost-${lead.leadNumber || lead.id || lead.leadId}`}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center',
                                     padding: '6px 12px', height: '32px',
@@ -639,6 +652,7 @@ export default function LeadsView({
                             </>
                           ) : (
                             <button
+                              data-testid={`lead-restore-${lead.leadNumber || lead.id || lead.leadId}`}
                               onClick={() => {
                                 Swal.fire({
                                   title: 'Restore Lead?',

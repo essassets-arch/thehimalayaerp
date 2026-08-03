@@ -192,9 +192,13 @@ export class ReplacementsService {
       where: { id },
     });
     if (!request) throw new NotFoundException('Replacement request not found');
+    if (request.status !== 'APPROVED') {
+      throw new BadRequestException('Plant Head approval is required');
+    }
+    const currentDispatchStatus = request.dispatchStatus || request.status || '';
     if (
-      !['DISPATCHED', 'READY_FOR_DISPATCH'].includes(
-        request.dispatchStatus || '',
+      !['DISPATCHED', 'READY_FOR_DISPATCH', 'APPROVED'].includes(
+        currentDispatchStatus,
       )
     ) {
       throw new BadRequestException('Create the replacement dispatch first');
@@ -210,7 +214,12 @@ export class ReplacementsService {
       where: { id },
     });
     if (!request) throw new NotFoundException('Replacement request not found');
-    if (!['DISPATCHED', 'IN_TRANSIT'].includes(request.dispatchStatus || '')) {
+    const currentDispatchStatus = request.dispatchStatus || request.status || '';
+    if (
+      !['DISPATCHED', 'IN_TRANSIT', 'READY_FOR_DISPATCH', 'APPROVED'].includes(
+        currentDispatchStatus,
+      )
+    ) {
       throw new BadRequestException(
         'Replacement must be dispatched before delivery',
       );

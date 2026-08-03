@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Package, Search, Truck } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
@@ -50,12 +50,12 @@ export default function FinishedGoodsPage() {
     },
   });
 
-  const allItems = Array.isArray(data) ? data : [];
+  const allItems = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
-  const readyCount = React.useMemo(() => allItems.filter((i) => i.status === "AVAILABLE").length, [allItems]);
-  const historyCount = React.useMemo(() => allItems.filter((i) => i.status !== "AVAILABLE").length, [allItems]);
+  const readyCount = useMemo(() => allItems.filter((i) => i.status === "AVAILABLE").length, [allItems]);
+  const historyCount = useMemo(() => allItems.filter((i) => i.status !== "AVAILABLE").length, [allItems]);
 
-  const filteredData = React.useMemo(() => {
+  const filteredData = useMemo(() => {
     const readyItems = allItems.filter((i) => i.status === "AVAILABLE");
     const historyItems = allItems.filter((i) => i.status !== "AVAILABLE");
     const base = activeTab === "ready" ? readyItems : historyItems;

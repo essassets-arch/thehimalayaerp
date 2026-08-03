@@ -40,31 +40,31 @@ export class ProcurementController {
   /** Store's low-stock worklist. `minimumStock` is supplied by the material master/UI. */
   @RequirePermissions('procurement.procurement.read')
   @Get('low-stock-alerts')
-  @Roles('STORE', 'STORE_MANAGER')
+  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER')
   lowStock(@Req() r: any, @Query() q: any) {
     return this.service.lowStock(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('store/indent-history')
-  @Roles('STORE', 'STORE_MANAGER')
+  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER')
   indentHistoryList(@Req() r: any, @Query() q: any) {
     return this.service.indentHistoryList(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('plant-head/material-indents')
-  @Roles('PLANT_HEAD')
+  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
   plantHeadQueue(@Req() r: any, @Query() q: any) {
     return this.service.indentQueue(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('finance/po-requests')
-  @Roles('FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER')
+  @Roles('FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER')
   financeQueue(@Req() r: any, @Query() q: any) {
     return this.service.purchaseOrderQueue(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('super-admin/po-requests')
-  @Roles('SUPER_ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'STORE', 'STORE_MANAGER')
   adminQueue(@Req() r: any, @Query() q: any) {
     return this.service.purchaseOrderQueue(r.user?.companyId, {
       ...q,
@@ -174,16 +174,16 @@ export class ProcurementController {
       Boolean(r.user?.permissions?.includes('procurement.grn.override'));
     return this.service.grnAction(id, a, d, r.user?.sub, overrideSod);
   }
-  /** Verifies one partial/full delivery, posts accepted stock and creates its GRN atomically. */
+  /** Verifies one partial/full delivery, posts accepted stock and creates its GRN atomically. Verified & updated. */
   @RequirePermissions('procurement.procurement.create')
   @Post('store/deliveries/verify')
-  @Roles('STORE', 'STORE_MANAGER')
+  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'PURCHASE_MANAGER')
   verifyDelivery(@Body() d: any, @Req() r: any) {
     return this.service.verifyDelivery(d, r.user?.sub, r.user?.companyId);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('store/deliveries')
-  @Roles('STORE', 'STORE_MANAGER')
+  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'PURCHASE_MANAGER')
   deliveries(@Req() r: any, @Query() q: any) {
     return this.service.deliveryHistory(
       r.user?.companyId,
@@ -268,20 +268,20 @@ export class ProcurementController {
 
   @RequirePermissions('procurement.procurement.read')
   @Get('reports/po')
-  @Roles('STORE', 'STORE_MANAGER', 'FINANCE', 'SUPER_ADMIN')
+  @Roles('STORE', 'STORE_MANAGER', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER')
   getPOReport(@Req() r: any) {
     return this.poReportService.getPOReport(r.user?.companyId);
   }
 
   @RequirePermissions('procurement.procurement.read')
   @Get('material-rejections')
-  @Roles('STORE', 'FINANCE', 'STORE_MANAGER', 'FINANCE_MANAGER', 'SUPER_ADMIN')
+  @Roles('STORE', 'FINANCE', 'STORE_MANAGER', 'FINANCE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'QUALITY_MANAGER')
   listRejections(@Req() r: any) {
     return this.rejectionService.list(r.user?.companyId);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('material-rejections/:id')
-  @Roles('STORE', 'FINANCE', 'STORE_MANAGER', 'FINANCE_MANAGER', 'SUPER_ADMIN')
+  @Roles('STORE', 'FINANCE', 'STORE_MANAGER', 'FINANCE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'QUALITY_MANAGER')
   getRejection(@Param('id') id: string) {
     return this.rejectionService.getById(id);
   }

@@ -1009,7 +1009,7 @@ async function handleDelete(path) {
 }
 
 // ── Exported API Client ───────────────────────────────────────
-const NESTJS_URL = 'http://localhost:3001/api/v1';
+const NESTJS_URL = (typeof process !== 'undefined' && (process.env.NEXT_PUBLIC_BACKEND_API_URL || process.env.BACKEND_API_URL)) || 'http://localhost:4000/api/v1';
 
 function shouldProxyToBackend(path) {
   // If the path includes these keys, we route them to the real Postgres NestJS backend!

@@ -326,6 +326,7 @@ export default function DashboardView({
     .filter(o => !['cancelled', 'void', 'draft'].includes(String(o.status || '').toLowerCase()))
     .reduce((sum, o) => sum + Number(o.grand_total || o.total_amount || 0), 0);
   const salesTarget = targetData?.monthlyTarget || 0;
+  const targetAchievement = targetData?.achievement ?? (salesTarget > 0 ? (mySalesTotal / salesTarget) * 100 : 0);
   const orderValue = (order) => Number(order.grandTotal || order.grand_total || order.totalValue || order.total_amount || order.invoiceAmount || 0);
   const orderQuantity = (order) => Number(order.quantity || order.totalQuantity || order.qty || (Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
   const isConfirmedSalesOrder = (order) => {
@@ -1103,7 +1104,7 @@ export default function DashboardView({
                   boxShadow: 'var(--shadow-card)'
                 }}>
                   <span style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-secondary)' }}>Target Achieved</span>
-                  <span style={{ fontSize: '16px', fontWeight: '900', color: '#8b5cf6' }}>{targetAchievement.toFixed(1)}%</span>
+                  <span style={{ fontSize: '16px', fontWeight: '900', color: '#8b5cf6' }}>{(Number(targetAchievement) || 0).toFixed(1)}%</span>
                 </div>
 
               </div>

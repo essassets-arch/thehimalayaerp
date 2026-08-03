@@ -33,11 +33,13 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Insufficient role privileges');
     }
 
-    if (user.role === 'SUPER_ADMIN') {
+    const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    if (['SUPER_ADMIN', 'ADMIN'].includes(normalizedRole)) {
       return true;
     }
 
-    const hasRole = requiredRoles.includes(user.role);
+    const normalizedRequired = requiredRoles.map(r => String(r || '').toUpperCase().replace(/[\s-]+/g, '_'));
+    const hasRole = normalizedRequired.includes(normalizedRole);
     if (!hasRole) {
       throw new ForbiddenException('Insufficient role privileges');
     }

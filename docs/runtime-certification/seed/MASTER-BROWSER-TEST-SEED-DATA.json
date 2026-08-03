@@ -1,0 +1,121 @@
+{
+  "Companies": {
+    "expected": 1,
+    "created": 2,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Plants/Branches": {
+    "expected": 2,
+    "created": 2,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Departments": {
+    "expected": 7,
+    "created": 7,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Roles": {
+    "expected": 14,
+    "created": 14,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Permissions": {
+    "expected": 30,
+    "created": 75,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Users": {
+    "expected": 14,
+    "created": 15,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Employees": {
+    "expected": 14,
+    "created": 15,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Units": {
+    "expected": 4,
+    "created": 4,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Categories": {
+    "expected": 1,
+    "created": 1,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Products": {
+    "expected": 10,
+    "created": 11,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Customers": {
+    "expected": 3,
+    "created": 27,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Vendors": {
+    "expected": 3,
+    "created": 3,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Sequences": {
+    "expected": 12,
+    "created": 12,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Product API": {
+    "expected": 1,
+    "created": 1,
+    "missing": 0,
+    "duplicates": 0,
+    "status": "VERIFIED"
+  },
+  "Product Picker": {
+    "expected": 1,
+    "created": 0,
+    "missing": 0,
+    "duplicates": 0,
+    "status": ""
+  },
+  "Product persistence": {
+    "expected": 1,
+    "created": 0,
+    "missing": 0,
+    "duplicates": 0,
+    "status": ""
+  },
+  "Idempotency": {
+    "expected": 1,
+    "created": 0,
+    "missing": 0,
+    "duplicates": 0,
+    "status": ""
+  }
+}

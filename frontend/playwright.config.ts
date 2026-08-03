@@ -10,6 +10,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  maxFailures: 0,
   reporter: [["list"], ["html", { outputFolder: "playwright-report" }]],
   use: {
     baseURL: process.env.BASE_URL || "http://localhost:3000",
@@ -37,12 +38,12 @@ export default defineConfig({
       },
     },
   ],
-  webServer: process.env.SKIP_WEBSERVER
+  webServer: process.env.EXTERNAL_TEST_STACK === 'true'
     ? undefined
     : {
-        command: "npm run dev",
-        url: "http://localhost:3000",
+        command: 'npm run dev',
+        url: 'http://127.0.0.1:3000/login',
         reuseExistingServer: true,
-        timeout: 120_000,
+        timeout: 180_000,
       },
 });

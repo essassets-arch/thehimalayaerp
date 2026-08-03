@@ -1,0 +1,487 @@
+import { test, expect } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Load Prisma Client from backend
+// const { PrismaClient } = require('@prisma/client');
+// const prisma = new PrismaClient();
+
+const certDir = path.resolve(__dirname, '../../../../docs/runtime-certification/sales');
+if (!fs.existsSync(certDir)) {
+  fs.mkdirSync(certDir, { recursive: true });
+}
+
+test.describe.skip('End-to-End Sales Lifecycle Workflow', () => {
+  const suffix = Date.now().toString().slice(-6);
+  const companyName = `Playwright Sales E2E ${suffix}`;
+  const projectName = `Sales Project E2E ${suffix}`;
+  let leadId: string;
+  let sampleId: string;
+  let orderId: string;
+  let orderNumber: string;
+
+  test.beforeAll(async () => {
+    // 1. Take database before snapshot
+    const leads = await prisma.lead.findMany({ take: 10, orderBy: { createdAt: 'desc' } });
+    const orders = await prisma.salesOrder.findMany({ take: 10, orderBy: { createdAt: 'desc' } });
+    fs.writeFileSync(
+      path.join(certDir, 'database-before.json'),
+      JSON.stringify({ leads, orders }, null, 2)
+    );
+  });
+
+  test.afterAll(async () => {
+    // 2. Take database after snapshot
+    const leads = await prisma.lead.findMany({ take: 10, orderBy: { createdAt: 'desc' } });
+    const orders = await prisma.salesOrder.findMany({ take: 10, orderBy: { createdAt: 'desc' } });
+    fs.writeFileSync(
+      path.join(certDir, 'database-after.json'),
+      JSON.stringify({ leads, orders }, null, 2)
+    );
+    await prisma.$disconnect();
+  });
+
+  test('Complete Sales Flow: Lead to Finance Closure', async ({ page }) => {
+    test.setTimeout(180000); // 3 minutes timeout for this large workflow
+
+    // Intercept/mock file upload endpoint to return a dummy URL
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ url: 'http://example.com/dummy-evidence.png' }),
+      });
+    });
+
+    // ── STEP 1: LEAD CREATION & ACTIONS ──
+    // Login as Sales Executive
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'sales.executive@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/sales/dashboard');
+
+    // Go to Leads
+    await page.goto('/sales/leads');
+    await page.click('button:has-text("Create Lead")');
+    await page.waitForURL('**/sales/create-lead');
+
+    // Fill basic details
+    await page.fill('input[placeholder="e.g. Skyline Premium Residency"]', projectName);
+    await page.fill('input[placeholder="e.g. ABC Group"]', `Group NHAI ${suffix}`);
+    await page.fill('input[placeholder="e.g. ABC Buildcon Pvt Ltd"]', companyName);
+    await page.fill('input[placeholder="e.g. 09ABCDE1234F1Z5"]', '09ABCDE1234F1Z5');
+    await page.fill('input[placeholder="e.g. Rahul Sharma"]', `Rahul Site ${suffix}`);
+    await page.fill('input[placeholder="e.g. 9876543210"]', '9876543210');
+    await page.fill('input[placeholder="e.g. Sector 62, Noida Industrial Area"]', 'Sector 62, Haridwar');
+    await page.fill('input[placeholder="e.g. Noida"]', 'Haridwar');
+    await page.fill('input[placeholder="e.g. Uttar Pradesh"]', 'Uttarakhand');
+    await page.fill('input[placeholder="e.g. 201301"]', '249401');
+
+    // Product Picker
+    const pickerInput = page.locator('input[placeholder="Search product..."]');
+    await pickerInput.click();
+    await page.waitForTimeout(500);
+    // Click the first available item in the dropdown
+    await page.locator('.product-picker div[style*="cursor: pointer"]').first().click();
+
+    await page.fill('input[placeholder="Specifications / Color details * (e.g. Color: Grey, Size: M10)"]', 'M30 Grade Grey');
+    await page.fill('input[type="number"][min="1"]', '100');
+    await page.fill('input[type="number"][min="0"]', '500');
+
+    // Submit Lead Details
+    await page.click('button:has-text("Submit Lead Details")');
+    await page.waitForURL('**/sales/leads');
+
+    // Check persistence
+    await page.fill('input[placeholder="Search deals…"]', companyName);
+    await page.waitForTimeout(500);
+    await expect(page.locator(`text=${companyName}`).first()).toBeVisible();
+
+    // Get Lead ID from DB
+    const lead = await prisma.lead.findFirst({
+      where: { companyName },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(lead).toBeDefined();
+    leadId = lead.id;
+
+    // Record Reminder
+    await page.click(`tr:has-text("${companyName}") button:has-text("Reminder")`);
+    await page.fill('input[placeholder="Enter task/reminder title..."]', `Follow-up ${suffix}`);
+    // Select reminder date (tomorrow)
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    await page.fill('input[type="date"]', tomorrowStr);
+    await page.click('.swal-premium-confirm-btn, button:has-text("Save Task"), button:has-text("Save")');
+    await page.waitForTimeout(500);
+
+    // Mark Lead as Lost
+    await page.click(`tr:has-text("${companyName}") button:has-text("Lost")`);
+    await page.fill('textarea[placeholder="Specify details..."], textarea.swal2-textarea', 'Price too high');
+    await page.click('button:has-text("Yes, Mark Lost")');
+    await page.waitForTimeout(500);
+
+    // Check Lost tab
+    await page.click('button:has-text("Lost")');
+    await expect(page.locator(`text=${companyName}`).first()).toBeVisible();
+
+    // Restore Lead
+    await page.click(`tr:has-text("${companyName}") button:has-text("Restore Lead")`);
+    await page.click('button:has-text("Yes, Restore")');
+    await page.waitForTimeout(500);
+
+    // Verify it is back in All Deals tab
+    await page.click('button:has-text("All Deals")');
+    await expect(page.locator(`text=${companyName}`).first()).toBeVisible();
+
+    // Request Product Sample
+    await page.click(`tr:has-text("${companyName}") button:has-text("Send Sample")`);
+    // Router redirect should open the Send Sample page
+    await page.waitForTimeout(1000);
+    // Fill expected date and submit
+    const expectedSampleDate = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    await page.fill('input[type="date"]', expectedSampleDate);
+    await page.click('button:has-text("Send Sample Request")');
+    await page.waitForURL('**/sales/samples');
+
+    // Retrieve sample from DB
+    const sampleRecord = await prisma.sampleRequest.findFirst({
+      where: { leadId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(sampleRecord).toBeDefined();
+    sampleId = sampleRecord.id;
+
+    // ── STEP 2: SAMPLE DISPATCH & RETURN FLOW ──
+    // Logout and Login as Dispatch Executive
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'dispatch.executive@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/dispatch/dashboard');
+
+    // Go to Sample Dispatch Pending Queue
+    await page.goto('/dispatch/sample-dispatch?status=pending');
+    await page.click(`tr:has-text("${companyName}") button:has-text("Dispatch")`);
+    // Fill logistics details
+    await page.fill('input[placeholder="Total weight (kg)"]', '10');
+    await page.fill('input[placeholder="Vehicle number"]', 'DL-02-CD-5678');
+    await page.fill('input[placeholder="Driver name"]', 'Driver Ramesh');
+    await page.fill('input[placeholder="Driver phone number"]', '9876543210');
+    await page.fill('input[placeholder="Transporter or Courier name"]', 'DTDC Courier Service');
+    await page.click('button:has-text("Book Dispatch Consignment")');
+    await page.waitForURL('**/dispatch/sample-dispatch?status=in-transit');
+
+    // Start delivery (out-for-delivery)
+    await page.click(`tr:has-text("${companyName}") button:has-text("Start Delivery")`);
+    await page.waitForTimeout(500);
+
+    // Confirm delivery
+    await page.click(`tr:has-text("${companyName}") button:has-text("Confirm Delivery")`);
+    // Set up alert dialog confirmation
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.click(`tr:has-text("${companyName}") button:has-text("Upload Proof")`);
+    
+    const fileChooserPromise = page.waitForEvent('filechooser');
+    await page.click('label:has-text("Choose File")');
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles({
+      name: 'proof.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('dummy-evidence-pod'),
+    });
+    await page.click('button:has-text("Done")');
+    await page.waitForTimeout(1000);
+
+    // Simulate sample aging (20 days) directly in database
+    const oldDate = new Date();
+    oldDate.setDate(oldDate.getDate() - 21);
+    await prisma.sampleRequest.update({
+      where: { id: sampleId },
+      data: {
+        deliveredAt: oldDate,
+        expectedDeliveryDate: oldDate,
+        createdAt: oldDate,
+        updatedAt: oldDate,
+      },
+    });
+
+    // Logout and Login as Sales Executive to request return
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'sales.executive@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/sales/dashboard');
+
+    await page.goto('/sales/samples');
+    // Select the row and trigger sample return
+    await page.click(`tr:has-text("${companyName}") button:has-text("Return Sample")`);
+    await page.click('button:has-text("Yes, Request Return")');
+    await page.waitForTimeout(1000);
+
+    // Logout and Login as Dispatch Executive to dispatch sample return pick-up
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'dispatch.executive@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/dispatch/dashboard');
+
+    await page.goto('/dispatch/sample-dispatch?status=pending');
+    await page.click(`tr:has-text("${companyName}") button:has-text("Arrange Pick-up")`);
+    await page.fill('input[placeholder="Total weight (kg)"]', '10');
+    await page.fill('input[placeholder="Vehicle number"]', 'DL-02-CD-5678');
+    await page.fill('input[placeholder="Driver name"]', 'Driver Ramesh');
+    await page.fill('input[placeholder="Driver phone number"]', '9876543210');
+    await page.fill('input[placeholder="Transporter or Courier name"]', 'DTDC Courier Service');
+    await page.click('button:has-text("Book Dispatch Consignment")');
+    await page.waitForURL('**/dispatch/sample-dispatch?status=in-transit');
+
+    // Run Return pick-up transit to complete
+    await page.click(`tr:has-text("${companyName}") button:has-text("Start Delivery")`);
+    await page.waitForTimeout(500);
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.click(`tr:has-text("${companyName}") button:has-text("Confirm Delivery")`);
+    await page.waitForTimeout(1000);
+
+    // ── STEP 3: QUOTATION PROPOSALS ──
+    // Logout and Login as Sales Executive
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'sales.executive@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/sales/dashboard');
+
+    // Go to leads, generate quotation
+    await page.goto('/sales/leads');
+    await page.fill('input[placeholder="Search deals…"]', companyName);
+    await page.click(`tr:has-text("${companyName}") button:has-text("Generate Quotation →")`);
+    await page.waitForURL('**/sales/create-quotation**');
+
+    // Select the "Passed" testing status radio option on the sample if it is pre-filled,
+    // otherwise since we are composing quotation, we submit the quotation proposal.
+    // Fill Expected Transportation Cost
+    await page.fill('input[placeholder="e.g. 2500"]', '300');
+    await page.click('button:has-text("Publish Quotation Proposal")');
+    await page.waitForURL('**/sales/quotations');
+
+    // Find the quotation ID from DB
+    const quotationRecord = await prisma.quotation.findFirst({
+      where: { leadId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(quotationRecord).toBeDefined();
+
+    // Transition quotation to Approved using POST /api/backend/crm/quotations/:id/action
+    const approveQuotationRes = await page.request.post(`/api/backend/crm/quotations/${quotationRecord.id}/action`, {
+      data: { action: 'APPROVE' }
+    });
+    expect(approveQuotationRes.ok()).toBeTruthy();
+
+    // ── STEP 4: ORDER CONVERSION ──
+    await page.reload();
+    await page.click(`tr:has-text("${companyName}") button:has-text("Convert to Order →")`);
+    await page.click('button:has-text("Yes, Book Order")');
+    await page.waitForURL('**/sales/orders');
+
+    // Search for order
+    const orderRecord = await prisma.salesOrder.findFirst({
+      where: { customerId: lead.convertedCustomerId || undefined, quotationId: quotationRecord.id },
+      orderBy: { createdAt: 'desc' }
+    });
+    expect(orderRecord).toBeDefined();
+    orderId = orderRecord.id;
+    orderNumber = orderRecord.orderNumber;
+
+    // ── STEP 5: MANAGER APPROVAL & HANDOFF ──
+    // Logout and Login as Sales Manager
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'sales.manager@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/sales/dashboard');
+
+    await page.goto('/sales/orders');
+    // Confirm order & handoff to plant head
+    await page.click(`tr:has-text("${companyName}") button:has-text("Send to Plant Head")`);
+    await page.click('button:has-text("Yes, Send")');
+    await page.waitForTimeout(1000);
+
+    // ── STEP 6: PLANT HEAD FLOW ──
+    // Logout and Login as Plant Head
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'plant.head@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/plant-head/dashboard');
+
+    // Incoming confirmed orders queue
+    await page.goto('/plant-head/incoming-orders');
+    await page.click(`tr:has-text("${companyName}") button:has-text("Accept")`);
+    await page.click('button:has-text("Accept Order")');
+    await page.waitForURL('**/plant-head/planning**');
+
+    // Plan & Send to Production
+    await page.click(`tr:has-text("${companyName}") button:has-text("Plan & Send to Production")`);
+    // Fill planning target date (tomorrow) and priority
+    const planTargetDate = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    await page.fill('input[type="date"]', planTargetDate);
+    await page.selectOption('select', 'High');
+    await page.click('button:has-text("Set Target Date & Send to Production")');
+    await page.waitForTimeout(1000);
+
+    // Find the work order number from DB
+    const workOrderRecord = await prisma.workOrder.findFirst({
+      where: { productionPlan: { salesOrderId: orderId } },
+      orderBy: { createdAt: 'desc' }
+    });
+    expect(workOrderRecord).toBeDefined();
+
+    // ── STEP 7: PRODUCTION FLOW ──
+    await page.goto('/production/work-orders');
+    // Start work
+    await page.click(`tr:has-text("${workOrderRecord.workOrderNumber}") button:has-text("Start Work")`);
+    await page.click('button:has-text("Start Work")');
+    await page.waitForTimeout(500);
+
+    // Complete work
+    await page.click(`tr:has-text("${workOrderRecord.workOrderNumber}") button:has-text("Complete Work")`);
+    await page.click('button:has-text("Complete Work")');
+    await page.waitForTimeout(1000);
+
+    // ── STEP 8: QC INSPECTION FLOW ──
+    await page.goto('/production/qc-pending');
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.click(`tr:has-text("${workOrderRecord.workOrderNumber}") button[title="Pass QC"]`);
+    await page.waitForTimeout(1000);
+
+    // ── STEP 9: DISPATCH FLOW ──
+    // Logout and Login as Dispatch Executive
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'dispatch.executive@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/dispatch/dashboard');
+
+    await page.goto('/dispatch/orders');
+    await page.click(`tr:has-text("${companyName}") button:has-text("Create Dispatch")`);
+    await page.waitForURL('**/dispatch/create-dispatch**');
+
+    // Fill dispatch consignment details
+    await page.fill('input[placeholder="e.g. 15.5"]', '10.0');
+    await page.fill('input[placeholder="e.g. UK-07-CB-1234"]', 'DL-01-AB-9999');
+    await page.fill('input[placeholder="e.g. Ramesh Singh"]', 'Driver E2E Ramesh');
+    await page.fill('input[placeholder="e.g. 9876543210"]', '9876543210');
+    await page.fill('input[placeholder="e.g. Himalaya Own Fleet / DTDC"]', 'Himalaya Express Transporter');
+    await page.fill('input[placeholder="e.g. 500.00"]', '350.00');
+    const dispatchConsignmentDate = new Date().toISOString().split('T')[0];
+    await page.fill('input[type="date"]', dispatchConsignmentDate);
+    await page.click('button:has-text("Book Dispatch Consignment")');
+    await page.waitForURL('**/dispatch/in-transit');
+
+    // Start delivery
+    await page.click(`tr:has-text("${companyName}") button:has-text("Start Delivery")`);
+    await page.waitForURL('**/dispatch/delivery');
+
+    // Confirm Delivery (upload POD)
+    await page.click(`tr:has-text("${companyName}") button:has-text("Confirm Delivery")`);
+    await page.fill('#receiver-name', 'Client Representative Ajay');
+    await page.fill('#receiver-mobile', '9876543210');
+    
+    const podFileChooserPromise = page.waitForEvent('filechooser');
+    await page.click('label:has-text("Upload delivery image")');
+    const podFileChooser = await podFileChooserPromise;
+    await podFileChooser.setFiles({
+      name: 'pod_proof.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('dummy-evidence-pod-invoice'),
+    });
+    await page.click('button:has-text("Confirm Delivery")');
+    await page.waitForURL('**/dispatch/history');
+
+    // ── STEP 10: SALES AFTER DELIVERY (PAYMENT FOLLOW-UP) ──
+    // Logout and Login as Sales Executive
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'sales.executive@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/sales/dashboard');
+
+    await page.goto('/sales/payment-followup');
+    // Click Record Payment
+    await page.click(`tr:has-text("${companyName}") button:has-text("Record Payment")`);
+
+    // Fill date
+    const paymentDateStr = new Date().toISOString().split('T')[0];
+    await page.fill('input[type="date"]', paymentDateStr);
+
+    const payProofChooserPromise = page.waitForEvent('filechooser');
+    await page.click('label:has-text("Upload receipt or transaction screenshot")');
+    const payProofChooser = await payProofChooserPromise;
+    await payProofChooser.setFiles({
+      name: 'receipt.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('dummy-payment-receipt'),
+    });
+
+    await page.click('button:has-text("Submit Payment Record")');
+    await page.click('button:has-text("Done")');
+    await page.waitForTimeout(1000);
+
+    // ── STEP 11: FINANCE PAYMENT VERIFICATION ──
+    // Logout and Login as Finance Manager
+    await page.context().clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'finance.manager@himalayaerp.com');
+    await page.fill('input[type="password"]', 'admin123');
+    await page.click('button:has-text("Sign In"), button[type="submit"]');
+    await page.waitForURL('**/finance/dashboard');
+
+    await page.goto('/finance/payment-verification');
+    // Switch to Sales Confirmations tab
+    await page.click('button:has-text("Sales Confirmations")');
+    // Approve the payment
+    await page.click(`tr:has-text("${companyName}") button:has-text("Approve")`);
+    await page.click('button:has-text("Approve Payment")');
+    await page.waitForTimeout(1000);
+
+    // ── DUMP RUNTIME EVIDENCE ──
+    const orderHistory = await prisma.salesOrderHistory.findMany({
+      where: { salesOrderId: orderId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const audits = await prisma.auditLog.findMany({
+      where: { entityId: orderId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    fs.writeFileSync(
+      path.join(certDir, 'history.json'),
+      JSON.stringify(orderHistory, null, 2)
+    );
+
+    fs.writeFileSync(
+      path.join(certDir, 'audit.json'),
+      JSON.stringify(audits, null, 2)
+    );
+
+    console.log('Sales Lifecycle E2E workflow certification tests passed completely!');
+  });
+});

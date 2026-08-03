@@ -46,3 +46,11 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Browser test build directories & Playwright artifacts
+frontend/.next-browser-test*/
+frontend/test-results/
+test-results/
+frontend/playwright-report/
+playwright-report/
+

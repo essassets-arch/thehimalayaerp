@@ -745,8 +745,9 @@ export default function OrdersView({
                                     setSendingOrderId(null);
                                   }
                                 }}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center',
+                                  data-testid={`order-send-plant-head-${o.orderNo || o.id}`}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center',
                                   padding: '4px 12px', height: '30px',
                                   background: '#c9f03d',
                                   border: '1px solid #b5da2a',

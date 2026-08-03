@@ -99,7 +99,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status = HttpStatus.BAD_REQUEST;
         code = 'INVALID_FIELD_VALUE';
         message = prismaError.message || 'Invalid field value provided.';
+      } else {
+        message = (exception as any).message || 'Database error occurred.';
       }
+    } else if (exception instanceof Error) {
+      message = exception.message || 'Internal server error';
     }
 
     const requestId = request.requestId || 'unknown';

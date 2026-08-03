@@ -2732,7 +2732,7 @@ export default function PlantHeadPortal() {
     };
 
     return (
-      <div className="app-card">
+      <div className="app-card" data-testid="plant-head-incoming-orders-page">
         {/* Title + Search */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
           <h2 className="card-heading" style={{ margin: 0 }}>Incoming Confirmed Orders</h2>
@@ -2783,6 +2783,7 @@ export default function PlantHeadPortal() {
               </button>
               {(row.planningStatus === 'PENDING_ACCEPTANCE') && (
                 <button
+                  data-testid={`plant-head-accept-order-${row.orderNo || row.id}`}
                   style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
                   onClick={() => handleAcceptOrder(row)}
                 >
@@ -2922,20 +2923,10 @@ export default function PlantHeadPortal() {
           actions={(row) => planningViewTab === 'pending' ? (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button
-                style={{ 
-                  background: '#0284c7', 
-                  color: '#ffffff', 
-                  border: 'none', 
-                  padding: '8px 16px', 
-                  borderRadius: '8px', 
-                  fontWeight: '600', 
-                  fontSize: '13px',
-                  cursor: 'pointer', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
+                data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                style={{
+                  padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', 
+                  fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                 }}
                 onMouseOver={(e) => e.currentTarget.style.background = '#0369a1'}
@@ -4298,6 +4289,7 @@ export default function PlantHeadPortal() {
                   )}
                 </div>
                 <input 
+                  data-testid="plant-head-target-date"
                   type="date" 
                   required 
                   className="form-input" 
@@ -4310,6 +4302,7 @@ export default function PlantHeadPortal() {
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ color: 'var(--color-text-primary)', marginBottom: '6px' }}>Priority *</label>
                 <select 
+                  data-testid="plant-head-priority"
                   className="form-select" 
                   style={{ background: '#ffffff', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)', padding: '10px 14px', borderRadius: '8px', fontWeight: 'bold' }} 
                   value={priority} 
@@ -4323,7 +4316,7 @@ export default function PlantHeadPortal() {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                <button type="submit" disabled={isPlanningSubmitting} className="form-submit-btn" style={{ margin: 0, padding: '12px 24px', flex: 1, background: 'var(--color-primary, #2F4375)', color: '#ffffff', border: 'none', fontWeight: '700', borderRadius: '10px', cursor: isPlanningSubmitting ? 'wait' : 'pointer', opacity: isPlanningSubmitting ? 0.7 : 1 }}>
+                <button data-testid="plant-head-send-production" type="submit" disabled={isPlanningSubmitting} className="form-submit-btn" style={{ margin: 0, padding: '12px 24px', flex: 1, background: 'var(--color-primary, #2F4375)', color: '#ffffff', border: 'none', fontWeight: '700', borderRadius: '10px', cursor: isPlanningSubmitting ? 'wait' : 'pointer', opacity: isPlanningSubmitting ? 0.7 : 1 }}>
                   {isPlanningSubmitting ? 'Sending to Production...' : 'Set Target Date & Send to Production'}
                 </button>
                 <button 

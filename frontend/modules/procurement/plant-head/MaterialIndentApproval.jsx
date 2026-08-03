@@ -4,6 +4,7 @@ import { approveMaterialIndent, returnIndentForCorrection, rejectMaterialIndent 
 import { ProcurementStatusBadge } from '../components/ProcurementStatusBadge';
 import { Package, CheckCircle, XCircle, ArrowLeft, Clock, AlertCircle, ShieldCheck, FileText } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { backendFetch } from '../../../lib/backendFetch';
 
 const EMPTY_INDENTS = [];
 
@@ -239,10 +240,8 @@ export default function MaterialIndentApproval() {
 
   const handleViewHistory = async (indent) => {
     try {
-      const response = await fetch(`/api/backend/procurement/indents/${indent.id}/history`);
-      if (!response.ok) throw new Error('Failed to fetch history');
-      const payload = await response.json();
-      const history = payload.data || [];
+      const payload = await backendFetch(`/api/backend/procurement/indents/${indent.id}/history`);
+      const history = Array.isArray(payload) ? payload : (payload.data || payload.items || []);
       
       if (!history.length) {
         Swal.fire('No History', 'No history found for this indent.', 'info');

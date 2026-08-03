@@ -24,12 +24,14 @@ import {
   AuthenticatedRequest,
 } from '../../common/types/security.types';
 
+const loginLimit = (process.env.NODE_ENV === 'test' || process.env.DATABASE_URL?.includes('_browser_test')) ? 1000 : 5;
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: loginLimit, ttl: 60000 } })
   @Post('login')
   async login(
     @Body() loginDto: LoginDto,

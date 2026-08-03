@@ -1,4 +1,5 @@
 import { useAuthStore } from '../../store/authStore';
+import { ensureAccessToken } from '../../lib/backendFetch';
 
 export type ProcurementApiError = {
   status: number;
@@ -67,8 +68,8 @@ export async function procurementRequest<T>(
   }
 
   // The access token lives in memory only (never persisted to sessionStorage/localStorage).
-  // Always read it from the in-memory auth store.
-  const token = typeof window !== 'undefined' ? useAuthStore.getState().accessToken : null;
+  // Ensure access token is loaded/refreshed before sending request.
+  let token = typeof window !== 'undefined' ? (useAuthStore.getState().accessToken || (await ensureAccessToken())) : null;
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -78,12 +79,25 @@ export async function procurementRequest<T>(
     requestBody = { ...(requestBody as any), version: options.version };
   }
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method,
     headers,
     body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
     signal: options?.signal,
   });
+
+  if (response.status === 401 && typeof window !== 'undefined') {
+    const refreshedToken = await ensureAccessToken();
+    if (refreshedToken) {
+      headers.Authorization = `Bearer ${refreshedToken}`;
+      response = await fetch(url, {
+        method,
+        headers,
+        body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
+        signal: options?.signal,
+      });
+    }
+  }
 
   let payload: any;
   const rawText = await response.text();

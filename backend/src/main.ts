@@ -12,9 +12,36 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is missing');
+  }
+
+  const parsed = new URL(databaseUrl);
+  const databaseName = parsed.pathname.replace(/^\//, '');
+
+  console.log('[STARTUP] Database configuration', {
+    host: parsed.hostname,
+    port: parsed.port,
+    databaseName,
+    schema: parsed.searchParams.get('schema') ?? 'public',
+    nodeEnv: process.env.NODE_ENV,
+  });
+
+  if (
+    process.env.NODE_ENV === 'test' &&
+    !databaseName.endsWith('_browser_test')
+  ) {
+    throw new Error(
+      `Unsafe test database "${databaseName}". Expected *_browser_test.`,
+    );
+  }
+
   const apiPrefix = configService.get<string>('apiPrefix') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());

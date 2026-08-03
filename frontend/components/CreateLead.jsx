@@ -349,6 +349,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
       notes: remarks.trim(),
 
       detailedItems: items.map(item => ({
+        // Preserve both catalog identifiers so the selected product remains
+        // traceable after the lead is created.
+        productId: item.productId || undefined,
+        productPublicId: item.productCode || undefined,
         productName: item.productName,
         productCode: item.productCode || undefined,
         specification: item.specification,
@@ -552,18 +556,18 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Project Name *</label>
-                  <input type="text" className="form-input" placeholder="e.g. Skyline Premium Residency" value={projectName} onChange={e => setProjectName(e.target.value)} maxLength={255} required />
+                  <input data-testid="lead-project-name" type="text" className="form-input" placeholder="e.g. Skyline Premium Residency" value={projectName} onChange={e => setProjectName(e.target.value)} maxLength={255} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Group Name *</label>
-                  <input type="text" className="form-input" placeholder="e.g. ABC Group" value={groupName} onChange={e => setGroupName(e.target.value)} maxLength={255} required />
+                  <input data-testid="lead-group-name" type="text" className="form-input" placeholder="e.g. ABC Group" value={groupName} onChange={e => setGroupName(e.target.value)} maxLength={255} required />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">GST Name (Optional)</label>
-                  <input type="text" className="form-input" placeholder="e.g. ABC Buildcon Pvt Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} maxLength={255} />
+                  <input data-testid="lead-company-name" type="text" className="form-input" placeholder="e.g. ABC Buildcon Pvt Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} maxLength={255} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">GST Number (Optional)</label>
@@ -581,11 +585,12 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Site Incharge Name *</label>
-                  <input type="text" className="form-input" placeholder="e.g. Rahul Sharma" value={siteInchargeName} onChange={e => setSiteInchargeName(e.target.value)} maxLength={255} required />
+                  <input data-testid="lead-contact-person" type="text" className="form-input" placeholder="e.g. Rahul Sharma" value={siteInchargeName} onChange={e => setSiteInchargeName(e.target.value)} maxLength={255} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Site Incharge Mobile *</label>
                   <input
+                    data-testid="lead-phone"
                     type="tel"
                     className="form-input"
                     placeholder="e.g. 9876543210"
@@ -646,21 +651,22 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
               <div className="form-group">
                 <label className="form-label">Address Line 1 *</label>
-                <input type="text" className="form-input" placeholder="e.g. Sector 62, Noida Industrial Area" value={addressLine1} onChange={e => setAddressLine1(e.target.value)} required />
+                <input data-testid="lead-address" type="text" className="form-input" placeholder="e.g. Sector 62, Noida Industrial Area" value={addressLine1} onChange={e => setAddressLine1(e.target.value)} required />
               </div>
 
               <div className="form-row-three">
                 <div className="form-group">
                   <label className="form-label">City *</label>
-                  <input type="text" className="form-input" placeholder="e.g. Noida" value={city} onChange={e => setCity(e.target.value)} required />
+                  <input data-testid="lead-city" type="text" className="form-input" placeholder="e.g. Noida" value={city} onChange={e => setCity(e.target.value)} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">State *</label>
-                  <input type="text" className="form-input" placeholder="e.g. Uttar Pradesh" value={stateName} onChange={e => setStateName(e.target.value)} required />
+                  <input data-testid="lead-state" type="text" className="form-input" placeholder="e.g. Uttar Pradesh" value={stateName} onChange={e => setStateName(e.target.value)} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Pincode *</label>
                   <input
+                    data-testid="lead-pincode"
                     type="text"
                     className="form-input"
                     placeholder="e.g. 201301"
@@ -695,6 +701,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                 <div className="lead-product-grid">
                   <div className="lead-product-grid-spec" style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
                     <ProductPicker
+                      testId="lead-product-picker"
                       value={item.productId ? {
                         id: item.productId,
                         product_name: item.productName,
@@ -721,6 +728,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                     />
 
                     <input
+                      data-testid="lead-specifications"
                       type="text"
                       className="form-input"
                       placeholder="Specifications / Color details * (e.g. Color: Grey, Size: M10)"
@@ -732,6 +740,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                   </div>
 
                   <input
+                    data-testid="lead-estimated-quantity"
                     type="number"
                     className="form-input"
                     min="1"
@@ -861,6 +870,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
             </>
           ) : (
             <button
+              data-testid="lead-submit"
               type="submit"
               className="form-submit-btn"
               onClick={() => setSubmitAction('lead')}

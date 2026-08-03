@@ -12,15 +12,16 @@ export interface FrontendCustomer {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapBackendCustomerToFrontend(backend: any): FrontendCustomer {
+  const companyName = backend.companyName || backend.name || backend.contactPerson || 'Customer';
   return {
     id: backend.id,
-    companyName: backend.name || '',
-    name: backend.name || '',
+    companyName: companyName,
+    name: companyName,
     contactPerson: backend.contactPerson || '',
     email: backend.email || '',
     phone: backend.phone || '',
-    gstNumber: backend.gstNumber || '',
+    gstNumber: backend.gstin || backend.gstNumber || '',
     creditLimit: Number(backend.creditLimit || 0),
-    status: backend.isActive ? 'Active' : 'Inactive',
+    status: backend.status === 'ACTIVE' || backend.isActive ? 'Active' : 'Inactive',
   };
 }

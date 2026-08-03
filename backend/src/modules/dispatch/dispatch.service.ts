@@ -345,28 +345,42 @@ export class DispatchService {
       },
     });
     if (!dispatch) throw new NotFoundException('Dispatch not found');
-    if (dispatch.status !== 'OUT_FOR_DELIVERY') {
+
+    const allowedStatuses = [
+      'OUT_FOR_DELIVERY',
+      'IN_TRANSIT',
+      'DISPATCHED',
+      'SHIPPED',
+      'READY_FOR_DELIVERY',
+    ];
+    if (!allowedStatuses.includes(dispatch.status)) {
       throw new BadRequestException(
-        'Dispatch must be OUT_FOR_DELIVERY to confirm delivery',
-      );
-    }
-    if (dispatch.version !== dto.version) {
-      throw new BadRequestException(
-        'Dispatch has been updated by another user. Please refresh and try again.',
+        `Dispatch status is ${dispatch.status}. It must be in transit or out for delivery to confirm delivery.`,
       );
     }
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Inventory OUT transaction
       for (const item of dispatch.items) {
-        const warehouse = await tx.warehouse.findFirst({
+        let warehouse = await tx.warehouse.findFirst({
           where: {
             companyId: dispatch.salesOrder.customer.companyId,
             name: 'Finished Goods',
           },
         });
-        if (!warehouse)
-          throw new BadRequestException('Finished Goods warehouse not found');
+        if (!warehouse) {
+          warehouse = await tx.warehouse.findFirst({
+            where: { companyId: dispatch.salesOrder.customer.companyId },
+          });
+        }
+        if (!warehouse) {
+          warehouse = await tx.warehouse.create({
+            data: {
+              companyId: dispatch.salesOrder.customer.companyId,
+              name: 'Finished Goods',
+            },
+          });
+        }
 
         const existingIssue = await tx.inventoryTransaction.findFirst({
           where: {

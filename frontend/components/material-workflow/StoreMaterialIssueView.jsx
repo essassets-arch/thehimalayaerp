@@ -11,7 +11,7 @@ export default function StoreMaterialIssueView() {
   const { data = [] } = useMaterialRequests();
   const updateStatus = useUpdateMaterialRequestStatus();
   const pending = data.filter(request => request.status === 'PLANT_HEAD_APPROVED');
-  const history = data.filter(request => request.status === 'STORE_REJECTED');
+  const history = data.filter(request => request.status !== 'PLANT_HEAD_APPROVED' && request.status !== 'SUBMITTED' && request.status !== 'DRAFT');
   const requests = tab === 'Pending' ? pending : history;
   const actor = user?.name || 'Store';
 
@@ -54,9 +54,9 @@ export default function StoreMaterialIssueView() {
       <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>Store Material Requests</h1>
       <p style={{ margin: '0 0 16px', color: '#5E6B82' }}>Plant Head approved requests ready for Store stock verification.</p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-        {['Pending', 'Rejected / History'].map((label) => (
-          <button key={label} onClick={() => setTab(label === 'Pending' ? 'Pending' : 'History')} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #D6E2F0', background: (tab === 'Pending') === (label === 'Pending') ? '#0f766e' : '#fff', color: (tab === 'Pending') === (label === 'Pending') ? '#fff' : '#334155', fontWeight: 700 }}>
-            {label}
+        {['Pending', 'History'].map((label) => (
+          <button key={label} onClick={() => setTab(label)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #D6E2F0', background: tab === label ? '#0f766e' : '#fff', color: tab === label ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer' }}>
+            {label === 'History' ? 'History (Approved & Rejected)' : label}
           </button>
         ))}
       </div>
@@ -70,22 +70,39 @@ export default function StoreMaterialIssueView() {
           <tbody>
             {requests.length === 0 ? (
               <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: '#5E6B82' }}>
-                {tab === 'Pending' ? 'No approved material requests available for release.' : 'No Store-rejected material requests.'}
+                {tab === 'Pending' ? 'No approved material requests available for release.' : 'No processed material requests in history.'}
               </td></tr>
             ) : requests.flatMap((request) => {
               return request.items.map((item, index) => (
-                <tr key={`${request.id}-${item.materialId}`}>
+                <tr key={`${request.id}-${item.materialId || index}`}>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9', fontWeight: 700 }}>{request.id}</td>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>{item.materialName}</td>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>{request.department}</td>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>{item.approvedQty} {item.unit}</td>
-                  <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>{request.status === 'STORE_REJECTED' ? 'REJECTED' : 'APPROVED'}</td>
+                  <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      background: request.status === 'STORE_REJECTED' ? '#fee2e2' : request.status === 'STORE_APPROVED' ? '#d1fae5' : '#e0f2fe',
+                      color: request.status === 'STORE_REJECTED' ? '#991b1b' : request.status === 'STORE_APPROVED' ? '#065f46' : '#0369a1'
+                    }}>
+                      {request.status === 'STORE_REJECTED' ? 'REJECTED' : request.status === 'STORE_APPROVED' ? 'APPROVED' : request.status.replace(/_/g, ' ')}
+                    </span>
+                  </td>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>
                     {tab === 'Pending' && index === 0 && <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => approve(request)} style={{ border: 0, borderRadius: 8, padding: '8px 12px', fontWeight: 700, background: '#059669', color: '#fff', cursor: 'pointer' }}>Approve</button>
                       <button onClick={() => reject(request)} style={{ border: 0, borderRadius: 8, padding: '8px 12px', fontWeight: 700, background: '#dc2626', color: '#fff', cursor: 'pointer' }}>Reject</button>
                     </div>}
-                    {tab === 'History' && request.storeRejectionRemarks}
+                    {tab !== 'Pending' && index === 0 && (
+                      <span style={{ fontSize: 13, color: '#475569' }}>
+                        {request.status === 'STORE_REJECTED'
+                          ? (request.storeRejectionRemarks || request.metadata?.storeRejectionRemarks || 'Rejected by Store')
+                          : (request.metadata?.storeApprovedBy ? `Approved by ${request.metadata.storeApprovedBy}` : 'Approved')}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ));
