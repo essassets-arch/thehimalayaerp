@@ -69,13 +69,11 @@ sudo ufw status
 ## 2. Repository Setup & Environment Configuration
 
 ### 2.1 Clone Repository
-Create the project root directory `/opt/himalaya-erp`:
+Clone the repository into `the_himalaya_erp`:
 ```bash
-sudo mkdir -p /opt/himalaya-erp
-sudo chown deploy:deploy /opt/himalaya-erp
-cd /opt/himalaya-erp
-
-git clone https://github.com/essassets-arch/prototype-next-main.git .
+cd ~
+git clone https://github.com/essassets-arch/prototype-next-main.git the_himalaya_erp
+cd the_himalaya_erp
 ```
 
 ---

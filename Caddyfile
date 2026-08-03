@@ -3,7 +3,7 @@
 # Replace "erp.example.com" with your actual domain or ":80" for raw IP testing.
 # ==============================================================================
 
-{$APP_URL:http://localhost} {
+{$APP_URL:thehimalaya.cloud} {
     # Compression for text, JSON, and SVG assets
     encode gzip zstd
 
