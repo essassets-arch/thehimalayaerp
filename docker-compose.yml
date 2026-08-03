@@ -106,10 +106,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:4000/api/v1/health/readiness || exit 1"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 45s
+      retries: 3
+      start_period: 15s
     logging:
       driver: json-file
       options:

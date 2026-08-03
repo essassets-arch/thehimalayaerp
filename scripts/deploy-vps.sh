@@ -52,6 +52,13 @@ docker compose up -d backend
 
 echo "⏳ Waiting for backend to pass health check..."
 until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-backend 2>/dev/null)" == "healthy" ]; do
+    status=$(docker inspect -f '{{.State.Health.Status}}' himalaya-backend 2>/dev/null || echo "unknown")
+    if [ "$status" == "unhealthy" ]; then
+        echo ""
+        echo "❌ Backend container became unhealthy!"
+        docker compose logs --tail=100 backend
+        exit 1
+    fi
     sleep 3
     echo -n "."
 done
