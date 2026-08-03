@@ -1,0 +1,23 @@
+# ==============================================================================
+# HIMALAYA ERP — CADDY REVERSE PROXY CONFIGURATION
+# Replace "erp.example.com" with your actual domain or ":80" for raw IP testing.
+# ==============================================================================
+
+{$APP_URL:http://localhost} {
+    # Compression for text, JSON, and SVG assets
+    encode gzip zstd
+
+    # Support up to 100MB body payloads for document & image uploads
+    request_body {
+        max_size 100MB
+    }
+
+    # Proxy all traffic to the Next.js frontend container
+    # Next.js API Bridge (/api/backend/*) internally handles backend communication
+    reverse_proxy frontend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

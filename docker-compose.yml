@@ -1,0 +1,169 @@
+name: himalaya-erp
+
+services:
+  # ── 1. PostgreSQL Database Service ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: himalaya-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-himalaya_erp}
+      POSTGRES_USER: ${POSTGRES_USER:-himalaya_erp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_TO_A_STRONG_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-himalaya_erp_user} -d $${POSTGRES_DB:-himalaya_erp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── 2. One-time Database Migration Service ─────────────────────────────────
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: himalaya-migrate
+    restart: "no"
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public}
+    networks:
+      - erp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── 3. NestJS Backend API Service ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: himalaya-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      BACKEND_PORT: 4000
+      BACKEND_API_PREFIX: api/v1
+      DATABASE_URL: ${DATABASE_URL:-postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_TO_A_LONG_RANDOM_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-CHANGE_ME_TO_ANOTHER_LONG_RANDOM_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL:-https://erp.example.com}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://erp.example.com}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      UPLOAD_DIR: /app/uploads
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-admin@himalaya.com}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-CHANGE_ME_ADMIN_INITIAL_PASSWORD}
+    volumes:
+      - backend_uploads:/app/uploads
+    networks:
+      - erp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── 4. Next.js Frontend Application Service ────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: himalaya-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:4000/api/v1}
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:4000/api/v1}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://erp.example.com}
+    volumes:
+      - frontend_uploads:/app/public/uploads
+    networks:
+      - erp-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── 5. Caddy Reverse Proxy & HTTPS Service ────────────────────────────────
+  reverse-proxy:
+    image: caddy:2-alpine
+    container_name: himalaya-reverse-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_URL: ${APP_URL:-http://localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - erp-network
+    depends_on:
+      frontend:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+# ── Persistent Storage Volumes ────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  backend_uploads:
+    driver: local
+  frontend_uploads:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+# ── Isolated Internal Network ─────────────────────────────────────────────────
+networks:
+  erp-network:
+    driver: bridge
