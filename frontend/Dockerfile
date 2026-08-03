@@ -22,6 +22,7 @@ COPY . .
 # Set environment variables for build step
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV NEXT_DIST_DIR=".next"
 
 # Build Next.js application in standalone mode
 RUN npm run build
