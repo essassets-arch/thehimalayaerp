@@ -467,26 +467,43 @@ export default function CreateQuotation({
       }
     }
 
-    // Map items list to a single display string e.g., "Steel Pipes (x10), Joints (x20)"
-    const itemsDescription = items.map(item => `${item.productName} (${item.productDetails}) (x${item.quantity})`).join(', ');
+    if (isSubmitting) return;
+
+    if (!selectedCustomerRecord && !manualCustomerName.trim()) {
+      alert('Please select or specify a Customer/Lead for this proposal.');
+      return;
+    }
+    if (items.length === 0) {
+      alert('Please add at least one item to the quotation.');
+      return;
+    }
 
     const payload = {
-      customerName: customerName.trim(),
-      groupName: groupName.trim(),
-      gstName: gstName.trim(),
-      gstNumber: gstNumber.trim(),
-      items: itemsDescription,
-      detailedItems: items.map(item => {
-        const matched = productCatalog.find(p => p.name === item.productName) || {};
+      customerName: selectedCustomerRecord?.name || manualCustomerName.trim(),
+      groupName: selectedCustomerRecord?.groupName || manualGroupName.trim(),
+      gstName: selectedCustomerRecord?.gstName || manualGstName.trim() || selectedCustomerRecord?.name || manualCustomerName.trim(),
+      gstNumber: selectedCustomerRecord?.gstNumber || manualGstNumber.trim(),
+      salesperson: salespersonName,
+      items: items.map((item) => {
+        const itemQty = Number(item.quantity) || 0;
+        const itemUnitPrice = Number(item.unitPrice) || 0;
+        const gross = itemQty * itemUnitPrice;
+        const discPct = Number(item.discount) || 0;
+        const taxPct = item.tax !== undefined ? Number(item.tax) : 18;
+        const discountAmt = gross * (discPct / 100);
+        const taxable = gross - discountAmt;
+        const taxAmt = taxable * (taxPct / 100);
         return {
-          productId: item.productId || matched.dbId || null,
-          productName: item.productName,
-          productDetails: item.productDetails,
-          code: item.code || matched.id || 'PRD-N/A',
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount || 0,
-          tax: item.tax || 0
+          productId: item.productId || item.productCode || `PRD-${Date.now()}`,
+          productName: item.name || item.productName || 'Custom Product',
+          productCode: item.productCode || item.productId || '',
+          specification: item.description || item.specification || '',
+          productDetails: item.description || item.specification || '',
+          quantity: itemQty,
+          unitPrice: itemUnitPrice,
+          discount: discPct,
+          tax: taxPct,
+          amount: Math.round((taxable + taxAmt) * 100) / 100,
         };
       }),
       quantity: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -505,6 +522,8 @@ export default function CreateQuotation({
       leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : undefined)),
       customerId: selectedCustomerRecord?.type === 'Customer' ? selectedCustomerRecord.id : undefined
     };
+
+    setIsSubmitting(true);
     const submitResult = async () => {
       let success = false;
       try {
@@ -522,6 +541,8 @@ export default function CreateQuotation({
         }
       } catch (err) {
         console.error(err);
+      } finally {
+        setIsSubmitting(false);
       }
       
       if (success) {

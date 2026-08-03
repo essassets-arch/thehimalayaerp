@@ -30,17 +30,25 @@ export const backendSalesReadRepository: SalesReadRepository = {
     if (params.paymentStatus) searchParams.set('paymentStatus', params.paymentStatus);
     if (params.closureStatus) searchParams.set('closureStatus', params.closureStatus);
 
-    const body = await backendFetch<SalesOrderListPayload | unknown[]>(
+    const body = await backendFetch<any>(
       `/api/backend/sales/orders?${searchParams.toString()}`,
     );
 
+    const rawList = Array.isArray(body)
+      ? body
+      : Array.isArray(body?.data)
+      ? body.data
+      : Array.isArray(body?.data?.data)
+      ? body.data.data
+      : [];
+
+    const rawPagination = Array.isArray(body)
+      ? undefined
+      : body?.data?.pagination || body?.pagination;
+
     return {
-      data: !Array.isArray(body) && Array.isArray(body.data)
-        ? body.data.map(normalizeSalesOrder)
-        : Array.isArray(body)
-          ? body.map(normalizeSalesOrder)
-          : [],
-      pagination: normalizePagination(Array.isArray(body) ? undefined : body.pagination),
+      data: rawList.map(normalizeSalesOrder),
+      pagination: normalizePagination(rawPagination),
     };
   },
 
