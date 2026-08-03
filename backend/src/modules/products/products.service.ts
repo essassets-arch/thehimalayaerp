@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { nanoid } from 'nanoid';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ProductsService {
@@ -24,9 +24,10 @@ export class ProductsService {
       }
     }
 
+    const randomId = crypto.randomBytes(5).toString('hex');
     return this.prisma.product.create({
       data: {
-        publicId: `PRD-${nanoid(10)}`,
+        publicId: `PRD-${randomId}`,
         companyId,
         name: dto.name,
         sku: dto.sku,
