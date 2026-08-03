@@ -48,10 +48,24 @@ async function bootstrap() {
 
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
-  const frontendUrl =
-    configService.get<string>('frontendUrl') || 'http://localhost:3000';
+  const corsOriginsConfig = configService.get<string>('corsOrigin') || configService.get<string>('frontendUrl') || '';
+  const parsedOrigins = corsOriginsConfig.split(',').map((s) => s.trim()).filter(Boolean);
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:4000',
+    'https://thehimalaya.cloud',
+  ];
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...parsedOrigins]));
+
   app.enableCors({
-    origin: frontendUrl,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
   });
 

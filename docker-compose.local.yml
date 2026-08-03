@@ -1,0 +1,172 @@
+name: himalaya-erp-local
+
+services:
+  # ── 1. PostgreSQL Database Service (Exposed locally on 5432) ────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: himalaya-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: himalaya_erp
+      POSTGRES_USER: himalaya_erp_user
+      POSTGRES_PASSWORD: CHANGE_ME_TO_A_STRONG_PASSWORD
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    networks:
+      - erp-local-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U himalaya_erp_user -d himalaya_erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── 2. One-time Database Migration Service ─────────────────────────────────
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: himalaya-local-migrate
+    restart: "no"
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public
+    networks:
+      - erp-local-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── 3. One-time Database Seed Service ──────────────────────────────────────
+  seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: himalaya-local-seed
+    restart: "no"
+    command: node dist-seed/prisma/seed.js
+    environment:
+      DATABASE_URL: postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public
+      INITIAL_ADMIN_EMAIL: super.admin@himalayaerp.com
+      INITIAL_ADMIN_PASSWORD: admin123
+    networks:
+      - erp-local-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # ── 4. NestJS Backend API Service (Exposed on http://localhost:4000) ───────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: himalaya-local-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      BACKEND_PORT: 4000
+      API_PREFIX: api/v1
+      BACKEND_API_PREFIX: api/v1
+      DATABASE_URL: postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public
+      JWT_ACCESS_SECRET: LOCAL_DEV_JWT_ACCESS_SECRET_KEY_12345
+      JWT_ACCESS_EXPIRES_IN: 1d
+      JWT_REFRESH_SECRET: LOCAL_DEV_JWT_REFRESH_SECRET_KEY_67890
+      JWT_REFRESH_EXPIRES_IN: 7d
+      BCRYPT_ROUNDS: 10
+      FRONTEND_URL: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3000,http://127.0.0.1:3000
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: lax
+      TRUST_PROXY: "false"
+      UPLOAD_DIR: /app/uploads
+      INITIAL_ADMIN_EMAIL: super.admin@himalayaerp.com
+      INITIAL_ADMIN_PASSWORD: admin123
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - backend_local_uploads:/app/uploads
+    networks:
+      - erp-local-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:4000/api/v1/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── 5. Next.js Frontend Application (Exposed on http://localhost:3000) ────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: himalaya-local-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BACKEND_INTERNAL_URL: http://backend:4000/api/v1
+      BACKEND_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - frontend_local_uploads:/app/public/uploads
+    networks:
+      - erp-local-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ── 6. pgAdmin 4 Database Management UI (Exposed on http://localhost:5050) ──
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: himalaya-local-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@himalaya.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'true'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'false'
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin_local_data:/var/lib/pgadmin
+    networks:
+      - erp-local-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── 7. Dozzle Real-time Log Viewer (Exposed on http://localhost:8080) ──────
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: himalaya-local-dozzle
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - erp-local-network
+
+volumes:
+  postgres_local_data:
+    driver: local
+  backend_local_uploads:
+    driver: local
+  frontend_local_uploads:
+    driver: local
+  pgadmin_local_data:
+    driver: local
+
+networks:
+  erp-local-network:
+    driver: bridge
