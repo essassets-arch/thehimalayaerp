@@ -97,6 +97,9 @@ export async function procurementRequest<T>(
         signal: options?.signal,
       });
     }
+    if (response.status === 401) {
+      useAuthStore.getState().logout?.();
+    }
   }
 
   let payload: any;
@@ -108,12 +111,14 @@ export async function procurementRequest<T>(
   }
 
   if (!response.ok) {
-    console.error("Backend Error Response:", rawText);
+    const errorMsg = payload?.error?.message || payload?.message || `Procurement request failed (${response.status})`;
+    const errorCode = payload?.error?.code || payload?.code || String(response.status);
+    console.warn(`[procurementRequest] Request to "${path}" returned status ${response.status}: ${errorMsg}`);
     throw new ProcurementError(
       response.status,
-      payload.message || `Procurement request failed (${response.status})`,
-      payload.code || String(payload.error || ''),
-      payload.details || payload
+      errorMsg,
+      errorCode,
+      payload?.error?.details || payload?.details || payload
     );
   }
 

@@ -143,7 +143,9 @@ const styles = {
   },
   input: {
     padding: '9px 12px',
-    border: '1.5px solid #DCE5F0',
+    borderWidth: '1.5px',
+    borderStyle: 'solid',
+    borderColor: '#DCE5F0',
     borderRadius: '8px',
     fontSize: '13px',
     color: '#24345C',
@@ -166,7 +168,9 @@ const styles = {
   },
   select: {
     padding: '9px 12px',
-    border: '1.5px solid #DCE5F0',
+    borderWidth: '1.5px',
+    borderStyle: 'solid',
+    borderColor: '#DCE5F0',
     borderRadius: '8px',
     fontSize: '13px',
     color: '#24345C',
@@ -177,7 +181,9 @@ const styles = {
   },
   textarea: {
     padding: '9px 12px',
-    border: '1.5px solid #DCE5F0',
+    borderWidth: '1.5px',
+    borderStyle: 'solid',
+    borderColor: '#DCE5F0',
     borderRadius: '8px',
     fontSize: '13px',
     color: '#24345C',
@@ -189,7 +195,9 @@ const styles = {
     fontFamily: 'inherit',
   },
   docBox: {
-    border: '1.5px dashed #DCE5F0',
+    borderWidth: '1.5px',
+    borderStyle: 'dashed',
+    borderColor: '#DCE5F0',
     borderRadius: '10px',
     padding: '16px',
     background: '#F8FAFD',
