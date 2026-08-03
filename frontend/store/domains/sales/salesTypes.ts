@@ -155,6 +155,8 @@ export type QuotationLineItem = {
   taxableValue: number;
   gstValue: number;
   totalAmount: number;
+  approvedQuantity?: number;
+  dispatchedQuantity?: number;
 };
 
 export type SalesQuotation = {
@@ -208,7 +210,23 @@ export type SalesOrder = {
   // "However, salesReportedPaidAmount is also derivable... A stronger design is [calculating it]". 
   // So we omit it here and derive it.
 
+  orderNo?: string;
+  productionTargetDate?: string;
+  targetDate?: string;
+  priority?: string;
+  productionLine?: string;
+  deliveredAt?: string;
+  products?: any[];
+  workflowStatus?: string;
   requiredDeliveryDate?: string;
+  quantity?: number;
+  plantHeadStatus?: string;
+  qcApprovedQty?: number;
+  totalAmount?: number;
+  sentToPlantHead?: boolean;
+  sentToPlantHeadAt?: string;
+  acceptedByPlantHeadAt?: string;
+  updatedAt?: string;
 
   commercialStatus: 'ORDER_CONFIRMED' | 'SENT_TO_PLANT_HEAD' | 'ORDER_ACTIVE' | 'ORDER_CLOSED' | 'ORDER_CANCELLED';
   planningStatus: 'NOT_SENT' | 'PENDING_ACCEPTANCE' | 'PLANT_HEAD_ACCEPTED' | 'PRODUCTION_PLANNED';

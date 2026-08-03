@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<any> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('Authorization');
   const token = authHeader ? authHeader.split(' ')[1] : undefined;
   const idempotencyKey = request.headers.get('Idempotency-Key');
@@ -17,7 +18,7 @@ export async function POST(
 
   return forwardBackendRequest({
     token,
-    path: `/sales/leads/${params.id}/qualify`,
+    path: `/sales/leads/${id}/qualify`,
     method: 'POST',
     body,
     headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,

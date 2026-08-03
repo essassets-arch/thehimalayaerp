@@ -228,9 +228,9 @@ const _selectDispatchOrders = (store: ERPStoreState) => {
          (o as any).sentToDispatchAt ||
          (o as any).dispatchStatus === 'SENT_TO_DISPATCH') &&
         o.qcStatus !== 'REWORK_REQUIRED' &&
-        o.qcStatus !== 'FAILED' &&
+        o.qcStatus !== 'REJECTED' &&
         o.dispatchStatus !== 'DELIVERED' &&
-        o.dispatchStatus !== 'CONFIRMED'
+        (o.dispatchStatus as string) !== 'CONFIRMED'
     )
     .map(toDispatchSafeView);
 };

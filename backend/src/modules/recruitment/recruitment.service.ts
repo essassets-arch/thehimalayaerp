@@ -41,7 +41,7 @@ export class RecruitmentService {
   private actorName(actor: Actor) {
     return actor.name || actor.email || actor.role;
   }
-  private clean(value: unknown) {
+  private clean(value: string | number | boolean | null | undefined) {
     const v = String(value ?? '').trim();
     return v || null;
   }
@@ -336,7 +336,7 @@ export class RecruitmentService {
       REJECTED: 'Recruitment indent rejected by HR',
     }[target]!;
     const row = await this.prisma.recruitmentRequest.update({
-      where: { id: current.id },
+      where: { id: current.id, version: current.version },
       data: {
         status: target,
         version: { increment: 1 },
@@ -657,9 +657,23 @@ export class RecruitmentService {
     return this.map(row);
   }
 
-  async fulfil(id: string, body: any, actor: Actor) {
+  async fulfil(id: string, body: any, actor: Actor, overrideSod?: boolean) {
     const current = await this.find(id, actor.companyId);
     this.ensureVersion(current, body);
+
+    if (current.requestedById === actor.sub) {
+      if (overrideSod) {
+        if (!body.hrRemarks?.trim()) {
+          throw new BadRequestException(
+            'Remarks are mandatory when overriding Segregation of Duties',
+          );
+        }
+      } else {
+        throw new ConflictException(
+          'Segregation of Duties: You cannot fulfill your own recruitment request. Override permission required.',
+        );
+      }
+    }
     if (CLOSED.has(current.status))
       throw new BadRequestException('A closed request cannot be fulfilled.');
     if (!['OPEN', 'PENDING'].includes(current.status))
@@ -678,7 +692,7 @@ export class RecruitmentService {
     }
 
     const row = await this.prisma.recruitmentRequest.update({
-      where: { id: current.id },
+      where: { id: current.id, version: current.version },
       data: {
         status: 'FULFILLED',
         positionsFilled: current.vacancies,

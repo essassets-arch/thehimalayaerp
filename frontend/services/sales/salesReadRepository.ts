@@ -41,6 +41,12 @@ export interface SalesOrder {
   verifiedPaidAmount?: number;
   balanceAmount?: number;
   closureStatus: string;
+  planningStatus?: string;
+  productionTargetDate?: string | null;
+  targetDate?: string | null;
+  priority?: string;
+  productionLine?: string;
+  deliveredAt?: string | null;
   replacementStatus?: string;
   returnStatus?: string;
 

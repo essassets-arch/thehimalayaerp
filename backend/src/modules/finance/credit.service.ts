@@ -34,7 +34,7 @@ export class CreditService {
     if (projectedBalance > Number(customer.creditLimit)) {
       if (stage === 'DISPATCH') {
         throw new BadRequestException(
-          `Credit limit exceeded. Limit: ${customer.creditLimit}, Projected: ${projectedBalance}. Dispatch blocked.`,
+          `Credit limit exceeded. Limit: ${String(customer.creditLimit)}, Projected: ${projectedBalance}. Dispatch blocked.`,
         );
       }
       return {

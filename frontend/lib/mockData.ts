@@ -6,8 +6,10 @@
 const now = new Date().toISOString();
 const today = new Date().toISOString().split('T')[0];
 
-function makeTimeline(events) {
-  return events.map((e, i) => ({
+export const mockNotifications: any[] = [];
+
+function makeTimeline(events: any[]) {
+  return events.map((e: any, i: number) => ({
     id: `EVT-${i + 1}`,
     status: e.status,
     event: e.event,
@@ -43,8 +45,8 @@ const baseCustomer = {
   gstName: 'ABC Infrastructure Private Limited'
 };
 
-function calcTotal(items) {
-  return items.reduce((sum, it) => {
+function calcTotal(items: any[]) {
+  return items.reduce((sum: number, it: any) => {
     const base = it.quantity * it.unitPrice;
     const disc = base * ((it.discount || 0) / 100);
     const taxable = base - disc;

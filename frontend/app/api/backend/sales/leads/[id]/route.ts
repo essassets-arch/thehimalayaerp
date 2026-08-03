@@ -7,14 +7,15 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('Authorization');
   const token = authHeader ? authHeader.split(' ')[1] : undefined;
 
   return forwardBackendRequest({
     token,
-    path: `/sales/leads/${params.id}`,
+    path: `/sales/leads/${id}`,
     method: 'GET',
     requestId: request.headers.get('x-request-id') ?? undefined,
   });
@@ -22,8 +23,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('Authorization');
   const token = authHeader ? authHeader.split(' ')[1] : undefined;
   const idempotencyKey = request.headers.get('Idempotency-Key');
@@ -32,7 +34,7 @@ export async function PATCH(
 
   return forwardBackendRequest({
     token,
-    path: `/sales/leads/${params.id}`,
+    path: `/sales/leads/${id}`,
     method: 'PATCH',
     body,
     headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,

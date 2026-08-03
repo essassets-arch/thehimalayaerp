@@ -133,7 +133,7 @@ export function CommentPanel({ entityType, entityId, includeInternal = true, cla
               No comments yet.
             </div>
           ) : (
-            comments.map((comment) => (
+            comments.map((comment: any) => (
               <div 
                 key={comment.id} 
                 className={`p-4 rounded-lg border text-sm ${

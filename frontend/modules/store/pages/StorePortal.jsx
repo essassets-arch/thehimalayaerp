@@ -470,39 +470,7 @@ export default function StorePortal() {
         completedAt: timestamp
       };
 
-      if (typeof window !== 'undefined') {
-        const storedGRNs = JSON.parse(window.localStorage.getItem('erp_goods_receipts') || '[]');
-        const updatedGRNs = [newGRN, ...storedGRNs.filter(g => g.id !== grnId && g.purchaseOrderId !== poId)];
-        window.localStorage.setItem('erp_goods_receipts', JSON.stringify(updatedGRNs));
-
-        const storedPayments = JSON.parse(window.localStorage.getItem('erp_vendor_payments') || '[]');
-        const updatedPayments = [newPayment, ...storedPayments.filter(p => p.id !== payId && p.purchaseOrderId !== poId)];
-        window.localStorage.setItem('erp_vendor_payments', JSON.stringify(updatedPayments));
-
-        const storedPOs = JSON.parse(window.localStorage.getItem('erp_purchase_orders') || '[]');
-        const updatedPOs = storedPOs.map(p => {
-          if (p.id === poId || p.poNumber === poNum) {
-            const updatedHistory = [...(p.history || []), { stage: 'PO_CLOSED', remarks: 'Full workflow completed: GRN verified, QC approved, Stock posted, and Vendor Payment settled.', timestamp }];
-            return { ...p, status: 'CLOSED', closedAt: timestamp, history: updatedHistory };
-          }
-          return p;
-        });
-        window.localStorage.setItem('erp_purchase_orders', JSON.stringify(updatedPOs));
-
-        const storedInv = JSON.parse(window.localStorage.getItem('erp_raw_inventory') || '[]');
-        const itemsToUpdate = poRow.items || [{ name: poRow.material || 'RM-1605 High-Tensile Steel Sheets', quantity: poRow.orderedQty || poRow.quantity || 1605 }];
-        itemsToUpdate.forEach(item => {
-          const qty = Number(item.quantity) || 1605;
-          const idx = storedInv.findIndex(i => i.material === item.name || i.code === item.code);
-          if (idx !== -1) {
-            storedInv[idx].stock = (Number(storedInv[idx].stock) || 0) + qty;
-          } else {
-            storedInv.push({ id: `RM-${Date.now()}`, code: `RM-${Math.floor(100+Math.random()*900)}`, material: item.name || 'RM-1605 High-Tensile Steel Sheets', category: 'Raw Material', unit: 'Sheets', stock: qty, rate: item.rate || 350 });
-          }
-        });
-        window.localStorage.setItem('erp_raw_inventory', JSON.stringify(storedInv));
-        window.dispatchEvent(new Event('storage'));
-      }
+      // Backend API handles state persistence cleanly; no LocalStorage manipulation.
 
       if (typeof syncData === 'function') syncData();
       showToast(`✓ Order ${poNum} flow completed and CLOSED!`);

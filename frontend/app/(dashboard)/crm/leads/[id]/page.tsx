@@ -15,7 +15,8 @@ export default function LeadDetailsPage() {
   const [lead, setLead] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchLead = async () => {
+  const fetchLead = React.useCallback(async () => {
+    if (!params?.id) return;
     try {
       const data = await backendFetch(`/api/backend/crm/leads/${params.id}`);
       setLead(data);
@@ -24,11 +25,11 @@ export default function LeadDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params?.id]);
 
   useEffect(() => {
     fetchLead();
-  }, [params.id]);
+  }, [fetchLead]);
 
   if (loading) return <div>Loading...</div>;
   if (!lead) return <div>Lead not found</div>;

@@ -133,8 +133,8 @@ export class SalesReturnsService {
     return this.prisma.salesReturn.findMany({
       where: {
         salesOrder: {
-          customer: { companyId }
-        }
+          customer: { companyId },
+        },
       },
       orderBy: { requestedAt: 'desc' },
       include: {

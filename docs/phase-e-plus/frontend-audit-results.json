@@ -1,0 +1,3810 @@
+[
+  {
+    "file": "frontend/app/(dashboard)/dispatch/sample-dispatch/create/[id]/page.tsx",
+    "line": 54,
+    "keyword": "mock",
+    "code": "const MOCK_ACTIVE_ORDERS = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/dispatch/sample-dispatch/create/[id]/page.tsx",
+    "line": 125,
+    "keyword": "mock",
+    "code": "{MOCK_ACTIVE_ORDERS.map(order => (",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/dispatch/sample-dispatch/page.tsx",
+    "line": 9,
+    "keyword": "mock",
+    "code": "const INITIAL_MOCK_REQUESTS = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/dispatch/sample-dispatch/page.tsx",
+    "line": 46,
+    "keyword": "mock",
+    "code": "const [requests, setRequests] = useState(INITIAL_MOCK_REQUESTS);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/dispatch/sample-dispatch/page.tsx",
+    "line": 419,
+    "keyword": "fallback",
+    "code": "<Suspense fallback={<div>Loading...</div>}>",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/app/(dashboard)/layout.tsx",
+    "line": 14,
+    "keyword": "mockData",
+    "code": "import MockDataSeeder from '@/components/MockDataSeeder';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/layout.tsx",
+    "line": 137,
+    "keyword": "mockData",
+    "code": "<MockDataSeeder />",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/layout.tsx",
+    "line": 185,
+    "keyword": "fallback",
+    "code": "<Suspense fallback={<PageLoader />}>",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/app/(dashboard)/production/plans/page.tsx",
+    "line": 30,
+    "keyword": "fallback",
+    "code": "status: string; // fallback if workflowState is missing",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/app/(dashboard)/production/work-orders/page.tsx",
+    "line": 32,
+    "keyword": "fallback",
+    "code": "status: string; // fallback",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/app/(dashboard)/qc/page.tsx",
+    "line": 33,
+    "keyword": "fallback",
+    "code": "status: string; // fallback",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/app/(dashboard)/sales/create-payment/page.tsx",
+    "line": 89,
+    "keyword": "fallback",
+    "code": "console.warn('Fallback store application for submitSalesPayment');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/sales/create-payment/page.tsx",
+    "line": 276,
+    "keyword": "mock",
+    "code": "{/* Legacy mock document cards hidden; the form accepts one real upload above. */}",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/(dashboard)/sales/create-payment/page.tsx",
+    "line": 329,
+    "keyword": "fallback",
+    "code": "<Suspense fallback={",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 22,
+    "keyword": "mock",
+    "code": "// Global in-memory state for sample dispatch so we can mock all actions",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 24,
+    "keyword": "mock",
+    "code": "if (!globalAny.mockDispatch) {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 25,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch = {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 45,
+    "keyword": "mock",
+    "code": "id: 'mock-item-1',",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 48,
+    "keyword": "mock",
+    "code": "productId: 'mock-prod-1',",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 66,
+    "keyword": "mock",
+    "code": "return NextResponse.json({ success: true, data: globalAny.mockDispatch });",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 74,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.isSubmitted = true;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 77,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'DISPATCH_APPROVED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 80,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'DISPATCH_DRAFT';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 81,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.isSubmitted = false;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 84,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'READY_FOR_PICKUP';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 87,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'VEHICLE_ASSIGNED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 89,
+    "keyword": "mock",
+    "code": "Object.assign(globalAny.mockDispatch, body);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 93,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'LOADING_IN_PROGRESS';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 96,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.loadingCompletedAt = new Date().toISOString();",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 97,
+    "keyword": "mock",
+    "code": "if (body) Object.assign(globalAny.mockDispatch, body);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 100,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'DISPATCHED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 101,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.gateOutAt = new Date().toISOString();",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 104,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'IN_TRANSIT';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 106,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.currentLocation = body.currentLocation;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 107,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.transitCondition = body.transitCondition;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 108,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.transitLogs.push({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 117,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'OUT_FOR_DELIVERY';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 120,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'DELIVERED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 121,
+    "keyword": "mock",
+    "code": "if (body) Object.assign(globalAny.mockDispatch, body);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 124,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'POD_RECEIVED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 125,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.podStatus = 'PENDING';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 126,
+    "keyword": "mock",
+    "code": "if (body) globalAny.mockDispatch.podUrl = body.podUrl;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 130,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.podStatus = 'APPROVED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 132,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'DELIVERED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 133,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.podUrl = null;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 137,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.status = 'DISPATCH_CLOSED';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 138,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.closedAt = new Date().toISOString();",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 139,
+    "keyword": "mock",
+    "code": "globalAny.mockDispatch.transitDuration = 48; // Mock duration",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/backend/[...path]/route.ts",
+    "line": 143,
+    "keyword": "mock",
+    "code": "return NextResponse.json({ success: true, data: globalAny.mockDispatch });",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/v1/production/floor/route.ts",
+    "line": 5,
+    "keyword": "mock",
+    "code": "// Since this is a prototype, we return mock production floor data",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/v1/production/floor/route.ts",
+    "line": 9,
+    "keyword": "mock",
+    "code": "console.warn('No authorization header found, but returning mock data for prototype.');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/v1/production/floor/route.ts",
+    "line": 12,
+    "keyword": "mock",
+    "code": "// Return mock data for the dashboard",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/app/api/v1/production/[id]/complete/route.ts",
+    "line": 13,
+    "keyword": "mock",
+    "code": "// Mock completion logic",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/CreatePayment.jsx",
+    "line": 36,
+    "keyword": "dummy",
+    "code": "'Sales Confirmation', // paymentMode (dummy/internal)",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/CreateQuotation.jsx",
+    "line": 493,
+    "keyword": "fallback",
+    "code": "price: items.length > 0 ? items[0].unitPrice : 0, // Fallback average pricing indicator",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/DailyTaskView.jsx",
+    "line": 60,
+    "keyword": "mock",
+    "code": "// Let's also fetch completed samples/orders. To make it dynamic, let's keep a local mock/real counter of completed tasks during this session.",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/DashboardView.jsx",
+    "line": 426,
+    "keyword": "fallback",
+    "code": "// Local fallback calculation based on memory state - Always 6 months",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/DispatchView.jsx",
+    "line": 37,
+    "keyword": "mock",
+    "code": "// Dispatch details database mocks (keyed by order ID)",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/erp/BrandAnalysisCreateModal.jsx",
+    "line": 42,
+    "keyword": "fallback",
+    "code": "const imageUrl = uploadRes.url || uploadRes.fileUrl; // Fallback just in case",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/erp/communication/AttachmentUploader.tsx",
+    "line": 66,
+    "keyword": "fake",
+    "code": "fileUrl: `/uploads/${file.name}`, // Fake URL",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/erp/notifications/NotificationBell.tsx",
+    "line": 29,
+    "keyword": "mock",
+    "code": "// For this prototype, we'll just mock it or query a stub endpoint",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/erp/notifications/NotificationBell.tsx",
+    "line": 34,
+    "keyword": "fallback",
+    "code": "return []; // Fallback for prototype",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/HeroBanner.jsx",
+    "line": 136,
+    "keyword": "mock",
+    "code": "// Mock Calendar events for June 2026",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/HeroBanner.jsx",
+    "line": 173,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token') || '';",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 7,
+    "keyword": "mockData",
+    "code": "export default function MockDataSeeder() {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 42,
+    "keyword": "localStorage",
+    "code": "// Seed LocalStorage",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 44,
+    "keyword": "localStorage",
+    "code": "const version = localStorage.getItem('mock_version_1');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 47,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(key);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 50,
+    "keyword": "localStorage",
+    "code": "const existing = localStorage.getItem(key);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 52,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(key, JSON.stringify(dataFunc()));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 57,
+    "keyword": "localStorage",
+    "code": "if (!localStorage.getItem('mock_version_2')) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 59,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem('erp_analysis_requests_v1');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 60,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem('mock_version_2', 'true');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 65,
+    "keyword": "localStorage",
+    "code": "if (!localStorage.getItem('mock_version_materials_v3')) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 67,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem('erp_inventory');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/MockDataSeeder.tsx",
+    "line": 68,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem('mock_version_materials_v3', 'true');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/components/OrdersView.jsx",
+    "line": 400,
+    "keyword": "fallback",
+    "code": "const fallbackProductName = currentDetailsOrder?.products || 'Product';",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/OrdersView.jsx",
+    "line": 403,
+    "keyword": "fallback",
+    "code": "productName: fallbackProductName,",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/OrdersView.jsx",
+    "line": 404,
+    "keyword": "fallback",
+    "code": "code: `P-${(String(fallbackProductName).replace(/[^A-Za-z]/g, '').substring(0, 3) || 'PRD').toUpperCase()}-02`,",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/PaymentFollowupERPView.jsx",
+    "line": 418,
+    "keyword": "fallback",
+    "code": "// API/legacy records are fallbacks; canonical Zustand orders must win deduplication.",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/PlantHeadCommandDashboard.jsx",
+    "line": 7,
+    "keyword": "fallback",
+    "code": "const text = (value, fallback = '—') => value === undefined || value === null || value === '' ? fallback : value;",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/ProductionView.jsx",
+    "line": 9,
+    "keyword": "mock",
+    "code": "// Raw materials allocation database mocks (keyed by order ID)",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/ProductionView.jsx",
+    "line": 23,
+    "keyword": "fallback",
+    "code": "// Default fallback checklist",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/ReportsView.jsx",
+    "line": 1137,
+    "keyword": "fallback",
+    "code": "const outstanding = 0; // customer performance query doesn't directly compute receivables, fallback to 0",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/SamplesView.jsx",
+    "line": 324,
+    "keyword": "mock",
+    "code": "const getMockInfo = (sample) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/SamplesView.jsx",
+    "line": 494,
+    "keyword": "mock",
+    "code": "const mockInfo = getMockInfo(sample);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/SamplesView.jsx",
+    "line": 543,
+    "keyword": "mock",
+    "code": "{sample.dispatchDate && mockInfo.days === 0 && sample.status !== 'Approved' && (",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/shared/FinishedGoodsTable.jsx",
+    "line": 13,
+    "keyword": "mock",
+    "code": "// Mock format",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/shared/FinishedGoodsTable.jsx",
+    "line": 50,
+    "keyword": "mock",
+    "code": "// If we're using mock data store",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/Sidebar.jsx",
+    "line": 156,
+    "keyword": "fallback",
+    "code": "// Fallback safety check for ability object",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/ui/avatar.tsx",
+    "line": 37,
+    "keyword": "fallback",
+    "code": "function AvatarFallback({ className, ...props }: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/ui/avatar.tsx",
+    "line": 39,
+    "keyword": "fallback",
+    "code": "<AvatarPrimitive.Fallback",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/components/ui/avatar.tsx",
+    "line": 40,
+    "keyword": "fallback",
+    "code": "data-slot=\"avatar-fallback\"",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/components/ui/avatar.tsx",
+    "line": 68,
+    "keyword": "fallback",
+    "code": "export { Avatar, AvatarFallback, AvatarImage, AvatarIndicator, AvatarStatus, avatarStatusVariants };",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/api.ts",
+    "line": 2,
+    "keyword": "mockData",
+    "code": "import { mockLeads, mockQuotations, mockOrders, mockCustomers, mockNotifications } from \"./mockData\";",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/lib/api.ts",
+    "line": 10,
+    "keyword": "mock",
+    "code": "return [...mockLeads];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/api.ts",
+    "line": 14,
+    "keyword": "mock",
+    "code": "return [...mockQuotations];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/api.ts",
+    "line": 18,
+    "keyword": "mock",
+    "code": "return [...mockOrders];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/api.ts",
+    "line": 22,
+    "keyword": "mock",
+    "code": "return [...mockCustomers];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/api.ts",
+    "line": 28,
+    "keyword": "mock",
+    "code": "return [...mockNotifications];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 2,
+    "keyword": "mock",
+    "code": "* Himalaya ERP — Mock API Client",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 4,
+    "keyword": "mockDB",
+    "code": "* All requests are intercepted and handled in-memory using mockDB",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 5,
+    "keyword": "localStorage",
+    "code": "* (localStorage-backed). No real network calls for prototype data.",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 14,
+    "keyword": "mockDB",
+    "code": "import { mockDB, makeTimelineEvent, advanceOrder } from './mockDB';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 89,
+    "keyword": "mockDB",
+    "code": "const orders = mockDB.get('orders');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 97,
+    "keyword": "mockDB",
+    "code": "const orders = mockDB.get('orders');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 98,
+    "keyword": "mockDB",
+    "code": "const leads = mockDB.get('leads');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 99,
+    "keyword": "mockDB",
+    "code": "const quotations = mockDB.get('quotations');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 100,
+    "keyword": "mockDB",
+    "code": "const customers = mockDB.get('customers');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 101,
+    "keyword": "mockDB",
+    "code": "const payments = mockDB.get('payments');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 102,
+    "keyword": "mockDB",
+    "code": "const samples = mockDB.get('samples');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 105,
+    "keyword": "mock",
+    "code": "// Mocks for Sales (Leads, Samples, Quotations, Orders) have been disabled.",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 221,
+    "keyword": "mockDB",
+    "code": "const paymentsData = mockDB.get('payments');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 238,
+    "keyword": "mockDB",
+    "code": "const paymentsData = mockDB.get('payments');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 283,
+    "keyword": "localStorage",
+    "code": "// ── Purchase Module GET (Sync with erpStore localStorage) ──",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 298,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_purchase_indents', JSON.stringify(indents));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 299,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_purchase_orders', JSON.stringify(pos));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 305,
+    "keyword": "localStorage",
+    "code": "const storedPOs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_purchase_orders')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 314,
+    "keyword": "localStorage",
+    "code": "const storedGRNs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_goods_receipts')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 323,
+    "keyword": "localStorage",
+    "code": "const storedVendors = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_purchase_vendors')) || 'null');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 346,
+    "keyword": "mockDB",
+    "code": "const item = mockDB.getById(seg, id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 349,
+    "keyword": "mockDB",
+    "code": "const data = mockDB.get(seg);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 361,
+    "keyword": "localStorage",
+    "code": "// ── Purchase Module POST (Sync with erpStore localStorage) ──",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 376,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_purchase_indents', JSON.stringify(indents));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 377,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_purchase_orders', JSON.stringify(pos));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 383,
+    "keyword": "localStorage",
+    "code": "const storedPOs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_purchase_orders')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 395,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined') window.localStorage.setItem('erp_purchase_orders', JSON.stringify(updatedPOs));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 399,
+    "keyword": "localStorage",
+    "code": "const storedGRNs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_goods_receipts')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 408,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined') window.localStorage.setItem('erp_goods_receipts', JSON.stringify(updatedGRNs));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 412,
+    "keyword": "localStorage",
+    "code": "const storedVendors = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_purchase_vendors')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 420,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined') window.localStorage.setItem('erp_purchase_vendors', JSON.stringify(updatedVendors));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 426,
+    "keyword": "mock",
+    "code": "// POST Mocks for Sales (Leads, Samples, Orders, Quotations) disabled.",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 434,
+    "keyword": "mockDB",
+    "code": "const orders = mockDB.get('orders');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 450,
+    "keyword": "mockDB",
+    "code": "const newPayment = mockDB.insert('payments', {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 506,
+    "keyword": "mockDB",
+    "code": "const payments = mockDB.get('payments');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 513,
+    "keyword": "mockDB",
+    "code": "mockDB.update('payments', payment.id, {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 520,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.get('orders').find(o => String(o.id) === String(orderRef) || String(o.orderNo) === String(orderRef));",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 529,
+    "keyword": "mockDB",
+    "code": "mockDB.update('payments', payment.id, {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 537,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.get('orders').find(o => String(o.id) === String(orderRef) || String(o.orderNo) === String(orderRef));",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 557,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', orderId) || mockDB.get('orders').find(o => String(o.orderNo) === String(orderId) || String(o.id) === String(orderId));",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 576,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', orderId) || mockDB.get('orders').find(o => String(o.orderNo) === String(orderId) || String(o.id) === String(orderId));",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 596,
+    "keyword": "mockDB",
+    "code": "const record = mockDB.insert(seg, body);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 711,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 714,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('orders', id, { production: updatedProd });",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 721,
+    "keyword": "mockDB",
+    "code": "const allOrders = mockDB.get('orders');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 722,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', id) || allOrders.find(o => String(o.id) === String(id) || String(o.orderNo) === String(id) || `WO-${String(o.orderNo || o.id || '').split('-').slice(1).join('-') || o.id}` === String(id) || String(o.workOrderId) === String(id) || String(o.workOrderNo) === String(id));",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 792,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 803,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 835,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 846,
+    "keyword": "mockDB",
+    "code": "mockDB.insert('payments', {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 866,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 869,
+    "keyword": "mockDB",
+    "code": "const payments = mockDB.get('payments');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 871,
+    "keyword": "mockDB",
+    "code": "if (payment) mockDB.update('payments', payment.id, { status: 'Verified', verifiedAt: new Date().toISOString() });",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 917,
+    "keyword": "mockDB",
+    "code": "const order = mockDB.getById('orders', id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 933,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update(segments[i], id, body);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 948,
+    "keyword": "localStorage",
+    "code": "const storedPOs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_purchase_orders')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 952,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined') window.localStorage.setItem('erp_purchase_orders', JSON.stringify(storedPOs));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 958,
+    "keyword": "localStorage",
+    "code": "const storedGRNs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_goods_receipts')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 962,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined') window.localStorage.setItem('erp_goods_receipts', JSON.stringify(storedGRNs));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 973,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update(segments[i], id, body);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 987,
+    "keyword": "localStorage",
+    "code": "const storedPOs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_purchase_orders')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 989,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined') window.localStorage.setItem('erp_purchase_orders', JSON.stringify(filtered));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 993,
+    "keyword": "localStorage",
+    "code": "const storedGRNs = JSON.parse((typeof window !== 'undefined' && window.localStorage.getItem('erp_goods_receipts')) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 995,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined') window.localStorage.setItem('erp_goods_receipts', JSON.stringify(filtered));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 1004,
+    "keyword": "mockDB",
+    "code": "const success = mockDB.remove(segments[i], id);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 1025,
+    "keyword": "localStorage",
+    "code": "const authStorageStr = typeof window !== 'undefined' ? window.localStorage.getItem('auth-storage') : null;",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/lib/apiClient.js",
+    "line": 1026,
+    "keyword": "localStorage",
+    "code": "let token = typeof window !== 'undefined' ? (window.localStorage.getItem('token') || window.localStorage.getItem('himalaya_token')) : null;",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/lib/backendFetch.ts",
+    "line": 26,
+    "keyword": "localStorage",
+    "code": "// Grab the in-memory access token (never persisted to localStorage)",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/lib/brand-analysis.service.js",
+    "line": 13,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token'); // Fallback if using localStorage",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/lib/mockData.ts",
+    "line": 2,
+    "keyword": "mock",
+    "code": "// Himalaya ERP — Mock Data Seeds",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockData.ts",
+    "line": 61,
+    "keyword": "mock",
+    "code": "export const mockLeads = [];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockData.ts",
+    "line": 63,
+    "keyword": "mock",
+    "code": "export const mockQuotations = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockData.ts",
+    "line": 86,
+    "keyword": "mock",
+    "code": "export const mockOrders = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockData.ts",
+    "line": 470,
+    "keyword": "mock",
+    "code": "export const mockCustomers = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockData.ts",
+    "line": 476,
+    "keyword": "mock",
+    "code": "export const mockPayments = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 1,
+    "keyword": "mockData",
+    "code": "import { mockLeads, mockQuotations, mockOrders, mockCustomers, mockPayments } from './mockData';",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 2,
+    "keyword": "mockStorage",
+    "code": "import { getMockStorage, persistMockStorage, getUserEmail } from './mockStorage';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 7,
+    "keyword": "localStorage",
+    "code": "// ── In-memory DB state (hydrated from localStorage or seed) ──",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 8,
+    "keyword": "mockStorage",
+    "code": "let db: any = getMockStorage({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 9,
+    "keyword": "mock",
+    "code": "leads: isDemoUser ? [...mockLeads] : [],",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 10,
+    "keyword": "mock",
+    "code": "quotations: isDemoUser ? [...mockQuotations] : [],",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 11,
+    "keyword": "mock",
+    "code": "orders: isDemoUser ? [...mockOrders] : [],",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 12,
+    "keyword": "mock",
+    "code": "customers: isDemoUser ? [...mockCustomers] : [],",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 13,
+    "keyword": "mock",
+    "code": "payments: isDemoUser ? [...mockPayments] : [],",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 22,
+    "keyword": "mockStorage",
+    "code": "persistMockStorage(db);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockDB.ts",
+    "line": 69,
+    "keyword": "mockDB",
+    "code": "export const mockDB = {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 1,
+    "keyword": "mockData",
+    "code": "// Version 5 — bump when schema changes to force re-seed from mockData",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 2,
+    "keyword": "mock",
+    "code": "const MOCK_DB_VERSION = 5;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 7,
+    "keyword": "localStorage",
+    "code": "const authRaw = localStorage.getItem('auth-storage');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 17,
+    "keyword": "mock",
+    "code": "if (typeof window === 'undefined') return `himalaya_erp_mock_db_v${MOCK_DB_VERSION}`;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 20,
+    "keyword": "mock",
+    "code": "return `himalaya_erp_mock_db_v${MOCK_DB_VERSION}_${email}`;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 22,
+    "keyword": "mock",
+    "code": "return `himalaya_erp_mock_db_v${MOCK_DB_VERSION}`;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 28,
+    "keyword": "mock",
+    "code": "for (let i = 1; i < MOCK_DB_VERSION; i++) {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 29,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(`himalaya_erp_mock_db_v${i}`);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 31,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem('himalaya_erp_mock_db');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 57,
+    "keyword": "mockStorage",
+    "code": "export function getMockStorage(initialData: any) {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 63,
+    "keyword": "localStorage",
+    "code": "const raw = localStorage.getItem(getStorageKey());",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 66,
+    "keyword": "mock",
+    "code": "if (parsed.version === MOCK_DB_VERSION && parsed.data) {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 71,
+    "keyword": "mockStorage",
+    "code": "console.error('[MockStorage] Failed to parse stored data', e);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 75,
+    "keyword": "mockStorage",
+    "code": "persistMockStorage(initialData);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 79,
+    "keyword": "mockStorage",
+    "code": "export function persistMockStorage(data: any) {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 84,
+    "keyword": "mock",
+    "code": "version: MOCK_DB_VERSION,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 90,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(getStorageKey(), JSON.stringify(payload));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 92,
+    "keyword": "mockStorage",
+    "code": "console.warn('[MockStorage] Storage quota error caught. Pruning large attachments...', e);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 96,
+    "keyword": "mock",
+    "code": "version: MOCK_DB_VERSION,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 100,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(getStorageKey(), JSON.stringify(prunedPayload));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 102,
+    "keyword": "sessionStorage",
+    "code": "console.error('[MockStorage] Fallback to sessionStorage due to quota limit', err2);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 104,
+    "keyword": "sessionStorage",
+    "code": "sessionStorage.setItem(getStorageKey(), JSON.stringify(payload));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 106,
+    "keyword": "mockStorage",
+    "code": "console.error('[MockStorage] Memory-only fallback active', err3);",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 112,
+    "keyword": "mockStorage",
+    "code": "export function resetMockStorage() {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 115,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(getStorageKey());",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/lib/mockStorage.ts",
+    "line": 116,
+    "keyword": "sessionStorage",
+    "code": "sessionStorage.removeItem(getStorageKey());",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/services/customers/legacyCustomersWriteRepository.ts",
+    "line": 1,
+    "keyword": "mockDB",
+    "code": "import { mockDB } from '@/lib/mockDB';",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/customers/legacyCustomersWriteRepository.ts",
+    "line": 6,
+    "keyword": "mockDB",
+    "code": "const created = mockDB.insert('customers', {",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/customers/legacyCustomersWriteRepository.ts",
+    "line": 19,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('customers', id, input);",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/customers/legacyCustomersWriteRepository.ts",
+    "line": 25,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('customers', id, { isActive: false, deactivationReason: input.reason });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/customers/legacyCustomersWriteRepository.ts",
+    "line": 31,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('customers', id, { isActive: true, deactivationReason: null });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/dispatch.service.js",
+    "line": 53,
+    "keyword": "fallback",
+    "code": "// Fallback if there is still remaining quantity or no detailed items",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/services/finance.service.js",
+    "line": 56,
+    "keyword": "fallback",
+    "code": "// Fallback: still record locally even if backend fails",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 1,
+    "keyword": "mockDB",
+    "code": "import { mockDB } from '@/lib/mockDB';",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 6,
+    "keyword": "mockDB",
+    "code": "const created = mockDB.insert('leads', {",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 14,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, input);",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 20,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, { status: 'QUALIFIED', notes: input.notes });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 26,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, { status: 'LOST', lostReason: input.reason, notes: input.notes });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 32,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, { status: input.restoreToStatus, restoreReason: input.reason });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 38,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, { customerId: input.customerId });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 44,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, { customerId: null });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 50,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, { nextReminderAt: input.nextReminderAt, reminderNotes: input.notes });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 56,
+    "keyword": "mockDB",
+    "code": "const updated = mockDB.update('leads', id, { nextReminderAt: null });",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 62,
+    "keyword": "mockDB",
+    "code": "const lead = mockDB.getById('leads', id);",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/leads/legacyLeadsWriteRepository.ts",
+    "line": 64,
+    "keyword": "mockDB",
+    "code": "mockDB.remove('leads', id);",
+    "classification": "Deprecated"
+  },
+  {
+    "file": "frontend/services/moduleServices.js",
+    "line": 19,
+    "keyword": "localStorage",
+    "code": "'Authorization': `Bearer ${localStorage.getItem('token')}`",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/services/moduleServices.js",
+    "line": 39,
+    "keyword": "localStorage",
+    "code": "'Authorization': `Bearer ${localStorage.getItem('token')}`",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/services/moduleServices.js",
+    "line": 62,
+    "keyword": "localStorage",
+    "code": "'Authorization': `Bearer ${localStorage.getItem('token')}`",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/services/moduleServices.js",
+    "line": 85,
+    "keyword": "localStorage",
+    "code": "'Authorization': `Bearer ${localStorage.getItem('token')}`",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/services/procurement/procurementClient.ts",
+    "line": 69,
+    "keyword": "localStorage",
+    "code": "// The access token lives in memory only (never persisted to sessionStorage/localStorage).",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/services/sales/salesRepositoryFactory.ts",
+    "line": 20,
+    "keyword": "mock",
+    "code": "// For 'local', we can either throw or provide a mock local write repository",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/services/sales.service.js",
+    "line": 4,
+    "keyword": "mock",
+    "code": "* Replaces the old mock-based orderOrchestrator approach.",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/authStore.ts",
+    "line": 21,
+    "keyword": "localStorage",
+    "code": "const safeLocalStorage: StateStorage = {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/authStore.ts",
+    "line": 23,
+    "keyword": "localStorage",
+    "code": "const value = window.localStorage.getItem(name);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/authStore.ts",
+    "line": 25,
+    "keyword": "localStorage",
+    "code": "if (value !== null) window.localStorage.removeItem(name);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/authStore.ts",
+    "line": 34,
+    "keyword": "localStorage",
+    "code": "window.localStorage.removeItem(name);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/authStore.ts",
+    "line": 38,
+    "keyword": "localStorage",
+    "code": "setItem: (name, value) => window.localStorage.setItem(name, value),",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/authStore.ts",
+    "line": 39,
+    "keyword": "localStorage",
+    "code": "removeItem: (name) => window.localStorage.removeItem(name),",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/authStore.ts",
+    "line": 55,
+    "keyword": "localStorage",
+    "code": "storage: createJSONStorage(() => safeLocalStorage),",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 25,
+    "keyword": "localStorage",
+    "code": "const authRaw = window.localStorage.getItem('auth-storage');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 44,
+    "keyword": "localStorage",
+    "code": "if (GLOBAL_KEYS.includes(key) || key === 'auth-storage') return window.localStorage.getItem(key);",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 45,
+    "keyword": "localStorage",
+    "code": "return window.localStorage.getItem(getScopedKey(key));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 54,
+    "keyword": "localStorage",
+    "code": "if (GLOBAL_KEYS.includes(key)) return window.localStorage.removeItem(key);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 55,
+    "keyword": "localStorage",
+    "code": "return window.localStorage.removeItem(getScopedKey(key));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 260,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 271,
+    "keyword": "fallback",
+    "code": "// Keep fallback keys updated for non-migrated or legacy reader pages",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 340,
+    "keyword": "localStorage",
+    "code": "console.error('Failed to persist ERP state to localStorage', e);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 360,
+    "keyword": "mock",
+    "code": "const MOCK_EMPLOYEES = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 373,
+    "keyword": "mock",
+    "code": "const MOCK_BATCHES = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 465,
+    "keyword": "mock",
+    "code": "const generateMockSalary = (emp: any, status: string, month: string) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 493,
+    "keyword": "mock",
+    "code": "const MOCK_SALARIES = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 494,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[0], 'SALARY_PAID', '2026-06'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 495,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[1], 'SALARY_PAID', '2026-06'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 496,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[2], 'SALARY_PAID', '2026-06'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 498,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[0], 'SENT_TO_FINANCE', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 499,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[1], 'SENT_TO_FINANCE', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 500,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[2], 'PAYMENT_PROCESSING', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 501,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[3], 'SUPER_ADMIN_APPROVED', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 502,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[4], 'PENDING_SUPER_ADMIN_APPROVAL', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 503,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[5], 'PENDING_SUPER_ADMIN_APPROVAL', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 504,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[6], 'SUPER_ADMIN_REJECTED', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 505,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[7], 'SUPER_ADMIN_ON_HOLD', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 506,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[8], 'DRAFT', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 507,
+    "keyword": "mock",
+    "code": "generateMockSalary(MOCK_EMPLOYEES[9], 'DRAFT', '2026-07'),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 682,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 893,
+    "keyword": "mock",
+    "code": "employees = MOCK_EMPLOYEES;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 896,
+    "keyword": "mock",
+    "code": "salaries = MOCK_SALARIES;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 897,
+    "keyword": "mock",
+    "code": "payrollBatches = MOCK_BATCHES;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 948,
+    "keyword": "sessionStorage",
+    "code": "window.sessionStorage?.clear();",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 1430,
+    "keyword": "fallback",
+    "code": "// Fallback: If 0, scan records to find the actual highest to avoid duplicates from old data",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/erpStore.ts",
+    "line": 2607,
+    "keyword": "fallback",
+    "code": "// Fallback: use domain salesActions.createDispatch",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 6,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 7,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_procurement_data_version', '1');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 10,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_orders', JSON.stringify(state.orders));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 11,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('himalaya_orders', JSON.stringify(state.orders));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 14,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_work_orders', JSON.stringify(state.workOrders));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 17,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_dispatches', JSON.stringify(state.dispatches));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 20,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_payments', JSON.stringify(state.payments));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 23,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_notifications', JSON.stringify(state.notifications));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 26,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_purchase_indents', JSON.stringify(state.purchaseIndents));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 29,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_purchase_orders', JSON.stringify(state.purchaseOrders));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 32,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_goods_receipts', JSON.stringify(state.goodsReceipts));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 35,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_vendor_returns', JSON.stringify(state.vendorReturns));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 38,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_vendor_invoices', JSON.stringify(state.vendorInvoices));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 41,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_vendor_payments', JSON.stringify(state.vendorPayments));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 44,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_inventory', JSON.stringify(state.rawInventory));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 47,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_analysis_requests_v1', JSON.stringify(state.analysisRequests));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 51,
+    "keyword": "localStorage",
+    "code": "console.error('Failed to persist ERP state to localStorage', e);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 79,
+    "keyword": "localStorage",
+    "code": "const data = window.localStorage.getItem(key);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 110,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/new_procurement_store.ts",
+    "line": 111,
+    "keyword": "localStorage",
+    "code": "const rawPOs = window.localStorage.getItem('erp_purchase_orders');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/payrollFlow.ts",
+    "line": 65,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage && Array.isArray(nextState.payrollRuns)) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/payrollFlow.ts",
+    "line": 66,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_payroll_runs', JSON.stringify(nextState.payrollRuns));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/payrollFlow.ts",
+    "line": 161,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/payrollFlow.ts",
+    "line": 163,
+    "keyword": "localStorage",
+    "code": "const persistedEmployees = JSON.parse(window.localStorage.getItem('erp_employees') || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/store/procurementActions.ts",
+    "line": 33,
+    "keyword": "localStorage",
+    "code": "// Use the in-memory auth token (intentionally NOT persisted to localStorage/sessionStorage).",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/store/procurementActions.ts",
+    "line": 220,
+    "keyword": "dummy",
+    "code": "// Dummy/placeholder IDs (e.g. 'mat-1', 'wh-1') from legacy code paths cause a FK violation.",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/store/procurementActions.ts",
+    "line": 435,
+    "keyword": "mock",
+    "code": "// Remove local mock interceptor; backend will handle all GRN resolution logic natively",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 39,
+    "keyword": "mock",
+    "code": "// Local Mock for Product Catalog",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 41,
+    "keyword": "mock",
+    "code": "const mockProducts = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 45,
+    "keyword": "mock",
+    "code": "return mockProducts;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 57,
+    "keyword": "mock",
+    "code": "// Local Mock for Reminders",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 63,
+    "keyword": "localStorage",
+    "code": "items = JSON.parse(localStorage.getItem(LS_KEY) || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 75,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(LS_KEY, JSON.stringify(items));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 87,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(LS_KEY, JSON.stringify(items));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 101,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(LS_KEY, JSON.stringify(items));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 113,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(LS_KEY, JSON.stringify(items));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/api/client.js",
+    "line": 160,
+    "keyword": "localStorage",
+    "code": "const storedUser = localStorage.getItem('erpUser');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/api/interceptors.js",
+    "line": 10,
+    "keyword": "sessionStorage",
+    "code": "const storedUser = sessionStorage.getItem('erpUser');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/api/interceptors.js",
+    "line": 21,
+    "keyword": "sessionStorage",
+    "code": "const token = sessionStorage.getItem('token') || sessionStorage.getItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/api/interceptors.js",
+    "line": 24,
+    "keyword": "sessionStorage",
+    "code": "const companyId = user?.company_id || sessionStorage.getItem('companyId') || '1';",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/api/interceptors.js",
+    "line": 25,
+    "keyword": "sessionStorage",
+    "code": "const workspaceId = user?.workspace_id || sessionStorage.getItem('workspaceId');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/api/interceptors.js",
+    "line": 83,
+    "keyword": "sessionStorage",
+    "code": "sessionStorage.removeItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/api/interceptors.js",
+    "line": 84,
+    "keyword": "sessionStorage",
+    "code": "sessionStorage.removeItem('token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/api/upload.js",
+    "line": 15,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token') || localStorage.getItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/api/upload.js",
+    "line": 16,
+    "keyword": "localStorage",
+    "code": "const companyId = localStorage.getItem('companyId') || '1';",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/components/DispatchBillModal.jsx",
+    "line": 24,
+    "keyword": "fallback",
+    "code": "// Fallback Address & GST",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/components/EnterpriseAlerts.jsx",
+    "line": 145,
+    "keyword": "fallback",
+    "code": "// sort newest first (by id stability — use index fallback)",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/components/GlobalOrderTracker.jsx",
+    "line": 68,
+    "keyword": "mock",
+    "code": "'Authorization': `Bearer mock_token_${user?.role?.replace(/ /g, '_') || 'Super_Admin'}`",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/components/OrderDetailsModal.jsx",
+    "line": 20,
+    "keyword": "fallback",
+    "code": "// GST / Address fallback resolution",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/components/OrderDetailsModal.jsx",
+    "line": 50,
+    "keyword": "fallback",
+    "code": "// Helper calculation values for fallback invoice totals if not explicitly provided",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/components/OrderDetailsModal.jsx",
+    "line": 66,
+    "keyword": "fallback",
+    "code": "// Dynamically compute transportVal fallback if it is not explicitly stored on the order,",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/components/PermissionGuard.jsx",
+    "line": 4,
+    "keyword": "fallback",
+    "code": "export default function PermissionGuard({ permission, children, fallback = null }) {",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/components/PermissionGuard.jsx",
+    "line": 23,
+    "keyword": "fallback",
+    "code": "return fallback;",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/context/AuthContext.jsx",
+    "line": 11,
+    "keyword": "mock",
+    "code": "// Logic handled in login page, but we'll mock for backward compat if needed",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/context/ERPContext.jsx",
+    "line": 140,
+    "keyword": "sessionStorage",
+    "code": "// The access token lives in memory only — never in sessionStorage.",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/context/ERPContext.jsx",
+    "line": 229,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/ERPContext.jsx",
+    "line": 230,
+    "keyword": "fallback",
+    "code": "const getLocal = (key, fallback) => {",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/context/ERPContext.jsx",
+    "line": 231,
+    "keyword": "localStorage",
+    "code": "const val = JSON.parse(window.localStorage.getItem(key) || 'null');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/ERPContext.jsx",
+    "line": 232,
+    "keyword": "fallback",
+    "code": "return Array.isArray(val) && val.length > 0 ? val : fallback;",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/context/ERPContext.jsx",
+    "line": 266,
+    "keyword": "mock",
+    "code": "// Sales is local-canonical. Never hydrate it from the legacy mock API.",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 55,
+    "keyword": "localStorage",
+    "code": "if (typeof window !== 'undefined' && window.localStorage) {",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 57,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_orders', JSON.stringify(orders));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 58,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('himalaya_orders', JSON.stringify(orders));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 60,
+    "keyword": "localStorage",
+    "code": "const storedOrders = JSON.parse(window.localStorage.getItem('erp_orders') || window.localStorage.getItem('himalaya_orders') || 'null');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 65,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_payments', JSON.stringify(payments));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 67,
+    "keyword": "localStorage",
+    "code": "const storedPayments = JSON.parse(window.localStorage.getItem('erp_payments') || 'null');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 71,
+    "keyword": "fallback",
+    "code": "const getLocal = (key, fallback) => {",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 72,
+    "keyword": "localStorage",
+    "code": "const val = JSON.parse(window.localStorage.getItem(key) || 'null');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 73,
+    "keyword": "fallback",
+    "code": "return Array.isArray(val) && val.length > 0 ? val : fallback;",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 89,
+    "keyword": "localStorage",
+    "code": ": (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_material_indents') || 'null')) || (currentProcurement.materialIndents || []);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 93,
+    "keyword": "localStorage",
+    "code": ": (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_purchase_orders') || 'null')) || (currentProcurement.purchaseOrders || []);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/context/new_erp_context.jsx",
+    "line": 97,
+    "keyword": "localStorage",
+    "code": ": (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_goods_receipts') || 'null')) || (currentProcurement.goodsReceiptNotes || []);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/firebase/firebase.js",
+    "line": 18,
+    "keyword": "mock",
+    "code": "// Only initialize if messagingSenderId is provided (non-mock environment)",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 6,
+    "keyword": "localStorage",
+    "code": "let uuid = localStorage.getItem('erp_device_uuid');",
+    "classification": "UI preference"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 9,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem('erp_device_uuid', uuid);",
+    "classification": "UI preference"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 44,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 63,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem('registered_fcm_token', fcmToken);",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 74,
+    "keyword": "localStorage",
+    "code": "const currentToken = localStorage.getItem('registered_fcm_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 78,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 91,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem('registered_fcm_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/firebase/messaging.js",
+    "line": 128,
+    "keyword": "localStorage",
+    "code": "const savedToken = localStorage.getItem('registered_fcm_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/shared/hooks/useFormDraft.js",
+    "line": 56,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(draftKey);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/hooks/useFormDraft.js",
+    "line": 69,
+    "keyword": "localStorage",
+    "code": "const rawDraft = localStorage.getItem(draftKey);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/hooks/useFormDraft.js",
+    "line": 86,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(draftKey);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/hooks/useFormDraft.js",
+    "line": 99,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(draftKey);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/hooks/useFormDraft.js",
+    "line": 142,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(draftKey);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/hooks/useFormDraft.js",
+    "line": 145,
+    "keyword": "localStorage",
+    "code": "localStorage.removeItem(draftKey);",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/hooks/useFormDraft.js",
+    "line": 174,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem(",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/shared/socket/socketClient.js",
+    "line": 11,
+    "keyword": "localStorage",
+    "code": "* @param {string} token   - JWT token from localStorage",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/admin/pages/AdminNewLead.jsx",
+    "line": 7,
+    "keyword": "localStorage",
+    "code": "const TOKEN = () => localStorage.getItem('token') || localStorage.getItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/admin/pages/AdminNewQuotation.jsx",
+    "line": 7,
+    "keyword": "localStorage",
+    "code": "const TOKEN = () => localStorage.getItem('token') || localStorage.getItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/admin/pages/AdminOpsPortal.jsx",
+    "line": 14,
+    "keyword": "localStorage",
+    "code": "const TOKEN = () => localStorage.getItem('token') || localStorage.getItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/dispatch/pages/DispatchPortal.jsx",
+    "line": 220,
+    "keyword": "fallback",
+    "code": "// Fallback: check order-level dispatch_category field if present",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/finance/pages/FinancePortal.jsx",
+    "line": 114,
+    "keyword": "fallback",
+    "code": "// Stable empty-array fallback — must live at module scope so it is the same",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/finance/pages/FinancePortal.jsx",
+    "line": 1163,
+    "keyword": "mock",
+    "code": "// If list is empty, generate some highly realistic mock items to look premium",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/finance/pages/FinancePortal.jsx",
+    "line": 1733,
+    "keyword": "fallback",
+    "code": "// Fallback to minimal order object if order reference is not found in state",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/finance/pages/FinancePortal.jsx",
+    "line": 3201,
+    "keyword": "fallback",
+    "code": "{/* Legacy and PO fallbacks */}",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/finance/pages/FinanceSalesConfirmationView.jsx",
+    "line": 235,
+    "keyword": "mock",
+    "code": "// Fallback for legacy local mock payments",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/finance/pages/FinanceSalesConfirmationView.jsx",
+    "line": 265,
+    "keyword": "mock",
+    "code": "// Fallback for legacy local mock payments",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/hr/employee/components/EmployeeRegistrationForm.tsx",
+    "line": 538,
+    "keyword": "localStorage",
+    "code": "} catch { /* localStorage full */ }",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/hr/employee/employee.repository.ts",
+    "line": 31,
+    "keyword": "localStorage",
+    "code": "* Creates a new employee in the Zustand store state and triggers localStorage sync",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/hr/pages/HRPortal.jsx",
+    "line": 121,
+    "keyword": "fallback",
+    "code": "// Fallback: update locally if backend doesn't support shift field yet",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/hr/pages/HRPortal.jsx",
+    "line": 153,
+    "keyword": "fallback",
+    "code": "// Fallback to local dispatch if backend doesn't support exit fields yet",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/hr/pages/HRPortal.jsx",
+    "line": 210,
+    "keyword": "fallback",
+    "code": "// Fallback: remove locally if DB fails",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/notifications/pages/NotificationCenter.jsx",
+    "line": 88,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token') || '';",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/plant-head/pages/PlantHeadPortal.jsx",
+    "line": 3079,
+    "keyword": "mock",
+    "code": "// If backend data exists, use it. Otherwise fallback to mock state rawInventory",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/procurement/plant-head/MaterialIndentApproval.jsx",
+    "line": 843,
+    "keyword": "fallback",
+    "code": "const itemKey = item.id || item.indentItemId || item.materialId || `fallback-${idx}`;",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/procurement/store/CreateMaterialIndent.jsx",
+    "line": 7,
+    "keyword": "dummy",
+    "code": "/** Returns true when an id looks like a real DB UUID (not a dummy placeholder). */",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/procurement/store/CreateMaterialIndent.jsx",
+    "line": 23,
+    "keyword": "dummy",
+    "code": "// Use real data from the ERP store — never fall back to dummy/placeholder data",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 509,
+    "keyword": "mock",
+    "code": "const [mockWorkOrders, setMockWorkOrders] = useState([]);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 511,
+    "keyword": "mock",
+    "code": "const [mockReworkItems, setMockReworkItems] = useState([]);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 517,
+    "keyword": "mock",
+    "code": "const updateMockWorkOrders = (updated) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 518,
+    "keyword": "mock",
+    "code": "setMockWorkOrders(updated);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 521,
+    "keyword": "mock",
+    "code": "const updateMockReworkItems = (updated) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 522,
+    "keyword": "mock",
+    "code": "setMockReworkItems(updated);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 711,
+    "keyword": "mock",
+    "code": "const storeWorkOrders = (filteredStoreWOs && filteredStoreWOs.length > 0) ? filteredStoreWOs : mockWorkOrders;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 755,
+    "keyword": "fallback",
+    "code": "const fallbackItems = Array.isArray(wo.items) ? wo.items : [];",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 756,
+    "keyword": "fallback",
+    "code": "const fallbackQuantity = fallbackItems.reduce(",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 769,
+    "keyword": "fallback",
+    "code": ": (fallbackQuantity || wo.quantity || existing.quantity || 0),",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 772,
+    "keyword": "fallback",
+    "code": ": (fallbackItems.length === 1 ? (fallbackItems[0].unit || 'Pcs') : (wo.unit || 'Pcs')),",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 890,
+    "keyword": "fallback",
+    "code": "// Fallback using seeded dynamic materials",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 1033,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token') || localStorage.getItem('himalaya_token') || `mock_token_${String(user.role).replace(/ /g, '_')}`;",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 1460,
+    "keyword": "mock",
+    "code": "if (mockWorkOrders.some(m => m.id === wo.id)) {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 1461,
+    "keyword": "mock",
+    "code": "const updatedMock = mockWorkOrders.map(m => m.id === wo.id ? {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 1469,
+    "keyword": "mock",
+    "code": "updateMockWorkOrders(updatedMock);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 1495,
+    "keyword": "mock",
+    "code": "const rejectedQty = mockReworkItems",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 3075,
+    "keyword": "mock",
+    "code": "const pendingRework = mockReworkItems.filter(rw => rw.status === 'Pending');",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 3095,
+    "keyword": "mock",
+    "code": "const updatedRework = mockReworkItems.map(r => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 3101,
+    "keyword": "mock",
+    "code": "updateMockReworkItems(updatedRework);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 3104,
+    "keyword": "mock",
+    "code": "const updatedWOs = mockWorkOrders.map(w => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/production/pages/ProductionPortal.jsx",
+    "line": 3110,
+    "keyword": "mock",
+    "code": "updateMockWorkOrders(updatedWOs);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/purchase/pages/GoodsReceiptNote.jsx",
+    "line": 44,
+    "keyword": "dummy",
+    "code": "const dummyGrns = [",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/purchase/pages/GoodsReceiptNote.jsx",
+    "line": 71,
+    "keyword": "dummy",
+    "code": "setGrns(grnsData?.length > 0 && grnsData[0].grn_number ? grnsData : dummyGrns);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/sales/hooks/useOrders.js",
+    "line": 112,
+    "keyword": "mock",
+    "code": "// legacy mock for now",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/sales/pages/SalesPortal.jsx",
+    "line": 397,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token') || localStorage.getItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/sales/pages/SalesPortal.jsx",
+    "line": 398,
+    "keyword": "localStorage",
+    "code": "const companyId = localStorage.getItem('companyId') || user?.company_id;",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/sales-admin/components/SalesAdminSettings.jsx",
+    "line": 223,
+    "keyword": "fallback",
+    "code": "setTotalCompanyTarget('60000000'); // default 6 Cr fallback",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 236,
+    "keyword": "fake",
+    "code": "// Inject Fake Entries as requested",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 242,
+    "keyword": "fake",
+    "code": "// 1. Low Stock Alerts (10 fake entries)",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 243,
+    "keyword": "fake",
+    "code": "// 2. Product & Brand Analysis (10 fake entries)",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 245,
+    "keyword": "fake",
+    "code": "const fakeAna = Array.from({ length: 10 }).map((_, i) => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 254,
+    "keyword": "fake",
+    "code": "newState.analysisRequests = [...(newState.analysisRequests || []), ...fakeAna];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 474,
+    "keyword": "localStorage",
+    "code": "const storedGRNs = JSON.parse(window.localStorage.getItem('erp_goods_receipts') || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 476,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_goods_receipts', JSON.stringify(updatedGRNs));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 478,
+    "keyword": "localStorage",
+    "code": "const storedPayments = JSON.parse(window.localStorage.getItem('erp_vendor_payments') || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 480,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_vendor_payments', JSON.stringify(updatedPayments));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 482,
+    "keyword": "localStorage",
+    "code": "const storedPOs = JSON.parse(window.localStorage.getItem('erp_purchase_orders') || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 490,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_purchase_orders', JSON.stringify(updatedPOs));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 492,
+    "keyword": "localStorage",
+    "code": "const storedInv = JSON.parse(window.localStorage.getItem('erp_raw_inventory') || '[]');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 503,
+    "keyword": "localStorage",
+    "code": "window.localStorage.setItem('erp_raw_inventory', JSON.stringify(storedInv));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 612,
+    "keyword": "localStorage",
+    "code": "const token = localStorage.getItem('token') || localStorage.getItem('himalaya_token');",
+    "classification": "Authentication/session"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 806,
+    "keyword": "fallback",
+    "code": "// Fallback to local dispatch",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/store/pages/StorePortal.jsx",
+    "line": 863,
+    "keyword": "fallback",
+    "code": "// Fallback to local dispatch",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/DashboardView.jsx",
+    "line": 129,
+    "keyword": "mock",
+    "code": "// Mock Operational Chart Data",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/EmployeeDetail.jsx",
+    "line": 27,
+    "keyword": "mock",
+    "code": "// Mock targets / call logs",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/ExecutiveKPIs.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockKPIData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/ExecutiveKPIs.jsx",
+    "line": 9,
+    "keyword": "mock",
+    "code": "const data = kpiData || mockKPIData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/HeatMap.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockHeatMapData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/HeatMap.jsx",
+    "line": 21,
+    "keyword": "mock",
+    "code": "const data = useMemo(() => mockHeatMapData(filters), [filters]);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/Leaderboards.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockLeaderboardData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/Leaderboards.jsx",
+    "line": 59,
+    "keyword": "mock",
+    "code": "const data = leaderboardData || mockLeaderboardData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/LeadFunnel.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockFunnelData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/LeadFunnel.jsx",
+    "line": 36,
+    "keyword": "mock",
+    "code": "const data = funnelData || mockFunnelData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/OrderAnalytics.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockChartData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/OrderAnalytics.jsx",
+    "line": 9,
+    "keyword": "mock",
+    "code": "const data = chartData || mockChartData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/PaymentAnalytics.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockPaymentData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/PaymentAnalytics.jsx",
+    "line": 11,
+    "keyword": "mock",
+    "code": "const data = paymentData || mockPaymentData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/ProductAnalytics.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockProductData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/ProductAnalytics.jsx",
+    "line": 14,
+    "keyword": "mock",
+    "code": "const data = productData || mockProductData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/RegionalAnalytics.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockRegionalData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/RegionalAnalytics.jsx",
+    "line": 11,
+    "keyword": "mock",
+    "code": "const data = regionalData || mockRegionalData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/RevenueCharts.jsx",
+    "line": 4,
+    "keyword": "mock",
+    "code": "import { mockChartData } from '../../../services/salesAnalytics.service.js';",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/components/sales-analytics/analytics/RevenueCharts.jsx",
+    "line": 28,
+    "keyword": "mock",
+    "code": "const data = chartData || mockChartData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/context/SuperAdminFilterContext.jsx",
+    "line": 79,
+    "keyword": "fallback",
+    "code": "// Fallback if rendered outside provider",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/hooks/useSalesFilters.js",
+    "line": 35,
+    "keyword": "localStorage",
+    "code": "const views = localStorage.getItem('bi_saved_views');",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/super-admin/hooks/useSalesFilters.js",
+    "line": 45,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem('bi_saved_views', JSON.stringify(updated));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/super-admin/hooks/useSalesFilters.js",
+    "line": 51,
+    "keyword": "localStorage",
+    "code": "localStorage.setItem('bi_saved_views', JSON.stringify(updated));",
+    "classification": "Form draft"
+  },
+  {
+    "file": "frontend/modules/super-admin/pages/SalesAnalyticsPage.jsx",
+    "line": 47,
+    "keyword": "fallback",
+    "code": "// 1. Calculations & Metrics fallbacks",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/super-admin/pages/SuperAdminPortal.jsx",
+    "line": 238,
+    "keyword": "fallback",
+    "code": "fy: 'FY 26-27', // Dynamic fallback if required by UI",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/super-admin/pages/SuperAdminPortal.jsx",
+    "line": 1281,
+    "keyword": "fallback",
+    "code": "if (processedEvents.length === 0) return 120; // Default nominal fallback",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/super-admin/pages/SuperAdminPortal.jsx",
+    "line": 1340,
+    "keyword": "fallback",
+    "code": "<span style={{ color: '#3b82f6', fontWeight: '800' }}>{systemHealth.queueMode.includes('BullMQ') ? 'BullMQ' : 'Fallback'}</span>",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/pages/SuperAdminPortal.jsx",
+    "line": 1416,
+    "keyword": "fallback",
+    "code": "<span style={{ fontWeight: '700', color: '#8893A7' }}>Thread Pools:</span> Auto-scaled (outbox fallback)",
+    "classification": "Dangerous production business state"
+  },
+  {
+    "file": "frontend/modules/super-admin/pages/SuperAdminPortal.jsx",
+    "line": 3536,
+    "keyword": "fallback",
+    "code": "// Fallback if no sales users found",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/pages/SuperAdminPortal.jsx",
+    "line": 6601,
+    "keyword": "mock",
+    "code": "// Mock list of quotations",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1,
+    "keyword": "mock",
+    "code": "// Sales Analytics ERP BI service containing calculations and mock datasets",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 14,
+    "keyword": "mock",
+    "code": "export const mockAnalyticsData = {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 184,
+    "keyword": "mock",
+    "code": "// Mock Explorer Datasets corresponding to the 15 sections",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 185,
+    "keyword": "mock",
+    "code": "export const mockExplorerData = {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 325,
+    "keyword": "mock",
+    "code": "const p = mockExplorerData.products.find(x => x.sku === skuOrName || x.product === skuOrName) || mockExplorerData.products[0];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 354,
+    "keyword": "mock",
+    "code": "const c = mockExplorerData.customers.find(x => x.customer === name) || mockExplorerData.customers[0];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 375,
+    "keyword": "mock",
+    "code": "const e = mockExplorerData.employees.find(x => x.employee === name) || mockExplorerData.employees[0];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 399,
+    "keyword": "mock",
+    "code": "const o = mockExplorerData.orders.find(x => x.order === orderNo) || mockExplorerData.orders[0];",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 420,
+    "keyword": "mock",
+    "code": "// Filters out mock statistics dynamically based on filters object",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 421,
+    "keyword": "mock",
+    "code": "let analytics = JSON.parse(JSON.stringify(mockAnalyticsData));",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 424,
+    "keyword": "mock",
+    "code": "// scale metrics down slightly to mock filtering",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 438,
+    "keyword": "mock",
+    "code": "// ─── Filter Utilities for Dynamic Mock Data ───────────────────────────────────",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 489,
+    "keyword": "mock",
+    "code": "totalProducts: mockExplorerData.summary.totalProducts,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 490,
+    "keyword": "mock",
+    "code": "categories: mockExplorerData.summary.categories,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 491,
+    "keyword": "mock",
+    "code": "orders: Math.round(mockExplorerData.summary.orders * scale),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 492,
+    "keyword": "mock",
+    "code": "sales: Math.round(mockExplorerData.summary.sales * scale),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 493,
+    "keyword": "mock",
+    "code": "customers: Math.round(mockExplorerData.summary.customers * (scale > 1 ? 1.5 : Math.max(0.3, scale))),",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 494,
+    "keyword": "mock",
+    "code": "salesUsers: mockExplorerData.summary.salesUsers",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 497,
+    "keyword": "mock",
+    "code": "let categories = mockExplorerData.categories.map(c => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 509,
+    "keyword": "mock",
+    "code": "let products = mockExplorerData.products.map(p => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 524,
+    "keyword": "mock",
+    "code": "let employees = mockExplorerData.employees.map(e => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 540,
+    "keyword": "mock",
+    "code": "let customers = mockExplorerData.customers.map(c => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 559,
+    "keyword": "mock",
+    "code": "let leads = mockExplorerData.leads.map(l => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 567,
+    "keyword": "mock",
+    "code": "let quotations = mockExplorerData.quotations.map(q => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 575,
+    "keyword": "mock",
+    "code": "let orders = mockExplorerData.orders.map(o => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 584,
+    "keyword": "mock",
+    "code": "let payments = mockExplorerData.payments.map(p => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 592,
+    "keyword": "mock",
+    "code": "let regions = mockExplorerData.regions.map(r => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 604,
+    "keyword": "mock",
+    "code": "let inventory = mockExplorerData.inventory.map(i => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 613,
+    "keyword": "mock",
+    "code": "let monthlyProductPerformance = mockExplorerData.monthlyProductPerformance.map(m => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 619,
+    "keyword": "mock",
+    "code": "let top100Products = mockExplorerData.top100Products.map(t => ({",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 626,
+    "keyword": "mock",
+    "code": "let activityLog = mockExplorerData.activityLog;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 637,
+    "keyword": "mock",
+    "code": "// ─── KPI Mock Data ─────────────────────────────────────────────────────────────",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 638,
+    "keyword": "mock",
+    "code": "export const mockKPIData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 668,
+    "keyword": "mock",
+    "code": "export const mockChartData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 713,
+    "keyword": "mock",
+    "code": "export const mockFunnelData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 730,
+    "keyword": "mock",
+    "code": "export const mockProductData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 768,
+    "keyword": "mock",
+    "code": "export const mockRegionalData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 798,
+    "keyword": "mock",
+    "code": "export const mockPaymentData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 837,
+    "keyword": "mock",
+    "code": "export const mockLeaderboardData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 864,
+    "keyword": "mock",
+    "code": "export const mockHeatMapData = (filters = {}) => {",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 879,
+    "keyword": "mock",
+    "code": "const mock = mockKPIData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 881,
+    "keyword": "mock",
+    "code": "return mock;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 911,
+    "keyword": "mock",
+    "code": "const totalRevenue = totalRevenueNum > 0 ? (totalRevenueNum / 10000000).toFixed(2) : mock.totalRevenue;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 912,
+    "keyword": "mock",
+    "code": "const totalOrders = totalOrdersVal > 0 ? totalOrdersVal : mock.totalOrders;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 913,
+    "keyword": "mock",
+    "code": "const avgOrderValue = totalOrders > 0 ? ((totalRevenueNum / totalOrders) / 1000).toFixed(1) : mock.avgOrderValue;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 914,
+    "keyword": "mock",
+    "code": "const revenuePerDay = (totalRevenueNum > 0 ? ((totalRevenueNum / 30) / 100000).toFixed(1) : mock.revenuePerDay);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 918,
+    "keyword": "mock",
+    "code": ": mock.pendingPayments;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 920,
+    "keyword": "mock",
+    "code": "const leadConvRate = dbData.kpis?.sales?.leadConversionRate || mock.leadConvRate;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 921,
+    "keyword": "mock",
+    "code": "const qualifyRate = dbData.kpis?.sales?.quoteWinRate || mock.qualifyRate;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 922,
+    "keyword": "mock",
+    "code": "const avgLeadCycle = dbData.kpis?.sales?.averageSalesCycleDays || mock.avgLeadCycle;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 924,
+    "keyword": "mock",
+    "code": "const totalCustomers = dbData.customerPerformance?.length || mock.totalCustomers;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 927,
+    "keyword": "mock",
+    "code": "...mock,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 946,
+    "keyword": "mock",
+    "code": "const mock = mockChartData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 948,
+    "keyword": "mock",
+    "code": "return mock;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 966,
+    "keyword": "mock",
+    "code": "...mock,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 967,
+    "keyword": "mock",
+    "code": "monthlyRevenue: monthlyRevenue.length > 0 ? monthlyRevenue : mock.monthlyRevenue,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 968,
+    "keyword": "mock",
+    "code": "orderStatus: orderStatus.length > 0 ? orderStatus : mock.orderStatus",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 973,
+    "keyword": "mock",
+    "code": "const mock = mockProductData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 975,
+    "keyword": "mock",
+    "code": "return mock;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 993,
+    "keyword": "mock",
+    "code": "...mock,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 994,
+    "keyword": "mock",
+    "code": "topProducts: topProducts.length > 0 ? topProducts : mock.topProducts,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 995,
+    "keyword": "mock",
+    "code": "topSelling: topSelling.length > 0 ? topSelling : mock.topSelling",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1000,
+    "keyword": "mock",
+    "code": "return mockFunnelData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1004,
+    "keyword": "mock",
+    "code": "return mockRegionalData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1008,
+    "keyword": "mock",
+    "code": "return mockPaymentData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1012,
+    "keyword": "mock",
+    "code": "const mock = mockLeaderboardData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1013,
+    "keyword": "mock",
+    "code": "if (!dbData) return mock;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1036,
+    "keyword": "mock",
+    "code": "...mock,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1037,
+    "keyword": "mock",
+    "code": "customers: customers.length > 0 ? customers : mock.customers,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1038,
+    "keyword": "mock",
+    "code": "products: products.length > 0 ? products : mock.products",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1043,
+    "keyword": "mock",
+    "code": "const mock = getFilteredExplorerData(filters);",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1044,
+    "keyword": "mock",
+    "code": "if (!dbData) return mock;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1046,
+    "keyword": "mock",
+    "code": "const totalProducts = dbData.topProducts?.length || mock.summary.totalProducts;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1047,
+    "keyword": "mock",
+    "code": "const orderCount = dbData.summary?.reduce((acc, s) => acc + parseInt(s.order_count || 0), 0) || mock.summary.orders;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1048,
+    "keyword": "mock",
+    "code": "const totalSales = dbData.summary?.reduce((acc, s) => acc + parseFloat(s.total_revenue || 0), 0) || mock.summary.sales;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1049,
+    "keyword": "mock",
+    "code": "const customerCount = dbData.customerPerformance?.length || mock.summary.customers;",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1052,
+    "keyword": "mock",
+    "code": "...mock.summary,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1092,
+    "keyword": "mock",
+    "code": "...mock,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1094,
+    "keyword": "mock",
+    "code": "products: products.length > 0 ? products : mock.products,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/services/salesAnalytics.service.js",
+    "line": 1095,
+    "keyword": "mock",
+    "code": "customers: customers.length > 0 ? customers : mock.customers",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/modules/super-admin/utils/export.js",
+    "line": 26,
+    "keyword": "mock",
+    "code": "// Mock Excel file download trigger since standard web app client libraries like XLSX might not be installed,",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/engine/orchestrators/orderOrchestrator.js",
+    "line": 252,
+    "keyword": "mock",
+    "code": "const unitPrice = 15000; // Mock unit price",
+    "classification": "Manual review required"
+  },
+  {
+    "file": "frontend/engine/services/workflow.service.ts",
+    "line": 5,
+    "keyword": "mock",
+    "code": "// Helper to find and update order in local memory mock and global prototype state",
+    "classification": "Manual review required"
+  }
+]

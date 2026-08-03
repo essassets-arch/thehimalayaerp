@@ -1,8 +1,11 @@
-import { Controller, Get } from '@nestjs/common';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { UseGuards, Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('health')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 

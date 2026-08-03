@@ -36,6 +36,8 @@
     ".next-build/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "scripts",
+    "old_erpStore.ts"
   ]
 }

@@ -1,4 +1,4 @@
-const escapePdf = (value: unknown) =>
+const escapePdf = (value: string | number | boolean | null | undefined) =>
   String(value ?? '')
     .replace(/[^\x20-\x7E]/g, '')
     .replace(/([\\()])/g, '\\$1');

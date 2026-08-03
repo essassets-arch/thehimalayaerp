@@ -135,7 +135,7 @@ export function ActionButtons({ paymentId, status, customerId, unallocatedAmount
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Select Invoice</Label>
-              <Select value={selectedInvoice} onValueChange={setSelectedInvoice}>
+              <Select value={selectedInvoice} onValueChange={(val) => setSelectedInvoice(val || '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select unpaid invoice" />
                 </SelectTrigger>

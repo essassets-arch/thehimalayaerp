@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import * as bcrypt from 'bcrypt';
+import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -82,7 +82,11 @@ export class UsersService {
     }
 
     const passwordToHash = data.password || 'admin123';
-    const hashedPassword = await bcrypt.hash(passwordToHash, 12);
+    const hashAsync = hash as unknown as (
+      data: string,
+      saltOrRounds: number,
+    ) => Promise<string>;
+    const hashedPassword = await hashAsync(passwordToHash, 12);
 
     const user = await this.prisma.user.create({
       data: {
@@ -95,7 +99,8 @@ export class UsersService {
       },
     });
 
-    const { password, ...result } = user;
+    const result = { ...user };
+    delete (result as { password?: string }).password;
     return result;
   }
 }

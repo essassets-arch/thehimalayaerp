@@ -9,7 +9,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
@@ -17,7 +17,7 @@ import { extname } from 'path';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class BrandAnalysisUploadController {
   @Post()
-  @Permissions('store.brand-analysis.create')
+  @RequirePermissions('store.brand-analysis.create')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({

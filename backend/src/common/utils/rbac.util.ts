@@ -66,3 +66,64 @@ export function getSalesScope(
     SALES: { [ownershipField]: userId },
   });
 }
+
+export function getProcurementScope(
+  userId?: string,
+  role?: string,
+  companyId?: string,
+): Record<string, any> {
+  // Procurement gets access to their company's data.
+  // Further filtering by branch or specific rules could apply if they are store managers.
+  if (!companyId) return {}; // Global read if not company specific
+  return getAdvancedScope(userId, role, {
+    STORE: { companyId },
+  });
+}
+
+export function getHrScope(
+  userId?: string,
+  role?: string,
+  employeeId?: string,
+): Record<string, any> {
+  // Regular employees should only see their own HR data
+  const rules: Record<string, any> = {};
+  if (employeeId) {
+    rules['OTHER'] = { id: employeeId }; // General non-HR users can only see their own record
+    rules['SALES'] = { id: employeeId };
+    rules['PRODUCTION'] = { id: employeeId };
+    rules['DISPATCH'] = { id: employeeId };
+    rules['STORE'] = { id: employeeId };
+    // FINANCE can see payroll broadly, HR can see everyone.
+  }
+  return getAdvancedScope(userId, role, rules);
+}
+
+export function getProductionScope(
+  userId?: string,
+  role?: string,
+  companyId?: string,
+): Record<string, any> {
+  return getAdvancedScope(userId, role, {
+    PRODUCTION: companyId ? { companyId } : {},
+  });
+}
+
+export function getFinanceScope(
+  userId?: string,
+  role?: string,
+  companyId?: string,
+): Record<string, any> {
+  return getAdvancedScope(userId, role, {
+    FINANCE: companyId ? { companyId } : {},
+  });
+}
+
+export function getDispatchScope(
+  userId?: string,
+  role?: string,
+  companyId?: string,
+): Record<string, any> {
+  return getAdvancedScope(userId, role, {
+    DISPATCH: companyId ? { companyId } : {},
+  });
+}

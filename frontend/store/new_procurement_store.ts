@@ -1,55 +1,8 @@
 import { create } from 'zustand';
 import { assertTransition, createId, calculatePOLineTotals, createProcurementAuditEntry } from '../constants/procurement';
 
-const persistToStorage = (state: any) => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem('erp_procurement_data_version', '1');
-
-      if (Array.isArray(state.orders)) {
-        window.localStorage.setItem('erp_orders', JSON.stringify(state.orders));
-        window.localStorage.setItem('himalaya_orders', JSON.stringify(state.orders));
-      }
-      if (Array.isArray(state.workOrders)) {
-        window.localStorage.setItem('erp_work_orders', JSON.stringify(state.workOrders));
-      }
-      if (Array.isArray(state.dispatches)) {
-        window.localStorage.setItem('erp_dispatches', JSON.stringify(state.dispatches));
-      }
-      if (Array.isArray(state.payments)) {
-        window.localStorage.setItem('erp_payments', JSON.stringify(state.payments));
-      }
-      if (Array.isArray(state.notifications)) {
-        window.localStorage.setItem('erp_notifications', JSON.stringify(state.notifications));
-      }
-      if (Array.isArray(state.purchaseIndents)) {
-        window.localStorage.setItem('erp_purchase_indents', JSON.stringify(state.purchaseIndents));
-      }
-      if (Array.isArray(state.purchaseOrders)) {
-        window.localStorage.setItem('erp_purchase_orders', JSON.stringify(state.purchaseOrders));
-      }
-      if (Array.isArray(state.goodsReceipts)) {
-        window.localStorage.setItem('erp_goods_receipts', JSON.stringify(state.goodsReceipts));
-      }
-      if (Array.isArray(state.vendorReturns)) {
-        window.localStorage.setItem('erp_vendor_returns', JSON.stringify(state.vendorReturns));
-      }
-      if (Array.isArray(state.vendorInvoices)) {
-        window.localStorage.setItem('erp_vendor_invoices', JSON.stringify(state.vendorInvoices));
-      }
-      if (Array.isArray(state.vendorPayments)) {
-        window.localStorage.setItem('erp_vendor_payments', JSON.stringify(state.vendorPayments));
-      }
-      if (Array.isArray(state.rawInventory)) {
-        window.localStorage.setItem('erp_inventory', JSON.stringify(state.rawInventory));
-      }
-      if (Array.isArray(state.analysisRequests)) {
-        window.localStorage.setItem('erp_analysis_requests_v1', JSON.stringify(state.analysisRequests));
-      }
-    }
-  } catch (e) {
-    console.error('Failed to persist ERP state to localStorage', e);
-  }
+const persistToStorage = (_state: any) => {
+  // Business state is fetched and mutated via NestJS API bridge. No-op for LocalStorage.
 };
 
 const matchOrderId = (item: any, targetId: string) => {
@@ -480,8 +433,9 @@ export const useERPStore = create((set, get: any) => ({
     if (totalDelivered <= 0) throw new Error("Delivered quantity must be > 0");
     if (totalAccepted + totalRejected !== totalDelivered) throw new Error("Accepted + Rejected must equal Delivered quantity");
 
+    const store: any = useERPStore.getState();
     const newGRNId = data.id || createId('GRN');
-    const newGRNNo = data.grnNumber || useERPStore.getState().generateEntityId('grn');
+    const newGRNNo = data.grnNumber || (store.generateEntityId ? store.generateEntityId('grn') : createId('GRN'));
 
     const purchaseOrders = (s.state.purchaseOrders || []).map((po: any) => {
       if (po.id === poId || po.poNumber === poId) {
@@ -511,7 +465,7 @@ export const useERPStore = create((set, get: any) => ({
     if (totalRejected > 0 && !data.isReplacementGRN) {
       vendorReturns.push({
         id: createId('VRN'),
-        returnNo: useERPStore.getState().generateEntityId('vendorReturn'),
+        returnNo: (store.generateEntityId ? store.generateEntityId('vendorReturn') : createId('VRN')),
         poNumber: poId,
         grnNumber: newGRNNo,
         grnId: newGRNId,
@@ -587,9 +541,10 @@ export const useERPStore = create((set, get: any) => ({
     
     const vendorReturns = [...(s.state.vendorReturns || [])];
     if (foundGRN && !vendorReturns.find(v => v.grnId === grnId)) {
+      const store: any = useERPStore.getState();
       vendorReturns.push({
         id: createId('VRN'),
-        returnNo: useERPStore.getState().generateEntityId('vendorReturn'),
+        returnNo: (store.generateEntityId ? store.generateEntityId('vendorReturn') : createId('VRN')),
         poNumber: foundGRN.poNumber || foundGRN.purchaseOrderId,
         grnNumber: foundGRN.grnNumber,
         grnId: foundGRN.id,
@@ -843,7 +798,8 @@ export const useERPStore = create((set, get: any) => ({
       });
 
       const newGRNId = createId('GRN');
-      const newGRNNo = data.grnNumber || useERPStore.getState().generateEntityId('grn');
+      const erpStore: any = useERPStore.getState();
+      const newGRNNo = data.grnNumber || (erpStore.generateEntityId ? erpStore.generateEntityId('grn') : createId('GRN'));
       const totalReceived = Number(data.receivedQty || data.quantity || 0);
       const totalAccepted = Number(data.acceptedQty !== undefined ? data.acceptedQty : totalReceived);
 

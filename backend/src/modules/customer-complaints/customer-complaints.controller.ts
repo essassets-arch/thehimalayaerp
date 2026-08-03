@@ -1,3 +1,4 @@
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import {
   Body,
   Controller,
@@ -20,61 +21,71 @@ import { CustomerComplaintsService } from './customer-complaints.service';
 @Controller()
 export class CustomerComplaintsController {
   constructor(private readonly service: CustomerComplaintsService) {}
-  @Post('sales/complaints') create(
-    @Body() dto: CreateCustomerComplaintDto,
-    @Req() req: any,
-  ) {
+  @RequirePermissions('sales.customercomplaints.create')
+  @Post('sales/complaints')
+  create(@Body() dto: CreateCustomerComplaintDto, @Req() req: any) {
     return this.service.create(dto, req.user.id);
   }
-  @Get('sales/complaints') listSales(@Req() req: any) {
+  @RequirePermissions('sales.customercomplaints.read')
+  @Get('sales/complaints')
+  listSales(@Req() req: any) {
     return this.service.listSales(req.user.id);
   }
-  @Get('sales/complaints/:id') salesOne(
-    @Param('id') id: string,
-    @Req() req: any,
-  ) {
+  @RequirePermissions('sales.customercomplaints.read')
+  @Get('sales/complaints/:id')
+  salesOne(@Param('id') id: string, @Req() req: any) {
     return this.service.findSales(id, req.user.id);
   }
-  @Put('sales/complaints/:id') update(
+  @RequirePermissions('sales.customercomplaints.update')
+  @Put('sales/complaints/:id')
+  update(
     @Param('id') id: string,
     @Body() dto: CreateCustomerComplaintDto,
     @Req() req: any,
   ) {
     return this.service.updateSales(id, dto, req.user.id);
   }
-  @Delete('sales/complaints/:id') remove(
-    @Param('id') id: string,
-    @Req() req: any,
-  ) {
+  @RequirePermissions('sales.customercomplaints.delete')
+  @Delete('sales/complaints/:id')
+  remove(@Param('id') id: string, @Req() req: any) {
     return this.service.removeSales(id, req.user.id);
   }
-  @Post('sales/complaints/:id/resubmit') resubmit(
-    @Param('id') id: string,
-    @Req() req: any,
-  ) {
+  @RequirePermissions('sales.customercomplaints.submit')
+  @Post('sales/complaints/:id/resubmit')
+  resubmit(@Param('id') id: string, @Req() req: any) {
     return this.service.resubmit(id, req.user.id);
   }
-  @Get('admin/complaints') listAdmin() {
+  @RequirePermissions('sales.customercomplaints.read')
+  @Get('admin/complaints')
+  listAdmin() {
     return this.service.listAdmin();
   }
-  @Get('admin/complaints/:id') adminOne(@Param('id') id: string) {
+  @RequirePermissions('sales.customercomplaints.read')
+  @Get('admin/complaints/:id')
+  adminOne(@Param('id') id: string) {
     return this.service.findAdmin(id);
   }
-  @Put('admin/complaints/:id/approve') approve(
+  @RequirePermissions('sales.customercomplaints.approve')
+  @Put('admin/complaints/:id/approve')
+  approve(
     @Param('id') id: string,
     @Body() dto: Partial<AdminRemarksDto>,
     @Req() req: any,
   ) {
     return this.service.approve(id, req.user.id, dto.adminRemarks);
   }
-  @Put('admin/complaints/:id/reject') reject(
+  @RequirePermissions('sales.customercomplaints.reject')
+  @Put('admin/complaints/:id/reject')
+  reject(
     @Param('id') id: string,
     @Body() dto: AdminRemarksDto,
     @Req() req: any,
   ) {
     return this.service.reject(id, req.user.id, dto.adminRemarks);
   }
-  @Put('admin/complaints/:id/remarks') remarks(
+  @RequirePermissions('sales.customercomplaints.update')
+  @Put('admin/complaints/:id/remarks')
+  remarks(
     @Param('id') id: string,
     @Body() dto: AdminRemarksDto,
     @Req() req: any,

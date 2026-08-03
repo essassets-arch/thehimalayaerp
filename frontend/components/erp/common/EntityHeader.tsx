@@ -6,6 +6,7 @@ interface EntityHeaderProps {
   subtitle?: string;
   status?: StatusVariant;
   actions?: React.ReactNode;
+  details?: any[];
 }
 
 export function EntityHeader({ title, subtitle, status, actions }: EntityHeaderProps) {

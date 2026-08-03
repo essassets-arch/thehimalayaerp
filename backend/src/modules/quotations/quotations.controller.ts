@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { QuotationsService } from './quotations.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
@@ -20,7 +20,7 @@ export class QuotationsController {
   constructor(private readonly quotationsService: QuotationsService) {}
 
   @Get()
-  @Permissions('crm.quotation.read')
+  @RequirePermissions('crm.quotation.read')
   async listQuotations(@Req() req: any, @Query('search') search?: string) {
     return this.quotationsService.listQuotations(
       req.user?.companyId,
@@ -31,7 +31,7 @@ export class QuotationsController {
   }
 
   @Get(':id')
-  @Permissions('crm.quotation.read')
+  @RequirePermissions('crm.quotation.read')
   async getQuotation(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.getQuotation(
       id,
@@ -42,7 +42,7 @@ export class QuotationsController {
   }
 
   @Post()
-  @Permissions('crm.quotation.create')
+  @RequirePermissions('crm.quotation.create')
   async createQuotation(@Body() dto: any, @Req() req: any) {
     return this.quotationsService.createQuotation(
       dto,
@@ -53,7 +53,7 @@ export class QuotationsController {
   }
 
   @Patch(':id')
-  @Permissions('crm.quotation.update')
+  @RequirePermissions('crm.quotation.update')
   async updateQuotation(
     @Param('id') id: string,
     @Body() dto: any,
@@ -69,7 +69,7 @@ export class QuotationsController {
   }
 
   @Post(':id/action')
-  @Permissions('crm.quotation.update')
+  @RequirePermissions('crm.quotation.update')
   async processAction(
     @Param('id') id: string,
     @Body() dto: { action: string; remarks?: string },
@@ -85,7 +85,7 @@ export class QuotationsController {
   }
 
   @Post(':id/duplicate')
-  @Permissions('crm.quotation.create')
+  @RequirePermissions('crm.quotation.create')
   async duplicateVersion(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.duplicateVersion(
       id,
@@ -95,7 +95,7 @@ export class QuotationsController {
   }
 
   @Post(':id/version')
-  @Permissions('crm.quotation.create')
+  @RequirePermissions('crm.quotation.create')
   async createVersion(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.duplicateVersion(
       id,
@@ -105,7 +105,7 @@ export class QuotationsController {
   }
 
   @Post(':id/convert')
-  @Permissions('crm.quotation.update', 'sales.orders.create')
+  @RequirePermissions('crm.quotation.update', 'sales.orders.create')
   async convertToSalesOrder(@Param('id') id: string, @Req() req: any) {
     return this.quotationsService.convertToSalesOrder(
       id,

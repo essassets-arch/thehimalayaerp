@@ -6,54 +6,91 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { PrismaErrorResponse } from '../types/security.types';
+
+interface HttpExceptionResponseBody {
+  code?: string;
+  message?: string | string[];
+  field?: string;
+  [key: string]: unknown;
+}
+
+interface RequestWithMeta extends Request {
+  requestId?: string;
+  body: {
+    expectedVersion?: number;
+    [key: string]: unknown;
+  };
+}
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost) {
-    console.error('Unhandled exception caught by AllExceptionsFilter:', exception);
+  catch(exception: unknown, host: ArgumentsHost): void {
+    console.error(
+      'Unhandled exception caught by AllExceptionsFilter:',
+      exception,
+    );
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<RequestWithMeta>();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_SERVER_ERROR';
     let message = 'Internal server error';
-    let details: any[] = [];
+    let details: unknown[] = [];
+    let field: string | undefined = undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
-      const res = exception.getResponse() as any;
+      const res = exception.getResponse();
 
-      code =
-        res.code ||
-        (status === 401
-          ? 'UNAUTHORIZED'
-          : status === 403
-            ? 'FORBIDDEN'
-            : status === 409
-              ? 'CONFLICT'
-              : 'BAD_REQUEST');
-      message = res.message || exception.message;
+      if (typeof res === 'object' && res !== null) {
+        const body = res as HttpExceptionResponseBody;
+        const s = status;
+        code =
+          body.code ||
+          (s === 401
+            ? 'UNAUTHORIZED'
+            : s === 403
+              ? 'FORBIDDEN'
+              : s === 409
+                ? 'CONFLICT'
+                : 'BAD_REQUEST');
 
-      if (Array.isArray(res.message)) {
-        message = 'Validation failed';
-        details = res.message;
+        field = body.field;
+
+        if (Array.isArray(body.message)) {
+          message = 'Validation failed';
+          details = body.message;
+        } else if (typeof body.message === 'string') {
+          message = body.message;
+        } else {
+          message = exception.message;
+        }
+      } else if (typeof res === 'string') {
+        message = res;
       }
     } else if (
       exception &&
       typeof exception === 'object' &&
       'code' in exception
     ) {
-      // Handle Prisma errors or other specific exceptions
-      const prismaError = exception as any;
+      const prismaError = exception as PrismaErrorResponse;
       if (prismaError.code === 'P2002') {
         status = HttpStatus.CONFLICT;
         code = 'UNIQUE_CONSTRAINT_VIOLATION';
         message = 'A record with this value already exists.';
       } else if (prismaError.code === 'P2025') {
-        status = HttpStatus.NOT_FOUND;
-        code = 'RECORD_NOT_FOUND';
-        message = 'The requested record was not found.';
+        if (request.body && typeof request.body.expectedVersion === 'number') {
+          status = HttpStatus.CONFLICT;
+          code = 'CONCURRENCY_ERROR';
+          message =
+            'The record has been modified by another user. Please refresh and try again.';
+        } else {
+          status = HttpStatus.NOT_FOUND;
+          code = 'RECORD_NOT_FOUND';
+          message = 'The requested record was not found.';
+        }
       } else if (prismaError.code === 'P2003') {
         status = HttpStatus.BAD_REQUEST;
         code = 'FOREIGN_KEY_CONSTRAINT_VIOLATION';
@@ -65,7 +102,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     }
 
-    const requestId = request['requestId'] || 'unknown';
+    const requestId = request.requestId || 'unknown';
 
     response.status(status).json({
       success: false,
@@ -73,10 +110,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code,
         message,
         details,
-        field:
-          exception instanceof HttpException
-            ? (exception.getResponse() as any)?.field
-            : undefined,
+        field,
       },
       meta: {
         requestId,

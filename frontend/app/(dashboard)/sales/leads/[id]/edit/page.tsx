@@ -14,19 +14,20 @@ export default function EditLeadPage() {
   const { leads, updateLead, deleteLead } = useLeads(showToast);
   
   const leadToEdit = useMemo(() => {
-    return leadId ? leads.find((l: any) => String(l.id) === String(leadId)) : null;
+    return leadId ? (leads as any[]).find((l: any) => String(l.id) === String(leadId)) : null;
   }, [leads, leadId]);
 
-  if (!leadToEdit && leads.length > 0) {
+  if (!leadToEdit && (leads as any[]).length > 0) {
     return <div className="p-8 text-center text-gray-500">Lead not found</div>;
   }
 
   return (
     <CreateLead
       key={`edit-${leadId}`}
-      leads={leads}
+      leads={leads as any}
       onAddLead={(updatedData: any) => updateLead(leadToEdit?.id, updatedData)}
       onDeleteLead={deleteLead}
+      onGenerateQuotation={() => router.push(`/sales/quotations/create?leadId=${leadId}`)}
       onCancel={() => router.push('/sales/leads')}
       editingLead={leadToEdit}
     />

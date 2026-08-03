@@ -226,17 +226,7 @@ export const useERP = () => {
       let analysisRequests = latestState.analysisRequests || [];
       let reminders = (fetchedReminders && fetchedReminders.length > 0) ? fetchedReminders : (latestState.reminders || []);
 
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const getLocal = (key, fallback) => {
-          const val = JSON.parse(window.localStorage.getItem(key) || 'null');
-          return Array.isArray(val) && val.length > 0 ? val : fallback;
-        };
-        dispatches = getLocal('erp_dispatches', dispatches);
-        vendorReturns = getLocal('erp_vendor_returns', vendorReturns);
-        notifications = getLocal('erp_notifications', notifications);
-        analysisRequests = getLocal('erp_analysis_requests_v1', analysisRequests);
-        reminders = (fetchedReminders && fetchedReminders.length > 0) ? fetchedReminders : getLocal('erp_reminders', reminders);
-      }
+      // Live backend state is the sole source of truth; no LocalStorage fallbacks.
 
       const nextState = {
         ...latestState,

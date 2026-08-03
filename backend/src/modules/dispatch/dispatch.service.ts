@@ -336,11 +336,7 @@ export class DispatchService {
     });
   }
 
-  async confirmDelivery(
-    id: string,
-    dto: ConfirmDeliveryDto,
-    userId?: string,
-  ) {
+  async confirmDelivery(id: string, dto: ConfirmDeliveryDto, userId?: string) {
     const dispatch = await this.prisma.dispatch.findUnique({
       where: { id },
       include: {
@@ -432,11 +428,13 @@ export class DispatchService {
       // 3. Update related WorkOrders to DISPATCHED
       const relatedWorkOrders = await tx.workOrder.findMany({
         where: {
-          salesOrderItemId: { in: dispatch.items.map((i) => i.salesOrderItemId) },
-          productionStatus: 'READY_FOR_DISPATCH'
-        }
+          salesOrderItemId: {
+            in: dispatch.items.map((i) => i.salesOrderItemId),
+          },
+          productionStatus: 'READY_FOR_DISPATCH',
+        },
       });
-      
+
       for (const wo of relatedWorkOrders) {
         await tx.workOrder.update({
           where: { id: wo.id },
@@ -447,10 +445,10 @@ export class DispatchService {
                 fromStatus: 'READY_FOR_DISPATCH',
                 toStatus: 'DISPATCHED',
                 remarks: `Dispatched via ${dispatch.dispatchNo}`,
-                changedBy: userId
-              }
-            }
-          }
+                changedBy: userId,
+              },
+            },
+          },
         });
       }
 

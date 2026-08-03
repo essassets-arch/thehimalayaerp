@@ -4,7 +4,7 @@ import StatusBadge from '../../shared/components/StatusBadge';
 import Swal from 'sweetalert2';
 import { useERPStore } from '@/store/erpStore';
 
-export default function FinishedGoodsTable({ records = [], readOnly = false, showActions = false, onActionComplete }) {
+export default function FinishedGoodsTable({ records = [], readOnly = false, showActions = false, onActionComplete = undefined }) {
   const getRecordAvailableQty = (record) => {
     // API format (WorkOrder)
     if (record.workOrderNumber) {

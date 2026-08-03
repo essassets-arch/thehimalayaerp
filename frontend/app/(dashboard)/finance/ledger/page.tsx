@@ -47,7 +47,7 @@ export default function CustomerLedgerPage() {
         <CardContent>
           <div className="space-y-2">
             <Label>Customer</Label>
-            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+            <Select value={selectedCustomerId} onValueChange={(val) => setSelectedCustomerId(val || '')}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Customer to view ledger" />
               </SelectTrigger>

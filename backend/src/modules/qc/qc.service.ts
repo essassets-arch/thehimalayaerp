@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 
@@ -15,10 +20,10 @@ export class QcService {
         workOrder: {
           productionPlan: {
             salesOrder: {
-              customer: { companyId }
-            }
-          }
-        }
+              customer: { companyId },
+            },
+          },
+        },
       },
       include: {
         workOrder: {
@@ -88,6 +93,15 @@ export class QcService {
       });
       if (!inspection) throw new NotFoundException('QC Inspection not found');
 
+      if (
+        extraData?.expectedVersion &&
+        inspection.version !== extraData.expectedVersion
+      ) {
+        throw new ConflictException(
+          'Concurrency Error: The record has been modified by another user. Please refresh and try again.',
+        );
+      }
+
       let currentStateId = inspection.workflowStateId!;
       if (
         actionName === 'APPROVE' &&
@@ -130,6 +144,22 @@ export class QcService {
       };
 
       if (actionName === 'APPROVE') {
+        const wo = await tx.workOrder.findUnique({
+          where: { id: inspection.workOrderId },
+        });
+        if (wo?.completedById === userId) {
+          if (extraData?.overrideSod) {
+            if (!remarks?.trim()) {
+              throw new BadRequestException(
+                'Remarks are mandatory when overriding Segregation of Duties',
+              );
+            }
+          } else {
+            throw new ConflictException(
+              'Segregation of Duties: You cannot approve QC for a Work Order you completed. Override permission required.',
+            );
+          }
+        }
         updateData.status = 'APPROVED';
         updateData.approvedAt = new Date();
         updateData.inspectorId = userId || 'SYSTEM';
@@ -150,8 +180,10 @@ export class QcService {
         updateData.status = 'REWORK';
       }
 
+      updateData.version = { increment: 1 };
+
       const updated = await tx.qCInspection.update({
-        where: { id },
+        where: { id, version: inspection.version },
         data: updateData,
       });
 

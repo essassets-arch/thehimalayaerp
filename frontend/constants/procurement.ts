@@ -213,18 +213,42 @@ export function calculatePOLineTotals(items: any[], freightAmount: number = 0) {
 }
 
 export function createProcurementAuditEntry(
-  entityType: string,
-  entityId: string,
-  action: string,
-  previousStatus: string | null,
-  newStatus: string | null,
-  actorName: string,
-  actorRole: string,
+  a1: string = 'PROCUREMENT_EVENT',
+  a2?: string | null,
+  a3?: string | null,
+  a4?: string | null,
+  a5?: string | null,
+  a6?: string,
+  a7?: string,
   remarks: string = '',
   quantityChanges: Record<string, number> = {},
   documentIds: string[] = [],
   metadata: Record<string, unknown> = {}
 ): ProcurementAuditLog {
+  let entityType = 'Procurement';
+  let entityId = 'GENERIC';
+  let action = a1;
+  let previousStatus: string | null = null;
+  let newStatus: string | null = null;
+  let actorName = 'System';
+  let actorRole = 'System';
+
+  if (a7 !== undefined) {
+    entityType = a1;
+    entityId = a2 || 'GENERIC';
+    action = a3 || 'ACTION';
+    previousStatus = a4 ?? null;
+    newStatus = a5 ?? null;
+    actorName = a6 || 'System';
+    actorRole = a7 || 'System';
+  } else {
+    action = a1;
+    previousStatus = a2 ?? null;
+    newStatus = a3 ?? null;
+    actorName = a4 || 'System';
+    actorRole = a5 || 'System';
+  }
+
   return {
     id: createId('AUD'),
     entityType,
@@ -239,6 +263,6 @@ export function createProcurementAuditEntry(
     remarks,
     quantityChanges,
     documentIds,
-    metadata
+    metadata,
   };
 }

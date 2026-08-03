@@ -8,7 +8,7 @@ export const legacyLeadsReadRepository = {
 
     if (query.search) {
       const searchLower = query.search.toLowerCase();
-      data = data.filter(l => 
+      data = data.filter((l: any) => 
         (l.companyName || '').toLowerCase().includes(searchLower) ||
         (l.contactPerson || '').toLowerCase().includes(searchLower)
       );
@@ -36,7 +36,7 @@ export const legacyLeadsReadRepository = {
   getById: async (id: string): Promise<{ success: boolean; data: FrontendLead | null }> => {
     const store = useERPStore.getState();
     const data = store.state?.sales?.leads || [];
-    const found = data.find(l => l.id === id);
+    const found = data.find((l: any) => l.id === id);
     return { success: true, data: found || null };
   },
 };

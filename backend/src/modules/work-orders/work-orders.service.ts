@@ -201,15 +201,18 @@ export class WorkOrdersService {
   async sendToDispatch(id: string, userId: string) {
     const wo = await this.prisma.workOrder.findUnique({ where: { id } });
     if (!wo) throw new NotFoundException('WorkOrder not found');
-    if (wo.status !== 'QC_APPROVED' && wo.productionStatus !== 'READY_FOR_DISPATCH') {
+    if (
+      wo.status !== 'QC_APPROVED' &&
+      wo.productionStatus !== 'READY_FOR_DISPATCH'
+    ) {
       throw new BadRequestException(
         'WorkOrder must be QC_APPROVED or READY_FOR_DISPATCH to send to dispatch',
       );
     }
-    
+
     await this.prisma.finishedGoods.updateMany({
       where: { workOrderId: id },
-      data: { status: 'READY_FOR_DISPATCH' }
+      data: { status: 'READY_FOR_DISPATCH' },
     });
 
     return this.prisma.workOrder.update({
@@ -231,10 +234,10 @@ export class WorkOrdersService {
         'WorkOrder must be READY_FOR_DISPATCH to dispatch',
       );
     }
-    
+
     await this.prisma.finishedGoods.updateMany({
       where: { workOrderId: id },
-      data: { status: 'DISPATCHED' }
+      data: { status: 'DISPATCHED' },
     });
 
     return this.prisma.workOrder.update({

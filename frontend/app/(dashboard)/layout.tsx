@@ -162,7 +162,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Global Header & Hero Stats */}
         <HeroBanner
-          stats={(user?.role === 'Super Admin' ? [] : getRoleStats()) as any[]}
+          stats={(((user as any)?.role === 'Super Admin') ? [] : getRoleStats()) as any}
           notifications={state.notifications || []}
           searchQuery={globalSearch}
           setSearchQuery={setGlobalSearch}

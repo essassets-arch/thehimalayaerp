@@ -15,12 +15,18 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('jwt.accessSecret') as string,
-        signOptions: {
-          expiresIn: configService.get<string>('jwt.accessExpiresIn') as any,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret =
+          configService.get<string>('jwt.accessSecret') || 'secret';
+        const expiresIn = (configService.get<string>('jwt.accessExpiresIn') ||
+          '15m') as unknown as number;
+        return {
+          secret,
+          signOptions: {
+            expiresIn,
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

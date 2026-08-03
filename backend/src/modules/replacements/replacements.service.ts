@@ -116,8 +116,8 @@ export class ReplacementsService {
     return this.prisma.replacementRequest.findMany({
       where: {
         salesOrder: {
-          customer: { companyId }
-        }
+          customer: { companyId },
+        },
       },
       orderBy: { requestedAt: 'desc' },
       include: {

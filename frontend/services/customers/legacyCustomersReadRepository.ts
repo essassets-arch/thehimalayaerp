@@ -8,7 +8,7 @@ export const legacyCustomersReadRepository = {
 
     if (query.search) {
       const searchLower = query.search.toLowerCase();
-      data = data.filter(c => 
+      data = data.filter((c: any) => 
         (c.name || '').toLowerCase().includes(searchLower) ||
         (c.companyName || '').toLowerCase().includes(searchLower)
       );
@@ -36,7 +36,7 @@ export const legacyCustomersReadRepository = {
   getById: async (id: string): Promise<{ success: boolean; data: FrontendCustomer | null }> => {
     const store = useERPStore.getState();
     const data = store.state?.customers || [];
-    const found = data.find(c => c.id === id);
+    const found = data.find((c: any) => c.id === id);
     return { success: true, data: found || null };
   },
 };

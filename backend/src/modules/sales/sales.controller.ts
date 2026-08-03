@@ -1,4 +1,7 @@
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
+  UseGuards,
   Controller,
   Get,
   Post,
@@ -12,7 +15,7 @@ import { SalesService } from './sales.service';
 import { ListSalesOrdersQueryDto } from './dto/list-sales-orders-query.dto';
 import { SalesOrderListResponseDto } from './dto/sales-order-list-response.dto';
 import { SalesOrderResponseDto } from './dto/sales-order-response.dto';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto';
@@ -28,11 +31,12 @@ export class WorkflowActionDto {
 }
 
 @Controller('sales/orders')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Get()
-  @Permissions('sales.orders.read')
+  @RequirePermissions('sales.orders.read')
   async listOrders(
     @Query() query: ListSalesOrdersQueryDto,
     @Req() req: any,
@@ -41,13 +45,13 @@ export class SalesController {
   }
 
   @Get(':id')
-  @Permissions('sales.orders.read')
+  @RequirePermissions('sales.orders.read')
   async getOrder(@Param('id') id: string, @Req() req: any): Promise<any> {
     return this.salesService.getOrder(id, req.user?.sub, req.user?.role);
   }
 
   @Post()
-  @Permissions('sales.orders.create')
+  @RequirePermissions('sales.orders.create')
   @UseInterceptors(IdempotencyInterceptor)
   async createOrder(
     @Body() dto: CreateSalesOrderDto,
@@ -57,7 +61,7 @@ export class SalesController {
   }
 
   @Post('from-quotation')
-  @Permissions('sales.orders.create')
+  @RequirePermissions('sales.orders.create')
   @UseInterceptors(IdempotencyInterceptor)
   async convertQuotationToOrder(
     @Body() dto: ConvertQuotationToOrderDto,
@@ -71,7 +75,7 @@ export class SalesController {
   }
 
   @Post(':id/action')
-  @Permissions('sales.orders.update')
+  @RequirePermissions('sales.orders.update')
   @UseInterceptors(IdempotencyInterceptor)
   async processAction(
     @Param('id') id: string,
@@ -87,7 +91,7 @@ export class SalesController {
   }
 
   @Post(':id/submit')
-  @Permissions('sales.orders.update')
+  @RequirePermissions('sales.orders.update')
   async submitOrder(
     @Param('id') id: string,
     @Body() dto: WorkflowActionDto,
@@ -103,7 +107,7 @@ export class SalesController {
   }
 
   @Post(':id/approve')
-  @Permissions('sales.orders.approve')
+  @RequirePermissions('sales.orders.approve')
   async approveOrder(
     @Param('id') id: string,
     @Body() dto: WorkflowActionDto,
@@ -119,7 +123,7 @@ export class SalesController {
   }
 
   @Post(':id/reject')
-  @Permissions('sales.orders.approve')
+  @RequirePermissions('sales.orders.approve')
   async rejectOrder(
     @Param('id') id: string,
     @Body() dto: WorkflowActionDto,
@@ -135,7 +139,7 @@ export class SalesController {
   }
 
   @Post(':id/send-to-plant')
-  @Permissions('sales.orders.update')
+  @RequirePermissions('sales.orders.update')
   async sendToPlant(
     @Param('id') id: string,
     @Body() dto: WorkflowActionDto,
@@ -151,7 +155,7 @@ export class SalesController {
   }
 
   @Post(':id/send-to-plant-head')
-  @Permissions('sales.orders.update')
+  @RequirePermissions('sales.orders.update')
   @UseInterceptors(IdempotencyInterceptor)
   async sendToPlantHead(
     @Param('id') id: string,

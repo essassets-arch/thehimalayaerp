@@ -1,0 +1,91 @@
+name: Backend Quality Gate Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  backend-quality-gate:
+    name: Backend Production Quality Gate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: himalaya_erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/himalaya_erp_test?schema=public"
+      JWT_SECRET: "ci-secret-key-super-secure-32-chars-long"
+      PORT: 3001
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: |
+          npm ci --workspace=backend
+
+      - name: Validate Prisma Schema
+        run: |
+          npx prisma validate --schema=backend/prisma/schema.prisma
+
+      - name: Deploy Database Migrations
+        run: |
+          npx prisma migrate deploy --schema=backend/prisma/schema.prisma
+
+      - name: Seed Database (First Pass)
+        run: |
+          cd backend && npx prisma db seed
+
+      - name: Seed Database (Second Pass - Idempotency Check)
+        run: |
+          cd backend && npx prisma db seed
+
+      - name: Targeted Security Core Lint
+        run: |
+          cd backend && npx eslint src/common/guards/ src/common/types/security.types.ts
+
+      - name: Repository Linting
+        run: |
+          cd backend && npm run lint
+
+      - name: TypeScript Typecheck
+        run: |
+          cd backend && npx tsc --noEmit
+
+      - name: Production NestJS Build
+        run: |
+          cd backend && npm run build
+
+      - name: Execute Unit Test Suite
+        run: |
+          cd backend && npm test
+
+      - name: Execute Security E2E Test Suite
+        run: |
+          cd backend && npm run test:e2e:security
+
+      - name: Execute Procurement Business E2E Test Suite
+        run: |
+          cd backend && npm run test:e2e:procurement

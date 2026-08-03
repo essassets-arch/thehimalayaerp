@@ -9,8 +9,11 @@ export default function MockDataSeeder() {
   const state = useERPStore(s => s.state);
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') {
+      return;
+    }
     // Generate 5 generic entries
-    const generateGenericEntries = (prefix) => {
+    const generateGenericEntries = (prefix: string) => {
       return Array.from({ length: 5 }).map((_, i) => ({
         id: `${prefix}-${1000 + i}`,
         orderId: `ORD-${5000 + i}`,
@@ -40,7 +43,7 @@ export default function MockDataSeeder() {
     };
 
     // Seed LocalStorage
-    const seedLocal = (key, dataFunc) => {
+    const seedLocal = (key: string, dataFunc: () => any) => {
       const version = localStorage.getItem('mock_version_1');
       if (!version) {
         // Force wipe old data on first run of this new version
@@ -75,7 +78,7 @@ export default function MockDataSeeder() {
       'himalaya_work_orders', 'himalaya_rework_items', 'himalaya_manual_testing_items',
       'erp_purchase_orders', 'erp_goods_receipts'
     ];
-    keysToSeed.forEach(key => seedLocal(key, () => generateGenericEntries(key.split('_').pop().toUpperCase())));
+    keysToSeed.forEach(key => seedLocal(key, () => generateGenericEntries(key.split('_').pop()?.toUpperCase() || 'KEY')));
 
     // Seed Zustand Store
     // Canonical workflow collections must remain genuinely empty until their
@@ -120,8 +123,8 @@ export default function MockDataSeeder() {
             { id: 'VP-2026-001', purchaseOrderId: 'PO-2026-009', status: 'PAYMENT_PENDING', grandTotal: 350000, vendorName: 'Global Suppliers', createdAt: new Date().toISOString() },
           ];
         } else if (k === 'analysisRequests') {
-          const d = (days) => new Date(Date.now() - 86400000 * days).toISOString();
-          const baseReport = (product, brand, issue, priority, occurrences, affectedQty, unit, alt) => ({
+          const d = (days: number) => new Date(Date.now() - 86400000 * days).toISOString();
+          const baseReport = (product: string, brand: string, issue: string, priority: string, occurrences: number, affectedQty: number, unit: string, alt: string) => ({
             productCode: `RM-${Math.floor(Math.random() * 900) + 100}`,
             productName: product,
             brand,
@@ -266,7 +269,7 @@ export default function MockDataSeeder() {
                 result: 'SUCCESSFUL', successfulQuantity: 48, failedQuantity: 2,
                 reportText: 'ACC Cement performed excellently. 48/50 bags met strength requirements. Minor variance in 2 bags — acceptable within tolerance.',
                 observations: 'Consistent colour, setting time 30–35 minutes, compressive strength above 53MPa. No premature hardening observed.',
-                reportedBy: 'Store User', submittedAt: d(1)
+                reportedBy: 'Store User'
               },
               history: [
                 { action: 'TRIAL_REPORT_SUBMITTED', fromStatus: 'TRIAL_IN_PROGRESS', toStatus: 'TRIAL_REPORT_SUBMITTED', performedBy: 'Store User', performedAt: d(1), remarks: 'Trial complete. Report submitted. ACC Cement recommended.' }

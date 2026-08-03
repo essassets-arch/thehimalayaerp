@@ -1,10 +1,24 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import {
+  UseGuards,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { MaterialRequestsService } from './material-requests.service';
 
 @Controller('material-requests')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class MaterialRequestsController {
   constructor(private readonly service: MaterialRequestsService) {}
 
+  @RequirePermissions('admin.materialrequests.read')
   @Get()
   findAll(@Req() req: any) {
     return this.service.findAll(
@@ -14,6 +28,7 @@ export class MaterialRequestsController {
     );
   }
 
+  @RequirePermissions('admin.materialrequests.create')
   @Post()
   create(@Body() dto: any, @Req() req: any) {
     return this.service.create(
@@ -23,6 +38,7 @@ export class MaterialRequestsController {
     );
   }
 
+  @RequirePermissions('admin.materialrequests.approve')
   @Patch(':id/approve')
   approve(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     return this.service.decide(
@@ -34,6 +50,7 @@ export class MaterialRequestsController {
     );
   }
 
+  @RequirePermissions('admin.materialrequests.reject')
   @Patch(':id/reject')
   reject(@Param('id') id: string, @Req() req: any) {
     return this.service.decide(
@@ -45,6 +62,7 @@ export class MaterialRequestsController {
     );
   }
 
+  @RequirePermissions('admin.materialrequests.update')
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     return this.service.updateStatus(

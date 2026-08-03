@@ -50,7 +50,7 @@ export default function OrderClosurePage() {
 
   const { state, closeOrder } = useERP();
   const { closeOrder: o2pClose, setActiveOrder } = useO2PWorkflow();
-  const showToast = useNotificationStore(s => s.showToast);
+  const showToast = useNotificationStore((s: any) => s.showToast);
 
   const [closing, setClosing] = useState(false);
   const [closed,  setClosed]  = useState(false);
@@ -113,7 +113,7 @@ export default function OrderClosurePage() {
       // Close in erpStore
       closeOrder(orderId);
       // Close in o2pStore (calls apiClient internally)
-      await o2pClose({ orderId, actor: 'Finance Manager' });
+      await (o2pClose as any)({ orderId, actor: 'Finance Manager' });
 
       setClosed(true);
       showToast(`Order ${orderId} closed & archived successfully`, 'success');

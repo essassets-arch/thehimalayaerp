@@ -182,10 +182,13 @@ export function useLeads(showToast) {
     // Commands
     addLead,
     editLead,
+    updateLead: editLead,
     qualifyLead,
     addFollowup,
     addReminder,
     markLost,
+    deleteLead: markLost,
     restoreLead,
+    generateQuotationFromLead: (leadId) => router.push(`/sales/quotations/create?leadId=${leadId}`),
   };
 }

@@ -12,49 +12,83 @@ export class LeadsService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async listLeads(companyId?: string, search?: string, userId?: string, role?: string) {
+  async listLeads(
+    companyId?: string,
+    search?: string,
+    userId?: string,
+    role?: string,
+  ) {
     const scope = getSalesScope(userId, role, 'assignedToId');
     return this.prisma.lead.findMany({
       where: {
         ...scope,
         deletedAt: null,
         ...(companyId ? { companyId } : {}),
-        ...(search ? {
-          OR: [
-            { leadNumber: { contains: search, mode: 'insensitive' } },
-            { companyName: { contains: search, mode: 'insensitive' } },
-            { contactPerson: { contains: search, mode: 'insensitive' } },
-          ],
-        } : {}),
+        ...(search
+          ? {
+              OR: [
+                { leadNumber: { contains: search, mode: 'insensitive' } },
+                { companyName: { contains: search, mode: 'insensitive' } },
+                { contactPerson: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
       },
       include: {
         workflowState: true,
         activities: { orderBy: { createdAt: 'desc' } },
-        quotations: { include: { workflowState: true }, orderBy: { createdAt: 'desc' } },
+        quotations: {
+          include: { workflowState: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getLead(id: string, companyId?: string, userId?: string, role?: string) {
+  async getLead(
+    id: string,
+    companyId?: string,
+    userId?: string,
+    role?: string,
+  ) {
     const scope = getSalesScope(userId, role, 'assignedToId');
     const lead = await this.prisma.lead.findFirst({
-      where: { id, ...scope, deletedAt: null, ...(companyId ? { companyId } : {}) },
+      where: {
+        id,
+        ...scope,
+        deletedAt: null,
+        ...(companyId ? { companyId } : {}),
+      },
       include: {
         workflowState: true,
         activities: { orderBy: { createdAt: 'desc' } },
-        quotations: { include: { workflowState: true, items: true }, orderBy: { createdAt: 'desc' } },
-      }
+        quotations: {
+          include: { workflowState: true, items: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     });
     if (!lead) throw new NotFoundException('Lead not found or access denied');
     return lead;
   }
 
-  async createLead(dto: any, userId: string, companyId?: string, role?: string) {
+  async createLead(
+    dto: any,
+    userId: string,
+    companyId?: string,
+    role?: string,
+  ) {
     const initialState = await this.workflowService.getInitialState('LEAD');
-    const resolvedCompanyId = companyId || dto.companyId || (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
+    const resolvedCompanyId =
+      companyId ||
+      dto.companyId ||
+      (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
     if (!resolvedCompanyId) throw new NotFoundException('Company not found');
-    const leadNumber = await this.sequenceService.generateNext('lead_number', `LD-${new Date().getFullYear()}-`);
+    const leadNumber = await this.sequenceService.generateNext(
+      'lead_number',
+      `LD-${new Date().getFullYear()}-`,
+    );
 
     return this.prisma.lead.create({
       data: {
@@ -70,31 +104,56 @@ export class LeadsService {
         address: dto.address,
         source: dto.source || 'OTHER',
         productInterest: dto.productInterest || dto.productInterested,
-        detailedItems: Array.isArray(dto.detailedItems) ? dto.detailedItems : undefined,
+        detailedItems: Array.isArray(dto.detailedItems)
+          ? dto.detailedItems
+          : undefined,
         estimatedQuantity: dto.estimatedQuantity,
         unit: dto.unit,
-        assignedToId: isRestrictedRole(role) ? userId : (dto.assignedToId || userId),
+        assignedToId: isRestrictedRole(role)
+          ? userId
+          : dto.assignedToId || userId,
         remarks: dto.remarks || dto.notes,
         companyId: resolvedCompanyId,
         workflowStateId: initialState.id,
-        createdById: userId
+        createdById: userId,
       },
-      include: { workflowState: true }
+      include: { workflowState: true },
     });
   }
 
-  async updateLead(id: string, dto: any, userId: string, companyId?: string, role?: string) {
+  async updateLead(
+    id: string,
+    dto: any,
+    userId: string,
+    companyId?: string,
+    role?: string,
+  ) {
     await this.getLead(id, companyId, userId, role);
     const allowed = [
-      'companyName', 'groupName', 'projectName', 'contactPerson', 'email', 'phone',
-      'gstName', 'gstNumber', 'address', 'source',
-      'productInterest', 'detailedItems', 'estimatedQuantity', 'unit', 'assignedToId',
-      'nextReminderAt', 'lostReason', 'remarks',
+      'companyName',
+      'groupName',
+      'projectName',
+      'contactPerson',
+      'email',
+      'phone',
+      'gstName',
+      'gstNumber',
+      'address',
+      'source',
+      'productInterest',
+      'detailedItems',
+      'estimatedQuantity',
+      'unit',
+      'assignedToId',
+      'nextReminderAt',
+      'lostReason',
+      'remarks',
     ];
     const data = Object.fromEntries(
       Object.entries(dto).filter(([key]) => allowed.includes(key)),
     ) as any;
-    if (data.nextReminderAt) data.nextReminderAt = new Date(data.nextReminderAt);
+    if (data.nextReminderAt)
+      data.nextReminderAt = new Date(data.nextReminderAt);
     if (isRestrictedRole(role)) delete data.assignedToId; // Prevent unauthorized reassignment
 
     return this.prisma.lead.update({
@@ -121,7 +180,12 @@ export class LeadsService {
     );
   }
 
-  async addActivity(id: string, dto: { activityType: string, notes?: string, scheduledAt?: string }, userId: string, role?: string) {
+  async addActivity(
+    id: string,
+    dto: { activityType: string; notes?: string; scheduledAt?: string },
+    userId: string,
+    role?: string,
+  ) {
     const lead = await this.getLead(id, undefined, userId, role);
 
     return this.prisma.leadActivity.create({
@@ -130,59 +194,82 @@ export class LeadsService {
         activityType: dto.activityType,
         notes: dto.notes,
         scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
-        createdById: userId
-      }
+        createdById: userId,
+      },
     });
   }
 
-  async processAction(id: string, actionName: string, remarks?: string, userId?: string, role?: string) {
+  async processAction(
+    id: string,
+    actionName: string,
+    remarks?: string,
+    userId?: string,
+    role?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await this.getLead(id, undefined, userId, role);
-      const lead = await tx.lead.findUnique({ where: { id }, include: { workflowState: true } });
+      const lead = await tx.lead.findUnique({
+        where: { id },
+        include: { workflowState: true },
+      });
       if (!lead) throw new NotFoundException('Lead not found');
 
-      const result = await this.workflowService.processAction({
-        entityId: id,
-        entityType: 'LEAD',
-        workflowCode: 'LEAD',
-        currentStateId: lead.workflowStateId!,
-        actionName,
-        userId: userId || 'SYSTEM',
-        remarks
-      }, tx);
+      const result = await this.workflowService.processAction(
+        {
+          entityId: id,
+          entityType: 'LEAD',
+          workflowCode: 'LEAD',
+          currentStateId: lead.workflowStateId!,
+          actionName,
+          userId: userId || 'SYSTEM',
+          remarks,
+        },
+        tx,
+      );
 
       const updatedLead = await tx.lead.update({
         where: { id },
         data: { workflowStateId: result.nextStateId },
-        include: { workflowState: true }
+        include: { workflowState: true },
       });
 
       // Handle Conversion Logic on WON
       if (actionName === 'WON') {
         let customerId = lead.customerId;
-        
+
         // Search for existing customer
-        const companyId = lead.companyId || (await tx.company.findFirst({ select: { id: true } }))?.id;
+        const companyId =
+          lead.companyId ||
+          (await tx.company.findFirst({ select: { id: true } }))?.id;
         if (!companyId) throw new NotFoundException('Company not found');
         const duplicateFilters = [
           ...(lead.email ? [{ email: lead.email }] : []),
           ...(lead.phone ? [{ phone: lead.phone }] : []),
-          { companyName: { equals: lead.companyName, mode: 'insensitive' as const } },
+          {
+            companyName: {
+              equals: lead.companyName,
+              mode: 'insensitive' as const,
+            },
+          },
         ];
         const existingCustomer = await tx.customer.findFirst({
           where: {
             companyId,
             deletedAt: null,
             OR: duplicateFilters,
-          }
+          },
         });
 
         if (existingCustomer) {
           customerId = existingCustomer.id;
         } else {
           // Create new customer
-          const customerCode = await this.sequenceService.generateNextWithTx(tx, 'customer_number', 'CUST-');
-          
+          const customerCode = await this.sequenceService.generateNextWithTx(
+            tx,
+            'customer_number',
+            'CUST-',
+          );
+
           const newCustomer = await tx.customer.create({
             data: {
               customerCode,
@@ -193,7 +280,7 @@ export class LeadsService {
               status: 'ACTIVE',
               companyId,
               createdById: userId,
-            }
+            },
           });
           customerId = newCustomer.id;
         }
@@ -205,7 +292,7 @@ export class LeadsService {
             convertedAt: new Date(),
             convertedById: userId,
             customerId,
-          }
+          },
         });
         await tx.quotation.updateMany({
           where: { leadId: id, customerId: null },
@@ -213,7 +300,10 @@ export class LeadsService {
         });
       }
 
-      return tx.lead.findUnique({ where: { id }, include: { workflowState: true } });
+      return tx.lead.findUnique({
+        where: { id },
+        include: { workflowState: true },
+      });
     });
   }
 }

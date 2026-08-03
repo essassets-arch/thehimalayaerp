@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ProductionStatus, QCResult } from '@prisma/client';
 import { QcPassDto } from './dto/qc-pass.dto';
@@ -7,10 +11,10 @@ import { QcPassDto } from './dto/qc-pass.dto';
 export class ProductionWorkflowService {
   constructor(private readonly prisma: PrismaService) {}
 
-    async getQcHistoryInspections() {
+  async getQcHistoryInspections() {
     const inspections = await this.prisma.qCInspection.findMany({
-      where: { 
-        status: { in: ['PASSED', 'FAILED'] }
+      where: {
+        status: { in: ['PASSED', 'FAILED'] },
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -20,19 +24,19 @@ export class ProductionWorkflowService {
               include: {
                 salesOrder: {
                   include: {
-                    customer: true
-                  }
-                }
-              }
+                    customer: true,
+                  },
+                },
+              },
             },
             salesOrderItem: {
               include: {
-                product: true
-              }
-            }
-          }
-        }
-      }
+                product: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     return inspections.map((i: any) => ({
@@ -40,19 +44,19 @@ export class ProductionWorkflowService {
       qcInspectionId: i.id,
       qcInspectionStatus: i.status,
       qcInspectionNotes: i.notes || i.remarks,
-      qcApprovedAt: i.approvedAt
+      qcApprovedAt: i.approvedAt,
     }));
   }
 
   async getQcPendingInspections() {
     const inspections = await this.prisma.qCInspection.findMany({
-      where: { 
+      where: {
         status: 'PENDING',
         workOrder: {
           productionStatus: {
-            notIn: ['READY_FOR_DISPATCH', 'DISPATCHED']
-          }
-        }
+            notIn: ['READY_FOR_DISPATCH', 'DISPATCHED'],
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -62,26 +66,26 @@ export class ProductionWorkflowService {
               include: {
                 salesOrder: {
                   include: {
-                    customer: true
-                  }
-                }
-              }
+                    customer: true,
+                  },
+                },
+              },
             },
             salesOrderItem: {
               include: {
-                product: true
-              }
-            }
-          }
-        }
-      }
+                product: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     return inspections.map((i: any) => ({
       ...i.workOrder,
       qcInspectionId: i.id,
       qcInspectionStatus: i.status,
-      qcInspectionNotes: i.notes
+      qcInspectionNotes: i.notes,
     }));
   }
 
@@ -94,26 +98,34 @@ export class ProductionWorkflowService {
           include: {
             salesOrder: {
               include: {
-                customer: true
-              }
-            }
-          }
+                customer: true,
+              },
+            },
+          },
         },
         salesOrderItem: {
           include: {
-            product: true
-          }
-        }
-      }
+            product: true,
+          },
+        },
+      },
     });
   }
 
   async getDashboardCounts() {
     const [floor, qcPending, qcFailed, readyForDispatch] = await Promise.all([
-      this.prisma.workOrder.count({ where: { productionStatus: { in: ['IN_PRODUCTION', 'REWORK_IN_PROGRESS'] } } }),
-      this.prisma.workOrder.count({ where: { productionStatus: 'QC_PENDING' } }),
+      this.prisma.workOrder.count({
+        where: {
+          productionStatus: { in: ['IN_PRODUCTION', 'REWORK_IN_PROGRESS'] },
+        },
+      }),
+      this.prisma.workOrder.count({
+        where: { productionStatus: 'QC_PENDING' },
+      }),
       this.prisma.workOrder.count({ where: { productionStatus: 'QC_FAILED' } }),
-      this.prisma.workOrder.count({ where: { productionStatus: 'READY_FOR_DISPATCH' } }),
+      this.prisma.workOrder.count({
+        where: { productionStatus: 'READY_FOR_DISPATCH' },
+      }),
     ]);
 
     return { floor, qcPending, qcFailed, readyForDispatch };
@@ -132,35 +144,91 @@ export class ProductionWorkflowService {
       recentWorkOrders,
       qcApproved,
       shiftEntries,
-      scrapEntries
+      scrapEntries,
     ] = await Promise.all([
       this.prisma.workOrder.count(),
-      this.prisma.workOrder.count({ where: { productionStatus: { in: ['IN_PRODUCTION', 'REWORK_IN_PROGRESS'] } } }),
-      this.prisma.workOrder.count({ where: { status: { in: ['COMPLETED', 'CLOSED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'] } } }),
-      this.prisma.productionPlan.count({ where: { status: { in: ['DRAFT', 'PENDING_PLANNING'] } } }),
+      this.prisma.workOrder.count({
+        where: {
+          productionStatus: { in: ['IN_PRODUCTION', 'REWORK_IN_PROGRESS'] },
+        },
+      }),
+      this.prisma.workOrder.count({
+        where: {
+          status: {
+            in: [
+              'COMPLETED',
+              'CLOSED',
+              'QC_APPROVED',
+              'READY_FOR_DISPATCH',
+              'DISPATCHED',
+            ],
+          },
+        },
+      }),
+      this.prisma.productionPlan.count({
+        where: { status: { in: ['DRAFT', 'PENDING_PLANNING'] } },
+      }),
       this.prisma.materialRequest.count(),
-      this.prisma.workOrder.count({ where: { productionStatus: 'QC_PENDING' } }),
+      this.prisma.workOrder.count({
+        where: { productionStatus: 'QC_PENDING' },
+      }),
       this.prisma.workOrder.count({ where: { productionStatus: 'QC_FAILED' } }),
-      this.prisma.workOrder.count({ where: { productionStatus: 'READY_FOR_DISPATCH' } }),
+      this.prisma.workOrder.count({
+        where: { productionStatus: 'READY_FOR_DISPATCH' },
+      }),
       this.prisma.workOrder.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { salesOrderItem: { include: { product: true } } }
+        include: { salesOrderItem: { include: { product: true } } },
       }),
       this.prisma.workOrder.count({ where: { status: 'QC_APPROVED' } }),
-      this.prisma.productionShiftEntry.findMany({ orderBy: { date: 'asc' }, include: { workOrder: true } }),
-      this.prisma.productionScrapEntry.findMany({ orderBy: { date: 'asc' }, include: { workOrder: true } })
+      this.prisma.productionShiftEntry.findMany({
+        orderBy: { date: 'asc' },
+        include: { workOrder: true },
+      }),
+      this.prisma.productionScrapEntry.findMany({
+        orderBy: { date: 'asc' },
+        include: { workOrder: true },
+      }),
     ]);
 
     // Mock chart data for trend (since building historical queries in Prisma can be complex without raw queries)
     const dailyTrend = [
-      { name: 'Mon', completed: Math.floor(Math.random() * 10), active: Math.floor(Math.random() * 15) },
-      { name: 'Tue', completed: Math.floor(Math.random() * 10), active: Math.floor(Math.random() * 15) },
-      { name: 'Wed', completed: Math.floor(Math.random() * 10), active: Math.floor(Math.random() * 15) },
-      { name: 'Thu', completed: Math.floor(Math.random() * 10), active: Math.floor(Math.random() * 15) },
-      { name: 'Fri', completed: Math.floor(Math.random() * 10), active: Math.floor(Math.random() * 15) },
-      { name: 'Sat', completed: Math.floor(Math.random() * 10), active: Math.floor(Math.random() * 15) },
-      { name: 'Sun', completed: Math.floor(Math.random() * 10), active: Math.floor(Math.random() * 15) }
+      {
+        name: 'Mon',
+        completed: Math.floor(Math.random() * 10),
+        active: Math.floor(Math.random() * 15),
+      },
+      {
+        name: 'Tue',
+        completed: Math.floor(Math.random() * 10),
+        active: Math.floor(Math.random() * 15),
+      },
+      {
+        name: 'Wed',
+        completed: Math.floor(Math.random() * 10),
+        active: Math.floor(Math.random() * 15),
+      },
+      {
+        name: 'Thu',
+        completed: Math.floor(Math.random() * 10),
+        active: Math.floor(Math.random() * 15),
+      },
+      {
+        name: 'Fri',
+        completed: Math.floor(Math.random() * 10),
+        active: Math.floor(Math.random() * 15),
+      },
+      {
+        name: 'Sat',
+        completed: Math.floor(Math.random() * 10),
+        active: Math.floor(Math.random() * 15),
+      },
+      {
+        name: 'Sun',
+        completed: Math.floor(Math.random() * 10),
+        active: Math.floor(Math.random() * 15),
+      },
     ];
 
     return {
@@ -168,63 +236,68 @@ export class ProductionWorkflowService {
         totalOrders: totalWorkOrders,
         completed: completedWorkOrders,
         inProgress: inProduction,
-        completionRate: totalWorkOrders > 0 ? ((completedWorkOrders / totalWorkOrders) * 100).toFixed(1) : 0,
+        completionRate:
+          totalWorkOrders > 0
+            ? ((completedWorkOrders / totalWorkOrders) * 100).toFixed(1)
+            : 0,
         qcPass: qcApproved,
         qcFailed: failedQC,
-        dispatchReady: readyForDispatch
+        dispatchReady: readyForDispatch,
       },
       kpis: {
         workOrders: {
           total: totalWorkOrders,
           active: inProduction,
-          completed: completedWorkOrders
+          completed: completedWorkOrders,
         },
         incomingOrders: {
-          pending: incomingOrders
+          pending: incomingOrders,
         },
         materialRequests: {
-          total: totalMaterialRequests
+          total: totalMaterialRequests,
         },
         qc: {
           pending: pendingQC,
-          failed: failedQC
+          failed: failedQC,
         },
         logistics: {
-          readyForDispatch: readyForDispatch
-        }
+          readyForDispatch: readyForDispatch,
+        },
       },
       charts: {
         productionStatus: [
           { name: 'Completed', value: completedWorkOrders },
           { name: 'In Progress', value: inProduction },
-          { name: 'Pending QC', value: pendingQC }
+          { name: 'Pending QC', value: pendingQC },
         ],
         qcStatus: [
           { name: 'Passed', value: qcApproved },
-          { name: 'Failed', value: failedQC }
+          { name: 'Failed', value: failedQC },
         ],
-        dailyTrend
+        dailyTrend,
       },
       recentWorkOrders,
       shiftEntries,
-      scrapEntries
+      scrapEntries,
     };
   }
 
   private async transitionState(
-    id: string, 
-    userId: string | null, 
-    expectedStatuses: ProductionStatus[], 
-    newStatus: ProductionStatus, 
+    id: string,
+    userId: string | null,
+    expectedStatuses: ProductionStatus[],
+    newStatus: ProductionStatus,
     remarks?: string,
-    additionalUpdates: any = {}
+    additionalUpdates: any = {},
   ) {
     return this.prisma.$transaction(async (tx) => {
       const job = await tx.workOrder.findUnique({ where: { id } });
       if (!job) throw new NotFoundException('WorkOrder not found');
 
-      if (!expectedStatuses.includes(job.productionStatus as ProductionStatus)) {
-        throw new BadRequestException(`Invalid state transition. Cannot move from ${job.productionStatus} to ${newStatus}`);
+      if (!expectedStatuses.includes(job.productionStatus)) {
+        throw new BadRequestException(
+          `Invalid state transition. Cannot move from ${job.productionStatus} to ${newStatus}`,
+        );
       }
 
       const updatedJob = await tx.workOrder.update({
@@ -235,12 +308,12 @@ export class ProductionWorkflowService {
           ...additionalUpdates,
           statusHistory: {
             create: {
-              fromStatus: job.productionStatus as ProductionStatus,
+              fromStatus: job.productionStatus,
               toStatus: newStatus,
               remarks,
               changedBy: userId,
-            }
-          }
+            },
+          },
         },
       });
 
@@ -251,15 +324,29 @@ export class ProductionWorkflowService {
   async startJob(id: string, userId: string | null) {
     // Only used to move a newly CREATED work order into IN_PRODUCTION, if we want.
     // Or just updating start time.
-    return this.transitionState(id, userId, ['IN_PRODUCTION'], 'IN_PRODUCTION', 'Started work', {
-      productionStartTime: new Date(),
-    });
+    return this.transitionState(
+      id,
+      userId,
+      ['IN_PRODUCTION'],
+      'IN_PRODUCTION',
+      'Started work',
+      {
+        productionStartTime: new Date(),
+      },
+    );
   }
 
   async completeWork(id: string, userId: string | null) {
-    return this.transitionState(id, userId, ['IN_PRODUCTION', 'REWORK_IN_PROGRESS'], 'QC_PENDING', 'Work completed, sent to QC', {
-      productionEndTime: new Date(),
-    });
+    return this.transitionState(
+      id,
+      userId,
+      ['IN_PRODUCTION', 'REWORK_IN_PROGRESS'],
+      'QC_PENDING',
+      'Work completed, sent to QC',
+      {
+        productionEndTime: new Date(),
+      },
+    );
   }
 
   async passQC(workOrderId: string, userId: string, dto: QcPassDto) {
@@ -271,17 +358,25 @@ export class ProductionWorkflowService {
 
       if (!workOrder) throw new NotFoundException('Work order not found.');
 
-      const allowedStatuses = ['PRODUCTION_COMPLETED', 'QC_PENDING', 'IN_PRODUCTION', 'COMPLETED', 'REWORK_IN_PROGRESS'];
+      const allowedStatuses = [
+        'PRODUCTION_COMPLETED',
+        'QC_PENDING',
+        'IN_PRODUCTION',
+        'COMPLETED',
+        'REWORK_IN_PROGRESS',
+      ];
       if (!allowedStatuses.includes(workOrder.productionStatus)) {
-        throw new BadRequestException(`Work order cannot pass QC from status ${workOrder.productionStatus}.`);
+        throw new BadRequestException(
+          `Work order cannot pass QC from status ${workOrder.productionStatus}.`,
+        );
       }
 
-      const producedQuantity = Number(
-        workOrder.quantity ?? 0
-      );
+      const producedQuantity = Number(workOrder.quantity ?? 0);
 
       if (dto.approvedQuantity > producedQuantity) {
-        throw new BadRequestException(`Approved quantity cannot exceed produced quantity ${producedQuantity}.`);
+        throw new BadRequestException(
+          `Approved quantity cannot exceed produced quantity ${producedQuantity}.`,
+        );
       }
 
       const updatedWorkOrder = await tx.workOrder.update({
@@ -316,10 +411,15 @@ export class ProductionWorkflowService {
           receivedById: userId,
         },
       });
-      
+
       await tx.qCInspection.updateMany({
         where: { workOrderId: workOrderId, status: 'PENDING' },
-        data: { status: 'PASSED', remarks: dto.remarks, approvedAt: new Date(), inspectorId: userId }
+        data: {
+          status: 'PASSED',
+          remarks: dto.remarks,
+          approvedAt: new Date(),
+          inspectorId: userId,
+        },
       });
 
       return {
@@ -330,21 +430,34 @@ export class ProductionWorkflowService {
     });
   }
 
-  async failQC(id: string, userId: string | null, failureReason: string, remarks?: string) {
-    if (!failureReason) throw new BadRequestException('Failure reason is required');
-    const result = await this.transitionState(id, userId, ['QC_PENDING', 'IN_PRODUCTION', 'REWORK_IN_PROGRESS'], 'QC_FAILED', failureReason, {
-      qcResult: 'FAIL',
+  async failQC(
+    id: string,
+    userId: string | null,
+    failureReason: string,
+    remarks?: string,
+  ) {
+    if (!failureReason)
+      throw new BadRequestException('Failure reason is required');
+    const result = await this.transitionState(
+      id,
+      userId,
+      ['QC_PENDING', 'IN_PRODUCTION', 'REWORK_IN_PROGRESS'],
+      'QC_FAILED',
       failureReason,
-      qcRemarks: remarks,
-      qcTimestamp: new Date(),
-      qcCheckedById: userId,
-    });
-    
+      {
+        qcResult: 'FAIL',
+        failureReason,
+        qcRemarks: remarks,
+        qcTimestamp: new Date(),
+        qcCheckedById: userId,
+      },
+    );
+
     await this.prisma.qCInspection.updateMany({
       where: { workOrderId: id, status: 'PENDING' },
-      data: { status: 'FAILED', remarks, inspectorId: userId }
+      data: { status: 'FAILED', remarks, inspectorId: userId },
     });
-    
+
     return result;
   }
 
@@ -369,8 +482,8 @@ export class ProductionWorkflowService {
               toStatus: 'REWORK_IN_PROGRESS',
               remarks: 'Started rework',
               changedBy: userId,
-            }
-          }
+            },
+          },
         },
       });
 
@@ -394,7 +507,7 @@ export class ProductionWorkflowService {
         reworkQty: dto.reworkQty || 0,
         date: new Date(dto.date),
       },
-      include: { workOrder: true }
+      include: { workOrder: true },
     });
     return entry;
   }
@@ -411,7 +524,7 @@ export class ProductionWorkflowService {
         remarks: dto.remarks,
         date: new Date(dto.date),
       },
-      include: { workOrder: true }
+      include: { workOrder: true },
     });
     return entry;
   }
@@ -420,15 +533,21 @@ export class ProductionWorkflowService {
     const records = await this.prisma.finishedGoods.findMany({
       where: {
         status: {
-          in: ['AVAILABLE', 'PARTIALLY_ALLOCATED', 'ALLOCATED', 'READY_FOR_DISPATCH', 'DISPATCHED']
+          in: [
+            'AVAILABLE',
+            'PARTIALLY_ALLOCATED',
+            'ALLOCATED',
+            'READY_FOR_DISPATCH',
+            'DISPATCHED',
+          ],
         },
         workOrder: {
           productionPlan: {
             salesOrder: {
-              customer: { companyId }
-            }
-          }
-        }
+              customer: { companyId },
+            },
+          },
+        },
       },
       include: {
         product: true,
@@ -437,14 +556,14 @@ export class ProductionWorkflowService {
             productionPlan: {
               include: {
                 salesOrder: {
-                  include: { customer: true }
-                }
-              }
-            }
-          }
-        }
+                  include: { customer: true },
+                },
+              },
+            },
+          },
+        },
       },
-      orderBy: { receivedAt: 'desc' }
+      orderBy: { receivedAt: 'desc' },
     });
 
     return records.map((entry: any) => {
@@ -465,4 +584,3 @@ export class ProductionWorkflowService {
     });
   }
 }
-

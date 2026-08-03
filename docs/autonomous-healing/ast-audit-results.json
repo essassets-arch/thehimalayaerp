@@ -1,0 +1,907 @@
+{
+  "frontendAudit": {
+    "frontendFilesCount": 886,
+    "localStorageUsages": [
+      "frontend/components/HeroBanner.jsx",
+      "frontend/components/MockDataSeeder.tsx",
+      "frontend/docs/project_structure.md",
+      "frontend/fix_alerts.js",
+      "frontend/fix_api.js",
+      "frontend/fix_delivery_api.js",
+      "frontend/fix_erp_context.js",
+      "frontend/fix_history.js",
+      "frontend/fix_payment_followup.js",
+      "frontend/fix_pending_rows.js",
+      "frontend/fix_store.js",
+      "frontend/Himalaya-O2C-Repair-Plan.md",
+      "frontend/lib/apiClient.js",
+      "frontend/lib/backendFetch.ts",
+      "frontend/lib/brand-analysis.service.js",
+      "frontend/lib/mockDB.ts",
+      "frontend/lib/mockStorage.ts",
+      "frontend/modules/admin/pages/AdminNewLead.jsx",
+      "frontend/modules/admin/pages/AdminNewQuotation.jsx",
+      "frontend/modules/admin/pages/AdminOpsPortal.jsx",
+      "frontend/modules/hr/employee/components/EmployeeRegistrationForm.tsx",
+      "frontend/modules/hr/employee/employee.repository.ts",
+      "frontend/modules/notifications/pages/NotificationCenter.jsx",
+      "frontend/modules/production/pages/ProductionPortal.jsx",
+      "frontend/modules/sales/pages/SalesPortal.jsx",
+      "frontend/modules/store/pages/StorePortal.jsx",
+      "frontend/modules/super-admin/hooks/useSalesFilters.js",
+      "frontend/old_erpStore.ts",
+      "frontend/patch_orders_view.js",
+      "frontend/playwright-report/index.html",
+      "frontend/scripts/export-legacy.ts",
+      "frontend/scripts/migrate_erpStore.js",
+      "frontend/scripts/test-iso-gel-coat-indent.ts",
+      "frontend/scripts/test-material-indent-flow.ts",
+      "frontend/scripts/test-po-delivery-flow.ts",
+      "frontend/scripts/test_complete_purchase_flow.ts",
+      "frontend/scripts/test_final_flow.ts",
+      "frontend/scripts/test_procurement_flow.ts",
+      "frontend/services/moduleServices.js",
+      "frontend/services/procurement/procurementClient.ts",
+      "frontend/shared/api/client.js",
+      "frontend/shared/api/interceptors.js",
+      "frontend/shared/api/upload.js",
+      "frontend/shared/context/ERPContext.jsx",
+      "frontend/shared/context/new_erp_context.jsx",
+      "frontend/shared/firebase/messaging.js",
+      "frontend/shared/hooks/useFormDraft.js",
+      "frontend/shared/socket/socketClient.js",
+      "frontend/store/authStore.ts",
+      "frontend/store/erpStore.ts",
+      "frontend/store/new_procurement_store.ts",
+      "frontend/store/payrollFlow.ts",
+      "frontend/store/procurementActions.ts",
+      "frontend/tests/e2e/after-sales-modal-ui.spec.ts",
+      "frontend/tests/e2e/clean-sales-state.spec.ts",
+      "frontend/tests/e2e/dispatch-queues-ui.spec.ts",
+      "frontend/tests/e2e/employee-registration-draft.spec.ts",
+      "frontend/tests/e2e/employee-registration-validation.spec.ts",
+      "frontend/tests/e2e/harsh-o2c-ui.spec.ts",
+      "frontend/tests/salary-workflow.spec.ts",
+      "frontend/test_material_flow.ts",
+      "frontend/test_procurement_flow.js",
+      "frontend/test_procurement_flow.ts",
+      "frontend/test_sales_flow.ts",
+      "frontend/utils/storage.ts"
+    ],
+    "mockDataUsages": [
+      "frontend/docs/project_structure.md",
+      "frontend/himalaya_erp_architecture_doc.md",
+      "frontend/lib/api.ts",
+      "frontend/lib/mockDB.ts",
+      "frontend/lib/mockStorage.ts",
+      "frontend/scripts/export-legacy.ts",
+      "frontend/tsconfig.tsbuildinfo"
+    ]
+  },
+  "prismaModelUsage": [
+    {
+      "model": "DocumentSequence",
+      "directRuntimeCount": 1,
+      "seedTestCount": 1,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "IdSequence",
+      "directRuntimeCount": 9,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Company",
+      "directRuntimeCount": 13,
+      "seedTestCount": 1,
+      "relationOnlyCount": 8,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Branch",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "Role",
+      "directRuntimeCount": 18,
+      "seedTestCount": 1,
+      "relationOnlyCount": 14,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Permission",
+      "directRuntimeCount": 14,
+      "seedTestCount": 1,
+      "relationOnlyCount": 67,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "RolePermission",
+      "directRuntimeCount": 13,
+      "seedTestCount": 1,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "User",
+      "directRuntimeCount": 20,
+      "seedTestCount": 1,
+      "relationOnlyCount": 34,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "RefreshSession",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Customer",
+      "directRuntimeCount": 17,
+      "seedTestCount": 0,
+      "relationOnlyCount": 24,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Lead",
+      "directRuntimeCount": 6,
+      "seedTestCount": 0,
+      "relationOnlyCount": 6,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "AuditLog",
+      "directRuntimeCount": 13,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "IdempotencyRecord",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Product",
+      "directRuntimeCount": 23,
+      "seedTestCount": 0,
+      "relationOnlyCount": 26,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Warehouse",
+      "directRuntimeCount": 9,
+      "seedTestCount": 0,
+      "relationOnlyCount": 8,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "InventoryTransaction",
+      "directRuntimeCount": 6,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Supplier",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 4,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "MaterialRequest",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 4,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "MaterialRequestItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "PurchaseIndent",
+      "directRuntimeCount": 8,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PurchaseIndentItem",
+      "directRuntimeCount": 4,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PurchaseIndentStatusHistory",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Department",
+      "directRuntimeCount": 1,
+      "seedTestCount": 1,
+      "relationOnlyCount": 4,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "WorkLocation",
+      "directRuntimeCount": 1,
+      "seedTestCount": 1,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Employee",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 8,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "EmployeeDraft",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "EmployeeDocument",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PayrollPeriod",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "EmployeeSalaryStructure",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "EmployeeMonthlyAttendanceSummary",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PayrollRecord",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PayrollAdjustment",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalaryPayment",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalarySlip",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalarySlipShare",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PayrollStatusHistory",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Quotation",
+      "directRuntimeCount": 4,
+      "seedTestCount": 0,
+      "relationOnlyCount": 8,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "QuotationItem",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalesOrder",
+      "directRuntimeCount": 14,
+      "seedTestCount": 0,
+      "relationOnlyCount": 17,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalesOrderItem",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 5,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalesOrderCreditReview",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "SalesOrderAllocation",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "CustomerComplaint",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 8,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalesReturn",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 9,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalesReturnItem",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ReturnQcInspection",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ReturnQcInspectionItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ReplacementRequest",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ReplacementRequestItem",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ReplacementOrder",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ReplacementOrderItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "SalesOrderHistory",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "SalesInvoice",
+      "directRuntimeCount": 5,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "CustomerPaymentAllocation",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ReturnGateEntry",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "CreditNote",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ReplacementOrderHistory",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "LegacyMigrationReference",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SampleRequest",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SampleItem",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SampleHistory",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PurchaseOrder",
+      "directRuntimeCount": 6,
+      "seedTestCount": 0,
+      "relationOnlyCount": 9,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PurchaseOrderItem",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PurchaseOrderStatusHistory",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "GoodsReceiptNote",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "GoodsReceiptNoteItem",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "GRNStatusHistory",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ProcurementDelivery",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ProcurementDeliveryItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "MaterialRejection",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "MaterialRejectionItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ProcurementReplacementRequest",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ProcurementReplacementItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ProductSupplier",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "VendorInvoice",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "VendorInvoiceItem",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "VendorPayment",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "VendorPaymentAllocation",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "VendorReturn",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "VendorReturnItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "SupplierPayable",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "WorkflowDefinition",
+      "directRuntimeCount": 1,
+      "seedTestCount": 1,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "WorkflowState",
+      "directRuntimeCount": 4,
+      "seedTestCount": 1,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "WorkflowTransition",
+      "directRuntimeCount": 4,
+      "seedTestCount": 1,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "WorkflowHistory",
+      "directRuntimeCount": 5,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "WorkflowHistoryLegacy",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "LeadActivity",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "FollowUp",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ProductionPlan",
+      "directRuntimeCount": 5,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "WorkOrder",
+      "directRuntimeCount": 10,
+      "seedTestCount": 0,
+      "relationOnlyCount": 7,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ProductionStatusHistory",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "ProductionBatch",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "QCInspection",
+      "directRuntimeCount": 5,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Dispatch",
+      "directRuntimeCount": 7,
+      "seedTestCount": 0,
+      "relationOnlyCount": 27,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "DispatchItem",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "InvoiceItem",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "CustomerPayment",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "PaymentAllocation",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "CustomerLedger",
+      "directRuntimeCount": 4,
+      "seedTestCount": 0,
+      "relationOnlyCount": 3,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "OrderAmendment",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "Approval",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 8,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "Attachment",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 6,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Comment",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 7,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "Notification",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 6,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "RecruitmentRequest",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "RecruitmentCandidate",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "RecruitmentInterview",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "RecruitmentRequestTimeline",
+      "directRuntimeCount": 0,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Schema relation only"
+    },
+    {
+      "model": "BrandAnalysisRequest",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "BrandAnalysisHistory",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "SalesTarget",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 7,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ProductionTestingRecord",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ProductionShiftEntry",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ProductionScrapEntry",
+      "directRuntimeCount": 1,
+      "seedTestCount": 0,
+      "relationOnlyCount": 1,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "FinishedGoods",
+      "directRuntimeCount": 2,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    },
+    {
+      "model": "ElevationSession",
+      "directRuntimeCount": 3,
+      "seedTestCount": 0,
+      "relationOnlyCount": 2,
+      "classification": "Direct runtime usage verified"
+    }
+  ],
+  "routeAudit": {
+    "totalRoutes": 326,
+    "collisionsCount": 0,
+    "collisions": []
+  },
+  "permissionAudit": {
+    "seededPermsCount": 273,
+    "controllerPermsCount": 172,
+    "missingInSeed": [
+      "super-admin"
+    ]
+  }
+}

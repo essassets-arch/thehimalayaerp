@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const authHeader = request.headers.get('Authorization');
     if (!authHeader) {
       console.warn('No authorization header found in POST, proceeding for prototype.');
@@ -13,7 +14,7 @@ export async function POST(
     // Mock completion logic
     return NextResponse.json({
       success: true,
-      message: `Job ${params.id} marked as complete.`
+      message: `Job ${id} marked as complete.`
     });
   } catch (error) {
     return NextResponse.json(

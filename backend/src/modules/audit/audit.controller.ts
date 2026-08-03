@@ -1,8 +1,11 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { UseGuards, Controller, Get, Query } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('admin')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AuditController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -12,7 +15,7 @@ export class AuditController {
    * Requires procurement.audit.read permission (shared with STORE_MANAGER, SUPER_ADMIN etc.)
    */
   @Get('audit-logs')
-  @Permissions('procurement.audit.read')
+  @RequirePermissions('procurement.audit.read')
   async list(
     @Query('entityType') entityType?: string,
     @Query('entityId') entityId?: string,

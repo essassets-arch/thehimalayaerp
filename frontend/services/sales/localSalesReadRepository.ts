@@ -4,7 +4,7 @@ import { useERPStore } from '@/store/erpStore';
 // Temporary local stub that reads from Zustand
 export const localSalesReadRepository: SalesReadRepository = {
   async listOrders(params?: SalesOrderListParams): Promise<SalesOrderListResponse> {
-    const store = useERPStore.getState();
+    const store: any = useERPStore.getState();
     const orders = store.state?.sales?.orders || store.sales?.orders || [];
     
     // Convert old structure to SalesOrder interface loosely for UI compatibility

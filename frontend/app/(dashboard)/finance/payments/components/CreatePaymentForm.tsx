@@ -60,7 +60,7 @@ export function CreatePaymentForm() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Customer</Label>
-              <Select value={customerId} onValueChange={setCustomerId}>
+              <Select value={customerId} onValueChange={(val) => setCustomerId(val || '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select Customer" />
                 </SelectTrigger>

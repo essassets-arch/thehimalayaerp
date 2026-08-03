@@ -62,8 +62,14 @@ export class SalesService {
             include: { items: true },
             orderBy: { updatedAt: 'desc' },
           },
-          returns: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
-          replacementRequests: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
+          returns: {
+            include: { items: true },
+            orderBy: { requestedAt: 'desc' },
+          },
+          replacementRequests: {
+            include: { items: true },
+            orderBy: { requestedAt: 'desc' },
+          },
           customerPayments: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -96,7 +102,10 @@ export class SalesService {
           orderBy: { updatedAt: 'desc' },
         },
         returns: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
-        replacementRequests: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
+        replacementRequests: {
+          include: { items: true },
+          orderBy: { requestedAt: 'desc' },
+        },
         customerPayments: true,
       },
     });

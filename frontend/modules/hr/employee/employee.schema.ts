@@ -34,11 +34,11 @@ export const employeeRegistrationSchema = z
     department: z.string().min(1, 'Department is mandatory'),
     managerId: z.string().optional(),
     workLocation: z.enum(['Head Office', 'Plant', 'Warehouse', 'Field', 'Remote', 'Other'], {
-      errorMap: () => ({ message: 'Work Location is mandatory' }),
+      message: 'Work Location is mandatory',
     }),
     employmentType: z.enum(
       ['Full-time', 'Part-time', 'Contract', 'Intern', 'Temporary', 'Consultant'],
-      { errorMap: () => ({ message: 'Employment Type is mandatory' }) }
+      { message: 'Employment Type is mandatory' }
     ),
     joiningDate: z.string().min(1, 'Date of Joining is mandatory'),
     probationEndDate: z.string().optional().nullable(),
@@ -61,7 +61,7 @@ export const employeeRegistrationSchema = z
       .min(1, 'Date of Birth is mandatory')
       .refine((val) => new Date(val) <= new Date(), 'Date of Birth cannot be in the future'),
     gender: z.enum(['Male', 'Female', 'Other', 'Prefer not to say'], {
-      errorMap: () => ({ message: 'Gender is mandatory' }),
+      message: 'Gender is mandatory',
     }),
     residentialAddress: z.string().min(1, 'Residential Address is mandatory').trim(),
 
@@ -97,7 +97,7 @@ export const employeeRegistrationSchema = z
       .refine((v) => ifscRegex.test(v), 'Invalid IFSC (e.g. SBIN0001234)'),
     branchName: z.string().optional(),
     accountType: z.enum(['Savings', 'Current', 'Salary'], {
-      errorMap: () => ({ message: 'Account Type is mandatory' }),
+      message: 'Account Type is mandatory',
     }),
 
     // Media (Base64)

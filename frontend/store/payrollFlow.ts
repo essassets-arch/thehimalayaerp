@@ -62,9 +62,6 @@ const commit = (updater: (state: any) => any) => {
   const store: any = useERPStore.getState();
   const nextState = updater(store.state || {});
   store.setState(nextState);
-  if (typeof window !== 'undefined' && window.localStorage && Array.isArray(nextState.payrollRuns)) {
-    window.localStorage.setItem('erp_payroll_runs', JSON.stringify(nextState.payrollRuns));
-  }
 };
 
 const totals = (employees: any[]) => employees.reduce((result, line) => ({
@@ -157,15 +154,7 @@ export const createPayrollDraft = (salaryMonth: string, filters: any = {}, actor
     run.salaryMonth === salaryMonth && (run.branchId || run.branch || 'ALL') === branchId && run.status !== 'CANCELLED');
   if (duplicate) throw new Error('Payroll already exists for this month and branch.');
   if (filters.attendanceFinalized === false) throw new Error('Attendance must be finalized before payroll can be prepared.');
-  let employeeSource = Array.isArray(state.employees) ? state.employees : [];
-  if (typeof window !== 'undefined' && window.localStorage) {
-    try {
-      const persistedEmployees = JSON.parse(window.localStorage.getItem('erp_employees') || '[]');
-      if (Array.isArray(persistedEmployees) && persistedEmployees.length) employeeSource = persistedEmployees;
-    } catch {
-      // Keep the hydrated store snapshot when persisted employee data is invalid.
-    }
-  }
+  const employeeSource = Array.isArray(state.employees) ? state.employees : [];
   const employees = employeeSource.filter((employee: any) =>
     employee.status === 'ACTIVE' &&
     employee.salaryStructureStatus === 'CONFIGURED' &&

@@ -128,6 +128,44 @@ async function main() {
     'salary_slips.download',
     'salary_slips.share',
     'salary_slips.revoke_share',
+
+    // SOD Override Permissions
+    'procurement.indents.override',
+    'procurement.po.override',
+    'procurement.grn.override',
+    'finance.invoices.override',
+    'finance.payments.override',
+    'qc.override',
+    'hr.recruitment.requests.override',
+    'hr.payroll.override',
+
+    // Controller specific aliases & domain permissions
+    'admin.attachments.read', 'admin.attachments.create', 'admin.attachments.delete',
+    'admin.auth.read', 'admin.users.unlock',
+    'store.brand-analysis.create', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'finance.brand-analysis.read',
+    'super-admin.brand-analysis.approve', 'super-admin.brand-analysis.reject', 'finance.brand-analysis.start', 'finance.brand-analysis.complete',
+    'admin.comments.read', 'admin.comments.create', 'admin.comments.delete',
+    'sales.customercomplaints.create', 'sales.customercomplaints.read', 'sales.customercomplaints.update', 'sales.customercomplaints.delete',
+    'sales.customercomplaints.submit', 'sales.customercomplaints.approve', 'sales.customercomplaints.reject',
+    'inventory.inventory.create', 'inventory.inventory.read',
+    'admin.materialrequests.read', 'admin.materialrequests.create', 'admin.materialrequests.approve', 'admin.materialrequests.reject', 'admin.materialrequests.update',
+    'admin.notifications.read', 'admin.notifications.update',
+    'admin.planthead.read', 'admin.planthead.create',
+    'procurement.procurement.read', 'procurement.procurement.create', 'procurement.procurement.reject',
+    'production.productiontesting.read', 'production.productiontesting.create', 'production.productiontesting.update', 'production.productiontesting.delete',
+    'production.floor.read', 'production.productionworkflow.read', 'production.floor.create', 'production.floor.start', 'production.floor.complete', 'production.floor.rework',
+    'plant-head.qc-failures.read',
+    'admin.products.create', 'admin.products.read', 'admin.products.update',
+    'hr.recruitment.read',
+    'admin.replacements.create', 'admin.replacements.read', 'admin.replacements.approve', 'admin.replacements.reject', 'admin.replacements.update',
+    'sales.salesreports.read', 'sales.salesreturns.create', 'sales.salesreturns.read', 'sales.salesreturns.approve', 'sales.salesreturns.reject', 'sales.salesreturns.update',
+    'sales.targets.create', 'sales.targets.read', 'sales.targets.update', 'sales.targets.delete',
+    'admin.samples.create', 'admin.samples.read', 'admin.samples.update',
+    'admin.storereports.read', 'procurement.suppliers.read',
+    'inventory.warehouses.create', 'inventory.warehouses.read', 'inventory.warehouses.update', 'admin.workflow.read',
+    'store.brand-analysis.create', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'finance.brand-analysis.read',
+    'super-admin.brand-analysis.approve', 'super-admin.brand-analysis.reject', 'finance.brand-analysis.start', 'finance.brand-analysis.complete',
+    'plant-head.qc-failures.read'
   ];
 
   for (const code of permissionCodes) {
@@ -256,6 +294,33 @@ async function main() {
 
   for (const role of financeRoles) {
     for (const perm of financePerms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  console.log('🔗 Assigning procurement permissions to operational roles...');
+  const procurementPerms = await prisma.permission.findMany({
+    where: {
+      code: {
+        startsWith: 'procurement.',
+      },
+    },
+  });
+
+  const operationalRoles = await prisma.role.findMany({
+    where: {
+      code: {
+        in: ['PLANT_HEAD', 'STORE_MANAGER', 'PRODUCTION_PLANNER', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
+      },
+    },
+  });
+
+  for (const role of operationalRoles) {
+    for (const perm of procurementPerms) {
       await prisma.rolePermission.upsert({
         where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
         update: {},

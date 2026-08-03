@@ -155,7 +155,7 @@ export function AttachmentUploader({ entityType, entityId, className }: Attachme
               </Button>
             </div>
           ) : (
-            attachments.map((file) => (
+            attachments.map((file: any) => (
               <div 
                 key={file.id} 
                 className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors group"

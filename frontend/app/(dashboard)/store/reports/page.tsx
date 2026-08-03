@@ -15,7 +15,7 @@ export default function StoreReportsDashboard() {
 
   const COLORS = ['#0ea5e9', '#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = React.useCallback(async () => {
     setLoading(true);
     try {
       const res = await backendFetch(`/api/backend/store-reports/dashboard?month=${month}&year=${year}`);
@@ -25,13 +25,13 @@ export default function StoreReportsDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [month, year]);
 
   useEffect(() => {
     fetchDashboard();
-  }, [month, year]);
+  }, [fetchDashboard]);
 
-  const handleExport = (type) => {
+  const handleExport = (type: string) => {
     const url = `/api/backend/store-reports/export/${type}?month=${month}&year=${year}`;
     const a = document.createElement('a');
     a.href = url;

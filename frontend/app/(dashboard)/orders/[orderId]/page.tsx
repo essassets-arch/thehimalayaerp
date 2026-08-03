@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -16,9 +16,9 @@ const statusColors = {
   DEFAULT:            { bg: "#F5FAFE", color: "#475569", border: "#DCE5F0" },
 };
 
-function StatusPill({ status }) {
+function StatusPill({ status }: { status: string }) {
   const key = (status || "").toUpperCase().replace(/ /g, "_");
-  const s = statusColors[key] || statusColors.DEFAULT;
+  const s = (statusColors as Record<string, any>)[key] || statusColors.DEFAULT;
   return (
     <span style={{ display:"inline-flex",alignItems:"center",gap:5,padding:"4px 12px",borderRadius:999,fontSize:12,fontWeight:700,background:s.bg,color:s.color,border:`1.5px solid ${s.border}`,whiteSpace:"nowrap" }}>
       <span style={{ width:6,height:6,borderRadius:"50%",background:s.color }} />{status}
@@ -26,7 +26,7 @@ function StatusPill({ status }) {
   );
 }
 
-function InfoCard({ icon: Icon, label, value, highlight = false }) {
+function InfoCard({ icon: Icon, label, value, highlight = false }: any) {
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:4,padding:"14px 16px",background:highlight?"rgba(166,213,61,0.07)":"#fafafa",border:`1px solid ${highlight?"rgba(166,213,61,0.25)":"#e5e7eb"}`,borderRadius:10 }}>
       <div style={{ display:"flex",alignItems:"center",gap:6,color:"#5E6B82",fontSize:11.5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em" }}>
@@ -51,14 +51,14 @@ export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const orderId = params?.orderId;
-  const storeState = useERPStore((s) => s.state);
-  const salesOrders = storeState?.sales?.orders || [];
-  const productionWorkOrders = storeState?.production?.workOrders || [];
-  const productionQcRecords = storeState?.production?.qcRecords || [];
-  const dispatchConsignments = storeState?.dispatch?.consignments || [];
+  const storeState = useERPStore((s: any) => s.state);
+  const salesOrders = useMemo(() => storeState?.sales?.orders || [], [storeState?.sales?.orders]);
+  const productionWorkOrders = useMemo(() => storeState?.production?.workOrders || [], [storeState?.production?.workOrders]);
+  const productionQcRecords = useMemo(() => storeState?.production?.qcRecords || [], [storeState?.production?.qcRecords]);
+  const dispatchConsignments = useMemo(() => storeState?.dispatch?.consignments || [], [storeState?.dispatch?.consignments]);
 
   const order = useMemo(() => {
-    return salesOrders.find((o) =>
+    return salesOrders.find((o: any) =>
       String(o.id) === String(orderId) ||
       String(o.orderNo) === String(orderId) ||
       String(o.order_no) === String(orderId)
@@ -67,7 +67,7 @@ export default function OrderDetailPage() {
 
   const workOrder = useMemo(() => {
     if (!order) return null;
-    return productionWorkOrders.find((wo) =>
+    return productionWorkOrders.find((wo: any) =>
       String(wo.orderId) === String(order.id) ||
       String(wo.orderNo) === String(order.orderNo) ||
       String(wo.id) === String(order.workOrderId)
@@ -76,7 +76,7 @@ export default function OrderDetailPage() {
 
   const dispatchRec = useMemo(() => {
     if (!order) return null;
-    return dispatchConsignments.find((d) =>
+    return dispatchConsignments.find((d: any) =>
       String(d.orderId) === String(order.id) ||
       String(d.orderNo) === String(order.orderNo)
     ) || null;
@@ -84,7 +84,7 @@ export default function OrderDetailPage() {
 
   const qcInspection = useMemo(() => {
     if (!order) return null;
-    return productionQcRecords.find((qc) =>
+    return productionQcRecords.find((qc: any) =>
       String(qc.orderId) === String(order.id) ||
       String(qc.orderNo) === String(order.orderNo)
     ) || null;
@@ -92,11 +92,12 @@ export default function OrderDetailPage() {
 
   if (!order) {
     return (
-      <div style={{ padding:60,textAlign:"center",color:"#5E6B82" }}>
-        <AlertCircle size={52} style={{ margin:"0 auto 16px",color:"#D6E2F0" }} />
-        <h2 style={{ fontSize:22,fontWeight:800,color:"#24345C",marginBottom:8 }}>Order Not Found</h2>
-        <p style={{ marginBottom:20 }}>No order matches ID: <strong>{orderId}</strong></p>
-        <button onClick={() => router.back()} style={{ background:"#24345C",color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Go Back</button>
+      <div style={{ padding:40,textAlign:"center" }}>
+        <div style={{ fontSize:18,fontWeight:700,color:"#24345C",marginBottom:8 }}>Order Not Found</div>
+        <div style={{ color:"#8893A7",fontSize:13,marginBottom:20 }}>No record matching ID: <strong>{orderId}</strong></div>
+        <button onClick={() => router.push("/sales/orders")} style={{ background:"#a6d53d",color:"#1a3300",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:700,cursor:"pointer" }}>
+          Back to Orders
+        </button>
       </div>
     );
   }
@@ -104,16 +105,13 @@ export default function OrderDetailPage() {
   const customerName = order.customerName || order.customer_name || order.customer?.name || "—";
   const deliveryAddr  = order.deliveryAddress || order.delivery_address || "—";
   const workflowStatus =
-    order.commercialStatus === "ORDER_CLOSED"
-      ? "ORDER_CLOSED"
-      : order.dispatchStatus || order.qcStatus || order.productionStatus ||
-        order.planningStatus || order.commercialStatus || order.workflowStatus ||
+    order.planningStatus || order.commercialStatus || order.workflowStatus ||
         order.status || order.orderStatus || "—";
   const totalAmount = Number(order.grandTotal || order.totalAmount || order.total_amount || 0);
   const priority = order.priority || "Standard";
   const items = order.detailedItems?.length ? order.detailedItems : (order.items?.length ? order.items : []);
   const timeline = order.history || order.timeline || [];
-  const fmt = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day:"2-digit",month:"short",year:"numeric" }) : "—";
+  const fmt = (d: any) => d ? new Date(d).toLocaleDateString("en-IN", { day:"2-digit",month:"short",year:"numeric" }) : "—";
 
   const currentStageIdx = (() => {
     const norm = workflowStatus.toUpperCase().replace(/ /g,"_");
@@ -196,7 +194,7 @@ export default function OrderDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, i) => {
+                {items.map((item: any, i: number) => {
                   const qty = Number(item.quantity ?? item.qty ?? 0);
                   const price = Number(item.unitPrice || item.rate || item.price || 0);
                   const total = Number(item.totalAmount || item.amount || (qty*price) || 0);
@@ -253,7 +251,7 @@ export default function OrderDetailPage() {
           <div style={{ fontWeight:800,fontSize:14,color:"#24345C",marginBottom:14,display:"flex",alignItems:"center",gap:7 }}><Clock size={16} color="#a6d53d" />Activity Timeline</div>
           {timeline.length > 0 ? (
             <div style={{ display:"flex",flexDirection:"column" }}>
-              {timeline.map((ev, i) => (
+              {timeline.map((ev: any, i: number) => (
                 <div key={i} style={{ display:"flex",gap:12,paddingBottom:i<timeline.length-1?16:0 }}>
                   <div style={{ display:"flex",flexDirection:"column",alignItems:"center" }}>
                     <div style={{ width:10,height:10,borderRadius:"50%",background:i===0?"#a6d53d":"#D6E2F0",border:`2px solid ${i===0?"#7baa1e":"#DCE5F0"}`,flexShrink:0,marginTop:3 }} />

@@ -1,4 +1,7 @@
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
+  UseGuards,
   Controller,
   Get,
   Post,
@@ -9,60 +12,73 @@ import {
   Req,
 } from '@nestjs/common';
 import { LeadsService } from './leads.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Public()
 @Controller(['crm/leads', 'sales/leads'])
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class LeadsController {
   constructor(private readonly leadsService: LeadsService) {}
 
+  @RequirePermissions('sales.leads.read')
   @Get()
-  // @Permissions('sales.leads.read')
+  // @RequirePermissions('sales.leads.read')
   async listLeads(@Req() req: any, @Query('search') search?: string) {
     return this.leadsService.listLeads(
-      req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
+      req.headers['x-company-id'] ||
+        req.user?.companyId ||
+        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
       search,
       req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
       req.user?.role || 'admin',
     );
   }
 
+  @RequirePermissions('sales.leads.read')
   @Get(':id')
-  // @Permissions('sales.leads.read')
+  // @RequirePermissions('sales.leads.read')
   async getLead(@Param('id') id: string, @Req() req: any) {
     return this.leadsService.getLead(
       id,
-      req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
+      req.headers['x-company-id'] ||
+        req.user?.companyId ||
+        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
       req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
       req.user?.role || 'admin',
     );
   }
 
+  @RequirePermissions('sales.leads.create')
   @Post()
-  // @Permissions('sales.leads.create')
+  // @RequirePermissions('sales.leads.create')
   async createLead(@Body() dto: any, @Req() req: any) {
     return this.leadsService.createLead(
       dto,
       req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
-      req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
+      req.headers['x-company-id'] ||
+        req.user?.companyId ||
+        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
     );
   }
 
+  @RequirePermissions('sales.leads.update')
   @Patch(':id')
-  // @Permissions('sales.leads.update')
+  // @RequirePermissions('sales.leads.update')
   async updateLead(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     return this.leadsService.updateLead(
       id,
       dto,
       req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
-      req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
+      req.headers['x-company-id'] ||
+        req.user?.companyId ||
+        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
       req.user?.role || 'admin',
     );
   }
 
   @Post(':id/activities')
-  @Permissions('sales.leads.update')
+  @RequirePermissions('sales.leads.update')
   async addActivity(
     @Param('id') id: string,
     @Body() dto: { activityType: string; notes?: string; scheduledAt?: string },
@@ -77,7 +93,7 @@ export class LeadsController {
   }
 
   @Post(':id/activity')
-  @Permissions('sales.leads.update')
+  @RequirePermissions('sales.leads.update')
   async addActivityAlias(
     @Param('id') id: string,
     @Body() dto: { activityType: string; notes?: string; scheduledAt?: string },
@@ -92,7 +108,7 @@ export class LeadsController {
   }
 
   @Post(':id/action')
-  @Permissions('sales.leads.update')
+  @RequirePermissions('sales.leads.update')
   async processAction(
     @Param('id') id: string,
     @Body() dto: { action: string; remarks?: string },
@@ -108,13 +124,13 @@ export class LeadsController {
   }
 
   @Get(':id/timeline')
-  @Permissions('sales.leads.read')
+  @RequirePermissions('sales.leads.read')
   async timeline(@Param('id') id: string, @Req() req: any) {
     return this.leadsService.getTimeline(id, req.user?.sub, req.user?.role);
   }
 
   @Post(':id/followups')
-  @Permissions('sales.leads.update')
+  @RequirePermissions('sales.leads.update')
   async addFollowup(
     @Param('id') id: string,
     @Body() dto: any,
@@ -133,7 +149,7 @@ export class LeadsController {
   }
 
   @Post(':id/reminders')
-  @Permissions('sales.leads.update')
+  @RequirePermissions('sales.leads.update')
   async addReminder(
     @Param('id') id: string,
     @Body() dto: any,
@@ -151,7 +167,7 @@ export class LeadsController {
   }
 
   @Post(':id/qualify')
-  @Permissions('sales.leads.update')
+  @RequirePermissions('sales.leads.update')
   async qualify(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     return this.leadsService.processAction(
       id,
@@ -163,7 +179,7 @@ export class LeadsController {
   }
 
   @Post(':id/mark-lost')
-  @Permissions('sales.leads.update')
+  @RequirePermissions('sales.leads.update')
   async markLost(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     await this.leadsService.updateLead(
       id,

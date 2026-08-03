@@ -60,7 +60,7 @@ export function WorkflowTimeline({ entityType, entityId, className }: WorkflowTi
       </CardHeader>
       <CardContent className="pt-6">
         <div className="relative pl-6 border-l-2 border-gray-200 space-y-8">
-          {history.map((item, index) => {
+          {history.map((item: any, index: number) => {
             const isLast = index === history.length - 1;
             return (
               <div key={item.id} className="relative">
@@ -95,7 +95,7 @@ export function WorkflowTimeline({ entityType, entityId, className }: WorkflowTi
 
                   {item.remarks && (
                     <div className="mt-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-md border border-gray-100 italic">
-                      "{item.remarks}"
+                      &quot;{item.remarks}&quot;
                     </div>
                   )}
                 </div>

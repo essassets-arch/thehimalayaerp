@@ -17,7 +17,7 @@ import {
 } from './dto/brand-analysis.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('brand-analysis')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -25,33 +25,33 @@ export class BrandAnalysisController {
   constructor(private readonly brandAnalysisService: BrandAnalysisService) {}
 
   @Post()
-  @Permissions('store.brand-analysis.create')
+  @RequirePermissions('store.brand-analysis.create')
   create(@Body() createDto: CreateBrandAnalysisDto, @Request() req) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.create(createDto, userId);
   }
 
   @Get('my-requests')
-  @Permissions('store.brand-analysis.read')
+  @RequirePermissions('store.brand-analysis.read')
   findAllForStore(@Request() req) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.findAllForStore(userId);
   }
 
   @Get('super-admin/requests')
-  @Permissions('super-admin.brand-analysis.read')
+  @RequirePermissions('super-admin.brand-analysis.read')
   findAllForSuperAdmin() {
     return this.brandAnalysisService.findAllForSuperAdmin();
   }
 
   @Get('finance/requests')
-  @Permissions('finance.brand-analysis.read')
+  @RequirePermissions('finance.brand-analysis.read')
   findAllForFinance() {
     return this.brandAnalysisService.findAllForFinance();
   }
 
   @Get(':id')
-  @Permissions(
+  @RequirePermissions(
     'store.brand-analysis.read',
     'super-admin.brand-analysis.read',
     'finance.brand-analysis.read',
@@ -61,7 +61,7 @@ export class BrandAnalysisController {
   }
 
   @Post(':id/approve')
-  @Permissions('super-admin.brand-analysis.approve')
+  @RequirePermissions('super-admin.brand-analysis.approve')
   approve(
     @Param('id') id: string,
     @Body() dto: ApproveBrandAnalysisDto,
@@ -72,7 +72,7 @@ export class BrandAnalysisController {
   }
 
   @Post(':id/reject')
-  @Permissions('super-admin.brand-analysis.reject')
+  @RequirePermissions('super-admin.brand-analysis.reject')
   reject(
     @Param('id') id: string,
     @Body() dto: RejectBrandAnalysisDto,
@@ -83,7 +83,7 @@ export class BrandAnalysisController {
   }
 
   @Post(':id/start-analysis')
-  @Permissions('finance.brand-analysis.start')
+  @RequirePermissions('finance.brand-analysis.start')
   startAnalysis(
     @Param('id') id: string,
     @Body() dto: StartBrandAnalysisDto,
@@ -94,7 +94,7 @@ export class BrandAnalysisController {
   }
 
   @Post(':id/complete-analysis')
-  @Permissions('finance.brand-analysis.complete')
+  @RequirePermissions('finance.brand-analysis.complete')
   completeAnalysis(
     @Param('id') id: string,
     @Body() dto: CompleteBrandAnalysisDto,

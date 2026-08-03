@@ -204,7 +204,7 @@ export default function CreateDispatchPage() {
     // Prefill date using the first selected sales order if available
     const firstOrderWithDate = selectedSalesOrders.find(o => o.requestedDeliveryDate);
     if (firstOrderWithDate && !expectedDeliveryDate) {
-      setExpectedDeliveryDate(new Date(firstOrderWithDate.requestedDeliveryDate).toISOString().slice(0, 10));
+      setExpectedDeliveryDate(new Date(firstOrderWithDate.requestedDeliveryDate || Date.now()).toISOString().slice(0, 10));
     }
   }, [selectedSalesOrders, expectedDeliveryDate]);
 

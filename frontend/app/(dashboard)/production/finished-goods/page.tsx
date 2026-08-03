@@ -52,20 +52,21 @@ export default function FinishedGoodsPage() {
 
   const allItems = Array.isArray(data) ? data : [];
 
-  // Ready = AVAILABLE / READY_FOR_DISPATCH; History = ALLOCATED / DISPATCHED
-  const readyItems = allItems.filter((i) => i.status === "AVAILABLE");
-  const historyItems = allItems.filter((i) => i.status !== "AVAILABLE");
+  const readyCount = React.useMemo(() => allItems.filter((i) => i.status === "AVAILABLE").length, [allItems]);
+  const historyCount = React.useMemo(() => allItems.filter((i) => i.status !== "AVAILABLE").length, [allItems]);
 
   const filteredData = React.useMemo(() => {
+    const readyItems = allItems.filter((i) => i.status === "AVAILABLE");
+    const historyItems = allItems.filter((i) => i.status !== "AVAILABLE");
     const base = activeTab === "ready" ? readyItems : historyItems;
     if (!search) return base;
     const lower = search.toLowerCase();
     return base.filter((i) =>
       i.jobNo?.toLowerCase().includes(lower) || i.productName?.toLowerCase().includes(lower)
     );
-  }, [data, search, activeTab]);
+  }, [allItems, search, activeTab]);
 
-  const handleSendToDispatch = async (row: QCInspection) => {
+  const handleSendToDispatch = async (row: any) => {
     try {
       const woId = row.workOrder?.id || row.workOrderId;
       if (!woId) throw new Error("Work Order ID missing");
@@ -196,7 +197,7 @@ export default function FinishedGoodsPage() {
           <p>View final approved production goods ready for dispatch.</p>
         </div>
         <div className={styles.summaryBadge}>
-          <strong>{activeTab === "ready" ? readyItems.length : historyItems.length}</strong>
+          <strong>{activeTab === "ready" ? readyCount : historyCount}</strong>
           <span>{activeTab === "ready" ? "Ready" : "Dispatched"}</span>
         </div>
       </header>
@@ -212,7 +213,7 @@ export default function FinishedGoodsPage() {
             className={activeTab === "ready" ? styles.activeTab : ""}
             onClick={() => { setActiveTab("ready"); setSearch(""); }}
           >
-            Ready for Dispatch <span>{readyItems.length}</span>
+            Ready for Dispatch <span>{readyCount}</span>
           </button>
           <button
             type="button"
@@ -221,7 +222,7 @@ export default function FinishedGoodsPage() {
             className={activeTab === "history" ? styles.activeTab : ""}
             onClick={() => { setActiveTab("history"); setSearch(""); }}
           >
-            History <span>{historyItems.length}</span>
+            History <span>{historyCount}</span>
           </button>
         </div>
 

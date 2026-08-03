@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -22,19 +18,21 @@ export class WorkflowService {
     });
     if (!state) {
       // Auto-seed for prototype development
-      console.warn(`[WorkflowService] Auto-seeding initial state for workflow ${workflowCode}`);
-      
-      const company = await db.company.findFirst() || await db.company.create({
-        data: { publicId: 'demo-comp-1', name: 'Demo Company' }
-      });
+      console.warn(
+        `[WorkflowService] Auto-seeding initial state for workflow ${workflowCode}`,
+      );
 
-      let workflow = await db.workflowDefinition.findUnique({ where: { code: workflowCode } });
+      await db.company.findFirst();
+
+      let workflow = await db.workflowDefinition.findUnique({
+        where: { code: workflowCode },
+      });
       if (!workflow) {
         workflow = await db.workflowDefinition.create({
           data: {
             code: workflowCode,
             name: `${workflowCode} Workflow`,
-          }
+          },
         });
       }
 
@@ -45,7 +43,7 @@ export class WorkflowService {
           code: 'NEW',
           sequence: 1,
           isInitial: true,
-        }
+        },
       });
     }
     return state;

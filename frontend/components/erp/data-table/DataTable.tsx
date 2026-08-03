@@ -34,6 +34,8 @@ interface DataTableProps<TData, TValue> {
   serverSide?: boolean;
   className?: string;
   emptyMessage?: string;
+  isLoading?: boolean;
+  searchKey?: string;
 }
 
 export function DataTable<TData, TValue>({

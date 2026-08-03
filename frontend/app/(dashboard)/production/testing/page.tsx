@@ -8,14 +8,14 @@ import {
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import styles from './testing.module.css';
 
 export default function ProductionTestingPage() {
-  const [records, setRecords]     = useState([]);
+  const [records, setRecords]     = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [formData, setFormData]   = useState({ productName: '', quantity: '' });
-  const [editingId, setEditingId] = useState(null);
+  const [editingId, setEditingId] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm]   = useState(false);
 
@@ -37,7 +37,7 @@ export default function ProductionTestingPage() {
 
   useEffect(() => { fetchRecords(); }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (!formData.productName.trim() || !formData.quantity) {
       toast.error('Please fill in all fields');
@@ -70,22 +70,26 @@ export default function ProductionTestingPage() {
         toast.error('Failed to save record');
       }
     } catch {
-      toast.error('An error occurred while saving');
+      toast.error('Failed to save record');
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this record? This cannot be undone.')) return;
+  const handleDelete = async (id: any) => {
+    if (!confirm('Are you sure you want to delete this record?')) return;
     try {
       const res = await fetch(`/api/v1/production/testing/${id}`, { method: 'DELETE' });
-      if (res.ok) { toast.success('Record deleted'); fetchRecords(); }
-      else toast.error('Failed to delete record');
+      if (res.ok) {
+        toast.success('Record deleted');
+        fetchRecords();
+      } else {
+        toast.error('Failed to delete record');
+      }
     } catch {
-      toast.error('Error deleting record');
+      toast.error('Failed to delete record');
     }
   };
 
-  const handleEdit = (record) => {
+  const handleEdit = (record: any) => {
     setEditingId(record.id);
     setFormData({ productName: record.productName, quantity: record.quantity });
     setShowForm(true);
@@ -98,8 +102,9 @@ export default function ProductionTestingPage() {
     setShowForm(false);
   };
 
-  const handlePrintSlip = (record) => {
+  const handlePrintSlip = (record: any) => {
     const w = window.open('', '_blank');
+    if (!w) return;
     w.document.write(`
       <html><head><title>Slip – ${record.referenceNo}</title>
       <style>
@@ -146,7 +151,7 @@ export default function ProductionTestingPage() {
   const exportToPDF = () => {
     const doc = new jsPDF();
     doc.text('Production Testing Records', 14, 15);
-    doc.autoTable({
+    autoTable(doc, {
       head: [['Reference', 'Product', 'Qty', 'Status', 'Remarks', 'Date']],
       body: records.map(r => [
         r.referenceNo, r.productName, r.quantity, r.status,
@@ -158,17 +163,17 @@ export default function ProductionTestingPage() {
   };
 
   const filtered = records.filter(r =>
-    r.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.referenceNo.toLowerCase().includes(searchQuery.toLowerCase())
+    (r.productName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (r.referenceNo || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const StatusBadge = ({ status }) => {
+  const StatusBadge = ({ status }: { status: string }) => {
     const map = {
       'Approved':     [styles.badgeApproved,  <CheckCircle  key="i" size={10} />, 'Approved'],
       'Rejected':     [styles.badgeRejected,  <XCircle      key="i" size={10} />, 'Rejected'],
       'Needs Retest': [styles.badgeRetest,    <AlertCircle  key="i" size={10} />, 'Needs Retest'],
     };
-    const [cls, icon, label] = map[status] ?? [styles.badgePending, null, 'Pending'];
+    const [cls, icon, label] = (map as Record<string, any>)[status] ?? [styles.badgePending, null, 'Pending'];
     return (
       <span className={`${styles.badge} ${cls}`}>
         {icon} {label}

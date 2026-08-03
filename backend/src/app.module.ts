@@ -1,5 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -15,6 +15,8 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
 import { CustomersModule } from './modules/customers/customers.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { SequenceModule } from './common/sequence/sequence.module';
@@ -57,6 +59,16 @@ import { StoreReportsModule } from './modules/store-reports/store-reports.module
       load: [configuration],
       validate,
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get('THROTTLE_TTL', 60000),
+          limit: config.get('THROTTLE_LIMIT', 100),
+        },
+      ],
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -98,6 +110,10 @@ import { StoreReportsModule } from './modules/store-reports/store-reports.module
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: CustomThrottlerGuard, // Rate limiting first
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard, // Secured by default

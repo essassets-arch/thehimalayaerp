@@ -1,4 +1,8 @@
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
+  UseGuards,
   Controller,
   Get,
   Post,
@@ -18,9 +22,11 @@ export class AddCommentDto {
 }
 
 @Controller('comments')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
 
+  @RequirePermissions('admin.comments.read')
   @Get()
   async listComments(
     @Query('entityType') entityType: string,
@@ -35,6 +41,7 @@ export class CommentsController {
     );
   }
 
+  @RequirePermissions('admin.comments.create')
   @Post()
   async addComment(@Body() dto: AddCommentDto, @Req() req: any) {
     // In a real app we might determine companyId from the user context
@@ -47,6 +54,7 @@ export class CommentsController {
     });
   }
 
+  @RequirePermissions('admin.comments.delete')
   @Delete(':id')
   async deleteComment(@Param('id') id: string, @Req() req: any) {
     return this.commentsService.deleteComment(id, req.user?.sub);

@@ -6,14 +6,14 @@ import { toast } from 'sonner';
 import styles from './testing.module.css';
 
 export default function PlantHeadTestingPage() {
-  const [records, setRecords] = useState([]);
+  const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   
   // Review Modal State
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [reviewStatus, setReviewStatus] = useState('');
   const [remarks, setRemarks] = useState('');
 
@@ -25,8 +25,8 @@ export default function PlantHeadTestingPage() {
         const json = await res.json();
         setRecords(Array.isArray(json) ? json : (json.data ?? []));
       }
-    } catch (err) {
-      if (showLoading) toast.error('Failed to load testing records');
+    } catch {
+      toast.error('Failed to load testing records');
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -43,12 +43,13 @@ export default function PlantHeadTestingPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleReviewSubmit = async (e) => {
+  const handleReviewSubmit = async (e: any) => {
     e.preventDefault();
     if (!reviewStatus) {
       toast.error('Please select a status');
       return;
     }
+    if (!selectedRecord) return;
     
     try {
       const res = await fetch(`/api/v1/production/testing/${selectedRecord.id}/status`, {
@@ -72,15 +73,16 @@ export default function PlantHeadTestingPage() {
     }
   };
 
-  const openReviewModal = (record) => {
+  const openReviewModal = (record: any) => {
     setSelectedRecord(record);
     setReviewStatus(record.status === 'Pending' ? 'Approved' : record.status);
     setRemarks(record.remarks || '');
     setReviewModalOpen(true);
   };
 
-  const handlePrintSlip = (record) => {
+  const handlePrintSlip = (record: any) => {
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
     printWindow.document.write(`
       <html>
         <head>
@@ -125,15 +127,15 @@ export default function PlantHeadTestingPage() {
     printWindow.document.close();
   };
 
-  const filteredRecords = records.filter(record => {
+  const filteredRecords = records.filter((record: any) => {
     const matchesSearch = 
-      record.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      record.referenceNo.toLowerCase().includes(searchQuery.toLowerCase());
+      (record.productName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (record.referenceNo || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || record.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status: any) => {
     switch(status) {
       case 'Approved':
         return <span className={`${styles.badge} ${styles.badgeApproved}`}><CheckCircle className="w-3 h-3" /> Approved</span>;
@@ -337,7 +339,7 @@ export default function PlantHeadTestingPage() {
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   className={styles.modalTextarea}
-                  rows="3"
+                  rows={3}
                   placeholder="Provide details about the decision..."
                 />
               </div>

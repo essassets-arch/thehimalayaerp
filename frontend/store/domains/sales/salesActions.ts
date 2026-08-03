@@ -512,7 +512,7 @@ export function createQuotation(
         id: 'PM-1',
         label: rawPayload.paymentTerms || 'Full Payment',
         percentage: 100,
-        trigger: 'ON_DELIVERY',
+        trigger: 'ON_DELIVERY' as const,
         offsetDays: 0,
       }];
   const normalizedPayload: CreateQuotationPayload = {
@@ -749,7 +749,7 @@ export function acceptOrderByPlantHead(
 export function rejectOrderByPlantHead(
   state: ERPState,
   orderId: string,
-  payload: RejectByPlantHeadPayload = {},
+  payload: RejectByPlantHeadPayload = { remarks: '' },
   actor: ActionActor = { id: 'Plant Head', name: 'Plant Head' }
 ): ERPState {
   const sales = normalizeSales(state.sales);
@@ -1100,7 +1100,7 @@ export function approveQC(
   const updated: SalesOrder = {
     ...order,
     workflowStatus: 'QC_APPROVED',
-    qcStatus: 'QC_APPROVED',
+    qcStatus: 'APPROVED',
     qcApprovedQty: Number((order as any).qcApprovedQty ?? 0) +
       qcItems.reduce((sum: number, item: any) => sum + item.approvedQuantity, 0),
     items: itemsWithQC,
@@ -1268,7 +1268,7 @@ export function createDispatch(
 
   const updated: SalesOrder = {
     ...order,
-    dispatchStatus: 'DISPATCH_CREATED',
+    dispatchStatus: 'CREATED',
     items: itemsWithDispatch,
   };
   
@@ -1306,7 +1306,7 @@ export function startDispatchTransit(
   const updated: SalesOrder = { ...order, dispatchStatus: 'IN_TRANSIT' };
   
   const dispatches = state.dispatches || [];
-  const updatedDispatches = dispatches.map(d => d.orderId === orderId && d.status !== 'DELIVERED' ? { ...d, status: 'IN_TRANSIT' } : d);
+  const updatedDispatches = dispatches.map((d: any) => d.orderId === orderId && d.status !== 'DELIVERED' ? { ...d, status: 'IN_TRANSIT' } : d);
 
   const newSalesState = withSales(
     state,
@@ -1384,7 +1384,7 @@ export function recordSalesPayment(
 
   const confirmationId = orderId.startsWith('ORD-')
     ? orderId.replace(/^ORD-/, 'PAY-')
-    : uid('PAY');
+    : `PAY-${Date.now()}`;
 
   const newConfirmation: PaymentConfirmation = {
     id: confirmationId,

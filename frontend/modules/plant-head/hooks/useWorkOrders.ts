@@ -13,7 +13,7 @@ export function useWorkOrders() {
             const list = Array.isArray(data) ? data : [];
             setWorkOrders(list.filter((o: any) =>
                 o.workflowStatus === OrderStatus.WORK_ORDER_CREATED ||
-                o.workflowStatus === OrderStatus.PRODUCTION_ASSIGNED ||
+                o.workflowStatus === OrderStatus.PRODUCTION_PLANNED ||
                 o.workflowStatus === OrderStatus.IN_PRODUCTION ||
                 o.workflowStatus === OrderStatus.QC_FAILED
             ));

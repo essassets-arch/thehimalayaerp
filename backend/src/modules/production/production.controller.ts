@@ -1,25 +1,37 @@
-import { Controller, Get, Post, Patch, Body, Param, Req } from '@nestjs/common';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import {
+  UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Req,
+} from '@nestjs/common';
 import { ProductionService } from './production.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('production/plans')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}
 
   @Get()
-  @Permissions('production.plan.read')
+  @RequirePermissions('production.plan.read')
   async listPlans(@Req() req: any) {
     return this.productionService.listPlans(req.user?.sub, req.user?.role);
   }
 
   @Get(':id')
-  @Permissions('production.plan.read')
+  @RequirePermissions('production.plan.read')
   async getPlan(@Param('id') id: string, @Req() req: any) {
     return this.productionService.getPlan(id, req.user?.sub, req.user?.role);
   }
 
   @Post()
-  @Permissions('production.plan.create')
+  @RequirePermissions('production.plan.create')
   async createPlan(@Body() dto: any, @Req() req: any) {
     return this.productionService.createPlan(
       dto,
@@ -29,7 +41,7 @@ export class ProductionController {
   }
 
   @Patch(':id')
-  @Permissions('production.plan.approve')
+  @RequirePermissions('production.plan.approve')
   async updatePlan(
     @Param('id') id: string,
     @Body()
@@ -49,7 +61,7 @@ export class ProductionController {
   }
 
   @Post(':id/action')
-  @Permissions('production.plan.approve')
+  @RequirePermissions('production.plan.approve')
   async processAction(
     @Param('id') id: string,
     @Body() dto: { action: string; remarks?: string },
@@ -65,7 +77,7 @@ export class ProductionController {
   }
 
   @Post(':id/submit')
-  @Permissions('production.plan.approve')
+  @RequirePermissions('production.plan.approve')
   async submitPlan(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -81,7 +93,7 @@ export class ProductionController {
   }
 
   @Post(':id/approve')
-  @Permissions('production.plan.approve')
+  @RequirePermissions('production.plan.approve')
   async approvePlan(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -97,7 +109,7 @@ export class ProductionController {
   }
 
   @Post(':id/release')
-  @Permissions('production.plan.release')
+  @RequirePermissions('production.plan.release')
   async releasePlan(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -113,7 +125,7 @@ export class ProductionController {
   }
 
   @Post(':id/reject')
-  @Permissions('production.plan.approve')
+  @RequirePermissions('production.plan.approve')
   async rejectPlan(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -129,7 +141,7 @@ export class ProductionController {
   }
 
   @Post(':id/complete')
-  @Permissions('production.plan.release')
+  @RequirePermissions('production.plan.release')
   async completePlan(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },

@@ -37,8 +37,9 @@ export default function HRRecruitmentPage() {
     try {
       const rows = await recruitmentService.list();
       setRequests(rows);
-      if (selected) {
-        const fresh = await recruitmentService.get(selected.id);
+      const selectedId = selected?.id;
+      if (selectedId) {
+        const fresh = await recruitmentService.get(selectedId);
         setSelected(fresh);
       }
     } catch (err: any) {

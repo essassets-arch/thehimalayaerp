@@ -25,7 +25,8 @@ export default function QuotationDetailsPage() {
   const [converting, setConverting] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
 
-  const fetchQuotation = async () => {
+  const fetchQuotation = React.useCallback(async () => {
+    if (!params?.id) return;
     try {
       const data = await backendFetch(`/api/backend/crm/quotations/${params.id}`);
       setQuotation(data);
@@ -34,11 +35,11 @@ export default function QuotationDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params?.id]);
 
   useEffect(() => {
     fetchQuotation();
-  }, [params.id]);
+  }, [fetchQuotation]);
 
   const handleDuplicate = async () => {
     setDuplicating(true);

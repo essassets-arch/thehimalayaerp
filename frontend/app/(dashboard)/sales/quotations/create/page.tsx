@@ -21,7 +21,7 @@ export default function CreateQuotationPage() {
   const onAddQuotation = async (qData: any) => {
     const res = await createQuotation(qData);
     if (res?.success) {
-      const matchedLead = leads.find(
+      const matchedLead = (leads as any[]).find(
         (l: any) =>
           l.companyName?.toLowerCase() === qData.customerName?.trim().toLowerCase() ||
           l.projectName?.toLowerCase()  === qData.customerName?.trim().toLowerCase()

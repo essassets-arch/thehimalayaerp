@@ -226,7 +226,7 @@ export async function createMaterialIndent(data: any, actorName: string) {
     );
   }
 
-  const res = await purchaseIndentService.create(payload);
+  const res: any = await purchaseIndentService.create(payload);
   if (res && res.id) {
     await purchaseIndentService.action(res.id, 'submit', {}, res.version || 1);
   }

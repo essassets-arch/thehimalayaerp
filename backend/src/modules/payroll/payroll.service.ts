@@ -496,6 +496,20 @@ export class PayrollService {
         'INVALID_PAYROLL_TRANSITION',
         `Salary cannot move from ${current.status} to ${to}.`,
       );
+    if (to === 'SUPER_ADMIN_APPROVED' && current.submittedById === user.sub) {
+      if (!user.permissions?.includes('hr.payroll.override')) {
+        this.conflict(
+          'SOD_VIOLATION',
+          'Segregation of Duties: You cannot approve a payroll record you submitted. Override permission required.',
+        );
+      }
+      if (!body.remarks?.trim()) {
+        throw new BadRequestException(
+          'Remarks are mandatory when overriding Segregation of Duties',
+        );
+      }
+    }
+
     if (
       ['REJECTED', 'ON_HOLD', 'CORRECTION_REQUIRED'].includes(to) &&
       !body.remarks?.trim()
@@ -503,7 +517,7 @@ export class PayrollService {
       throw new BadRequestException('Remarks are required.');
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.payrollRecord.update({
-        where: { id },
+        where: { id, version: current.version },
         data: {
           status: to,
           version: { increment: 1 },

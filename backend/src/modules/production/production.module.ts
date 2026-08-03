@@ -10,7 +10,15 @@ import { SequenceModule } from '../../common/sequence/sequence.module';
 
 @Module({
   imports: [WorkflowModule, SequenceModule],
-  controllers: [ProductionController, ProductionTestingController, ProductionWorkflowController],
-  providers: [ProductionService, ProductionTestingService, ProductionWorkflowService],
+  controllers: [
+    ProductionController,
+    ProductionTestingController,
+    ProductionWorkflowController,
+  ],
+  providers: [
+    ProductionService,
+    ProductionTestingService,
+    ProductionWorkflowService,
+  ],
 })
 export class ProductionModule {}

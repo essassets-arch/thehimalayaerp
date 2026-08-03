@@ -29,7 +29,7 @@ export function SalaryAdjustmentModal({ isOpen, onClose, salary, onSave }: Salar
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setAdjustments(prev => ({
+    setAdjustments((prev: any) => ({
       ...prev,
       [name]: name === 'remarks' ? value : Number(value)
     }));

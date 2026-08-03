@@ -19,7 +19,7 @@ export default function QCPendingPage() {
   const [failureReason, setFailureReason] = useState('');
   const [qcRemarks, setQcRemarks] = useState('');
 
-  const fetchJobs = async () => {
+  const fetchJobs = React.useCallback(async () => {
     try {
       setLoading(true);
       const endpoint = activeTab === 'pending' 
@@ -36,9 +36,9 @@ export default function QCPendingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
 
-  useEffect(() => { fetchJobs(); }, [activeTab]);
+  useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
   const handlePass = async (job: any) => {
     if (!confirm('Mark this job as QC Passed? It will be sent to dispatch.')) return;

@@ -1,12 +1,17 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { UseGuards, Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('inventory')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  @RequirePermissions('inventory.inventory.create')
   @Post('transactions')
   createTransaction(
     @CurrentUser() user: any,
@@ -15,6 +20,7 @@ export class InventoryController {
     return this.inventoryService.createTransaction(user.companyId, dto);
   }
 
+  @RequirePermissions('inventory.inventory.read')
   @Get('transactions')
   getTransactions(
     @CurrentUser() user: any,
@@ -28,6 +34,7 @@ export class InventoryController {
     );
   }
 
+  @RequirePermissions('inventory.inventory.read')
   @Get('stock-levels')
   getStockLevels(
     @CurrentUser() user: any,

@@ -7,8 +7,14 @@ import { PrismaService } from '../src/database/prisma.service';
 
 const api = (app: INestApplication<App>) => request(app.getHttpServer());
 
-async function login(app: INestApplication<App>, email: string): Promise<string> {
-  const res = await api(app).post('/auth/login').send({ email, password: 'admin123' }).expect(201);
+async function login(
+  app: INestApplication<App>,
+  email: string,
+): Promise<string> {
+  const res = await api(app)
+    .post('/auth/login')
+    .send({ email, password: 'admin123' })
+    .expect(201);
   return res.body?.data?.accessToken as string;
 }
 

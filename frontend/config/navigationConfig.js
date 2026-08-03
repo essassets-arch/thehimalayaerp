@@ -97,7 +97,7 @@ export const navigationConfig = {
       path: '/store/purchase',
       subItems: [
         { id: 'create-request', label: 'Create Request', path: '/store/purchase?tab=Create Request' },
-        { id: 'verify-delivery', label: 'Verify Delivery', path: '/store/purchase?tab=Verify Delivery' },
+        { id: 'verify-delivery', label: 'Verify Delivery', path: ' ' },
         { id: 'delivery-history', label: 'Delivery History', path: '/store/purchase?tab=Delivery History' },
         { id: 'grn-history', label: 'GRN History', path: '/store/purchase?tab=GRN History' },
         { id: 'material-rejections', label: 'Material Rejections', path: '/store/purchase?tab=Material Rejections' },

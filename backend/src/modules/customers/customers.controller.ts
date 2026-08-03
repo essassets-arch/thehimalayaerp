@@ -1,4 +1,7 @@
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
+  UseGuards,
   Controller,
   Get,
   Post,
@@ -17,15 +20,16 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 
 @Controller('sales/customers')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  @Permissions('sales.customers.create')
+  @RequirePermissions('sales.customers.create')
   @UseInterceptors(IdempotencyInterceptor)
   create(
     @Body() createCustomerDto: CreateCustomerDto,
@@ -40,7 +44,7 @@ export class CustomersController {
   }
 
   @Get()
-  @Permissions('sales.customers.read')
+  @RequirePermissions('sales.customers.read')
   findAll(
     @CurrentUser() user: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -58,7 +62,7 @@ export class CustomersController {
   }
 
   @Get('check-duplicates')
-  @Permissions('sales.customers.read')
+  @RequirePermissions('sales.customers.read')
   checkDuplicates(
     @CurrentUser() user: any,
     @Query('gstin') gstin?: string,
@@ -76,7 +80,7 @@ export class CustomersController {
   }
 
   @Get(':id')
-  @Permissions('sales.customers.read')
+  @RequirePermissions('sales.customers.read')
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.customersService.getById(
       id,
@@ -87,7 +91,7 @@ export class CustomersController {
   }
 
   @Patch(':id')
-  @Permissions('sales.customers.update')
+  @RequirePermissions('sales.customers.update')
   update(
     @Param('id') id: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
@@ -105,7 +109,7 @@ export class CustomersController {
   }
 
   @Post(':id/deactivate')
-  @Permissions('sales.customers.update')
+  @RequirePermissions('sales.customers.update')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
   deactivate(
@@ -125,7 +129,7 @@ export class CustomersController {
   }
 
   @Post(':id/restore')
-  @Permissions('sales.customers.update')
+  @RequirePermissions('sales.customers.update')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
   restore(

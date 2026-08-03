@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import {
+  getProcurementScope,
+  getAdvancedScope,
+} from '../../common/utils/rbac.util';
 
 const INDENT: Record<string, string[]> = {
   submit: ['DRAFT', 'PLANT_HEAD_CORRECTION_REQUIRED'],
@@ -85,7 +89,14 @@ export class ProcurementService {
       throw new BadRequestException('Remarks are required');
   }
 
-  async list(entity: string, query: any) {
+  async list(
+    entity: string,
+    query: any,
+    userId?: string,
+    role?: string,
+    companyId?: string,
+  ) {
+    const scope = getProcurementScope(userId, role, companyId);
     const {
       page = 1,
       limit = 25,
@@ -95,6 +106,7 @@ export class ProcurementService {
       search,
     } = query;
     const where: any = {
+      ...scope,
       ...(status && { status }),
       ...(supplierId && { supplierId }),
       ...(warehouseId && { warehouseId }),
@@ -458,13 +470,9 @@ export class ProcurementService {
     userId?: string,
     role?: string,
   ) {
-    const scope = require('../../common/utils/rbac.util').getAdvancedScope(
-      userId,
-      role,
-      {
-        STORE: { receivedById: userId },
-      },
-    );
+    const scope = getAdvancedScope(userId, role, {
+      STORE: { receivedById: userId },
+    });
     const { page, limit, skip } = this.page(query);
     const where: any = { ...(companyId && { companyId }), ...scope };
     const [data, total] = await this.prisma.$transaction([
@@ -577,7 +585,13 @@ export class ProcurementService {
       return row;
     });
   }
-  async indentAction(id: string, action: string, dto: any, actorId?: string) {
+  async indentAction(
+    id: string,
+    action: string,
+    dto: any,
+    actorId?: string,
+    overrideSod?: boolean,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const row = await this.entity(tx, 'purchaseIndent', id);
       this.valid(row, action, INDENT);
@@ -608,7 +622,31 @@ export class ProcurementService {
             throw new BadRequestException('Invalid approved quantity');
           }
         }
+
+        // Segregation of Duties: Approver cannot be the requester
+        if (row.requestedById === actorId) {
+          if (overrideSod) {
+            if (!dto.remarks)
+              throw new BadRequestException(
+                'Remarks are mandatory when overriding Segregation of Duties',
+              );
+          } else {
+            throw new ConflictException(
+              'Segregation of Duties: You cannot approve your own indent. Override permission required.',
+            );
+          }
+        }
       }
+
+      if (
+        dto.expectedVersion !== undefined &&
+        row.version !== dto.expectedVersion
+      ) {
+        throw new ConflictException(
+          'Concurrency Error: The record has been modified by another user. Please refresh and try again.',
+        );
+      }
+
       const status: any = {
         submit: 'PENDING_PLANT_HEAD_APPROVAL',
         approve: 'PLANT_HEAD_APPROVED',
@@ -617,7 +655,7 @@ export class ProcurementService {
         cancel: 'INDENT_CANCELLED',
       }[action];
       const updated = await tx.purchaseIndent.update({
-        where: { id },
+        where: { id, version: row.version },
         data: {
           status,
           version: { increment: 1 },
@@ -725,11 +763,45 @@ export class ProcurementService {
       return po;
     });
   }
-  async poAction(id: string, action: string, dto: any, actorId?: string) {
+  async poAction(
+    id: string,
+    action: string,
+    dto: any,
+    actorId?: string,
+    overrideSod?: boolean,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const row = await this.entity(tx, 'purchaseOrder', id);
       this.valid(row, action, PO);
       this.remarks(action, dto);
+
+      if (action === 'approve') {
+        // Segregation of Duties: Approver cannot be the creator of the PO
+        const createdById =
+          row.createdById || row.purchaseIndent?.requestedById;
+        if (createdById && createdById === actorId) {
+          if (overrideSod) {
+            if (!dto.remarks)
+              throw new BadRequestException(
+                'Remarks are mandatory when overriding Segregation of Duties',
+              );
+          } else {
+            throw new ConflictException(
+              'Segregation of Duties: You cannot approve a Purchase Order you created or requested. Override permission required.',
+            );
+          }
+        }
+      }
+
+      if (
+        dto.expectedVersion !== undefined &&
+        row.version !== dto.expectedVersion
+      ) {
+        throw new ConflictException(
+          'Concurrency Error: The record has been modified by another user. Please refresh and try again.',
+        );
+      }
+
       const status: any = {
         submit: 'PENDING_SUPER_ADMIN_APPROVAL',
         approve: 'SUPER_ADMIN_APPROVED',
@@ -741,7 +813,7 @@ export class ProcurementService {
         dispatch: 'IN_TRANSIT',
       }[action];
       const updated = await tx.purchaseOrder.update({
-        where: { id },
+        where: { id, version: row.version },
         data: {
           status,
           version: { increment: 1 },
@@ -867,11 +939,40 @@ export class ProcurementService {
       return grn;
     });
   }
-  async grnAction(id: string, action: string, dto: any, actorId?: string) {
+  async grnAction(
+    id: string,
+    action: string,
+    dto: any,
+    actorId?: string,
+    overrideSod?: boolean,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const row = await this.entity(tx, 'goodsReceiptNote', id);
       this.valid(row, action, GRN);
       this.remarks(action, dto);
+
+      if (
+        dto.expectedVersion !== undefined &&
+        row.version !== dto.expectedVersion
+      ) {
+        throw new ConflictException(
+          'Concurrency Error: The record has been modified by another user. Please refresh and try again.',
+        );
+      }
+
+      if (action === 'audit-approve' && row.receivedById === actorId) {
+        if (overrideSod) {
+          if (!dto.remarks)
+            throw new BadRequestException(
+              'Remarks are mandatory when overriding Segregation of Duties',
+            );
+        } else {
+          throw new ConflictException(
+            'Segregation of Duties: You cannot approve your own GRN. Override permission required.',
+          );
+        }
+      }
+
       if (action === 'audit-approve' && row.inventoryPostedAt) return row;
       const status: any = {
         submit: 'PENDING_FINANCE_AUDIT',
@@ -879,7 +980,7 @@ export class ProcurementService {
         'audit-approve': 'FINANCE_AUDIT_APPROVED',
       }[action];
       const updated = await tx.goodsReceiptNote.update({
-        where: { id },
+        where: { id, version: row.version },
         data: {
           status,
           version: { increment: 1 },
@@ -966,29 +1067,6 @@ export class ProcurementService {
               totalRejectedQty -
               totalReplacementQty,
           );
-          if (
-            pendingQty === 0 &&
-            po.status !== 'PO_CLOSED' &&
-            po.status !== 'CLOSED'
-          ) {
-            await tx.purchaseOrder.update({
-              where: { id: po.id },
-              data: { status: 'PO_CLOSED' },
-            });
-            await tx.auditLog.create({
-              data: {
-                actorUserId: actorId,
-                companyId: po.companyId,
-                action: 'PO_AUTO_CLOSED',
-                entityType: 'PurchaseOrder',
-                entityId: po.id,
-                after: {
-                  status: 'PO_CLOSED',
-                  reason: 'Auto-closed after GRN audit approval',
-                },
-              },
-            });
-          }
         }
       }
       await tx.gRNStatusHistory.create({
@@ -1035,6 +1113,7 @@ export class ProcurementService {
             purchaseOrderId: dto.purchaseOrderId,
             totalAmount: MONEY(dto.totalAmount),
             dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+            createdById: actorId,
             items: {
               create: dto.items.map((i: any) => ({
                 productId: i.productId,
@@ -1066,9 +1145,25 @@ export class ProcurementService {
       throw e;
     }
   }
-  async invoiceAction(id: string, action: string, dto: any, actorId?: string) {
+  async invoiceAction(
+    id: string,
+    action: string,
+    dto: any,
+    actorId?: string,
+    overrideSod?: boolean,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const invoice: any = await this.entity(tx, 'vendorInvoice', id);
+
+      if (
+        dto.expectedVersion !== undefined &&
+        invoice.version !== dto.expectedVersion
+      ) {
+        throw new ConflictException(
+          'Concurrency Error: The record has been modified by another user. Please refresh and try again.',
+        );
+      }
+
       const po: any = await tx.purchaseOrder.findUnique({
         where: { id: invoice.purchaseOrderId },
         include: { items: true },
@@ -1077,20 +1172,34 @@ export class ProcurementService {
       if (action === 'submit') {
         this.valid(invoice, action, { submit: ['DRAFT'] });
         updatedInvoice = await tx.vendorInvoice.update({
-          where: { id },
+          where: { id, version: invoice.version },
           data: { status: 'SUBMITTED', version: { increment: 1 } },
         });
       } else if (action === 'cancel') {
         if (!['DRAFT', 'SUBMITTED', 'MATCH_EXCEPTION'].includes(invoice.status))
           throw new ConflictException('Invoice cannot be cancelled');
         updatedInvoice = await tx.vendorInvoice.update({
-          where: { id },
+          where: { id, version: invoice.version },
           data: { status: 'CANCELLED', version: { increment: 1 } },
         });
       } else if (action === 'request-payment') {
         this.valid(invoice, action, { 'request-payment': ['VERIFIED'] });
+
+        if (invoice.createdById === actorId) {
+          if (overrideSod) {
+            if (!dto.remarks)
+              throw new BadRequestException(
+                'Remarks are mandatory when overriding Segregation of Duties',
+              );
+          } else {
+            throw new ConflictException(
+              'Segregation of Duties: You cannot approve a payment request for your own invoice. Override permission required.',
+            );
+          }
+        }
+
         updatedInvoice = await tx.vendorInvoice.update({
-          where: { id },
+          where: { id, version: invoice.version },
           data: {
             status: 'PAYMENT_APPROVAL_PENDING',
             version: { increment: 1 },
@@ -1180,7 +1289,7 @@ export class ProcurementService {
         if (!total.eq(invoice.totalAmount)) errors.push('AMOUNT_MISMATCH');
         const status = errors.length ? 'MATCH_EXCEPTION' : 'VERIFIED';
         updatedInvoice = await tx.vendorInvoice.update({
-          where: { id },
+          where: { id, version: invoice.version },
           data: {
             status,
             matchResult: {
@@ -1226,6 +1335,7 @@ export class ProcurementService {
           paymentNumber: this.id('PAY'),
           supplierId: dto.supplierId,
           paidAmount: MONEY(amount),
+          createdById: actorId,
           allocations: {
             create: dto.allocations.map((a: any) => ({
               vendorInvoiceId: a.vendorInvoiceId,
@@ -1250,9 +1360,38 @@ export class ProcurementService {
       return payment;
     });
   }
-  async paymentAction(id: string, action: string, dto: any, actorId?: string) {
+  async paymentAction(
+    id: string,
+    action: string,
+    dto: any,
+    actorId?: string,
+    overrideSod?: boolean,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const payment: any = await this.entity(tx, 'vendorPayment', id);
+
+      if (
+        dto.expectedVersion !== undefined &&
+        payment.version !== dto.expectedVersion
+      ) {
+        throw new ConflictException(
+          'Concurrency Error: The record has been modified by another user. Please refresh and try again.',
+        );
+      }
+
+      if (action === 'approve' && payment.createdById === actorId) {
+        if (overrideSod) {
+          if (!dto.remarks)
+            throw new BadRequestException(
+              'Remarks are mandatory when overriding Segregation of Duties',
+            );
+        } else {
+          throw new ConflictException(
+            'Segregation of Duties: You cannot approve your own payment request. Override permission required.',
+          );
+        }
+      }
+
       const states: any = {
         submit: ['DRAFT'],
         approve: ['PENDING_APPROVAL'],
@@ -1300,7 +1439,7 @@ export class ProcurementService {
             where: { id: a.vendorInvoiceId },
             data: {
               paidAmount: paid,
-              status: paid.eq(a.vendorInvoice.totalAmount)
+              status: paid.gte(a.vendorInvoice.totalAmount)
                 ? 'PAID'
                 : 'PARTIALLY_PAID',
               version: { increment: 1 },
@@ -1322,7 +1461,7 @@ export class ProcurementService {
         }
       }
       const updatedPayment = await tx.vendorPayment.update({
-        where: { id },
+        where: { id, version: payment.version },
         data: {
           status: next,
           transactionId: dto.transactionId ?? payment.transactionId,

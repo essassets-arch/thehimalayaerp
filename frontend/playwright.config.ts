@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: ["**/api-bridge/**/*.spec.ts", "**/browser/**/*.spec.ts"],
   timeout: 45_000,
   expect: {
     timeout: 8_000,
@@ -27,6 +28,12 @@ export default defineConfig({
       name: "mobile-chromium",
       use: {
         ...devices["Pixel 7"],
+      },
+    },
+    {
+      name: "desktop-firefox",
+      use: {
+        ...devices["Desktop Firefox"],
       },
     },
   ],

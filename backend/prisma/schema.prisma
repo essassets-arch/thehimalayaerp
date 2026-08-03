@@ -135,6 +135,8 @@ model User {
   roleId                        String
   companyId                     String
   isActive                      Boolean                @default(true)
+  failedLoginAttempts           Int                    @default(0)
+  lockedUntil                   DateTime?
   version                       Int                    @default(1)
   createdAt                     DateTime               @default(now())
   updatedAt                     DateTime               @updatedAt
@@ -146,6 +148,7 @@ model User {
   purchaseIndents               PurchaseIndent[]
   assignedProductionPlans       ProductionPlan[]       @relation("ProductionPlanAssignee")
   refreshSessions               RefreshSession[]
+  elevationSessions             ElevationSession[]
   company                       Company                @relation(fields: [companyId], references: [id])
   role                          Role                   @relation(fields: [roleId], references: [id])
   brandAnalysisRequested        BrandAnalysisRequest[] @relation("BrandAnalysisRequestedBy")
@@ -382,7 +385,8 @@ model Supplier {
   phone                          String?
   gstin                          String?
   isActive                       Boolean                         @default(true)
-  createdAt                      DateTime                        @default(now())
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
   updatedAt                      DateTime                        @updatedAt
   company                        Company                         @relation(fields: [companyId], references: [id])
   PurchaseOrder                  PurchaseOrder[]
@@ -412,7 +416,8 @@ model MaterialRequest {
   approvedById  String?
   approvedAt    DateTime?
   metadata      Json?
-  createdAt     DateTime              @default(now())
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
   updatedAt     DateTime              @updatedAt
   branch        Branch?               @relation(fields: [branchId], references: [id])
   company       Company               @relation(fields: [companyId], references: [id])
@@ -1151,7 +1156,8 @@ model CustomerComplaint {
   rejectedAt    DateTime?
   createdBy     String
   updatedBy     String?
-  createdAt     DateTime        @default(now())
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
   updatedAt     DateTime        @updatedAt
   customer      Customer        @relation(fields: [customerId], references: [id])
   product       Product         @relation(fields: [productId], references: [id])
@@ -1186,7 +1192,8 @@ model SalesReturn {
   approvedAt      DateTime?
   receivedAt      DateTime?
   closedAt        DateTime?
-  createdAt       DateTime             @default(now())
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
   updatedAt       DateTime             @updatedAt
   creditNotes     CreditNote[]
   gateEntries     ReturnGateEntry[]
@@ -1973,6 +1980,7 @@ model VendorInvoice {
   paidAmount      Decimal                   @default(0) @db.Decimal(14, 2)
   version         Int                       @default(1)
   matchResult     Json?
+  createdById     String?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
   supplier        Supplier                  @relation(fields: [supplierId], references: [id])
@@ -2004,6 +2012,7 @@ model VendorPayment {
   transactionId String?                   @unique
   paidAmount    Decimal                   @db.Decimal(14, 2)
   version       Int                       @default(1)
+  createdById   String?
   createdAt     DateTime                  @default(now())
   updatedAt     DateTime                  @updatedAt
   supplier      Supplier                  @relation(fields: [supplierId], references: [id])
@@ -2211,7 +2220,8 @@ model ProductionPlan {
   plannedEndDate   DateTime?
   productionLine   String?
   workflowStateId  String?
-  createdAt        DateTime             @default(now())
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
   updatedAt        DateTime             @updatedAt
 
   salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
@@ -2245,7 +2255,8 @@ model WorkOrder {
   dispatchedById     String?
 
   createdById String?
-  createdAt   DateTime @default(now())
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   productionPlan    ProductionPlan         @relation(fields: [productionPlanId], references: [id])
@@ -2313,7 +2324,8 @@ model QCInspection {
   approvedAt       DateTime?
   inspectorId      String?
 
-  createdAt DateTime @default(now())
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
 
   workOrder     WorkOrder      @relation(fields: [workOrderId], references: [id])
   workflowState WorkflowState? @relation("QCInspectionWorkflow", fields: [workflowStateId], references: [id])
@@ -3010,4 +3022,14 @@ model FinishedGoods {
   workOrder  WorkOrder   @relation(fields: [workOrderId], references: [id])
   product    Product     @relation(fields: [productId], references: [id])
   salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
+}
+
+
+model ElevationSession {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

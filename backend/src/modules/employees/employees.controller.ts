@@ -1,4 +1,7 @@
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
+  UseGuards,
   BadRequestException,
   Body,
   Controller,
@@ -19,11 +22,12 @@ import {
 } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CreateEmployeeDto, EmployeeQueryDto } from './dto/employee.dto';
 import { EmployeesService } from './employees.service';
 
 @Controller('hr')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EmployeesController {
   constructor(private readonly employees: EmployeesService) {}
 
@@ -56,19 +60,19 @@ export class EmployeesController {
   }
 
   @Get('employees')
-  @Permissions('hr.employees.read')
+  @RequirePermissions('hr.employees.read')
   list(@Query() query: EmployeeQueryDto, @Req() req: any) {
     return this.employees.list(query, req.user);
   }
 
   @Get('employees/payroll-overview')
-  @Permissions('hr.payroll.read')
+  @RequirePermissions('hr.payroll.read')
   payrollOverview(@Query() query: any, @Req() req: any) {
     return this.employees.payrollOverview(query, req.user);
   }
 
   @Get('employees/:employeeId/attendance-summary')
-  @Permissions('hr.payroll.read')
+  @RequirePermissions('hr.payroll.read')
   attendanceSummary(
     @Param('employeeId') id: string,
     @Query() query: any,
@@ -78,43 +82,43 @@ export class EmployeesController {
   }
 
   @Get('employees/:employeeId/salary-history')
-  @Permissions('hr.payroll.read')
+  @RequirePermissions('hr.payroll.read')
   salaryHistory(@Param('employeeId') id: string, @Req() req: any) {
     return this.employees.salaryHistory(id, req.user);
   }
 
   @Get('employees/drafts')
-  @Permissions('hr.employees.create')
+  @RequirePermissions('hr.employees.create')
   drafts(@Req() req: any) {
     return this.employees.listDrafts(req.user);
   }
 
   @Get('employees/managers')
-  @Permissions('hr.employees.read')
+  @RequirePermissions('hr.employees.read')
   managers(@Query('excludeId') excludeId: string, @Req() req: any) {
     return this.employees.managers(req.user, excludeId);
   }
 
   @Get('departments')
-  @Permissions('hr.departments.read')
+  @RequirePermissions('hr.departments.read')
   departments(@Req() req: any) {
     return this.employees.departments(req.user);
   }
 
   @Get('work-locations')
-  @Permissions('hr.locations.read')
+  @RequirePermissions('hr.locations.read')
   locations(@Req() req: any) {
     return this.employees.locations(req.user);
   }
 
   @Get('employees/:id')
-  @Permissions('hr.employees.read')
+  @RequirePermissions('hr.employees.read')
   get(@Param('id') id: string, @Req() req: any) {
     return this.employees.get(id, req.user);
   }
 
   @Post('employees')
-  @Permissions('hr.employees.create')
+  @RequirePermissions('hr.employees.create')
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -142,25 +146,25 @@ export class EmployeesController {
   }
 
   @Post('employees/drafts')
-  @Permissions('hr.employees.create')
+  @RequirePermissions('hr.employees.create')
   saveDraft(@Body() body: any, @Req() req: any) {
     return this.employees.saveDraft(body, req.user);
   }
 
   @Patch('employees/:id')
-  @Permissions('hr.employees.update')
+  @RequirePermissions('hr.employees.update')
   update(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.employees.update(id, body, req.user, req.requestId);
   }
 
   @Patch('employees/:id/status')
-  @Permissions('hr.employees.status.update')
+  @RequirePermissions('hr.employees.status.update')
   status(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.employees.status(id, body, req.user, req.requestId);
   }
 
   @Post('employees/:id/documents')
-  @Permissions('hr.employees.documents.upload')
+  @RequirePermissions('hr.employees.documents.upload')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: undefined,
@@ -183,7 +187,7 @@ export class EmployeesController {
   }
 
   @Delete('employees/:employeeId/documents/:documentId')
-  @Permissions('hr.employees.documents.delete')
+  @RequirePermissions('hr.employees.documents.delete')
   deleteDocument(
     @Param('employeeId') employeeId: string,
     @Param('documentId') documentId: string,

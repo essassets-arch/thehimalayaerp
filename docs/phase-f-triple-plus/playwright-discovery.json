@@ -1,0 +1,10 @@
+{
+  "totalSpecFiles": 9,
+  "totalDiscoveredTests": 23,
+  "totalProjects": 3,
+  "totalExpectedExecutions": 69,
+  "skipsFound": [],
+  "fixmesFound": [],
+  "earlyReturnRisks": [],
+  "weakAssertionTests": []
+}

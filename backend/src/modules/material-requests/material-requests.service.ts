@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { getAdvancedScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class MaterialRequestsService {
@@ -46,11 +47,7 @@ export class MaterialRequestsService {
   }
 
   async findAll(companyId: string, userId?: string, role?: string) {
-    const scope = require('../../common/utils/rbac.util').getAdvancedScope(
-      userId,
-      role,
-      {}
-    );
+    const scope = getAdvancedScope(userId, role, {});
     const rows = await this.prisma.materialRequest.findMany({
       where: { companyId, ...scope },
       include: { items: { include: { product: true } }, requestedBy: true },

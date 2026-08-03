@@ -1,13 +1,24 @@
-import { Controller, Get, Post, Body, Param, Req } from '@nestjs/common';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import {
+  UseGuards,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Req,
+} from '@nestjs/common';
 import { QcService } from './qc.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('qc/inspections')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class QcController {
   constructor(private readonly qcService: QcService) {}
 
   @Get()
-  @Permissions('qc.inspection.read')
+  @RequirePermissions('qc.inspection.read')
   async listInspections(@Req() req: any) {
     const companyId = req.headers['x-company-id'] || req.user?.companyId;
     const items = await this.qcService.listInspections(companyId);
@@ -16,13 +27,13 @@ export class QcController {
   }
 
   @Get(':id')
-  @Permissions('qc.inspection.read')
+  @RequirePermissions('qc.inspection.read')
   async getInspection(@Param('id') id: string) {
     return this.qcService.getInspection(id);
   }
 
   @Post(':id/action')
-  @Permissions('qc.inspection.approve')
+  @RequirePermissions('qc.inspection.approve')
   async processAction(
     @Param('id') id: string,
     @Body() dto: { action: string; remarks?: string },
@@ -37,7 +48,7 @@ export class QcController {
   }
 
   @Post(':id/start')
-  @Permissions('qc.inspection.approve')
+  @RequirePermissions('qc.inspection.approve')
   async startInspection(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -52,7 +63,7 @@ export class QcController {
   }
 
   @Post(':id/approve')
-  @Permissions('qc.inspection.approve')
+  @RequirePermissions('qc.inspection.approve')
   async approveInspection(
     @Param('id') id: string,
     @Body()
@@ -68,12 +79,12 @@ export class QcController {
       'APPROVE',
       dto.remarks,
       req.user?.sub,
-      dto,
+      { ...dto, overrideSod: req.user?.permissions?.includes('qc.override') },
     );
   }
 
   @Post(':id/reject')
-  @Permissions('qc.inspection.approve')
+  @RequirePermissions('qc.inspection.approve')
   async rejectInspection(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -88,7 +99,7 @@ export class QcController {
   }
 
   @Post(':id/rework')
-  @Permissions('qc.inspection.approve')
+  @RequirePermissions('qc.inspection.approve')
   async reworkInspection(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },

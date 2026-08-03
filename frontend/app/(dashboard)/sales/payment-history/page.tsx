@@ -25,11 +25,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const APPROVED_STATUSES = ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'];
+
 export default function SalesPaymentHistoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const { data: payments = [], isLoading, isError, error, refetch } = useQuery<any[]>({
-    queryKey: ['sales-payment-history'],
+    queryKey: ['sales-recorded-payments-history'],
     queryFn: async () => {
       // Use the sales-authorized endpoint (requires sales.orders.read, not finance.payment.read)
       const response = await backendFetch<any>('/api/backend/finance/payments/sales-recorded');
@@ -41,7 +43,6 @@ export default function SalesPaymentHistoryPage() {
   });
 
   // Only show Finance-approved payments in history
-  const APPROVED_STATUSES = ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'];
   const approvedPayments = useMemo(
     () => payments.filter((p: any) => APPROVED_STATUSES.includes(String(p.status || '').toUpperCase())),
     [payments]
@@ -56,7 +57,7 @@ export default function SalesPaymentHistoryPage() {
       const payNo = String(p.paymentNo || '').toLowerCase();
       return orderNo.includes(q) || customer.includes(q) || payNo.includes(q);
     });
-  }, [payments, searchQuery]);
+  }, [approvedPayments, searchQuery]);
 
   return (
     <div className="erp-page-container">

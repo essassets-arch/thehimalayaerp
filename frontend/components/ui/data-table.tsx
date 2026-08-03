@@ -9,6 +9,8 @@ interface DataTableProps<T> {
   }[];
   data: T[];
   emptyMessage?: string;
+  isLoading?: boolean;
+  searchKey?: string;
 }
 
 export function DataTable<T>({ columns, data, emptyMessage = "No results." }: DataTableProps<T>) {

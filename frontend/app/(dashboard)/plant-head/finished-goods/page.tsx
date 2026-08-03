@@ -5,7 +5,7 @@ import { getFinishedGoods } from "@/services/finishedGoodsService";
 import FinishedGoodsTable from "@/components/shared/FinishedGoodsTable";
 
 export default function PlantHeadFinishedGoodsPage() {
-  const [finishedGoods, setFinishedGoods] = useState([]);
+  const [finishedGoods, setFinishedGoods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("not-dispatched");
@@ -15,7 +15,7 @@ export default function PlantHeadFinishedGoodsPage() {
       setLoading(true);
       setError("");
 
-      const response = await getFinishedGoods({
+      const response: any = await getFinishedGoods({
         page: 1,
         pageSize: 100,
       });
@@ -115,7 +115,7 @@ export default function PlantHeadFinishedGoodsPage() {
 
       <div className="app-card">
         <FinishedGoodsTable
-          records={displayedRecords}
+          records={displayedRecords as any}
           readOnly={true}
           showActions={false}
         />

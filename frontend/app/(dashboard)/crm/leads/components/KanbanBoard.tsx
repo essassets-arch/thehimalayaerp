@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/badge'; // Wait, I should import Button from ui/button
+import { Button } from '@/components/ui/button'; // Wait, I should import Button from ui/button
 import { toast } from 'sonner';
 import { backendFetch } from '@/lib/backendFetch';
 

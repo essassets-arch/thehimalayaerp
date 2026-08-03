@@ -87,7 +87,7 @@ export function CreatePlanForm() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Source Sales Order (Sent To Plant)</Label>
-                <Select value={salesOrderId} onValueChange={setSalesOrderId}>
+                <Select value={salesOrderId} onValueChange={(val) => setSalesOrderId(val || '')}>
                   <SelectTrigger>
                     <SelectValue placeholder={loadingOrders ? "Loading orders..." : "Select Sales Order"} />
                   </SelectTrigger>
@@ -117,7 +117,7 @@ export function CreatePlanForm() {
 
               <div className="space-y-2">
                 <Label>Production Line</Label>
-                <Select value={productionLine} onValueChange={setProductionLine}>
+                <Select value={productionLine} onValueChange={(val) => setProductionLine(val || '')}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select Production Line" />
                   </SelectTrigger>

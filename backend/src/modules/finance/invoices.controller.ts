@@ -1,25 +1,36 @@
-import { Controller, Get, Post, Body, Param, Req } from '@nestjs/common';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import {
+  UseGuards,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Req,
+} from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('finance/invoices')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
   @Get()
-  @Permissions('finance.invoice.read')
+  @RequirePermissions('finance.invoice.read')
   async listInvoices(@Req() req: any) {
     return this.invoicesService.listInvoices(req.user?.sub, req.user?.role);
   }
 
   @Get(':id')
-  @Permissions('finance.invoice.read')
+  @RequirePermissions('finance.invoice.read')
   async getInvoice(@Param('id') id: string, @Req() req: any) {
     return this.invoicesService.getInvoice(id, req.user?.sub, req.user?.role);
   }
 
   @Post(':id/action')
-  @Permissions('finance.invoice.update')
+  @RequirePermissions('finance.invoice.update')
   async processAction(
     @Param('id') id: string,
     @Body() dto: { action: string; remarks?: string },
@@ -34,7 +45,7 @@ export class InvoicesController {
   }
 
   @Post(':id/post')
-  @Permissions('finance.invoice.update')
+  @RequirePermissions('finance.invoice.update')
   async postInvoice(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -49,7 +60,7 @@ export class InvoicesController {
   }
 
   @Post(':id/cancel')
-  @Permissions('finance.invoice.update')
+  @RequirePermissions('finance.invoice.update')
   async cancelInvoice(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },
@@ -64,7 +75,7 @@ export class InvoicesController {
   }
 
   @Post(':id/void')
-  @Permissions('finance.invoice.update')
+  @RequirePermissions('finance.invoice.update')
   async voidInvoice(
     @Param('id') id: string,
     @Body() dto: { remarks?: string },

@@ -5,7 +5,8 @@ import { forwardBackendRequest } from '@/lib/server/backendApiClient';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const authHeader = request.headers.get('Authorization');
   const token = authHeader ? authHeader.split(' ')[1] : undefined;
   const idempotencyKey = request.headers.get('Idempotency-Key');
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   return forwardBackendRequest({
     token,
-    path: "`/sales/orders/${params.id}/credit-exception/approve`",
+    path: `/sales/orders/${id}/credit-exception/approve`,
     method: 'POST',
     body,
     headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,

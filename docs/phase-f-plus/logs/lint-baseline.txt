@@ -1,0 +1,742 @@
+﻿
+> prototype-next@0.1.0 lint
+> next lint
+
+npm : `next lint` is deprecated and will be removed in Next.js 16.
+At line:1 char:14
++ cd frontend; npm run lint 2>&1 | Out-File -Encoding utf8 ..\docs\phas ...
++              ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (`next lint` is ... in Next.js 16.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+
+./app/(dashboard)/crm/leads/components/KanbanBoard.tsx
+7:10  Warning: 'Button' is defined but never used.  @typescript-eslint/no-unused-vars
+22:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+28:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+30:14  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+89:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/crm/leads/page.tsx
+5:10  Warning: 'PageHeader' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/(dashboard)/crm/leads/[id]/page.tsx
+15:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+22:14  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+31:6  Warning: React Hook useEffect has a missing dependency: 'fetchLead'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+88:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/crm/quotations/components/QuotationKanbanBoard.tsx
+20:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+26:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+28:14  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+83:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/crm/quotations/[id]/page.tsx
+23:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+32:14  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+41:6  Warning: React Hook useEffect has a missing dependency: 'fetchQuotation'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+46:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+61:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+66:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+140:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/dispatch/components/ActionButtons.tsx
+59:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/dispatch/create/page.tsx
+21:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+167:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+183:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/dispatch/create-dispatch/page.tsx
+125:25  Warning: 'setInvoiceNumber' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+184:9  Warning: 'customer' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+346:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+674:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/(dashboard)/dispatch/delivery/page.tsx
+7:3  Warning: 'CheckCircle2' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/(dashboard)/dispatch/orders/page.tsx
+13:3  Warning: 'Calendar' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/(dashboard)/dispatch/sample-dispatch/create/[id]/page.tsx
+30:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/dispatch/sample-dispatch/page.tsx
+5:35  Warning: 'Truck' is defined but never used.  @typescript-eslint/no-unused-vars
+72:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+96:52  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+118:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+301:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+323:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+326:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+335:87  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+344:88  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+380:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/(dashboard)/dispatch/[id]/page.tsx
+9:3  Warning: 'User' is defined but never used.  @typescript-eslint/no-unused-vars
+10:3  Warning: 'Calendar' is defined but never used.  @typescript-eslint/no-unused-vars
+12:3  Warning: 'Scale' is defined but never used.  @typescript-eslint/no-unused-vars
+13:3  Warning: 'FileText' is defined but never used.  @typescript-eslint/no-unused-vars
+16:3  Warning: 'CheckSquare' is defined but never used.  @typescript-eslint/no-unused-vars
+24:3  Warning: 'Phone' is defined but never used.  @typescript-eslint/no-unused-vars
+85:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+108:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+185:10  Warning: 'delivPerson' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+185:23  Warning: 'setDelivPerson' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+186:10  Warning: 'delivPhone' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+186:22  Warning: 'setDelivPhone' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+190:22  Warning: 'setDamagedQty' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+221:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+230:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+250:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+989:53  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/employee/salary-slips/[id]/page.tsx
+9:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:18  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/invoices/components/ActionButtons.tsx
+58:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/invoices/page.tsx
+23:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+29:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+34:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+39:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/invoices/[id]/page.tsx
+38:65  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+39:78  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+77:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+109:62  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/ledger/page.tsx
+24:29  Warning: 'isLoading' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+55:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+100:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/payments/components/ActionButtons.tsx
+47:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+71:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+90:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+144:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+145:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+146:80  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/payments/components/CreatePaymentForm.tsx
+30:30  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+39:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+68:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/payments/page.tsx
+29:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+34:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+35:75  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+43:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+48:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+53:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/payments/[id]/page.tsx
+37:76  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+79:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/purchase-orders/page.tsx
+6:74  Warning: 'ExternalLink' is defined but never used.  @typescript-eslint/no-unused-vars
+20:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+34:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+49:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/purchase-orders/[id]/close/page.tsx
+3:20  Warning: 'useEffect' is defined but never used.  @typescript-eslint/no-unused-vars
+15:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+29:63  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+52:33  Warning: 'setActiveOrder' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+53:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+56:10  Warning: 'closed' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+59:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+61:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+66:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+68:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+72:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+116:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+132:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+140:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+142:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+146:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+147:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+250:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/salary/history/[payrollId]/salary-slip/page.tsx
+10:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/finance/[[...slug]]/page.tsx
+10:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/hr/recruitment/page.tsx
+44:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+49:6  Warning: React Hook useCallback has a missing dependency: 'selected'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+73:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+86:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+112:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+143:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/hr/roles/page.tsx
+23:50  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+31:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+33:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+34:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+35:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+37:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+45:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+132:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/layout.tsx
+36:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+39:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:9  Warning: 'userMenu' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+40:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+41:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+45:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+76:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+77:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+78:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+93:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+94:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+96:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+113:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+114:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+115:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+167:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+167:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+198:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+245:79  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+265:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/orders/[orderId]/page.tsx
+21:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+29:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+54:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+55:9  Warning: The 'salesOrders' logical expression could make the dependencies of useMemo Hook (at line 66) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'salesOrders' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+56:9  Warning: The 'productionWorkOrders' logical expression could make the dependencies of useMemo Hook (at line 75) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'productionWorkOrders' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+57:9  Warning: The 'productionQcRecords' logical expression could make the dependencies of useMemo Hook (at line 91) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'productionQcRecords' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+58:9  Warning: The 'dispatchConsignments' logical expression could make the dependencies of useMemo Hook (at line 83) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'dispatchConsignments' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+61:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+70:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+79:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+87:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+114:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+197:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+254:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/plant-head/finished-goods/page.tsx
+7:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+10:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+20:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+120:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/plant-head/qc-failures/page.tsx
+4:42  Warning: 'Eye' is defined but never used.  @typescript-eslint/no-unused-vars
+19:24  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+20:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+29:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+82:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/plant-head/recruitment-request/page.tsx
+29:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+54:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+73:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/plant-head/testing/page.tsx
+9:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+16:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+46:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+71:14  Warning: 'err' is defined but never used.  @typescript-eslint/no-unused-vars
+76:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+83:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+130:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+138:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/finished-goods/page.tsx
+48:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+66:6  Warning: React Hook React.useMemo has missing dependencies: 'historyItems' and 'readyItems'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+68:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/floor/page.tsx
+4:10  Warning: 'Play' is defined but never used.  @typescript-eslint/no-unused-vars
+10:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+20:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+26:14  Warning: 'err' is defined but never used.  @typescript-eslint/no-unused-vars
+26:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+44:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+49:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+124:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/plans/components/ActionButtons.tsx
+8:38  Warning: 'Settings' is defined but never used.  @typescript-eslint/no-unused-vars
+58:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/plans/components/CreatePlanForm.tsx
+32:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+95:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/plans/[id]/page.tsx
+81:57  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+109:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/qc-failed/page.tsx
+19:24  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+20:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+35:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+92:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/qc-pending/page.tsx
+29:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+29:67  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+30:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+32:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+34:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+41:37  Warning: React Hook useEffect has a missing dependency: 'fetchJobs'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+43:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+67:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+79:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+90:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+95:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+177:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/testing/page.tsx
+15:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+18:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+77:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+92:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+105:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+154:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+176:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/work-orders/components/ActionButtons.tsx
+58:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/work-orders/page.tsx
+6:10  Warning: 'ClipboardList' is defined but never used.  @typescript-eslint/no-unused-vars
+12:10  Warning: 'Button' is defined but never used.  @typescript-eslint/no-unused-vars
+36:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+39:70  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/production/work-orders/[id]/page.tsx
+115:70  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/qc/components/ActionButtons.tsx
+58:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/qc/[id]/page.tsx
+43:90  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/create-payment/page.tsx
+3:27  Warning: 'useEffect' is defined but never used.  @typescript-eslint/no-unused-vars
+8:5  Warning: 'CreditCard' is defined but never used.  @typescript-eslint/no-unused-vars
+9:5  Warning: 'DollarSign' is defined but never used.  @typescript-eslint/no-unused-vars
+10:5  Warning: 'Calendar' is defined but never used.  @typescript-eslint/no-unused-vars
+11:5  Warning: 'FileText' is defined but never used.  @typescript-eslint/no-unused-vars
+14:5  Warning: 'Check' is defined but never used.  @typescript-eslint/no-unused-vars
+24:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+109:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/customers/[id]/page.tsx
+11:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+73:77  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/leads/create/page.tsx
+10:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/leads/[id]/edit/page.tsx
+7:10  Warning: 'use' is defined but never used.  @typescript-eslint/no-unused-vars
+13:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+17:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+17:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+20:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+27:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+28:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/orders/components/ActionButtons.tsx
+58:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/orders/components/OrderForm.tsx
+18:10  Warning: 'Plus' is defined but never used.  @typescript-eslint/no-unused-vars
+18:16  Warning: 'Trash2' is defined but never used.  @typescript-eslint/no-unused-vars
+80:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/orders/components/OrderItemsTable.tsx
+17:12  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/orders/[id]/page.tsx
+3:17  Warning: 'useState' is defined but never used.  @typescript-eslint/no-unused-vars
+12:10  Warning: 'WorkflowActionDialog' is defined but never used.  @typescript-eslint/no-unused-vars
+15:10  Warning: 'StatusBadge' is defined but never used.  @typescript-eslint/no-unused-vars
+101:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/payment-history/page.tsx
+31:80  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+35:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+36:73  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+46:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+47:5  Warning: React Hook useMemo has a missing dependency: 'APPROVED_STATUSES'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+53:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+54:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+55:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+59:6  Warning: React Hook useMemo has a missing dependency: 'approvedPayments'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+132:91  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+154:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+155:52  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+156:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/sales/quotations/create/page.tsx
+14:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+15:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+21:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+24:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+25:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(dashboard)/store/reports/page.tsx
+6:90  Warning: 'LineChart' is defined but never used.  @typescript-eslint/no-unused-vars
+6:101  Warning: 'Line' is defined but never used.  @typescript-eslint/no-unused-vars
+11:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:14  Warning: 'err' is defined but never used.  @typescript-eslint/no-unused-vars
+32:6  Warning: React Hook useEffect has a missing dependency: 'fetchDashboard'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+117:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+149:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+168:57  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+168:67  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+172:293  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+176:268  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+187:59  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+201:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+212:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+215:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+217:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/customers/check-duplicates/route.ts
+4:10  Warning: 'bridgePolicies' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/backend/customers/route.ts
+18:9  Warning: 'policy' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/backend/leads/check-duplicates/route.ts
+12:9  Warning: 'policy' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/backend/leads/route.ts
+18:9  Warning: 'policy' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/backend/leads/[id]/timeline/route.ts
+18:9  Warning: 'policy' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/backend/procurement/grns/route.ts
+8:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/grns/[...path]/route.ts
+3:342  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/indents/route.ts
+8:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/indents/[...path]/route.ts
+7:108  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/purchase-orders/route.ts
+8:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/purchase-orders/[...path]/route.ts
+3:353  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/vendor-invoices/route.ts
+8:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/vendor-invoices/[...path]/route.ts
+3:248  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/vendor-payments/route.ts
+8:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/procurement/vendor-payments/[...path]/route.ts
+3:248  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/customers/route.ts
+36:8  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/customers/[id]/deactivate/route.ts
+26:8  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/customers/[id]/restore/route.ts
+26:8  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/customers/[id]/route.ts
+42:8  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/leads/[id]/followups/route.ts
+10:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/leads/[id]/mark-lost/route.ts
+10:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/leads/[id]/qualify/route.ts
+10:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/sales/leads/[id]/reminders/route.ts
+10:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/backend/[...path]/route.ts
+23:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/orders/route.ts
+17:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/orders/[id]/route.ts
+6:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+14:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+16:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+17:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/orders/[id]/[...action]/route.ts
+4:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+4:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/v1/production/floor/route.ts
+36:12  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/v1/production/[id]/complete/route.ts
+19:12  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/login/page.tsx
+83:9  Warning: 'router' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+134:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/salary-slip/shared/[token]/page.tsx
+9:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/erp/common/EntityHeader.tsx
+9:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/erp/communication/AttachmentUploader.tsx
+12:11  Warning: 'Attachment' is defined but never used.  @typescript-eslint/no-unused-vars
+39:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+158:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/erp/communication/CommentPanel.tsx
+13:11  Warning: 'Comment' is defined but never used.  @typescript-eslint/no-unused-vars
+40:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+136:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/erp/notifications/NotificationBell.tsx
+33:16  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./components/erp/workflow/WorkflowActionDialog.tsx
+69:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/erp/workflow/WorkflowTimeline.tsx
+10:10  Warning: 'cn' is defined but never used.  @typescript-eslint/no-unused-vars
+12:11  Warning: 'WorkflowHistoryItem' is defined but never used.  @typescript-eslint/no-unused-vars
+63:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/GlobalUIComponents.tsx
+3:17  Warning: 'useState' is defined but never used.  @typescript-eslint/no-unused-vars
+5:60  Warning: 'Clock' is defined but never used.  @typescript-eslint/no-unused-vars
+6:3  Warning: 'AlertCircle' is defined but never used.  @typescript-eslint/no-unused-vars
+6:16  Warning: 'ChevronRight' is defined but never used.  @typescript-eslint/no-unused-vars
+6:30  Warning: 'FileText' is defined but never used.  @typescript-eslint/no-unused-vars
+6:40  Warning: 'Calendar' is defined but never used.  @typescript-eslint/no-unused-vars
+6:50  Warning: 'Building2' is defined but never used.  @typescript-eslint/no-unused-vars
+6:61  Warning: 'User' is defined but never used.  @typescript-eslint/no-unused-vars
+7:3  Warning: 'CreditCard' is defined but never used.  @typescript-eslint/no-unused-vars
+7:15  Warning: 'ShieldCheck' is defined but never used.  @typescript-eslint/no-unused-vars
+7:28  Warning: 'MapPin' is defined but never used.  @typescript-eslint/no-unused-vars
+7:36  Warning: 'Truck' is defined but never used.  @typescript-eslint/no-unused-vars
+7:43  Warning: 'RefreshCw' is defined but never used.  @typescript-eslint/no-unused-vars
+7:54  Warning: 'Layers' is defined but never used.  @typescript-eslint/no-unused-vars
+10:28  Warning: 'formatRemainingDays' is defined but never used.  @typescript-eslint/no-unused-vars
+227:10  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+344:139  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+365:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/MockDataSeeder.tsx
+43:53  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/payroll/PayrollBatchSummary.tsx
+5:57  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/payroll/PayrollWorkflowView.tsx
+31:73  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+38:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+101:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+126:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/payroll/SalaryAdjustmentModal.tsx
+8:11  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+9:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+32:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/payroll/SalaryDetailsModal.tsx
+9:11  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/payroll/SalarySlipDocument.tsx
+9:97  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+17:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+82:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+83:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+84:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+84:123  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/payroll/SalaryStatusBadge.tsx
+2:10  Warning: 'Badge' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./components/payroll/SalaryTimeline.tsx
+3:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/SharedPaymentTable.tsx
+5:3  Warning: 'Search' is defined but never used.  @typescript-eslint/no-unused-vars
+5:11  Warning: 'Filter' is defined but never used.  @typescript-eslint/no-unused-vars
+5:19  Warning: 'Calendar' is defined but never used.  @typescript-eslint/no-unused-vars
+5:29  Warning: 'DollarSign' is defined but never used.  @typescript-eslint/no-unused-vars
+5:41  Warning: 'CheckCircle2' is defined but never used.  @typescript-eslint/no-unused-vars
+5:55  Warning: 'Clock' is defined but never used.  @typescript-eslint/no-unused-vars
+5:62  Warning: 'AlertTriangle' is defined but never used.  @typescript-eslint/no-unused-vars
+6:30  Warning: 'Share2' is defined but never used.  @typescript-eslint/no-unused-vars
+6:38  Warning: 'Printer' is defined but never used.  @typescript-eslint/no-unused-vars
+6:47  Warning: 'Plus' is defined but never used.  @typescript-eslint/no-unused-vars
+6:56  Warning: 'ArrowUpDown' is defined but never used.  @typescript-eslint/no-unused-vars
+6:69  Warning: 'ChevronDown' is defined but never used.  @typescript-eslint/no-unused-vars
+17:3  Warning: 'StandardActionButtons' is defined but never used.  @typescript-eslint/no-unused-vars
+24:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+25:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+26:9  Warning: The 'localOrders' logical expression could make the dependencies of useMemo Hook (at line 59) change on every render. To fix this, wrap the initialization of 'localOrders' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+27:9  Warning: The 'quotations' logical expression could make the dependencies of useMemo Hook (at line 168) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'quotations' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+28:9  Warning: The 'paymentConfirmations' logical expression could make the dependencies of useMemo Hook (at line 168) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'paymentConfirmations' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+29:9  Warning: The 'consignments' logical expression could make the dependencies of useMemo Hook (at line 168) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'consignments' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+30:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+33:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+38:84  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+41:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+47:57  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+52:15  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+52:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+54:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+70:72  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+71:62  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+78:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+80:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+90:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+98:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+100:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+101:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+108:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+111:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+112:69  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+116:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+117:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+118:86  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+123:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+172:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+257:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+286:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+322:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+492:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/ui/line-charts-9.tsx
+1:1  Warning: Do not use "@ts-nocheck" because it alters compilation errors.  @typescript-eslint/ban-ts-comment
+
+./components/ui/pie-chart-demo.tsx
+1:1  Warning: Do not use "@ts-nocheck" because it alters compilation errors.  @typescript-eslint/ban-ts-comment
+
+./components/ui/pie-chart.tsx
+1:1  Warning: Do not use "@ts-nocheck" because it alters compilation errors.  @typescript-eslint/ban-ts-comment
+
+./lib/apiClient.js
+54:10  Warning: 'pathMatches' is defined but never used.  @typescript-eslint/no-unused-vars
+86:10  Warning: 'getOrderByIdFromPath' is defined but never used.  @typescript-eslint/no-unused-vars
+94:32  Warning: 'options' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+98:9  Warning: 'leads' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+99:9  Warning: 'quotations' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+102:9  Warning: 'samples' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+1057:13  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+1078:24  Warning: 'options' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+1079:29  Warning: 'options' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+1080:24  Warning: 'options' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+1081:18  Warning: 'options' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./lib/backendFetch.ts
+86:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+98:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/mockData.ts
+9:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+11:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+48:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+49:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/mockDB.ts
+8:5  Warning: 'db' is never reassigned. Use 'const' instead.  prefer-const
+8:9  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+46:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+47:4  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+48:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+48:50  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+70:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+74:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+76:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+79:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+79:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+100:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+100:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+102:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+134:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/mockStorage.ts
+12:12  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+32:12  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+38:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+38:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+43:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+57:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+79:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+91:15  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/navigationConfig.js
+6:16  Warning: 'XCircle' is defined but never used.  @typescript-eslint/no-unused-vars
+6:35  Warning: 'ArrowRightLeft' is defined but never used.  @typescript-eslint/no-unused-vars
+6:51  Warning: 'ArrowLeftRight' is defined but never used.  @typescript-eslint/no-unused-vars
+6:67  Warning: 'ArrowDownUp' is defined but never used.  @typescript-eslint/no-unused-vars
+6:80  Warning: 'ShoppingCart' is defined but never used.  @typescript-eslint/no-unused-vars
+7:13  Warning: 'FileSignature' is defined but never used.  @typescript-eslint/no-unused-vars
+7:28  Warning: 'Car' is defined but never used.  @typescript-eslint/no-unused-vars
+7:33  Warning: 'UserCircle' is defined but never used.  @typescript-eslint/no-unused-vars
+7:45  Warning: 'Map' is defined but never used.  @typescript-eslint/no-unused-vars
+7:67  Warning: 'Navigation' is defined but never used.  @typescript-eslint/no-unused-vars
+7:79  Warning: 'ArrowDownLeft' is defined but never used.  @typescript-eslint/no-unused-vars
+8:3  Warning: 'ArrowUpRight' is defined but never used.  @typescript-eslint/no-unused-vars
+8:17  Warning: 'BookOpen' is defined but never used.  @typescript-eslint/no-unused-vars
+8:27  Warning: 'Wallet' is defined but never used.  @typescript-eslint/no-unused-vars
+8:45  Warning: 'Book' is defined but never used.  @typescript-eslint/no-unused-vars
+8:51  Warning: 'Notebook' is defined but never used.  @typescript-eslint/no-unused-vars
+8:61  Warning: 'Library' is defined but never used.  @typescript-eslint/no-unused-vars
+8:70  Warning: 'Scale' is defined but never used.  @typescript-eslint/no-unused-vars
+9:15  Warning: 'ShoppingBag' is defined but never used.  @typescript-eslint/no-unused-vars
+9:28  Warning: 'CalendarOff' is defined but never used.  @typescript-eslint/no-unused-vars
+9:41  Warning: 'Award' is defined but never used.  @typescript-eslint/no-unused-vars
+9:48  Warning: 'Files' is defined but never used.  @typescript-eslint/no-unused-vars
+10:78  Warning: 'Eye' is defined but never used.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules

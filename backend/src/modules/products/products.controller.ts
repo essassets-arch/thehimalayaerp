@@ -1,4 +1,8 @@
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
+  UseGuards,
   Controller,
   Get,
   Post,
@@ -13,24 +17,29 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('products')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @RequirePermissions('admin.products.create')
   @Post()
   create(@CurrentUser() user: any, @Body() createProductDto: CreateProductDto) {
     return this.productsService.create(user.companyId, createProductDto);
   }
 
+  @RequirePermissions('admin.products.read')
   @Get()
   findAll(@CurrentUser() user: any, @Query('search') search?: string) {
     return this.productsService.findAll(user.companyId, search);
   }
 
+  @RequirePermissions('admin.products.read')
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.productsService.findOne(user.companyId, id);
   }
 
+  @RequirePermissions('admin.products.update')
   @Patch(':id')
   update(
     @CurrentUser() user: any,

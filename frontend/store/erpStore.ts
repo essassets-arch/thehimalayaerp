@@ -537,7 +537,7 @@ const migratePersistedState = (state: any) => {
   state.materialReplacementSchedules = state.materialReplacementSchedules || [];
   state.replacementReceipts = state.replacementReceipts || [];
 
-  return Math.max(0, val);
+  return 0;
 };
 // ─── Sales state migration helpers ───────────────────────────────────────────
 
@@ -857,6 +857,10 @@ const getInitialStateFromStorage = () => {
       }
     ];
 
+    const mergedIndents = [...rawIndents, ...legacyIndents];
+    const mergedPOs = [...rawPOs, ...legacyPOs];
+    const mergedGRNs = [...rawGRNs, ...legacyGRNs];
+
     let materialIndents = deduplicateById(mergedIndents).map((ind: any) => ({
       ...ind,
       status: normalizeStatus(ind.status, 'indent')
@@ -901,6 +905,8 @@ const getInitialStateFromStorage = () => {
     let production: any = { finishedGoods: [], workOrders: [], qcRecords: [] };
     let dispatch: any = { dispatchOrders: [], consignments: [] };
     let idSequences: any = {};
+    let finance: any = { customerPayments: [], paymentFollowUps: [], paymentReceipts: [] };
+    let customRoles: any[] = [];
     try {
       const materialFlowCleanupKey = 'himalaya-material-flow-cleanup-version';
       const requiresMaterialFlowCleanup =
@@ -952,8 +958,6 @@ const getInitialStateFromStorage = () => {
       const unified = requiresTransactionalReset
         ? null
         : getStorageItem('himalaya-erp-store');
-      let finance: any = { customerPayments: [], paymentFollowUps: [], paymentReceipts: [] };
-      let customRoles: any[] = [];
       if (unified) {
         const parsed = JSON.parse(unified);
         const persisted = parsed.state || parsed;
@@ -5578,12 +5582,12 @@ export const getProcurementAnalytics = (state: any) => {
   const vendorOnTimeDeliveryRate = totalDeliveredPOs > 0 ? ((onTimeCount / totalDeliveredPOs) * 100).toFixed(1) : "100.0";
   const averageLeadTimeDays = totalDeliveredPOs > 0 ? (leadTimeSum / totalDeliveredPOs).toFixed(1) : "0.0";
 
-  const outstandingPaymentsTotal = vendorPayments.filter((vp: any) => vp.status === 'PAYMENT_PENDING').reduce((acc, vp: any) => acc + (Number(vp.amount) || 0), 0);
+  const outstandingPaymentsTotal = vendorPayments.filter((vp: any) => vp.status === 'PAYMENT_PENDING').reduce((acc: any, vp: any) => acc + (Number(vp.amount) || 0), 0);
 
   const currentMonth = new Date().getMonth();
   const monthlyProcurementSpend = purchaseOrders
     .filter((po: any) => (po.status === 'PO_ISSUED' || po.status === 'VENDOR_ACCEPTED' || po.status === 'PARTIALLY_RECEIVED' || po.status === 'STOCK_POSTED' || po.status === 'PAYMENT_PENDING' || po.status === 'PAYMENT_COMPLETED' || po.status === 'PO_CLOSED') && new Date(po.issuedAt || po.createdAt).getMonth() === currentMonth)
-    .reduce((acc, po: any) => acc + (Number(po.grandTotal) || 0), 0);
+    .reduce((acc: any, po: any) => acc + (Number(po.grandTotal) || 0), 0);
 
   return {
     openIndentsCount,

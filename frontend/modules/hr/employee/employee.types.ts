@@ -68,6 +68,7 @@ export interface Employee {
   bankName: string;
   bankAccountHolder: string;
   bankAccount: string;
+  confirmBankAccountNumber?: string;
   ifscCode: string;
   branchName?: string;
   accountType: 'Savings' | 'Current' | 'Salary';

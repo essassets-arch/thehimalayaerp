@@ -62,25 +62,27 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     return next.handle().pipe(
-      tap(async (data) => {
-        const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + 24); // Keep for 24h
+      tap((data) => {
+        void (async () => {
+          const expiresAt = new Date();
+          expiresAt.setHours(expiresAt.getHours() + 24); // Keep for 24h
 
-        try {
-          await this.prisma.idempotencyRecord.create({
-            data: {
-              userId,
-              route: request.url,
-              key: idempotencyKey,
-              requestHash,
-              responseStatus: response.statusCode,
-              responseBody: data || {},
-              expiresAt,
-            },
-          });
-        } catch (err) {
-          // Ignore if it was inserted concurrently
-        }
+          try {
+            await this.prisma.idempotencyRecord.create({
+              data: {
+                userId,
+                route: request.url,
+                key: idempotencyKey,
+                requestHash,
+                responseStatus: response.statusCode,
+                responseBody: data || {},
+                expiresAt,
+              },
+            });
+          } catch (err) {
+            // Ignore if it was inserted concurrently
+          }
+        })();
       }),
     );
   }

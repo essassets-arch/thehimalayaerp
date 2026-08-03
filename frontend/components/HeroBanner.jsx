@@ -36,6 +36,11 @@ export default function HeroBanner({
   searchQuery = '',
   setSearchQuery,
   onActionClick,
+  notifications: propNotifications,
+  onNavigate,
+  onAddLead,
+  onCreateQuote,
+  isDashboard: propIsDashboard,
 }) {
   const { user } = useAuth();
   const { notifications, unreadCount, totalCount, markAllAsRead, isMarkingAllRead } = useNotifications();
@@ -44,7 +49,7 @@ export default function HeroBanner({
   const navigate = useRouter();
   const location = { pathname: usePathname(), search: "" };
   // Treat root-level paths (e.g. "/", "/sales", "/admin") as dashboard — show full banner + stats
-  const isDashboard = /^\/[^/]*$/.test(location.pathname);
+  const isDashboard = propIsDashboard ?? /^\/[^/]*$/.test(location.pathname);
 
   const handleViewAll = () => {
     setShowNotifications(false);

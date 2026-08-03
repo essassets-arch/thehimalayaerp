@@ -7,6 +7,14 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { IS_OPTIONAL_AUTH_KEY } from '../decorators/optional-auth.decorator';
+
+interface UserPayload {
+  sub?: string;
+  role?: string;
+  permissions?: string[];
+}
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -16,19 +24,37 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    const isOptional = this.reflector.getAllAndOverride<boolean>(
+      IS_OPTIONAL_AUTH_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (isPublic) {
+      return true;
+    }
+
     const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
       PERMISSIONS_KEY,
       [context.getHandler(), context.getClass()],
     );
 
+    const req = context.switchToHttp().getRequest<{ user?: UserPayload }>();
+    const user = req.user;
+
     if (!requiredPermissions || requiredPermissions.length === 0) {
+      if (isOptional) return true;
+      if (!user || !user.sub) {
+        throw new ForbiddenException('Authentication required');
+      }
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
-
     if (!user || !user.sub) {
-      require('fs').appendFileSync('permissions.log', `[PermissionsGuard] Missing user or user.sub. User object: ${JSON.stringify(user || null)}\n`);
+      if (isOptional) return true;
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -36,12 +62,15 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    // Since we didn't attach permissions to the JWT payload (to keep it small),
-    // we query the DB to verify permissions for the user's role.
-    // Alternatively, we could get permissions from user object if we attach it in JwtStrategy by querying DB there.
-    // Assuming JwtStrategy doesn't query DB to stay stateless/fast, we query here when needed.
+    if (user.permissions && Array.isArray(user.permissions)) {
+      const hasPermission = requiredPermissions.every((perm) =>
+        user.permissions?.includes(perm),
+      );
+      if (hasPermission) return true;
+    }
+
     const userRole = await this.prisma.role.findUnique({
-      where: { code: user.role },
+      where: { code: user.role || '' },
       include: {
         rolePermissions: {
           include: {
@@ -52,12 +81,11 @@ export class PermissionsGuard implements CanActivate {
     });
 
     if (!userRole) {
-      require('fs').appendFileSync('permissions.log', `[PermissionsGuard] Role not found: ${user.role}\n`);
       throw new ForbiddenException('Role not found');
     }
 
     const userPermissions = userRole.rolePermissions.map(
-      (rp: any) => rp.permission.code,
+      (rp) => rp.permission.code,
     );
 
     const hasPermission = requiredPermissions.every((perm) =>
@@ -65,7 +93,6 @@ export class PermissionsGuard implements CanActivate {
     );
 
     if (!hasPermission) {
-      require('fs').appendFileSync('permissions.log', `[PermissionsGuard] Insufficient permissions for user ${user.sub} (role: ${user.role}). Required: ${requiredPermissions.join(', ')}. Has: ${userPermissions.join(', ')}\n`);
       throw new ForbiddenException('Insufficient permissions');
     }
 

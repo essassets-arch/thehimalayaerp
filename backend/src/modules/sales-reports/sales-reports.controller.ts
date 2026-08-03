@@ -1,3 +1,4 @@
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { SalesReportsService } from './sales-reports.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -7,6 +8,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 export class SalesReportsController {
   constructor(private readonly salesReportsService: SalesReportsService) {}
 
+  @RequirePermissions('sales.salesreports.read')
   @Get('summary')
   async getSummary(
     @Query('date_from') dateFrom: string,
@@ -21,6 +23,7 @@ export class SalesReportsController {
     );
   }
 
+  @RequirePermissions('sales.salesreports.read')
   @Get('top-products')
   async getTopProducts(
     @Query('date_from') dateFrom: string,
@@ -37,6 +40,7 @@ export class SalesReportsController {
     );
   }
 
+  @RequirePermissions('sales.salesreports.read')
   @Get('customer-performance')
   async getCustomerPerformance(
     @Query('date_from') dateFrom: string,

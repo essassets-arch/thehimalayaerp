@@ -23,10 +23,10 @@ import './erp-premium-ui.css';
 export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' | 'finance' }) {
   const storeState = useERPStore((s: any) => s.state);
   const recordPayment = useERPStore((s: any) => s.recordSalesPayment);
-  const localOrders = storeState?.sales?.orders || [];
-  const quotations = storeState?.sales?.quotations || [];
-  const paymentConfirmations = storeState?.sales?.paymentConfirmations || [];
-  const consignments = storeState?.dispatch?.consignments || [];
+  const localOrders = useMemo(() => storeState?.sales?.orders || [], [storeState?.sales?.orders]);
+  const quotations = useMemo(() => storeState?.sales?.quotations || [], [storeState?.sales?.quotations]);
+  const paymentConfirmations = useMemo(() => storeState?.sales?.paymentConfirmations || [], [storeState?.sales?.paymentConfirmations]);
+  const consignments = useMemo(() => storeState?.dispatch?.consignments || [], [storeState?.dispatch?.consignments]);
   const { data: backendOrders = [] } = useQuery<any[]>({
     queryKey: ['payment-followup-sales-orders'],
     queryFn: async () => {

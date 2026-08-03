@@ -52,49 +52,10 @@ export const useERP = () => {
       let vendorPayments = store.state.vendorPayments || [];
       let rawInventory = store.state.rawInventory || [];
 
-      if (typeof window !== 'undefined' && window.localStorage) {
-        if (ordersRes.success) {
-          window.localStorage.setItem('erp_orders', JSON.stringify(orders));
-          window.localStorage.setItem('himalaya_orders', JSON.stringify(orders));
-        } else {
-          const storedOrders = JSON.parse(window.localStorage.getItem('erp_orders') || window.localStorage.getItem('himalaya_orders') || 'null');
-          if (Array.isArray(storedOrders) && storedOrders.length > 0) orders = storedOrders;
-        }
-
-        if (paymentsRes.success) {
-          window.localStorage.setItem('erp_payments', JSON.stringify(payments));
-        } else {
-          const storedPayments = JSON.parse(window.localStorage.getItem('erp_payments') || 'null');
-          if (Array.isArray(storedPayments)) payments = storedPayments;
-        }
-
-        const getLocal = (key, fallback) => {
-          const val = JSON.parse(window.localStorage.getItem(key) || 'null');
-          return Array.isArray(val) && val.length > 0 ? val : fallback;
-        };
-
-        dispatches = getLocal('erp_dispatches', dispatches);
-        vendorReturns = getLocal('erp_vendor_returns', vendorReturns);
-        notifications = getLocal('erp_notifications', notifications);
-        analysisRequests = getLocal('erp_analysis_requests_v1', analysisRequests);
-        
-        vendorInvoices = getLocal('erp_vendor_invoices', vendorInvoices);
-        vendorPayments = getLocal('erp_vendor_payments', vendorPayments);
-        rawInventory = getLocal('erp_inventory', rawInventory);
-      }
-
       const currentProcurement = store.state.procurement || {};
-      const materialIndents = Array.isArray(currentProcurement.materialIndents) && currentProcurement.materialIndents.length > 0
-        ? currentProcurement.materialIndents
-        : (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_material_indents') || 'null')) || (currentProcurement.materialIndents || []);
-
-      const purchaseOrders = Array.isArray(currentProcurement.purchaseOrders) && currentProcurement.purchaseOrders.length > 0
-        ? currentProcurement.purchaseOrders
-        : (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_purchase_orders') || 'null')) || (currentProcurement.purchaseOrders || []);
-
-      const goodsReceipts = Array.isArray(currentProcurement.goodsReceiptNotes) && currentProcurement.goodsReceiptNotes.length > 0
-        ? currentProcurement.goodsReceiptNotes
-        : (typeof window !== 'undefined' && JSON.parse(window.localStorage.getItem('erp_goods_receipts') || 'null')) || (currentProcurement.goodsReceiptNotes || []);
+      const materialIndents = currentProcurement.materialIndents || [];
+      const purchaseOrders = currentProcurement.purchaseOrders || [];
+      const goodsReceipts = currentProcurement.goodsReceiptNotes || [];
 
       store.setState({
         ...store.state,

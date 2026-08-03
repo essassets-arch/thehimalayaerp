@@ -1,6 +1,6 @@
 import { backendFetch } from "../lib/backendFetch";
 
-export async function getFinishedGoods(params) {
+export async function getFinishedGoods(params?: any) {
   const query = new URLSearchParams();
 
   if (params?.search) query.set("search", params.search);

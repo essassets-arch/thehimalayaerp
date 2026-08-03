@@ -106,16 +106,28 @@ export function mapSalesOrder(
         .filter((r) => r.status !== 'REJECTED' && r.status !== 'CANCELLED')
         .flatMap((r) => r.items)
         .filter((rItem) => rItem.salesOrderItemId === item.id)
-        .reduce((total, rItem) => total + Number(rItem.requestedQuantity || 0), 0);
+        .reduce(
+          (total, rItem) => total + Number(rItem.requestedQuantity || 0),
+          0,
+        );
 
       const replacedQuantity = (order.replacementRequests ?? [])
         .filter((r) => r.status !== 'REJECTED')
         .flatMap((r) => r.items)
         .filter((rItem) => rItem.salesOrderItemId === item.id)
-        .reduce((total, rItem) => total + Number(rItem.requestedQuantity || 0), 0);
+        .reduce(
+          (total, rItem) => total + Number(rItem.requestedQuantity || 0),
+          0,
+        );
 
-      const availableForReturn = Math.max(0, deliveredQuantity - returnedQuantity - replacedQuantity);
-      const availableForReplacement = Math.max(0, deliveredQuantity - returnedQuantity - replacedQuantity);
+      const availableForReturn = Math.max(
+        0,
+        deliveredQuantity - returnedQuantity - replacedQuantity,
+      );
+      const availableForReplacement = Math.max(
+        0,
+        deliveredQuantity - returnedQuantity - replacedQuantity,
+      );
 
       return {
         id: item.id,

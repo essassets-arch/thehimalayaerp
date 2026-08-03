@@ -994,7 +994,7 @@ export default function DispatchTrackingPage() {
                           <span className={styles.timelineTime}>{new Date(log.timestamp).toLocaleTimeString()}</span>
                         </div>
                         <span className={styles.timelineCondition}>{log.condition}</span>
-                        {log.remarks && <span className={styles.timelineRemarks}>"{log.remarks}"</span>}
+                        {log.remarks && <span className={styles.timelineRemarks}>&quot;{log.remarks}&quot;</span>}
                       </div>
                     ))}
                   </div>
