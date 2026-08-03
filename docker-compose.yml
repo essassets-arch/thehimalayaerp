@@ -152,8 +152,9 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  # ── 5. Caddy Reverse Proxy & HTTPS Service ────────────────────────────────
+  # ── 5. Caddy Reverse Proxy & HTTPS Service (Optional: for standalone Caddy setups)
   reverse-proxy:
+    profiles: ["caddy"]
     image: caddy:2-alpine
     container_name: himalaya-reverse-proxy
     restart: unless-stopped
