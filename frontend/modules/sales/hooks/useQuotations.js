@@ -140,7 +140,31 @@ export function useQuotations(showToast, autoLoad = true) {
         body: {},
       });
       await loadQuotations();
-      showToast?.(`Order ${order.orderNumber || order.orderId || ''} created in database.`);
+      const orderNum = order?.data?.orderNumber || order?.orderNumber || order?.id || '';
+      Swal.fire({
+        icon: 'success',
+        title: 'Order Created & Sent to Plant Head!',
+        html: `
+          <div style="text-align:center;font-size:14px;">
+            <p style="margin-bottom:8px;">Sales Order <strong>${orderNum}</strong> has been generated.</p>
+            <p style="margin-bottom:12px;color:#16a34a;font-weight:600;">Status: SENT TO PLANT HEAD</p>
+            <p style="font-size:12px;color:#6b7280;">It is now visible in <strong>Sales Orders</strong> and waiting in <strong>Plant Head Incoming Orders</strong>.</p>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'View Sales Orders',
+        cancelButtonText: 'Stay on Quotations',
+        customClass: {
+          popup: 'swal-premium-popup',
+          confirmButton: 'swal-premium-confirm-btn',
+          cancelButton: 'swal-premium-cancel-btn',
+        },
+        buttonsStyling: false,
+      }).then((res) => {
+        if (res.isConfirmed) {
+          window.location.href = '/sales/orders';
+        }
+      });
       return { success: true, data: order, orderId: order.id, id: order.id };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
