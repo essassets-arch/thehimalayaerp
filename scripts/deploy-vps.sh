@@ -65,8 +65,8 @@ done
 echo " ✅ Backend is healthy!"
 
 echo ""
-echo "🌐 Step 6: Updating frontend and reverse proxy..."
-docker compose up -d frontend reverse-proxy
+echo "🌐 Step 6: Updating frontend service..."
+docker compose up -d frontend
 
 echo ""
 echo "🧹 Step 7: Cleaning up unused build caches safely..."

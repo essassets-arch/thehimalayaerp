@@ -89,10 +89,10 @@ until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-backend 2>/dev/
 done
 echo " ✅ Backend is healthy!"
 
-# 7. Start frontend and reverse proxy
+# 7. Start frontend container
 echo ""
-echo "🌐 Step 5: Starting frontend and reverse proxy..."
-docker compose up -d frontend reverse-proxy
+echo "🌐 Step 5: Starting frontend service..."
+docker compose up -d frontend
 
 echo "⏳ Waiting for frontend to pass health check..."
 until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-frontend 2>/dev/null)" == "healthy" ]; do
