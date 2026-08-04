@@ -19,9 +19,14 @@ export interface SalesOrderItemResponseDto {
 export interface SalesOrderResponseDto {
   id: string;
   orderId: string;
+  orderNumber?: string;
+  orderNo?: string;
   customerId: string;
   customerName: string;
   customerCode: string | null;
+  customer?: any;
+  shippingAddress?: any;
+  billingAddress?: any;
 
   items: SalesOrderItemResponseDto[];
 

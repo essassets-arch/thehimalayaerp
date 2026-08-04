@@ -88,9 +88,14 @@ export function mapSalesOrder(
   return {
     id: order.id,
     orderId: order.orderNumber,
+    orderNumber: order.orderNumber,
+    orderNo: order.orderNumber,
     customerId: order.customerId,
     customerName: order.customer.companyName,
     customerCode: order.customer.customerCode,
+    customer: order.customer,
+    shippingAddress: order.shippingAddress,
+    billingAddress: order.billingAddress,
 
     items: order.items.map((item) => {
       const deliveredQuantity = dispatches

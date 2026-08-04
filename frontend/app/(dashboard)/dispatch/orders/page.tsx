@@ -199,8 +199,8 @@ export default function DispatchOrdersPage() {
             unifiedSalesOrders.push({
               id: `so-${so.id}-${idx}`,
               itemType: "TRADING_SALES_ORDER",
-              orderNumber: so.orderNumber || so.orderNo || "N/A",
-              customerName: so.customer?.companyName || so.customerName || "N/A",
+              orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
+              customerName: so.customerName || so.customer?.companyName || "N/A",
               deliveryAddress: formatAddress(so, so.customer),
               productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
               approvedQuantity: item.orderedQuantity || item.quantity || item.qty || 1,
@@ -212,8 +212,8 @@ export default function DispatchOrdersPage() {
           unifiedSalesOrders.push({
             id: `so-${so.id}`,
             itemType: "TRADING_SALES_ORDER",
-            orderNumber: so.orderNumber || so.orderNo || "N/A",
-            customerName: so.customer?.companyName || so.customerName || "N/A",
+            orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
+            customerName: so.customerName || so.customer?.companyName || "N/A",
             deliveryAddress: formatAddress(so, so.customer),
             productName: so.productName || "Trading Product",
             approvedQuantity: 1,
