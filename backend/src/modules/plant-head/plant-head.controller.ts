@@ -20,7 +20,7 @@ import type { Request } from 'express';
 export class PlantHeadController {
   constructor(private readonly plantHeadService: PlantHeadService) {}
 
-  @RequirePermissions('admin.planthead.read')
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('incoming-orders')
   async getIncomingOrders(@Req() req: Request) {
     const companyId =
@@ -29,7 +29,7 @@ export class PlantHeadController {
     return this.plantHeadService.getIncomingOrders(companyId);
   }
 
-  @RequirePermissions('admin.planthead.read')
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('planning-orders')
   async getPlanningOrdersAlias(@Req() req: Request) {
     const companyId =
@@ -38,7 +38,7 @@ export class PlantHeadController {
     return this.plantHeadService.getIncomingOrders(companyId); // alias for incoming-orders based on mock logic
   }
 
-  @RequirePermissions('admin.planthead.read')
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('planning')
   async getPlanningOrders(@Req() req: Request) {
     const companyId =
@@ -47,7 +47,7 @@ export class PlantHeadController {
     return this.plantHeadService.getPlanningOrders(companyId);
   }
 
-  @RequirePermissions('admin.planthead.read')
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('dashboard-data')
   async getDashboardData(
     @Req() req: Request,
@@ -66,7 +66,7 @@ export class PlantHeadController {
     );
   }
 
-  @RequirePermissions('admin.planthead.read')
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('analytics/production')
   async getProductionAnalytics(
     @Req() req: Request,
@@ -85,7 +85,7 @@ export class PlantHeadController {
     );
   }
 
-  @RequirePermissions('admin.planthead.read')
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('analytics/material')
   async getMaterialAnalytics(
     @Req() req: Request,
@@ -104,7 +104,7 @@ export class PlantHeadController {
     );
   }
 
-  @RequirePermissions('admin.planthead.read')
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('overview/departments')
   async getDepartmentOverview(@Req() req: Request) {
     const companyId =
