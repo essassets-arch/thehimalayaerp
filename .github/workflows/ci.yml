@@ -56,7 +56,7 @@ jobs:
 
       - name: Seed Database (First Pass)
         run: |
-          cd backend && npx prisma db seed
+          cd backend && npm run build:seed && npx prisma db seed
 
       - name: Seed Database (Second Pass - Idempotency Check)
         run: |
