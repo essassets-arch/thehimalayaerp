@@ -3342,7 +3342,7 @@ export default function StorePortal() {
 
   return (
     <>
-      {currentView === 'dashboard' && renderDashboard()}
+      {currentView === 'dashboard' && <StoreDashboard />}
       {currentView === 'raw-inventory' && renderRawInventory()}
       {currentView === 'finished-inventory' && renderFinishedInventory()}
       {/* Legacy material-requests and store-releases */}
