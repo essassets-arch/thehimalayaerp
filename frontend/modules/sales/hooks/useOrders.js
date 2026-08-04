@@ -47,7 +47,7 @@ export function useOrders(showToast, currentView) {
   const createOrder = useCallback(
     async (orderData) => {
       try {
-        if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'backend') {
+        if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'local') {
           const idempotencyKey = crypto.randomUUID();
           const result = await backendCreateOrder(orderData, { idempotencyKey });
           showToast(`Order ${result.orderNumber} created successfully.`);
@@ -93,7 +93,7 @@ export function useOrders(showToast, currentView) {
 
   const performTransition = useCallback(async (actionName, fn, ...args) => {
     try {
-      if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'backend') {
+      if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'local') {
         throw new Error('This action is only supported in backend mode.');
       }
       const idempotencyKey = crypto.randomUUID();

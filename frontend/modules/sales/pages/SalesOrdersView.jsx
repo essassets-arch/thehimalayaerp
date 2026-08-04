@@ -330,7 +330,7 @@ export default function SalesOrdersView() {
       try {
         const order = orders.find(o => o.id === orderId);
         const expectedVersion = order?.version || 1;
-        if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'backend') {
+        if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'local') {
           const res = await sendToPlantHead(orderId, { expectedVersion });
           if (!res.success) throw new Error(res.error || 'Failed to send to plant head');
         } else {
