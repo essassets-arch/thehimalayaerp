@@ -28,6 +28,7 @@ import ReplacementsView from './ReplacementsView';
 import ReturnsView from './ReturnsView';
 import PlantHeadMaterialApprovalView from '../../../components/material-workflow/PlantHeadMaterialApprovalView';
 import MaterialIndentApproval from '../../procurement/plant-head/MaterialIndentApproval';
+import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
 import { useO2PWorkflow } from '../../../shared/hooks/useO2PWorkflow';
 import PlantHeadCommandDashboard from '../../../components/PlantHeadCommandDashboard';
 import ModulePlaceholder from '../../../components/common/ModulePlaceholder';
@@ -835,34 +836,41 @@ export default function PlantHeadPortal() {
   };
 
   const getMappedInventory = (rawInventoryList) => {
-    return (rawInventoryList || []).map((item, idx) => {
-      const defaults = {
-        'OPC Cement Clinker': { code: 'RM001', category: 'Cement', rate: 150, reorderLevel: 1000, description: 'High grade cement clinker.' },
-        'Gypsum Raw': { code: 'RM002', category: 'Additive', rate: 220, reorderLevel: 200, description: 'Raw gypsum additive.' },
-        'River Sand': { code: 'RM003', category: 'Aggregate', rate: 800, reorderLevel: 100, description: 'Fine-grain clean river sand.' },
-        'Coarse Aggregate 20mm': { code: 'RM004', category: 'Aggregate', rate: 1200, reorderLevel: 120, description: 'Coarse aggregate 20mm.' },
-        'Fine Aggregate 10mm': { code: 'RM005', category: 'Aggregate', rate: 1000, reorderLevel: 150, description: 'Fine aggregate 10mm.' },
-        'Superplasticizer Admixture': { code: 'RM006', category: 'Chemical', rate: 1500, reorderLevel: 500, description: 'Liquid chemical concrete admixture.' },
-        'Waterproofing Compound': { code: 'RM007', category: 'Chemical', rate: 2500, reorderLevel: 100, description: 'Liquid waterproofing chemical.' }
-      };
-      const def = defaults[item.material] || {
-        code: `RM${String(idx + 1).padStart(3, '0')}`,
-        category: 'Raw Material',
-        rate: 0,
-        reorderLevel: 50,
-        description: ''
-      };
+    const cleanList = (rawInventoryList || []).filter(item => {
+      const code = (item.code || '').toUpperCase();
+      const name = (item.material || item.itemName || '').toLowerCase();
+      if (code.startsWith('SKU-')) return false;
+      if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
+      if (name === 'sand fine grade' || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
+      return true;
+    });
 
+    const sourceList = cleanList.length > 0
+      ? cleanList
+      : SEEDED_INVENTORY_ITEMS.map(item => ({
+          id: item.code,
+          code: item.code,
+          material: item.itemName,
+          category: item.category,
+          unit: item.unit,
+          stock: item.balance,
+          reorderLevel: item.minStock,
+          rate: 0,
+        }));
+
+    return sourceList.map((item, idx) => {
       return {
-        id: item.id || `RM-ID-${idx + 1}`,
-        code: item.code || def.code,
-        material: item.material,
-        category: item.category || def.category,
-        unit: item.unit || 'Kg',
-        stock: item.stock ?? 0,
-        rate: item.rate ?? def.rate,
-        reorderLevel: item.reorderLevel ?? def.reorderLevel,
-        description: item.description ?? def.description,
+        id: item.id || item.code || `RM-ID-${idx + 1}`,
+        srNo: item.srNo || idx + 1,
+        code: item.code || `HCPPL${String(idx + 1).padStart(3, '0')}`,
+        material: item.material || item.itemName,
+        category: item.category || 'Hardware',
+        unit: item.unit || 'PCS',
+        stock: item.stock ?? item.balance ?? 0,
+        rate: item.rate ?? 0,
+        reorderLevel: item.reorderLevel ?? item.minStock ?? 10,
+        minStock: item.minStock ?? item.reorderLevel ?? 10,
+        description: item.description || `Item #${idx + 1}`,
         transactions: item.transactions || []
       };
     });
