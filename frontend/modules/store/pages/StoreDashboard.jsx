@@ -420,10 +420,17 @@ export const StoreDashboard = () => {
 
       {/* ── 12 Executive KPI Cards Grid ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-
-
-
-        {/* 2. Total SKUs */}
+        
+        {/* 1. Total Inventory Value */}
+        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
+          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>💰 Inventory Value</div>
+          <div style={{ fontSize: '20px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>
+            ₹{(kpiData.totalVal / 100000).toFixed(2)} L
+          </div>
+          <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <ArrowUpRight size={13} /> Live dynamic valuation
+          </div>
+        </div>
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #3b82f6' }}>
           <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>📦 Total SKUs</div>
           <div style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', margin: '4px 0' }}>
@@ -520,211 +527,6 @@ export const StoreDashboard = () => {
             {kpiData.utilization}
           </div>
           <div style={{ fontSize: '11px', color: '#0891b2', fontWeight: '700' }}>Storage capacity used</div>
-        </div>
-
-      </div>
-
-      {/* ── 10 Dynamic Recharts Visual Grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-
-        {/* Visual 1: Inventory Value Trend */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Activity size={18} color="#0284c7" /> Inventory Value Trend (INR Lakhs)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <LineChart data={trendChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => [`₹ ${value} Lakhs`, 'Valuation']} />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Line type="monotone" dataKey="value" stroke="#0284c7" strokeWidth={3} dot={{ r: 4 }} name="Actual Inventory Value" isAnimationActive={false} />
-                <Line type="monotone" dataKey="target" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="5 5" name="Safety Target Limit" isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 2: Warehouse-wise Stock Distribution */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BarChart3 size={18} color="#10b981" /> Warehouse-wise Stock Distribution (Lakhs)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <BarChart data={warehouseDistData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="warehouse" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => [`₹ ${value} Lakhs`, 'Stock Value']} />
-                <Bar dataKey="valueLakhs" fill="#10b981" radius={[6, 6, 0, 0]} name="Valuation (₹)" isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 3: Inventory by Category */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <PieIcon size={18} color="#8b5cf6" /> Inventory Value by Material Category
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <PieChart>
-                <Pie data={categoryPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`} isAnimationActive={false}>
-                  {categoryPieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(val) => `₹ ${val} Lakhs`} />
-              </PieChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 4: Daily Material Inward vs Outward */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Truck size={18} color="#06b6d4" /> Daily Inward vs Outward Quantity (Pcs)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <LineChart data={dailyMovementData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Line type="monotone" dataKey="inward" stroke="#10b981" strokeWidth={3} name="Inward (GRN Received)" isAnimationActive={false} />
-                <Line type="monotone" dataKey="outward" stroke="#ef4444" strokeWidth={3} name="Outward (Issued to Prod)" isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 5: Minimum Stock vs Current Stock */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertTriangle size={18} color="#f59e0b" /> Minimum vs Current Stock (Critical SKUs)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <BarChart data={minVsCurrentData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="Current" fill="#0284c7" name="Current Stock" isAnimationActive={false} />
-                <Bar dataKey="Minimum" fill="#ef4444" name="Min Threshold" isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 6: Fast, Slow & Dead Stock Distribution */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Zap size={18} color="#eab308" /> Fast, Slow &amp; Dead Stock Distribution
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <PieChart>
-                <Pie data={fsnDonutData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} label={({ name, value }) => `${name}: ${value}`} isAnimationActive={false}>
-                  {fsnDonutData.map((entry, index) => (
-                    <Cell key={`cell-fsn-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 7: Stock Aging Buckets */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Clock size={18} color="#6366f1" /> Inventory Aging Buckets (SKU Counts)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <BarChart data={stockAgingData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="count" name="SKU Count" radius={[6, 6, 0, 0]} isAnimationActive={false}>
-                  {stockAgingData.map((entry, index) => (
-                    <Cell key={`cell-aging-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 8: Top Rejected Materials (Pareto) */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <XCircle size={18} color="#dc2626" /> Top Rejected Materials (Pareto Analysis)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <ComposedChart data={paretoChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar yAxisId="left" dataKey="rejections" fill="#dc2626" name="Rejection Qty" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                <Line yAxisId="right" type="monotone" dataKey="cumPct" stroke="#f59e0b" strokeWidth={2.5} name="Cumulative %" isAnimationActive={false} />
-              </ComposedChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 9: ABC Analysis */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Award size={18} color="#0284c7" /> ABC Valuation Analysis (INR Lakhs)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <BarChart data={abcChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="class" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v) => `₹ ${v} Lakhs`} />
-                <Bar dataKey="value" name="Valuation (₹)" radius={[6, 6, 0, 0]} isAnimationActive={false}>
-                  {abcChartData.map((entry, index) => (
-                    <Cell key={`cell-abc-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveChartWrapper>
-          </div>
-        </div>
-
-        {/* Visual 10: FSN Analysis Donut */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Layers size={18} color="#10b981" /> FSN Inventory Movement Analysis (Lakhs)
-          </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={240}>
-              <PieChart>
-                <Pie data={fsnChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} label={({ name, value }) => `${name}: ₹${value}L`} isAnimationActive={false}>
-                  {fsnChartData.map((entry, index) => (
-                    <Cell key={`cell-fsn2-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => `₹ ${v} Lakhs`} />
-              </PieChart>
-            </ResponsiveChartWrapper>
-          </div>
         </div>
 
       </div>
