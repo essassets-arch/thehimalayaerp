@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  ResponsiveContainer,
   LineChart, Line,
   BarChart, Bar,
   PieChart, Pie, Cell,
@@ -15,23 +14,17 @@ import {
   ShieldCheck, Truck, Activity, PieChart as PieIcon, BarChart3,
   Database, ArrowUpRight, ArrowDownRight, Award, Zap, XCircle
 } from 'lucide-react';
+import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
 import { backendFetch } from '../../../lib/backendFetch';
 import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
 
 export const StoreDashboard = () => {
-  // ── Next.js Client Hydration Guard (Prevents Recharts Collapse) ──
-  const [mounted, setMounted] = useState(false);
-
   // ── Dynamic Backend & Live Inventory State ──
   const [liveInventory, setLiveInventory] = useState([]);
   const [stockTransactions, setStockTransactions] = useState([]);
   const [grnRecords, setGrnRecords] = useState([]);
   const [materialRequests, setMaterialRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // ── Fetch Pure Dynamic Data from Backend API ──
   const fetchDashboardData = useCallback(async () => {
@@ -197,8 +190,8 @@ export const StoreDashboard = () => {
     if (keys.length === 0) {
       return [
         { warehouse: 'WH-01 Main FG', valueLakhs: 24.5 },
-        { warehouse: 'WH-02 Raw Material Yard', valueLakhs: 18.2 },
-        { warehouse: 'WH-03 Chemical Store', valueLakhs: 14.8 },
+        { warehouse: 'WH-02 Raw Yard', valueLakhs: 18.2 },
+        { warehouse: 'WH-03 Chemical', valueLakhs: 14.8 },
         { warehouse: 'WH-04 Spares', valueLakhs: 8.98 },
       ];
     }
@@ -544,242 +537,202 @@ export const StoreDashboard = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px', marginBottom: '24px' }}>
 
         {/* Visual 1: Inventory Value Trend */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Activity size={18} color="#0284c7" /> Inventory Value Trend (INR Lakhs)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <LineChart data={trendChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(value) => [`₹ ${value} Lakhs`, 'Valuation']} />
-                  <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Line type="monotone" dataKey="value" stroke="#0284c7" strokeWidth={3} dot={{ r: 4 }} name="Actual Inventory Value" isAnimationActive={false} />
-                  <Line type="monotone" dataKey="target" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="5 5" name="Safety Target Limit" isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <LineChart data={trendChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value) => [`₹ ${value} Lakhs`, 'Valuation']} />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Line type="monotone" dataKey="value" stroke="#0284c7" strokeWidth={3} dot={{ r: 4 }} name="Actual Inventory Value" isAnimationActive={false} />
+                <Line type="monotone" dataKey="target" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="5 5" name="Safety Target Limit" isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 2: Warehouse-wise Stock Distribution */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BarChart3 size={18} color="#10b981" /> Warehouse-wise Stock Distribution (Lakhs)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <BarChart data={warehouseDistData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="warehouse" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(value) => [`₹ ${value} Lakhs`, 'Stock Value']} />
-                  <Bar dataKey="valueLakhs" fill="#10b981" radius={[6, 6, 0, 0]} name="Valuation (₹)" isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <BarChart data={warehouseDistData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="warehouse" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value) => [`₹ ${value} Lakhs`, 'Stock Value']} />
+                <Bar dataKey="valueLakhs" fill="#10b981" radius={[6, 6, 0, 0]} name="Valuation (₹)" isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 3: Inventory by Category */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <PieIcon size={18} color="#8b5cf6" /> Inventory Value by Material Category
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <PieChart>
-                  <Pie data={categoryPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`} isAnimationActive={false}>
-                    {categoryPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(val) => `₹ ${val} Lakhs`} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <PieChart>
+                <Pie data={categoryPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`} isAnimationActive={false}>
+                  {categoryPieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(val) => `₹ ${val} Lakhs`} />
+              </PieChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 4: Daily Material Inward vs Outward */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Truck size={18} color="#06b6d4" /> Daily Inward vs Outward Quantity (Pcs)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <LineChart data={dailyMovementData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Line type="monotone" dataKey="inward" stroke="#10b981" strokeWidth={3} name="Inward (GRN Received)" isAnimationActive={false} />
-                  <Line type="monotone" dataKey="outward" stroke="#ef4444" strokeWidth={3} name="Outward (Issued to Prod)" isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <LineChart data={dailyMovementData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Line type="monotone" dataKey="inward" stroke="#10b981" strokeWidth={3} name="Inward (GRN Received)" isAnimationActive={false} />
+                <Line type="monotone" dataKey="outward" stroke="#ef4444" strokeWidth={3} name="Outward (Issued to Prod)" isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 5: Minimum Stock vs Current Stock */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <AlertTriangle size={18} color="#f59e0b" /> Minimum vs Current Stock (Critical SKUs)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <BarChart data={minVsCurrentData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Bar dataKey="Current" fill="#0284c7" name="Current Stock" isAnimationActive={false} />
-                  <Bar dataKey="Minimum" fill="#ef4444" name="Min Threshold" isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <BarChart data={minVsCurrentData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Bar dataKey="Current" fill="#0284c7" name="Current Stock" isAnimationActive={false} />
+                <Bar dataKey="Minimum" fill="#ef4444" name="Min Threshold" isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 6: Fast, Slow & Dead Stock Distribution */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Zap size={18} color="#eab308" /> Fast, Slow &amp; Dead Stock Distribution
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <PieChart>
-                  <Pie data={fsnDonutData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} label={({ name, value }) => `${name}: ${value}`} isAnimationActive={false}>
-                    {fsnDonutData.map((entry, index) => (
-                      <Cell key={`cell-fsn-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <PieChart>
+                <Pie data={fsnDonutData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} label={({ name, value }) => `${name}: ${value}`} isAnimationActive={false}>
+                  {fsnDonutData.map((entry, index) => (
+                    <Cell key={`cell-fsn-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 7: Stock Aging Buckets */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Clock size={18} color="#6366f1" /> Inventory Aging Buckets (SKU Counts)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <BarChart data={stockAgingData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="SKU Count" radius={[6, 6, 0, 0]} isAnimationActive={false}>
-                    {stockAgingData.map((entry, index) => (
-                      <Cell key={`cell-aging-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <BarChart data={stockAgingData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Bar dataKey="count" name="SKU Count" radius={[6, 6, 0, 0]} isAnimationActive={false}>
+                  {stockAgingData.map((entry, index) => (
+                    <Cell key={`cell-aging-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 8: Top Rejected Materials (Pareto) */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <XCircle size={18} color="#dc2626" /> Top Rejected Materials (Pareto Analysis)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <ComposedChart data={paretoChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Bar yAxisId="left" dataKey="rejections" fill="#dc2626" name="Rejection Qty" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                  <Line yAxisId="right" type="monotone" dataKey="cumPct" stroke="#f59e0b" strokeWidth={2.5} name="Cumulative %" isAnimationActive={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <ComposedChart data={paretoChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Bar yAxisId="left" dataKey="rejections" fill="#dc2626" name="Rejection Qty" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                <Line yAxisId="right" type="monotone" dataKey="cumPct" stroke="#f59e0b" strokeWidth={2.5} name="Cumulative %" isAnimationActive={false} />
+              </ComposedChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 9: ABC Analysis */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Award size={18} color="#0284c7" /> ABC Valuation Analysis (INR Lakhs)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <BarChart data={abcChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="class" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => `₹ ${v} Lakhs`} />
-                  <Bar dataKey="value" name="Valuation (₹)" radius={[6, 6, 0, 0]} isAnimationActive={false}>
-                    {abcChartData.map((entry, index) => (
-                      <Cell key={`cell-abc-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <BarChart data={abcChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="class" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(v) => `₹ ${v} Lakhs`} />
+                <Bar dataKey="value" name="Valuation (₹)" radius={[6, 6, 0, 0]} isAnimationActive={false}>
+                  {abcChartData.map((entry, index) => (
+                    <Cell key={`cell-abc-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
         {/* Visual 10: FSN Analysis Donut */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Layers size={18} color="#10b981" /> FSN Inventory Movement Analysis (Lakhs)
           </h3>
-          <div style={{ width: '100%', height: '240px', minHeight: '240px', position: 'relative' }}>
-            {mounted ? (
-              <ResponsiveContainer width="99%" height={240}>
-                <PieChart>
-                  <Pie data={fsnChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} label={({ name, value }) => `${name}: ₹${value}L`} isAnimationActive={false}>
-                    {fsnChartData.map((entry, index) => (
-                      <Cell key={`cell-fsn2-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => `₹ ${v} Lakhs`} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>Loading chart...</div>
-            )}
+          <div style={{ width: '100%', height: '240px', minHeight: '240px', minWidth: 0, overflow: 'hidden' }}>
+            <ResponsiveChartWrapper minHeight={240}>
+              <PieChart>
+                <Pie data={fsnChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} label={({ name, value }) => `${name}: ₹${value}L`} isAnimationActive={false}>
+                  {fsnChartData.map((entry, index) => (
+                    <Cell key={`cell-fsn2-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => `₹ ${v} Lakhs`} />
+              </PieChart>
+            </ResponsiveChartWrapper>
           </div>
         </div>
 
