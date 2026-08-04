@@ -39,14 +39,37 @@ export class ProductsService {
     });
   }
 
-  async findAll(companyId: string, search?: string) {
+  async findAll(companyId: string, search?: string, scope?: string, type?: string) {
     const where: any = { companyId, isActive: true };
 
+    if (scope === 'sales') {
+      where.AND = [
+        {
+          OR: [
+            { productType: { in: ['MANUFACTURING', 'TRADING'] } },
+            {
+              AND: [
+                { productType: null },
+                { category: { notIn: ['Hardware', 'Raw Material', 'Electric'] } },
+              ],
+            },
+          ],
+        },
+      ];
+    } else if (type) {
+      where.productType = type;
+    }
+
     if (search) {
-      where.OR = [
+      const searchOR = [
         { name: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
       ];
+      if (where.AND) {
+        where.AND.push({ OR: searchOR });
+      } else {
+        where.OR = searchOR;
+      }
     }
 
     return this.prisma.product.findMany({

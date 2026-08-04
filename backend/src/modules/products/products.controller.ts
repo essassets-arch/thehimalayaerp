@@ -29,8 +29,13 @@ export class ProductsController {
 
   @RequirePermissions('admin.products.read')
   @Get()
-  findAll(@CurrentUser() user: any, @Query('search') search?: string) {
-    return this.productsService.findAll(user.companyId, search);
+  findAll(
+    @CurrentUser() user: any,
+    @Query('search') search?: string,
+    @Query('scope') scope?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.productsService.findAll(user.companyId, search, scope, type);
   }
 
   @RequirePermissions('admin.products.read')

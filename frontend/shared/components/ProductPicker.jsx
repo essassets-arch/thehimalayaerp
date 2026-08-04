@@ -48,9 +48,23 @@ export default function ProductPicker({
   const search = useCallback(async (q) => {
     setLoading(true);
     try {
-      const response = await backendFetch(`/api/backend/products${q ? `?search=${encodeURIComponent(q)}` : ''}`);
+      const queryParams = new URLSearchParams();
+      queryParams.set('scope', 'sales');
+      if (q) queryParams.set('search', q);
+
+      const response = await backendFetch(`/api/backend/products?${queryParams.toString()}`);
       const products = Array.isArray(response) ? response : response?.data || [];
-      const mappedResults = products.map(p => ({
+
+      // Filter out internal Hardware and Raw Materials
+      const salesProducts = products.filter(p => {
+        const type = p.productType || '';
+        const cat = (p.category || '').toLowerCase();
+        if (type === 'HARDWARE' || type === 'RAW_MATERIAL') return false;
+        if (cat === 'hardware' || cat === 'raw material' || cat === 'electric') return false;
+        return true;
+      });
+
+      const mappedResults = salesProducts.map(p => ({
         id: p.id,
         public_id: p.publicId,
         product_name: p.name || 'Unknown Product',
@@ -62,7 +76,8 @@ export default function ProductPicker({
         dispatch_category: p.dispatchCategory || 'NONE',
         selling_price: Number(p.unitPrice || 0),
         price: Number(p.unitPrice || 0),
-        description: p.description || ''
+        description: p.description || '',
+        productType: p.productType || 'MANUFACTURING',
       }));
 
       setResults(mappedResults);

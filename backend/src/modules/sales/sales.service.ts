@@ -330,32 +330,53 @@ export class SalesService {
           }
         }
 
-        if (updated.productionPlans.length === 0) {
-          const [initialPlanState, plantHead, planNumber] = await Promise.all([
-            this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
-            tx.user.findFirst({
-              where: {
-                isActive: true,
-                deletedAt: null,
-                role: { code: 'PLANT_HEAD' },
+        const productIds = order.items.map((i) => i.productId).filter(Boolean);
+        const orderProducts = await tx.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, category: true, productType: true },
+        });
+
+        const hasManufacturingProduct = orderProducts.some(
+          (p) =>
+            p.productType === 'MANUFACTURING' ||
+            ['FRP COVERS', 'FRP GRATINGS'].includes(p.category || ''),
+        );
+
+        if (hasManufacturingProduct) {
+          // Manufacturing order -> Route to Plant Head & Factory Production Planning
+          if (updated.productionPlans.length === 0) {
+            const [initialPlanState, plantHead, planNumber] = await Promise.all([
+              this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
+              tx.user.findFirst({
+                where: {
+                  isActive: true,
+                  deletedAt: null,
+                  role: { code: 'PLANT_HEAD' },
+                },
+                select: { id: true },
+                orderBy: { createdAt: 'asc' },
+              }),
+              this.sequenceService.generateNextWithTx(
+                tx,
+                'production_plan_number',
+                'PP-',
+              ),
+            ]);
+            await tx.productionPlan.create({
+              data: {
+                planNumber,
+                salesOrderId: order.id,
+                status: 'PENDING_PLANNING',
+                assignedToId: plantHead?.id,
+                workflowStateId: initialPlanState.id,
               },
-              select: { id: true },
-              orderBy: { createdAt: 'asc' },
-            }),
-            this.sequenceService.generateNextWithTx(
-              tx,
-              'production_plan_number',
-              'PP-',
-            ),
-          ]);
-          await tx.productionPlan.create({
-            data: {
-              planNumber,
-              salesOrderId: order.id,
-              status: 'PENDING_PLANNING',
-              assignedToId: plantHead?.id,
-              workflowStateId: initialPlanState.id,
-            },
+            });
+          }
+        } else {
+          // 100% Trading order -> Bypass Plant Head factory production & route directly to Dispatch User
+          await tx.salesOrder.update({
+            where: { id: order.id },
+            data: { status: SalesOrderStatus.READY_FOR_DISPATCH },
           });
         }
       }
