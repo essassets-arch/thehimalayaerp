@@ -345,11 +345,11 @@ export default function StorePortal() {
 
   const getMappedInventory = (rawInventoryList) => {
     const cleanList = (rawInventoryList || []).filter(item => {
-      const code = (item.code || '').toUpperCase();
-      const name = (item.material || item.itemName || '').toLowerCase();
-      if (code.startsWith('SKU-')) return false;
+      const code = (item.code || item.sku || item.id || '').toUpperCase();
+      const name = (item.material || item.itemName || item.name || '').toLowerCase();
+      if (code === 'RM001' || code.startsWith('SKU-') || code.includes('ITEM') || code.includes('ATP') || code.includes('NFW') || code.includes('HS')) return false;
       if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
-      if (name === 'sand fine grade' || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
+      if (name.includes('sand fine grade') || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
       return true;
     });
 
@@ -2005,25 +2005,16 @@ export default function StorePortal() {
     const materialIndents = state.procurement?.materialIndents || [];
     const pendingIndentsCount = materialIndents.filter(ind => ind.status === 'PENDING_PLANT_HEAD_APPROVAL').length;
 
-    // Fallback low stock items including Steel Plates and Item (100 Qty)
+    // Fallback low stock items
     const DEFAULT_LOW_STOCK_ITEMS = [
       {
         id: 'RM-STEEL-PLATES',
-        code: 'RM001',
-        material: 'Steel Plates',
+        code: 'RM-STL-001',
+        material: 'Steel Plates 10mm',
         unit: 'Units',
-        stock: 0,
-        minStock: 100,
+        stock: 5,
+        minStock: 50,
         rate: 250
-      },
-      {
-        id: 'SKU-ITEM100',
-        code: 'SKU-ITEM100',
-        material: 'Item (100 Qty)',
-        unit: 'Box',
-        stock: 0,
-        minStock: 100,
-        rate: 500
       }
     ];
 
@@ -2036,7 +2027,14 @@ export default function StorePortal() {
       stock: item.stock ?? 0,
       minStock: item.minStock ?? item.reorderLevel ?? 0,
       rate: item.rate ?? 0,
-    }));
+    })).filter(item => {
+      const code = (item.code || item.sku || item.id || '').toUpperCase();
+      const name = (item.material || item.itemName || item.name || '').toLowerCase();
+      if (code === 'RM001' || code.startsWith('SKU-') || code.includes('ITEM') || code.includes('ATP') || code.includes('NFW') || code.includes('HS')) return false;
+      if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
+      if (name.includes('sand fine grade') || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
+      return true;
+    });
 
     // Combine mapped inventory with default low stock items if not already in inventory
     const combinedInventory = [...mappedInventory];

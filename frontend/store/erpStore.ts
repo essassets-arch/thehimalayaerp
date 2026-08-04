@@ -3152,7 +3152,7 @@ export const useERPStore = create((set: any, get: any) => ({
       freight,
       grandTotal,
       items: items.map((it: any) => ({
-        materialId: it.materialId || it.materialCode || indent.materialId || 'RM001',
+        materialId: it.materialId || it.materialCode || indent.materialId || 'RM-STL-001',
         materialName: it.materialName || it.name || indent.materialName || 'Material',
         orderedQuantity: Number(it.quantity || it.orderedQuantity || it.orderedQty || 0),
         unit: it.unit || indent.unit || 'PCS',
@@ -3243,7 +3243,7 @@ export const useERPStore = create((set: any, get: any) => ({
           freight,
           grandTotal,
           items: items.map((it: any) => ({
-            materialId: it.materialId || 'RM001',
+            materialId: it.materialId || 'RM-STL-001',
             materialName: it.materialName || it.name || 'Material',
             orderedQuantity: Number(it.quantity || it.orderedQuantity || 0),
             unit: it.unit || 'PCS',

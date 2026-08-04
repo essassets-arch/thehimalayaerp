@@ -889,7 +889,7 @@ export default function ProductionPortal() {
     }
     // Fallback using seeded dynamic materials
     return [
-      { material: 'Sand Fine Grade', quantityPerUnit: 0.4 },
+      { material: 'Fine River Sand', quantityPerUnit: 0.4 },
       { material: 'Fly Ash Grade A', quantityPerUnit: 0.6 }
     ];
   };

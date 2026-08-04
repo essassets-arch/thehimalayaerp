@@ -17,7 +17,7 @@ import {
 
 const RAW_MATERIALS_CATALOG = [
   { material: 'Cement Grade 53', unit: 'Bags', category: 'Raw Material' },
-  { material: 'Sand Fine Grade', unit: 'Tons', category: 'Raw Material' },
+  { material: 'Fine River Sand', unit: 'Tons', category: 'Raw Material' },
   { material: 'Coarse Aggregate (20mm)', unit: 'Tons', category: 'Raw Material' },
   { material: 'Steel Reinforcement Wire (8mm)', unit: 'Coils', category: 'Raw Material' },
   { material: 'Fly Ash Grade A', unit: 'Tons', category: 'Raw Material' },

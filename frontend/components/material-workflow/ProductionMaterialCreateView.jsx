@@ -9,7 +9,7 @@ import { useFormDraft } from '../../shared/hooks/useFormDraft';
 
 const RAW_MATERIALS_CATALOG = [
   { material: 'Cement Grade 53', defaultUnit: 'Bags' },
-  { material: 'Sand Fine Grade', defaultUnit: 'Tons' },
+  { material: 'Fine River Sand', defaultUnit: 'Tons' },
   { material: 'Coarse Aggregate (20mm)', defaultUnit: 'Tons' },
   { material: 'Steel Reinforcement Wire (8mm)', defaultUnit: 'Coils' },
   { material: 'Fly Ash Grade A', defaultUnit: 'Tons' },
@@ -34,7 +34,7 @@ export default function ProductionMaterialCreateView() {
     notes: '',
     items: [
       { material: 'Cement Grade 53', requestedQty: 100, unit: 'Bags' },
-      { material: 'Sand Fine Grade', requestedQty: 50, unit: 'Tons' }
+      { material: 'Fine River Sand', requestedQty: 50, unit: 'Tons' }
     ]
   };
 

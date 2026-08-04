@@ -837,11 +837,11 @@ export default function PlantHeadPortal() {
 
   const getMappedInventory = (rawInventoryList) => {
     const cleanList = (rawInventoryList || []).filter(item => {
-      const code = (item.code || '').toUpperCase();
-      const name = (item.material || item.itemName || '').toLowerCase();
-      if (code.startsWith('SKU-')) return false;
+      const code = (item.code || item.sku || item.id || '').toUpperCase();
+      const name = (item.material || item.itemName || item.name || '').toLowerCase();
+      if (code === 'RM001' || code.startsWith('SKU-') || code.includes('ITEM') || code.includes('ATP') || code.includes('NFW') || code.includes('HS')) return false;
       if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
-      if (name === 'sand fine grade' || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
+      if (name.includes('sand fine grade') || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
       return true;
     });
 
@@ -3154,10 +3154,18 @@ export default function PlantHeadPortal() {
       ? directRawInventory 
       : (state.rawInventory || []);
     
-    // For directRawInventory, it is already mapped, so we can bypass getMappedInventory if it has material field
-    const mappedInventory = directRawInventory.length > 0 
+    const mappedRaw = directRawInventory.length > 0 
       ? directRawInventory.map(item => ({...item, code: item.id?.substring(0, 8).toUpperCase(), category: 'Raw Material', reorderLevel: 50, rate: 0}))
       : getMappedInventory(rawInventoryList);
+
+    const mappedInventory = mappedRaw.filter(item => {
+      const code = (item.code || item.sku || item.id || '').toUpperCase();
+      const name = (item.material || item.itemName || item.name || '').toLowerCase();
+      if (code === 'RM001' || code.startsWith('SKU-') || code.includes('ITEM') || code.includes('ATP') || code.includes('NFW') || code.includes('HS')) return false;
+      if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
+      if (name.includes('sand fine grade') || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
+      return true;
+    });
 
     const filteredItems = mappedInventory.filter(item => {
       const q = rawSearchQuery.toLowerCase();

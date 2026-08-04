@@ -1810,9 +1810,9 @@ export default function FinancePortal() {
   const DEMO_APPROVED_INDENTS = useMemo(() => [
     {
       id: 'INDENT-WO-109',
-      material: 'Steel Plates',
-      materialName: 'Steel Plates',
-      materialCode: 'RM001',
+      material: 'Steel Plates 10mm',
+      materialName: 'Steel Plates 10mm',
+      materialCode: 'RM-STL-001',
       approvedQuantity: 100,
       quantity: 100,
       unit: 'Units',
@@ -1821,7 +1821,7 @@ export default function FinancePortal() {
       requiredDate: '2026-08-15',
       items: [
         {
-          materialName: 'Steel Plates',
+          materialName: 'Steel Plates 10mm',
           approvedQty: 100,
           quantity: 100,
           unit: 'Units'
@@ -1829,22 +1829,22 @@ export default function FinancePortal() {
       ]
     },
     {
-      id: 'INDENT-SKU-100',
-      material: 'Item (100 Qty)',
-      materialName: 'Item (100 Qty)',
-      materialCode: 'SKU-ITEM100',
+      id: 'INDENT-CMT-53',
+      material: 'Cement Grade 53',
+      materialName: 'Cement Grade 53',
+      materialCode: 'RM-CMT-053',
       approvedQuantity: 100,
       quantity: 100,
-      unit: 'Box',
+      unit: 'Bags',
       status: 'PLANT_HEAD_APPROVED',
       targetDate: '2026-08-20',
       requiredDate: '2026-08-20',
       items: [
         {
-          materialName: 'Item (100 Qty)',
+          materialName: 'Cement Grade 53',
           approvedQty: 100,
           quantity: 100,
-          unit: 'Box'
+          unit: 'Bags'
         }
       ]
     }

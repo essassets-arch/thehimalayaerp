@@ -77,8 +77,8 @@ export default function PurchaseIndentsView() {
       id: 'PO-DRAFT-100',
       poNumber: 'PO-DRAFT-100',
       publicId: 'PO-DRAFT-100',
-      indentId: 'INDENT-SKU-100',
-      purchaseIndentId: 'INDENT-SKU-100',
+      indentId: 'INDENT-CMT-053',
+      purchaseIndentId: 'INDENT-CMT-053',
       vendorName: 'Global Aggregates Suppliers',
       vendorId: 'SUP-002',
       supplierId: 'SUP-002',
@@ -92,10 +92,10 @@ export default function PurchaseIndentsView() {
       createdAt: new Date().toISOString(),
       items: [
         {
-          name: 'Item (100 Qty)',
+          name: 'Cement Grade 53',
           quantity: 100,
           unitPrice: 500,
-          unit: 'Box',
+          unit: 'Bags',
           gstPercent: 18
         }
       ]
