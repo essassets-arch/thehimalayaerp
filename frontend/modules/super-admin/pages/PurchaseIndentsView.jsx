@@ -19,12 +19,12 @@ export default function PurchaseIndentsView() {
   useEffect(() => {
     void syncProcurementData();
   }, []);
-  
-  const purchaseOrders = useERPStore(s => 
-    s.purchaseOrders || 
-    s.procurement?.purchaseOrders || 
-    s.state?.purchaseOrders || 
-    s.state?.procurement?.purchaseOrders || 
+
+  const purchaseOrders = useERPStore(s =>
+    s.purchaseOrders ||
+    s.procurement?.purchaseOrders ||
+    s.state?.purchaseOrders ||
+    s.state?.procurement?.purchaseOrders ||
     EMPTY_PURCHASE_ORDERS
   );
   const approvePurchaseOrder = useERPStore(s => s.approvePurchaseOrder);
@@ -40,7 +40,7 @@ export default function PurchaseIndentsView() {
         if (res?.data && Array.isArray(res.data)) {
           setDirectBackendPOs(res.data);
         }
-      } catch (_) {}
+      } catch (_) { }
     }
     fetchPOs();
   }, []);
@@ -116,14 +116,14 @@ export default function PurchaseIndentsView() {
     return Array.from(map.values());
   }, [purchaseOrders, directBackendPOs, DEFAULT_DEMO_POS]);
 
-  const pendingPOs = combinedPOs.filter(i => 
-    !i.status || 
-    i.status === 'PENDING_SUPER_ADMIN_APPROVAL' || 
-    i.status === 'PENDING_FINANCE_APPROVAL' || 
-    i.status === 'PENDING_APPROVAL' || 
-    i.status === 'SUBMITTED' || 
-    i.status === 'PLANT_HEAD_APPROVED' || 
-    i.status === 'DRAFT' || 
+  const pendingPOs = combinedPOs.filter(i =>
+    !i.status ||
+    i.status === 'PENDING_SUPER_ADMIN_APPROVAL' ||
+    i.status === 'PENDING_FINANCE_APPROVAL' ||
+    i.status === 'PENDING_APPROVAL' ||
+    i.status === 'SUBMITTED' ||
+    i.status === 'PLANT_HEAD_APPROVED' ||
+    i.status === 'DRAFT' ||
     i.status === 'DRAFT_PO_CREATED'
   );
   const approvedPOs = combinedPOs.filter(i => ['SUPER_ADMIN_APPROVED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'PURCHASE_COMPLETED', 'PO_CLOSED', 'APPROVED', 'CLOSED'].includes(i.status));
@@ -172,8 +172,8 @@ export default function PurchaseIndentsView() {
   };
 
   const columns = [
-    { 
-      header: 'PO Draft ID', 
+    {
+      header: 'PO Draft ID',
       accessor: 'id',
       cell: ({ row }) => (
         <span style={{ fontWeight: 800, color: '#24345C', fontSize: '14px' }}>
@@ -181,8 +181,8 @@ export default function PurchaseIndentsView() {
         </span>
       )
     },
-    { 
-      header: 'Indent Ref', 
+    {
+      header: 'Indent Ref',
       accessor: 'indentId',
       cell: ({ row }) => (
         <span style={{ fontWeight: 700, color: '#0284c7', fontSize: '13px', background: '#f0f9ff', padding: '4px 10px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
@@ -190,8 +190,8 @@ export default function PurchaseIndentsView() {
         </span>
       )
     },
-    { 
-      header: 'Vendor', 
+    {
+      header: 'Vendor',
       accessor: 'vendorName',
       cell: ({ row }) => (
         <span style={{ fontWeight: 700, color: '#334155' }}>
@@ -199,8 +199,8 @@ export default function PurchaseIndentsView() {
         </span>
       )
     },
-    { 
-      header: 'Grand Total', 
+    {
+      header: 'Grand Total',
       align: 'right',
       cell: ({ row }) => {
         const freightVal = Number(row.original.freight || 0);
@@ -227,16 +227,16 @@ export default function PurchaseIndentsView() {
         );
       }
     },
-    { 
-      header: 'Date', 
+    {
+      header: 'Date',
       cell: ({ row }) => (
         <span style={{ color: '#5E6B82', fontSize: '13px', fontWeight: 600 }}>
           {row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : '-'}
         </span>
       )
     },
-    { 
-      header: 'Status', 
+    {
+      header: 'Status',
       cell: ({ row }) => {
         const s = row.original.status;
         if (s === 'PENDING_SUPER_ADMIN_APPROVAL') return <StatusBadge status="Pending Approval" type="warning" />;
@@ -245,7 +245,7 @@ export default function PurchaseIndentsView() {
         if (s === 'PO_ISSUED') return <StatusBadge status="PO Issued" type="info" />;
         if (s === 'VENDOR_ACCEPTED') return <StatusBadge status="Vendor Accepted" type="success" />;
         return <StatusBadge status={s} type="default" />;
-      } 
+      }
     }
   ];
 
@@ -331,12 +331,12 @@ export default function PurchaseIndentsView() {
             columns={columns}
             data={
               activeTab === 'Pending Approval' ? pendingPOs :
-              activeTab === 'Approved' ? approvedPOs :
-              rejectedPOs
+                activeTab === 'Approved' ? approvedPOs :
+                  rejectedPOs
             }
             actions={(row) => (
               <div className={styles.actionButtons}>
-                <button 
+                <button
                   onClick={() => setSelectedPO(row)}
                   className={`${styles.actionButton} ${styles.viewButton}`}
                   title="View Details"
@@ -346,7 +346,7 @@ export default function PurchaseIndentsView() {
 
                 {activeTab === 'Pending Approval' && (
                   <>
-                    <button 
+                    <button
                       onClick={() => handleApprove(row)}
                       className={`${styles.actionButton} ${styles.approveButton}`}
                       title="Approve Draft PO"
@@ -354,7 +354,7 @@ export default function PurchaseIndentsView() {
                       <CheckCircle size={15} /> Approve
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => handleReject(row)}
                       className={`${styles.actionButton} ${styles.rejectButton}`}
                       title="Reject Draft PO"
@@ -372,7 +372,7 @@ export default function PurchaseIndentsView() {
       {/* Premium Light Theme Details Modal */}
       {selectedPO && (() => {
         const freightVal = Number(selectedPO.freight || 0);
-        
+
         let calculatedSubtotal = 0;
         let calculatedGst = 0;
         if (selectedPO.items && selectedPO.items.length > 0) {
@@ -385,17 +385,17 @@ export default function PurchaseIndentsView() {
             calculatedGst += base * (gst / 100);
           });
         }
-        
+
         const subVal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(selectedPO.subtotal || 0);
         const gstVal = calculatedGst > 0 ? calculatedGst : (selectedPO.gstAmount !== undefined && selectedPO.gstAmount !== null ? Number(selectedPO.gstAmount) : Math.round(subVal * 0.18));
         const grandVal = Number(selectedPO.totalAmount || selectedPO.grandTotal) || (subVal + gstVal + freightVal + Number(selectedPO.otherCharges || 0));
 
         return (
-          <div 
+          <div
             onClick={() => setSelectedPO(null)}
             style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
           >
-            <div 
+            <div
               onClick={(e) => e.stopPropagation()}
               style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
             >
@@ -412,7 +412,7 @@ export default function PurchaseIndentsView() {
                     </div>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedPO(null)}
                   style={{ background: '#ffffff', border: '1px solid #D6E2F0', color: '#5E6B82', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
                   title="Close"
@@ -500,7 +500,7 @@ export default function PurchaseIndentsView() {
 
               {/* Light Theme Modal Footer with Actions */}
               <div style={{ background: '#F5FAFE', padding: '18px 28px', borderTop: '1px solid #DCE5F0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '14px' }}>
-                <button 
+                <button
                   onClick={() => setSelectedPO(null)}
                   style={{ padding: '11px 24px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#475569', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}
                 >
@@ -509,7 +509,7 @@ export default function PurchaseIndentsView() {
 
                 {activeTab === 'Pending Approval' && selectedPO.status === 'PENDING_SUPER_ADMIN_APPROVAL' && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                    <button 
+                    <button
                       onClick={() => {
                         const poCopy = selectedPO;
                         setSelectedPO(null);
@@ -519,7 +519,7 @@ export default function PurchaseIndentsView() {
                     >
                       <XCircle size={18} /> Reject PO
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         const poCopy = selectedPO;
                         setSelectedPO(null);
