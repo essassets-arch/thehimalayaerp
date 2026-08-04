@@ -9,7 +9,8 @@ export function AxiosAuthBridge() {
 
   useEffect(() => {
     const interceptor = axios.interceptors.request.use((config) => {
-      if (accessToken && String(config.url || '').startsWith('/api/backend/')) {
+      const url = String(config.url || '');
+      if (accessToken && (url.startsWith('/api/') || url.startsWith('/api/backend/') || url.startsWith('http'))) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
       return config;
@@ -19,3 +20,4 @@ export function AxiosAuthBridge() {
 
   return null;
 }
+

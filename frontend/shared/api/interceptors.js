@@ -18,7 +18,16 @@ const getSession = () => {
  * Request Interceptor: Automatically binds session and tracking headers.
  */
 export const requestInterceptor = (options = {}) => {
-  const token = sessionStorage.getItem('token') || sessionStorage.getItem('himalaya_token');
+  let token = sessionStorage.getItem('token') || sessionStorage.getItem('himalaya_token') || localStorage.getItem('token') || localStorage.getItem('himalaya_token');
+  if (!token && typeof window !== 'undefined') {
+    try {
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        const parsed = JSON.parse(authStorage);
+        token = parsed?.state?.accessToken || null;
+      }
+    } catch (_) {}
+  }
   const user = getSession();
 
   const companyId = user?.company_id || sessionStorage.getItem('companyId') || '1';

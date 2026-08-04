@@ -46,9 +46,34 @@ export const useAuthStore = create<AuthState>()(
       role: null,
       isAuthenticated: false,
       accessToken: null,
-      login: (role, user, accessToken) => set({ role, user, accessToken, isAuthenticated: true }),
-      setAccessToken: (token) => set({ accessToken: token, isAuthenticated: !!token }),
-      logout: () => set({ role: null, user: null, accessToken: null, isAuthenticated: false }),
+      login: (role, user, accessToken) => {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('token', accessToken);
+          sessionStorage.setItem('himalaya_token', accessToken);
+          sessionStorage.setItem('erpUser', JSON.stringify(user));
+        }
+        set({ role, user, accessToken, isAuthenticated: true });
+      },
+      setAccessToken: (token) => {
+        if (typeof window !== 'undefined') {
+          if (token) {
+            sessionStorage.setItem('token', token);
+            sessionStorage.setItem('himalaya_token', token);
+          } else {
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('himalaya_token');
+          }
+        }
+        set({ accessToken: token, isAuthenticated: !!token });
+      },
+      logout: () => {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('himalaya_token');
+          sessionStorage.removeItem('erpUser');
+        }
+        set({ role: null, user: null, accessToken: null, isAuthenticated: false });
+      },
     }),
     {
       name: 'auth-storage',
