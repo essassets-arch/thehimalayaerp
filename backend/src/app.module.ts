@@ -51,6 +51,7 @@ import { SalesReportsModule } from './modules/sales-reports/sales-reports.module
 import { SalesTargetModule } from './modules/sales-target/sales-target.module';
 import { PlantHeadModule } from './modules/plant-head/plant-head.module';
 import { StoreReportsModule } from './modules/store-reports/store-reports.module';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 
 @Module({
   imports: [
@@ -106,6 +107,7 @@ import { StoreReportsModule } from './modules/store-reports/store-reports.module
     SalesReportsModule,
     PlantHeadModule,
     StoreReportsModule,
+    SuperAdminModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,0 +1,287 @@
+{
+  "timestamp": "2026-08-04T16:19:56.642Z",
+  "totalCanonicalPermissions": 22,
+  "dbPermissionsCount": 280,
+  "catalog": [
+    {
+      "code": "admin.dashboard.read",
+      "name": "View Admin Dashboard",
+      "module": "Administration",
+      "resource": "Dashboard",
+      "action": "read",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "admin.users.manage",
+      "name": "Manage Users",
+      "module": "Administration",
+      "resource": "Users",
+      "action": "manage",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "admin.roles.manage",
+      "name": "Manage Roles & Permissions",
+      "module": "Administration",
+      "resource": "Roles",
+      "action": "manage",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "admin.audit.read",
+      "name": "View System Audit Logs",
+      "module": "Administration",
+      "resource": "AuditLogs",
+      "action": "read",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "admin.planthead.read",
+      "name": "View Plant Head Workspace",
+      "module": "Administration",
+      "resource": "PlantHead",
+      "action": "read",
+      "existsInDb": true,
+      "assignedRolesCount": 2,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin"
+      ]
+    },
+    {
+      "code": "sales.leads.read",
+      "name": "View Sales Leads",
+      "module": "Sales",
+      "resource": "Leads",
+      "action": "read",
+      "existsInDb": true,
+      "assignedRolesCount": 4,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "Sales Executive",
+        "Sales Manager"
+      ]
+    },
+    {
+      "code": "sales.leads.create",
+      "name": "Create Sales Lead",
+      "module": "Sales",
+      "resource": "Leads",
+      "action": "create",
+      "existsInDb": true,
+      "assignedRolesCount": 4,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "Sales Executive",
+        "Sales Manager"
+      ]
+    },
+    {
+      "code": "sales.orders.read",
+      "name": "View Sales Orders",
+      "module": "Sales",
+      "resource": "Orders",
+      "action": "read",
+      "existsInDb": true,
+      "assignedRolesCount": 6,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "Sales Executive",
+        "Sales Manager",
+        "Plant Head",
+        "Dispatch Executive"
+      ]
+    },
+    {
+      "code": "sales.orders.create",
+      "name": "Create Sales Order",
+      "module": "Sales",
+      "resource": "Orders",
+      "action": "create",
+      "existsInDb": true,
+      "assignedRolesCount": 4,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "Sales Executive",
+        "Sales Manager"
+      ]
+    },
+    {
+      "code": "sales.customers.read",
+      "name": "View Customers",
+      "module": "Sales",
+      "resource": "Customers",
+      "action": "read",
+      "existsInDb": true,
+      "assignedRolesCount": 6,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "Sales Executive",
+        "Sales Manager",
+        "Finance Executive",
+        "Finance Manager"
+      ]
+    },
+    {
+      "code": "sales.customers.create",
+      "name": "Create Customer",
+      "module": "Sales",
+      "resource": "Customers",
+      "action": "create",
+      "existsInDb": true,
+      "assignedRolesCount": 4,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "Sales Executive",
+        "Sales Manager"
+      ]
+    },
+    {
+      "code": "inventory.stock.read",
+      "name": "View Stock Levels",
+      "module": "Store",
+      "resource": "Inventory",
+      "action": "read",
+      "existsInDb": true,
+      "assignedRolesCount": 14,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "Store Manager",
+        "Plant Head",
+        "Sales Executive",
+        "Sales Manager",
+        "Employee",
+        "Production Planner",
+        "Production Operator",
+        "QC Inspector",
+        "Dispatch Executive",
+        "Finance Executive",
+        "Finance Manager",
+        "HR"
+      ]
+    },
+    {
+      "code": "inventory.items.manage",
+      "name": "Manage Inventory Items",
+      "module": "Store",
+      "resource": "Inventory",
+      "action": "manage",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "production.plans.read",
+      "name": "View Production Plans",
+      "module": "Production",
+      "resource": "ProductionPlans",
+      "action": "read",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "production.work_orders.manage",
+      "name": "Manage Work Orders",
+      "module": "Production",
+      "resource": "WorkOrders",
+      "action": "manage",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "qc.inspections.read",
+      "name": "View QC Inspections",
+      "module": "QC",
+      "resource": "Inspections",
+      "action": "read",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "dispatch.shipments.read",
+      "name": "View Shipments",
+      "module": "Dispatch",
+      "resource": "Shipments",
+      "action": "read",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "dispatch.shipments.create",
+      "name": "Create Shipment",
+      "module": "Dispatch",
+      "resource": "Shipments",
+      "action": "create",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "finance.invoices.read",
+      "name": "View Invoices",
+      "module": "Finance",
+      "resource": "Invoices",
+      "action": "read",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "finance.payments.manage",
+      "name": "Manage Payments",
+      "module": "Finance",
+      "resource": "Payments",
+      "action": "manage",
+      "existsInDb": false,
+      "assignedRolesCount": 0,
+      "assignedRoles": []
+    },
+    {
+      "code": "hr.employees.read",
+      "name": "View HR Roster",
+      "module": "HR",
+      "resource": "Employees",
+      "action": "read",
+      "existsInDb": true,
+      "assignedRolesCount": 3,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "HR"
+      ]
+    },
+    {
+      "code": "hr.payroll.read",
+      "name": "View Payroll Data",
+      "module": "HR",
+      "resource": "Payroll",
+      "action": "read",
+      "existsInDb": true,
+      "assignedRolesCount": 3,
+      "assignedRoles": [
+        "Super Admin",
+        "Admin",
+        "HR"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-08-04T16:24:53.829Z",
+  "counts": {
+    "companies": 3,
+    "branches": 2,
+    "warehouses": 1,
+    "departments": 12,
+    "users": 29,
+    "employees": 15,
+    "roles": 14,
+    "permissions": 293,
+    "rolePermissions": 1411,
+    "products": 18,
+    "customers": 107,
+    "suppliers": 3,
+    "refreshSessions": 195,
+    "salesOrders": 42
+  },
+  "anomalies": {
+    "usersWithoutRole": 0,
+    "inactiveUsers": 0,
+    "inactiveProducts": 1
+  }
+}

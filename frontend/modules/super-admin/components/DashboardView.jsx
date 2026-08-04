@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { useERP } from '@/shared/context/ERPContext';
+import { backendFetch } from '@/lib/backendFetch';
 import { computeFinancialData, formatCurrency, formatNumber, formatPercent, getDateRangeLabel } from '../utils/financialCalculations';
 import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from './SuperAdminAnalyticsFilter';
