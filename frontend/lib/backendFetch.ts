@@ -176,19 +176,36 @@ export async function ensureAccessToken(): Promise<string | null> {
   return (await tryRefreshToken()) ? useAuthStore.getState().accessToken : null;
 }
 
+let refreshingPromise: Promise<boolean> | null = null;
+
 async function tryRefreshToken(): Promise<boolean> {
-  try {
-    const res = await fetch('/api/backend/auth/refresh', { method: 'POST' });
-    if (res.ok) {
-      const json = await res.json();
-      const newToken = json.data?.accessToken;
-      if (newToken) {
-        useAuthStore.getState().setAccessToken(newToken);
-        return true;
-      }
-    }
-  } catch {
-    // Silently fail — caller will handle the 401
+  const current = useAuthStore.getState().accessToken;
+  if (current?.startsWith('demo-token-')) {
+    return false;
   }
-  return false;
+
+  if (refreshingPromise) {
+    return refreshingPromise;
+  }
+
+  refreshingPromise = (async () => {
+    try {
+      const res = await fetch('/api/backend/auth/refresh', { method: 'POST' });
+      if (res.ok) {
+        const json = await res.json();
+        const newToken = json.data?.accessToken;
+        if (newToken) {
+          useAuthStore.getState().setAccessToken(newToken);
+          return true;
+        }
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      refreshingPromise = null;
+    }
+    return false;
+  })();
+
+  return refreshingPromise;
 }
