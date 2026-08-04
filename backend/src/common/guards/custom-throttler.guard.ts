@@ -10,15 +10,15 @@ interface RequestWithUser extends Request {
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
-  protected override getTracker(req: RequestWithUser): Promise<string> {
+  protected override getTracker(req: any): Promise<string> {
     if (req.user?.sub) {
       return Promise.resolve(req.user.sub);
     }
-    const forwarded = req.headers['x-forwarded-for'];
+    const forwarded = req.headers?.['x-forwarded-for'];
     if (forwarded) {
       const ip = Array.isArray(forwarded)
         ? forwarded[0].trim()
-        : forwarded.split(',')[0].trim();
+        : String(forwarded).split(',')[0].trim();
       return Promise.resolve(ip);
     }
     return Promise.resolve(req.ip || req.socket?.remoteAddress || 'unknown');

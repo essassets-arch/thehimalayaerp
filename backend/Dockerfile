@@ -14,7 +14,7 @@ RUN apk add --no-cache openssl ca-certificates
 COPY package.json package-lock.json* ./
 
 # Install all dependencies (including devDependencies needed for build & Prisma)
-RUN npm install
+RUN npm install && npm install -g @nestjs/cli
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma/

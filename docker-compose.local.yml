@@ -64,8 +64,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: builder
     container_name: himalaya-local-backend
     restart: unless-stopped
+    command: npm run start:dev
     environment:
       NODE_ENV: development
       PORT: 4000
@@ -89,6 +91,8 @@ services:
     ports:
       - "127.0.0.1:4000:4000"
     volumes:
+      - ./backend:/app
+      - /app/node_modules
       - backend_local_uploads:/app/uploads
     networks:
       - erp-local-network
@@ -96,21 +100,24 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:4000/api/v1/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:4000/api/v1/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 20s
 
   # ── 5. Next.js Frontend Application (Exposed on http://localhost:3000) ────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: builder
     container_name: himalaya-local-frontend
     restart: unless-stopped
+    command: npm run dev
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
       PORT: 3000
       BACKEND_INTERNAL_URL: http://backend:4000/api/v1
       BACKEND_API_URL: http://backend:4000/api/v1
@@ -118,6 +125,9 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
       - frontend_local_uploads:/app/public/uploads
     networks:
       - erp-local-network

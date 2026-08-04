@@ -19,8 +19,8 @@ export class ElevationGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const headerVal = request.headers['x-elevation-token'];
+    const request = context.switchToHttp().getRequest<any>();
+    const headerVal = request.headers?.['x-elevation-token'];
     const elevationToken = Array.isArray(headerVal) ? headerVal[0] : headerVal;
 
     if (!elevationToken) {
