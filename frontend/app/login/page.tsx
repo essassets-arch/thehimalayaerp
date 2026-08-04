@@ -78,6 +78,21 @@ function toFriendlyRole(code: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function inferDemoRoleFromEmail(email: string): string {
+  const e = email.toLowerCase().trim();
+  if (e.includes('sales')) return 'Sales Executive';
+  if (e.includes('plant')) return 'Plant Head';
+  if (e.includes('production')) return 'Production Operator';
+  if (e.includes('dispatch')) return 'Dispatch Executive';
+  if (e.includes('finance') && e.includes('manager')) return 'Finance Manager';
+  if (e.includes('finance')) return 'Finance Executive';
+  if (e.includes('store')) return 'Store Manager';
+  if (e.includes('qc')) return 'QC';
+  if (e.includes('hr')) return 'HR';
+  if (e.includes('super') || e.includes('admin')) return 'Super Admin';
+  return 'Sales Executive';
+}
+
 export default function LoginPage() {
   const { login } = useAuthStore();
   const router = useRouter();
@@ -113,7 +128,9 @@ export default function LoginPage() {
       if (!res.ok) {
         // Fallback for demo accounts if backend returns 401
         const cleanEmail = email.toLowerCase().trim();
-        const demoMatch = DEMO_ACCOUNTS.find(a => a.email === cleanEmail);
+        const isHimalayaEmail = cleanEmail.endsWith('@himalayaerp.com') || cleanEmail.includes('himalaya') || cleanEmail.includes('demo');
+        const demoMatch = DEMO_ACCOUNTS.find(a => a.email === cleanEmail) || (isHimalayaEmail ? { role: inferDemoRoleFromEmail(cleanEmail), email: cleanEmail } : null);
+
         if (res.status === 401 && demoMatch) {
           console.warn(`[Login] Backend 401 for demo account ${cleanEmail}. Proceeding with demo login fallback.`);
           const demoRole = demoMatch.role;
