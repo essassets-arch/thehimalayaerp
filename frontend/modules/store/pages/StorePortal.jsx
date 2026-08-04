@@ -344,17 +344,11 @@ export default function StorePortal() {
 
 
   const getMappedInventory = (rawInventoryList) => {
-    const cleanList = (rawInventoryList || []).filter(item => {
-      const code = (item.code || item.sku || item.id || '').toUpperCase();
-      const name = (item.material || item.itemName || item.name || '').toLowerCase();
-      if (code === 'RM001' || code.startsWith('SKU-') || code.includes('ITEM') || code.includes('ATP') || code.includes('NFW') || code.includes('HS')) return false;
-      if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
-      if (name.includes('sand fine grade') || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
-      return true;
-    });
-
-    const sourceList = cleanList.length > 0
-      ? cleanList
+    // Raw Inventory is the single source of truth for both the ledger and
+    // low-stock worklist. Do not hide any inventory row here: every material
+    // at or below its reorder level must be actionable from the alerts page.
+    const sourceList = rawInventoryList?.length > 0
+      ? rawInventoryList
       : SEEDED_INVENTORY_ITEMS.map(item => ({
           id: item.code,
           code: item.code,
@@ -1118,35 +1112,7 @@ export default function StorePortal() {
 
   // 2. Raw Inventory Ledger
   const renderRawInventory = () => {
-    const rawInventoryList = (state.rawInventory && state.rawInventory.length > 0)
-      ? state.rawInventory
-      : SEEDED_INVENTORY_ITEMS.map((item) => ({
-          id: item.code,
-          code: item.code,
-          material: item.itemName,
-          category: item.category,
-          unit: item.unit,
-          stock: item.balance,
-          rate: 0,
-          reorderLevel: item.minStock,
-          description: `Item #${item.srNo} - ${item.category}`,
-        }));
-
-    const mappedInventory = rawInventoryList.map((item, idx) => {
-      return {
-        id: item.id || item.code || `RM-ID-${idx + 1}`,
-        srNo: item.srNo || idx + 1,
-        code: item.code || `HCPPL${String(idx + 1).padStart(3, '0')}`,
-        material: item.material || item.itemName,
-        category: item.category || 'Raw Material',
-        unit: item.unit || 'PCS',
-        stock: item.stock ?? item.balance ?? 0,
-        rate: item.rate ?? 0,
-        reorderLevel: item.reorderLevel ?? item.minStock ?? 10,
-        description: item.description || `Item #${idx + 1}`,
-        transactions: item.transactions || []
-      };
-    });
+    const mappedInventory = getMappedInventory(state.rawInventory || []);
 
     const filteredItems = mappedInventory.filter(item => {
       const q = rawSearchQuery.toLowerCase();
@@ -2001,54 +1967,14 @@ export default function StorePortal() {
   };
 
   const renderLowStockAlerts = () => {
-    const rawInventoryList = state.rawInventory || [];
     const materialIndents = state.procurement?.materialIndents || [];
     const pendingIndentsCount = materialIndents.filter(ind => ind.status === 'PENDING_PLANT_HEAD_APPROVAL').length;
-
-    // Fallback low stock items
-    const DEFAULT_LOW_STOCK_ITEMS = [
-      {
-        id: 'RM-STEEL-PLATES',
-        code: 'RM-STL-001',
-        material: 'Steel Plates 10mm',
-        unit: 'Units',
-        stock: 5,
-        minStock: 50,
-        rate: 250
-      }
-    ];
-
-    // Map to include minStock from backend (stored as minStock or reorderLevel)
-    const mappedInventory = rawInventoryList.map((item, idx) => ({
-      id: item.id || `RM-ID-${idx}`,
-      code: item.code || `RM${String(idx + 1).padStart(3, '0')}`,
-      material: item.material,
-      unit: item.unit || 'Kg',
-      stock: item.stock ?? 0,
-      minStock: item.minStock ?? item.reorderLevel ?? 0,
-      rate: item.rate ?? 0,
-    })).filter(item => {
-      const code = (item.code || item.sku || item.id || '').toUpperCase();
-      const name = (item.material || item.itemName || item.name || '').toLowerCase();
-      if (code === 'RM001' || code.startsWith('SKU-') || code.includes('ITEM') || code.includes('ATP') || code.includes('NFW') || code.includes('HS')) return false;
-      if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
-      if (name.includes('sand fine grade') || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
-      return true;
-    });
-
-    // Combine mapped inventory with default low stock items if not already in inventory
-    const combinedInventory = [...mappedInventory];
-    DEFAULT_LOW_STOCK_ITEMS.forEach(defaultItem => {
-      if (!combinedInventory.some(i => (i.code || '').toLowerCase() === defaultItem.code.toLowerCase() || (i.material || '').toLowerCase() === defaultItem.material.toLowerCase())) {
-        combinedInventory.push(defaultItem);
-      }
-    });
-
-    const lowStockItems = combinedInventory.filter(i => i.stock <= i.minStock);
+    const mappedInventory = getMappedInventory(state.rawInventory || []);
+    const lowStockItems = mappedInventory.filter(item => item.stock <= item.reorderLevel);
 
     const openIndentModal = (item) => {
       setIndentTargetMaterial(item);
-      const required = Math.max(0, item.minStock - item.stock + item.minStock);
+      const required = Math.max(0, item.minStock - item.stock);
       setIndentRequiredQty(String(required || item.minStock || ''));
       setIndentPriority('Medium');
       setIndentRemarks('');
