@@ -9,6 +9,617 @@ function uid(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function generateSku(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .substring(0, 50);
+}
+
+// ─── Product Data Interface ──────────────────────────────────────────────────
+
+interface ProductSeedData {
+  name: string;
+  brand?: string;
+  category: string;
+  subCategory?: string;
+  hsnCode?: string;
+  weight?: number | null;
+  unit: string;
+  unitPrice: number;
+  description: string;
+  sku?: string;
+  minimumStock?: number;
+}
+
+// Manufacturing Products - FRP Covers
+const manufacturingProducts: ProductSeedData[] = [
+  // FRP MHC Square Covers
+  { name: 'HIMALAYA FRP MHC 300X300 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 300x300mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 300X300 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 300x300mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 300X300 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 300x300mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 300X300 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 300x300mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 300X300 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 300x300mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 450X450 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x450mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X450 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x450mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X450 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x450mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 450X450 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x450mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 450X450 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x450mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 600X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x600mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x600mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 600X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x600mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 600X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 750X750 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 750x750mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 750X750 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 750x750mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 750X750 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 750x750mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 750X750 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 750x750mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 750X750 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 750x750mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 900X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 900X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 900X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 900X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 900X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x900mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 1000X1000 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1000x1000mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1000X1000 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1000x1000mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1000X1000 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1000x1000mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 1000X1000 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1000x1000mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 1000X1000 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1000x1000mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 1200X1200 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1200x1200mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1200X1200 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1200x1200mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1200X1200 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1200x1200mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 1200X1200 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1200x1200mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 1200X1200 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1200x1200mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 1500X1500 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1500x1500mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1500X1500 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1500x1500mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1500X1500 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1500x1500mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 1500X1500 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1500x1500mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 1500X1500 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1500x1500mm - D400 Class' },
+  
+  // FRP MHC Rectangular
+  { name: 'HIMALAYA FRP MHC 450X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 450X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 450X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 450X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 450X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 450X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 600X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 600X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 600X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 600X1200 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X1200 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X1200 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 600X1200 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 600X1200 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 900X1200 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 900X1200 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 900X1200 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 900X1200 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 900X1200 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - D400 Class' },
+  
+  // FRP MHC Round
+  { name: 'HIMALAYA FRPMHC 560MM DIA ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - Extra Light Duty' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - Light Duty' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - B125 Class' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - C250 Class' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - D400 Class' },
+  
+  { name: 'HIMALAYA FRPMHC 600MM DIA ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - Extra Light Duty' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - Light Duty' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - B125 Class' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - C250 Class' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - D400 Class' },
+  
+  { name: 'HIMALAYA FRPMHC 900MM DIA ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - Extra Light Duty' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - Light Duty' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - B125 Class' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - C250 Class' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - D400 Class' },
+  
+  // FRP RCS (Round Cover Square Frame)
+  { name: 'HIMALAYA FRP RCS 300X300 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 300X300 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 300X300 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 300X300 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 300X300 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 450X450 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 450X450 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 450X450 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 450X450 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 450X450 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 600X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 600X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 600X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 750X750 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 750X750 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 750X750 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 750X750 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 750X750 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 900X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 900X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 900X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 900X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 900X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 600X450 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X450 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X450 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 600X450 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 600X450 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - D400 Class' },
+  
+  // FRP WGC (With Grate Cover)
+  { name: 'HIMALAYA FRP WGC 300X300 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X300 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X300 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 300X300 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 300X300 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP WGC 450X450 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 450X450 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 450X450 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 450X450 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 450X450 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP WGC 600X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 600X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 600X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 600X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 600X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP WGC 300X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 300X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 300X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - D400 Class' },
+  
+  // FRP ONGC (Oil and Natural Gas Corporation)
+  { name: 'HIMALAYA FRPONGC 300X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 300X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 300X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 300X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - C250 Class' },
+  { name: 'HIMALAYA FRPONGC 300X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRPONGC 385X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 385X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 385X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 385X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - C250 Class' },
+  { name: 'HIMALAYA FRPONGC 385X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRPONGC 450X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 450X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 450X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 450X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - C250 Class' },
+  { name: 'HIMALAYA FRPONGC 450X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRPONGC 600X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 600X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 600X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 600X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - C250 Class' },
+  { name: 'HIMALAYA FRPONGC 600X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - D400 Class' },
+  
+  // FRP Moulded Grating
+  { name: 'FRP MOULDED GRATING 25MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 25mm thickness' },
+  { name: 'FRP MOULDED GRATING 30MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 30mm thickness' },
+  { name: 'FRP MOULDED GRATING 38MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 38mm thickness' },
+  { name: 'FRP MOULDED FRATINGS 50MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 50mm thickness' },
+];
+
+// Trading Products - Coverblocks
+const coverblockProducts: ProductSeedData[] = [
+  // Wire Coverblocks (WCB)
+  { name: 'WCB 20MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 20MM' },
+  { name: 'WCB 25MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 25MM' },
+  { name: 'WCB 30MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 30MM' },
+  { name: 'WCB 40MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 40 MM' },
+  { name: 'WCB 50MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 50 MM' },
+  { name: 'WCB MULTIPLE', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'SET', unitPrice: 0, description: 'COVERBLOCK WIRE 20X25X40X50' },
+  
+  // Pilling Coverblocks (PCB)
+  { name: 'PileCB 40 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 40 MM' },
+  { name: 'PCB 50 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 50 MM' },
+  { name: 'PCB 75MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 75 MM' },
+  
+  // Tower Coverblocks (HTCB)
+  { name: 'HTCB 40 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Tower Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK TOWER 40 MM' },
+  { name: 'HTCB 50 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Tower Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK TOWER 50 MM' },
+  { name: 'HTCB 75 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Tower Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK TOWER 75 MM' },
+  
+  // DT Coverblocks (DTCB)
+  { name: 'DTCB 20MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 20 MM' },
+  { name: 'DTCB 25MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 25 MM' },
+  { name: 'DTCB 30MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 30 MM' },
+  { name: 'DTCB 40MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 40 MM' },
+  { name: 'DTCB 50MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 50 MM' },
+  { name: 'DTCB 60MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 60 MM' },
+  { name: 'DTCB 75MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 75 MM' },
+];
+
+// Trading Products - RCC Pipes
+const rccPipeProducts: ProductSeedData[] = [
+  { name: 'RCC HUME PIPE NP2 CLASS', brand: 'HIMALAYA', category: 'RCC PIPE', subCategory: 'Hume Pipe', hsnCode: '68109100', unit: 'MTR', unitPrice: 0, description: 'RCC Hume Pipe NP2 Class - Standard Quality' },
+  { name: 'RCC HUME PIPE NP3 CLASS', brand: 'HIMALAYA', category: 'RCC PIPE', subCategory: 'Hume Pipe', hsnCode: '68109100', unit: 'MTR', unitPrice: 0, description: 'RCC Hume Pipe NP3 Class - Medium Quality' },
+  { name: 'RCC HUME PIPE NP4 CLASS', brand: 'HIMALAYA', category: 'RCC PIPE', subCategory: 'Hume Pipe', hsnCode: '68109100', unit: 'MTR', unitPrice: 0, description: 'RCC Hume Pipe NP4 Class - Heavy Quality' },
+];
+
+// Trading Products - FRC Covers (Square Round Cover)
+const frcSquareRoundProducts: ProductSeedData[] = [
+  { name: 'FRCSQRC24x24 LD3', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 59, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 412 mm dia\nCover Size : 40 mm\nCover Thickness : 500 mm dia\nFrame Size : 600 x 600 mm\nFrame Thickness : 75 mm\nCapacity : LD-3' },
+  { name: 'FRCSQRC24x24 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 70, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 412 mm dia\nCover Size : 50 mm\nCover Thickness : 500 mm dia\nFrame Size : 600 x 600 mm\nFrame Thickness : 100 mm\nCapacity : LD-5' },
+  { name: 'FRCSQRC24x24 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 93, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 412 mm dia\nCover Size : 70 mm\nCover Thickness : 500 mm dia\nFrame Size : 600 x 600 mm\nFrame Thickness : 120 mm\nCapacity : MD-10' },
+  
+  { name: 'FRCSQRC30x30 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 122, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 500 mm dia\nCover Size : 600 mm dia\nCover Thickness : 50 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 100 mm\nCapacity : LD- 5' },
+  { name: 'FRCSQRC30x30 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 147, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 500 mm dia\nCover Size : 600 mm dia\nCover Thickness : 70 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 120 mm\nCapacity : MD- 10' },
+  { name: 'FRCSQRC30x30 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 170, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 500 mm dia\nCover Size : 600 mm dia\nCover Thickness : 90 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 150 mm\nCapacity : HD- 20' },
+  
+  { name: 'FRCSQRC33x33 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 234, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 550 mm dia\nCover Size : 670 mm dia\nCover Thickness : 75 mm\nFrame Size : 825 x 825 mm\nFrame Thickness : 150 mm\nCapacity : HD- 20' },
+  
+  { name: 'FRCSQRC34x34 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 159, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 550 mm dia\nCover Size : 700 mm dia\nCover Thickness : 50 mm\nFrame Size : 850 x 850 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCSQRC34x34 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 264, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 550 mm dia\nCover Size : 700 mm dia\nCover Thickness : 90 mm\nFrame Size : 850 x 850 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCSQRC34x34 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 281, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 550 mm dia\nCover Size : 700 mm dia\nCover Thickness : 100 mm\nFrame Size : 850 x 850 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSQRC36x36 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 173, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 600 mm dia\nCover Size : 750 mm dia\nCover Thickness : 50 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCSQRC36x36 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 210, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 600 mm dia\nCover Size : 750 mm dia\nCover Thickness : 70 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCSQRC36x36 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 285, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 600 mm dia\nCover Size : 750 mm dia\nCover Thickness : 90 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCSQRC36x36 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 314, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 600 mm dia\nCover Size : 750 mm dia\nCover Thickness : 100 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSQRC42x42 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 237, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 750 mm dia\nCover Size : 900 mm dia\nCover Thickness : 50 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCSQRC42x42 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 385, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 750 mm dia\nCover Size : 900 mm dia\nCover Thickness : 90 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCSQRC42x42 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 410, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 750 mm dia\nCover Size : 900 mm dia\nCover Thickness : 100 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSQRC48x48 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 272, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 900 mm dia\nCover Size : 1050 mm dia\nCover Thickness : 50 mm\nFrame Size : 1200 x 1200 mm \nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCSQRC48x48 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 566, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 900 mm dia\nCover Size : 1050 mm dia\nCover Thickness : 100 mm\nFrame Size : 1200 x 1200 mm \nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  { name: 'FRCSQRC48x48 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 573, description: 'FRC SQ. Frame & RO. Cover\nClear Opening : 900 mm dia\nCover Size : 1050 mm dia\nCover Thickness : 100 mm\nFrame Size : 1200 x 1200 mm \nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+];
+
+// Trading Products - FRC Rectangular Covers
+const frcRectangularProducts: ProductSeedData[] = [
+  { name: 'FRCRFRC24x18 LD1', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 33, description: 'FRC Frame & Cover\nClear Opening : 450 x 300 mm \nCover Size : 525 x 375 mm \nCover Thickness : 40 mm\nFrame Size : 600 x 450 mm\nFrame Thickness : 70 mm\nCapacity : LD 1' },
+  { name: 'FRCRFRC28x22 LD2', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 53, description: 'FRC Frame & Cover\nClear Opening : 525 x 375 mm\nCover Size : 600 x 450 mm\nCover Thickness : 40 mm\nFrame Size : 700 x 550 mm\nFrame Thickness : 85 mm \nCapacity : LD 2' },
+  { name: 'FRCRFRC28x22 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 70, description: 'FRC Frame & Cover\nClear Opening : 525 x 375 mm\nCover Size : 600 x 450 mm\nCover Thickness : 50 mm\nFrame Size : 700 x 550 mm\nFrame Thickness : 100 mm \nCapacity : LD 5' },
+  { name: 'FRCRFRC28x22 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 95, description: 'FRC Frame & Cover\nClear Opening : 525 x 375 mm\nCover Size : 600 x 450 mm\nCover Thickness : 70 mm\nFrame Size : 700 x 550 mm\nFrame Thickness : 125 mm \nCapacity : MD 10' },
+  
+  { name: 'FRCRFRC30x24 LD3', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 61, description: 'FRC Frame & Cover\nClear Opening : 565 x 412 mm\nCover Size : 650 x 500 mm\nCover Thickness : 40 mm\nFrame Size : 750 x 600 mm\nFrame Thickness : 80 mm\nCapacity : LD 3' },
+  
+  { name: 'FRCRFRC32x26 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 102, description: 'FRC Frame & Cover\nClear Opening : 600 x 450 mm\nCover Size : 700 x 550 mm\nCover Thickness : 50 mm\nFrame Size : 800 x 650 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCRFRC32x26 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 124, description: 'FRC Frame & Cover\nClear Opening : 600 x 450 mm\nCover Size : 700 x 550 mm\nCover Thickness : 70 mm\nFrame Size : 800 x 650 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCRFRC32x26 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 159, description: 'FRC Frame & Cover\nClear Opening : 600 x 450 mm\nCover Size : 700 x 550 mm\nCover Thickness : 90 mm\nFrame Size : 800 x 650 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCRFRC36x24 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 140, description: 'FRC Frame & Cover\nClear Opening : 700 x 400 mm\nCover Size : 800 x 500 mm\nCover Thickness : 75 mm\nFrame Size : 900 x 600 mm\nFrame Thickness : 125 mm\nCapacity : MD 10' },
+  
+  { name: 'FRCRFRC38x26 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 120, description: 'FRC Frame & Cover\nClear Opening : 750 x 450 mm\nCover Size : 840 x 550 mm\nCover Thickness : 50 mm\nFrame Size : 950 x 650 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  
+  { name: 'FRCRFRC44x26 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 133, description: 'FRC Frame & Cover\nClear Opening : 900 x 450 mm\nCover Size : 990 x 540 mm\nCover Thickness : 50 mm\nFrame Size : 1100 x 650 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  
+  { name: 'FRCRFRC38x32 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 191, description: 'FRC Frame & Cover\nClear Opening : 750 x 600 mm\nCover Size : 850 x 700 mm\nCover Thickness : 70 mm\nFrame Size : 950 x 800 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCRFRC38x32 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 242, description: 'FRC Frame & Cover\nClear Opening : 750 x 600 mm\nCover Size : 850 x 700 mm\nCover Thickness : 90 mm\nFrame Size : 950 x 800 mm\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCRFRC41x35.5 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 361, description: 'FRC Frame & Cover\nClear Opening : 750 x 600 mm\nCover Size : 890 x 740 mm\nCover Thickness : 100 mm\nFrame Size : 1025 x 890 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCRFRC44x26 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 178, description: 'FRC Frame & Cover\nClear Opening : 900 x 450 mm\nCover Size : 1000 x 550 mm\nCover Thickness : 70 mm\nFrame Size : 1100 x 650 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCRFRC44x26 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 275, description: 'FRC Frame & Cover\nClear Opening : 900 x 450 mm\nCover Size : 1000 x 550 mm\nCover Thickness : 90 mm\nFrame Size : 1100 x 650 mm\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCRFRC44x34 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 201, description: 'FRC Frame & Cover\nClear Opening : 900 x 600 mm\nCover Size : 1000 x 700 mm\nCover Thickness : 70 mm\nFrame Size : 1100 x 850 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCRFRC44x34 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 309, description: 'FRC Frame & Cover\nClear Opening : 900 x 600 mm\nCover Size : 1000 x 700 mm\nCover Thickness : 90 mm\nFrame Size : 1100 x 850 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCRFRC42x48 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 415, description: 'FRC Frame & Cover\nClear Opening : 900 x 750 mm\nCover Size : 1050 x 900 mm\nCover Thickness : 90 mm\nFrame Size : 1200 x 1050 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCRFRC48x44 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 456, description: 'FRC Frame & Cover\nClear Opening : 900 x 800 mm\nCover Size : 1050 x 950 mm\nCover Thickness : 100 mm\nFrame Size : 1200 x 1100 mm\nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCRFRC52x42 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 485, description: 'FRC Frame & Cover\nClear Opening : 1000 x 750 mm\nCover Size : 1150 x 900 mm\nCover Thickness : 100 mm\nFrame Size : 1300 x 1050 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCRFRC60x48 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 335, description: 'FRC Frame & Cover\nClear Opening : 1200 x 900 mm\nCover Size : 1300 x 1000 mm\nCover Thickness : 50 mm\nFrame Size : 1500 x 1200 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCRFRC60x48 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 604, description: 'FRC Frame & Cover\nClear Opening : 1200 x 900 mm\nCover Size : 1300 x 1000 mm\nCover Thickness : 100 mm\nFrame Size : 1500 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  { name: 'FRCRFRC60x48 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Rectangular Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 609, description: 'FRC Frame & Cover\nClear Opening : 1200 x 900 mm\nCover Size : 1300 x 1000 mm\nCover Thickness : 100 mm\nFrame Size : 1500 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+];
+
+// Trading Products - FRC Square Frame Square Cover
+const frcSquareFrameProducts: ProductSeedData[] = [
+  { name: 'FRCSFSC12x12', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 11, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 190 x 190 mm\nCover Size : 230 x 230 mm\nCover Thickness : 30 mm\nFrame Size : 300 x 300 mm\nFrame Thickness : 65 mm' },
+  { name: 'FRCSFSC15x15', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 18, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 220 x 220 mm\nCover Size : 300 x 300 mm\nCover Thickness : 40 mm\nFrame Size : 375 x 375 mm\nFrame Thickness : 75 mm' },
+  
+  { name: 'FRCSFSC18x18 LD1', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 26, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 305 x 305 mm\nCover Size : 375 x 375 mm\nCover Thickness : 40 mm\nFrame Size : 450 x 450 mm\nFrame Thickness : 81 mm\nCapacity : LD 1' },
+  { name: 'FRCSFSC18x18 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 67, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 305 x 305 mm\nCover Size : 375 x 375 mm\nCover Thickness : 90 mm\nFrame Size : 450 x 450 mm\nFrame Thickness : 150 mm\nCapacity : MD 10' },
+  { name: 'FRCSFSC18x18 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 67, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 305 x 305 mm\nCover Size : 375 x 375 mm\nCover Thickness : 90 mm\nFrame Size : 450 x 450 mm\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCSFSC24x24 LD2', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 47, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 425 x 425 mm\nCover Size : 500 x 500 mm\nCover Thickness : 40 mm\nFrame Size : 600 x 600 mm\nFrame Thickness : 75 mm\nCapacity : LD 2' },
+  { name: 'FRCSFSC24x24 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 71, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 420 x 420 mm\nCover Size : 490 x 490 mm\nCover Thickness : 50 mm\nFrame Size : 600 x 600 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCSFSC24x24 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 109, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 420 x 420 mm\nCover Size : 490 x 490 mm\nCover Thickness : 90 mm\nFrame Size : 600 x 600 mm\nFrame Thickness : 150 mm\nCapacity : LD 5' },
+  
+  { name: 'FRCSFSC27x27 LD3', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 64, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 525 x 525 mm\nCover Size : 600 x 600 mm\nCover Thickness : 40 mm\nFrame Size : 675 x 675 mm\nFrame Thickness : 81 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCSFSC30x30 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 112, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 500 x 500 mm\nCover Size : 600 x 600 mm\nCover Thickness : 50 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCSFSC30x30 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 152, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 500 x 500 mm\nCover Size : 600 x 600 mm\nCover Thickness : 70 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCSFSC30x30 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 189, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 500 x 500 mm\nCover Size : 600 x 600 mm\nCover Thickness : 90 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCSFSC30x30 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 189, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 500 x 500 mm\nCover Size : 600 x 600 mm\nCover Thickness : 90 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 165 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSFSC32.5x32.5 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 110, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 600 x 600 mm\nCover Size : 700 x 700 mm\nCover Thickness : 50 mm\nFrame Size : 812 x 812 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCSFSC32.5x32.5 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 172, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 600 x 600 mm\nCover Size : 700 x 700 mm\nCover Thickness : 70 mm\nFrame Size : 812 x 812 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  
+  { name: 'FRCSFSC36x36 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 273, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 600 x 600 mm\nCover Size : 750 x 750 mm\nCover Thickness : 90 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCSFSC36x36 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 289, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 600 x 600 mm\nCover Size : 750 x 750 mm\nCover Thickness : 100 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSFSC38x38 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 145, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 750 x 750 mm\nCover Size : 850 x 850 mm\nCover Thickness : 50 mm\nFrame Size : 950 x 950 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  
+  { name: 'FRCSFSC42x42 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 282, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 750 x 750 mm\nCover Size : 900 x 900 mm\nCover Thickness : 75 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 125 mm\nCapacity : MD 10' },
+  { name: 'FRCSFSC42x42 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 374, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 750 x 750 mm\nCover Size : 900 x 900 mm\nCover Thickness : 100 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  { name: 'FRCSFSC42x42 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 384, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 750 x 750 mm\nCover Size : 900 x 900 mm\nCover Thickness : 100 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSFSC48x48 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 493, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 900 x 900 mm\nCover Size : 1050 x 1050 mm\nCover Thickness : 100 mm\nFrame Size : 1200 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  { name: 'FRCSFSC48x48 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 501, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 900 x 900 mm\nCover Size : 1050 x 1050 mm\nCover Thickness : 100 mm\nFrame Size : 1200 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSFSC55x55 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 825, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 1000 x 1000 mm\nCover Size : 1200 x 1200 mm\nCover Thickness : 125 mm\nFrame Size : 1400 x 1400 mm\nFrame Thickness : 200 mm\nCapacity : HD 20' },
+  { name: 'FRCSFSC55x55 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 825, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 1000 x 1000 mm\nCover Size : 1200 x 1200 mm\nCover Thickness : 125 mm\nFrame Size : 1400 x 1400 mm\nFrame Thickness : 200 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSFSC63x63 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 990, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 1200 x 1200 mm\nCover Size : 1400 x 1400 mm\nCover Thickness : 125 mm\nFrame Size : 1600 x 1600 mm\nFrame Thickness : 200 mm\nCapacity : HD 20' },
+  { name: 'FRCSFSC63x63 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 990, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 1200 x 1200 mm\nCover Size : 1400 x 1400 mm\nCover Thickness : 125 mm\nFrame Size : 1600 x 1600 mm\nFrame Thickness : 200 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCSFSC67x67 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 990, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 1300 x 1300 mm\nCover Size : 1400 x 1400 mm\nCover Thickness : 125 mm\nFrame Size : 1700 x 1700 mm\nFrame Thickness : 200 mm\nCapacity : HD 20' },
+  { name: 'FRCSFSC67x67 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Square Frame Square Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 990, description: 'FRC SQ. Frame & SQ. Cover\nClear Opening : 1300 x 1300 mm\nCover Size : 1400 x 1400 mm\nCover Thickness : 125 mm\nFrame Size : 1700 x 1700 mm\nFrame Thickness : 200 mm\nCapacity : EHD 35' },
+];
+
+// Trading Products - FRC Round Frame Round Cover
+const frcRoundFrameProducts: ProductSeedData[] = [
+  { name: 'FRCROFROC30 dia MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 109, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 500 mm dia\nCover Size : 600 mm dia\nCover Thickness : 70 mm\nFrame Size : 750 mm dia\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCROFROC30 dia HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 143, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 500 mm dia\nCover Size : 600 mm dia\nCover Thickness : 90 mm\nFrame Size : 750 mm dia\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCROFROC31.5 dia HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 173, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 500 mm dia\nCover Size : 650 mm dia\nCover Thickness : 90 mm\nFrame Size : 800 mm dia\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCROFROC31.5 dia EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 189, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 500 mm dia\nCover Size : 650 mm dia\nCover Thickness : 100 mm\nFrame Size : 800 mm dia\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCROFROC33 dia HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 164, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 560 mm dia\nCover Size : 670 mm dia\nCover Thickness : 81 mm\nFrame Size : 825 mm dia\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCROFROC34 dia HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 205, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 560 mm dia\nCover Size : 700 mm dia\nCover Thickness : 90 mm\nFrame Size : 850 mm dia\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  { name: 'FRCROFROC34 dia EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 228, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 560 mm dia\nCover Size : 700 mm dia\nCover Thickness : 100 mm\nFrame Size : 850 mm dia\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCROFROC34 dia HD20 - 600mm', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 211, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 600 mm dia\nCover Size : 750 mm dia\nCover Thickness : 90 mm\nFrame Size : 900 mm dia\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCROFROC34 dia EHD35 - 600mm', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Round Frame Round Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 225, description: 'FRC RO. Frame & RO. Cover\nClear Opening : 600 mm dia\nCover Size : 750 mm dia\nCover Thickness : 100 mm\nFrame Size : 900 mm dia\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+];
+
+// Trading Products - Catchpit Covers
+const frcCatchpitProducts: ProductSeedData[] = [
+  { name: 'FRCCP24x24 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 68, description: 'FRC Catachpit\nClear Opening : 412 x 412 mm\nCover Size : 490 x 490 mm\nCover Thickness : 50 mm\nFrame Size : 600 x 600 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCCP24x24 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 109, description: 'FRC Catachpit\nClear Opening : 418 x 418 mm\nCover Size : 490 x 490 mm\nCover Thickness : 90 mm\nFrame Size : 600 x 600 mm\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCCP28x22 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 95, description: 'FRC Catachpit\nClear Opening : 525 x 375 mm\nCover Size : 600 x 450 mm\nCover Thickness : 70 mm\nFrame Size : 700 x 550 mm\nFrame Thickness : 125 mm\nCapacity : MD 10' },
+  
+  { name: 'FRCCP30x30 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 110, description: 'FRC Catachpit\nClear Opening : 490 x 490 mm\nCover Size : 600 x 600 mm\nCover Thickness : 50 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCCP30x30 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 144, description: 'FRC Catachpit\nClear Opening : 450 x 450 mm\nCover Size : 600 x 600 mm\nCover Thickness : 75 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 125 mm\nCapacity : MD 10' },
+  { name: 'FRCCP30x30 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 187, description: 'FRC Catachpit\nClear Opening : 450 x 450 mm\nCover Size : 600 x 600 mm\nCover Thickness : 75 mm\nFrame Size : 750 x 750 mm\nFrame Thickness : 150 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCCP32x26 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 102, description: 'FRC Catachpit\nClear Opening : 600 x 450 mm\nCover Size : 700 x 550 mm\nCover Thickness : 50 mm\nFrame Size : 800 x 650 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCCP32x26 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 124, description: 'FRC Catachpit\nClear Opening : 600 x 450 mm\nCover Size : 700 x 550 mm\nCover Thickness : 70 mm\nFrame Size : 800 x 650 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCCP32x26 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 159, description: 'FRC Catachpit\nClear Opening : 600 x 450 mm\nCover Size : 700 x 550 mm\nCover Thickness : 90 mm\nFrame Size : 800 x 650 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCCP32.5x32.5 LD5', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 110, description: 'FRC Catachpit\nClear Opening : 600 X 600 mm\nCover Size : 700 x 700 mm\nCover Thickness : 50 mm\nFrame Size : 812 x 812 mm\nFrame Thickness : 100 mm\nCapacity : LD 5' },
+  { name: 'FRCCP32.5x32.5 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 177, description: 'FRC Catachpit\nClear Opening : 600 X 600 mm\nCover Size : 700 x 700 mm\nCover Thickness : 70 mm\nFrame Size : 812 x 812 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  
+  { name: 'FRCCP36x36 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 255, description: 'FRC Catachpit\nClear Opening : 600 X 600 mm\nCover Size : 750 x 750 mm\nCover Thickness : 90 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  { name: 'FRCCP36x36 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 276, description: 'FRC Catachpit\nClear Opening : 600 X 600 mm\nCover Size : 750 x 750 mm\nCover Thickness : 100 mm\nFrame Size : 900 x 900 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCCP42x42 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 282, description: 'FRC Catachpit\nClear Opening : 750 x 750 mm\nCover Size : 900 x 900 mm\nCover Thickness : 75 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 125 mm\nCapacity : MD 10' },
+  { name: 'FRCCP42x42 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 334, description: 'FRC Catachpit\nClear Opening : 750 x 750 mm\nCover Size : 900 x 900 mm\nCover Thickness : 100 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  { name: 'FRCCP42x42 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 344, description: 'FRC Catachpit\nClear Opening : 750 x 750 mm\nCover Size : 900 x 900 mm\nCover Thickness : 100 mm\nFrame Size : 1050 x 1050 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCCP44x34 MD10', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 201, description: 'FRC Catachpit\nClear Opening : 900 x 600 mm\nCover Size : 1000 x 700 mm\nCover Thickness : 70 mm\nFrame Size : 1100 x 850 mm\nFrame Thickness : 120 mm\nCapacity : MD 10' },
+  { name: 'FRCCP44x34 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 303, description: 'FRC Catachpit\nClear Opening : 900 x 600 mm\nCover Size : 1000 x 700 mm\nCover Thickness : 90 mm\nFrame Size : 1100 x 850 mm\nFrame Thickness : 165 mm\nCapacity : HD 20' },
+  
+  { name: 'FRCCP48x48 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 476, description: 'FRC Catachpit\nClear Opening : 900 x 900 mm\nCover Size : 1050 x 1050 mm\nCover Thickness : 100 mm\nFrame Size : 1200 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  { name: 'FRCCP48x48 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 486, description: 'FRC Catachpit\nClear Opening : 900 x 900 mm\nCover Size : 1050 x 1050 mm\nCover Thickness : 100 mm\nFrame Size : 1200 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+  
+  { name: 'FRCCP60x48 HD20', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 609, description: 'FRC Catachpit\nClear Opening : 1200 x 900 mm\nCover Size : 1300 x 1000 mm\nCover Thickness : 100 mm\nFrame Size : 1500 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : HD 20' },
+  { name: 'FRCCP60x48 EHD35', brand: 'HIMALAYA', category: 'FRC COVER', subCategory: 'Catchpit Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 609, description: 'FRC Catachpit\nClear Opening : 1200 x 900 mm\nCover Size : 1300 x 1000 mm\nCover Thickness : 100 mm\nFrame Size : 1500 x 1200 mm\nFrame Thickness : 175 mm\nCapacity : EHD 35' },
+];
+
+// Trading Products - Others
+const otherProducts: ProductSeedData[] = [
+  // GT Covers
+  { name: 'FRCGT ONLY CO12x12', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'GT Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 2, description: 'FRC GT COVER - ONLY COVER\nCover Size : 8.5 mm dia' },
+  { name: 'FRCGT FC 12x12', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'GT Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 9, description: 'FRC GT COVER \nCover Size : 8.5 mm dia\nFrame Size : 12 x 12' },
+  
+  // Trench Covers
+  { name: 'FRCTSOC 24 x 12x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 23, description: 'FRC Trench Cover\n600 x 300 x 50 mm' },
+  { name: 'FRCTSOC 28 x 12x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 27, description: 'FRC Trench Cover\n700 x 300 x 50 mm' },
+  { name: 'FRCTSOC 24 x 18x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 32, description: 'FRC Trench Cover\n600 x 450 x 50 mm' },
+  { name: 'FRCTSOC 24 x 24x2R', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 45, description: 'FRC Trench Cover\n600 x 600 x 50 mm' },
+  { name: 'FRCTSOC 36 x 18x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 100, description: 'FRC Trench Cover\n900 x 450 x 100 mm' },
+  { name: 'FRCTSOC 36 x 24x2R', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 74, description: 'FRC Trench Cover\n900 x 600 x 50 mm' },
+  { name: 'FRCTSOC 36 x 24x4R', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 148, description: 'FRC Trench Cover\n900 x 600 x 100 mm' },
+  
+  // Perforated Trench Covers
+  { name: 'FRCTPEC 24 x 12x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Perforated Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 23, description: 'FRC Perforated Trench Cover\n600 x 300 x 50 mm' },
+  { name: 'FRCTPEC 24 x 16x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Perforated Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 33, description: 'FRC Perforated Trench Cover\n600 x 400 x 50 mm' },
+  { name: 'FRCTPEC 24 x 18x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Perforated Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 32, description: 'FRC Perforated Trench Cover\n600 x 450 x 50 mm' },
+  { name: 'FRCTPEC 30 x 24x2', brand: 'HIMALAYA', category: 'OTHERS', subCategory: 'Perforated Trench Cover', hsnCode: '68109990', unit: 'SET', unitPrice: 0, weight: 56, description: 'FRC Perforated Trench Cover\n750 x 600 x 50 mm' },
+];
+
+// 136 Store Hardware & Raw Material Items
+const hardwareItemsRaw = [
+  { srNo: 1, itemName: 'WATER PAPER 60', code: 'HCPPL001', unit: 'ROLL', balance: 1, category: 'Hardware', minStock: 20 },
+  { srNo: 2, itemName: 'WATER PAPER 80', code: 'HCPPL002', unit: 'PCS', balance: 1890, category: 'Hardware', minStock: 20 },
+  { srNo: 3, itemName: 'WATER PAPER 120', code: 'HCPPL003', unit: 'PCS', balance: 32, category: 'Hardware', minStock: 20 },
+  { srNo: 4, itemName: 'WATER PAPER 150', code: 'HCPPL004', unit: 'PCS', balance: 850, category: 'Hardware', minStock: 20 },
+  { srNo: 5, itemName: 'WATER PAPER 220', code: 'HCPPL005', unit: 'PCS', balance: 145, category: 'Hardware', minStock: 20 },
+  { srNo: 6, itemName: 'WATER PAPER 320', code: 'HCPPL006', unit: 'PCS', balance: 450, category: 'Hardware', minStock: 20 },
+  { srNo: 7, itemName: 'WATER PAPER 400', code: 'HCPPL007', unit: 'PCS', balance: 1572, category: 'Hardware', minStock: 20 },
+  { srNo: 8, itemName: 'WATER PAPER 600', code: 'HCPPL008', unit: 'PCS', balance: 114, category: 'Hardware', minStock: 20 },
+  { srNo: 9, itemName: 'WATER PAPER 800', code: 'HCPPL009', unit: 'PCS', balance: 200, category: 'Hardware', minStock: 20 },
+  { srNo: 10, itemName: 'WATER PAPER 1000', code: 'HCPPL010', unit: 'PCS', balance: 707, category: 'Hardware', minStock: 20 },
+  { srNo: 11, itemName: 'WATER PAPER 1200', code: 'HCPPL011', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 20 },
+  { srNo: 12, itemName: 'WATER PAPER 1500', code: 'HCPPL012', unit: 'PCS', balance: 100, category: 'Hardware', minStock: 20 },
+  { srNo: 13, itemName: 'BLUE PIGMENT', code: 'HCPPL013', unit: 'KG', balance: 52, category: 'Raw Material', minStock: 2 },
+  { srNo: 14, itemName: 'LIGHT GREY PIGMENT', code: 'HCPPL014', unit: 'KG', balance: 123, category: 'Raw Material', minStock: 10 },
+  { srNo: 15, itemName: 'RED PIGMENT', code: 'HCPPL015', unit: 'KG', balance: 59, category: 'Raw Material', minStock: 10 },
+  { srNo: 16, itemName: 'BLACK PIGMENT', code: 'HCPPL016', unit: 'KG', balance: 200, category: 'Raw Material', minStock: 25 },
+  { srNo: 17, itemName: 'WHITE PIGMENT', code: 'HCPPL017', unit: 'KG', balance: 18, category: 'Raw Material', minStock: 2 },
+  { srNo: 18, itemName: 'BENJO WAX POLISH', code: 'HCPPL018', unit: 'KG', balance: 20, category: 'Raw Material', minStock: 5 },
+  { srNo: 19, itemName: 'WHITE WAX POLISH', code: 'HCPPL019', unit: 'KG', balance: 45, category: 'Raw Material', minStock: 40 },
+  { srNo: 20, itemName: 'BRUSH 25 MM', code: 'HCPPL020', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 5 },
+  { srNo: 21, itemName: 'BRUSH 38 MM', code: 'HCPPL021', unit: 'PCS', balance: 78, category: 'Hardware', minStock: 5 },
+  { srNo: 22, itemName: 'BRUSH 50 MM', code: 'HCPPL022', unit: 'PCS', balance: 227, category: 'Hardware', minStock: 5 },
+  { srNo: 23, itemName: 'BRUSH 75 MM', code: 'HCPPL023', unit: 'PCS', balance: 9, category: 'Hardware', minStock: 5 },
+  { srNo: 24, itemName: 'BRUSH 100 MM', code: 'HCPPL024', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 5 },
+  { srNo: 25, itemName: 'FIBER CUTTING DISH (DIAMOND CUTTER)', code: 'HCPPL025', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 20 },
+  { srNo: 26, itemName: 'GC WHEEL', code: 'HCPPL026', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 20 },
+  { srNo: 27, itemName: 'BEAR DIS 36', code: 'HCPPL027', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 10 },
+  { srNo: 28, itemName: 'BEAR DIS 60', code: 'HCPPL028', unit: 'PCS', balance: 200, category: 'Hardware', minStock: 10 },
+  { srNo: 29, itemName: 'BEAR DIS 80', code: 'HCPPL029', unit: 'PCS', balance: 100, category: 'Hardware', minStock: 10 },
+  { srNo: 30, itemName: 'BEAR DIS 120', code: 'HCPPL030', unit: 'PCS', balance: 50, category: 'Hardware', minStock: 10 },
+  { srNo: 31, itemName: 'WELCOR PAPER 80', code: 'HCPPL031', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 5 },
+  { srNo: 32, itemName: 'WELCOR PAPER 120', code: 'HCPPL032', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 5 },
+  { srNo: 33, itemName: 'WELCOR PAPER 180', code: 'HCPPL033', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 5 },
+  { srNo: 34, itemName: 'WELCOR PAPER 220', code: 'HCPPL034', unit: 'PCS', balance: 51, category: 'Hardware', minStock: 5 },
+  { srNo: 35, itemName: 'WELCOR PAPER 320', code: 'HCPPL035', unit: 'PCS', balance: 9, category: 'Hardware', minStock: 5 },
+  { srNo: 36, itemName: 'WELCOR PAPER 400', code: 'HCPPL036', unit: 'PCS', balance: 38, category: 'Hardware', minStock: 5 },
+  { srNo: 37, itemName: 'WELCOR PAPER 600', code: 'HCPPL037', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 5 },
+  { srNo: 38, itemName: 'IRON CUTTING DISK', code: 'HCPPL038', unit: 'PCS', balance: 271, category: 'Hardware', minStock: 10 },
+  { srNo: 39, itemName: 'SANDING MACHINE', code: 'HCPPL039', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
+  { srNo: 40, itemName: 'FEVICKIK', code: 'HCPPL040', unit: 'PCS', balance: 38, category: 'Hardware', minStock: 10 },
+  { srNo: 41, itemName: 'GRIDER WASHER (LOOK NUT)', code: 'HCPPL041', unit: 'PCS', balance: 58, category: 'Hardware', minStock: 10 },
+  { srNo: 42, itemName: 'C CLAMP 4 INCH', code: 'HCPPL042', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 2 },
+  { srNo: 43, itemName: 'C CLAMP 6 INCH', code: 'HCPPL043', unit: 'PCS', balance: 6, category: 'Hardware', minStock: 2 },
+  { srNo: 44, itemName: 'HAKSAW BLADE', code: 'HCPPL044', unit: 'PCS', balance: 461, category: 'Hardware', minStock: 20 },
+  { srNo: 45, itemName: 'GEAR OIL', code: 'HCPPL045', unit: 'LTR', balance: 2, category: 'Raw Material', minStock: 1 },
+  { srNo: 46, itemName: 'PLASTIC HAMMER', code: 'HCPPL046', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 1 },
+  { srNo: 47, itemName: 'HAMMER 1.5', code: 'HCPPL047', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
+  { srNo: 48, itemName: 'DRILL BIT 3MM', code: 'HCPPL048', unit: 'PCS', balance: 24, category: 'Hardware', minStock: 5 },
+  { srNo: 49, itemName: 'DRILL BIT 4MM', code: 'HCPPL049', unit: 'PCS', balance: 10, category: 'Hardware', minStock: 5 },
+  { srNo: 50, itemName: 'DRILL BIT 6MM', code: 'HCPPL050', unit: 'PCS', balance: 6, category: 'Hardware', minStock: 5 },
+  { srNo: 51, itemName: 'DRILL BIT 210*6MM', code: 'HCPPL051', unit: 'PCS', balance: 28, category: 'Hardware', minStock: 5 },
+  { srNo: 52, itemName: 'DRILL BIT 8MM', code: 'HCPPL052', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 5 },
+  { srNo: 53, itemName: 'DRILL BIT 10MM', code: 'HCPPL053', unit: 'PCS', balance: 12, category: 'Hardware', minStock: 5 },
+  { srNo: 54, itemName: 'DRILL BIT 12MM', code: 'HCPPL054', unit: 'PCS', balance: 26, category: 'Hardware', minStock: 5 },
+  { srNo: 55, itemName: 'THAPPI 6MM', code: 'HCPPL055', unit: 'PCS', balance: 17, category: 'Hardware', minStock: 5 },
+  { srNo: 56, itemName: 'THAPPI 8MM', code: 'HCPPL056', unit: 'PCS', balance: 59, category: 'Hardware', minStock: 5 },
+  { srNo: 57, itemName: 'THAPPI 10MM', code: 'HCPPL057', unit: 'PCS', balance: 45, category: 'Hardware', minStock: 5 },
+  { srNo: 58, itemName: 'THAPPI 12MM', code: 'HCPPL058', unit: 'PCS', balance: 41, category: 'Hardware', minStock: 5 },
+  { srNo: 59, itemName: 'THAPPI SMALL', code: 'HCPPL059', unit: 'PCS', balance: 89, category: 'Hardware', minStock: 5 },
+  { srNo: 60, itemName: 'FLAT CHISEL 25', code: 'HCPPL060', unit: 'PCS', balance: 37, category: 'Hardware', minStock: 5 },
+  { srNo: 61, itemName: 'FLAT CHISEL 32', code: 'HCPPL061', unit: 'PCS', balance: 39, category: 'Hardware', minStock: 5 },
+  { srNo: 62, itemName: 'FLAT CHISEL 40', code: 'HCPPL062', unit: 'PCS', balance: 48, category: 'Hardware', minStock: 5 },
+  { srNo: 63, itemName: 'FLAT CHISEL 50', code: 'HCPPL063', unit: 'PCS', balance: 57, category: 'Hardware', minStock: 5 },
+  { srNo: 64, itemName: 'PVC FLAT CHISEL HANDLE', code: 'HCPPL064', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 5 },
+  { srNo: 65, itemName: 'SCREW DRIVER 18 INCH', code: 'HCPPL065', unit: 'PCS', balance: 17, category: 'Hardware', minStock: 2 },
+  { srNo: 66, itemName: 'SCREW DRIVER SMALL REGULAR', code: 'HCPPL066', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 2 },
+  { srNo: 67, itemName: 'A-11 MOUNTAIN WHEEL (STONE BIT)', code: 'HCPPL067', unit: 'PKT', balance: 5, category: 'Hardware', minStock: 1 },
+  { srNo: 68, itemName: 'STERER 8MM', code: 'HCPPL068', unit: 'PCS', balance: 1, category: 'Hardware', minStock: 2 },
+  { srNo: 69, itemName: 'STERER 12MM', code: 'HCPPL069', unit: 'PCS', balance: 12, category: 'Hardware', minStock: 2 },
+  { srNo: 70, itemName: 'PILERS (PAKKD)', code: 'HCPPL070', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
+  { srNo: 71, itemName: 'FILE (ROUND, FLAT, THANDER)', code: 'HCPPL071', unit: 'PCS', balance: 1, category: 'Hardware', minStock: 1 },
+  { srNo: 72, itemName: 'PERMENENT MARKER', code: 'HCPPL072', unit: 'PCS', balance: 59, category: 'Hardware', minStock: 10 },
+  { srNo: 73, itemName: 'BOARD MARKER', code: 'HCPPL073', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 9 },
+  { srNo: 74, itemName: 'PENCIL', code: 'HCPPL074', unit: 'PCS', balance: 9, category: 'Hardware', minStock: 1 },
+  { srNo: 75, itemName: 'PEN', code: 'HCPPL075', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 1 },
+  { srNo: 76, itemName: 'MASKING TAPE', code: 'HCPPL076', unit: 'PKT', balance: 48, category: 'Hardware', minStock: 1 },
+  { srNo: 77, itemName: 'STICH FLIM (RAPING ROLL)', code: 'HCPPL077', unit: 'ROLL', balance: 36, category: 'Hardware', minStock: 1 },
+  { srNo: 78, itemName: 'AUTO FINCH GREY COLOUR', code: 'HCPPL078', unit: 'CAN', balance: 12, category: 'Hardware', minStock: 1 },
+  { srNo: 79, itemName: 'AUTO FINCH BLACK COLOUR', code: 'HCPPL079', unit: 'CAN', balance: 7, category: 'Hardware', minStock: 1 },
+  { srNo: 80, itemName: 'AUTO FINCH BLUE COLOUR', code: 'HCPPL080', unit: 'CAN', balance: 2, category: 'Hardware', minStock: 1 },
+  { srNo: 81, itemName: 'SCALE 18 INCH', code: 'HCPPL081', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 1 },
+  { srNo: 82, itemName: 'SCALE 24 INCH', code: 'HCPPL082', unit: 'PCS', balance: 4, category: 'Hardware', minStock: 1 },
+  { srNo: 83, itemName: 'SCALE 40 INCH', code: 'HCPPL083', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
+  { srNo: 84, itemName: 'MEASURING TAPE 3M', code: 'HCPPL084', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 2 },
+  { srNo: 85, itemName: 'MEASURING TAPE 5M', code: 'HCPPL085', unit: 'PCS', balance: 1, category: 'Hardware', minStock: 1 },
+  { srNo: 86, itemName: 'BUCKET 5', code: 'HCPPL086', unit: 'PCS', balance: 24, category: 'Hardware', minStock: 5 },
+  { srNo: 87, itemName: 'BUCKET 10', code: 'HCPPL087', unit: 'PCS', balance: 59, category: 'Hardware', minStock: 5 },
+  { srNo: 88, itemName: 'BUCKET 13', code: 'HCPPL088', unit: 'PCS', balance: 23, category: 'Hardware', minStock: 5 },
+  { srNo: 89, itemName: 'BUCKET 20', code: 'HCPPL089', unit: 'PCS', balance: 6, category: 'Hardware', minStock: 5 },
+  { srNo: 90, itemName: 'GHAMELA 8', code: 'HCPPL090', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 3 },
+  { srNo: 91, itemName: 'GHAMELA 10', code: 'HCPPL091', unit: 'PCS', balance: 23, category: 'Hardware', minStock: 3 },
+  { srNo: 92, itemName: 'GHAMELA 12', code: 'HCPPL092', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 3 },
+  { srNo: 93, itemName: 'GHAMELA 14', code: 'HCPPL093', unit: 'PCS', balance: 61, category: 'Hardware', minStock: 3 },
+  { srNo: 94, itemName: 'GHAMELA 19', code: 'HCPPL094', unit: 'PCS', balance: 51, category: 'Hardware', minStock: 3 },
+  { srNo: 95, itemName: 'MUGGA', code: 'HCPPL095', unit: 'PCS', balance: 56, category: 'Hardware', minStock: 5 },
+  { srNo: 96, itemName: 'WIRE TAPE', code: 'HCPPL096', unit: 'PCS', balance: 60, category: 'Hardware', minStock: 10 },
+  { srNo: 97, itemName: 'GRINDER CORBON (6-100)', code: 'HCPPL097', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 10 },
+  { srNo: 98, itemName: 'MIXURE CORBON', code: 'HCPPL098', unit: 'PCS', balance: 60, category: 'Hardware', minStock: 10 },
+  { srNo: 99, itemName: 'PVA', code: 'HCPPL099', unit: 'LTR', balance: 0, category: 'Raw Material', minStock: 2 },
+  { srNo: 100, itemName: 'CLEAR RESIN', code: 'HCPPL100', unit: 'BARREL', balance: 59, category: 'Raw Material', minStock: 5 },
+  { srNo: 101, itemName: 'ISO RESIN', code: 'HCPPL101', unit: 'BARREL', balance: 46, category: 'Raw Material', minStock: 2 },
+  { srNo: 102, itemName: 'ISO GEL-COAT', code: 'HCPPL102', unit: 'BARREL', balance: 0, category: 'Raw Material', minStock: 0 },
+  { srNo: 103, itemName: 'SURFACE TISSUE MAT (30GSM)', code: 'HCPPL103', unit: 'ROLL', balance: 0, category: 'Raw Material', minStock: 1 },
+  { srNo: 104, itemName: 'FGM MAT 225 GSM', code: 'HCPPL104', unit: 'ROLL', balance: 37, category: 'Raw Material', minStock: 1 },
+  { srNo: 105, itemName: 'FGM MAT 450 GSM', code: 'HCPPL105', unit: 'ROLL', balance: 0, category: 'Raw Material', minStock: 5 },
+  { srNo: 106, itemName: 'FGM MATT 1230 GSM', code: 'HCPPL106', unit: 'ROLL', balance: 30, category: 'Raw Material', minStock: 5 },
+  { srNo: 107, itemName: 'WOVEN ROVING 610 GSM', code: 'HCPPL107', unit: 'ROLL', balance: 57, category: 'Raw Material', minStock: 5 },
+  { srNo: 108, itemName: 'MEKP (CATALYST)', code: 'HCPPL108', unit: 'CAN', balance: 28, category: 'Raw Material', minStock: 1 },
+  { srNo: 109, itemName: 'COBALT OCTOATE', code: 'HCPPL109', unit: 'CAN', balance: 29, category: 'Raw Material', minStock: 1 },
+  { srNo: 110, itemName: 'THINNER', code: 'HCPPL110', unit: 'LTR', balance: 0, category: 'Raw Material', minStock: 50 },
+  { srNo: 111, itemName: 'QUARTZ BIG', code: 'HCPPL111', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 10 },
+  { srNo: 112, itemName: 'QUARTZ MEDIUM', code: 'HCPPL112', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 10 },
+  { srNo: 113, itemName: 'QUARTZ SMALL', code: 'HCPPL113', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 10 },
+  { srNo: 114, itemName: 'DOLOMITE POWDER', code: 'HCPPL114', unit: 'BAG', balance: 420, category: 'Raw Material', minStock: 10 },
+  { srNo: 115, itemName: 'GEL COAT POWDER', code: 'HCPPL115', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 0 },
+  { srNo: 116, itemName: 'ELECTRIC ZIGSAW MACHINE', code: 'HCPPL116', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
+  { srNo: 117, itemName: 'HAND MIXTURE MACHINE', code: 'HCPPL117', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
+  { srNo: 118, itemName: 'ANGLE GRINDER', code: 'HCPPL118', unit: 'PCS', balance: 0, category: 'Electric', minStock: 2 },
+  { srNo: 119, itemName: 'DRILL MACHINE', code: 'HCPPL119', unit: 'PCS', balance: 0, category: 'Electric', minStock: 2 },
+  { srNo: 120, itemName: 'BUFING MACHINE', code: 'HCPPL120', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
+  { srNo: 121, itemName: 'SANDING MACHINE', code: 'HCPPL121', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
+  { srNo: 122, itemName: 'POP (PLASTER OF PARIS)', code: 'HCPPL122', unit: 'BAG', balance: 0, category: 'Hardware', minStock: 2 },
+  { srNo: 123, itemName: 'PLY WOOD 4MM', code: 'HCPPL123', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
+  { srNo: 124, itemName: 'PLY WOOD 6MM', code: 'HCPPL124', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
+  { srNo: 125, itemName: 'PLY WOOD 12MM', code: 'HCPPL125', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
+  { srNo: 126, itemName: 'PLY WOOD 18MM', code: 'HCPPL126', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
+  { srNo: 127, itemName: 'ZIGSAW BLADE', code: 'HCPPL127', unit: 'PCS', balance: 98, category: 'Hardware', minStock: 5 },
+  { srNo: 128, itemName: 'WASTE CLOTH', code: 'HCPPL128', unit: 'KG', balance: 0, category: 'Hardware', minStock: 5 },
+  { srNo: 129, itemName: 'BELCHA (SEWAL)', code: 'HCPPL129', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
+  { srNo: 130, itemName: 'SHARPNER', code: 'HCPPL130', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
+  { srNo: 131, itemName: 'ERASER', code: 'HCPPL131', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
+  { srNo: 132, itemName: 'HYDROLIC OIL', code: 'HCPPL132', unit: 'LTR', balance: 0, category: 'Hardware', minStock: 20 },
+  { srNo: 133, itemName: 'GRISH', code: 'HCPPL133', unit: 'KG', balance: 0, category: 'Hardware', minStock: 20 },
+  { srNo: 134, itemName: 'WELDING RODE', code: 'HCPPL134', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 1 },
+  { srNo: 135, itemName: 'NYLON BLACK PATTY', code: 'HCPPL135', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 1 },
+  { srNo: 136, itemName: 'GREY GLOVES', code: 'HCPPL136', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 10 },
+];
+
+const hardwareProducts: ProductSeedData[] = hardwareItemsRaw.map(item => ({
+  name: item.itemName,
+  brand: 'HIMALAYA',
+  category: item.category,
+  subCategory: item.category,
+  sku: item.code,
+  unit: item.unit,
+  unitPrice: 0,
+  minimumStock: item.minStock,
+  description: `${item.itemName} (${item.code})`,
+}));
+
+// Combine all products (230 seedbackup + 136 hardware = 366 items total)
+const allProducts: ProductSeedData[] = [
+  ...manufacturingProducts,
+  ...coverblockProducts,
+  ...rccPipeProducts,
+  ...frcSquareRoundProducts,
+  ...frcRectangularProducts,
+  ...frcSquareFrameProducts,
+  ...frcRoundFrameProducts,
+  ...frcCatchpitProducts,
+  ...otherProducts,
+  ...hardwareProducts,
+];
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -64,7 +675,7 @@ async function main() {
     'production.workorder.complete', 'production.workorder.read', 'production.workorder.start', 'production.workorder.update',
     'qc.inspection.approve', 'qc.inspection.read',
 
-    // Original CRM / Sales (legacy/misc)
+    // Original CRM / Sales
     'sample.read', 'sample.create', 'sample.dispatch', 'sample.update',
     'quotation.read', 'quotation.create', 'quotation.update', 'quotation.send', 'quotation.accept',
     'salesorder.confirm', 'salesorder.send_to_plant', 'salesorder.cancel',
@@ -164,9 +775,6 @@ async function main() {
     'admin.samples.create', 'admin.samples.read', 'admin.samples.update',
     'admin.storereports.read', 'procurement.suppliers.read',
     'inventory.warehouses.create', 'inventory.warehouses.read', 'inventory.warehouses.update', 'admin.workflow.read',
-    'store.brand-analysis.create', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'finance.brand-analysis.read',
-    'super-admin.brand-analysis.approve', 'super-admin.brand-analysis.reject', 'finance.brand-analysis.start', 'finance.brand-analysis.complete',
-    'plant-head.qc-failures.read'
   ];
 
   for (const code of permissionCodes) {
@@ -185,33 +793,6 @@ async function main() {
     create: { publicId: 'COMP-000001', name: 'Himalaya Wellness Pvt. Ltd.' },
   });
 
-  for (const item of [
-    { code: 'HR', name: 'Human Resources' },
-    { code: 'SALES', name: 'Sales' },
-    { code: 'FINANCE', name: 'Finance' },
-    { code: 'PRODUCTION', name: 'Production' },
-    { code: 'QUALITY', name: 'Quality Control' },
-  ]) {
-    await prisma.department.upsert({
-      where: { companyId_code: { companyId: company.id, code: item.code } },
-      update: { name: item.name, isActive: true },
-      create: { companyId: company.id, ...item },
-    });
-  }
-  for (const item of [
-    { code: 'HEAD_OFFICE', name: 'Head Office' },
-    { code: 'PLANT', name: 'Plant' },
-    { code: 'WAREHOUSE', name: 'Warehouse' },
-    { code: 'FIELD', name: 'Field' },
-    { code: 'REMOTE', name: 'Remote' },
-  ]) {
-    await prisma.workLocation.upsert({
-      where: { companyId_code: { companyId: company.id, code: item.code } },
-      update: { name: item.name, isActive: true },
-      create: { companyId: company.id, ...item },
-    });
-  }
-
   // ── 4. Assign all permissions to SUPER_ADMIN and ADMIN ─────────────────────
   console.log('🔗 Assigning permissions to admin roles...');
   const adminRoles = await prisma.role.findMany({
@@ -229,439 +810,8 @@ async function main() {
     }
   }
 
-  const ownSlipPermission = await prisma.permission.findUnique({ where: { code: 'salary_slips.read_own' } });
-  if (ownSlipPermission) {
-    const everyRole = await prisma.role.findMany();
-    for (const role of everyRole) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: ownSlipPermission.id } },
-        update: {},
-        create: { roleId: role.id, permissionId: ownSlipPermission.id },
-      });
-    }
-  }
-
-  console.log('🔗 Assigning permissions to sales roles...');
-  const salesExecRole = await prisma.role.findUnique({ where: { code: 'SALES_EXECUTIVE' } });
-  const salesMgrRole = await prisma.role.findUnique({ where: { code: 'SALES_MANAGER' } });
-
-  const commonSalesPerms = [
-    'sales.customers.read', 'sales.customers.create', 'sales.customers.update',
-    'sales.leads.read', 'sales.leads.create', 'sales.leads.update', 'sales.leads.convert',
-    'sales.dashboard.read',
-    'sales.orders.read', 'sales.orders.create', 'sales.orders.update',
-    'crm.quotation.read', 'crm.quotation.create', 'crm.quotation.update',
-    'sales.customercomplaints.read', 'sales.customercomplaints.create', 'sales.customercomplaints.update',
-    'sales.complaints.read', 'sales.complaints.create', 'sales.complaints.update',
-    'inventory.warehouses.read', 'warehouses.read',
-    'procurement.suppliers.read', 'suppliers.read',
-    'inventory.inventory.read', 'inventory.stock.read',
-    'products.read', 'admin.products.read',
-    'admin.materialrequests.read', 'admin.materialrequests.create', 'materialrequests.read',
-  ];
-
-  const salesExecPermsList = [
-    ...commonSalesPerms,
-    'crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update', 'crm.quotations.send',
-    'crm.quotations.accept', 'crm.quotations.convert',
-  ];
-
-  const salesMgrPermsList = [
-    ...commonSalesPerms,
-    'crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update', 'crm.quotations.send',
-    'crm.quotations.accept', 'crm.quotations.convert', 'crm.quotations.delete',
-  ];
-
-  if (salesExecRole) {
-    const perms = await prisma.permission.findMany({ where: { code: { in: salesExecPermsList } } });
-    for (const perm of perms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: salesExecRole.id, permissionId: perm.id } },
-        update: {},
-        create: { roleId: salesExecRole.id, permissionId: perm.id },
-      });
-    }
-  }
-
-  if (salesMgrRole) {
-    const perms = await prisma.permission.findMany({ where: { code: { in: salesMgrPermsList } } });
-    for (const perm of perms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: salesMgrRole.id, permissionId: perm.id } },
-        update: {},
-        create: { roleId: salesMgrRole.id, permissionId: perm.id },
-      });
-    }
-  }
-
-  console.log('Assigning permissions to finance roles...');
-  const financeRoles = await prisma.role.findMany({
-    where: { code: { in: ['FINANCE_EXECUTIVE', 'FINANCE_MANAGER'] } },
-  });
-  const financePerms = await prisma.permission.findMany({
-    where: {
-      code: {
-        in: [
-          'finance.payment.read',
-          'finance.payment.update',
-          'sales.customers.read',
-          'finance.payroll.read',
-          'finance.payroll.process',
-          'finance.payroll.pay',
-          'finance.payroll.history',
-          'salary_slips.read_all',
-          'salary_slips.download',
-          'salary_slips.share',
-          'salary_slips.revoke_share',
-        ],
-      },
-    },
-  });
-
-  for (const role of financeRoles) {
-    for (const perm of financePerms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
-        update: {},
-        create: { roleId: role.id, permissionId: perm.id },
-      });
-    }
-  }
-
-  console.log('🔗 Assigning procurement permissions to operational roles...');
-  const procurementPerms = await prisma.permission.findMany({
-    where: {
-      code: {
-        startsWith: 'procurement.',
-      },
-    },
-  });
-
-  const operationalRoles = await prisma.role.findMany({
-    where: {
-      code: {
-        in: ['PLANT_HEAD', 'STORE_MANAGER', 'PRODUCTION_PLANNER', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
-      },
-    },
-  });
-
-  for (const role of operationalRoles) {
-    for (const perm of procurementPerms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
-        update: {},
-        create: { roleId: role.id, permissionId: perm.id },
-      });
-    }
-  }
-
-  // Procurement permissions are deliberately assigned by role rather than
-  // inferred in controllers; users must sign in again after reseeding so JWT
-  // permission claims are refreshed.
-  const procurementRolePermissions: Record<string, string[]> = {
-    STORE_MANAGER: ['procurement.indents.create','procurement.indents.read','procurement.indents.update','procurement.indents.submit','procurement.indents.resubmit','procurement.indents.cancel','procurement.purchase_orders.read','procurement.purchase_orders.delivery_read','procurement.purchase_orders.closure_read','procurement.grns.create','procurement.grns.read','procurement.grns.update','procurement.grns.submit','procurement.grns.resubmit','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.audit.read','suppliers.read','procurement.suppliers.read','products.read','warehouses.read','inventory.warehouses.read','inventory.stock.read','inventory.inventory.read'],
-    PLANT_HEAD: ['procurement.indents.read','procurement.indents.approve','procurement.indents.return','procurement.indents.reject','procurement.purchase_orders.read','procurement.purchase_orders.closure_read','procurement.grns.read','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.audit.read','products.read','warehouses.read','inventory.warehouses.read','inventory.stock.read','inventory.inventory.read','procurement.suppliers.read','suppliers.read'],
-    FINANCE_EXECUTIVE: ['procurement.indents.read','procurement.purchase_orders.create','procurement.purchase_orders.read','procurement.purchase_orders.update','procurement.purchase_orders.submit','procurement.purchase_orders.issue','procurement.purchase_orders.vendor_status','procurement.purchase_orders.dispatch','procurement.purchase_orders.closure_read','procurement.purchase_orders.close','procurement.grns.read','procurement.grns.audit','procurement.grns.return','procurement.vendor_invoices.create','procurement.vendor_invoices.read','procurement.vendor_invoices.update','procurement.vendor_invoices.submit','procurement.vendor_invoices.match','procurement.vendor_invoices.resolve_exception','procurement.vendor_invoices.verify','procurement.vendor_invoices.request_payment','procurement.vendor_invoices.cancel','procurement.vendor_payments.create','procurement.vendor_payments.read','procurement.vendor_payments.update','procurement.vendor_payments.submit','procurement.vendor_payments.process','procurement.vendor_payments.complete','procurement.vendor_payments.fail','procurement.vendor_payments.cancel','inventory.receipts.post','suppliers.read','procurement.suppliers.read','products.read','warehouses.read','inventory.warehouses.read','inventory.inventory.read'],
-    FINANCE_MANAGER: ['procurement.indents.read','procurement.purchase_orders.create','procurement.purchase_orders.read','procurement.purchase_orders.update','procurement.purchase_orders.submit','procurement.purchase_orders.issue','procurement.purchase_orders.vendor_status','procurement.purchase_orders.dispatch','procurement.purchase_orders.closure_read','procurement.purchase_orders.close','procurement.grns.read','procurement.grns.audit','procurement.grns.return','procurement.vendor_invoices.create','procurement.vendor_invoices.read','procurement.vendor_invoices.update','procurement.vendor_invoices.submit','procurement.vendor_invoices.match','procurement.vendor_invoices.resolve_exception','procurement.vendor_invoices.verify','procurement.vendor_invoices.request_payment','procurement.vendor_invoices.cancel','procurement.vendor_payments.create','procurement.vendor_payments.read','procurement.vendor_payments.update','procurement.vendor_payments.submit','procurement.vendor_payments.process','procurement.vendor_payments.complete','procurement.vendor_payments.fail','procurement.vendor_payments.cancel','inventory.receipts.post','suppliers.read','procurement.suppliers.read','products.read','warehouses.read','inventory.warehouses.read','inventory.inventory.read'],
-    SUPER_ADMIN: ['procurement.purchase_orders.read','procurement.purchase_orders.approve','procurement.purchase_orders.return','procurement.purchase_orders.reject','procurement.purchase_orders.closure_read','procurement.vendor_invoices.read','procurement.vendor_payments.read','procurement.vendor_payments.approve','procurement.audit.read'],
-  };
-  for (const [roleCode, codes] of Object.entries(procurementRolePermissions)) {
-    const role = await prisma.role.findUnique({ where: { code: roleCode } });
-    const permissions = await prisma.permission.findMany({ where: { code: { in: codes } } });
-    if (role) for (const permission of permissions) await prisma.rolePermission.upsert({ where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } }, update: {}, create: { roleId: role.id, permissionId: permission.id } });
-  }
-
-  const plantHeadRole = await prisma.role.findUnique({ where: { code: 'PLANT_HEAD' } });
-  const plantHeadPermissions = await prisma.permission.findMany({
-    where: {
-      code: {
-        in: [
-          'sales.orders.read',
-          'sales.orders.update',
-          'production.plan.read',
-          'production.plan.create',
-          'production.plan.approve',
-          'production.plan.release',
-          'production.workorder.update',
-          'qc.inspection.read',
-          'dispatch.create',
-          'dispatch.read',
-          'dispatch.update',
-          'logistics.dispatches.read',
-          'logistics.dispatches.create',
-          'logistics.dispatches.start-delivery',
-          'logistics.dispatches.confirm-delivery',
-          'hr.recruitment.requests.create',
-          'hr.recruitment.requests.read.own',
-          'hr.recruitment.requests.update.own',
-          'hr.recruitment.requests.withdraw',
-        ],
-      },
-    },
-  });
-  if (plantHeadRole) {
-    for (const permission of plantHeadPermissions) {
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
-            roleId: plantHeadRole.id,
-            permissionId: permission.id,
-          },
-        },
-        update: {},
-        create: {
-          roleId: plantHeadRole.id,
-          permissionId: permission.id,
-        },
-      });
-    }
-  }
-
-  const hrRole = await prisma.role.findUnique({ where: { code: 'HR' } });
-  const hrPermissions = await prisma.permission.findMany({
-    where: { OR: [{ code: { startsWith: 'hr.' } }, { code: { startsWith: 'salary_slips.' } }] },
-  });
-  if (hrRole) {
-    for (const permission of hrPermissions) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: hrRole.id, permissionId: permission.id } },
-        update: {},
-        create: { roleId: hrRole.id, permissionId: permission.id },
-      });
-    }
-  }
-
   // ── 5. Users (one per role) ─────────────────────────────────────────────────
   console.log('👤 Seeding users...');
-  const productionRoles = await prisma.role.findMany({
-    where: { code: { in: ['PLANT_HEAD', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR'] } },
-  });
-  const productionPermissions = await prisma.permission.findMany({
-    where: {
-      code: {
-        in: [
-          'production.plan.read',
-          'production.plan.create',
-          'production.plan.approve',
-          'production.plan.release',
-          'production.workorder.read',
-          'production.workorder.start',
-          'production.workorder.complete',
-          'production.workorder.update',
-          'qc.inspection.read',
-          'admin.materialrequests.read',
-          'admin.materialrequests.create',
-          'admin.materialrequests.approve',
-          'materialrequests.read',
-        ],
-      },
-    },
-  });
-  for (const role of productionRoles) {
-    for (const permission of productionPermissions) {
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
-            roleId: role.id,
-            permissionId: permission.id,
-          },
-        },
-        update: {},
-        create: {
-          roleId: role.id,
-          permissionId: permission.id,
-        },
-      });
-    }
-  }
-
-  // Dispatch users need read access to the production queue that feeds their
-  // dashboard, in addition to permission to create and progress dispatches.
-  const dispatchRole = await prisma.role.findUnique({
-    where: { code: 'DISPATCH_EXECUTIVE' },
-  });
-  const dispatchPermissions = await prisma.permission.findMany({
-    where: {
-      code: {
-        in: [
-          'production.workorder.read',
-          'production.workorder.update',
-          'sales.orders.read',
-          'dispatch.create',
-          'dispatch.read',
-          'dispatch.update',
-          'logistics.dispatches.read',
-          'logistics.dispatches.create',
-          'logistics.dispatches.start-delivery',
-          'logistics.dispatches.confirm-delivery',
-        ],
-      },
-    },
-  });
-  if (dispatchRole) {
-    for (const permission of dispatchPermissions) {
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
-            roleId: dispatchRole.id,
-            permissionId: permission.id,
-          },
-        },
-        update: {},
-        create: {
-          roleId: dispatchRole.id,
-          permissionId: permission.id,
-        },
-      });
-    }
-  }
-
-  // Temporarily grant dispatch creation to all roles for end-to-end testing convenience
-  console.log('🔗 Assigning dispatch permissions to all roles for testing...');
-  const everyRoleAgain = await prisma.role.findMany();
-  const allDispatchPerms = await prisma.permission.findMany({
-    where: {
-      code: {
-        in: [
-          'dispatch.create',
-          'dispatch.read',
-          'dispatch.update',
-          'logistics.dispatches.read',
-          'logistics.dispatches.create',
-          'logistics.dispatches.start-delivery',
-          'logistics.dispatches.confirm-delivery',
-        ],
-      },
-    },
-  });
-  for (const role of everyRoleAgain) {
-    for (const permission of allDispatchPerms) {
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: { roleId: role.id, permissionId: permission.id },
-        },
-        update: {},
-        create: { roleId: role.id, permissionId: permission.id },
-      });
-    }
-  }
-
-  console.log('🔗 Assigning catalog and QC permissions to all roles...');
-  const globalCatalogPerms = await prisma.permission.findMany({
-    where: {
-      code: {
-        in: [
-          'products.read',
-          'admin.products.read',
-          'warehouses.read',
-          'inventory.warehouses.read',
-          'suppliers.read',
-          'procurement.suppliers.read',
-          'inventory.stock.read',
-          'inventory.inventory.read',
-          'admin.materialrequests.read',
-          'materialrequests.read',
-          'production.qc.read',
-          'qc.inspection.read',
-          'production.productionworkflow.read',
-          'production.finishedgoods.read',
-          'finance.brand-analysis.read',
-          'store.brand-analysis.read',
-          'super-admin.brand-analysis.read',
-          'admin.replacements.create',
-          'admin.replacements.read',
-          'admin.replacements.approve',
-          'admin.replacements.reject',
-          'admin.replacements.update',
-          'production.qc.approve',
-          'qc.inspection.approve',
-          'production.qc.reject',
-          'qc.inspection.reject',
-          'production.floor.complete',
-        ],
-      },
-    },
-  });
-
-  const allRolesInSystem = await prisma.role.findMany();
-  for (const role of allRolesInSystem) {
-    for (const perm of globalCatalogPerms) {
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: { roleId: role.id, permissionId: perm.id },
-        },
-        update: {},
-        create: { roleId: role.id, permissionId: perm.id },
-      });
-    }
-  }
-
-  console.log('👤 Seeding sample customers & products...');
-  const sampleCustomers = [
-    { companyName: 'Karan Enterprises', customerCode: 'CUST-001', email: 'karan@enterprises.com', phone: '+91 9876543210', contactPerson: 'Karan Sharma' },
-    { companyName: 'Himalaya Distributors', customerCode: 'CUST-002', email: 'contact@himalayadist.com', phone: '+91 9812345678', contactPerson: 'Rahul Verma' },
-    { companyName: 'Acme Health & Care', customerCode: 'CUST-003', email: 'orders@acmehealth.com', phone: '+91 9898989898', contactPerson: 'Priya Gupta' },
-    { companyName: 'Lead Company 663544576', customerCode: 'CUST-004', email: 'info@leadco.com', phone: '+91 9777666555', contactPerson: 'Suresh Kumar' },
-  ];
-
-  for (const cust of sampleCustomers) {
-    const existing = await prisma.customer.findFirst({
-      where: {
-        OR: [
-          { companyName: cust.companyName },
-          { customerCode: cust.customerCode },
-        ],
-      },
-    });
-    if (!existing) {
-      await prisma.customer.create({
-        data: {
-          companyId: company.id,
-          companyName: cust.companyName,
-          customerCode: cust.customerCode,
-          email: cust.email,
-          phone: cust.phone,
-          contactPerson: cust.contactPerson,
-          status: 'ACTIVE',
-        },
-      });
-    }
-  }
-
-  const sampleProducts = [
-    { publicId: 'PROD-001', name: 'Herbal Shampoo 500ml', sku: 'SKU-HS500', unit: 'Bottle', unitPrice: 350.00, category: 'Personal Care' },
-    { publicId: 'PROD-002', name: 'Organic Neem Face Wash 150ml', sku: 'SKU-NFW150', unit: 'Tube', unitPrice: 180.00, category: 'Skincare' },
-    { publicId: 'PROD-003', name: 'Ayurvedic Toothpaste 200g', sku: 'SKU-ATP200', unit: 'Pack', unitPrice: 120.00, category: 'Oral Care' },
-    { publicId: 'PROD-004', name: 'Item (1 Qty)', sku: 'SKU-ITEM1', unit: 'Unit', unitPrice: 1416.00, category: 'General' },
-    { publicId: 'PROD-005', name: 'Item (100 Qty)', sku: 'SKU-ITEM100', unit: 'Box', unitPrice: 42000.00, category: 'Bulk' },
-  ];
-
-  for (const prod of sampleProducts) {
-    const existing = await prisma.product.findFirst({
-      where: {
-        OR: [
-          { publicId: prod.publicId },
-          { name: prod.name },
-          { sku: prod.sku },
-        ],
-      },
-    });
-    if (!existing) {
-      await prisma.product.create({
-        data: {
-          companyId: company.id,
-          publicId: prod.publicId,
-          name: prod.name,
-          sku: prod.sku,
-          unit: prod.unit,
-          unitPrice: prod.unitPrice,
-          category: prod.category,
-          isActive: true,
-        },
-      });
-    }
-  }
-
   const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
   const allRoles = await prisma.role.findMany();
@@ -695,8 +845,8 @@ async function main() {
     { documentType: 'SAMPLE', prefix: 'SAMP' },
     { documentType: 'QT',     prefix: 'QT'   },
     { documentType: 'SO',     prefix: 'SO'   },
-    { documentType: 'PP',     prefix: 'PP'   },   // Production Plan
-    { documentType: 'WO',     prefix: 'WO'   },   // Work Order
+    { documentType: 'PP',     prefix: 'PP'   },
+    { documentType: 'WO',     prefix: 'WO'   },
     { documentType: 'BATCH',  prefix: 'BATCH'},
     { documentType: 'QC',     prefix: 'QC'   },
     { documentType: 'DISP',   prefix: 'DISP' },
@@ -704,10 +854,10 @@ async function main() {
     { documentType: 'PAY',    prefix: 'PAY'  },
     { documentType: 'RET',    prefix: 'RET'  },
     { documentType: 'REPL',   prefix: 'REPL' },
-    { documentType: 'COMP',   prefix: 'COMP' },   // Complaint
-    { documentType: 'PO',     prefix: 'PO'   },   // Purchase Order
-    { documentType: 'GRN',    prefix: 'GRN'  },   // Goods Receipt Note
-    { documentType: 'AMEND',  prefix: 'AMD'  },   // Order Amendment
+    { documentType: 'COMP',   prefix: 'COMP' },
+    { documentType: 'PO',     prefix: 'PO'   },
+    { documentType: 'GRN',    prefix: 'GRN'  },
+    { documentType: 'AMEND',  prefix: 'AMD'  },
   ];
 
   for (const seq of sequences) {
@@ -724,15 +874,60 @@ async function main() {
     });
   }
 
-  // ── 7. Workflow Definitions ─────────────────────────────────────────────────
+  // ── 7. SEED PRODUCTS (366 Total Products: 230 Enterprise + 136 Hardware) ────
+  console.log(`📦 Seeding ${allProducts.length} products...`);
+  
+  let createdCount = 0;
+  let skippedCount = 0;
+
+  for (const productData of allProducts) {
+    try {
+      const sku = productData.sku || generateSku(productData.name);
+      
+      const existing = await prisma.product.findFirst({
+        where: {
+          companyId: company.id,
+          OR: [
+            { sku: sku },
+            { name: productData.name },
+          ],
+        },
+      });
+
+      if (!existing) {
+        await prisma.product.create({
+          data: {
+            companyId: company.id,
+            publicId: uid('PROD'),
+            name: productData.name,
+            sku: sku,
+            description: productData.description,
+            category: productData.category,
+            unit: productData.unit,
+            unitPrice: productData.unitPrice,
+            minimumStock: productData.minimumStock ?? 0,
+            isActive: true,
+          },
+        });
+        createdCount++;
+        
+        if (createdCount % 50 === 0) {
+          console.log(`  ✓ ${createdCount} products created...`);
+        }
+      } else {
+        skippedCount++;
+      }
+    } catch (error) {
+      console.error(`  ✗ Failed to create product: ${productData.name}`, error);
+    }
+  }
+
+  console.log(`  ✅ ${createdCount} products created, ${skippedCount} skipped (already exist)`);
+
+  // ── 8. Workflow Definitions ─────────────────────────────────────────────────
   console.log('⚙️  Seeding workflow definitions...');
 
-  const workflows: {
-    code: string;
-    name: string;
-    states: { code: string; name: string; sequence: number; isInitial?: boolean; isFinal?: boolean }[];
-    transitions: { from: string; to: string; actionName: string; actionLabel: string; requiredRole?: string; requiresApproval?: boolean; allowReject?: boolean }[];
-  }[] = [
+  const workflows = [
     {
       code: 'LEAD',
       name: 'Lead Workflow',
@@ -751,7 +946,6 @@ async function main() {
         { from: 'REQUIREMENT_IDENTIFIED', to: 'QUOTATION_SENT',         actionName: 'SEND_QUOTE',   actionLabel: 'Send Quote' },
         { from: 'QUOTATION_SENT',         to: 'NEGOTIATION',            actionName: 'NEGOTIATE',    actionLabel: 'Start Negotiation' },
         { from: 'NEGOTIATION',            to: 'WON',                    actionName: 'WON',          actionLabel: 'Mark Won' },
-        
         { from: 'NEW',                    to: 'LOST',                   actionName: 'LOST',         actionLabel: 'Mark Lost' },
         { from: 'CONTACTED',              to: 'LOST',                   actionName: 'LOST',         actionLabel: 'Mark Lost' },
         { from: 'REQUIREMENT_IDENTIFIED', to: 'LOST',                   actionName: 'LOST',         actionLabel: 'Mark Lost' },
@@ -787,13 +981,10 @@ async function main() {
         { from: 'SENT',              to: 'APPROVED',          actionName: 'APPROVE',       actionLabel: 'Approve' },
         { from: 'NEGOTIATION',       to: 'APPROVED',          actionName: 'APPROVE',       actionLabel: 'Approve' },
         { from: 'APPROVED',          to: 'CONVERTED_TO_SO',   actionName: 'CONVERT',       actionLabel: 'Convert to Sales Order' },
-        
         { from: 'INTERNAL_REVIEW',   to: 'REJECTED',          actionName: 'REJECT',        actionLabel: 'Reject' },
         { from: 'SENT',              to: 'REJECTED',          actionName: 'REJECT',        actionLabel: 'Reject' },
         { from: 'NEGOTIATION',       to: 'REJECTED',          actionName: 'REJECT',        actionLabel: 'Reject' },
-        
         { from: 'DRAFT',             to: 'CANCELLED',         actionName: 'CANCEL',        actionLabel: 'Cancel' },
-        
         { from: 'SENT',              to: 'EXPIRED',           actionName: 'EXPIRE',        actionLabel: 'Mark Expired' },
       ],
     },
@@ -961,7 +1152,6 @@ async function main() {
       create: { code: wf.code, name: wf.name },
     });
 
-    // States
     const stateMap: Record<string, string> = {};
     for (const s of wf.states) {
       const existing = await prisma.workflowState.findFirst({
@@ -985,7 +1175,6 @@ async function main() {
       stateMap[s.code] = state.id;
     }
 
-    // Transitions
     for (const t of wf.transitions) {
       await prisma.workflowTransition.upsert({
         where: {
@@ -1005,7 +1194,7 @@ async function main() {
           actionName: t.actionName,
           actionLabel: t.actionLabel,
           requiredRole: t.requiredRole,
-          requiresApproval: t.requiresApproval ?? false,
+          requiresApproval: (t as any).requiresApproval ?? false,
           allowReject: false,
         },
       });
@@ -1014,175 +1203,9 @@ async function main() {
     console.log(`  ✓ ${wf.name}`);
   }
 
-  // ── 9. Seed Inventory Items ───────────────────────────────────────────────
-  console.log('📦 Seeding inventory items...');
-  const inventoryItemsList = [
-    { srNo: 1, itemName: 'WATER PAPER 60', code: 'HCPPL001', unit: 'ROLL', balance: 1, category: 'Hardware', minStock: 20 },
-    { srNo: 2, itemName: 'WATER PAPER 80', code: 'HCPPL002', unit: 'PCS', balance: 1890, category: 'Hardware', minStock: 20 },
-    { srNo: 3, itemName: 'WATER PAPER 120', code: 'HCPPL003', unit: 'PCS', balance: 32, category: 'Hardware', minStock: 20 },
-    { srNo: 4, itemName: 'WATER PAPER 150', code: 'HCPPL004', unit: 'PCS', balance: 850, category: 'Hardware', minStock: 20 },
-    { srNo: 5, itemName: 'WATER PAPER 220', code: 'HCPPL005', unit: 'PCS', balance: 145, category: 'Hardware', minStock: 20 },
-    { srNo: 6, itemName: 'WATER PAPER 320', code: 'HCPPL006', unit: 'PCS', balance: 450, category: 'Hardware', minStock: 20 },
-    { srNo: 7, itemName: 'WATER PAPER 400', code: 'HCPPL007', unit: 'PCS', balance: 1572, category: 'Hardware', minStock: 20 },
-    { srNo: 8, itemName: 'WATER PAPER 600', code: 'HCPPL008', unit: 'PCS', balance: 114, category: 'Hardware', minStock: 20 },
-    { srNo: 9, itemName: 'WATER PAPER 800', code: 'HCPPL009', unit: 'PCS', balance: 200, category: 'Hardware', minStock: 20 },
-    { srNo: 10, itemName: 'WATER PAPER 1000', code: 'HCPPL010', unit: 'PCS', balance: 707, category: 'Hardware', minStock: 20 },
-    { srNo: 11, itemName: 'WATER PAPER 1200', code: 'HCPPL011', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 20 },
-    { srNo: 12, itemName: 'WATER PAPER 1500', code: 'HCPPL012', unit: 'PCS', balance: 100, category: 'Hardware', minStock: 20 },
-    { srNo: 13, itemName: 'BLUE PIGMENT', code: 'HCPPL013', unit: 'KG', balance: 52, category: 'Raw Material', minStock: 2 },
-    { srNo: 14, itemName: 'LIGHT GREY PIGMENT', code: 'HCPPL014', unit: 'KG', balance: 123, category: 'Raw Material', minStock: 10 },
-    { srNo: 15, itemName: 'RED PIGMENT', code: 'HCPPL015', unit: 'KG', balance: 59, category: 'Raw Material', minStock: 10 },
-    { srNo: 16, itemName: 'BLACK PIGMENT', code: 'HCPPL016', unit: 'KG', balance: 200, category: 'Raw Material', minStock: 25 },
-    { srNo: 17, itemName: 'WHITE PIGMENT', code: 'HCPPL017', unit: 'KG', balance: 18, category: 'Raw Material', minStock: 2 },
-    { srNo: 18, itemName: 'BENJO WAX POLISH', code: 'HCPPL018', unit: 'KG', balance: 20, category: 'Raw Material', minStock: 5 },
-    { srNo: 19, itemName: 'WHITE WAX POLISH', code: 'HCPPL019', unit: 'KG', balance: 45, category: 'Raw Material', minStock: 40 },
-    { srNo: 20, itemName: 'BRUSH 25 MM', code: 'HCPPL020', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 5 },
-    { srNo: 21, itemName: 'BRUSH 38 MM', code: 'HCPPL021', unit: 'PCS', balance: 78, category: 'Hardware', minStock: 5 },
-    { srNo: 22, itemName: 'BRUSH 50 MM', code: 'HCPPL022', unit: 'PCS', balance: 227, category: 'Hardware', minStock: 5 },
-    { srNo: 23, itemName: 'BRUSH 75 MM', code: 'HCPPL023', unit: 'PCS', balance: 9, category: 'Hardware', minStock: 5 },
-    { srNo: 24, itemName: 'BRUSH 100 MM', code: 'HCPPL024', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 5 },
-    { srNo: 25, itemName: 'FIBER CUTTING DISH (DIAMOND CUTTER)', code: 'HCPPL025', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 20 },
-    { srNo: 26, itemName: 'GC WHEEL', code: 'HCPPL026', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 20 },
-    { srNo: 27, itemName: 'BEAR DIS 36', code: 'HCPPL027', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 10 },
-    { srNo: 28, itemName: 'BEAR DIS 60', code: 'HCPPL028', unit: 'PCS', balance: 200, category: 'Hardware', minStock: 10 },
-    { srNo: 29, itemName: 'BEAR DIS 80', code: 'HCPPL029', unit: 'PCS', balance: 100, category: 'Hardware', minStock: 10 },
-    { srNo: 30, itemName: 'BEAR DIS 120', code: 'HCPPL030', unit: 'PCS', balance: 50, category: 'Hardware', minStock: 10 },
-    { srNo: 31, itemName: 'WELCOR PAPER 80', code: 'HCPPL031', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 5 },
-    { srNo: 32, itemName: 'WELCOR PAPER 120', code: 'HCPPL032', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 5 },
-    { srNo: 33, itemName: 'WELCOR PAPER 180', code: 'HCPPL033', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 5 },
-    { srNo: 34, itemName: 'WELCOR PAPER 220', code: 'HCPPL034', unit: 'PCS', balance: 51, category: 'Hardware', minStock: 5 },
-    { srNo: 35, itemName: 'WELCOR PAPER 320', code: 'HCPPL035', unit: 'PCS', balance: 9, category: 'Hardware', minStock: 5 },
-    { srNo: 36, itemName: 'WELCOR PAPER 400', code: 'HCPPL036', unit: 'PCS', balance: 38, category: 'Hardware', minStock: 5 },
-    { srNo: 37, itemName: 'WELCOR PAPER 600', code: 'HCPPL037', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 5 },
-    { srNo: 38, itemName: 'IRON CUTTING DISK', code: 'HCPPL038', unit: 'PCS', balance: 271, category: 'Hardware', minStock: 10 },
-    { srNo: 39, itemName: 'SANDING MACHINE', code: 'HCPPL039', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
-    { srNo: 40, itemName: 'FEVICKIK', code: 'HCPPL040', unit: 'PCS', balance: 38, category: 'Hardware', minStock: 10 },
-    { srNo: 41, itemName: 'GRIDER WASHER (LOOK NUT)', code: 'HCPPL041', unit: 'PCS', balance: 58, category: 'Hardware', minStock: 10 },
-    { srNo: 42, itemName: 'C CLAMP 4 INCH', code: 'HCPPL042', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 2 },
-    { srNo: 43, itemName: 'C CLAMP 6 INCH', code: 'HCPPL043', unit: 'PCS', balance: 6, category: 'Hardware', minStock: 2 },
-    { srNo: 44, itemName: 'HAKSAW BLADE', code: 'HCPPL044', unit: 'PCS', balance: 461, category: 'Hardware', minStock: 20 },
-    { srNo: 45, itemName: 'GEAR OIL', code: 'HCPPL045', unit: 'LTR', balance: 2, category: 'Raw Material', minStock: 1 },
-    { srNo: 46, itemName: 'PLASTIC HAMMER', code: 'HCPPL046', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 1 },
-    { srNo: 47, itemName: 'HAMMER 1.5', code: 'HCPPL047', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
-    { srNo: 48, itemName: 'DRILL BIT 3MM', code: 'HCPPL048', unit: 'PCS', balance: 24, category: 'Hardware', minStock: 5 },
-    { srNo: 49, itemName: 'DRILL BIT 4MM', code: 'HCPPL049', unit: 'PCS', balance: 10, category: 'Hardware', minStock: 5 },
-    { srNo: 50, itemName: 'DRILL BIT 6MM', code: 'HCPPL050', unit: 'PCS', balance: 6, category: 'Hardware', minStock: 5 },
-    { srNo: 51, itemName: 'DRILL BIT 210*6MM', code: 'HCPPL051', unit: 'PCS', balance: 28, category: 'Hardware', minStock: 5 },
-    { srNo: 52, itemName: 'DRILL BIT 8MM', code: 'HCPPL052', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 5 },
-    { srNo: 53, itemName: 'DRILL BIT 10MM', code: 'HCPPL053', unit: 'PCS', balance: 12, category: 'Hardware', minStock: 5 },
-    { srNo: 54, itemName: 'DRILL BIT 12MM', code: 'HCPPL054', unit: 'PCS', balance: 26, category: 'Hardware', minStock: 5 },
-    { srNo: 55, itemName: 'THAPPI 6MM', code: 'HCPPL055', unit: 'PCS', balance: 17, category: 'Hardware', minStock: 5 },
-    { srNo: 56, itemName: 'THAPPI 8MM', code: 'HCPPL056', unit: 'PCS', balance: 59, category: 'Hardware', minStock: 5 },
-    { srNo: 57, itemName: 'THAPPI 10MM', code: 'HCPPL057', unit: 'PCS', balance: 45, category: 'Hardware', minStock: 5 },
-    { srNo: 58, itemName: 'THAPPI 12MM', code: 'HCPPL058', unit: 'PCS', balance: 41, category: 'Hardware', minStock: 5 },
-    { srNo: 59, itemName: 'THAPPI SMALL', code: 'HCPPL059', unit: 'PCS', balance: 89, category: 'Hardware', minStock: 5 },
-    { srNo: 60, itemName: 'FLAT CHISEL 25', code: 'HCPPL060', unit: 'PCS', balance: 37, category: 'Hardware', minStock: 5 },
-    { srNo: 61, itemName: 'FLAT CHISEL 32', code: 'HCPPL061', unit: 'PCS', balance: 39, category: 'Hardware', minStock: 5 },
-    { srNo: 62, itemName: 'FLAT CHISEL 40', code: 'HCPPL062', unit: 'PCS', balance: 48, category: 'Hardware', minStock: 5 },
-    { srNo: 63, itemName: 'FLAT CHISEL 50', code: 'HCPPL063', unit: 'PCS', balance: 57, category: 'Hardware', minStock: 5 },
-    { srNo: 64, itemName: 'PVC FLAT CHISEL HANDLE', code: 'HCPPL064', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 5 },
-    { srNo: 65, itemName: 'SCREW DRIVER 18 INCH', code: 'HCPPL065', unit: 'PCS', balance: 17, category: 'Hardware', minStock: 2 },
-    { srNo: 66, itemName: 'SCREW DRIVER SMALL REGULAR', code: 'HCPPL066', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 2 },
-    { srNo: 67, itemName: 'A-11 MOUNTAIN WHEEL (STONE BIT)', code: 'HCPPL067', unit: 'PKT', balance: 5, category: 'Hardware', minStock: 1 },
-    { srNo: 68, itemName: 'STERER 8MM', code: 'HCPPL068', unit: 'PCS', balance: 1, category: 'Hardware', minStock: 2 },
-    { srNo: 69, itemName: 'STERER 12MM', code: 'HCPPL069', unit: 'PCS', balance: 12, category: 'Hardware', minStock: 2 },
-    { srNo: 70, itemName: 'PILERS (PAKKD)', code: 'HCPPL070', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
-    { srNo: 71, itemName: 'FILE (ROUND, FLAT, THANDER)', code: 'HCPPL071', unit: 'PCS', balance: 1, category: 'Hardware', minStock: 1 },
-    { srNo: 72, itemName: 'PERMENENT MARKER', code: 'HCPPL072', unit: 'PCS', balance: 59, category: 'Hardware', minStock: 10 },
-    { srNo: 73, itemName: 'BOARD MARKER', code: 'HCPPL073', unit: 'PCS', balance: 20, category: 'Hardware', minStock: 9 },
-    { srNo: 74, itemName: 'PENCIL', code: 'HCPPL074', unit: 'PCS', balance: 9, category: 'Hardware', minStock: 1 },
-    { srNo: 75, itemName: 'PEN', code: 'HCPPL075', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 1 },
-    { srNo: 76, itemName: 'MASKING TAPE', code: 'HCPPL076', unit: 'PKT', balance: 48, category: 'Hardware', minStock: 1 },
-    { srNo: 77, itemName: 'STICH FLIM (RAPING ROLL)', code: 'HCPPL077', unit: 'ROLL', balance: 36, category: 'Hardware', minStock: 1 },
-    { srNo: 78, itemName: 'AUTO FINCH GREY COLOUR', code: 'HCPPL078', unit: 'CAN', balance: 12, category: 'Hardware', minStock: 1 },
-    { srNo: 79, itemName: 'AUTO FINCH BLACK COLOUR', code: 'HCPPL079', unit: 'CAN', balance: 7, category: 'Hardware', minStock: 1 },
-    { srNo: 80, itemName: 'AUTO FINCH BLUE COLOUR', code: 'HCPPL080', unit: 'CAN', balance: 2, category: 'Hardware', minStock: 1 },
-    { srNo: 81, itemName: 'SCALE 18 INCH', code: 'HCPPL081', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 1 },
-    { srNo: 82, itemName: 'SCALE 24 INCH', code: 'HCPPL082', unit: 'PCS', balance: 4, category: 'Hardware', minStock: 1 },
-    { srNo: 83, itemName: 'SCALE 40 INCH', code: 'HCPPL083', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
-    { srNo: 84, itemName: 'MEASURING TAPE 3M', code: 'HCPPL084', unit: 'PCS', balance: 3, category: 'Hardware', minStock: 2 },
-    { srNo: 85, itemName: 'MEASURING TAPE 5M', code: 'HCPPL085', unit: 'PCS', balance: 1, category: 'Hardware', minStock: 1 },
-    { srNo: 86, itemName: 'BUCKET 5', code: 'HCPPL086', unit: 'PCS', balance: 24, category: 'Hardware', minStock: 5 },
-    { srNo: 87, itemName: 'BUCKET 10', code: 'HCPPL087', unit: 'PCS', balance: 59, category: 'Hardware', minStock: 5 },
-    { srNo: 88, itemName: 'BUCKET 13', code: 'HCPPL088', unit: 'PCS', balance: 23, category: 'Hardware', minStock: 5 },
-    { srNo: 89, itemName: 'BUCKET 20', code: 'HCPPL089', unit: 'PCS', balance: 6, category: 'Hardware', minStock: 5 },
-    { srNo: 90, itemName: 'GHAMELA 8', code: 'HCPPL090', unit: 'PCS', balance: 27, category: 'Hardware', minStock: 3 },
-    { srNo: 91, itemName: 'GHAMELA 10', code: 'HCPPL091', unit: 'PCS', balance: 23, category: 'Hardware', minStock: 3 },
-    { srNo: 92, itemName: 'GHAMELA 12', code: 'HCPPL092', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 3 },
-    { srNo: 93, itemName: 'GHAMELA 14', code: 'HCPPL093', unit: 'PCS', balance: 61, category: 'Hardware', minStock: 3 },
-    { srNo: 94, itemName: 'GHAMELA 19', code: 'HCPPL094', unit: 'PCS', balance: 51, category: 'Hardware', minStock: 3 },
-    { srNo: 95, itemName: 'MUGGA', code: 'HCPPL095', unit: 'PCS', balance: 56, category: 'Hardware', minStock: 5 },
-    { srNo: 96, itemName: 'WIRE TAPE', code: 'HCPPL096', unit: 'PCS', balance: 60, category: 'Hardware', minStock: 10 },
-    { srNo: 97, itemName: 'GRINDER CORBON (6-100)', code: 'HCPPL097', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 10 },
-    { srNo: 98, itemName: 'MIXURE CORBON', code: 'HCPPL098', unit: 'PCS', balance: 60, category: 'Hardware', minStock: 10 },
-    { srNo: 99, itemName: 'PVA', code: 'HCPPL099', unit: 'LTR', balance: 0, category: 'Raw Material', minStock: 2 },
-    { srNo: 100, itemName: 'CLEAR RESIN', code: 'HCPPL100', unit: 'BARREL', balance: 59, category: 'Raw Material', minStock: 5 },
-    { srNo: 101, itemName: 'ISO RESIN', code: 'HCPPL101', unit: 'BARREL', balance: 46, category: 'Raw Material', minStock: 2 },
-    { srNo: 102, itemName: 'ISO GEL-COAT', code: 'HCPPL102', unit: 'BARREL', balance: 0, category: 'Raw Material', minStock: 0 },
-    { srNo: 103, itemName: 'SURFACE TISSUE MAT (30GSM)', code: 'HCPPL103', unit: 'ROLL', balance: 0, category: 'Raw Material', minStock: 1 },
-    { srNo: 104, itemName: 'FGM MAT 225 GSM', code: 'HCPPL104', unit: 'ROLL', balance: 37, category: 'Raw Material', minStock: 1 },
-    { srNo: 105, itemName: 'FGM MAT 450 GSM', code: 'HCPPL105', unit: 'ROLL', balance: 0, category: 'Raw Material', minStock: 5 },
-    { srNo: 106, itemName: 'FGM MATT 1230 GSM', code: 'HCPPL106', unit: 'ROLL', balance: 30, category: 'Raw Material', minStock: 5 },
-    { srNo: 107, itemName: 'WOVEN ROVING 610 GSM', code: 'HCPPL107', unit: 'ROLL', balance: 57, category: 'Raw Material', minStock: 5 },
-    { srNo: 108, itemName: 'MEKP (CATALYST)', code: 'HCPPL108', unit: 'CAN', balance: 28, category: 'Raw Material', minStock: 1 },
-    { srNo: 109, itemName: 'COBALT OCTOATE', code: 'HCPPL109', unit: 'CAN', balance: 29, category: 'Raw Material', minStock: 1 },
-    { srNo: 110, itemName: 'THINNER', code: 'HCPPL110', unit: 'LTR', balance: 0, category: 'Raw Material', minStock: 50 },
-    { srNo: 111, itemName: 'QUARTZ BIG', code: 'HCPPL111', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 10 },
-    { srNo: 112, itemName: 'QUARTZ MEDIUM', code: 'HCPPL112', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 10 },
-    { srNo: 113, itemName: 'QUARTZ SMALL', code: 'HCPPL113', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 10 },
-    { srNo: 114, itemName: 'DOLOMITE POWDER', code: 'HCPPL114', unit: 'BAG', balance: 420, category: 'Raw Material', minStock: 10 },
-    { srNo: 115, itemName: 'GEL COAT POWDER', code: 'HCPPL115', unit: 'BAG', balance: 0, category: 'Raw Material', minStock: 0 },
-    { srNo: 116, itemName: 'ELECTRIC ZIGSAW MACHINE', code: 'HCPPL116', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
-    { srNo: 117, itemName: 'HAND MIXTURE MACHINE', code: 'HCPPL117', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
-    { srNo: 118, itemName: 'ANGLE GRINDER', code: 'HCPPL118', unit: 'PCS', balance: 0, category: 'Electric', minStock: 2 },
-    { srNo: 119, itemName: 'DRILL MACHINE', code: 'HCPPL119', unit: 'PCS', balance: 0, category: 'Electric', minStock: 2 },
-    { srNo: 120, itemName: 'BUFING MACHINE', code: 'HCPPL120', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
-    { srNo: 121, itemName: 'SANDING MACHINE', code: 'HCPPL121', unit: 'PCS', balance: 0, category: 'Electric', minStock: 1 },
-    { srNo: 122, itemName: 'POP (PLASTER OF PARIS)', code: 'HCPPL122', unit: 'BAG', balance: 0, category: 'Hardware', minStock: 2 },
-    { srNo: 123, itemName: 'PLY WOOD 4MM', code: 'HCPPL123', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
-    { srNo: 124, itemName: 'PLY WOOD 6MM', code: 'HCPPL124', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
-    { srNo: 125, itemName: 'PLY WOOD 12MM', code: 'HCPPL125', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
-    { srNo: 126, itemName: 'PLY WOOD 18MM', code: 'HCPPL126', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
-    { srNo: 127, itemName: 'ZIGSAW BLADE', code: 'HCPPL127', unit: 'PCS', balance: 98, category: 'Hardware', minStock: 5 },
-    { srNo: 128, itemName: 'WASTE CLOTH', code: 'HCPPL128', unit: 'KG', balance: 0, category: 'Hardware', minStock: 5 },
-    { srNo: 129, itemName: 'BELCHA (SEWAL)', code: 'HCPPL129', unit: 'PCS', balance: 2, category: 'Hardware', minStock: 1 },
-    { srNo: 130, itemName: 'SHARPNER', code: 'HCPPL130', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
-    { srNo: 131, itemName: 'ERASER', code: 'HCPPL131', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 2 },
-    { srNo: 132, itemName: 'HYDROLIC OIL', code: 'HCPPL132', unit: 'LTR', balance: 0, category: 'Hardware', minStock: 20 },
-    { srNo: 133, itemName: 'GRISH', code: 'HCPPL133', unit: 'KG', balance: 0, category: 'Hardware', minStock: 20 },
-    { srNo: 134, itemName: 'WELDING RODE', code: 'HCPPL134', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 1 },
-    { srNo: 135, itemName: 'NYLON BLACK PATTY', code: 'HCPPL135', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 1 },
-    { srNo: 136, itemName: 'GREY GLOVES', code: 'HCPPL136', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 10 },
-  ];
-
-  for (const item of inventoryItemsList) {
-    const existing = await prisma.product.findFirst({
-      where: {
-        OR: [
-          { sku: item.code },
-          { name: item.itemName },
-        ],
-      },
-    });
-    if (!existing) {
-      await prisma.product.create({
-        data: {
-          companyId: company.id,
-          publicId: `PROD-${item.code}`,
-          name: item.itemName,
-          sku: item.code,
-          unit: item.unit,
-          unitPrice: 0,
-          minimumStock: item.minStock,
-          category: item.category,
-          isActive: true,
-        },
-      });
-    }
-  }
-
   console.log('\n✅ Seed complete!');
   console.log(`\n🏢 Company: Himalaya Wellness Pvt. Ltd.`);
+  console.log(`📦 Products: ${createdCount} created, ${skippedCount} skipped`);
   console.log(`👥 Users seeded (password: admin123):`);
   for (const r of roleDefinitions) {
     const slug = r.code.toLowerCase().replace(/_/g, '.');
