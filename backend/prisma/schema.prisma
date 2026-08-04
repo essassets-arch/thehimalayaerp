@@ -309,6 +309,7 @@ model Product {
   sku                         String?
   description                 String?
   category                    String?
+  productType                 String?                      @default("MANUFACTURING")
   unit                        String
   unitPrice                   Decimal                      @db.Decimal(14, 2)
   minimumStock                Decimal                      @default(0) @db.Decimal(14, 2)

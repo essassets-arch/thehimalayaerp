@@ -22,6 +22,7 @@ interface ProductSeedData {
   name: string;
   brand?: string;
   category: string;
+  productType?: string;
   subCategory?: string;
   hsnCode?: string;
   weight?: number | null;
@@ -824,7 +825,7 @@ async function main() {
 
     await prisma.user.upsert({
       where: { email },
-      update: { password: hashedPassword },
+      update: {},
       create: {
         publicId: uid('USR'),
         email,
@@ -875,7 +876,19 @@ async function main() {
   }
 
   // ── 7. SEED PRODUCTS (366 Total Products: 230 Enterprise + 136 Hardware) ────
-  console.log(`📦 Seeding ${allProducts.length} products...`);
+  console.log('🧹 Purging legacy demo products and unneeded categories...');
+  const deletedLegacy = await prisma.product.deleteMany({
+    where: {
+      OR: [
+        { category: { in: ['Oral Care', 'Bulk', 'Personal Care', 'General', 'Skincare'] } },
+        { name: { in: ['Sand Fine Grade', 'Item (100 Qty)', 'Item (1 Qty)', 'Ayurvedic Toothpaste 200g', 'Organic Neem Face Wash 150ml', 'Herbal Shampoo 500ml'] } },
+        { sku: { in: ['RM001', 'SKU-ITEM100', 'SKU-ITEM1', 'SKU-ATP200', 'SKU-NFW150', 'SKU-HS500'] } },
+      ],
+    },
+  });
+  console.log(`  ✓ Removed ${deletedLegacy.count} legacy demo products.`);
+
+  console.log(`📦 Seeding ${allProducts.length} products with productType...`);
   
   let createdCount = 0;
   let skippedCount = 0;
@@ -883,6 +896,11 @@ async function main() {
   for (const productData of allProducts) {
     try {
       const sku = productData.sku || generateSku(productData.name);
+      const pType = productData.productType || (
+        ['FRP COVERS', 'FRP GRATINGS'].includes(productData.category) ? 'MANUFACTURING' :
+        ['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(productData.category) ? 'TRADING' :
+        productData.category === 'Raw Material' ? 'RAW_MATERIAL' : 'HARDWARE'
+      );
       
       const existing = await prisma.product.findFirst({
         where: {
@@ -903,6 +921,7 @@ async function main() {
             sku: sku,
             description: productData.description,
             category: productData.category,
+            productType: pType,
             unit: productData.unit,
             unitPrice: productData.unitPrice,
             minimumStock: productData.minimumStock ?? 0,
@@ -915,6 +934,13 @@ async function main() {
           console.log(`  ✓ ${createdCount} products created...`);
         }
       } else {
+        await prisma.product.update({
+          where: { id: existing.id },
+          data: {
+            category: productData.category,
+            productType: pType,
+          },
+        });
         skippedCount++;
       }
     } catch (error) {
