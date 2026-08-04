@@ -110,7 +110,7 @@ export const navigationConfig = {
   'Dispatch': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch/dashboard' },
     {
-      id: 'create-dispatch',
+      id: 'Sales-order dispatch',
       label: 'Create Dispatch',
       icon: Truck,
       path: '/dispatch/orders',

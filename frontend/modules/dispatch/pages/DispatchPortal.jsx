@@ -39,6 +39,50 @@ export default function DispatchPortal() {
   const globalSearch = useSearchStore(s => s.globalSearch);
   const [replacementDispatches, setReplacementDispatches] = useState([]);
   const [replacementLoading, setReplacementLoading] = useState(false);
+  const [backendDispatches, setBackendDispatches] = useState([]);
+  const [backendReadyWorkOrders, setBackendReadyWorkOrders] = useState([]);
+  const [backendReturns, setBackendReturns] = useState([]);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+
+  const fetchDashboardData = async () => {
+    setDashboardLoading(true);
+    try {
+      const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes] = await Promise.allSettled([
+        backendFetch('/api/backend/logistics/dispatches'),
+        backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH'),
+        backendFetch('/api/backend/returns'),
+        backendFetch('/api/backend/replacements'),
+      ]);
+
+      if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
+        setBackendDispatches(dispatchesRes.value);
+      }
+      if (workOrdersRes.status === 'fulfilled' && Array.isArray(workOrdersRes.value)) {
+        setBackendReadyWorkOrders(workOrdersRes.value);
+      }
+      if (returnsRes.status === 'fulfilled' && Array.isArray(returnsRes.value)) {
+        setBackendReturns(returnsRes.value);
+      }
+      if (replacementsRes.status === 'fulfilled' && Array.isArray(replacementsRes.value)) {
+        setReplacementDispatches((replacementsRes.value || [])
+          .filter((record) => record.status === 'APPROVED' || record.dispatchStatus === 'APPROVED')
+          .map((record) => ({
+            ...record,
+            request_no: record.requestNumber || record.id,
+            order_number: record.salesOrder?.orderNumber || record.salesOrderId,
+            customer_name: record.salesOrder?.customer?.companyName || record.salesOrder?.customer?.name || '—',
+            product_name: record.items?.map((item) => item.product?.name).filter(Boolean).join(', ') || '—',
+            approved_qty: record.items?.reduce((sum, item) => sum + Number(item.requestedQuantity || 0), 0) || 1,
+            dispatch_status: record.dispatchStatus || record.status || 'APPROVED',
+            vehicle_number: record.dispatchDetails?.trackingNumber || record.dispatchDetails?.vehicleNumber,
+          })));
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      setDashboardLoading(false);
+    }
+  };
 
   const fetchReplacementDispatches = async () => {
     setReplacementLoading(true);
@@ -65,6 +109,7 @@ export default function DispatchPortal() {
   };
 
   useEffect(() => {
+    fetchDashboardData();
     if (currentView === 'replacements' || currentView === 'history') fetchReplacementDispatches();
   }, [currentView]);
 
@@ -999,43 +1044,79 @@ export default function DispatchPortal() {
     setDlSignature(''); setDlSignaturePreview('');
   };
 
-  // 1. Dashboard View
+  // 1. Enterprise Dynamic Dispatch Dashboard View
   const renderDashboard = () => {
-    const readyCount = qcPassed.length || 42;
-    const inTransitCount = filteredOrders.filter(o => ['IN_TRANSIT', 'In Transit'].includes(o.status || o.workflowStatus)).length || 18;
-    const outDeliveryCount = filteredOrders.filter(o => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(o.status || o.workflowStatus)).length || 7;
-    const deliveredCount = filteredOrders.filter(o => ['DELIVERED', 'Delivered'].includes(o.status || o.workflowStatus)).length || 156;
-    const returnsCount = replacementDispatches.length || 5;
+    // Pure Dynamic KPI Calculations from live backend & ERP state
+    const readyCount = backendReadyWorkOrders.length || dispatchQueueOrders.length || qcPassed.length || 0;
+    
+    const inTransitDispatches = backendDispatches.filter(d => ['IN_TRANSIT', 'In Transit'].includes(d.status || d.dispatchStatus));
+    const inTransitCount = inTransitDispatches.length || filteredOrders.filter(o => ['IN_TRANSIT', 'In Transit'].includes(o.status || o.workflowStatus)).length || 0;
+    
+    const outDeliveryDispatches = backendDispatches.filter(d => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(d.status || d.dispatchStatus));
+    const outDeliveryCount = outDeliveryDispatches.length || filteredOrders.filter(o => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(o.status || o.workflowStatus)).length || 0;
+    
+    const deliveredDispatches = backendDispatches.filter(d => ['DELIVERED', 'Delivered'].includes(d.status || d.dispatchStatus));
+    const deliveredCount = deliveredDispatches.length || filteredOrders.filter(o => ['DELIVERED', 'Delivered'].includes(o.status || o.workflowStatus)).length || 0;
+    
+    const returnsCount = backendReturns.length || replacementDispatches.length || 0;
 
-    const readyQueueData = dispatchQueueOrders.slice(0, 3).length > 0
-      ? dispatchQueueOrders.slice(0, 3).map(d => ({
-          dispatchNo: d.id,
-          customer: d.customerName || 'ABC Ltd',
-          salesOrder: d.orderId || 'SO-10021',
-          qty: (d.items || []).reduce((s, i) => s + Number(i.dispatchableQuantity || 150), 0),
+    // Today's Performance calculation
+    const plannedDispatches = readyCount + inTransitCount + outDeliveryCount + deliveredCount;
+    const dispatchedCount = inTransitCount + outDeliveryCount + deliveredCount;
+    const deliveredToday = deliveredCount;
+    const pendingCount = readyCount;
+    const totalPerfDenominator = dispatchedCount + pendingCount;
+    const successRate = totalPerfDenominator > 0
+      ? Math.min(100, Math.max(0, Math.round((deliveredToday / totalPerfDenominator) * 100)))
+      : 100;
+
+    // Status Distribution percentages
+    const totalStatusCount = readyCount + inTransitCount + outDeliveryCount + deliveredCount + returnsCount;
+    const pctReady = totalStatusCount > 0 ? Math.round((readyCount / totalStatusCount) * 100) : 0;
+    const pctInTransit = totalStatusCount > 0 ? Math.round((inTransitCount / totalStatusCount) * 100) : 0;
+    const pctOutDelivery = totalStatusCount > 0 ? Math.round((outDeliveryCount / totalStatusCount) * 100) : 0;
+    const pctDelivered = totalStatusCount > 0 ? Math.round((deliveredCount / totalStatusCount) * 100) : 0;
+    const pctReturns = totalStatusCount > 0 ? Math.round((returnsCount / totalStatusCount) * 100) : 0;
+
+    // Dynamic Ready Queue Data
+    const readyQueueData = backendReadyWorkOrders.length > 0
+      ? backendReadyWorkOrders.slice(0, 5).map(wo => ({
+          dispatchNo: `DISP-${wo.id.slice(-4).toUpperCase()}`,
+          customer: wo.productionPlan?.salesOrder?.customer?.companyName || wo.productionPlan?.salesOrder?.customer?.name || 'Customer',
+          salesOrder: wo.productionPlan?.salesOrder?.orderNumber || `SO-${wo.salesOrderItemId?.slice(-5) || '10001'}`,
+          qty: wo.quantity || 1,
           warehouse: 'FG-01',
-          raw: d,
+          id: wo.id,
         }))
-      : [
-          { dispatchNo: 'DISP-1025', customer: 'ABC Ltd', salesOrder: 'SO-10021', qty: 150, warehouse: 'FG-01' },
-          { dispatchNo: 'DISP-1026', customer: 'XYZ Pvt Ltd', salesOrder: 'SO-10035', qty: 75, warehouse: 'FG-02' },
-          { dispatchNo: 'DISP-1027', customer: 'Delta Corp', salesOrder: 'SO-10051', qty: 240, warehouse: 'FG-01' },
-        ];
+      : dispatchQueueOrders.slice(0, 5).map(d => ({
+          dispatchNo: d.id,
+          customer: d.customerName || 'Customer',
+          salesOrder: d.orderId || 'SO-10001',
+          qty: (d.items || []).reduce((s, i) => s + Number(i.dispatchableQuantity || 1), 0),
+          warehouse: 'FG-01',
+          id: d.id,
+        }));
 
-    const activeShipmentsData = dispatches.filter(d => ['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'In Transit', 'Out for Delivery'].includes(d.dispatchStatus || d.status)).slice(0, 3).length > 0
-      ? dispatches.filter(d => ['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'In Transit', 'Out for Delivery'].includes(d.dispatchStatus || d.status)).slice(0, 3).map(d => ({
-          dispatchNo: d.id || d.dispatchId,
-          customer: d.customerName || 'ABC Ltd',
-          vehicle: d.vehicleNo || 'GJ01AB1234',
-          driver: d.driverName || 'Raj Patel',
-          eta: d.eta || '1:30 PM',
-          status: d.dispatchStatus === 'OUT_FOR_DELIVERY' || d.status === 'Out for Delivery' ? 'Out' : 'Transit',
-        }))
-      : [
-          { dispatchNo: 'DISP-1010', customer: 'ABC Ltd', vehicle: 'GJ01AB1234', driver: 'Raj Patel', eta: '1:30 PM', status: 'Transit' },
-          { dispatchNo: 'DISP-1012', customer: 'Mega Steel', vehicle: 'GJ05XY9999', driver: 'Amit Shah', eta: '4:00 PM', status: 'Out' },
-          { dispatchNo: 'DISP-1018', customer: 'Green Pipe', vehicle: 'MH12AA4444', driver: 'Vijay', eta: '6:30 PM', status: 'Transit' },
-        ];
+    // Dynamic Active Shipments Data
+    const combinedActiveDispatches = [...inTransitDispatches, ...outDeliveryDispatches];
+    const activeShipmentsData = combinedActiveDispatches.slice(0, 5).map(d => ({
+      dispatchNo: d.dispatchNo || d.id || 'DISP-1001',
+      customer: d.salesOrder?.customer?.companyName || d.salesOrder?.customer?.name || d.customerName || 'Customer',
+      vehicle: d.vehicleNumber || d.vehicleNo || 'Vehicle',
+      driver: d.driverName || 'Driver',
+      eta: d.eta ? new Date(d.eta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+      status: d.status === 'OUT_FOR_DELIVERY' || d.status === 'Out for Delivery' ? 'Out' : 'Transit',
+    }));
+
+    // Dynamic Pending POD list
+    const pendingPodDispatches = backendDispatches.filter(d => ['OUT_FOR_DELIVERY', 'DELIVERED'].includes(d.status) && !d.podUrl);
+    const pendingPodList = pendingPodDispatches.slice(0, 5).map(d => d.dispatchNo || d.id);
+
+    // Dynamic Returns Summary Cards
+    const returnPendingCount = backendReturns.filter(r => ['SUBMITTED', 'PENDING'].includes(r.status)).length;
+    const qcInspectionCount = backendReturns.filter(r => ['QC_PENDING', 'INSPECTION'].includes(r.status)).length;
+    const replacementReadyCount = replacementDispatches.filter(r => ['APPROVED', 'READY'].includes(r.dispatch_status || r.status)).length;
+    const creditNotePendingCount = backendReturns.filter(r => r.status === 'ACCEPTED_FOR_CREDIT').length;
 
     const todayDateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -1140,31 +1221,31 @@ export default function DispatchPortal() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9', fontSize: '13.5px' }}>
                 <span style={{ color: '#64748b', fontWeight: '600' }}>Planned Dispatches</span>
-                <strong style={{ color: '#1e293b', fontWeight: '800' }}>65</strong>
+                <strong style={{ color: '#1e293b', fontWeight: '800' }}>{plannedDispatches}</strong>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9', fontSize: '13.5px' }}>
                 <span style={{ color: '#64748b', fontWeight: '600' }}>Dispatched</span>
-                <strong style={{ color: '#0284c7', fontWeight: '800' }}>52</strong>
+                <strong style={{ color: '#0284c7', fontWeight: '800' }}>{dispatchedCount}</strong>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9', fontSize: '13.5px' }}>
                 <span style={{ color: '#64748b', fontWeight: '600' }}>Delivered</span>
-                <strong style={{ color: '#059669', fontWeight: '800' }}>45</strong>
+                <strong style={{ color: '#059669', fontWeight: '800' }}>{deliveredToday}</strong>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9', fontSize: '13.5px' }}>
                 <span style={{ color: '#64748b', fontWeight: '600' }}>Pending</span>
-                <strong style={{ color: '#d97706', fontWeight: '800' }}>13</strong>
+                <strong style={{ color: '#d97706', fontWeight: '800' }}>{pendingCount}</strong>
               </div>
 
               <div style={{ marginTop: '8px', background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>Success Rate</span>
-                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#10b981' }}>86%</span>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#10b981' }}>{successRate}%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '86%', height: '100%', background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)', borderRadius: '4px' }}></div>
+                  <div style={{ width: `${successRate}%`, height: '100%', background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)', borderRadius: '4px' }}></div>
                 </div>
               </div>
             </div>
@@ -1180,51 +1261,51 @@ export default function DispatchPortal() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px', fontWeight: '600' }}>
-                  <span style={{ color: '#334155' }}>Ready (42)</span>
-                  <span style={{ color: '#3b82f6', fontWeight: '700' }}>23%</span>
+                  <span style={{ color: '#334155' }}>Ready ({readyCount})</span>
+                  <span style={{ color: '#3b82f6', fontWeight: '700' }}>{pctReady}%</span>
                 </div>
                 <div style={{ width: '100%', height: '10px', background: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '23%', height: '100%', background: '#3b82f6', borderRadius: '5px' }}></div>
+                  <div style={{ width: `${pctReady}%`, height: '100%', background: '#3b82f6', borderRadius: '5px' }}></div>
                 </div>
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px', fontWeight: '600' }}>
-                  <span style={{ color: '#334155' }}>In Transit (18)</span>
-                  <span style={{ color: '#0284c7', fontWeight: '700' }}>10%</span>
+                  <span style={{ color: '#334155' }}>In Transit ({inTransitCount})</span>
+                  <span style={{ color: '#0284c7', fontWeight: '700' }}>{pctInTransit}%</span>
                 </div>
                 <div style={{ width: '100%', height: '10px', background: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '10%', height: '100%', background: '#0284c7', borderRadius: '5px' }}></div>
+                  <div style={{ width: `${pctInTransit}%`, height: '100%', background: '#0284c7', borderRadius: '5px' }}></div>
                 </div>
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px', fontWeight: '600' }}>
-                  <span style={{ color: '#334155' }}>Out for Delivery (7)</span>
-                  <span style={{ color: '#f59e0b', fontWeight: '700' }}>4%</span>
+                  <span style={{ color: '#334155' }}>Out for Delivery ({outDeliveryCount})</span>
+                  <span style={{ color: '#f59e0b', fontWeight: '700' }}>{pctOutDelivery}%</span>
                 </div>
                 <div style={{ width: '100%', height: '10px', background: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '4%', height: '100%', background: '#f59e0b', borderRadius: '5px' }}></div>
+                  <div style={{ width: `${pctOutDelivery}%`, height: '100%', background: '#f59e0b', borderRadius: '5px' }}></div>
                 </div>
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px', fontWeight: '600' }}>
-                  <span style={{ color: '#334155' }}>Delivered (156)</span>
-                  <span style={{ color: '#10b981', fontWeight: '700' }}>62%</span>
+                  <span style={{ color: '#334155' }}>Delivered ({deliveredCount})</span>
+                  <span style={{ color: '#10b981', fontWeight: '700' }}>{pctDelivered}%</span>
                 </div>
                 <div style={{ width: '100%', height: '10px', background: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '62%', height: '100%', background: '#10b981', borderRadius: '5px' }}></div>
+                  <div style={{ width: `${pctDelivered}%`, height: '100%', background: '#10b981', borderRadius: '5px' }}></div>
                 </div>
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '4px', fontWeight: '600' }}>
-                  <span style={{ color: '#334155' }}>Returns (5)</span>
-                  <span style={{ color: '#ef4444', fontWeight: '700' }}>1%</span>
+                  <span style={{ color: '#334155' }}>Returns ({returnsCount})</span>
+                  <span style={{ color: '#ef4444', fontWeight: '700' }}>{pctReturns}%</span>
                 </div>
                 <div style={{ width: '100%', height: '10px', background: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '1%', height: '100%', background: '#ef4444', borderRadius: '5px' }}></div>
+                  <div style={{ width: `${pctReturns}%`, height: '100%', background: '#ef4444', borderRadius: '5px' }}></div>
                 </div>
               </div>
             </div>
@@ -1259,23 +1340,31 @@ export default function DispatchPortal() {
                 </tr>
               </thead>
               <tbody>
-                {readyQueueData.map((row, index) => (
-                  <tr key={index} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}>
-                    <td style={{ padding: '12px 14px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>{row.dispatchNo}</td>
-                    <td style={{ padding: '12px 14px', fontWeight: '600', color: '#1e293b' }}>{row.customer}</td>
-                    <td style={{ padding: '12px 14px', color: '#475569', fontWeight: '500' }}>{row.salesOrder}</td>
-                    <td style={{ padding: '12px 14px', fontWeight: '700', color: '#1e293b' }}>{row.qty} Pcs</td>
-                    <td style={{ padding: '12px 14px' }}><span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>{row.warehouse}</span></td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => navigate.push('/dispatch/create-dispatch')}
-                        style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <PlusCircle size={13} /> Create Dispatch
-                      </button>
+                {readyQueueData.length > 0 ? (
+                  readyQueueData.map((row, index) => (
+                    <tr key={index} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>{row.dispatchNo}</td>
+                      <td style={{ padding: '12px 14px', fontWeight: '600', color: '#1e293b' }}>{row.customer}</td>
+                      <td style={{ padding: '12px 14px', color: '#475569', fontWeight: '500' }}>{row.salesOrder}</td>
+                      <td style={{ padding: '12px 14px', fontWeight: '700', color: '#1e293b' }}>{row.qty} Pcs</td>
+                      <td style={{ padding: '12px 14px' }}><span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>{row.warehouse}</span></td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <button
+                          onClick={() => navigate.push(row.id ? `/dispatch/create-dispatch?workOrderId=${row.id}` : '/dispatch/create-dispatch')}
+                          style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <PlusCircle size={13} /> Create Dispatch
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+                      No orders currently staged for dispatch.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -1310,35 +1399,43 @@ export default function DispatchPortal() {
                 </tr>
               </thead>
               <tbody>
-                {activeShipmentsData.map((row, index) => (
-                  <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '12px 14px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>{row.dispatchNo}</td>
-                    <td style={{ padding: '12px 14px', fontWeight: '600', color: '#1e293b' }}>{row.customer}</td>
-                    <td style={{ padding: '12px 14px', fontWeight: '700', color: '#334155' }}>{row.vehicle}</td>
-                    <td style={{ padding: '12px 14px', color: '#475569' }}>{row.driver}</td>
-                    <td style={{ padding: '12px 14px', fontWeight: '700', color: '#1e293b' }}>{row.eta}</td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <span style={{
-                        background: row.status === 'Out' ? '#fef3c7' : '#e0f2fe',
-                        color: row.status === 'Out' ? '#b45309' : '#0369a1',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: '800'
-                      }}>
-                        {row.status === 'Out' ? 'Out for Delivery' : 'In Transit'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => navigate.push(row.status === 'Out' ? '/dispatch/delivery' : '/dispatch/in-transit')}
-                        style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        {row.status === 'Out' ? 'Update' : 'Track'}
-                      </button>
+                {activeShipmentsData.length > 0 ? (
+                  activeShipmentsData.map((row, index) => (
+                    <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>{row.dispatchNo}</td>
+                      <td style={{ padding: '12px 14px', fontWeight: '600', color: '#1e293b' }}>{row.customer}</td>
+                      <td style={{ padding: '12px 14px', fontWeight: '700', color: '#334155' }}>{row.vehicle}</td>
+                      <td style={{ padding: '12px 14px', color: '#475569' }}>{row.driver}</td>
+                      <td style={{ padding: '12px 14px', fontWeight: '700', color: '#1e293b' }}>{row.eta}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{
+                          background: row.status === 'Out' ? '#fef3c7' : '#e0f2fe',
+                          color: row.status === 'Out' ? '#b45309' : '#0369a1',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: '800'
+                        }}>
+                          {row.status === 'Out' ? 'Out for Delivery' : 'In Transit'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <button
+                          onClick={() => navigate.push(row.status === 'Out' ? '/dispatch/delivery' : '/dispatch/in-transit')}
+                          style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          {row.status === 'Out' ? 'Update' : 'Track'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+                      No active shipments currently on the road.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -1354,12 +1451,18 @@ export default function DispatchPortal() {
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {['DISP-1008', 'DISP-1009', 'DISP-1014', 'DISP-1015'].map((podNo, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7' }}>
-                  <span style={{ fontWeight: '800', color: '#b45309', fontFamily: 'monospace', fontSize: '13px' }}>{podNo}</span>
-                  <span style={{ fontSize: '11.5px', color: '#d97706', fontWeight: '700' }}>Awaiting Sign/Photo</span>
+              {pendingPodList.length > 0 ? (
+                pendingPodList.map((podNo, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7' }}>
+                    <span style={{ fontWeight: '800', color: '#b45309', fontFamily: 'monospace', fontSize: '13px' }}>{podNo}</span>
+                    <span style={{ fontSize: '11.5px', color: '#d97706', fontWeight: '700' }}>Awaiting Sign/Photo</span>
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: '16px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12.5px', fontWeight: '600' }}>
+                  All delivered dispatches have verified PODs.
                 </div>
-              ))}
+              )}
 
               <button
                 onClick={() => navigate.push('/dispatch/delivery')}
@@ -1420,22 +1523,22 @@ export default function DispatchPortal() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
             <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
               <span style={{ fontSize: '12px', color: '#be123c', fontWeight: '700' }}>Return Pending</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#881337', marginTop: '4px' }}>5</div>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#881337', marginTop: '4px' }}>{returnPendingCount}</div>
             </div>
 
             <div style={{ background: '#fefce8', border: '1px solid #fef08a', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
               <span style={{ fontSize: '12px', color: '#a16207', fontWeight: '700' }}>QC Inspection</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#713f12', marginTop: '4px' }}>3</div>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#713f12', marginTop: '4px' }}>{qcInspectionCount}</div>
             </div>
 
             <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
               <span style={{ fontSize: '12px', color: '#15803d', fontWeight: '700' }}>Replacement Ready</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#14532d', marginTop: '4px' }}>2</div>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#14532d', marginTop: '4px' }}>{replacementReadyCount}</div>
             </div>
 
             <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
               <span style={{ fontSize: '12px', color: '#6d28d9', fontWeight: '700' }}>Credit Note Pending</span>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#4c1d95', marginTop: '4px' }}>1</div>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#4c1d95', marginTop: '4px' }}>{creditNotePendingCount}</div>
             </div>
           </div>
         </div>
