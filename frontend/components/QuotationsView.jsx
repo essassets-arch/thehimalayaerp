@@ -413,7 +413,7 @@ export default function QuotationsView({
       .includes(normalizedQuotationStatus(status));
 
   const canConvertQuotation = (status) =>
-    ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION', 'DRAFT', 'NEW', 'INTERNAL_REVIEW', 'QUOTATION_DRAFT', 'PENDING', 'CREATED']
+    ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION']
       .includes(normalizedQuotationStatus(status));
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -1486,7 +1486,18 @@ export default function QuotationsView({
                 </button>
               </div>
 
-              {canConvertQuotation(selectedQuotation.status) && (
+              {canSendQuotation(selectedQuotation.status) ? (
+                <div>
+                  <button
+                    type="button"
+                    className="btn-small btn-primary-small"
+                    onClick={() => handleSendQuotationClick(selectedQuotation)}
+                    style={{ background: '#2F4375', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
+                  >
+                    Send Quotation →
+                  </button>
+                </div>
+              ) : canConvertQuotation(selectedQuotation.status) ? (
                 <div>
                   <button
                     type="button"
@@ -1497,7 +1508,7 @@ export default function QuotationsView({
                     Book Order Now
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
 
           </div>
