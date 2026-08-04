@@ -27,6 +27,7 @@ export interface SalesOrderResponseDto {
 
   subtotal: number;
   taxAmount: number;
+  freightAmount?: number;
   totalAmount: number;
   verifiedPaidAmount: number;
   balanceAmount: number;

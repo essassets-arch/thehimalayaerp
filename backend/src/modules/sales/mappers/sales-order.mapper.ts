@@ -148,6 +148,7 @@ export function mapSalesOrder(
 
     subtotal: Number(order.subtotal),
     taxAmount: Number(order.taxAmount),
+    freightAmount: Number(order.freightAmount || 0),
     totalAmount: Number(order.totalAmount),
     verifiedPaidAmount,
     balanceAmount,

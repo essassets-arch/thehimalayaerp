@@ -522,6 +522,14 @@ export class QuotationsService {
         products.map((product) => [product.id, product]),
       );
 
+      const qtnAny = quotation as any;
+      const freightCost = Number(
+        qtnAny.expectedTransportationCost ??
+        qtnAny.transportCharge ??
+        qtnAny.freightAmount ??
+        0
+      );
+
       // Snapshot exactly from quotation items
       const salesOrder = await tx.salesOrder.create({
         data: {
@@ -535,7 +543,7 @@ export class QuotationsService {
           taxAmount: quotation.tax,
           taxableAmount:
             Number(quotation.subtotal) - Number(quotation.discount),
-          freightAmount: 0,
+          freightAmount: freightCost,
           totalAmount: quotation.total,
           items: {
             create: quotation.items.map((item) => ({

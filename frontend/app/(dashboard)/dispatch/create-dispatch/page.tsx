@@ -175,10 +175,17 @@ export default function CreateDispatchPage() {
       ),
     [selectedWorkOrders]
   );
-  const transportationCost = selectedSalesOrders.reduce(
-    (sum, order) => sum + Number(order.freightAmount || 0),
-    0,
-  );
+  const transportationCost = selectedSalesOrders.reduce((sum, order: any) => {
+    const cost =
+      order.freightAmount ??
+      order.expectedTransportationCost ??
+      order.transportCharge ??
+      order.sourceQuotation?.expectedTransportationCost ??
+      order.sourceQuotation?.transportCharge ??
+      order.sourceQuotation?.freightAmount ??
+      0;
+    return sum + Number(cost || 0);
+  }, 0);
   const workOrder = selectedWorkOrders[0];
   const salesOrder = workOrder?.productionPlan?.salesOrder;
   const customer = salesOrder?.customer;

@@ -22,7 +22,7 @@ export class WorkOrdersService {
       where,
       include: {
         productionPlan: {
-          include: { salesOrder: { include: { customer: true, items: true } } },
+          include: { salesOrder: { include: { customer: true, items: true, sourceQuotation: true } } },
         },
         salesOrderItem: {
           include: { dispatchItems: true },
