@@ -48,8 +48,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     let cancelled = false;
 
     async function check() {
-      // Case 1: Token in memory — validate role access
-      if (accessToken) {
+      // Purge any stale/demo tokens
+      if (accessToken?.startsWith('demo-token-')) {
+        logout();
+        router.replace('/login');
+        if (!cancelled) setStatus('denied');
+        return;
+      }
+
+      // Case 1: Token in memory & not a demo token — allow render
+      if (accessToken && !accessToken.startsWith('demo-token-')) {
         if (!cancelled) setStatus('allowed');
         return;
       }
@@ -61,7 +69,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
           if (res.ok) {
             const json = await res.json();
             const newToken = json.data?.accessToken;
-            if (newToken) {
+            if (newToken && !newToken.startsWith('demo-token-')) {
               setAccessToken(newToken);
               if (!cancelled) setStatus('allowed');
               return;
@@ -72,7 +80,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         }
       }
 
-      // Case 3: No token, no refresh → send to login
+      // Case 3: No valid JWT token, no refresh → force redirect to login
       logout();
       router.replace('/login');
       if (!cancelled) setStatus('denied');
@@ -80,8 +88,19 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
     check();
     return () => { cancelled = true; };
-    // Re-check when accessToken changes (e.g., after logout)
-  }, [accessToken]);
+  }, [accessToken, user]);
+
+  // Listen to global 401 unauthorized event from API interceptors
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      logout();
+      setStatus('denied');
+      router.replace('/login');
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, [logout, router]);
 
   // Role-based access control check (once allowed)
   useEffect(() => {

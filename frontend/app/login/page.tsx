@@ -103,50 +103,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleQuickLogin = async (accountEmail: string, role: string) => {
+  const handleSelectAccount = (accountEmail: string) => {
     setEmail(accountEmail);
-    setPassword('admin123');
     setError('');
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/backend/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: accountEmail.toLowerCase().trim(), password: 'admin123' }),
-      }).catch(() => null);
-
-      let json: any = {};
-      if (res && res.ok) {
-        try { json = await res.json(); } catch (_) {}
-      }
-
-      if (json?.data?.accessToken && json?.data?.user) {
-        const friendlyRole = toFriendlyRole(json.data.user.role);
-        login(friendlyRole, { ...json.data.user, role: friendlyRole }, json.data.accessToken);
-        const redirectPath = getDefaultPath(json.data.user.role);
-        router.push(redirectPath);
-        window.location.href = redirectPath;
-        return;
-      }
-
-      // Demo fallback if backend returns 401 or network fails
-      const fakeToken = `demo-token-${Date.now()}`;
-      const demoUser = {
-        id: `usr-demo-${Date.now()}`,
-        email: accountEmail,
-        name: role,
-        role: role
-      };
-      login(role, demoUser, fakeToken);
-      const redirectPath = getDefaultPath(role);
-      router.push(redirectPath);
-      window.location.href = redirectPath;
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    const passEl = document.getElementById('login-password');
+    if (passEl) passEl.focus();
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -172,27 +133,6 @@ export default function LoginPage() {
       } catch (_) {}
 
       if (!res.ok) {
-        // Fallback for demo accounts if backend returns 401
-        const cleanEmail = email.toLowerCase().trim();
-        const isHimalayaEmail = cleanEmail.endsWith('@himalayaerp.com') || cleanEmail.includes('himalaya') || cleanEmail.includes('demo');
-        const demoMatch = DEMO_ACCOUNTS.find(a => a.email === cleanEmail) || (isHimalayaEmail ? { role: inferDemoRoleFromEmail(cleanEmail), email: cleanEmail } : null);
-
-        if (res.status === 401 && demoMatch) {
-          console.warn(`[Login] Backend 401 for demo account ${cleanEmail}. Proceeding with demo login fallback.`);
-          const demoRole = demoMatch.role;
-          const fakeToken = `demo-token-${Date.now()}`;
-          const demoUser = {
-            id: `usr-demo-${Date.now()}`,
-            email: cleanEmail,
-            name: demoRole,
-            role: demoRole
-          };
-          login(demoRole, demoUser, fakeToken);
-          const redirectPath = getDefaultPath(demoRole);
-          window.location.href = redirectPath;
-          return;
-        }
-
         // NestJS sends 401 on bad credentials
         if (res.status === 401) {
           throw new Error('Invalid email or password.');
@@ -206,9 +146,9 @@ export default function LoginPage() {
         throw new Error(json?.message || 'Login failed. Please try again.');
       }
 
-      const { accessToken, user } = json.data;
+      const { accessToken, user } = json.data || {};
       if (!accessToken || !user) {
-        throw new Error('Unexpected response from server. Please try again.');
+        throw new Error('Unexpected response from server. Missing access token.');
       }
 
       const friendlyRole = toFriendlyRole(user.role);
@@ -491,36 +431,39 @@ export default function LoginPage() {
               {loading ? 'Authenticating…' : 'Sign In'}
             </button>
             <div>
-              <div className="login-label" style={{ marginBottom: '8px' }}>
-                Quick login — password for all accounts: admin123
+              <div className="login-label" style={{ marginBottom: '8px', color: '#64748B' }}>
+                Select Account — Prefills Email Field
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {DEMO_ACCOUNTS.map((account) => (
-                  <button
-                    key={account.role}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => handleQuickLogin(account.email, account.role)}
-                    title={`Login as ${account.role}`}
-                    style={{
-                      border: '1px solid #E2E8F0',
-                      background: '#F8FAFD',
-                      borderRadius: '8px',
-                      padding: '8px',
-                      color: '#1E293B',
-                      cursor: loading ? 'default' : 'pointer',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      textAlign: 'left',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    <span style={{ display: 'block' }}>{account.role}</span>
-                    <span style={{ display: 'block', color: '#64748B', fontSize: '9px', marginTop: '2px' }}>
-                      {account.email}
-                    </span>
-                  </button>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                {DEMO_ACCOUNTS.map((account) => {
+                  const isSelected = email === account.email;
+                  return (
+                    <button
+                      key={account.role}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleSelectAccount(account.email)}
+                      title={`Select ${account.role}`}
+                      style={{
+                        border: isSelected ? '1.5px solid #3BAEEB' : '1px solid #E2E8F0',
+                        background: isSelected ? '#F0F9FF' : '#F8FAFD',
+                        borderRadius: '8px',
+                        padding: '8px 10px',
+                        color: '#1E293B',
+                        cursor: loading ? 'default' : 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ display: 'block', color: isSelected ? '#0284C7' : '#1E293B' }}>{account.role}</span>
+                      <span style={{ display: 'block', color: '#64748B', fontSize: '9.5px', marginTop: '2px', wordBreak: 'break-all' }}>
+                        {account.email}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </form>
