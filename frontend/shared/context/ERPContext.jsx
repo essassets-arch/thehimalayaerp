@@ -542,9 +542,9 @@ export const useSalesBackend = () => {
 export const ERPProvider = ({ children }) => {
   const { syncData, state } = useERP();
   const currentUser = useAuthStore(auth => auth.user);
-  const shouldLoadSalesOrders = hasPermission(currentUser, 'sales.orders.read');
-  const shouldLoadLeads = hasPermission(currentUser, 'sales.leads.read');
-  const shouldLoadCustomers = hasPermission(currentUser, 'sales.customers.read');
+  const shouldLoadSalesOrders = Boolean(currentUser);
+  const shouldLoadLeads = Boolean(currentUser);
+  const shouldLoadCustomers = Boolean(currentUser);
 
   const [salesOrders, setSalesOrders] = React.useState([]);
   const [salesOrdersPagination, setSalesOrdersPagination] = React.useState({

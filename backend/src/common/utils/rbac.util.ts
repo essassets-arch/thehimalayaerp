@@ -62,9 +62,8 @@ export function getSalesScope(
   role?: string,
   ownershipField: string = 'createdById',
 ): Record<string, any> {
-  return getAdvancedScope(userId, role, {
-    SALES: { [ownershipField]: userId },
-  });
+  // Sales team members need visibility across team sales orders
+  return {};
 }
 
 export function getProcurementScope(
