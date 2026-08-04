@@ -110,6 +110,12 @@ export const PlantHeadExecutiveReports = () => {
       `Filter Timeframe: ${timeframe}`,
       `Generated Date: ${new Date().toISOString().slice(0, 10)}`,
       '',
+      'AI EXECUTIVE SUMMARY',
+      `"${reportData?.aiSummary || 'Production is operating at standard capacity.'}"`,
+      '',
+      'KEY AI RECOMMENDATIONS',
+      ...(reportData?.recommendations || ['Maintain equipment health', 'Monitor safety protocols']).map(r => `"- ${r}"`),
+      '',
       'EXECUTIVE KPI METRICS',
       'Metric,Value',
       `Completed Production Orders,${reportData?.production?.completedToday || 42} Work Orders`,
@@ -173,9 +179,9 @@ export const PlantHeadExecutiveReports = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={handleGenerateAi} disabled={generatingAi} style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)' }}>
-            <Sparkles size={16} /> {generatingAi ? 'Generating AI Report...' : 'Generate AI Executive Summary'}
+            <Sparkles size={16} className={generatingAi ? 'spin' : ''} /> {generatingAi ? 'Generating AI Report...' : 'Generate AI Executive Summary'}
           </button>
           <button onClick={handleExportCSV} style={{ background: '#10b981', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)' }}>
             <FileSpreadsheet size={16} /> Export Excel
@@ -192,12 +198,48 @@ export const PlantHeadExecutiveReports = () => {
           <Calendar size={18} color="#0284c7" />
           <span style={{ fontSize: '13px', fontWeight: '800', color: '#334155' }}>Filter Period:</span>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          {['Today', 'This Week', 'This Month', 'This Quarter', 'Custom'].map(tf => (
-            <button key={tf} onClick={() => setTimeframe(tf)} style={{ background: timeframe === tf ? '#0284c7' : '#f1f5f9', color: timeframe === tf ? '#ffffff' : '#475569', border: 'none', padding: '7px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}>
-              {tf}
-            </button>
-          ))}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {['Today', 'This Week', 'This Month', 'This Quarter', 'Custom'].map(tf => {
+            const isActive = timeframe === tf;
+            return (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                style={{
+                  background: isActive ? '#0284c7' : '#f1f5f9',
+                  color: isActive ? '#ffffff' : '#475569',
+                  border: 'none',
+                  padding: '7px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {tf}
+              </button>
+            );
+          })}
+
+          {timeframe === 'Custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '6px' }}>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+              />
+              <span style={{ fontSize: '12px', color: '#64748b' }}>to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
