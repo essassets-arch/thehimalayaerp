@@ -413,7 +413,7 @@ export default function QuotationsView({
       .includes(normalizedQuotationStatus(status));
 
   const canConvertQuotation = (status) =>
-    ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION']
+    ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION', 'DRAFT', 'NEW', 'INTERNAL_REVIEW', 'QUOTATION_DRAFT', 'PENDING', 'CREATED']
       .includes(normalizedQuotationStatus(status));
 
   const [currentPage, setCurrentPage] = useState(1);

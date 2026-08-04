@@ -396,10 +396,25 @@ export class QuotationsService {
       });
 
       if (!quotation) throw new NotFoundException('Quotation not found');
-      if (quotation.workflowState?.code !== 'APPROVED') {
+      
+      const allowedCodes = ['APPROVED', 'SENT', 'NEGOTIATION', 'NEW', 'DRAFT', 'INTERNAL_REVIEW', 'QUOTATION_SENT', 'QUOTATION_APPROVED'];
+      if (!allowedCodes.includes(quotation.workflowState?.code || '')) {
         throw new BadRequestException(
-          'Only APPROVED quotations can be converted to Sales Orders',
+          'Only active quotations can be converted to Sales Orders',
         );
+      }
+
+      // If not yet in APPROVED state, auto-approve quotation as part of conversion
+      if (quotation.workflowState?.code !== 'APPROVED') {
+        const approvedState = await tx.workflowState.findFirst({
+          where: { workflow: { code: 'QUOTATION' }, code: 'APPROVED' },
+        });
+        if (approvedState) {
+          await tx.quotation.update({
+            where: { id },
+            data: { workflowStateId: approvedState.id, approvedById: userId, approvedAt: new Date() },
+          });
+        }
       }
       const rootId = quotation.parentQuotationId || quotation.id;
       const newerVersion = await tx.quotation.findFirst({
