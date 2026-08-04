@@ -77,9 +77,14 @@ async function performBackendFetch<T = unknown>(
     }
   }
 
-  // If still 401, force logout by clearing token
+  // If still 401, force logout by clearing token, wiping cache & redirecting to login
   if (res.status === 401) {
+    readCache.clear();
+    pendingReads.clear();
     useAuthStore.getState().logout?.();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
   }
 
   const responseText = await res.text();

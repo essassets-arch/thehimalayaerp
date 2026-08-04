@@ -33,6 +33,9 @@ export async function POST(request: Request) {
     const setCookieHeader = res.headers.get('Set-Cookie');
     if (setCookieHeader) {
       nextResponse.headers.set('Set-Cookie', setCookieHeader);
+    } else {
+      nextResponse.headers.append('Set-Cookie', 'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
+      nextResponse.headers.append('Set-Cookie', 'accessToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
     }
 
     return nextResponse;

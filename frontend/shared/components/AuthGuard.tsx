@@ -82,8 +82,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
       // Case 3: No valid JWT token, no refresh → force redirect to login
       logout();
-      router.replace('/login');
       if (!cancelled) setStatus('denied');
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      } else {
+        router.replace('/login');
+      }
     }
 
     check();
@@ -95,7 +99,11 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     const handleUnauthorized = () => {
       logout();
       setStatus('denied');
-      router.replace('/login');
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      } else {
+        router.replace('/login');
+      }
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);

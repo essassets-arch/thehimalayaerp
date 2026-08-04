@@ -53,10 +53,17 @@ export const MobileMenu = ({ isSuperAdmin = false }) => {
     };
   }, [isOpen]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsOpen(false);
+    try {
+      await fetch('/api/backend/auth/logout', { method: 'POST' });
+    } catch { /* best effort */ }
     logout();
-    navigate.push('/login');
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    } else {
+      navigate.push('/login');
+    }
   };
 
   return (

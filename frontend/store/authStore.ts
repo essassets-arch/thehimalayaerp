@@ -68,9 +68,20 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('token');
-          sessionStorage.removeItem('himalaya_token');
-          sessionStorage.removeItem('erpUser');
+          try {
+            sessionStorage.clear();
+            localStorage.clear();
+            document.cookie.split(';').forEach((c) => {
+              const name = c.split('=')[0].trim();
+              if (name) {
+                document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+                document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+              }
+            });
+            window.dispatchEvent(new CustomEvent('auth:logout'));
+          } catch (e) {
+            console.warn('[authStore] Error clearing storage on logout', e);
+          }
         }
         set({ role: null, user: null, accessToken: null, isAuthenticated: false });
       },

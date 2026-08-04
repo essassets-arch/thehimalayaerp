@@ -67,11 +67,18 @@ export default function Sidebar({ isOpen, onClose }) {
     return finalParts.map(p => p[0]).join('').substring(0, 2).toUpperCase();
   };
 
-  const handleLogoutClick = (e) => {
+  const handleLogoutClick = async (e) => {
     e.preventDefault();
+    try {
+      await fetch('/api/backend/auth/logout', { method: 'POST' });
+    } catch { /* best effort */ }
     logout();
     onClose();
-    navigate.replace('/login');
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    } else {
+      navigate.replace('/login');
+    }
   };
 
   const isSubItemActive = (subPath) => {

@@ -172,7 +172,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 await fetch('/api/backend/auth/logout', { method: 'POST' });
               } catch { /* best effort */ }
               useAuthStore.getState().logout();
-              router.push('/login');
+              if (typeof window !== 'undefined') {
+                window.location.href = '/login';
+              } else {
+                router.push('/login');
+              }
             }
           }}
           onAddLead={() => router.push('/sales/leads')}
