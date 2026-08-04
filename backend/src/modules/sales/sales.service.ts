@@ -331,32 +331,33 @@ export class SalesService {
         }
 
         if (updated.productionPlans.length === 0) {
-        const [initialPlanState, plantHead, planNumber] = await Promise.all([
-          this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
-          tx.user.findFirst({
-            where: {
-              isActive: true,
-              deletedAt: null,
-              role: { code: 'PLANT_HEAD' },
+          const [initialPlanState, plantHead, planNumber] = await Promise.all([
+            this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
+            tx.user.findFirst({
+              where: {
+                isActive: true,
+                deletedAt: null,
+                role: { code: 'PLANT_HEAD' },
+              },
+              select: { id: true },
+              orderBy: { createdAt: 'asc' },
+            }),
+            this.sequenceService.generateNextWithTx(
+              tx,
+              'production_plan_number',
+              'PP-',
+            ),
+          ]);
+          await tx.productionPlan.create({
+            data: {
+              planNumber,
+              salesOrderId: order.id,
+              status: 'PENDING_PLANNING',
+              assignedToId: plantHead?.id,
+              workflowStateId: initialPlanState.id,
             },
-            select: { id: true },
-            orderBy: { createdAt: 'asc' },
-          }),
-          this.sequenceService.generateNextWithTx(
-            tx,
-            'production_plan_number',
-            'PP-',
-          ),
-        ]);
-        await tx.productionPlan.create({
-          data: {
-            planNumber,
-            salesOrderId: order.id,
-            status: 'PENDING_PLANNING',
-            assignedToId: plantHead?.id,
-            workflowStateId: initialPlanState.id,
-          },
-        });
+          });
+        }
       }
 
       const orderWithPlan = await tx.salesOrder.findUniqueOrThrow({
