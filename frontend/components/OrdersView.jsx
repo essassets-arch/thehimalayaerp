@@ -228,9 +228,9 @@ export default function OrdersView({
   const getOrderStatusLabel = (order) => {
     if (!order) return 'Pending';
     if (order.commercialStatus === 'ORDER_CLOSED') return 'Closed';
-    if (order.dispatchStatus === 'DELIVERED') return 'Delivered';
-    if (order.dispatchStatus === 'IN_TRANSIT') return 'In Transit';
-    if (order.dispatchStatus === 'DISPATCH_CREATED') return 'Dispatch Created';
+    if (order.dispatchStatus === 'DELIVERED' || order.status === 'DELIVERED' || order.status === 'COMPLETED') return 'Delivered';
+    if (order.dispatchStatus === 'IN_TRANSIT' || order.status === 'IN_TRANSIT') return 'In Transit';
+    if (order.dispatchStatus === 'DISPATCH_CREATED' || order.status === 'DISPATCH_CREATED') return 'Dispatch Created';
     if (order.status === 'READY_FOR_DISPATCH' || order.workflowStateCode === 'READY_FOR_DISPATCH') {
       return isTradingOrder(order) ? 'Sent to Dispatch' : 'Ready for Dispatch';
     }

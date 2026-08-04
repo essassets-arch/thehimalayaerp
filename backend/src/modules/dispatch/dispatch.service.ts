@@ -316,7 +316,7 @@ export class DispatchService {
 
       await tx.salesOrder.update({
         where: { id: dto.salesOrderId },
-        data: { status: 'COMPLETED' },
+        data: { status: 'READY_FOR_DISPATCH' },
       });
 
       return dispatch;
@@ -470,6 +470,13 @@ export class DispatchService {
           },
         });
       }
+
+      await tx.salesOrder.update({
+        where: { id: dispatch.salesOrderId },
+        data: {
+          status: 'COMPLETED',
+        },
+      });
 
       return updatedDispatch;
     });
