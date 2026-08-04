@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Lucide from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -53,6 +53,11 @@ export default function DashboardView({
 }) {
   const { state } = useERP();
   const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   // Compute ERP Financial Data using active filter context
   const fin = computeFinancialData(state, period, startDate, endDate);
@@ -635,19 +640,21 @@ export default function DashboardView({
           </div>
 
           <div className="pnl-chart-container" style={{ marginTop: '16px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={fin.monthlyPerformance} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf3" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#5E6B82" }} />
-                <YAxis axisLine={false} tickLine={false} width={38} tick={{ fontSize: 11, fill: "#5E6B82" }} tickFormatter={(val) => `₹${val}L`} />
-                <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
-                <Legend className="pnl-legend" />
-                <Bar dataKey="revenue" name="Recognized Revenue (₹L)" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={20} />
-                <Bar dataKey="collected" name="Realized Collection (₹L)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                <Bar dataKey="expense" name="Total Expenses (₹L)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
-                <Line type="monotone" dataKey="estimatedProfit" name="Estimated Net Profit (₹L)" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            {mounted && (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={fin.monthlyPerformance} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf3" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#5E6B82" }} />
+                  <YAxis axisLine={false} tickLine={false} width={38} tick={{ fontSize: 11, fill: "#5E6B82" }} tickFormatter={(val) => `₹${val}L`} />
+                  <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
+                  <Legend className="pnl-legend" />
+                  <Bar dataKey="revenue" name="Recognized Revenue (₹L)" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="collected" name="Realized Collection (₹L)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="expense" name="Total Expenses (₹L)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Line type="monotone" dataKey="estimatedProfit" name="Estimated Net Profit (₹L)" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           {/* Tabular P&L Summary */}
@@ -694,16 +701,18 @@ export default function DashboardView({
 
             <div className="sa-expense-breakdown-content">
               <div className="sa-expense-chart-wrap" style={{ width: '160px', height: '180px', flexShrink: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={fin.expenseBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3}>
-                      {fin.expenseBreakdown.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {mounted && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={fin.expenseBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3}>
+                        {fin.expenseBreakdown.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </div>
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11.5px', minWidth: 0 }}>
