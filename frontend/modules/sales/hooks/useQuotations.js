@@ -54,17 +54,25 @@ export function useQuotations(showToast, autoLoad = true) {
 
   const createQuotation = useCallback(async (qData) => {
     try {
-      const items = (qData.detailedItems || []).map((item) => {
-        const quantity = Number(item.quantity || 0);
-        const unitPrice = Number(item.unitPrice || 0);
+      const rawItems = Array.isArray(qData.detailedItems) && qData.detailedItems.length > 0
+        ? qData.detailedItems
+        : Array.isArray(qData.items)
+        ? qData.items
+        : [];
+
+      const items = rawItems.map((item) => {
+        const quantity = Number(item.quantity || item.qty || 0);
+        const unitPrice = Number(item.unitPrice || item.rate || item.price || 0);
         const gross = quantity * unitPrice;
-        const discount = gross * Number(item.discount || 0) / 100;
-        const tax = (gross - discount) * Number(item.tax || 0) / 100;
+        const discPct = Number(item.discount || 0);
+        const taxPct = item.tax !== undefined ? Number(item.tax) : 18;
+        const discount = gross * (discPct / 100);
+        const tax = (gross - discount) * (taxPct / 100);
         return {
-          productId: item.productId,
-          productName: item.productName,
-          productCode: item.code,
-          description: item.productDetails || item.specification || item.productName,
+          productId: item.productId || item.productCode || item.code || undefined,
+          productName: item.productName || item.name || 'Custom Product',
+          productCode: item.productCode || item.code || undefined,
+          description: item.productDetails || item.specification || item.description || item.productName || item.name || '',
           quantity,
           unitPrice,
           discount,

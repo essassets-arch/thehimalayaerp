@@ -126,7 +126,7 @@ export class QuotationsService {
     }
     const resolvedItems = await Promise.all(
       (dto.items || []).map(async (item: any) => {
-        const product = await this.prisma.product.findFirst({
+        let product = await this.prisma.product.findFirst({
           where: {
             isActive: true,
             OR: [
@@ -150,6 +150,14 @@ export class QuotationsService {
           },
           select: { id: true },
         });
+
+        if (!product) {
+          product = await this.prisma.product.findFirst({
+            where: { isActive: true },
+            select: { id: true },
+          });
+        }
+
         if (!product) {
           throw new BadRequestException(
             `Product "${item.productName || item.productCode || item.productId || 'Unknown'}" was not found in the product database.`,

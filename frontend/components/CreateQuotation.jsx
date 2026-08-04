@@ -59,6 +59,7 @@ export default function CreateQuotation({
   const userRole = user?.role?.trim();
   const isSpecialRole = userRole === 'Super Admin' || userRole === 'Admin';
   const maxDays = isSpecialRole ? 90 : 20;
+  const salespersonName = user?.name || user?.fullName || user?.email || 'Sales Executive';
   
   const searchParams = useSearchParams();
   const targetQuotationId = searchParams?.get('quotationId');
