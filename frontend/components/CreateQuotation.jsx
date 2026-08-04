@@ -121,6 +121,7 @@ export default function CreateQuotation({
   const [activeDropdownRow, setActiveDropdownRow] = useState(null);
   const [activeSpecsDropdownRow, setActiveSpecsDropdownRow] = useState(null);
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultValidTill = () => {
     const d = new Date();
