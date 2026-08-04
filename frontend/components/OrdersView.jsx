@@ -204,19 +204,45 @@ export default function OrdersView({
     return isDeliveredOrder(order) && getAvailableAfterSalesQuantity(order) > 0 && !hasActiveReturn(order) && !hasFullReturnCompleted(order);
   };
 
+  const isTradingOrder = (order) => {
+    const items = Array.isArray(order?.items) ? order.items : Array.isArray(order?.orderItems) ? order.orderItems : [];
+    if (items.length === 0) {
+      const singleName = order?.productName || order?.name || '';
+      const singleCat = order?.category || order?.brand || '';
+      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(singleCat.toUpperCase())) return true;
+      if (singleName.toLowerCase().includes('wcb') || singleName.toLowerCase().includes('coverblock')) return true;
+      return false;
+    }
+    return items.every((item) => {
+      const type = item.productType || item.product?.productType || '';
+      const cat = item.category || item.product?.category || item.brand || '';
+      const name = item.productNameSnapshot || item.productName || item.name || '';
+      if (type === 'TRADING') return true;
+      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(cat.toUpperCase())) return true;
+      if (name.toLowerCase().includes('wcb') || name.toLowerCase().includes('coverblock')) return true;
+      if (type === 'MANUFACTURING' || ['FRP COVERS', 'FRP GRATINGS'].includes(cat.toUpperCase())) return false;
+      return false;
+    });
+  };
+
   const getOrderStatusLabel = (order) => {
     if (!order) return 'Pending';
     if (order.commercialStatus === 'ORDER_CLOSED') return 'Closed';
     if (order.dispatchStatus === 'DELIVERED') return 'Delivered';
     if (order.dispatchStatus === 'IN_TRANSIT') return 'In Transit';
     if (order.dispatchStatus === 'DISPATCH_CREATED') return 'Dispatch Created';
+    if (order.status === 'READY_FOR_DISPATCH' || order.workflowStateCode === 'READY_FOR_DISPATCH') {
+      return isTradingOrder(order) ? 'Sent to Dispatch' : 'Ready for Dispatch';
+    }
     if (order.qcStatus === 'QC_APPROVED') return 'QC Approved';
     if (order.productionStatus === 'PRODUCTION_COMPLETED') return 'Production Completed';
     if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus)) return 'In Production';
     if (order.productionStatus === 'WORK_ORDER_CREATED') return 'Work Order Created';
     if (order.planningStatus === 'PRODUCTION_PLANNED') return 'Production Planned';
     if (order.planningStatus === 'PLANT_HEAD_ACCEPTED') return 'Accepted by Plant Head';
-    if (order.planningStatus === 'PENDING_ACCEPTANCE') return 'Sent to Plant Head';
+    if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.status === 'SENT_TO_PLANT_HEAD') {
+      return isTradingOrder(order) ? 'Sent to Dispatch' : 'Sent to Plant Head';
+    }
     if (order.commercialStatus === 'ORDER_CONFIRMED' && (order.planningStatus === 'NOT_SENT' || !order.planningStatus)) return 'Confirmed';
     return order.status || order.workflowStatus || 'Pending';
   };
@@ -224,9 +250,6 @@ export default function OrdersView({
   const getOrderActionState = (order) => {
     if (!order) return { action: null, label: 'No Action' };
 
-    // The workflow state is authoritative for backend orders. Falling back to the
-    // legacy status fields keeps local/Zustand orders working without showing a
-    // stale submit action after the workflow has already moved on.
     const backendStatus = String(
       order.workflowStateCode ||
       order.status ||
@@ -234,13 +257,18 @@ export default function OrdersView({
       ''
     ).trim().toUpperCase();
 
+    const isTrading = isTradingOrder(order);
+
+    if (backendStatus === 'READY_FOR_DISPATCH') {
+      return { action: null, label: isTrading ? 'Sent to Dispatch' : 'Ready for Dispatch' };
+    }
+
     const nonSubmittableWorkflowLabels = {
-      SENT_TO_PLANT: 'Sent to Plant Head',
-      SENT_TO_PLANT_HEAD: 'Sent to Plant Head',
+      SENT_TO_PLANT: isTrading ? 'Sent to Dispatch' : 'Sent to Plant Head',
+      SENT_TO_PLANT_HEAD: isTrading ? 'Sent to Dispatch' : 'Sent to Plant Head',
       PLANT_APPROVED: 'Accepted by Plant Head',
       READY_FOR_PRODUCTION: 'Ready for Production',
       IN_PRODUCTION: 'In Production',
-      READY_FOR_DISPATCH: 'Ready for Dispatch',
       COMPLETED: 'Completed',
       CANCELLED: 'Cancelled',
     };
@@ -248,27 +276,26 @@ export default function OrdersView({
       return { action: null, label: nonSubmittableWorkflowLabels[backendStatus] };
     }
 
-    if (backendStatus === 'DRAFT') {
-      return { action: 'SEND_TO_PLANT_HEAD_DIRECT', label: 'Send to Plant Head' };
+    const actionLabel = isTrading ? 'Send to Dispatch' : 'Send to Plant Head';
+
+    if (backendStatus === 'DRAFT' || backendStatus === 'PENDING_APPROVAL' || backendStatus === 'CONFIRMED' || backendStatus === 'SUBMITTED') {
+      return { action: 'SEND_TO_PLANT', label: actionLabel };
     }
-    if (backendStatus === 'PENDING_APPROVAL') {
-      return { action: 'SEND_TO_PLANT_HEAD_DIRECT', label: 'Send to Plant Head' };
-    }
+
     const isConfirmed = order.commercialStatus === 'ORDER_CONFIRMED' || order.orderStatus === 'CONFIRMED';
     const isNotSent = order.planningStatus === 'NOT_SENT' || !order.planningStatus;
     const isFullyReserved = order.allocationStatus === 'FINISHED_GOODS_RESERVED';
 
-    // If fully available stock, do NOT send to plant head, jump to ready for dispatch
     if (isConfirmed && isFullyReserved) {
       return { action: null, label: 'Ready for Dispatch' };
     }
 
     if (isConfirmed && isNotSent && !isFullyReserved) {
-      return { action: 'SEND_TO_PLANT_HEAD', label: 'Send to Plant Head' };
+      return { action: 'SEND_TO_PLANT', label: actionLabel };
     }
     
     if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.orderStatus === 'SENT_TO_PLANT_HEAD') {
-      return { action: null, label: 'Awaiting Plant Head' };
+      return { action: null, label: isTrading ? 'Sent to Dispatch' : 'Awaiting Plant Head' };
     }
     if (order.planningStatus === 'PLANT_HEAD_ACCEPTED') {
       return { action: null, label: 'Awaiting Production Plan' };
@@ -669,63 +696,22 @@ export default function OrdersView({
                               <Eye size={13} />
                             </button>
 
-                            {actionState.action === 'SEND_TO_PLANT_HEAD_DIRECT' && (
+                            {(actionState.action === 'SEND_TO_PLANT' || actionState.action === 'SEND_TO_PLANT_HEAD' || actionState.action === 'SEND_TO_PLANT_HEAD_DIRECT') && (
                               <button
                                 type="button"
                                 disabled={sendingOrderId === (o.id || o.orderNo)}
                                 onClick={async () => {
                                   const orderId = o.id || o.orderNo;
                                   if (sendingOrderId === orderId) return;
+                                  const isTrading = isTradingOrder(o);
                                   const confirmation = await Swal.fire({
-                                    title: 'Send Order to Plant Head?',
-                                    text: 'This order will be sent to the Plant Head incoming-orders queue.',
+                                    title: isTrading ? 'Send Order to Dispatch?' : 'Send Order to Plant Head?',
+                                    text: isTrading
+                                      ? 'This is a Trading Order. It will bypass factory production and go directly to the Dispatch queue.'
+                                      : 'This order will be added to the Plant Head incoming-order queue for production planning.',
                                     icon: 'question',
                                     showCancelButton: true,
-                                    confirmButtonText: 'Yes, Send',
-                                    cancelButtonText: 'No',
-                                  });
-                                  if (!confirmation.isConfirmed) return;
-                                  setSendingOrderId(orderId);
-                                  try {
-                                    const sent = await onUpdateOrderStatus?.(orderId, 'SEND_TO_PLANT_HEAD_DIRECT');
-                                    if (sent !== false) {
-                                      await Swal.fire({
-                                        title: 'Order Sent',
-                                        text: 'The order is now available in Plant Head incoming orders.',
-                                        icon: 'success',
-                                      });
-                                    }
-                                  } finally {
-                                    setSendingOrderId(null);
-                                  }
-                                }}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center',
-                                  padding: '4px 12px', height: '30px',
-                                  background: '#2F4375', color: '#fff',
-                                  border: '1px solid #2F4375',
-                                  borderRadius: '8px', cursor: 'pointer',
-                                  fontSize: '12px', fontWeight: '700',
-                                  whiteSpace: 'nowrap', flexShrink: 0
-                                }}
-                              >
-                                {actionState.label}
-                              </button>
-                            )}
-
-                            {actionState.action === 'SEND_TO_PLANT_HEAD' && (
-                              <button
-                                type="button"
-                                disabled={sendingOrderId === (o.id || o.orderNo)}
-                                onClick={async () => {
-                                  const orderId = o.id || o.orderNo;
-                                  if (sendingOrderId === orderId) return;
-                                  const confirmation = await Swal.fire({
-                                    title: 'Send Order to Plant Head?',
-                                    text: 'This order will be added to the Plant Head incoming-order queue for production planning.',
-                                    icon: 'question',
-                                    showCancelButton: true,
-                                    confirmButtonText: 'Yes, Send Order',
+                                    confirmButtonText: isTrading ? 'Yes, Send to Dispatch' : 'Yes, Send Order',
                                     cancelButtonText: 'Cancel',
                                   });
                                   if (!confirmation.isConfirmed) return;
@@ -734,8 +720,10 @@ export default function OrdersView({
                                     const sent = await onUpdateOrderStatus?.(orderId, 'SEND_TO_PLANT');
                                     if (sent !== false) {
                                       await Swal.fire({
-                                        title: 'Order Sent Successfully',
-                                        text: 'The order is now available in Plant Head Incoming Orders.',
+                                        title: isTrading ? 'Sent to Dispatch' : 'Order Sent Successfully',
+                                        text: isTrading
+                                          ? 'The order is now available in Dispatch Orders for fulfillment.'
+                                          : 'The order is now available in Plant Head Incoming Orders.',
                                         icon: 'success',
                                       });
                                     }
@@ -745,19 +733,19 @@ export default function OrdersView({
                                     setSendingOrderId(null);
                                   }
                                 }}
-                                  data-testid={`order-send-plant-head-${o.orderNo || o.id}`}
-                                  style={{
-                                    display: 'inline-flex', alignItems: 'center',
+                                data-testid={`order-send-action-${o.orderNo || o.id}`}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center',
                                   padding: '4px 12px', height: '30px',
-                                  background: '#c9f03d',
-                                  border: '1px solid #b5da2a',
+                                  background: isTradingOrder(o) ? '#0284c7' : '#2F4375',
+                                  border: isTradingOrder(o) ? '1px solid #0369a1' : '1px solid #2F4375',
                                   borderRadius: '8px', cursor: 'pointer',
                                   fontSize: '12px', fontWeight: '700',
-                                  color: '#1a2600', whiteSpace: 'nowrap',
+                                  color: '#ffffff', whiteSpace: 'nowrap',
                                   flexShrink: 0
                                 }}
                               >
-                                Send to Plant Head
+                                {actionState.label}
                               </button>
                             )}
 
