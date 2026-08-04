@@ -138,24 +138,34 @@ export default function DispatchOrdersPage() {
   } = useQuery<UnifiedPendingDispatchItem[]>({
     queryKey: ["pending-dispatch-unified-items"],
     queryFn: async () => {
+      const extractArray = (res: any): any[] => {
+        if (!res) return [];
+        if (Array.isArray(res)) return res;
+        if (Array.isArray(res?.data)) return res.data;
+        if (Array.isArray(res?.items)) return res.items;
+        return [];
+      };
+
       const [workOrdersPayload, salesOrdersPayload] = await Promise.allSettled([
-        backendFetch<WorkOrder[]>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH"),
-        backendFetch<any[]>("/api/backend/sales/orders?status=READY_FOR_DISPATCH"),
+        backendFetch<any>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH"),
+        backendFetch<any>("/api/backend/sales/orders?status=READY_FOR_DISPATCH"),
       ]);
 
       const workOrders: WorkOrder[] =
-        workOrdersPayload.status === "fulfilled" && Array.isArray(workOrdersPayload.value)
-          ? workOrdersPayload.value
+        workOrdersPayload.status === "fulfilled"
+          ? extractArray(workOrdersPayload.value)
           : [];
 
       const rawSalesOrders =
         salesOrdersPayload.status === "fulfilled"
-          ? Array.isArray(salesOrdersPayload.value)
-            ? salesOrdersPayload.value
-            : Array.isArray((salesOrdersPayload.value as any)?.data)
-            ? (salesOrdersPayload.value as any).data
-            : []
+          ? extractArray(salesOrdersPayload.value)
           : [];
+
+      const linkedSalesOrderIds = new Set(
+        workOrders
+          .map((wo) => wo.productionPlan?.salesOrder?.id)
+          .filter(Boolean)
+      );
 
       const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders.map((wo) => {
         const salesOrder = wo.productionPlan?.salesOrder;
@@ -178,35 +188,37 @@ export default function DispatchOrdersPage() {
 
       const unifiedSalesOrders: UnifiedPendingDispatchItem[] = [];
       rawSalesOrders.forEach((so: any) => {
-        const status = String(so.status || so.orderStatus || so.workflowStateCode || "").toUpperCase();
-        if (status === "READY_FOR_DISPATCH") {
-          const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
-          if (items.length > 0) {
-            items.forEach((item: any, idx: number) => {
-              unifiedSalesOrders.push({
-                id: `so-${so.id}-${idx}`,
-                itemType: "TRADING_SALES_ORDER",
-                orderNumber: so.orderNumber || so.orderNo || "N/A",
-                customerName: so.customer?.companyName || so.customerName || "N/A",
-                deliveryAddress: formatAddress(so, so.customer),
-                productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
-                approvedQuantity: item.quantity || item.qty || 1,
-                salesOrderId: so.id,
-                salesOrderItemId: item.id,
-              });
-            });
-          } else {
+        if (so.id && linkedSalesOrderIds.has(so.id)) {
+          // Exclude sales orders that already have active manufacturing work orders
+          return;
+        }
+
+        const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
+        if (items.length > 0) {
+          items.forEach((item: any, idx: number) => {
             unifiedSalesOrders.push({
-              id: `so-${so.id}`,
+              id: `so-${so.id}-${idx}`,
               itemType: "TRADING_SALES_ORDER",
               orderNumber: so.orderNumber || so.orderNo || "N/A",
               customerName: so.customer?.companyName || so.customerName || "N/A",
               deliveryAddress: formatAddress(so, so.customer),
-              productName: so.productName || "Trading Product",
-              approvedQuantity: 1,
+              productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
+              approvedQuantity: item.orderedQuantity || item.quantity || item.qty || 1,
               salesOrderId: so.id,
+              salesOrderItemId: item.id,
             });
-          }
+          });
+        } else {
+          unifiedSalesOrders.push({
+            id: `so-${so.id}`,
+            itemType: "TRADING_SALES_ORDER",
+            orderNumber: so.orderNumber || so.orderNo || "N/A",
+            customerName: so.customer?.companyName || so.customerName || "N/A",
+            deliveryAddress: formatAddress(so, so.customer),
+            productName: so.productName || "Trading Product",
+            approvedQuantity: 1,
+            salesOrderId: so.id,
+          });
         }
       });
 
