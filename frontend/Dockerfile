@@ -48,7 +48,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copy static assets and standalone server from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-RUN if [ -d "./frontend" ]; then cp -rn ./frontend/* ./ && rm -rf ./frontend; fi
+RUN SERVER_DIR=$(dirname $(find . -name "server.js" | head -n 1)) && if [ "$SERVER_DIR" != "." ] && [ -d "$SERVER_DIR" ]; then cp -r "$SERVER_DIR"/* ./ ; fi
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Create uploads folder for static asset uploads if needed
