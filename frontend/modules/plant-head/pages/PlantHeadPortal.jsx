@@ -28,6 +28,9 @@ import ReplacementsView from './ReplacementsView';
 import ReturnsView from './ReturnsView';
 import { PlantHeadDashboard } from './PlantHeadDashboard';
 import { PlantHeadProductionAnalytics } from './PlantHeadProductionAnalytics';
+import { PlantHeadMaterialAnalytics } from './PlantHeadMaterialAnalytics';
+import { PlantHeadDepartmentOverview } from './PlantHeadDepartmentOverview';
+import { PlantHeadExecutiveReports } from './PlantHeadExecutiveReports';
 import PlantHeadMaterialApprovalView from '../../../components/material-workflow/PlantHeadMaterialApprovalView';
 import MaterialIndentApproval from '../../procurement/plant-head/MaterialIndentApproval';
 import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
@@ -4329,9 +4332,9 @@ export default function PlantHeadPortal() {
       {currentView === 'replacements' && <ReplacementsView />}
       {currentView === 'returns' && <ReturnsView />}
       {currentView === 'production-analytics' && <PlantHeadProductionAnalytics />}
-      {currentView === 'material-analytics' && renderMaterialAnalytics()}
-      {currentView === 'department-overview' && renderDepartmentOverview()}
-      {currentView === 'executive-reports' && renderExecutiveReports()}
+      {currentView === 'material-analytics' && <PlantHeadMaterialAnalytics />}
+      {currentView === 'department-overview' && <PlantHeadDepartmentOverview />}
+      {currentView === 'executive-reports' && <PlantHeadExecutiveReports />}
       {currentView === 'reports' && renderReports()}
       {currentView === 'qc-failures' && renderQCFailures()}
       {currentView === 'products' && renderProducts()}
