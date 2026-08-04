@@ -111,6 +111,7 @@ export default function CreateDispatchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const workOrderId = searchParams.get("workOrderId");
   const salesOrderId = searchParams.get("salesOrderId");
 
   // Fetch the complete pending queue so multiple compatible lines can be
@@ -182,7 +183,7 @@ export default function CreateDispatchPage() {
     setSelectedIds([initial.id]);
     setDispatchQuantities({ [initial.id]: availableQuantity(initial) });
     initialSelectionSet.current = true;
-  }, [workOrders, workOrderId, salesOrderId]);
+  }, [workOrders, searchParams]);
 
   const selectedWorkOrders = React.useMemo(
     () => workOrders.filter((row) => selectedIds.includes(row.id)),
@@ -234,11 +235,12 @@ export default function CreateDispatchPage() {
     });
 
     // Prefill date using the first selected sales order if available
-    const firstOrderWithDate = selectedSalesOrders.find(o => o.requestedDeliveryDate);
-    if (firstOrderWithDate && !expectedDeliveryDate) {
-      setExpectedDeliveryDate(new Date(firstOrderWithDate.requestedDeliveryDate || Date.now()).toISOString().slice(0, 10));
-    }
-  }, [selectedSalesOrders, expectedDeliveryDate]);
+    setExpectedDeliveryDate((currentDate) => {
+      if (currentDate) return currentDate;
+      const firstOrderWithDate = selectedSalesOrders.find((o) => o.requestedDeliveryDate);
+      return firstOrderWithDate ? new Date(firstOrderWithDate.requestedDeliveryDate || Date.now()).toISOString().slice(0, 10) : "";
+    });
+  }, [selectedSalesOrders]);
 
   const toggleWorkOrder = (candidate: WorkOrder) => {
     setSelectedIds((current) => {
