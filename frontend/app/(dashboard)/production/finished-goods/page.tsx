@@ -139,25 +139,6 @@ export default function FinishedGoodsPage() {
       },
     },
     {
-      id: "qcDetails",
-      header: "Received",
-      size: 155,
-      cell: ({ row }) => {
-        const at = row.original.receivedAt
-          ? new Date(row.original.receivedAt).toLocaleString()
-          : "—";
-        const by = row.original.receivedById
-          ? `User ${row.original.receivedById.slice(0, 8)}`
-          : "—";
-        return (
-          <div className={styles.cellStack}>
-            <span className={styles.cellMain}>By: {by}</span>
-            <span className={styles.cellMuted}>At: {at}</span>
-          </div>
-        );
-      },
-    },
-    {
       id: "woStatus",
       header: "FG Status",
       size: 130,
