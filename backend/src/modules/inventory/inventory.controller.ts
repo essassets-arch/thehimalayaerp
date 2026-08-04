@@ -42,4 +42,9 @@ export class InventoryController {
   ) {
     return this.inventoryService.getStockLevels(user.companyId, warehouseId);
   }
+
+  @Get('items')
+  getItems() {
+    return this.inventoryService.getItems();
+  }
 }

@@ -201,20 +201,23 @@ export const useERP = () => {
           }
           // Note: we'll merge this with the existing state logic below.
 
-          rawInventory = products.map((prod, idx) => {
-            const stockForProd = stockLevels.filter(s => s.productId === prod.id);
-            const totalStock = stockForProd.reduce((sum, s) => sum + Number(s.quantity), 0);
-            return {
-              id: prod.id,
-              code: prod.sku || `RM${String(idx + 1).padStart(3, '0')}`,
-              material: prod.name,
-              unit: prod.unit || 'Kg',
-              stock: totalStock,
-              minStock: 100,
-              reorderLevel: 150,
-              rate: Number(prod.unitPrice || 0)
-            };
-          });
+          const inventoryItemsRaw = await backendFetch('/api/backend/inventory/items').catch(() => []);
+          const itemsList = Array.isArray(inventoryItemsRaw) && inventoryItemsRaw.length > 0
+            ? inventoryItemsRaw
+            : SEEDED_INVENTORY_ITEMS;
+
+          rawInventory = itemsList.map((item, idx) => ({
+            id: String(item.id || item.code || `RM-ID-${idx + 1}`),
+            srNo: item.srNo || idx + 1,
+            code: item.code || `HCPPL${String(idx + 1).padStart(3, '0')}`,
+            material: item.itemName || item.material,
+            category: item.category || 'Hardware',
+            unit: item.unit || 'PCS',
+            stock: item.balance ?? item.stock ?? 0,
+            minStock: item.minStock ?? item.reorderLevel ?? 20,
+            reorderLevel: item.minStock ?? item.reorderLevel ?? 20,
+            rate: 0,
+          }));
         } catch (e) {
           console.error('[ERPContext] Failed to load data from backend:', e);
         }

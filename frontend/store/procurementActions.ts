@@ -1,6 +1,7 @@
 import { useERPStore } from './erpStore';
 import { useAuthStore } from './authStore';
 import { backendFetch } from '../lib/backendFetch';
+import { SEEDED_INVENTORY_ITEMS } from '../shared/data/inventoryMasterData';
 import { purchaseIndentService } from '../services/procurement/purchaseIndentService';
 import { purchaseOrderService } from '../services/procurement/purchaseOrderService';
 import { grnService } from '../services/procurement/grnService';
@@ -80,20 +81,23 @@ export async function syncProcurementData() {
   const auditRaw      = await backendFetch<any>('/api/backend/admin/audit-logs').catch(() => ({}));
   const auditLogs     = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
 
-  const rawInventory = products.map((prod: any, idx: number) => {
-    const stockForProd = stockLevels.filter((s: any) => s.productId === prod.id);
-    const totalStock = stockForProd.reduce((sum: number, s: any) => sum + Number(s.quantity), 0);
-    return {
-      id: prod.id,
-      code: prod.sku || `RM${String(idx + 1).padStart(3, '0')}`,
-      material: prod.name,
-      unit: prod.unit || 'Kg',
-      stock: totalStock,
-      minStock: 100,
-      reorderLevel: 150,
-      rate: Number(prod.unitPrice || 0)
-    };
-  });
+  const inventoryItemsRaw = await backendFetch<any>('/api/backend/inventory/items').catch(() => []);
+  const itemsList = Array.isArray(inventoryItemsRaw) && inventoryItemsRaw.length > 0
+    ? inventoryItemsRaw
+    : SEEDED_INVENTORY_ITEMS;
+
+  const rawInventory = itemsList.map((item: any, idx: number) => ({
+    id: String(item.id || item.code || `RM-ID-${idx + 1}`),
+    srNo: item.srNo || idx + 1,
+    code: item.code || `HCPPL${String(idx + 1).padStart(3, '0')}`,
+    material: item.itemName || item.material,
+    category: item.category || 'Hardware',
+    unit: item.unit || 'PCS',
+    stock: item.balance ?? item.stock ?? 0,
+    minStock: item.minStock ?? item.reorderLevel ?? 20,
+    reorderLevel: item.minStock ?? item.reorderLevel ?? 20,
+    rate: 0,
+  }));
 
   const store = useERPStore.getState();
   const latestState = store.state;

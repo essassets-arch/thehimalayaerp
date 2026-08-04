@@ -98,4 +98,10 @@ export class InventoryService {
       },
     });
   }
+
+  async getItems() {
+    return this.prisma.inventoryItem.findMany({
+      orderBy: { srNo: 'asc' },
+    });
+  }
 }
