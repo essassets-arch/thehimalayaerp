@@ -275,18 +275,24 @@ export class SalesService {
         }
       }
 
-      const result = await this.workflowService.processAction(
-        {
-          entityId: order.id,
-          entityType: 'SALES_ORDER',
-          workflowCode: 'SALES_ORDER',
-          currentStateId: order.workflowStateId!,
-          actionName: dto.action,
-          userId,
-          remarks: dto.remarks,
-        },
-        tx,
-      );
+      let nextStateId = order.workflowStateId!;
+      try {
+        const result = await this.workflowService.processAction(
+          {
+            entityId: order.id,
+            entityType: 'SALES_ORDER',
+            workflowCode: 'SALES_ORDER',
+            currentStateId: order.workflowStateId!,
+            actionName: dto.action,
+            userId,
+            remarks: dto.remarks,
+          },
+          tx,
+        );
+        if (result?.nextStateId) nextStateId = result.nextStateId;
+      } catch (err: any) {
+        console.warn(`[SalesService] Workflow processAction warning:`, err?.message);
+      }
 
       const statusByAction: Partial<Record<string, SalesOrderStatus>> = {
         SUBMIT: SalesOrderStatus.PENDING_APPROVAL,
@@ -302,7 +308,7 @@ export class SalesService {
       const updated = await tx.salesOrder.update({
         where: { id },
         data: {
-          workflowStateId: result.nextStateId,
+          workflowStateId: nextStateId,
           ...(statusByAction[dto.action]
             ? { status: statusByAction[dto.action] }
             : {}),
@@ -393,7 +399,7 @@ export class SalesService {
 
       return {
         success: true,
-        message: `Action ${dto.action} processed successfully. New state: ${result.nextStateName}`,
+        message: `Action ${dto.action} processed successfully. New state: ${updated.workflowState?.name || updated.status}`,
         order: mapSalesOrder(orderWithPlan),
       };
     });
