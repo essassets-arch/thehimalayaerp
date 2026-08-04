@@ -1156,11 +1156,29 @@ async function main() {
   ];
 
   for (const item of inventoryItemsList) {
-    await prisma.inventoryItem.upsert({
-      where: { code: item.code },
-      update: item,
-      create: item,
+    const existing = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { sku: item.code },
+          { name: item.itemName },
+        ],
+      },
     });
+    if (!existing) {
+      await prisma.product.create({
+        data: {
+          companyId: company.id,
+          publicId: `PROD-${item.code}`,
+          name: item.itemName,
+          sku: item.code,
+          unit: item.unit,
+          unitPrice: 0,
+          minimumStock: item.minStock,
+          category: item.category,
+          isActive: true,
+        },
+      });
+    }
   }
 
   console.log('\n✅ Seed complete!');
