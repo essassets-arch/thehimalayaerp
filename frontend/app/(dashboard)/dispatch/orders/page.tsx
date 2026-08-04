@@ -113,21 +113,104 @@ function formatAddress(salesOrder?: SalesOrder, customer?: Customer): string {
   );
 }
 
+interface UnifiedPendingDispatchItem {
+  id: string;
+  itemType: 'WORK_ORDER' | 'TRADING_SALES_ORDER';
+  orderNumber: string;
+  customerName: string;
+  deliveryAddress: string;
+  productName: string;
+  approvedQuantity: number | string;
+  workOrderId?: string;
+  salesOrderId?: string;
+  salesOrderItemId?: string;
+  workOrderNumber?: string;
+}
+
 export default function DispatchOrdersPage() {
   const router = useRouter();
 
   const {
-    data: workOrders = [],
+    data: pendingItems = [],
     isLoading,
     error,
     refetch,
-  } = useQuery<WorkOrder[]>({
-    queryKey: ["pending-dispatch-work-orders"],
+  } = useQuery<UnifiedPendingDispatchItem[]>({
+    queryKey: ["pending-dispatch-unified-items"],
     queryFn: async () => {
-      const payload = await backendFetch<WorkOrder[]>(
-        "/api/backend/production/work-orders?status=READY_FOR_DISPATCH",
-      );
-      return Array.isArray(payload) ? payload : [];
+      const [workOrdersPayload, salesOrdersPayload] = await Promise.allSettled([
+        backendFetch<WorkOrder[]>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH"),
+        backendFetch<any[]>("/api/backend/sales/orders?status=READY_FOR_DISPATCH"),
+      ]);
+
+      const workOrders: WorkOrder[] =
+        workOrdersPayload.status === "fulfilled" && Array.isArray(workOrdersPayload.value)
+          ? workOrdersPayload.value
+          : [];
+
+      const rawSalesOrders =
+        salesOrdersPayload.status === "fulfilled"
+          ? Array.isArray(salesOrdersPayload.value)
+            ? salesOrdersPayload.value
+            : Array.isArray((salesOrdersPayload.value as any)?.data)
+            ? (salesOrdersPayload.value as any).data
+            : []
+          : [];
+
+      const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders.map((wo) => {
+        const salesOrder = wo.productionPlan?.salesOrder;
+        const customer = salesOrder?.customer;
+        const address = formatAddress(salesOrder, customer);
+        const qcInspection = wo.qcInspections?.[0];
+        return {
+          id: `wo-${wo.id}`,
+          itemType: "WORK_ORDER",
+          orderNumber: salesOrder?.orderNumber || wo.workOrderNumber || "N/A",
+          customerName: customer?.companyName || "N/A",
+          deliveryAddress: address,
+          productName: wo.salesOrderItem?.productNameSnapshot || "Manufacturing Product",
+          approvedQuantity: qcInspection?.approvedQuantity ?? wo.quantity ?? 1,
+          workOrderId: wo.id,
+          salesOrderId: salesOrder?.id,
+          workOrderNumber: wo.workOrderNumber,
+        };
+      });
+
+      const unifiedSalesOrders: UnifiedPendingDispatchItem[] = [];
+      rawSalesOrders.forEach((so: any) => {
+        const status = String(so.status || so.orderStatus || so.workflowStateCode || "").toUpperCase();
+        if (status === "READY_FOR_DISPATCH") {
+          const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
+          if (items.length > 0) {
+            items.forEach((item: any, idx: number) => {
+              unifiedSalesOrders.push({
+                id: `so-${so.id}-${idx}`,
+                itemType: "TRADING_SALES_ORDER",
+                orderNumber: so.orderNumber || so.orderNo || "N/A",
+                customerName: so.customer?.companyName || so.customerName || "N/A",
+                deliveryAddress: formatAddress(so, so.customer),
+                productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
+                approvedQuantity: item.quantity || item.qty || 1,
+                salesOrderId: so.id,
+                salesOrderItemId: item.id,
+              });
+            });
+          } else {
+            unifiedSalesOrders.push({
+              id: `so-${so.id}`,
+              itemType: "TRADING_SALES_ORDER",
+              orderNumber: so.orderNumber || so.orderNo || "N/A",
+              customerName: so.customer?.companyName || so.customerName || "N/A",
+              deliveryAddress: formatAddress(so, so.customer),
+              productName: so.productName || "Trading Product",
+              approvedQuantity: 1,
+              salesOrderId: so.id,
+            });
+          }
+        }
+      });
+
+      return [...unifiedWorkOrders, ...unifiedSalesOrders];
     },
   });
 
@@ -151,14 +234,13 @@ export default function DispatchOrdersPage() {
                 </div>
                 <h1 className={styles.title}>Pending Dispatches</h1>
                 <p className={styles.description}>
-                  Create dispatch records for completed work orders that have
-                  passed Quality Control and are ready to be shipped.
+                  Create dispatch records for manufacturing work orders and trading sales orders ready to be shipped.
                 </p>
               </div>
 
               <div className={styles.summary}>
                 <div className={styles.summaryCount}>
-                  <strong>{workOrders.length}</strong>
+                  <strong>{pendingItems.length}</strong>
                   <span>Awaiting Dispatch</span>
                 </div>
                 <div className={styles.divider} />
@@ -172,9 +254,9 @@ export default function DispatchOrdersPage() {
 
           <div className={styles.headerFooter}>
             <p>
-              Showing {workOrders.length} order
-              {workOrders.length !== 1 ? "s" : ""} ready for dispatch
-              &nbsp;·&nbsp; QC-approved work orders only
+              Showing {pendingItems.length} order
+              {pendingItems.length !== 1 ? "s" : ""} ready for dispatch
+              &nbsp;·&nbsp; Manufacturing & Trading orders
             </p>
           </div>
         </div>
@@ -208,7 +290,7 @@ export default function DispatchOrdersPage() {
         )}
 
         {/* ── Empty ── */}
-        {!isLoading && !error && workOrders.length === 0 && (
+        {!isLoading && !error && pendingItems.length === 0 && (
           <div className={styles.stateCard}>
             <div className={styles.stateContent}>
               <div className={styles.stateIcon}>
@@ -216,15 +298,15 @@ export default function DispatchOrdersPage() {
               </div>
               <h3>No Pending Dispatches</h3>
               <p>
-                No work orders are currently approved and ready for dispatch.
-                Once production and QC passes, orders will appear here.
+                No orders are currently ready for dispatch.
+                Once manufacturing QC passes or trading orders are submitted, they will appear here.
               </p>
             </div>
           </div>
         )}
 
         {/* ── Desktop Table ── */}
-        {!isLoading && !error && workOrders.length > 0 && (
+        {!isLoading && !error && pendingItems.length > 0 && (
           <>
             <div className={styles.desktopTable}>
               <div className={styles.tableScroll}>
@@ -244,63 +326,68 @@ export default function DispatchOrdersPage() {
                         Product
                       </th>
                       <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
-                        Approved Qty
+                        Type
                       </th>
-
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                        Qty
+                      </th>
                       <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
                         Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {workOrders.map((wo) => {
-                      const salesOrder = wo.productionPlan?.salesOrder;
-                      const customer = salesOrder?.customer;
-                      const address = formatAddress(salesOrder, customer);
-                      const qcInspection = wo.qcInspections?.[0];
+                    {pendingItems.map((item) => {
+                      const isTrading = item.itemType === 'TRADING_SALES_ORDER';
                       return (
                         <tr
-                          key={wo.id}
+                          key={item.id}
                           className="hover:bg-blue-50/20 transition-colors group"
                         >
                           <td className="px-5 py-4 whitespace-nowrap">
                             <span className="font-bold text-blue-600 font-mono text-xs tracking-wide">
-                              #{salesOrder?.orderNumber || "N/A"}
+                              #{item.orderNumber}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
                             <span className="font-semibold text-gray-800">
-                              {customer?.companyName || "N/A"}
+                              {item.customerName}
                             </span>
                           </td>
                           <td className="px-5 py-4">
                             <span
                               className="text-xs text-gray-500 block max-w-[200px] truncate"
-                              title={address}
+                              title={item.deliveryAddress}
                             >
-                              {address}
+                              {item.deliveryAddress}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
                             <span className="text-gray-700 font-medium">
-                              {wo.salesOrderItem?.productNameSnapshot ||
-                                "Unknown"}
+                              {item.productName}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded ${isTrading ? 'bg-sky-100 text-sky-800' : 'bg-purple-100 text-purple-800'}`}>
+                              {isTrading ? 'TRADING' : 'MFG'}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
                             <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg border border-emerald-100">
-                              {qcInspection?.approvedQuantity ?? wo.quantity}
+                              {item.approvedQuantity}
                             </span>
                           </td>
 
                           <td className="px-5 py-4 whitespace-nowrap">
                             <Button
                               size="sm"
-                              onClick={() =>
-                                router.push(
-                                  `/dispatch/create-dispatch?workOrderId=${wo.id}`,
-                                )
-                              }
+                              onClick={() => {
+                                if (item.itemType === 'WORK_ORDER' && item.workOrderId) {
+                                  router.push(`/dispatch/create-dispatch?workOrderId=${item.workOrderId}`);
+                                } else if (item.salesOrderId) {
+                                  router.push(`/dispatch/create-dispatch?salesOrderId=${item.salesOrderId}`);
+                                }
+                              }}
                               className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold"
                             >
                               <FileText className="h-3.5 w-3.5" />
@@ -317,25 +404,22 @@ export default function DispatchOrdersPage() {
 
             {/* ── Mobile & Tablet: Card View ── */}
             <div className={styles.mobileCards}>
-              {workOrders.map((wo) => {
-                const salesOrder = wo.productionPlan?.salesOrder;
-                const customer = salesOrder?.customer;
-                const address = formatAddress(salesOrder, customer);
-                const qcInspection = wo.qcInspections?.[0];
+              {pendingItems.map((item) => {
+                const isTrading = item.itemType === 'TRADING_SALES_ORDER';
                 return (
                   <div
-                    key={wo.id}
+                    key={item.id}
                     className="bg-white rounded-2xl border border-gray-200/70 shadow-sm overflow-hidden"
                   >
                     {/* Card Header */}
                     <div className="flex items-center justify-between px-4 py-3 bg-blue-50/40 border-b border-blue-100/60">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-blue-600 font-mono text-xs tracking-wide">
-                          #{salesOrder?.orderNumber || "N/A"}
+                          #{item.orderNumber}
                         </span>
                         <span className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span className="text-[11px] text-gray-500 font-medium">
-                          {wo.workOrderNumber}
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isTrading ? 'bg-sky-100 text-sky-800' : 'bg-purple-100 text-purple-800'}`}>
+                          {isTrading ? 'TRADING' : 'MFG'}
                         </span>
                       </div>
                     </div>
@@ -352,7 +436,7 @@ export default function DispatchOrdersPage() {
                             Customer
                           </p>
                           <p className="text-sm font-semibold text-gray-800">
-                            {customer?.companyName || "N/A"}
+                            {item.customerName}
                           </p>
                         </div>
                       </div>
@@ -362,26 +446,17 @@ export default function DispatchOrdersPage() {
                         <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
                           <Package className="h-3.5 w-3.5 text-gray-400" />
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
                             Product
                           </p>
-                          <p className="text-sm text-gray-700 font-medium truncate">
-                            {wo.salesOrderItem?.productNameSnapshot ||
-                              "Unknown"}
+                          <p className="text-sm font-medium text-gray-700">
+                            {item.productName}
                           </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Qty
-                          </p>
-                          <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg border border-emerald-100 mt-0.5">
-                            {qcInspection?.approvedQuantity ?? wo.quantity}
-                          </span>
                         </div>
                       </div>
 
-                      {/* Address */}
+                      {/* Delivery Address */}
                       <div className="flex items-start gap-3">
                         <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
                           <MapPin className="h-3.5 w-3.5 text-gray-400" />
@@ -390,30 +465,37 @@ export default function DispatchOrdersPage() {
                           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
                             Delivery Address
                           </p>
-                          <p className="text-xs text-gray-600 leading-relaxed">
-                            {address}
+                          <p className="text-xs text-gray-500">
+                            {item.deliveryAddress}
                           </p>
                         </div>
                       </div>
 
-
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="px-4 py-3 bg-gray-50/60 border-t border-gray-100">
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          router.push(
-                            `/dispatch/create-dispatch?workOrderId=${wo.id}`,
-                          )
-                        }
-                        className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 text-xs font-semibold w-full justify-center"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Create Dispatch
-                        <ChevronRight className="h-3.5 w-3.5 ml-auto" />
-                      </Button>
+                      {/* Quantity */}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                            Qty
+                          </p>
+                          <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg border border-emerald-100 mt-0.5">
+                            {item.approvedQuantity}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (item.itemType === 'WORK_ORDER' && item.workOrderId) {
+                              router.push(`/dispatch/create-dispatch?workOrderId=${item.workOrderId}`);
+                            } else if (item.salesOrderId) {
+                              router.push(`/dispatch/create-dispatch?salesOrderId=${item.salesOrderId}`);
+                            }
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Create Dispatch
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );

@@ -314,6 +314,11 @@ export class DispatchService {
         },
       });
 
+      await tx.salesOrder.update({
+        where: { id: dto.salesOrderId },
+        data: { status: 'COMPLETED' },
+      });
+
       return dispatch;
     });
   }
