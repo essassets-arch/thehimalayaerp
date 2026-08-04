@@ -6,6 +6,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { StoreDashboard } from './StoreDashboard';
+import { StoreSummaryReport } from './StoreSummaryReport';
 import { useERP, useERPStore } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { productionService } from '../../../services/production.service';
@@ -3351,7 +3352,7 @@ export default function StorePortal() {
       {currentView === 'issued-history' && renderMaterialRequests()}
       {currentView === 'low-stock-alerts' && renderLowStockAlerts()}
       {currentView === 'analysis-requests' && renderAnalysisRequests()}
-      {currentView === 'reports' && renderReports()}
+      {(currentView === 'reports' || currentView === 'summary-report' || currentView === 'store-summary-report') && <StoreSummaryReport />}
       {currentView === 'po' || currentView === 'purchase' ? renderPOWorkspace() : null}
       {currentView === 'add-material' && renderAddMaterialPage()}
       {currentView === 'edit-material' && renderEditMaterialPage()}

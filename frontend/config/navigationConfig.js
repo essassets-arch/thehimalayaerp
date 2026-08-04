@@ -104,6 +104,15 @@ export const navigationConfig = {
         { id: 'replacement-deliveries', label: 'Replacement Deliveries', path: '/store/purchase?tab=Replacement Deliveries' },
         { id: 'indent-history', label: 'Indent History', path: '/store/purchase?tab=Indent History' }
       ]
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      icon: BarChart3,
+      path: '/store/reports',
+      subItems: [
+        { id: 'summary-report', label: 'Store Summary Report', path: '/store/reports' }
+      ]
     }
   ],
 
