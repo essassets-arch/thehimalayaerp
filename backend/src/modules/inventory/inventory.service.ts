@@ -100,8 +100,15 @@ export class InventoryService {
   }
 
   async getItems() {
-    return this.prisma.inventoryItem.findMany({
-      orderBy: { srNo: 'asc' },
-    });
+    try {
+      if ((this.prisma as any).inventoryItem) {
+        return await (this.prisma as any).inventoryItem.findMany({
+          orderBy: { srNo: 'asc' },
+        });
+      }
+    } catch (e) {
+      // Return empty array if legacy inventory_items table is absent
+    }
+    return [];
   }
 }

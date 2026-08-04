@@ -5,11 +5,9 @@ const BACKEND_URL = process.env.BACKEND_API_URL?.replace('/api/v1', '') ?? 'http
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Browser certification runs use an isolated build directory so they do not
-  // contend with a developer's running Next.js instance.
   outputFileTracingRoot: path.resolve(__dirname),
   turbopack: {
-    root: path.resolve(__dirname, '..'),
+    root: path.resolve(__dirname),
   },
   typescript: {
     ignoreBuildErrors: true,
