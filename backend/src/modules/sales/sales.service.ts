@@ -317,10 +317,20 @@ export class SalesService {
         },
       });
 
-      if (
-        dto.action === 'SEND_TO_PLANT' &&
-        updated.productionPlans.length === 0
-      ) {
+      if (dto.action === 'SEND_TO_PLANT') {
+        if (order.sourceQuotationId) {
+          const convertedState = await tx.workflowState.findFirst({
+            where: { workflow: { code: 'QUOTATION' }, code: 'CONVERTED_TO_SO' },
+          });
+          if (convertedState) {
+            await tx.quotation.update({
+              where: { id: order.sourceQuotationId },
+              data: { workflowStateId: convertedState.id },
+            });
+          }
+        }
+
+        if (updated.productionPlans.length === 0) {
         const [initialPlanState, plantHead, planNumber] = await Promise.all([
           this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
           tx.user.findFirst({
