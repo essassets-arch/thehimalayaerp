@@ -45,10 +45,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy static assets and standalone server from builder
+# Set correct permission for prerender cache
+RUN mkdir -p .next && chown nextjs:nodejs .next
+
+# Copy standalone build output and static files
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-RUN SERVER_DIR=$(dirname $(find . -name "server.js" | head -n 1)) && if [ "$SERVER_DIR" != "." ] && [ -d "$SERVER_DIR" ]; then cp -r "$SERVER_DIR"/* ./ ; fi
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Create uploads folder for static asset uploads if needed

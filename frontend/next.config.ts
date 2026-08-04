@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Browser certification runs use an isolated build directory so they do not
   // contend with a developer's running Next.js instance.
+  outputFileTracingRoot: path.resolve(__dirname),
   turbopack: {
     root: path.resolve(__dirname, '..'),
   },
