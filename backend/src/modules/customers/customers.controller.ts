@@ -44,7 +44,7 @@ export class CustomersController {
   }
 
   @Get()
-  @RequirePermissions('sales.customers.read', 'dispatch.orders.read', 'dispatch.orders.create')
+  @RequirePermissions('sales.customers.read', 'dispatch.orders.read', 'dispatch.orders.create', 'logistics.dispatches.read')
   findAll(
     @CurrentUser() user: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
