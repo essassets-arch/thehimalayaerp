@@ -111,28 +111,7 @@ export default function CreateDispatchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const workOrderId = searchParams.get("workOrderId");
-
-  // Form State
-  const [deliveryAddresses, setDeliveryAddresses] = useState<Record<string, string>>({});
-  const [totalWeight, setTotalWeight] = useState<number>(0);
-  const [vehicleNumber, setVehicleNumber] = useState("");
-  const [driverName, setDriverName] = useState("");
-  const [driverPhone, setDriverPhone] = useState("");
-  const [transporterName, setTransporterName] = useState("");
-  const [dispatchRemarks, setDispatchRemarks] = useState("");
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [ewayBillNumber, setEwayBillNumber] = useState("");
-  const [actualFreightPaidAmount, setActualFreightPaidAmount] =
-    useState<number>(0);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [dispatchQuantities, setDispatchQuantities] = useState<
-    Record<string, number>
-  >({});
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
-  const initialSelectionSet = React.useRef(false);
+  const salesOrderId = searchParams.get("salesOrderId");
 
   // Fetch the complete pending queue so multiple compatible lines can be
   // consolidated into one dispatch.
@@ -141,23 +120,69 @@ export default function CreateDispatchPage() {
     isLoading,
     error,
   } = useQuery<WorkOrder[]>({
-    queryKey: ["pending-dispatch-work-orders-create"],
+    queryKey: ["pending-dispatch-work-orders-create", workOrderId, salesOrderId],
     queryFn: async () => {
-      const payload = await backendFetch<WorkOrder[]>(
+      const payload = await backendFetch<any>(
         "/api/backend/production/work-orders?status=READY_FOR_DISPATCH",
       );
-      return Array.isArray(payload) ? payload : [];
+      const list: WorkOrder[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : [];
+
+      if (salesOrderId && !list.some((wo) => wo.productionPlan?.salesOrder?.id === salesOrderId)) {
+        const soPayload = await backendFetch<any>(`/api/backend/sales/orders/${salesOrderId}`).catch(() => null);
+        const so = soPayload?.order || soPayload;
+        if (so && so.id) {
+          const items = Array.isArray(so.items) ? so.items : [];
+          items.forEach((item: any) => {
+            const alreadyDispatched = Array.isArray(item.dispatchItems)
+              ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
+              : 0;
+            const remaining = Math.max(0, Number(item.orderedQuantity || item.quantity || 1) - alreadyDispatched);
+
+            const syntheticWO: WorkOrder = {
+              id: `so-wo-${item.id}`,
+              workOrderNumber: so.orderNumber || so.orderNo || so.orderId || "TRADING",
+              quantity: remaining,
+              status: "READY_FOR_DISPATCH",
+              salesOrderItemId: item.id,
+              productionPlan: {
+                id: `pp-${so.id}`,
+                salesOrder: {
+                  id: so.id,
+                  orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
+                  shippingAddress: so.shippingAddress,
+                  customer: so.customer || { id: so.customerId, companyName: so.customerName || "N/A" },
+                },
+              },
+              salesOrderItem: {
+                id: item.id,
+                productId: item.productId,
+                productNameSnapshot: item.productName || item.productNameSnapshot || item.name || "Trading Product",
+                orderedQuantity: Number(item.orderedQuantity || item.quantity || 1),
+                unitPrice: Number(item.unitPrice || 0),
+                dispatchItems: item.dispatchItems,
+              },
+              qcInspections: [{ approvedQuantity: remaining, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
+            };
+            list.push(syntheticWO);
+          });
+        }
+      }
+      return list;
     },
   });
 
   useEffect(() => {
     if (!workOrders.length || initialSelectionSet.current) return;
     const initial =
-      workOrders.find((row) => row.id === workOrderId) || workOrders[0];
+      workOrders.find((row) => row.id === workOrderId || row.productionPlan?.salesOrder?.id === salesOrderId) || workOrders[0];
     setSelectedIds([initial.id]);
     setDispatchQuantities({ [initial.id]: availableQuantity(initial) });
     initialSelectionSet.current = true;
-  }, [workOrders, workOrderId]);
+  }, [workOrders, workOrderId, salesOrderId]);
 
   const selectedWorkOrders = React.useMemo(
     () => workOrders.filter((row) => selectedIds.includes(row.id)),

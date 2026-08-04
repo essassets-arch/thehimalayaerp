@@ -23,6 +23,7 @@ import { useNotifications } from './NotificationContext';
 import { customersReadRepository } from '../../services/customers/customersReadRepository';
 import { leadsReadRepository } from '../../services/leads/leadsReadRepository';
 import { useAuthStore } from '../../store/authStore';
+import { SEEDED_INVENTORY_ITEMS } from '../data/inventoryMasterData';
 import { hasPermission } from '../../services/permissions/permissionService';
 
 import { purchaseIndentService } from '../../services/procurement/purchaseIndentService';

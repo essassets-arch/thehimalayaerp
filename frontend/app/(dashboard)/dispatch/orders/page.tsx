@@ -167,24 +167,36 @@ export default function DispatchOrdersPage() {
           .filter(Boolean)
       );
 
-      const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders.map((wo) => {
-        const salesOrder = wo.productionPlan?.salesOrder;
-        const customer = salesOrder?.customer;
-        const address = formatAddress(salesOrder, customer);
-        const qcInspection = wo.qcInspections?.[0];
-        return {
-          id: `wo-${wo.id}`,
-          itemType: "WORK_ORDER",
-          orderNumber: salesOrder?.orderNumber || wo.workOrderNumber || "N/A",
-          customerName: customer?.companyName || "N/A",
-          deliveryAddress: address,
-          productName: wo.salesOrderItem?.productNameSnapshot || "Manufacturing Product",
-          approvedQuantity: qcInspection?.approvedQuantity ?? wo.quantity ?? 1,
-          workOrderId: wo.id,
-          salesOrderId: salesOrder?.id,
-          workOrderNumber: wo.workOrderNumber,
-        };
-      });
+      const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders
+        .filter((wo) => {
+          const prodStatus = String((wo as any).productionStatus || wo.status || '').toUpperCase();
+          if (prodStatus === 'DISPATCHED' || prodStatus === 'COMPLETED' || prodStatus === 'DELIVERED') return false;
+          const item = wo.salesOrderItem;
+          const alreadyDispatched = item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
+          const remaining = Math.max(0, Number(item?.orderedQuantity || wo.quantity || 0) - alreadyDispatched);
+          return remaining > 0;
+        })
+        .map((wo) => {
+          const salesOrder = wo.productionPlan?.salesOrder;
+          const customer = salesOrder?.customer;
+          const address = formatAddress(salesOrder, customer);
+          const qcInspection = wo.qcInspections?.[0];
+          const item = wo.salesOrderItem;
+          const alreadyDispatched = item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
+          const remaining = Math.max(0, Number(item?.orderedQuantity || wo.quantity || 0) - alreadyDispatched);
+          return {
+            id: `wo-${wo.id}`,
+            itemType: "WORK_ORDER",
+            orderNumber: salesOrder?.orderNumber || wo.workOrderNumber || "N/A",
+            customerName: customer?.companyName || "N/A",
+            deliveryAddress: address,
+            productName: wo.salesOrderItem?.productNameSnapshot || "Manufacturing Product",
+            approvedQuantity: remaining || qcInspection?.approvedQuantity || wo.quantity || 1,
+            workOrderId: wo.id,
+            salesOrderId: salesOrder?.id,
+            workOrderNumber: wo.workOrderNumber,
+          };
+        });
 
       const unifiedSalesOrders: UnifiedPendingDispatchItem[] = [];
       rawSalesOrders.forEach((so: any) => {
@@ -193,9 +205,18 @@ export default function DispatchOrdersPage() {
           return;
         }
 
+        const status = String(so.status || so.dispatchStatus || '').toUpperCase();
+        if (status === 'IN_TRANSIT' || status === 'COMPLETED' || status === 'DELIVERED') return;
+
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
         if (items.length > 0) {
           items.forEach((item: any, idx: number) => {
+            const alreadyDispatched = Array.isArray(item.dispatchItems)
+              ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
+              : 0;
+            const remaining = Math.max(0, Number(item.orderedQuantity || item.quantity || 1) - alreadyDispatched);
+            if (remaining <= 0) return;
+
             unifiedSalesOrders.push({
               id: `so-${so.id}-${idx}`,
               itemType: "TRADING_SALES_ORDER",
@@ -203,21 +224,10 @@ export default function DispatchOrdersPage() {
               customerName: so.customerName || so.customer?.companyName || "N/A",
               deliveryAddress: formatAddress(so, so.customer),
               productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
-              approvedQuantity: item.orderedQuantity || item.quantity || item.qty || 1,
+              approvedQuantity: remaining,
               salesOrderId: so.id,
               salesOrderItemId: item.id,
             });
-          });
-        } else {
-          unifiedSalesOrders.push({
-            id: `so-${so.id}`,
-            itemType: "TRADING_SALES_ORDER",
-            orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
-            customerName: so.customerName || so.customer?.companyName || "N/A",
-            deliveryAddress: formatAddress(so, so.customer),
-            productName: so.productName || "Trading Product",
-            approvedQuantity: 1,
-            salesOrderId: so.id,
           });
         }
       });
