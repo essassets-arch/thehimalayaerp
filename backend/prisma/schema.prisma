@@ -3033,3 +3033,18 @@ model ElevationSession {
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model InventoryItem {
+  id         Int      @id @default(autoincrement())
+  srNo       Int
+  itemName   String   @map("item_name")
+  code       String   @unique
+  unit       String
+  balance    Int
+  category   String
+  minStock   Int      @map("min_stock")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("inventory_items")
+}

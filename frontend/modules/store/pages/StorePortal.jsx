@@ -28,6 +28,7 @@ import IndentHistory from '../components/IndentHistory';
 import POReport from '../components/POReport';
 import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
 import BrandAnalysisRequests from '../components/BrandAnalysisRequests';
+import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
   const req = (reqName || '').toLowerCase();
@@ -1122,49 +1123,33 @@ export default function StorePortal() {
 
   // 2. Raw Inventory Ledger
   const renderRawInventory = () => {
-    const rawInventoryList = state.rawInventory || [];
+    const rawInventoryList = (state.rawInventory && state.rawInventory.length > 0)
+      ? state.rawInventory
+      : SEEDED_INVENTORY_ITEMS.map((item) => ({
+          id: item.code,
+          code: item.code,
+          material: item.itemName,
+          category: item.category,
+          unit: item.unit,
+          stock: item.balance,
+          rate: 0,
+          reorderLevel: item.minStock,
+          description: `Item #${item.srNo} - ${item.category}`,
+        }));
+
     const mappedInventory = rawInventoryList.map((item, idx) => {
-      const defaults = {
-        'OPC Cement Clinker': { code: 'RM001', category: 'Cement', rate: 150, reorderLevel: 1000, description: 'High grade cement clinker.' },
-        'Gypsum Raw': { code: 'RM002', category: 'Additive', rate: 220, reorderLevel: 200, description: 'Raw gypsum additive.' },
-        'River Sand': { code: 'RM003', category: 'Aggregate', rate: 800, reorderLevel: 100, description: 'Fine-grain clean river sand.' },
-        'Coarse Aggregate 20mm': { code: 'RM004', category: 'Aggregate', rate: 1200, reorderLevel: 120, description: 'Coarse aggregate 20mm.' },
-        'Fine Aggregate 10mm': { code: 'RM005', category: 'Aggregate', rate: 1000, reorderLevel: 150, description: 'Fine aggregate 10mm.' },
-        'Superplasticizer Admixture': { code: 'RM006', category: 'Chemical', rate: 1500, reorderLevel: 500, description: 'Liquid chemical concrete admixture.' },
-        'Waterproofing Compound': { code: 'RM007', category: 'Chemical', rate: 2500, reorderLevel: 100, description: 'Liquid waterproofing chemical.' }
-      };
-      const def = defaults[item.material] || {
-        code: `RM${String(idx + 1).padStart(3, '0')}`,
-        category: 'Raw Material',
-        rate: 0,
-        reorderLevel: 50,
-        description: ''
-      };
-
-      // Seed transactions if none exist
-      const defaultTx = item.stock > 0 ? [
-        {
-          id: 'TX-INIT',
-          type: 'Stock In',
-          quantity: item.stock,
-          rate: item.rate || def.rate,
-          date: '2026-06-18',
-          supplier: 'Initial Supplier',
-          remarks: 'Initial stock load'
-        }
-      ] : [];
-
       return {
-        id: item.id || `RM-ID-${idx + 1}`,
-        code: item.code || def.code,
-        material: item.material,
-        category: item.category || def.category,
-        unit: item.unit || 'Kg',
-        stock: item.stock ?? 0,
-        rate: item.rate ?? def.rate,
-        reorderLevel: item.reorderLevel ?? def.reorderLevel,
-        description: item.description || def.description,
-        transactions: item.transactions || defaultTx
+        id: item.id || item.code || `RM-ID-${idx + 1}`,
+        srNo: item.srNo || idx + 1,
+        code: item.code || `HCPPL${String(idx + 1).padStart(3, '0')}`,
+        material: item.material || item.itemName,
+        category: item.category || 'Raw Material',
+        unit: item.unit || 'PCS',
+        stock: item.stock ?? item.balance ?? 0,
+        rate: item.rate ?? 0,
+        reorderLevel: item.reorderLevel ?? item.minStock ?? 10,
+        description: item.description || `Item #${idx + 1}`,
+        transactions: item.transactions || []
       };
     });
 
