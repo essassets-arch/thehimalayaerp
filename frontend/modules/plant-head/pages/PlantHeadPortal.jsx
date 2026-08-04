@@ -27,6 +27,7 @@ import O2PWorkflowBanner from '../../../shared/components/O2PWorkflowBanner';
 import ReplacementsView from './ReplacementsView';
 import ReturnsView from './ReturnsView';
 import { PlantHeadDashboard } from './PlantHeadDashboard';
+import { PlantHeadProductionAnalytics } from './PlantHeadProductionAnalytics';
 import PlantHeadMaterialApprovalView from '../../../components/material-workflow/PlantHeadMaterialApprovalView';
 import MaterialIndentApproval from '../../procurement/plant-head/MaterialIndentApproval';
 import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
@@ -4327,7 +4328,7 @@ export default function PlantHeadPortal() {
       {currentView === 'material-indents' && renderMaterialIndents()}
       {currentView === 'replacements' && <ReplacementsView />}
       {currentView === 'returns' && <ReturnsView />}
-      {currentView === 'production-analytics' && renderProductionAnalytics()}
+      {currentView === 'production-analytics' && <PlantHeadProductionAnalytics />}
       {currentView === 'material-analytics' && renderMaterialAnalytics()}
       {currentView === 'department-overview' && renderDepartmentOverview()}
       {currentView === 'executive-reports' && renderExecutiveReports()}
