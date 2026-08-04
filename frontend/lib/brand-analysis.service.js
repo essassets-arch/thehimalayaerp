@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
-const API_URL = 'http://localhost:4000/api/v1';
+const API_URL = (typeof window !== 'undefined' ? '/api/backend' : (process.env.BACKEND_INTERNAL_URL || 'http://localhost:4000/api/v1'));
 
 // Create a basic axios instance to communicate with the real backend
 const client = axios.create({

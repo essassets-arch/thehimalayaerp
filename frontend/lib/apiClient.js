@@ -1009,7 +1009,9 @@ async function handleDelete(path) {
 }
 
 // ── Exported API Client ───────────────────────────────────────
-const NESTJS_URL = (typeof process !== 'undefined' && (process.env.NEXT_PUBLIC_BACKEND_API_URL || process.env.BACKEND_API_URL)) || 'http://localhost:4000/api/v1';
+const NESTJS_URL = (typeof window !== 'undefined')
+  ? (process.env.NEXT_PUBLIC_BACKEND_API_URL || '/api/backend')
+  : (process.env.BACKEND_INTERNAL_URL || process.env.BACKEND_API_URL || 'http://localhost:4000/api/v1');
 
 function shouldProxyToBackend(path) {
   // If the path includes these keys, we route them to the real Postgres NestJS backend!
@@ -1020,7 +1022,9 @@ async function proxyRequest(method, path, body = null) {
   const cleanPath = path.replace('/api/backend', '')
     .replace('/reports/inventory/stock-levels', '/inventory/stock-levels')
     .replace('/store/material-requests', '/material-requests');
-  const url = `${NESTJS_URL}${cleanPath}`;
+  const baseUrl = NESTJS_URL.replace(/\/$/, '');
+  const targetPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+  const url = `${baseUrl}${targetPath}`;
   
   const authStorageStr = typeof window !== 'undefined' ? window.localStorage.getItem('auth-storage') : null;
   let token = typeof window !== 'undefined' ? (window.localStorage.getItem('token') || window.localStorage.getItem('himalaya_token')) : null;
