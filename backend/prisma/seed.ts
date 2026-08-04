@@ -877,16 +877,24 @@ async function main() {
 
   // ── 7. SEED PRODUCTS (366 Total Products: 230 Enterprise + 136 Hardware) ────
   console.log('🧹 Purging legacy demo products and unneeded categories...');
-  const deletedLegacy = await prisma.product.deleteMany({
-    where: {
-      OR: [
-        { category: { in: ['Oral Care', 'Bulk', 'Personal Care', 'General', 'Skincare'] } },
-        { name: { in: ['Sand Fine Grade', 'Item (100 Qty)', 'Item (1 Qty)', 'Ayurvedic Toothpaste 200g', 'Organic Neem Face Wash 150ml', 'Herbal Shampoo 500ml'] } },
-        { sku: { in: ['RM001', 'SKU-ITEM100', 'SKU-ITEM1', 'SKU-ATP200', 'SKU-NFW150', 'SKU-HS500'] } },
-      ],
-    },
-  });
-  console.log(`  ✓ Removed ${deletedLegacy.count} legacy demo products.`);
+  const legacyWhere = {
+    OR: [
+      { category: { in: ['Oral Care', 'Bulk', 'Personal Care', 'General', 'Skincare'] } },
+      { name: { in: ['Sand Fine Grade', 'Item (100 Qty)', 'Item (1 Qty)', 'Ayurvedic Toothpaste 200g', 'Organic Neem Face Wash 150ml', 'Herbal Shampoo 500ml'] } },
+      { sku: { in: ['RM001', 'SKU-ITEM100', 'SKU-ITEM1', 'SKU-ATP200', 'SKU-NFW150', 'SKU-HS500'] } },
+    ],
+  };
+
+  try {
+    const deletedLegacy = await prisma.product.deleteMany({ where: legacyWhere });
+    console.log(`  ✓ Removed ${deletedLegacy.count} legacy demo products.`);
+  } catch (_err) {
+    const deactivated = await prisma.product.updateMany({
+      where: legacyWhere,
+      data: { isActive: false },
+    });
+    console.log(`  ✓ Deactivated ${deactivated.count} legacy demo products with linked transactions.`);
+  }
 
   console.log(`📦 Seeding ${allProducts.length} products with productType...`);
   
