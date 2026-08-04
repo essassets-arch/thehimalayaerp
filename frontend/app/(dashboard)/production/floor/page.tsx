@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Play, CheckCircle, Search, RefreshCw, AlertCircle, Timer } from 'lucide-react';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 import styles from './floor.module.css';
 import { backendFetch } from '@/lib/backendFetch';
 
@@ -35,14 +36,59 @@ export default function ProductionFloorPage() {
     fetchJobs();
   }, []);
 
-  const handleComplete = async (id: string) => {
-    if (!confirm('Mark this job as Complete and send to QC?')) return;
+  const handleComplete = async (job: any) => {
+    const jobId = job.id;
+    const woNumber = job.workOrderNumber || job.id;
+
+    const confirmation = await Swal.fire({
+      title: 'Complete Work Order?',
+      text: `Are you sure you want to mark work order #${woNumber} as Complete and send it to Quality Control (QC)?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Complete Job',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        htmlContainer: 'swal-premium-text',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn',
+      },
+      buttonsStyling: false,
+    });
+
+    if (!confirmation.isConfirmed) return;
+
     try {
-      await backendFetch(`/api/backend/production/work-orders/${id}/complete`, { method: 'POST' });
-      toast.success('Job sent to QC');
+      await backendFetch(`/api/backend/production/work-orders/${jobId}/complete`, { method: 'POST' });
+      await Swal.fire({
+        title: 'Job Sent to QC',
+        text: `Work order #${woNumber} has been successfully completed and forwarded to Quality Inspection.`,
+        icon: 'success',
+        confirmButtonText: 'OK',
+        customClass: {
+          popup: 'swal-premium-popup',
+          title: 'swal-premium-title',
+          htmlContainer: 'swal-premium-text',
+          confirmButton: 'swal-premium-confirm-btn',
+        },
+        buttonsStyling: false,
+      });
       fetchJobs();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to complete job');
+      Swal.fire({
+        title: 'Completion Failed',
+        text: err.message || 'Failed to complete work order job.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        customClass: {
+          popup: 'swal-premium-popup',
+          title: 'swal-premium-title',
+          htmlContainer: 'swal-premium-text',
+          confirmButton: 'swal-premium-confirm-btn',
+        },
+        buttonsStyling: false,
+      });
     }
   };
 
@@ -137,7 +183,7 @@ export default function ProductionFloorPage() {
                       </span>
                     </td>
                     <td>
-                      <button onClick={() => handleComplete(job.id)} className={styles.btnComplete}>
+                      <button onClick={() => handleComplete(job)} className={styles.btnComplete}>
                         <CheckCircle size={16} style={{ marginRight: '6px' }} />
                         Complete
                       </button>
