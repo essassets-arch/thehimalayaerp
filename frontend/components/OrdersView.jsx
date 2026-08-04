@@ -240,7 +240,7 @@ export default function OrdersView({
     if (order.productionStatus === 'WORK_ORDER_CREATED') return 'Work Order Created';
     if (order.planningStatus === 'PRODUCTION_PLANNED') return 'Production Planned';
     if (order.planningStatus === 'PLANT_HEAD_ACCEPTED') return 'Accepted by Plant Head';
-    if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.status === 'SENT_TO_PLANT_HEAD') {
+    if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.status === 'SENT_TO_PLANT' || order.status === 'SENT_TO_PLANT_HEAD') {
       return isTradingOrder(order) ? 'Sent to Dispatch' : 'Sent to Plant Head';
     }
     if (order.commercialStatus === 'ORDER_CONFIRMED' && (order.planningStatus === 'NOT_SENT' || !order.planningStatus)) return 'Confirmed';
