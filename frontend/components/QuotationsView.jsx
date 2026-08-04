@@ -12,16 +12,16 @@ import {
   filterRemindersByBucket
 } from '../shared/utils/reminderUtils.js';
 
-export default function QuotationsView({ 
-  quotations = [], 
+export default function QuotationsView({
+  quotations = [],
   reminders = [],
-  leads = [], 
+  leads = [],
   customers = [],
-  onCreateQuoteClick, 
+  onCreateQuoteClick,
   onCreateLead,
-  onUpdateQuotationStatus, 
+  onUpdateQuotationStatus,
   onUpdateQuotation,
-  onConvertToOrder, 
+  onConvertToOrder,
   onSendPDF,
   onSaveReminder,
   onUpdateReminder,
@@ -207,7 +207,7 @@ export default function QuotationsView({
       return;
     }
 
-    const matchedLead = leads.find(l => 
+    const matchedLead = leads.find(l =>
       l.companyName?.toLowerCase() === editCustomerName.trim().toLowerCase() ||
       l.projectName?.toLowerCase() === editCustomerName.trim().toLowerCase()
     );
@@ -219,7 +219,7 @@ export default function QuotationsView({
       return;
     }
 
-    const matchedCustomer = customers.find(c => 
+    const matchedCustomer = customers.find(c =>
       c.name?.toLowerCase() === editCustomerName.trim().toLowerCase()
     );
     if (matchedCustomer && (matchedCustomer.gst || matchedCustomer.gstNumber)) {
@@ -230,12 +230,12 @@ export default function QuotationsView({
   const startEditingQuotation = (qtn) => {
     setEditingQuotation(qtn);
     const cName = qtn.customerName || '';
-    const matchedLead = leads.find(l => 
+    const matchedLead = leads.find(l =>
       (qtn.sourceId && String(l.id) === String(qtn.sourceId)) ||
       (qtn.leadId && String(l.id) === String(qtn.leadId)) ||
       (cName && (l.companyName?.toLowerCase() === cName.trim().toLowerCase() || l.projectName?.toLowerCase() === cName.trim().toLowerCase()))
     );
-    const matchedCustomer = customers.find(c => 
+    const matchedCustomer = customers.find(c =>
       cName && c.name?.toLowerCase() === cName.trim().toLowerCase()
     );
 
@@ -293,8 +293,8 @@ export default function QuotationsView({
   const handleEditQuotationSubmit = (e) => {
     e.preventDefault();
     if (
-      !editCustomerName.trim() || 
-      editItems.some(i => !i.productName.trim() || !i.productDetails.trim()) || 
+      !editCustomerName.trim() ||
+      editItems.some(i => !i.productName.trim() || !i.productDetails.trim()) ||
       !editNotes.trim()
     ) {
       alert('Please fill out all fields and items.');
@@ -450,8 +450,8 @@ export default function QuotationsView({
     const qItems = quotationItemsText(q);
     const status = q.status || '';
     const searchString = typeof search === 'string' ? search : '';
-    const matchesSearch = custName.toLowerCase().includes(searchString.toLowerCase()) || 
-                          qItems.toLowerCase().includes(searchString.toLowerCase());
+    const matchesSearch = custName.toLowerCase().includes(searchString.toLowerCase()) ||
+      qItems.toLowerCase().includes(searchString.toLowerCase());
     const matchesFilter = filter === 'All' || status === filter;
     return matchesSearch && matchesFilter;
   });
@@ -506,11 +506,11 @@ export default function QuotationsView({
   };
 
   // Resolve client information
-  const clientLead = (selectedQuotation && selectedQuotation.customerName && leads) 
-    ? leads.find(l => l.companyName && l.companyName.toLowerCase() === selectedQuotation.customerName.toLowerCase()) 
+  const clientLead = (selectedQuotation && selectedQuotation.customerName && leads)
+    ? leads.find(l => l.companyName && l.companyName.toLowerCase() === selectedQuotation.customerName.toLowerCase())
     : null;
-  const clientCustomer = (selectedQuotation && selectedQuotation.customerName && customers) 
-    ? customers.find(c => c.name && c.name.toLowerCase() === selectedQuotation.customerName.toLowerCase()) 
+  const clientCustomer = (selectedQuotation && selectedQuotation.customerName && customers)
+    ? customers.find(c => c.name && c.name.toLowerCase() === selectedQuotation.customerName.toLowerCase())
     : null;
 
   const clientAddress =
@@ -939,7 +939,7 @@ export default function QuotationsView({
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
             {['All', 'Draft', 'Sent', 'Approved', 'Rejected', 'Reminders'].map(st => (
-              <button 
+              <button
                 key={st}
                 className={`filter-pill ${filter === st ? 'active' : ''}`}
                 onClick={() => setFilter(st)}
@@ -952,15 +952,15 @@ export default function QuotationsView({
 
           <div className="search-box" style={{ background: '#f1f3f5', border: '1px solid #D6E2F0' }}>
             <Search size={14} style={{ color: 'var(--color-text-secondary)' }} />
-            <input 
-              type="text" 
-              placeholder="Search quotations..." 
+            <input
+              type="text"
+              placeholder="Search quotations..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ color: 'var(--color-text-primary)' }}
             />
           </div>
-          <button 
+          <button
             className="btn-small btn-primary-small"
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             onClick={() => {
@@ -1034,64 +1034,51 @@ export default function QuotationsView({
             </tbody>
           </table>
         ) : (
-        <table className="crm-table responsive-table flat-table">
-          <colgroup>
-            <col style={{ width: '9%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '9%' }} />
-            <col style={{ width: '6%' }} />
-            <col style={{ width: '8%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '28%' }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Quotation ID</th>
-              <th>Customer Name</th>
-              <th>Product / Items</th>
-              <th>Total Value</th>
-              <th>Discount</th>
-              <th>Status</th>
-              <th>Reminder</th>
-              <th>Valid Till</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredQuotations.length === 0 ? (
+          <table className="crm-table responsive-table flat-table">
+            <colgroup>
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '14%' }} />
+            </colgroup>
+            <thead>
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
-                  No quotations cataloged.
-                </td>
+                <th>Quotation ID</th>
+                <th>Customer Name</th>
+                <th>Product / Items</th>
+                <th>Total Value</th>
+                <th>Status</th>
+                <th>Reminder</th>
+                <th>Actions</th>
               </tr>
-            ) : (
-              displayedQuotations.map((q) => (
-                <tr key={q.id}>
-                  <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`}</td>
-                  <td data-label="Customer Name" style={{ fontWeight: '600' }}>{q.customerName}</td>
-                  <td data-label="Product / Items">{quotationItemsText(q)}</td>
-                  <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
-                  <td data-label="Discount">
-                    {quotationDiscount(q) > 0 ? (
-                      <span style={{ display: 'inline-block', background: 'rgba(239, 68, 68, 0.08)', color: '#dc2626', fontWeight: '800', fontSize: '11px', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.15)' }}>
-                        {quotationDiscount(q).toFixed(1)}% Off
+            </thead>
+            <tbody>
+              {filteredQuotations.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                    No quotations cataloged.
+                  </td>
+                </tr>
+              ) : (
+                displayedQuotations.map((q) => (
+                  <tr key={q.id}>
+                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`}</td>
+                    <td data-label="Customer Name" style={{ fontWeight: '600' }}>{q.customerName}</td>
+                    <td data-label="Product / Items">{quotationItemsText(q)}</td>
+                    <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
+                    <td data-label="Status">
+                      <span className={`badge badge-${(q.status || '').toLowerCase()}`}>
+                        {q.status || ''}
                       </span>
-                    ) : (
-                      <span style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>None</span>
-                    )}
-                  </td>
-                  <td data-label="Status">
-                    <span className={`badge badge-${(q.status || '').toLowerCase()}`}>
-                      {q.status || ''}
-                    </span>
-                  </td>
-                  <td data-label="Reminder">{renderQuotationReminder(q)}</td>
-                  <td data-label="Valid Till">{quotationValidTill(q)}</td>
-                  <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                    <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                      {/* Sequential 2-Step Workflow with matching lime green pill buttons */}
-                      {canConvertQuotation(q.status) ? (
+                    </td>
+                    <td data-label="Reminder">{renderQuotationReminder(q)}</td>
+                    <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                        {/* Sequential 2-Step Workflow with matching lime green pill buttons */}
+                        {canConvertQuotation(q.status) ? (
                           <button
                             data-testid={`quotation-convert-order-${q.quotationNo || q.id}`}
                             type="button"
@@ -1141,49 +1128,49 @@ export default function QuotationsView({
                           </button>
                         ) : null}
 
-                      <button
-                        title="View Quotation"
-                        onClick={() => setSelectedQuotation(q)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '32px', height: '32px',
-                          background: '#ffffff', border: '1px solid #D6E2F0',
-                          borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
-                        }}
-                      >
-                        <Eye size={14} />
-                      </button>
-                      <button
-                        title="Edit Quotation"
-                        onClick={() => startEditingQuotation(q)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '32px', height: '32px',
-                          background: '#ffffff', border: '1px solid #D6E2F0',
-                          borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
-                        }}
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button
-                        title="Add Reminder"
-                        onClick={() => setReminderModal({ quotation: q })}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '32px', height: '32px',
-                          background: '#ffffff', border: '1px solid #D6E2F0',
-                          borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
-                        }}
-                      >
-                        <Bell size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                        <button
+                          title="View Quotation"
+                          onClick={() => setSelectedQuotation(q)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px',
+                            background: '#ffffff', border: '1px solid #D6E2F0',
+                            borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
+                          }}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          title="Edit Quotation"
+                          onClick={() => startEditingQuotation(q)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px',
+                            background: '#ffffff', border: '1px solid #D6E2F0',
+                            borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
+                          }}
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
+                          title="Add Reminder"
+                          onClick={() => setReminderModal({ quotation: q })}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px',
+                            background: '#ffffff', border: '1px solid #D6E2F0',
+                            borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
+                          }}
+                        >
+                          <Bell size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -1216,184 +1203,302 @@ export default function QuotationsView({
 
       {/* Branded Quotation Details Sheet Modal */}
       {selectedQuotation && (
-        <div className="modal-overlay active" onClick={() => setSelectedQuotation(null)}>
-            <div 
-              className="invoice-sheet-modal" 
-              onClick={(e) => e.stopPropagation()} 
-            >
-              {/* Sheet Branding Header */}
-              <div className="sheet-header">
-                <div>
-                  <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#1e293b', letterSpacing: '-0.5px', margin: 0 }}>HIMALAYA PRODUCTS</h1>
-                  <p style={{ fontSize: '13px', color: '#5E6B82', fontWeight: '600', margin: '2px 0 0 0' }}>Concrete & Aggregate Supply</p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#1e293b', letterSpacing: '-0.5px', margin: 0 }}>QUOTATION</h1>
-                  <p style={{ fontSize: '13px', color: '#5E6B82', fontWeight: '700', margin: '4px 0 0 0' }}>Ref: QT-2026-{selectedQuotation.id}</p>
+        <div
+          className="modal-overlay active"
+          onClick={() => setSelectedQuotation(null)}
+          style={{
+            padding: '24px 16px',
+            overflowY: 'auto',
+            display: 'flex',
+            justify: 'center',
+            alignItems: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div
+            className="invoice-sheet-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxHeight: 'calc(100vh - 48px)',
+              overflowY: 'auto',
+              width: '840px',
+              maxWidth: '100%',
+              padding: '28px 32px',
+              boxSizing: 'border-box',
+              background: '#ffffff',
+              borderRadius: '16px',
+              margin: 'auto'
+            }}
+          >
+            {/* Sheet Branding Header - Himalaya Letterhead */}
+            <div className="sheet-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+              <div>
+                <h1 style={{ fontSize: '18px', fontWeight: '800', color: '#0F2C59', margin: 0, fontFamily: 'sans-serif', letterSpacing: '-0.2px' }}>
+                  Himalaya Composites &amp; Precast Pvt Ltd
+                </h1>
+                <p style={{ fontSize: '10.5px', fontWeight: '700', color: '#0F2C59', margin: '2px 0 6px 0', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                  FORMERLY KNOWN AS AKBERALI PRECAST PVT LTD
+                </p>
+                <div style={{ fontSize: '10.5px', color: '#1e293b', fontWeight: '600', lineHeight: '1.45' }}>
+                  <p style={{ margin: 0 }}>PLOT NO.25&amp;26, SURVEY NO.35(OLD-27-A), EVOKE INDUSTRIAL PARK,</p>
+                  <p style={{ margin: 0 }}>BAREJA KHEDA ROAD, MALARPURA,KHEDA,GUJARAT</p>
+                  <p style={{ margin: 0 }}>GSTIN/UIN: <span style={{ fontWeight: '700' }}>24AAICH3332B1Z6</span></p>
+                  <p style={{ margin: 0 }}>E-Mail : <a href="mailto:info@thehimalaya.co.in" style={{ color: '#0F2C59', textDecoration: 'underline' }}>info@thehimalaya.co.in</a></p>
                 </div>
               </div>
-
-              {/* Horizontal Solid Branding Divider */}
-              <hr style={{ border: 'none', borderTop: '2px solid #000000', margin: '0 0 24px 0' }} />
-
-              {/* Client Coordinates & Invoice Details */}
-              <div className="sheet-meta">
-                <div>
-                  <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Quoted To:</p>
-                  <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{selectedQuotation.customerName}</p>
-                  <p style={{ margin: '2px 0 0 0', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>
-                  <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>
-                </div>
-                <div style={{ textAlign: 'right', fontWeight: '500', color: '#475569' }}>
-                  <p style={{ margin: 0 }}><strong>Quotation Date:</strong> {selectedQuotation.date || selectedQuotation.createdAt?.slice(0, 10) || '—'}</p>
-                  <p style={{ margin: '4px 0 0 0' }}><strong>Valid Till:</strong> {quotationValidTill(selectedQuotation)}</p>
-                  <p style={{ margin: '4px 0 0 0' }}><strong>Payment Terms:</strong> {quotationPaymentTerms(selectedQuotation)}</p>
-                  <p style={{ margin: '4px 0 0 0' }}><strong>Revision:</strong> Version 1</p>
-                </div>
+              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: '4px' }}>
+                <img src="/himalaya-logo-trimmed.png" alt="Himalaya Logo" style={{ height: '65px', width: 'auto', objectFit: 'contain' }} />
               </div>
+            </div>
 
-              {/* Items Table */}
-              <div className="crm-table-container" style={{ margin: '0 0 20px 0', border: '1px solid #eaeaea' }}>
-                <table className="crm-table responsive-table" style={{ border: 'none' }}>
-                  <thead>
-                    <tr style={{ background: '#f8f9fa' }}>
-                      <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Product Details</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Qty</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Rate</th>
-                      {/* Discount column removed as per request */}
-                      <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Tax (GST)</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Total</th>
-                    </tr>
-                  </thead>
+            {/* Horizontal Solid Branding Divider */}
+            <hr style={{ border: 'none', borderTop: '2px solid #000000', margin: '0 0 16px 0' }} />
+
+            {/* Document Title & Ref Banner */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', letterSpacing: '0.5px', margin: 0, textTransform: 'uppercase' }}>QUOTATION</h2>
+              <p style={{ fontSize: '13px', color: '#475569', fontWeight: '700', margin: 0 }}>Ref: QT-2026-{selectedQuotation.id || selectedQuotation.quotationNo}</p>
+            </div>
+
+            {/* Client Coordinates & Invoice Details */}
+            <div className="sheet-meta">
+              <div>
+                <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Quoted To:</p>
+                <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{selectedQuotation.customerName}</p>
+                <p style={{ margin: '2px 0 0 0', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>
+                <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>
+              </div>
+              <div style={{ textAlign: 'right', fontWeight: '500', color: '#475569' }}>
+                <p style={{ margin: 0 }}><strong>Quotation Date:</strong> {selectedQuotation.date || selectedQuotation.createdAt?.slice(0, 10) || '—'}</p>
+                <p style={{ margin: '4px 0 0 0' }}><strong>Payment Terms:</strong> {quotationPaymentTerms(selectedQuotation)}</p>
+                <p style={{ margin: '4px 0 0 0' }}><strong>Revision:</strong> Version 1</p>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="crm-table-container" style={{ margin: '0 0 20px 0', border: '1px solid #eaeaea' }}>
+              <table className="crm-table responsive-table" style={{ border: 'none' }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa' }}>
+                    <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Product Details</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Qty</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Rate</th>
+                    {/* Discount column removed as per request */}
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Tax (GST)</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsList.map((item, index) => {
+                    const itemSubtotal = item.quantity * item.unitPrice;
+                    const discountValue = itemSubtotal * (item.discount || 0) / 100;
+                    const taxable = itemSubtotal - discountValue;
+                    const taxValue = taxable * (item.tax !== undefined ? item.tax : 18) / 100;
+                    const itemTotal = taxable + taxValue;
+
+                    return (
+                      <tr key={index}>
+                        <td data-label="Product Details">
+                          <div style={{ fontWeight: '700', color: '#1e293b' }}>{item.productName}</div>
+                          {item.productDetails && (
+                            <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
+                          )}
+                          <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
+                        </td>
+                        <td data-label="Qty" style={{ textAlign: 'center', fontWeight: '600', color: '#334155' }}>{item.quantity}</td>
+                        <td data-label="Rate" style={{ textAlign: 'center', fontWeight: '600', color: '#334155' }}>{formatINR(item.unitPrice)}</td>
+                        {/* Discount cell removed as per request */}
+                        <td data-label="Tax (GST)" style={{ textAlign: 'center', fontWeight: '600', color: '#5E6B82' }}>{item.tax !== undefined ? item.tax : 18}%</td>
+                        <td data-label="Total" style={{ textAlign: 'right', fontWeight: '800', color: '#1e293b' }}>{formatINR(itemTotal)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Calculations Invoice Summary panel */}
+            <div className="sheet-summary">
+              <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#475569', fontWeight: '500' }}>
+                <span>Items Subtotal:</span>
+                <span style={{ fontWeight: '600', color: '#1e293b' }}>{formatINR(calculatedSubtotal)}</span>
+              </div>
+              {/* Discount Applied row removed as per request */}
+              <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#475569', fontWeight: '500' }}>
+                <span>GST Amount:</span>
+                <span style={{ fontWeight: '600', color: '#1e293b' }}>{formatINR(calculatedTaxAmt)}</span>
+              </div>
+              {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) > 0) && (
+                <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#0369a1', fontWeight: '500' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Truck size={12} /> Transport (Approx.):</span>
+                  <span style={{ fontWeight: '600' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '16px', fontWeight: '800', color: '#1e293b', borderTop: '1px solid #eaeaea', paddingTop: '8px', marginTop: '4px' }}>
+                <span>Grand Total:</span>
+                <span style={{ color: '#1e293b', fontSize: '17px' }}>{formatINR(quotationTotal(selectedQuotation))}</span>
+              </div>
+            </div>
+
+            {/* Terms & Conditions Section */}
+            <div style={{ marginTop: '24px', border: '1px solid #1e293b' }}>
+              <div style={{ background: '#1e293b', color: '#ffffff', padding: '6px 12px', fontWeight: '700', fontSize: '13px', textDecoration: 'underline', letterSpacing: '0.5px' }}>
+                TERMS AND CONDITIONS :-
+              </div>
+              <div style={{ padding: '10px 16px', background: '#ffffff', fontSize: '12.5px', color: '#1e293b' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <tbody>
-                    {itemsList.map((item, index) => {
-                      const itemSubtotal = item.quantity * item.unitPrice;
-                      const discountValue = itemSubtotal * (item.discount || 0) / 100;
-                      const taxable = itemSubtotal - discountValue;
-                      const taxValue = taxable * (item.tax !== undefined ? item.tax : 18) / 100;
-                      const itemTotal = taxable + taxValue;
-
-                      return (
-                        <tr key={index}>
-                          <td data-label="Product Details">
-                            <div style={{ fontWeight: '700', color: '#1e293b' }}>{item.productName}</div>
-                            {item.productDetails && (
-                              <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
-                            )}
-                            <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
-                          </td>
-                          <td data-label="Qty" style={{ textAlign: 'center', fontWeight: '600', color: '#334155' }}>{item.quantity}</td>
-                          <td data-label="Rate" style={{ textAlign: 'center', fontWeight: '600', color: '#334155' }}>{formatINR(item.unitPrice)}</td>
-                          {/* Discount cell removed as per request */}
-                          <td data-label="Tax (GST)" style={{ textAlign: 'center', fontWeight: '600', color: '#5E6B82' }}>{item.tax !== undefined ? item.tax : 18}%</td>
-                          <td data-label="Total" style={{ textAlign: 'right', fontWeight: '800', color: '#1e293b' }}>{formatINR(itemTotal)}</td>
-                        </tr>
-                      );
-                    })}
+                    <tr>
+                      <td style={{ width: '40px', verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>1</td>
+                      <td style={{ padding: '4px 0' }}>Payment Terms</td>
+                    </tr>
+                    <tr>
+                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>2</td>
+                      <td style={{ padding: '4px 0' }}>Unloading at Client scope &amp; breakage risk &amp; responsibility</td>
+                    </tr>
+                    <tr>
+                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>3</td>
+                      <td style={{ padding: '4px 0' }}>Delivery timeline</td>
+                    </tr>
+                    <tr>
+                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>4</td>
+                      <td style={{ padding: '4px 0' }}>Any Dispute Shall Be Subject To Ahmedabad Jurisdiction</td>
+                    </tr>
+                    <tr>
+                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>5</td>
+                      <td style={{ padding: '4px 0' }}>Manufacturer Test Report shall be provided</td>
+                    </tr>
+                    <tr>
+                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>6</td>
+                      <td style={{ padding: '4px 0' }}>Different Colour Options available at additional 10% cost</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
+            </div>
 
-              {/* Calculations Invoice Summary panel */}
-              <div className="sheet-summary">
-                <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#475569', fontWeight: '500' }}>
-                  <span>Items Subtotal:</span>
-                  <span style={{ fontWeight: '600', color: '#1e293b' }}>{formatINR(calculatedSubtotal)}</span>
+            {/* Valuable Clients Section */}
+            <div style={{ marginTop: '16px', border: '1px solid #1e293b' }}>
+              <div style={{ background: '#1e293b', color: '#ffffff', padding: '6px 12px', textAlign: 'center', fontWeight: '700', fontSize: '13px', textDecoration: 'underline', letterSpacing: '0.5px' }}>
+                VALUABLE CLIENTS
+              </div>
+              <div style={{ padding: '16px 24px', background: '#ffffff', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+                {/* Reliance Logo */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <img src="/client-logos/reliance-logo.png" alt="Reliance Industries Limited" style={{ maxHeight: '48px', maxWidth: '140px', objectFit: 'contain' }} />
                 </div>
-                {/* Discount Applied row removed as per request */}
-                <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#475569', fontWeight: '500' }}>
-                  <span>GST Amount:</span>
-                  <span style={{ fontWeight: '600', color: '#1e293b' }}>{formatINR(calculatedTaxAmt)}</span>
+                {/* Adani Logo */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <img src="/client-logos/adani-logo.png" alt="adani" style={{ maxHeight: '42px', maxWidth: '130px', objectFit: 'contain' }} />
                 </div>
-                {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) > 0) && (
-                  <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#0369a1', fontWeight: '500' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Truck size={12} /> Transport (Approx.):</span>
-                    <span style={{ fontWeight: '600' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '16px', fontWeight: '800', color: '#1e293b', borderTop: '1px solid #eaeaea', paddingTop: '8px', marginTop: '4px' }}>
-                  <span>Grand Total:</span>
-                  <span style={{ color: '#1e293b', fontSize: '17px' }}>{formatINR(quotationTotal(selectedQuotation))}</span>
+                {/* L&T Logo */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <img src="/client-logos/lt-logo.png" alt="L&T" style={{ maxHeight: '46px', maxWidth: '110px', objectFit: 'contain' }} />
+                </div>
+                {/* A.SHRIDHAR Logo */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <img src="/client-logos/ashridhar-logo.png" alt="A.SHRIDHAR" style={{ maxHeight: '44px', maxWidth: '140px', objectFit: 'contain' }} />
                 </div>
               </div>
+            </div>
 
-              {/* Close / Convert Action controls */}
-              <div className="sheet-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    type="button" 
-                    className="btn-small btn-outline-small" 
-                    onClick={() => setSelectedQuotation(null)}
-                    style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0 }}
-                  >
-                    Close Preview
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn-small btn-outline-small" 
-                    onClick={() => {
+            {/* Sign-off & Authorised Signatory Footer */}
+            <div style={{ marginTop: '28px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: '12px' }}>
+              <div style={{ fontSize: '13px', color: '#1e293b', fontStyle: 'italic', lineHeight: '1.6' }}>
+                <p style={{ margin: 0 }}>Thanks and waiting for your valued order</p>
+                <p style={{ margin: '8px 0 0 0' }}>Yours truly,</p>
+              </div>
+              <div style={{ textAlign: 'right', color: '#1e293b' }}>
+                <p style={{ margin: 0, fontWeight: '800', fontSize: '14px', color: '#0F2C59' }}>
+                  For Himalaya Composites &amp; Precast Pvt Ltd
+                </p>
+                <p style={{ margin: '2px 0 0 0', fontStyle: 'italic', fontSize: '12px', color: '#475569' }}>
+                  (Formerly known as Akberali Precast Pvt Ltd)
+                </p>
+                <div style={{ height: '45px' }}></div>
+                <p style={{ margin: 0, fontWeight: '800', fontSize: '13px', color: '#1e293b' }}>
+                  Authorised Signatory
+                </p>
+              </div>
+            </div>
+
+            {/* Close / Convert Action controls */}
+            <div className="sheet-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-small btn-outline-small"
+                  onClick={() => setSelectedQuotation(null)}
+                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0 }}
+                >
+                  Close Preview
+                </button>
+                <button
+                  type="button"
+                  className="btn-small btn-outline-small"
+                  onClick={() => {
+                    try {
+                      exportQuotationPDF(selectedQuotation);
+                      Swal.fire('Downloaded', 'Quotation PDF has been downloaded.', 'success');
+                    } catch (err) {
+                      console.error('Error generating PDF:', err);
+                      Swal.fire('Error', 'Failed to generate PDF.', 'error');
+                    }
+                  }}
+                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Download size={14} /> Download
+                </button>
+                <button
+                  type="button"
+                  className="btn-small btn-outline-small"
+                  onClick={async () => {
+                    const shareData = {
+                      title: `Quotation ${selectedQuotation.quotationNo}`,
+                      text: `Here is the quotation for ${selectedQuotation.customerName}.`,
+                      url: window.location.href
+                    };
+                    if (navigator.share) {
                       try {
-                        exportQuotationPDF(selectedQuotation);
-                        Swal.fire('Downloaded', 'Quotation PDF has been downloaded.', 'success');
+                        await navigator.share(shareData);
                       } catch (err) {
-                        console.error('Error generating PDF:', err);
-                        Swal.fire('Error', 'Failed to generate PDF.', 'error');
+                        console.log('Error sharing:', err);
                       }
-                    }}
-                    style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    <Download size={14} /> Download
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn-small btn-outline-small" 
-                    onClick={async () => {
-                      const shareData = {
-                        title: `Quotation ${selectedQuotation.quotationNo}`,
-                        text: `Here is the quotation for ${selectedQuotation.customerName}.`,
-                        url: window.location.href
-                      };
-                      if (navigator.share) {
-                        try {
-                          await navigator.share(shareData);
-                        } catch (err) {
-                          console.log('Error sharing:', err);
-                        }
-                      } else {
-                        const encodedText = encodeURIComponent(`Here is the quotation for ${selectedQuotation.customerName}: ${window.location.href}`);
-                        Swal.fire({
-                          title: 'Share Quotation',
-                          html: `
+                    } else {
+                      const encodedText = encodeURIComponent(`Here is the quotation for ${selectedQuotation.customerName}: ${window.location.href}`);
+                      Swal.fire({
+                        title: 'Share Quotation',
+                        html: `
                             <div style="display:flex; flex-direction:column; gap:12px; margin-top: 10px;">
                               <a href="https://wa.me/?text=${encodedText}" target="_blank" style="background:#25D366; color:#fff; text-decoration:none; padding:12px; border-radius:8px; font-weight:bold; display:flex; justify-content:center; align-items:center; gap:8px;">Share on WhatsApp</a>
                               <a href="mailto:?subject=Quotation%20${selectedQuotation.quotationNo}&body=${encodedText}" style="background:#ea4335; color:#fff; text-decoration:none; padding:12px; border-radius:8px; font-weight:bold; display:flex; justify-content:center; align-items:center; gap:8px;">Share via Email</a>
                             </div>
                           `,
-                          showConfirmButton: false,
-                          showCloseButton: true,
-                          customClass: { popup: 'swal-premium-popup', title: 'swal-premium-title' }
-                        });
-                      }
-                    }}
-                    style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                        showConfirmButton: false,
+                        showCloseButton: true,
+                        customClass: { popup: 'swal-premium-popup', title: 'swal-premium-title' }
+                      });
+                    }
+                  }}
+                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Share2 size={14} /> Share
+                </button>
+              </div>
+
+              {canConvertQuotation(selectedQuotation.status) && (
+                <div>
+                  <button
+                    type="button"
+                    className="btn-small btn-primary-small"
+                    onClick={() => handleConvertToOrderClick(selectedQuotation, true)}
+                    style={{ background: '#00a877', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
                   >
-                    <Share2 size={14} /> Share
+                    Book Order Now
                   </button>
                 </div>
-                
-                {canConvertQuotation(selectedQuotation.status) && (
-                  <div>
-                    <button 
-                      type="button" 
-                      className="btn-small btn-primary-small"
-                      onClick={() => handleConvertToOrderClick(selectedQuotation, true)}
-                      style={{ background: '#00a877', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
-                    >
-                      Book Order Now
-                    </button>
-                  </div>
-                )}
-              </div>
+              )}
+            </div>
 
           </div>
         </div>

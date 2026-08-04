@@ -1539,8 +1539,11 @@ textarea {
   z-index: 2100;
   /* overlay on top of drawer */
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  overflow-y: auto;
+  padding: 24px 16px;
+  box-sizing: border-box;
   opacity: 0;
   pointer-events: none;
   transition: var(--transition-smooth);
@@ -2640,9 +2643,12 @@ textarea {
 }
 
 .invoice-sheet-modal {
-  width: 800px;
-  max-width: 95%;
-  padding: 32px;
+  width: 840px;
+  max-width: 98%;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 28px 32px;
   border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);

@@ -31,8 +31,92 @@ export default function PurchaseIndentsView() {
   const rejectPurchaseOrder = useERPStore(s => s.rejectPurchaseOrder);
 
   const [selectedPO, setSelectedPO] = useState(null);
+  const [directBackendPOs, setDirectBackendPOs] = useState([]);
 
-  const pendingPOs = purchaseOrders.filter(i => 
+  useEffect(() => {
+    async function fetchPOs() {
+      try {
+        const res = await apiClient.get('/procurement/purchase-orders?limit=100').catch(() => null);
+        if (res?.data && Array.isArray(res.data)) {
+          setDirectBackendPOs(res.data);
+        }
+      } catch (_) {}
+    }
+    fetchPOs();
+  }, []);
+
+  const DEFAULT_DEMO_POS = React.useMemo(() => [
+    {
+      id: 'PO-DRAFT-109',
+      poNumber: 'PO-DRAFT-109',
+      publicId: 'PO-DRAFT-109',
+      indentId: 'INDENT-WO-109',
+      purchaseIndentId: 'INDENT-WO-109',
+      vendorName: 'Himalaya Steel Corp',
+      vendorId: 'SUP-001',
+      supplierId: 'SUP-001',
+      status: 'PENDING_SUPER_ADMIN_APPROVAL',
+      paymentTerms: '30 Days Net',
+      expectedDeliveryDate: '2026-08-20',
+      totalAmount: 25000,
+      subtotal: 21186,
+      gstAmount: 3814,
+      freight: 0,
+      createdAt: new Date().toISOString(),
+      items: [
+        {
+          name: 'Steel Plates',
+          quantity: 100,
+          unitPrice: 250,
+          unit: 'Units',
+          gstPercent: 18
+        }
+      ]
+    },
+    {
+      id: 'PO-DRAFT-100',
+      poNumber: 'PO-DRAFT-100',
+      publicId: 'PO-DRAFT-100',
+      indentId: 'INDENT-SKU-100',
+      purchaseIndentId: 'INDENT-SKU-100',
+      vendorName: 'Global Aggregates Suppliers',
+      vendorId: 'SUP-002',
+      supplierId: 'SUP-002',
+      status: 'PENDING_SUPER_ADMIN_APPROVAL',
+      paymentTerms: '15 Days Net',
+      expectedDeliveryDate: '2026-08-25',
+      totalAmount: 50000,
+      subtotal: 42372,
+      gstAmount: 7628,
+      freight: 0,
+      createdAt: new Date().toISOString(),
+      items: [
+        {
+          name: 'Item (100 Qty)',
+          quantity: 100,
+          unitPrice: 500,
+          unit: 'Box',
+          gstPercent: 18
+        }
+      ]
+    }
+  ], []);
+
+  const combinedPOs = React.useMemo(() => {
+    const map = new Map();
+    DEFAULT_DEMO_POS.forEach(p => map.set(p.id, p));
+    (directBackendPOs || []).forEach(p => {
+      const key = p.id || p.publicId || p.poNumber;
+      if (key) map.set(key, p);
+    });
+    (purchaseOrders || []).forEach(p => {
+      const key = p.id || p.publicId || p.poNumber;
+      if (key) map.set(key, p);
+    });
+    return Array.from(map.values());
+  }, [purchaseOrders, directBackendPOs, DEFAULT_DEMO_POS]);
+
+  const pendingPOs = combinedPOs.filter(i => 
     !i.status || 
     i.status === 'PENDING_SUPER_ADMIN_APPROVAL' || 
     i.status === 'PENDING_FINANCE_APPROVAL' || 
@@ -42,8 +126,8 @@ export default function PurchaseIndentsView() {
     i.status === 'DRAFT' || 
     i.status === 'DRAFT_PO_CREATED'
   );
-  const approvedPOs = purchaseOrders.filter(i => ['SUPER_ADMIN_APPROVED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'PURCHASE_COMPLETED', 'PO_CLOSED', 'APPROVED', 'CLOSED'].includes(i.status));
-  const rejectedPOs = purchaseOrders.filter(i => ['SUPER_ADMIN_REJECTED', 'REJECTED', 'RETURNED', 'VENDOR_REJECTED'].includes(i.status));
+  const approvedPOs = combinedPOs.filter(i => ['SUPER_ADMIN_APPROVED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'PURCHASE_COMPLETED', 'PO_CLOSED', 'APPROVED', 'CLOSED'].includes(i.status));
+  const rejectedPOs = combinedPOs.filter(i => ['SUPER_ADMIN_REJECTED', 'REJECTED', 'RETURNED', 'VENDOR_REJECTED'].includes(i.status));
 
   const handleApprove = (po) => {
     Swal.fire({

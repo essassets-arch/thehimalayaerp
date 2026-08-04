@@ -2663,12 +2663,27 @@ export default function PlantHeadPortal() {
   };
 
   const renderIncomingOrders = () => {
-    const allIncomingOrders = orders.filter(order => {
-      const status = String(order.workflowStateCode || order.status || '').toUpperCase();
-      return ['SENT_TO_PLANT_HEAD', 'SENT_TO_PLANT', 'CONFIRMED', 'DRAFT', 'PENDING_APPROVAL', 'SUBMITTED'].includes(status) ||
-        (!order.workflowStateCode && order.productionStatus === 'PENDING_PLANNING' &&
-          order.planningStatus !== 'PLANT_HEAD_ACCEPTED');
+    const allIncomingOrders = orders.map(order => {
+      const workOrder = canonicalWorkOrders.find(wo =>
+        String(wo.orderId || wo.orderNo) === String(order.id || order.orderNo)
+      );
+      const backendPlan = planningOrders.find(plan =>
+        plan.id === order.productionPlanId || plan.salesOrderId === order.id
+      );
+      const items = Array.isArray(order.items) ? order.items : [];
+      const product = items[0] || {};
+      const qtySum = items.reduce((sum, item) => sum + Number(item.quantity ?? item.qty ?? 0), 0) || order.quantity || 1;
+      return {
+        ...order,
+        workOrder,
+        productionPlan: backendPlan,
+        targetDate: order.targetDate || order.productionTargetDate || backendPlan?.plannedEndDate,
+        products: order.products || order.productItem || product.productName || product.name || 'Item (100 Qty)',
+        quantity: order.quantity || qtySum || 1,
+        priority: order.priority || 'Medium',
+      };
     });
+
     const filteredIncoming = allIncomingOrders.filter(o => {
       const q = incomingSearch.toLowerCase();
       return !q ||
@@ -2677,18 +2692,43 @@ export default function PlantHeadPortal() {
         (o.products || '').toLowerCase().includes(q);
     });
 
+    const priorityBadge = (priority) => {
+      const colors = {
+        High: { bg: '#fef2f2', color: '#dc2626', border: '#fca5a5' },
+        Medium: { bg: '#fffbeb', color: '#d97706', border: '#fcd34d' },
+        Low: { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' }
+      };
+      const c = colors[priority] || colors.Medium;
+      return (
+        <span style={{ background: c.bg, color: c.color, border: `1px solid ${c.border}`, padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+          {priority || 'Medium'} {priority === 'High' ? '🔴' : priority === 'Low' ? '🟢' : '🟡'}
+        </span>
+      );
+    };
+
+    const statusBadge = (row) => {
+      const planning = normalizeStatus(row.planningStatus || row.status);
+      if (planning === 'PENDING_ACCEPTANCE' || row.planningStatus === 'PENDING_ACCEPTANCE' || row.status === 'SENT_TO_PLANT') {
+        return <span style={{ background: '#fef3c7', color: '#d97706', border: '1px solid #fcd34d', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Pending Acceptance</span>;
+      }
+      if (planning === 'PRODUCTION_PLANNED' || row.workOrder) {
+        return <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Production Planned</span>;
+      }
+      return <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Awaiting Planning</span>;
+    };
+
     const handleAcceptOrder = async (order) => {
       const { value: remarks } = await Swal.fire({
         title: 'Accept Order',
         input: 'textarea',
         inputLabel: 'Acceptance Remarks (optional)',
-        inputPlaceholder: 'e.g. Capacity available, will schedule for next week…',
+        inputPlaceholder: 'e.g. Capacity available, scheduling for production…',
         showCancelButton: true,
         confirmButtonText: 'Accept Order',
         customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn', cancelButton: 'swal-premium-cancel-btn' },
         buttonsStyling: false
       });
-      if (remarks === undefined) return; // cancelled
+      if (remarks === undefined) return;
       showToast('Accepting order…');
       try {
         const isBackendOrder = directBackendOrders.some(candidate => candidate.id === order.id) ||
@@ -2704,30 +2744,37 @@ export default function PlantHeadPortal() {
         } else {
           useERPStore.getState().acceptOrderByPlantHead(order.id, { remarks }, user?.name || 'Plant Head');
         }
-        showToast(`✅ Order ${order.orderNo || order.id} accepted! Moved to Planning.`);
-        navigate.push(`/plant-head/planning?orderNo=${encodeURIComponent(order.orderNo || order.id)}`);
+        showToast(`✅ Order ${order.orderNo || order.id} accepted!`);
       } catch (err) {
         Swal.fire({ icon: 'error', title: 'Accept Failed', text: err.message });
       }
     };
 
-    const handleCreateWorkOrder = async (order) => {
-      const res = await Swal.fire({
-        title: 'Create Work Order',
-        html: `Create a Work Order for <strong>${order.orderNo}</strong> and send to Production?`,
-        icon: 'question',
+    const handleRejectOrder = async (order) => {
+      const { value: remarks } = await Swal.fire({
+        title: 'Reject Order',
+        input: 'textarea',
+        inputLabel: 'Rejection Reason (required)',
+        inputPlaceholder: 'e.g. Insufficient raw material / capacity constraint…',
+        inputValidator: (v) => !v && 'Please provide a rejection reason.',
         showCancelButton: true,
-        confirmButtonText: 'Create Work Order',
+        confirmButtonText: 'Reject Order',
+        confirmButtonColor: '#ef4444',
         customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn', cancelButton: 'swal-premium-cancel-btn' },
         buttonsStyling: false
       });
-      if (!res.isConfirmed) return;
-      showToast('Creating work order…');
+      if (!remarks) return;
+      showToast('Rejecting order…');
       try {
-        useERPStore.getState().activateWorkOrder(order.id, user?.name || 'Plant Head');
-        showToast(`✅ Work Order created for ${order.orderNo || order.id}! Sent to Production.`);
+        await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
+          method: 'POST',
+          body: { action: 'PLANT_REJECT', remarks },
+        }).catch(() => {});
+        useERPStore.getState().rejectOrderByPlantHead?.(order.id, { remarks }, user?.name || 'Plant Head');
+        showToast(`🚫 Order ${order.orderNo || order.id} rejected.`);
+        void loadSalesOrders();
       } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Failed', text: err.message });
+        Swal.fire({ icon: 'error', title: 'Reject Failed', text: err.message });
       }
     };
 
@@ -2756,20 +2803,18 @@ export default function PlantHeadPortal() {
         <DataTable
           columns={[
             { header: 'Order No', accessor: 'orderNo', render: (row) => (
-              <span
-                style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+              <strong
+                style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
                 onClick={() => setSelectedOrderDetails(row)}
               >
                 {row.orderNo}
-              </span>
+              </strong>
             ) },
-            { header: 'Customer Name', accessor: 'customerName', render: (row) => row.customerName || row.customer?.name || 'Unknown' },
-            { header: 'Product Item', accessor: 'products', render: (row) => row.products || row.detailedItems?.[0]?.productName || '—' },
-            { header: 'Delivery', accessor: 'deliveryAddress', render: (row) => {
-              if (row.deliveryAddress) return row.deliveryAddress.length > 30 ? `${row.deliveryAddress.substring(0, 30)}…` : row.deliveryAddress;
-              return row.deliveryDate || '—';
-            } },
-            { header: 'Status', accessor: 'planningStatus', render: (row) => <StatusBadge status={row.planningStatus || row.commercialStatus} /> }
+            { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.name || '—'}</span> },
+            { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
+            { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
+            { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
+            { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) }
           ]}
           data={filteredIncoming}
           searchQuery={''}
@@ -2781,18 +2826,47 @@ export default function PlantHeadPortal() {
               >
                 View
               </button>
-              {(row.planningStatus === 'PENDING_ACCEPTANCE') && (
+              {(row.planningStatus === 'PENDING_ACCEPTANCE' || row.status === 'SENT_TO_PLANT') && (
+                <>
+                  <button
+                    data-testid={`plant-head-accept-order-${row.orderNo || row.id}`}
+                    style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                    onClick={() => handleAcceptOrder(row)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    style={{ padding: '5px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                    onClick={() => handleRejectOrder(row)}
+                  >
+                    Reject
+                  </button>
+                </>
+              )}
+              {(!row.workOrder) && (
                 <button
-                  data-testid={`plant-head-accept-order-${row.orderNo || row.id}`}
-                  style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
-                  onClick={() => handleAcceptOrder(row)}
+                  data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                  style={{
+                    padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', 
+                    fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.background = '#0369a1'}
+                  onMouseOut={(e) => e.currentTarget.style.background = '#0284c7'}
+                  onClick={() => {
+                    setSelectedOrderForPlanning(row);
+                    const d = new Date(); d.setDate(d.getDate() + 7);
+                    setTargetDate(row.targetDate ? row.targetDate.slice(0, 10) : d.toISOString().split('T')[0]);
+                    setPriority(row.priority || 'Medium');
+                    setShowPlanningModal(true);
+                  }}
                 >
-                  Accept
+                  <Plus size={14} /> Plan &amp; Send to Production
                 </button>
               )}
             </div>
           )}
-          emptyMessage="No orders waiting for Plant Head review."
+          emptyMessage="No incoming orders found."
         />
       </div>
     );

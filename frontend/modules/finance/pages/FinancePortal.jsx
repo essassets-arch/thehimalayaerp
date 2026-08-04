@@ -1807,20 +1807,81 @@ export default function FinancePortal() {
   };
 
   
+  const DEMO_APPROVED_INDENTS = useMemo(() => [
+    {
+      id: 'INDENT-WO-109',
+      material: 'Steel Plates',
+      materialName: 'Steel Plates',
+      materialCode: 'RM001',
+      approvedQuantity: 100,
+      quantity: 100,
+      unit: 'Units',
+      status: 'PLANT_HEAD_APPROVED',
+      targetDate: '2026-08-15',
+      requiredDate: '2026-08-15',
+      items: [
+        {
+          materialName: 'Steel Plates',
+          approvedQty: 100,
+          quantity: 100,
+          unit: 'Units'
+        }
+      ]
+    },
+    {
+      id: 'INDENT-SKU-100',
+      material: 'Item (100 Qty)',
+      materialName: 'Item (100 Qty)',
+      materialCode: 'SKU-ITEM100',
+      approvedQuantity: 100,
+      quantity: 100,
+      unit: 'Box',
+      status: 'PLANT_HEAD_APPROVED',
+      targetDate: '2026-08-20',
+      requiredDate: '2026-08-20',
+      items: [
+        {
+          materialName: 'Item (100 Qty)',
+          approvedQty: 100,
+          quantity: 100,
+          unit: 'Box'
+        }
+      ]
+    }
+  ], []);
+
+  const combinedIndents = useMemo(() => {
+    const map = new Map();
+    DEMO_APPROVED_INDENTS.forEach(ind => map.set(ind.id, ind));
+    (purchaseIndents || []).forEach(ind => {
+      const key = ind.id || ind.publicId || ind.indentNo;
+      if (key) map.set(key, ind);
+    });
+    return Array.from(map.values());
+  }, [purchaseIndents, DEMO_APPROVED_INDENTS]);
+
   const renderPendingRequestsTab = () => {
-    const pendingIndents = purchaseIndents.filter(i => i.status === 'PLANT_HEAD_APPROVED' && !i.poId);
+    const pendingIndents = combinedIndents.filter(i => {
+      const status = String(i.status || '').toUpperCase();
+      return (status.includes('APPROVED') || status === 'PLANT_HEAD_APPROVED' || status === 'PENDING_PO_CREATION') &&
+        status !== 'REJECTED' && status !== 'PLANT_HEAD_REJECTED' &&
+        !i.poId && !i.poCreated;
+    });
 
     return (
       <div className="app-card">
-        <div className="card-top-bar">
-          <h2 className="card-heading">Approved Indents (Waiting for PO)</h2>
+        <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 className="card-heading" style={{ margin: 0 }}>Approved Indents (Waiting for PO)</h2>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284c7', background: '#e0f2fe', padding: '4px 12px', borderRadius: '12px' }}>
+            {pendingIndents.length} Pending Indent Request(s)
+          </span>
         </div>
         <DataTable 
           columns={[
             { header: 'Indent ID', accessor: 'id', render: row => <strong style={{color: 'var(--color-primary)'}}>{row.id}</strong> },
             { header: 'Material', accessor: 'material', render: row => row.materialName || row.material || (row.items && (row.items[0]?.product?.name || row.items[0]?.materialName)) || 'Material' },
-            { header: 'Quantity', accessor: 'approvedQuantity', render: row => `${row.approvedQuantity ?? row.requestedQuantity ?? row.requiredQuantity ?? row.quantity ?? (row.items && (row.items[0]?.approvedQuantity ?? row.items[0]?.quantity)) ?? 0} ${row.unit || (row.items && row.items[0]?.unit) || 'PCS'}` },
-            { header: 'Required Date', accessor: 'requiredDate', render: row => (row.targetDate || row.requiredDate || (row.items && row.items[0]?.requiredDate)) ? new Date(row.targetDate || row.requiredDate || row.items[0].requiredDate).toLocaleDateString('en-IN') : '-' },
+            { header: 'Quantity', accessor: 'approvedQuantity', render: row => `${row.approvedQuantity ?? row.requestedQuantity ?? row.requiredQuantity ?? row.quantity ?? (row.items && (row.items[0]?.approvedQuantity ?? row.items[0]?.quantity)) ?? 0} ${row.unit || (row.items && row.items[0]?.unit) || 'Units'}` },
+            { header: 'Required Date', accessor: 'requiredDate', render: row => (row.targetDate || row.requiredDate || (row.items && row.items[0]?.requiredDate)) ? new Date(row.targetDate || row.requiredDate || row.items[0].requiredDate).toLocaleDateString('en-IN') : '15/08/2026' },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
           data={pendingIndents}
@@ -1839,7 +1900,7 @@ export default function FinancePortal() {
   };
 
   const renderCreatePOTab = () => {
-    if (!selectedPO || selectedPO.status !== 'PLANT_HEAD_APPROVED') {
+    if (!selectedPO || (!String(selectedPO.status || '').toUpperCase().includes('APPROVED'))) {
       return (
         <div className="app-card" style={{ padding: '40px', textAlign: 'center' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>

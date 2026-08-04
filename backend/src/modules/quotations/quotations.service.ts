@@ -396,25 +396,10 @@ export class QuotationsService {
       });
 
       if (!quotation) throw new NotFoundException('Quotation not found');
-      
-      const allowedCodes = ['APPROVED', 'SENT', 'NEGOTIATION', 'NEW', 'DRAFT', 'INTERNAL_REVIEW'];
-      if (!allowedCodes.includes(quotation.workflowState?.code || '')) {
-        throw new BadRequestException(
-          'Only active (SENT, NEGOTIATION, or APPROVED) quotations can be converted to Sales Orders',
-        );
-      }
-
-      // If not yet in APPROVED state, auto-approve quotation as part of conversion
       if (quotation.workflowState?.code !== 'APPROVED') {
-        const approvedState = await tx.workflowState.findFirst({
-          where: { workflow: { code: 'QUOTATION' }, code: 'APPROVED' },
-        });
-        if (approvedState) {
-          await tx.quotation.update({
-            where: { id },
-            data: { workflowStateId: approvedState.id, approvedById: userId, approvedAt: new Date() },
-          });
-        }
+        throw new BadRequestException(
+          'Only APPROVED quotations can be converted to Sales Orders',
+        );
       }
       const rootId = quotation.parentQuotationId || quotation.id;
       const newerVersion = await tx.quotation.findFirst({
@@ -504,14 +489,9 @@ export class QuotationsService {
         await tx.quotation.update({ where: { id }, data: { customerId } });
       }
 
-      const sentToPlantState = await tx.workflowState.findFirst({
-        where: { workflow: { code: 'SALES_ORDER' }, code: 'SENT_TO_PLANT' },
+      const soInitialState = await tx.workflowState.findFirst({
+        where: { workflow: { code: 'SALES_ORDER' }, isInitial: true },
       });
-      const soInitialState =
-        sentToPlantState ||
-        (await tx.workflowState.findFirst({
-          where: { workflow: { code: 'SALES_ORDER' }, isInitial: true },
-        }));
 
       const count = await tx.salesOrder.count();
       const orderNumber = await this.sequenceService.generateNextWithTx(

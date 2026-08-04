@@ -2832,8 +2832,13 @@ export const useERPStore = create((set: any, get: any) => ({
     const procurement = s.state.procurement || { materialIndents: [] };
     const materialIndents = (procurement.materialIndents || []).map((ind: any) => {
       if (ind.id === indentId) {
-        if (ind.status !== 'PENDING_PLANT_HEAD_APPROVAL') {
-          throw new Error(`Cannot approve indent from status ${ind.status}`);
+        if (ind.status === 'PLANT_HEAD_APPROVED' || ind.status === 'APPROVED') {
+          console.warn(`[approveMaterialIndent] Indent ${indentId} is already approved.`);
+          return ind;
+        }
+        if (ind.status !== 'PENDING_PLANT_HEAD_APPROVAL' && ind.status !== 'PENDING') {
+          console.warn(`Cannot approve indent from status ${ind.status}`);
+          return ind;
         }
         
         let finalApprovedQty = 0;

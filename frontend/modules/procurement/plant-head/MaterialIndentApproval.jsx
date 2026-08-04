@@ -125,7 +125,7 @@ export default function MaterialIndentApproval() {
         };
       });
 
-      approveMaterialIndent(selectedIndent.id, finalApprovedItems, remarks || 'Approved by Plant Head', 'Plant Head');
+      await approveMaterialIndent(selectedIndent.id, finalApprovedItems, remarks || 'Approved by Plant Head', 'Plant Head');
       
       await Swal.fire({
         title: 'Indent Approved!',
