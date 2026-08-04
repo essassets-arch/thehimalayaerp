@@ -353,13 +353,12 @@ export class SalesService {
         const productIds = order.items.map((i) => i.productId).filter(Boolean);
         const orderProducts = await tx.product.findMany({
           where: { id: { in: productIds } },
-          select: { id: true, category: true, productType: true },
+          select: { id: true, category: true },
         });
 
         const hasManufacturingProduct = orderProducts.some(
           (p) =>
-            p.productType === 'MANUFACTURING' ||
-            ['FRP COVERS', 'FRP GRATINGS'].includes(p.category || ''),
+            ['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes((p.category || '').toUpperCase()),
         );
 
         if (hasManufacturingProduct) {
