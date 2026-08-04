@@ -35,21 +35,25 @@ export default function DeliveryHistoryPage() {
   const { data: dispatches = [], isLoading } = useQuery<Dispatch[]>({
     queryKey: ["delivery-history-dispatches"],
     queryFn: async () => {
-      const payload = await backendFetch<Dispatch[]>(
+      const payload = await backendFetch<any>(
         "/api/backend/logistics/dispatches?status=DELIVERED",
       );
-      return Array.isArray(payload) ? payload : [];
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.data)) return payload.data;
+      return [];
     },
   });
 
-  const deliveredHistory = dispatches.filter((d) => d.status === "DELIVERED");
+  const deliveredHistory = dispatches.filter(
+    (d) => String(d.status || "").toUpperCase() === "DELIVERED",
+  );
 
   const historyColumns: ColumnDef<Dispatch>[] = [
     {
       accessorKey: "dispatchNo",
       header: "Dispatch Number",
       cell: ({ row }) => (
-        <span className="font-semibold text-gray-700">
+        <span className="font-semibold text-gray-800 text-sm whitespace-nowrap">
           {row.original.dispatchNo}
         </span>
       ),
@@ -58,13 +62,19 @@ export default function DeliveryHistoryPage() {
       id: "customer",
       header: "Customer",
       cell: ({ row }) => (
-        <span>{row.original.salesOrder?.customer?.companyName}</span>
+        <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+          {row.original.salesOrder?.customer?.companyName || "N/A"}
+        </span>
       ),
     },
     {
       accessorKey: "receivedBy",
       header: "Received By",
-      cell: ({ row }) => <span>{row.original.receivedBy || "-"}</span>,
+      cell: ({ row }) => (
+        <span className="text-sm text-gray-600 whitespace-nowrap">
+          {row.original.receivedBy || "N/A"}
+        </span>
+      ),
     },
     {
       id: "deliveredAt",
@@ -74,14 +84,20 @@ export default function DeliveryHistoryPage() {
           ? new Date(row.original.deliveredAt).toLocaleString()
           : "-";
         return (
-          <span className="text-xs text-gray-500 font-medium">{date}</span>
+          <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
+            {date}
+          </span>
         );
       },
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="inline-flex items-center whitespace-nowrap">
+          <StatusBadge status={row.original.status || "DELIVERED"} />
+        </div>
+      ),
     },
   ];
 
@@ -89,56 +105,56 @@ export default function DeliveryHistoryPage() {
     <div className={responsive.flushPage}>
       <div className={`${responsive.content} ${styles.pageFlow}`}>
         <div className={pageStyles.header}>
-        <div className={pageStyles.watermark}>
-          <CheckCircle2 size={140} />
-        </div>
-        <div className={pageStyles.headerMain}>
-          <div className={pageStyles.headerLayout}>
-            <div className={pageStyles.headerCopy}>
-              <span className={pageStyles.eyebrow}>
-                <LayoutGrid size={13} />
-                Logistics
-              </span>
-              <h1 className={pageStyles.title}>
-                Delivery History
-              </h1>
-              <p className={pageStyles.description}>
-                View all shipments that have been successfully delivered to customers.
-              </p>
-            </div>
-            <div className={pageStyles.summary}>
-              <CheckCircle2 className="text-emerald-500 h-7 w-7" />
-              <div className={pageStyles.summaryCount}>
-                <strong>{deliveredHistory.length}</strong>
-                <span>Delivered Shipments</span>
+          <div className={pageStyles.watermark}>
+            <CheckCircle2 size={140} />
+          </div>
+          <div className={pageStyles.headerMain}>
+            <div className={pageStyles.headerLayout}>
+              <div className={pageStyles.headerCopy}>
+                <span className={pageStyles.eyebrow}>
+                  <LayoutGrid size={13} />
+                  Logistics
+                </span>
+                <h1 className={pageStyles.title}>Delivery History</h1>
+                <p className={pageStyles.description}>
+                  View all shipments that have been successfully delivered to customers.
+                </p>
+              </div>
+              <div className={pageStyles.summary}>
+                <CheckCircle2 className="text-emerald-500 h-7 w-7" />
+                <div className={pageStyles.summaryCount}>
+                  <strong>{deliveredHistory.length}</strong>
+                  <span>Delivered Shipments</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className={styles.workspace}>
-        <div className={styles.queueColumn}>
-          <div className={styles.panel}>
-            <h2 className={styles.panelTitle}>
-              <CheckCircle2 className="text-emerald-500 h-5 w-5 mr-2" style={{ display: 'inline' }} />
-              Delivery History
-            </h2>
-            {isLoading ? (
-              <div className="flex justify-center py-8 text-sm text-gray-500 gap-3">
-                <Clock className="animate-spin h-5 w-5 text-indigo-500" />
-                Loading delivery history...
-              </div>
-            ) : (
-              <DataTable
-                columns={historyColumns}
-                data={deliveredHistory}
-                className={styles.tableFrame}
-                emptyMessage="No shipments have been recorded as delivered yet."
-              />
-            )}
+        <div className={styles.workspace}>
+          <div className={styles.queueColumn}>
+            <div className={styles.panel}>
+              <h2 className={styles.panelTitle}>
+                <CheckCircle2 className="text-emerald-500 h-5 w-5 mr-2" style={{ display: 'inline' }} />
+                Completed Shipments Log
+              </h2>
+              {isLoading ? (
+                <div className="flex justify-center py-8 text-sm text-gray-500 gap-3">
+                  <Clock className="animate-spin h-5 w-5 text-indigo-500" />
+                  Loading delivery history...
+                </div>
+              ) : (
+                <div className="w-full overflow-x-auto scrollbar-thin border border-slate-200 rounded-xl bg-white p-2">
+                  <DataTable
+                    columns={historyColumns}
+                    data={deliveredHistory}
+                    className={styles.tableFrame}
+                    emptyMessage="No shipments have been recorded as delivered yet."
+                  />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
