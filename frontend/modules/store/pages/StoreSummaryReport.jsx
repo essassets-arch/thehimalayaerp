@@ -187,32 +187,84 @@ export const StoreSummaryReport = () => {
     return inventoryList.filter(item => item.currentStock <= item.minStockLevel);
   }, [inventoryList]);
 
-  // ── Print & Export Handlers ──
+  // ── Refresh Handler ──
+  const handleRefresh = async () => {
+    await fetchReportData();
+  };
+
+  // ── Print & PDF Handler ──
   const handlePrint = () => {
     window.print();
   };
 
+  // ── Comprehensive Excel CSV Export Handler ──
   const handleExportExcel = () => {
-    const headers = ['Category,Section,Field 1,Field 2,Field 3,Field 4,Field 5,Field 6'];
-    const rows = [
-      'RAW MATERIAL INVENTORY,,,,,,,',
-      'Name,Category,Unit,Opening,Received,Issued,Current Stock,Value(INR)',
-      ...inventoryList.map(i => `"${i.name}","${i.category}","${i.unit}",${i.openingStock},${i.receivedQty},${i.issuedQty},${i.currentStock},${i.stockValue}`),
-      ',,,,,,,',
-      'PURCHASE INDENT SUMMARY,,,,,,,',
-      'Indent No,Date,Department,Requested By,Item Count,Total Qty,Status,Approved By',
-      ...indentList.map(i => `"${i.indentNo}","${i.date}","${i.department}","${i.requestedBy}",${i.itemCount},${i.totalQty},"${i.status}","${i.approvedBy}"`),
-      ',,,,,,,',
-      'LOW STOCK ALERT REPORT,,,,,,,',
-      'Item Name,Current Stock,Min Stock,Required Qty,,,,',
-      ...lowStockItems.map(i => `"${i.name}",${i.currentStock},${i.minStockLevel},${i.minStockLevel * 2 - i.currentStock},,,,`)
-    ];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const lines = [];
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + rows.join('\n');
+    lines.push('THE HIMALAYA ERP - STORE SUMMARY REPORT');
+    lines.push(`Generated Date: ${todayStr}`);
+    lines.push(`Filter Period: ${dateFilter.toUpperCase()}`);
+    lines.push('');
+
+    lines.push('EXECUTIVE INVENTORY SUMMARY METRICS');
+    lines.push('Metric,Value');
+    lines.push(`Total Raw Materials,${summaryMetrics.totalRawCount} SKUs`);
+    lines.push(`Current Inventory Value,₹ ${summaryMetrics.totalVal.toLocaleString('en-IN')}`);
+    lines.push(`Total Purchase Indents,${summaryMetrics.totalIndentsCount} Indents (${summaryMetrics.pendingIndents} Pending)`);
+    lines.push(`Production Material Consumed,${summaryMetrics.totalMaterialConsumed.toLocaleString()} Units`);
+    lines.push(`Total Store Issues,${summaryMetrics.totalIssuesCount} Requisitions`);
+    lines.push(`Low Stock Items Alert,${summaryMetrics.lowStockCount} Items`);
+    lines.push('');
+
+    lines.push('1. RAW MATERIAL INVENTORY LEDGER');
+    lines.push('Raw Material Name,Category,Unit,Opening Stock,Received Qty,Issued Qty,Current Stock,Stock Value (INR),Min Stock Level,Stock Status');
+    inventoryList.forEach(i => {
+      lines.push(`"${i.name}","${i.category}","${i.unit}",${i.openingStock},${i.receivedQty},${i.issuedQty},${i.currentStock},${i.stockValue},${i.minStockLevel},"${i.status}"`);
+    });
+    lines.push('');
+
+    lines.push('2. PURCHASE INDENT SUMMARY');
+    lines.push('Indent No,Date,Department,Requested By,Item Count,Total Quantity,Status,Approved By');
+    indentList.forEach(i => {
+      lines.push(`"${i.indentNo}","${i.date}","${i.department}","${i.requestedBy}",${i.itemCount},${i.totalQty},"${i.status}","${i.approvedBy}"`);
+    });
+    lines.push('');
+
+    lines.push('3. PRODUCTION MATERIAL CONSUMPTION');
+    lines.push('Production Date,Batch No,Product Name,Raw Material Consumed,Consumed Qty,Unit,Production Quantity');
+    productionList.forEach(i => {
+      lines.push(`"${i.date}","${i.batchNo}","${i.productName}","${i.rawMaterial}",${i.consumedQty},"${i.unit}","${i.prodQty}"`);
+    });
+    lines.push('');
+
+    lines.push('4. STORE ISSUE / CONSUMPTION HISTORY');
+    lines.push('Issue Date,Issue No,Department,Item Name,Quantity Issued,Unit,Issued By,Received By');
+    issuedList.forEach(i => {
+      lines.push(`"${i.date}","${i.issueNo}","${i.department}","${i.itemName}",${i.qty},"${i.unit}","${i.issuedBy}","${i.receivedBy}"`);
+    });
+    lines.push('');
+
+    lines.push('5. DEPARTMENT-WISE CONSUMPTION BREAKDOWN');
+    lines.push('Department,Qty Issued (Pcs),Total Value (INR)');
+    departmentConsumption.rows.forEach(r => {
+      lines.push(`"${r.dept}",${r.qty},${r.val}`);
+    });
+    lines.push(`"Total Department Consumption",${departmentConsumption.totalQty},${departmentConsumption.totalVal}`);
+    lines.push('');
+
+    lines.push('6. LOW STOCK REPORT');
+    lines.push('Item Name,Current Stock,Minimum Stock,Required Quantity To Reorder');
+    lowStockItems.forEach(i => {
+      const req = Math.max(0, i.minStockLevel * 2 - i.currentStock);
+      lines.push(`"${i.name}",${i.currentStock},${i.minStockLevel},${req}`);
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + lines.join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Store_Summary_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Store_Summary_Report_${todayStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -221,8 +273,37 @@ export const StoreSummaryReport = () => {
   return (
     <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b' }}>
       
+      {/* Printable Styling */}
+      <style>{`
+        @media print {
+          body { background: #ffffff !important; color: #000000 !important; }
+          .no-print { display: none !important; }
+          .print-header { display: block !important; margin-bottom: 20px; }
+          div { box-shadow: none !important; border-color: #cbd5e1 !important; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+        }
+        .print-header { display: none; }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+      `}</style>
+
+      {/* Print-only Official Header */}
+      <div className="print-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '12px' }}>
+          <div>
+            <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', margin: 0 }}>THE HIMALAYA ERP</h1>
+            <p style={{ fontSize: '14px', fontWeight: '800', color: '#0284c7', margin: '2px 0 0 0' }}>STORE SUMMARY REPORT</p>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '12px', color: '#475569' }}>
+            <div>Date: {new Date().toLocaleDateString('en-IN')}</div>
+            <div>Report Filter: {dateFilter.toUpperCase()}</div>
+          </div>
+        </div>
+      </div>
+      
       {/* ── Header Title & Actions ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', padding: '10px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)' }}>
@@ -239,24 +320,24 @@ export const StoreSummaryReport = () => {
           </div>
         </div>
 
-        {/* Global Export Buttons */}
+        {/* Global Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
-            onClick={fetchReportData}
+            onClick={handleRefresh}
             disabled={loading}
-            style={{ background: '#ffffff', color: '#0284c7', border: '1.5px solid #cbd5e1', padding: '9px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{ background: '#ffffff', color: '#0284c7', border: '1.5px solid #cbd5e1', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
           >
             <RefreshCw size={15} className={loading ? 'spin' : ''} /> {loading ? 'Syncing...' : 'Refresh'}
           </button>
           <button
             onClick={handleExportExcel}
-            style={{ background: '#10b981', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)' }}
+            style={{ background: '#10b981', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)' }}
           >
             <FileSpreadsheet size={16} /> Export Excel
           </button>
           <button
             onClick={handlePrint}
-            style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)' }}
+            style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)' }}
           >
             <Printer size={16} /> Print / PDF
           </button>
@@ -264,7 +345,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Date Filter Bar ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '14px 18px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div className="no-print" style={{ background: '#ffffff', borderRadius: '14px', padding: '14px 18px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Calendar size={18} color="#0284c7" />
           <span style={{ fontSize: '13px', fontWeight: '800', color: '#334155' }}>Date Range Filter:</span>
