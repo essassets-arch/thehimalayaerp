@@ -20,7 +20,7 @@ export class InventoryController {
     return this.inventoryService.createTransaction(user.companyId, dto);
   }
 
-  @RequirePermissions('inventory.inventory.read')
+  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'logistics.dispatches.read')
   @Get('transactions')
   getTransactions(
     @CurrentUser() user: any,
@@ -34,7 +34,7 @@ export class InventoryController {
     );
   }
 
-  @RequirePermissions('inventory.inventory.read')
+  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'logistics.dispatches.read')
   @Get('stock-levels')
   getStockLevels(
     @CurrentUser() user: any,
