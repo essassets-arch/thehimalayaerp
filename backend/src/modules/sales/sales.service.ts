@@ -33,21 +33,35 @@ export class SalesService {
     userId?: string,
     role?: string,
   ): Promise<SalesOrderListResponseDto> {
-    const { page = 1, pageSize = 25, search } = query;
+    const { page = 1, pageSize = 100, search, status } = query;
     const skip = (page - 1) * pageSize;
     const take = pageSize;
-    const scope = getSalesScope(userId, role, 'createdById');
+    const isDispatchScope = status === ('READY_FOR_DISPATCH' as any) || role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN';
+    const scope = isDispatchScope ? {} : getSalesScope(userId, role, 'createdById');
     const where: Prisma.SalesOrderWhereInput = { ...scope };
-    if (search) {
+
+    if (status) {
       where.OR = [
-        { orderNumber: { contains: search, mode: 'insensitive' } },
-        { customerPurchaseOrderNo: { contains: search, mode: 'insensitive' } },
-        {
-          customer: { companyName: { contains: search, mode: 'insensitive' } },
-        },
+        { status: status as any },
+        { workflowState: { code: status } },
       ];
     }
-    // Dynamic statuses are not part of query natively anymore, but could be filtered via workflowStateId
+
+    if (search) {
+      const searchOR: Prisma.SalesOrderWhereInput[] = [
+        { orderNumber: { contains: search, mode: Prisma.QueryMode.insensitive } },
+        { customerPurchaseOrderNo: { contains: search, mode: Prisma.QueryMode.insensitive } },
+        {
+          customer: { companyName: { contains: search, mode: Prisma.QueryMode.insensitive } },
+        },
+      ];
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchOR }];
+        delete where.OR;
+      } else {
+        where.OR = searchOR;
+      }
+    }
 
     const [total, records] = await this.prisma.$transaction([
       this.prisma.salesOrder.count({ where }),
