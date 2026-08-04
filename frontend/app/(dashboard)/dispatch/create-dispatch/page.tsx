@@ -114,6 +114,23 @@ export default function CreateDispatchPage() {
   const workOrderId = searchParams.get("workOrderId");
   const salesOrderId = searchParams.get("salesOrderId");
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [dispatchQuantities, setDispatchQuantities] = useState<Record<string, number>>({});
+  const [deliveryAddresses, setDeliveryAddresses] = useState<Record<string, string>>({});
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<string>("");
+  const [totalWeight, setTotalWeight] = useState<number>(0);
+  const [vehicleNumber, setVehicleNumber] = useState<string>("");
+  const [transporterName, setTransporterName] = useState<string>("");
+  const [driverName, setDriverName] = useState<string>("");
+  const [driverPhone, setDriverPhone] = useState<string>("");
+  const [dispatchRemarks, setDispatchRemarks] = useState<string>("");
+  const [invoiceNumber, setInvoiceNumber] = useState<string>("");
+  const [ewayBillNumber, setEwayBillNumber] = useState<string>("");
+  const [actualFreightPaidAmount, setActualFreightPaidAmount] = useState<number>(0);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const initialSelectionSet = React.useRef(false);
+
   // Fetch the complete pending queue so multiple compatible lines can be
   // consolidated into one dispatch.
   const {

@@ -50,7 +50,7 @@ export default function DispatchPortal() {
       const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes] = await Promise.allSettled([
         backendFetch('/api/backend/logistics/dispatches'),
         backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH'),
-        backendFetch('/api/backend/returns'),
+        backendFetch('/api/backend/sales-returns'),
         backendFetch('/api/backend/replacements'),
       ]);
 

@@ -25,7 +25,7 @@ export class SalesReturnsController {
     return this.returnsService.requestReturn(requestDto, userId);
   }
 
-  @RequirePermissions('sales.salesreturns.read')
+  @RequirePermissions('sales.salesreturns.read', 'logistics.dispatches.read')
   @Get()
   findAll(@Req() req: any) {
     const companyId = req.headers['x-company-id'] || req.user?.companyId;
