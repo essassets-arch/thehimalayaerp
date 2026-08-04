@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   FileText, Download, Printer, Filter, Calendar, Package, DollarSign,
   ClipboardList, Factory, Truck, AlertTriangle, CheckCircle, Clock,
-  RefreshCw, Search, Layers, ArrowUpRight, ShieldAlert, FileSpreadsheet
+  RefreshCw, Search, Layers, ArrowUpRight, ShieldAlert, FileSpreadsheet, Building
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
 import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';

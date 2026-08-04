@@ -36,7 +36,7 @@ export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Get()
-  @RequirePermissions('sales.orders.read', 'logistics.dispatches.read')
+  @RequirePermissions('sales.orders.read', 'logistics.dispatches.read', 'store.read', 'store.view', 'store.materials.read')
   async listOrders(
     @Query() query: ListSalesOrdersQueryDto,
     @Req() req: any,
@@ -45,7 +45,7 @@ export class SalesController {
   }
 
   @Get(':id')
-  @RequirePermissions('sales.orders.read', 'logistics.dispatches.read')
+  @RequirePermissions('sales.orders.read', 'logistics.dispatches.read', 'store.read', 'store.view', 'store.materials.read')
   async getOrder(@Param('id') id: string, @Req() req: any): Promise<any> {
     return this.salesService.getOrder(id, req.user?.sub, req.user?.role);
   }
