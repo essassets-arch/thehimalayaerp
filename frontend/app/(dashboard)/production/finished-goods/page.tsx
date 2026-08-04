@@ -173,9 +173,9 @@ export default function FinishedGoodsPage() {
           <Package size={22} />
         </div>
         <div className={styles.heroText}>
-          <span className={styles.eyebrow}>Inventory</span>
-          <h1>Finished Goods</h1>
-          <p>View final approved production goods ready for dispatch.</p>
+          <span className={styles.eyebrow}>Factory Staging Area</span>
+          <h1>Production Finished Goods</h1>
+          <p>Production department staging table for QC-approved finished goods awaiting handoff to Dispatch.</p>
         </div>
         <div className={styles.summaryBadge}>
           <strong>{activeTab === "ready" ? readyCount : historyCount}</strong>

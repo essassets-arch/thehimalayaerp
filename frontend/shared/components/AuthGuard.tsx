@@ -110,6 +110,33 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, [logout, router]);
 
+function getUserRoleName(rawRole: any): string {
+  if (!rawRole) return '';
+  if (typeof rawRole === 'string') return rawRole;
+  if (typeof rawRole === 'object') {
+    if (rawRole.name) return String(rawRole.name);
+    if (rawRole.code) {
+      const codeMap: Record<string, string> = {
+        SUPER_ADMIN: 'Super Admin',
+        ADMIN: 'Admin',
+        SALES_EXECUTIVE: 'Sales Executive',
+        SALES_MANAGER: 'Sales Manager',
+        PLANT_HEAD: 'Plant Head',
+        PRODUCTION_PLANNER: 'Production Planner',
+        PRODUCTION_OPERATOR: 'Production Operator',
+        QC_INSPECTOR: 'QC Inspector',
+        DISPATCH_EXECUTIVE: 'Dispatch Executive',
+        FINANCE_EXECUTIVE: 'Finance Executive',
+        FINANCE_MANAGER: 'Finance Manager',
+        STORE_MANAGER: 'Store Manager',
+        HR: 'HR',
+      };
+      if (codeMap[rawRole.code]) return codeMap[rawRole.code];
+    }
+  }
+  return String(rawRole);
+}
+
   // Role-based access control check (once allowed)
   useEffect(() => {
     if (status !== 'allowed' || !pathname) return;
@@ -118,14 +145,25 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     const allowedRoles = ROUTE_ROLE_MAP[pathSegment];
 
     if (allowedRoles && allowedRoles.length > 0) {
-      const userRole = role || user?.role;
-      if (userRole && !allowedRoles.includes(userRole)) {
-        // Redirect to their default dashboard
-        const defaultPath = getDefaultPath(userRole);
+      const activeRoleName = getUserRoleName(role || user?.role);
+      
+      // Super Admin and Admin bypass route checks
+      if (activeRoleName === 'Super Admin' || activeRoleName === 'Admin') {
+        return;
+      }
+
+      if (!activeRoleName || !allowedRoles.includes(activeRoleName)) {
+        // Block render & redirect to role default path
+        const defaultPath = getDefaultPath(activeRoleName);
+        if (typeof window !== 'undefined') {
+          import('sonner').then(({ toast }) => {
+            toast.error('Access Denied: You do not have permission to view this module.');
+          });
+        }
         router.replace(defaultPath);
       }
     }
-  }, [status, pathname, role, user]);
+  }, [status, pathname, role, user, router]);
 
   if (status === 'checking') {
     return (
@@ -173,6 +211,7 @@ function getDefaultPath(role: string): string {
     'Store': '/store/dashboard',
     'Store Manager': '/store/dashboard',
     'QC': '/qc/dashboard',
+    'QC Inspector': '/qc/dashboard',
     'Dispatch': '/dispatch/dashboard',
     'Dispatch Executive': '/dispatch/dashboard',
     'Finance': '/finance/dashboard',

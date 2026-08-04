@@ -17,9 +17,17 @@ export function getModuleKeyFromPath(pathname) {
 }
 
 export function getNavigationForPath(pathname, role) {
+  let roleName = '';
+  if (role) {
+    if (typeof role === 'string') roleName = role;
+    else if (typeof role === 'object') roleName = role.name || role.code || '';
+  }
+
+  // Super Admin & Admin can navigate anywhere and morph navigation to that module
+  const isSuperOrAdmin = roleName === 'Super Admin' || roleName === 'Admin' || roleName === 'SUPER_ADMIN' || roleName === 'ADMIN';
+
   const moduleKey = getModuleKeyFromPath(pathname);
-  
-  if (moduleKey && navigationConfig[moduleKey]) {
+  if (isSuperOrAdmin && moduleKey && navigationConfig[moduleKey]) {
     return navigationConfig[moduleKey];
   }
 
