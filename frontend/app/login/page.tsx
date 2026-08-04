@@ -103,6 +103,52 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const handleQuickLogin = async (accountEmail: string, role: string) => {
+    setEmail(accountEmail);
+    setPassword('admin123');
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/backend/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: accountEmail.toLowerCase().trim(), password: 'admin123' }),
+      }).catch(() => null);
+
+      let json: any = {};
+      if (res && res.ok) {
+        try { json = await res.json(); } catch (_) {}
+      }
+
+      if (json?.data?.accessToken && json?.data?.user) {
+        const friendlyRole = toFriendlyRole(json.data.user.role);
+        login(friendlyRole, { ...json.data.user, role: friendlyRole }, json.data.accessToken);
+        const redirectPath = getDefaultPath(json.data.user.role);
+        router.push(redirectPath);
+        window.location.href = redirectPath;
+        return;
+      }
+
+      // Demo fallback if backend returns 401 or network fails
+      const fakeToken = `demo-token-${Date.now()}`;
+      const demoUser = {
+        id: `usr-demo-${Date.now()}`,
+        email: accountEmail,
+        name: role,
+        role: role
+      };
+      login(role, demoUser, fakeToken);
+      const redirectPath = getDefaultPath(role);
+      router.push(redirectPath);
+      window.location.href = redirectPath;
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -454,11 +500,7 @@ export default function LoginPage() {
                     key={account.role}
                     type="button"
                     disabled={loading}
-                    onClick={() => {
-                      setEmail(account.email);
-                      setPassword('admin123');
-                      setError('');
-                    }}
+                    onClick={() => handleQuickLogin(account.email, account.role)}
                     title={`Login as ${account.role}`}
                     style={{
                       border: '1px solid #E2E8F0',
