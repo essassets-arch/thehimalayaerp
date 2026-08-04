@@ -9,13 +9,19 @@ import {
   FileCheck, RotateCcw, Wrench, Activity, DollarSign
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
-import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import {
+  ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
+} from 'recharts';
 
 export const PlantHeadDashboard = () => {
   // ── Active Tab State (10 Dashboard Tabs) ──
   const [activeTab, setActiveTab] = useState('executive_overview');
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Drill-down State
   const [drillLevel, setDrillLevel] = useState({ plant: 'Main Plant', unit: 'Unit-01', line: 'All Lines', machine: 'All Machines' });
@@ -383,37 +389,41 @@ export const PlantHeadDashboard = () => {
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <BarChart3 size={18} color="#0284c7" /> Category-Wise Production (Planned vs Actual)
               </h3>
-              <div style={{ width: '100%', height: '250px', minHeight: '250px', minWidth: 0, overflow: 'hidden' }}>
-                <ResponsiveChartWrapper minHeight={250}>
-                  <BarChart data={categoryProductionData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="category" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Bar dataKey="planned" fill="#cbd5e1" name="Planned Output (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-                    <Bar dataKey="actual" fill="#0284c7" name="Actual Achieved (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-                  </BarChart>
-                </ResponsiveChartWrapper>
+              <div style={{ width: '100%', height: '250px', minHeight: '250px' }}>
+                {mounted && (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={categoryProductionData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="category" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: '12px' }} />
+                      <Bar dataKey="planned" fill="#cbd5e1" name="Planned Output (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                      <Bar dataKey="actual" fill="#0284c7" name="Actual Achieved (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
             {/* Product-wise Production Donut Chart */}
-            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0 }}>
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Package size={18} color="#10b981" /> Product-Wise Production Output Distribution
               </h3>
-              <div style={{ width: '100%', height: '250px', minHeight: '250px', minWidth: 0, overflow: 'hidden' }}>
-                <ResponsiveChartWrapper minHeight={250}>
-                  <PieChart>
-                    <Pie data={productProductionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} label={({ name, value }) => `${name}: ${value}`} isAnimationActive={false}>
-                      {productProductionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveChartWrapper>
+              <div style={{ width: '100%', height: '250px', minHeight: '250px' }}>
+                {mounted && (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={productProductionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} label={({ name, value }) => `${name}: ${value}`} isAnimationActive={false}>
+                        {productProductionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 

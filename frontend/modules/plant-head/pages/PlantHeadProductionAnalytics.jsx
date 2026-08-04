@@ -6,9 +6,8 @@ import {
   Layers, Cpu, Zap, Award, CheckCircle, ArrowUpRight, Clock, FileSpreadsheet
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
-import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
 import {
-  ComposedChart, Bar, Line, PieChart, Pie, Cell, XAxis, YAxis,
+  ResponsiveContainer, ComposedChart, Bar, Line, PieChart, Pie, Cell, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend
 } from 'recharts';
 
@@ -18,6 +17,11 @@ export const PlantHeadProductionAnalytics = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Dynamic Datasets
   const [analyticsData, setAnalyticsData] = useState(null);
@@ -57,7 +61,7 @@ export const PlantHeadProductionAnalytics = () => {
       return analyticsData.trend.map((t, idx) => ({
         day: t.month || `Day ${idx + 1}`,
         qty: Number(t.volume || 400) * 10,
-        weight: (Number(t.volume || 400) * 0.025).toFixed(1)
+        weight: Number((Number(t.volume || 400) * 0.025).toFixed(1))
       }));
     }
     return [
@@ -269,42 +273,46 @@ export const PlantHeadProductionAnalytics = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px', marginBottom: '24px' }}>
         
         {/* Chart 1: Daily Production Output (Qty vs Weight) */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0 }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BarChart3 size={18} color="#0284c7" /> Daily Production Output (Qty vs Weight)
           </h3>
-          <div style={{ width: '100%', height: '260px', minHeight: '260px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={260}>
-              <ComposedChart data={dailyOutputData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" orientation="left" stroke="#0284c7" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar yAxisId="left" dataKey="qty" fill="#0284c7" name="Quantity Output (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-                <Line yAxisId="right" type="monotone" dataKey="weight" stroke="#10b981" strokeWidth={3} name="Total Weight (Tons)" isAnimationActive={false} />
-              </ComposedChart>
-            </ResponsiveChartWrapper>
+          <div style={{ width: '100%', height: '260px', minHeight: '260px' }}>
+            {mounted && (
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={dailyOutputData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="left" orientation="left" stroke="#0284c7" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar yAxisId="left" dataKey="qty" fill="#0284c7" name="Quantity Output (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                  <Line yAxisId="right" type="monotone" dataKey="weight" stroke="#10b981" strokeWidth={3} name="Total Weight (Tons)" isAnimationActive={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         {/* Chart 2: Category Wise Volume Distribution */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0 }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Layers size={18} color="#10b981" /> Category Wise Volume Distribution
           </h3>
-          <div style={{ width: '100%', height: '260px', minHeight: '260px', minWidth: 0, overflow: 'hidden' }}>
-            <ResponsiveChartWrapper minHeight={260}>
-              <PieChart>
-                <Pie data={categoryVolumeData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} label={({ name, value }) => `${name}: ${value.toLocaleString()}`} isAnimationActive={false}>
-                  {categoryVolumeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveChartWrapper>
+          <div style={{ width: '100%', height: '260px', minHeight: '260px' }}>
+            {mounted && (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={categoryVolumeData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} label={({ name, value }) => `${name}: ${value.toLocaleString()}`} isAnimationActive={false}>
+                    {categoryVolumeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
