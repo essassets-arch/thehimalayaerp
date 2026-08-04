@@ -471,7 +471,7 @@ export default function CreateQuotation({
 
     if (isSubmitting) return;
 
-    if (!selectedCustomerRecord && !manualCustomerName.trim()) {
+    if (!selectedCustomerRecord && !(customerName || '').trim()) {
       alert('Please select or specify a Customer/Lead for this proposal.');
       return;
     }
@@ -481,10 +481,10 @@ export default function CreateQuotation({
     }
 
     const payload = {
-      customerName: selectedCustomerRecord?.name || manualCustomerName.trim(),
-      groupName: selectedCustomerRecord?.groupName || manualGroupName.trim(),
-      gstName: selectedCustomerRecord?.gstName || manualGstName.trim() || selectedCustomerRecord?.name || manualCustomerName.trim(),
-      gstNumber: selectedCustomerRecord?.gstNumber || manualGstNumber.trim(),
+      customerName: selectedCustomerRecord?.name || (customerName || '').trim(),
+      groupName: selectedCustomerRecord?.groupName || (groupName || '').trim(),
+      gstName: selectedCustomerRecord?.gstName || (gstName || '').trim() || selectedCustomerRecord?.name || (customerName || '').trim(),
+      gstNumber: selectedCustomerRecord?.gstNumber || (gstNumber || '').trim(),
       salesperson: salespersonName,
       items: items.map((item) => {
         const itemQty = Number(item.quantity) || 0;
