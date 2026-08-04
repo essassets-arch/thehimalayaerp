@@ -382,7 +382,7 @@ export const StoreDashboard = () => {
 
   return (
     <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b' }}>
-      
+
       {/* ── Page Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -420,17 +420,8 @@ export const StoreDashboard = () => {
 
       {/* ── 12 Executive KPI Cards Grid ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        
-        {/* 1. Total Inventory Value */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>💰 Inventory Value</div>
-          <div style={{ fontSize: '20px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>
-            ₹{(kpiData.totalVal / 100000).toFixed(2)} L
-          </div>
-          <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <ArrowUpRight size={13} /> Live dynamic valuation
-          </div>
-        </div>
+
+
 
         {/* 2. Total SKUs */}
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #3b82f6' }}>
