@@ -7,9 +7,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Browser certification runs use an isolated build directory so they do not
   // contend with a developer's running Next.js instance.
-  distDir: process.env.NEXT_DIST_DIR || ".next",
-  eslint: {
-    ignoreDuringBuilds: true,
+  turbopack: {
+    root: path.resolve(__dirname, '..'),
   },
   typescript: {
     ignoreBuildErrors: true,
