@@ -113,6 +113,17 @@ function formatAddress(salesOrder?: SalesOrder, customer?: Customer): string {
   );
 }
 
+function isTradingProduct(item: any): boolean {
+  if (!item) return false;
+  const type = (item.productType || item.product?.productType || '').toUpperCase();
+  const cat = (item.category || item.product?.category || item.brand || '').toUpperCase();
+  const name = (item.productNameSnapshot || item.productName || item.name || '').toLowerCase();
+  if (type === 'TRADING') return true;
+  if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER'].includes(cat)) return true;
+  if (name.includes('wcb') || name.includes('coverblock')) return true;
+  return false;
+}
+
 interface UnifiedPendingDispatchItem {
   id: string;
   itemType: 'WORK_ORDER' | 'TRADING_SALES_ORDER';
@@ -211,6 +222,12 @@ export default function DispatchOrdersPage() {
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
         if (items.length > 0) {
           items.forEach((item: any, idx: number) => {
+            if (!isTradingProduct(item)) {
+              // Manufacturing products MUST go through Plant Head -> Work Order -> QC -> Dispatch.
+              // They cannot appear directly in trading sales order dispatch queue.
+              return;
+            }
+
             const alreadyDispatched = Array.isArray(item.dispatchItems)
               ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
               : 0;
