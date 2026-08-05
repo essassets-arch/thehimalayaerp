@@ -25,7 +25,8 @@ if [ ! -f ".env" ]; then
 fi
 
 echo "📥 Step 1: Pulling latest changes from Git..."
-git pull --ff-only
+git checkout scripts/deploy-vps.sh 2>/dev/null || true
+git pull --ff-only || (git stash && git pull --ff-only)
 
 echo ""
 echo "📦 Step 2: Building updated Docker images..."
