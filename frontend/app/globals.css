@@ -632,11 +632,7 @@ textarea {
 
 /* Stat cards row at the bottom of hero */
 .hero-bottom-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 20px;
+  display: none !important;
 }
 
 .hero-stats-group {
@@ -3078,7 +3074,7 @@ textarea {
 .mobile-bottom-nav,
 .more-menu-backdrop,
 .more-menu-sheet {
-  display: none;
+  display: none !important;
 }
 
 /* ── MOBILE DESIGN MEDIA QUERY ── */
@@ -3086,7 +3082,7 @@ textarea {
 
   /* Mobile Sticky Bottom Navigation */
   .mobile-bottom-nav {
-    display: flex;
+    display: none !important;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -5385,6 +5381,8 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  width: 100%;
+  max-width: 100%;
   padding: 8px 0 24px 0;
   animation: sdb-fade-in 0.4s ease-out;
 }

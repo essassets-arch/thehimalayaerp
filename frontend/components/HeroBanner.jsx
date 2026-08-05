@@ -731,55 +731,7 @@ export default function HeroBanner({
         </div>
       )}
 
-      {/* Bottom Stat cards row */}
-      {isDashboard && stats.length > 0 && (
-        <div className="hero-bottom-row">
-          <div className="hero-stats-group">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div 
-                  key={stat.id}
-                  className={`glass-stat-card ${stat.theme}`}
-                  onClick={() => onActionClick?.(stat.action, stat.msg)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="glass-stat-label">
-                    <div className="glass-stat-label-left">
-                      <Icon size={14} strokeWidth={2.2} />
-                      <span>{stat.title}</span>
-                    </div>
-                    <span 
-                      className="glass-stat-more" 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        onActionClick?.('Stats More', `Configuring ${stat.title} metrics...`); 
-                      }}
-                    >
-                      ···
-                    </span>
-                  </div>
-                  <div className="glass-stat-main">
-                    <div className="glass-stat-value-group">
-                      <span className="glass-stat-value">
-                        {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
-                      </span>
-                      {stat.subtext && (
-                        <span className="glass-stat-subtext">
-                          {stat.subtext}
-                        </span>
-                      )}
-                    </div>
-                    <div className="glass-stat-arrow">
-                      <ArrowUpRight size={12} strokeWidth={3} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+
 
       <style>{`
         @keyframes notifPop {

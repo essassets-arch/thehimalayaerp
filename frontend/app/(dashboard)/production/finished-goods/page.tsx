@@ -52,12 +52,19 @@ export default function FinishedGoodsPage() {
 
   const allItems = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
-  const readyCount = useMemo(() => allItems.filter((i) => i.status === "AVAILABLE").length, [allItems]);
-  const historyCount = useMemo(() => allItems.filter((i) => i.status !== "AVAILABLE").length, [allItems]);
+  const isAwaitingHandoff = (status?: string) => {
+    if (!status) return true;
+    const s = String(status).toUpperCase();
+    // Items awaiting Production Manager to click "Send to Dispatch"
+    return ['AVAILABLE', 'QC_APPROVED', 'PASSED', 'STAGED', 'PENDING_HANDOFF', 'IN_STAGING'].includes(s);
+  };
+
+  const readyCount = useMemo(() => allItems.filter((i) => isAwaitingHandoff(i.status)).length, [allItems]);
+  const historyCount = useMemo(() => allItems.filter((i) => !isAwaitingHandoff(i.status)).length, [allItems]);
 
   const filteredData = useMemo(() => {
-    const readyItems = allItems.filter((i) => i.status === "AVAILABLE");
-    const historyItems = allItems.filter((i) => i.status !== "AVAILABLE");
+    const readyItems = allItems.filter((i) => isAwaitingHandoff(i.status));
+    const historyItems = allItems.filter((i) => !isAwaitingHandoff(i.status));
     const base = activeTab === "ready" ? readyItems : historyItems;
     if (!search) return base;
     const lower = search.toLowerCase();
@@ -73,10 +80,9 @@ export default function FinishedGoodsPage() {
       await backendFetch(`/api/backend/production/work-orders/${woId}/send-to-dispatch`, {
         method: "POST",
       });
-      toast.success("Sent to Dispatch");
+      toast.success("Work Order sent to Dispatch successfully!");
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
       queryClient.invalidateQueries({ queryKey: ["dispatch-orders"] });
-      router.push("/dispatch/orders");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send to dispatch");
     }

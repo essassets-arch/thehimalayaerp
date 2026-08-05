@@ -102,22 +102,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const hasMore = secondaryBottomNavItems.length > 0;
 
   const getRoleStats = () => {
-    if (user?.role === 'Super Admin') return [];
-
-    const orders = state.orders || [];
-    const samples = state.samples || [];
-    const rawInv = state.rawInventory || [];
-
-    const runningOrders = orders.filter((o: any) => o.productionStatus === 'Running').length;
-    const pendingSamples = samples.filter((s: any) => s.status === 'Pending').length;
-    const lowStock = rawInv.filter((i: any) => i.stock <= i.reorderLevel).length;
-
-    return [
-      { id: 'role-title', title: 'Session Role', value: user?.role || 'Guest', subtext: 'Access Level Active', theme: 'students-theme', icon: Award, action: 'Role', msg: `Logged in as ${user?.role}` },
-      { id: 'active-orders', title: 'Running Orders', value: runningOrders, subtext: 'Production Running', theme: 'blue-theme', icon: Wrench, action: 'Orders', msg: 'Navigating to Orders...' },
-      { id: 'pending-requests', title: 'Low Stock Items', value: lowStock, subtext: 'Awaiting Refill', theme: 'amber-theme', icon: Box, action: 'Stock', msg: 'Awaiting restocking check...' },
-      { id: 'pending-samples', title: 'Pending Samples', value: pendingSamples, subtext: 'Testing Queue', theme: 'faculty-theme', icon: ShieldAlert, action: 'Samples', msg: 'Navigating to Samples...' }
-    ];
+    return [];
   };
 
   // Hydration fix for Zustand
@@ -195,121 +180,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Dynamic Toast notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      {/* Mobile Sticky Bottom Navigation */}
-      <div className="mobile-bottom-nav">
-        {primaryBottomNavItems.map((item: any) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.path;
-          const badgeKey = getBadgeKey(item.id, user?.role);
-          const badge = badges[badgeKey];
-          return (
-            <div
-              key={item.id}
-              className={`mobile-nav-item ${isActive ? 'active' : ''}`}
-              style={{ position: 'relative' }}
-              onClick={() => {
-                router.push(item.path);
-                setIsMoreMenuOpen(false);
-              }}
-            >
-              <Icon size={20} />
-              <span>{item.label}</span>
-              {badge && badge.count > 0 && (
-                <span 
-                  style={{
-                    position: 'absolute',
-                    top: '0px',
-                    right: '8px',
-                    minWidth: '16px',
-                    height: '16px',
-                    borderRadius: '50%',
-                    fontSize: '9px',
-                    fontWeight: '800',
-                    color: '#ffffff',
-                    backgroundColor: '#ef4444',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0 3px',
-                    lineHeight: 1,
-                    boxShadow: '0 1px 4px rgba(239,68,68,0.5)',
-                  }}
-                >
-                  {badge.count > 9 ? '9+' : badge.count}
-                </span>
-              )}
-            </div>
-          );
-        })}
-
-        {hasMore && (
-          <div
-            className={`mobile-nav-item ${secondaryBottomNavItems.some((item: any) => pathname === item.path) ? 'active' : ''}`}
-            onClick={() => setIsMoreMenuOpen(prev => !prev)}
-          >
-            <MoreHorizontal size={20} />
-            <span>More</span>
-          </div>
-        )}
-      </div>
-
-      {/* More Menu Backdrop Overlay */}
-      <div
-        className={`more-menu-backdrop ${isMoreMenuOpen ? 'open' : ''}`}
-        onClick={() => setIsMoreMenuOpen(false)}
-      ></div>
-
-      {/* More Menu Bottom Drawer Sheet */}
-      <div className={`more-menu-sheet ${isMoreMenuOpen ? 'open' : ''}`}>
-        <div className="more-menu-handle" onClick={() => setIsMoreMenuOpen(false)}></div>
-        <h3 className="more-menu-title">Select Module</h3>
-        <div className="more-menu-grid">
-          {secondaryBottomNavItems.map((item: any) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.path;
-            const badgeKey = getBadgeKey(item.id, user?.role);
-            const badge = badges[badgeKey];
-            return (
-              <div
-                key={item.id}
-                className={`more-menu-item ${isActive ? 'active' : ''}`}
-                style={{ position: 'relative' }}
-                onClick={() => {
-                  router.push(item.path);
-                  setIsMoreMenuOpen(false);
-                }}
-              >
-                <Icon size={24} />
-                <span>{item.label}</span>
-                {badge && badge.count > 0 && (
-                  <span 
-                    style={{
-                      position: 'absolute',
-                      top: '6px',
-                      right: '12px',
-                      minWidth: '18px',
-                      height: '18px',
-                      borderRadius: '50%',
-                      fontSize: '9px',
-                      fontWeight: '800',
-                      color: '#ffffff',
-                      backgroundColor: '#ef4444',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0 3px',
-                      lineHeight: 1,
-                      boxShadow: '0 1px 4px rgba(239,68,68,0.5)',
-                    }}
-                  >
-                    {badge.count > 9 ? '9+' : badge.count}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
     </ERPProvider>
     </AuthGuard>

@@ -1,4 +1,4 @@
-.sales-dashboard { width: 100%; max-width: 1600px; min-width: 0; margin: 0 auto; padding: 8px 24px 32px !important; box-sizing: border-box; overflow-x: hidden; }
+.sales-dashboard { width: 100% !important; max-width: 100% !important; min-width: 0; margin: 0 !important; padding: 8px 0px 32px !important; box-sizing: border-box; overflow-x: hidden; }
 .sales-dashboard *, .sales-dashboard *::before, .sales-dashboard *::after { box-sizing: border-box; }
 .sales-dashboard > * { width: 100%; min-width: 0; }
 .sales-dashboard .sales-info-bar, .sales-dashboard .sales-dashboard-filters, .sales-dashboard .sales-flow-pipeline { width: 100%; min-width: 0; }

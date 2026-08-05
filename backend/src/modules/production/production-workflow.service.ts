@@ -576,37 +576,7 @@ export class ProductionWorkflowService {
   }
 
   async getFinishedGoods(companyId?: string) {
-    const whereClause: any = {
-      status: {
-        in: [
-          'AVAILABLE',
-          'PARTIALLY_ALLOCATED',
-          'ALLOCATED',
-          'READY_FOR_DISPATCH',
-          'DISPATCHED',
-        ],
-      },
-    };
-
-    if (companyId) {
-      whereClause.OR = [
-        {
-          workOrder: {
-            productionPlan: {
-              salesOrder: {
-                customer: { companyId },
-              },
-            },
-          },
-        },
-        {
-          product: { companyId },
-        },
-      ];
-    }
-
     const records = await this.prisma.finishedGoods.findMany({
-      where: whereClause,
       include: {
         product: true,
         workOrder: {
@@ -627,7 +597,58 @@ export class ProductionWorkflowService {
       orderBy: { receivedAt: 'desc' },
     });
 
-    return records.map((entry: any) => {
+    const existingWoIds = new Set(records.map((r: any) => r.workOrderId).filter(Boolean));
+
+    const qcApprovedWorkOrders = await this.prisma.workOrder.findMany({
+      where: {
+        OR: [
+          { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] } },
+          { qcInspections: { some: { status: { in: ['PASSED', 'APPROVED'] } } } },
+        ],
+      },
+      include: {
+        salesOrderItem: { include: { product: true } },
+        productionPlan: {
+          include: { salesOrder: { include: { customer: true } } },
+        },
+        qcInspections: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
+
+    const syntheticRecords = qcApprovedWorkOrders
+      .filter((wo) => !existingWoIds.has(wo.id))
+      .map((wo: any) => {
+        const so = wo.productionPlan?.salesOrder;
+        const customer = so?.customer;
+        const item = wo.salesOrderItem;
+        const product = item?.product;
+        const qcApprovedQty = wo.qcInspections?.[0]?.approvedQuantity || wo.quantity || 1;
+
+        return {
+          id: `fg-wo-${wo.id}`,
+          workOrderId: wo.id,
+          productId: wo.productId || item?.productId || 'UNKNOWN_PROD',
+          salesOrderId: so?.id || null,
+          quantity: Number(qcApprovedQty),
+          availableQuantity: Number(qcApprovedQty),
+          allocatedQuantity: 0,
+          dispatchedQuantity: 0,
+          unit: item?.unit || 'Pcs',
+          status: wo.status === 'READY_FOR_DISPATCH' || wo.status === 'DISPATCHED' || wo.sentToDispatchAt ? 'READY_FOR_DISPATCH' : 'AVAILABLE',
+          location: 'Factory Staging Area',
+          receivedAt: wo.completedAt ? new Date(wo.completedAt).toISOString() : new Date().toISOString(),
+          receivedById: null,
+          workOrder: wo,
+          product,
+          jobNo: wo.workOrderNumber,
+          productionPlanId: wo.productionPlanId,
+          customerName: customer?.companyName || customer?.contactPerson || customer?.name || 'Internal',
+          productName: product?.name || item?.productNameSnapshot || 'Finished Good',
+          productCode: product?.sku || product?.publicId || item?.productCodeSnapshot || '-',
+        };
+      });
+
+    const mappedExisting = records.map((entry: any) => {
       const wo = entry.workOrder;
       const so = wo?.productionPlan?.salesOrder;
       const product = entry.product || wo?.salesOrderItem?.product;
@@ -644,5 +665,7 @@ export class ProductionWorkflowService {
         availableQuantity: Number(entry.availableQuantity ?? entry.quantity ?? 0),
       };
     });
+
+    return [...mappedExisting, ...syntheticRecords];
   }
 }
