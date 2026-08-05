@@ -7764,8 +7764,8 @@ export default function SuperAdminPortal() {
         style={{
           position: 'fixed',
           top: 0,
-          right: selectedTraceId ? 0 : '-420px',
-          width: '400px',
+          right: selectedTraceId ? 0 : 'min(-420px, -100vw)',
+          width: 'min(400px, 100vw)',
           height: '100vh',
           background: 'rgba(15, 23, 42, 0.98)',
           backdropFilter: 'blur(16px)',
