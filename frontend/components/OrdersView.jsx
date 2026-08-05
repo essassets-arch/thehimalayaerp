@@ -21,6 +21,7 @@ export default function OrdersView({
   onUpdateOrder,
   onAskReplacement,
   onAskReturn,
+  onConfirmPayment,
   searchQuery,
   setSearchQuery,
   flat = false
@@ -536,7 +537,13 @@ export default function OrdersView({
                           {canAskForPayment(o) && (
                             <button
                               type="button"
-                              onClick={() => navigate.push('/sales/payment-followup')}
+                              onClick={() => {
+                                if (onConfirmPayment) {
+                                  onConfirmPayment(o);
+                                } else {
+                                  navigate.push('/sales/payment-followup');
+                                }
+                              }}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: '4px',
                                 padding: '4px 12px', height: '30px',
@@ -707,7 +714,13 @@ export default function OrdersView({
                                 {canAskForPayment(o) && (
                                   <button
                                     type="button"
-                                    onClick={() => navigate.push('/sales/payment-followup')}
+                                    onClick={() => {
+                                      if (onConfirmPayment) {
+                                        onConfirmPayment(o);
+                                      } else {
+                                        navigate.push('/sales/payment-followup');
+                                      }
+                                    }}
                                     style={{
                                       display: 'inline-flex', alignItems: 'center', gap: '4px',
                                       padding: '4px 12px', height: '30px',
@@ -982,7 +995,14 @@ export default function OrdersView({
                 {canAskForPayment(currentDetailsOrder) && (
                   <button
                     type="button"
-                    onClick={() => { setSelectedOrder(null); navigate.push('/sales/payment-followup'); }}
+                    onClick={() => {
+                      setSelectedOrder(null);
+                      if (onConfirmPayment) {
+                        onConfirmPayment(currentDetailsOrder);
+                      } else {
+                        navigate.push('/sales/payment-followup');
+                      }
+                    }}
                     style={{
                       padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,
                       background: '#eff6ff', border: '1px solid #3b82f6', color: '#1d4ed8', cursor: 'pointer'

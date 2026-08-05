@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { useRouter, usePathname } from 'next/navigation';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '../store/erpStore';
+import { backendFetch } from '../lib/backendFetch';
 
 const PAYMENT_LABELS = {
   PAYMENT_PENDING: 'Awaiting Payment',
@@ -298,15 +299,48 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const uniqueRef = formValues.ref || `TXN-${order.id || order.order_number || 'ORD'}-${Date.now().toString().slice(-4)}`;
       
       const orderId = order.id || order.order_number || order.orderNo;
-      useERPStore.getState().recordSalesPayment(orderId, {
-        amount: formValues.amount,
-        method: formValues.mode,
-        paymentMode: formValues.mode,
-        transactionReference: uniqueRef,
-        referenceNumber: uniqueRef,
-        paymentDate: new Date().toISOString().split('T')[0],
-        remarks: formValues.remarks || `Sales collected payment for ${order.id || order.order_number || 'Order'}`,
-      }, 'Sales User');
+      if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'local') {
+        let proofUrl = 'missing-proof.jpg';
+        if (formValues.file) {
+          const formData = new FormData();
+          formData.append('file', formValues.file);
+          formData.append('category', 'attachments');
+          try {
+            const uploadRes = await fetch('/api/upload', {
+              method: 'POST',
+              body: formData,
+            });
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              proofUrl = uploadData.url || 'missing-proof.jpg';
+            }
+          } catch (uploadErr) {
+            console.error('File upload failed, using fallback', uploadErr);
+          }
+        }
+
+        const payload = {
+          salesOrderId: order.id,
+          customerId: order.customerId || 'unknown',
+          amount: Number(formValues.amount),
+          proofUrl: proofUrl,
+        };
+
+        await backendFetch('/api/backend/finance/payments/sales-record', {
+          method: 'POST',
+          body: payload,
+        });
+      } else {
+        useERPStore.getState().recordSalesPayment(orderId, {
+          amount: formValues.amount,
+          method: formValues.mode,
+          paymentMode: formValues.mode,
+          transactionReference: uniqueRef,
+          referenceNumber: uniqueRef,
+          paymentDate: new Date().toISOString().split('T')[0],
+          remarks: formValues.remarks || `Sales collected payment for ${order.id || order.order_number || 'Order'}`,
+        }, 'Sales User');
+      }
 
       Swal.fire({
         icon: 'success',
@@ -479,6 +513,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
       const normalized = {
         id: o.id || orderNo,
+        customerId: o.customerId || o.customer_id || o.customer?.id || 'unknown',
         order_number: orderNo,
         customer_name: o.customer_name || o.customerName || o.customer?.name || 'ABC Infrastructure Pvt Ltd',
         grand_total: resolvedTotal,
