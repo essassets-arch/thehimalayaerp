@@ -243,8 +243,8 @@ export default function OrdersView({
     if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.status === 'SENT_TO_PLANT' || order.status === 'SENT_TO_PLANT_HEAD' || order.sentToPlantHead) {
       return isTradingOrder(order) ? 'Sent to Dispatch' : 'Sent to Plant Head';
     }
-    if (order.status === 'CONFIRMED' || order.commercialStatus === 'ORDER_CONFIRMED') return 'Confirmed';
-    return order.status || order.workflowStatus || 'Draft';
+    if (order.status === 'CONFIRMED' || order.commercialStatus === 'ORDER_CONFIRMED' || order.status === 'DRAFT' || order.status === 'SUBMITTED' || order.status === 'PENDING_APPROVAL') return 'Confirmed';
+    return order.status || order.workflowStatus || 'Confirmed';
   };
 
   const getOrderActionState = (order) => {

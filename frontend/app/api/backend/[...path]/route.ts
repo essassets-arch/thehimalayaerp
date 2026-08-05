@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { forwardBackendRequest } from '@/lib/server/backendApiClient';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
