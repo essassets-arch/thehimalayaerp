@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { MaterialRequestsService } from './material-requests.service';
 
-@Controller('material-requests')
+@Controller(['material-requests', 'production/material-requests'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class MaterialRequestsController {
   constructor(private readonly service: MaterialRequestsService) {}
