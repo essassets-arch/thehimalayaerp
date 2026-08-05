@@ -294,9 +294,13 @@ export default function SalesPortal() {
   };
 
   const handleSalesConfirmPayment = async (order) => {
-    const total = Number(order.grand_total || order.total_amount || 0);
-    const verified = Number(order.verified_paid_amount || 0);
-    const remaining = order.balance_amount !== undefined ? Number(order.balance_amount) : (total - verified);
+    const total = Number(order.totalAmount ?? order.total_amount ?? order.grandTotal ?? order.grand_total ?? 0);
+    const verified = Number(order.verifiedPaidAmount ?? order.verified_paid_amount ?? order.verifiedAmount ?? order.verified_amount ?? 0);
+    const remaining = order.balanceAmount !== undefined 
+      ? Number(order.balanceAmount) 
+      : (order.balance_amount !== undefined 
+        ? Number(order.balance_amount) 
+        : (total - verified));
 
     if (remaining <= 0) {
       Swal.fire({ icon: 'info', title: 'Order Fully Paid', text: 'This order has no outstanding balance.' });
@@ -308,8 +312,8 @@ export default function SalesPortal() {
       html: `
         <div style="text-align: left; font-family: sans-serif; font-size: 13px; color: var(--color-text-primary);">
           <div style="margin-bottom: 10px; display: grid; grid-template-columns: 120px 1fr; gap: 8px;">
-            <span><strong>Customer:</strong></span> <span>${order.customer_name || 'N/A'}</span>
-            <span><strong>Order Ref:</strong></span> <span>${order.orderNo || order.order_number || `ORD-${order.id}`}</span>
+            <span><strong>Customer:</strong></span> <span>${order.customerName || order.customer_name || order.customer?.companyName || 'N/A'}</span>
+            <span><strong>Order Ref:</strong></span> <span>${order.orderNo || order.orderNumber || order.order_number || `ORD-${order.id}`}</span>
             <span><strong>Total Order:</strong></span> <span>INR ${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             <span><strong>Verified Paid:</strong></span> <span>INR ${verified.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             <span><strong>Remaining Bal:</strong></span> <span style="color: var(--color-accent-teal); font-weight: 700;">INR ${remaining.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
