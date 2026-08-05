@@ -33,8 +33,14 @@ export class ProductsService {
         sku: dto.sku,
         description: dto.description,
         category: dto.category,
+        productType: dto.productType || 'MANUFACTURING',
+        brand: dto.brand,
+        dispatchCategory: dto.dispatchCategory,
+        gstRate: dto.gstRate,
+        hsnCode: dto.hsnCode,
+        variantDetails: dto.variantDetails,
         unit: dto.unit,
-        unitPrice: dto.unitPrice,
+        unitPrice: dto.unitPrice || 0,
       },
     });
   }

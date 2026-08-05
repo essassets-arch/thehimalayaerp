@@ -3515,9 +3515,140 @@ export default function DispatchPortal() {
     );
   };
 
+  const renderFinishedGoods = () => {
+    const handleCreateDispatchFromFG = async (fg) => {
+      const { value: formValues } = await Swal.fire({
+        title: `Create Consignment — ${fg.jobNo || fg.workOrderId || fg.id}`,
+        html: `
+          <div style="text-align:left;display:flex;flex-direction:column;gap:12px;padding:8px 0">
+            <label style="font-size:13px;font-weight:700;color:#475569">Product</label>
+            <input class="swal2-input" value="${fg.productName || 'Finished Product'}" readonly style="margin:0;background:#f8fafc;font-size:14px" />
+            <label style="font-size:13px;font-weight:700;color:#475569">Available Quantity</label>
+            <input class="swal2-input" value="${fg.availableQuantity ?? fg.quantity ?? 1} ${fg.unit || 'Pcs'}" readonly style="margin:0;background:#f8fafc;font-size:14px" />
+            <label style="font-size:13px;font-weight:700;color:#475569">Vehicle Number</label>
+            <input id="swal-vehicle" class="swal2-input" placeholder="e.g. UK-07-1234" style="margin:0;font-size:14px" />
+            <label style="font-size:13px;font-weight:700;color:#475569">Driver Name</label>
+            <input id="swal-driver" class="swal2-input" placeholder="e.g. Ramesh Kumar" style="margin:0;font-size:14px" />
+            <label style="font-size:13px;font-weight:700;color:#475569">Driver Mobile</label>
+            <input id="swal-mobile" class="swal2-input" placeholder="e.g. 9876543210" style="margin:0;font-size:14px" />
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Create Dispatch',
+        cancelButtonText: 'Cancel',
+        preConfirm: () => {
+          const vehicleNumber = document.getElementById('swal-vehicle').value.trim();
+          const driverName = document.getElementById('swal-driver').value.trim();
+          const driverMobile = document.getElementById('swal-mobile').value.trim();
+          if (!vehicleNumber || !driverName) {
+            Swal.showValidationMessage('Vehicle number and driver name are required.');
+            return false;
+          }
+          return { vehicleNumber, driverName, driverMobile };
+        }
+      });
+      if (!formValues) return;
+      try {
+        const payload = {
+          workOrderId: fg.workOrderId || fg.id,
+          vehicleNumber: formValues.vehicleNumber,
+          driverName: formValues.driverName,
+          driverMobile: formValues.driverMobile,
+          quantity: fg.availableQuantity ?? fg.quantity ?? 1,
+        };
+        await backendFetch('/api/backend/logistics/dispatches', {
+          method: 'POST',
+          body: payload,
+        });
+        await Swal.fire({ icon: 'success', title: 'Dispatch Created', text: `Consignment created successfully for ${fg.jobNo || fg.productName}.`, timer: 1500, showConfirmButton: false });
+        fetchDashboardData();
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to create dispatch' });
+      }
+    };
+
+    const totalQty = backendFinishedGoods.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const availableQty = backendFinishedGoods.reduce((sum, item) => sum + Number(item.availableQuantity ?? item.quantity ?? 0), 0);
+    const totalBatches = backendFinishedGoods.length;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* KPI Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'grid', placeItems: 'center' }}>
+              <Box size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalQty.toLocaleString()}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Finished Stock Qty</div>
+            </div>
+          </div>
+
+          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
+              <Truck size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{availableQty.toLocaleString()}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Ready for Dispatch Qty</div>
+            </div>
+          </div>
+
+          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#f3e8ff', color: '#7e22ce', display: 'grid', placeItems: 'center' }}>
+              <FileCheck size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalBatches}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>QC Approved Product Batches</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Finished Goods Inventory Table */}
+        <div className="app-card">
+          <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h2 className="card-heading" style={{ margin: 0 }}>Finished Goods Staging Inventory</h2>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
+                All completed manufacturing products ready in warehouse staging for transport allocation.
+              </p>
+            </div>
+          </div>
+
+          <DataTable
+            columns={[
+              { header: 'WO Number', accessor: 'jobNo', render: (row) => <strong>{row.jobNo || row.workOrderId || 'WO-STOCK'}</strong> },
+              { header: 'Product Name', accessor: 'productName', render: (row) => <div><strong>{row.productName || 'Finished Product'}</strong><br/><span style={{ fontSize: '11px', color: '#64748b' }}>{row.productCode || 'FG-STOCK'}</span></div> },
+              { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || 'Factory Staging' },
+              { header: 'Total Quantity', accessor: 'quantity', render: (row) => <span>{row.quantity} {row.unit || 'Pcs'}</span> },
+              { header: 'Dispatchable Quantity', accessor: 'availableQuantity', render: (row) => <strong style={{ color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>{row.availableQuantity ?? row.quantity} {row.unit || 'Pcs'}</strong> },
+              { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || 'AVAILABLE'} /> },
+            ]}
+            data={backendFinishedGoods}
+            searchQuery={globalSearch}
+            searchField="productName"
+            actions={(row) => (
+              <button
+                className="action-btn"
+                style={{ background: 'var(--color-primary, #0f172a)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => handleCreateDispatchFromFG(row)}
+              >
+                <Truck size={14} /> Allocate &amp; Dispatch
+              </button>
+            )}
+            emptyMessage="No finished goods currently in staging inventory."
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       {currentView === 'dashboard' && renderDashboard()}
+      {currentView === 'finished-goods' && renderFinishedGoods()}
       {currentView === 'orders' && renderOrders()}
       {currentView === 'create-dispatch' && renderCreateDispatch()}
       {currentView === 'in-transit' && renderInTransit()}

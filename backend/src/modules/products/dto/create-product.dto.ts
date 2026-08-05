@@ -32,4 +32,29 @@ export class CreateProductDto {
   @Min(0)
   @Type(() => Number)
   unitPrice: number;
+
+  @IsString()
+  @IsOptional()
+  productType?: string;
+
+  @IsString()
+  @IsOptional()
+  brand?: string;
+
+  @IsString()
+  @IsOptional()
+  dispatchCategory?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  gstRate?: number;
+
+  @IsString()
+  @IsOptional()
+  hsnCode?: string;
+
+  @IsString()
+  @IsOptional()
+  variantDetails?: string;
 }

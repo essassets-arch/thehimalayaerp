@@ -310,6 +310,11 @@ model Product {
   description                 String?
   category                    String?
   productType                 String?                      @default("MANUFACTURING")
+  brand                       String?
+  dispatchCategory            String?
+  gstRate                     Decimal?                     @db.Decimal(5, 2)
+  hsnCode                     String?
+  variantDetails              String?
   unit                        String
   unitPrice                   Decimal                      @db.Decimal(14, 2)
   minimumStock                Decimal                      @default(0) @db.Decimal(14, 2)

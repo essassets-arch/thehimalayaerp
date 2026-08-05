@@ -75,6 +75,7 @@ export const navigationConfig = {
   ],
   'Dispatch': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch/dashboard' },
+    { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch/finished-goods' },
     {
       id: 'create-dispatch',
       label: 'Create Dispatch',

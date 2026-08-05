@@ -1971,7 +1971,16 @@ export default function StorePortal() {
     const materialIndents = state.procurement?.materialIndents || [];
     const pendingIndentsCount = materialIndents.filter(ind => ind.status === 'PENDING_PLANT_HEAD_APPROVAL').length;
     const mappedInventory = getMappedInventory(state.rawInventory || []);
-    const lowStockItems = mappedInventory.filter(item => item.stock <= item.reorderLevel);
+
+    const outOfStockItems = mappedInventory.filter(item => Number(item.stock || 0) === 0);
+    const lowStockItemsOnly = mappedInventory.filter(item => Number(item.stock || 0) > 0 && item.stock <= item.reorderLevel);
+
+    // Sort: Out of Stock products FIRST, then Low Stock products
+    const sortedLowStockItems = [...outOfStockItems, ...lowStockItemsOnly];
+
+    const outOfStockCount = outOfStockItems.length;
+    const lowStockCount = lowStockItemsOnly.length;
+    const totalAlertsCount = sortedLowStockItems.length;
 
     const openIndentModal = (item) => {
       setIndentTargetMaterial(item);
@@ -2072,14 +2081,29 @@ export default function StorePortal() {
         {lowStockTab === 'Alerts' && (
           <>
             {/* Summary Cards */}
-            <div className="m-theme-kpi-grid">
-              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#ef4444' }}>
-                <span className="m-theme-kpi-label">Low / Out of Stock</span>
-                <span className="m-theme-kpi-value" style={{ color: '#ef4444' }}>{lowStockItems.length} Items</span>
+            <div className="m-theme-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#dc2626' }}>
+                <span className="m-theme-kpi-label" style={{ color: '#dc2626', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={15} color="#dc2626" /> Out of Stock (0 Qty)
+                </span>
+                <span className="m-theme-kpi-value" style={{ color: '#dc2626' }}>{outOfStockCount} Items</span>
               </div>
-              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b' }}>
-                <span className="m-theme-kpi-label">Pending Indents</span>
-                <span className="m-theme-kpi-value" style={{ color: '#f59e0b' }}>{pendingIndentsCount}</span>
+
+              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#d97706' }}>
+                <span className="m-theme-kpi-label" style={{ color: '#d97706', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertTriangle size={15} color="#d97706" /> Low Stock Warning
+                </span>
+                <span className="m-theme-kpi-value" style={{ color: '#d97706' }}>{lowStockCount} Items</span>
+              </div>
+
+              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#2F4375' }}>
+                <span className="m-theme-kpi-label" style={{ fontWeight: 'bold' }}>Total Critical Alerts</span>
+                <span className="m-theme-kpi-value" style={{ color: '#2F4375' }}>{totalAlertsCount} Items</span>
+              </div>
+
+              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#4f46e5' }}>
+                <span className="m-theme-kpi-label" style={{ fontWeight: 'bold' }}>Pending Indents</span>
+                <span className="m-theme-kpi-value" style={{ color: '#4f46e5' }}>{pendingIndentsCount}</span>
               </div>
             </div>
 
@@ -2098,9 +2122,9 @@ export default function StorePortal() {
                   </tr>
                 </thead>
                 <tbody>
-                  {lowStockItems.length === 0 ? (
+                  {sortedLowStockItems.length === 0 ? (
                     <tr><td colSpan="7" style={{ textAlign: 'center', padding: '28px', color: '#8893A7' }}>✅ All materials are sufficiently stocked.</td></tr>
-                  ) : lowStockItems.map(item => {
+                  ) : sortedLowStockItems.map(item => {
                     const requiredQty = Math.max(0, item.minStock - item.stock);
                     const isOutOfStock = item.stock === 0;
                     const isIndented = materialIndents.some(ind => 

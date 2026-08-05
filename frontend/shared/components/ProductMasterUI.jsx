@@ -161,12 +161,17 @@ export default function ProductMasterUI({ role }) {
 
     setIsSubmitting(true);
     const payload = {
-      ...formData,
       name: formData.product_name,
       sku: formData.product_code,
       category: formData.product_family,
       unit: formData.unit_of_measure,
-      unitPrice: Number(formData.unitPrice || 0)
+      unitPrice: Number(formData.unitPrice || 0),
+      productType: formData.product_type || 'MANUFACTURING',
+      brand: formData.brand || 'HIMALAYA',
+      dispatchCategory: formData.dispatch_category || 'DISPATCH 1',
+      gstRate: Number(formData.gst_rate || 18),
+      hsnCode: formData.hsn_sac_code || '',
+      variantDetails: formData.variant_details || '',
     };
 
     try {
