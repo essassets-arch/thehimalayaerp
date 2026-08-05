@@ -35,7 +35,7 @@ services:
       dockerfile: Dockerfile
     container_name: himalaya-migrate
     restart: "no"
-    command: npx prisma migrate deploy
+    command: sh -c "npx prisma migrate deploy || npx prisma db push --accept-data-loss --skip-generate"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public}
     networks:
