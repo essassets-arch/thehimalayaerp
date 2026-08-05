@@ -69,6 +69,15 @@ export class ProductionWorkflowController {
     return { success: true, data };
   }
 
+  @Post('production/finished-goods')
+  async createFinishedGoods(@Body() dto: any, @Req() req: any) {
+    const data = await this.workflowService.createFinishedGoods(
+      dto,
+      req.user?.sub || 'system',
+    );
+    return { success: true, data };
+  }
+
   // ==========================================
   // PRODUCTION FLOOR
   // ==========================================

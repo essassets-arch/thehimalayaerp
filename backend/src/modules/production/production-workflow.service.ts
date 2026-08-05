@@ -668,4 +668,76 @@ export class ProductionWorkflowService {
 
     return [...mappedExisting, ...syntheticRecords];
   }
+
+  async createFinishedGoods(dto: any, userId?: string) {
+    let productId = dto.productId;
+    if (!productId && dto.productName) {
+      const prod = await this.prisma.product.findFirst({
+        where: { name: { contains: dto.productName, mode: 'insensitive' } },
+      });
+      productId = prod?.id;
+    }
+
+    if (!productId) {
+      const newProd = await this.prisma.product.create({
+        data: {
+          name: dto.productName || 'Finished Good Product',
+          sku: `FG-${Date.now().toString().slice(-6)}`,
+          type: 'FINISHED_GOODS',
+          unit: dto.unit || 'Pcs',
+          price: 0,
+        },
+      });
+      productId = newProd.id;
+    }
+
+    let workOrderId = dto.workOrderId;
+    if (!workOrderId || workOrderId.toUpperCase().startsWith('WO-')) {
+      const jobNoStr = dto.jobNo || dto.workOrderId || `WO-FG-${Date.now().toString().slice(-5)}`;
+      const existingWo = await this.prisma.workOrder.findFirst({
+        where: { workOrderNumber: jobNoStr },
+      });
+      if (existingWo) {
+        workOrderId = existingWo.id;
+      } else {
+        const newWo = await this.prisma.workOrder.create({
+          data: {
+            workOrderNumber: jobNoStr,
+            quantity: Number(dto.quantity || 1),
+            status: dto.status || 'READY_FOR_DISPATCH',
+            productId,
+          },
+        });
+        workOrderId = newWo.id;
+      }
+    }
+
+    const qty = Number(dto.quantity || 1);
+    const availQty = Number(dto.availableQuantity ?? qty);
+
+    const fg = await this.prisma.finishedGoods.upsert({
+      where: { workOrderId },
+      create: {
+        workOrderId,
+        productId,
+        quantity: qty,
+        availableQuantity: availQty,
+        unit: dto.unit || 'Pcs',
+        status: dto.status || 'AVAILABLE',
+        receivedById: userId,
+      },
+      update: {
+        quantity: qty,
+        availableQuantity: availQty,
+        unit: dto.unit || 'Pcs',
+        status: dto.status || 'AVAILABLE',
+      },
+      include: {
+        product: true,
+        workOrder: true,
+      },
+    });
+
+    return fg;
+  }
 }

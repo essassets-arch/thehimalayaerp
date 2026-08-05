@@ -376,19 +376,325 @@
 .btnDispatch:hover { background: #1e293b; }
 .btnDispatch:disabled { background: #94a3b8; cursor: not-allowed; }
 
+/* ─── Stock KPI Grid ─── */
+.stockKpiGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.stockKpiCard {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stockKpiCard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+
+.kpiIcon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.kpiIcon.blue { background: #e0f2fe; color: #0284c7; }
+.kpiIcon.green { background: #dcfce7; color: #15803d; }
+.kpiIcon.purple { background: #f3e8ff; color: #7e22ce; }
+.kpiIcon.amber { background: #fef3c7; color: #b45309; }
+
+.kpiContent {
+    display: flex;
+    flex-direction: column;
+}
+
+.kpiValue {
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+}
+
+.kpiLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+/* ─── Toolbar Right Actions ─── */
+.toolbarRight {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btnAddProduct {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 18px;
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
+    transition: all 0.18s ease;
+}
+
+.btnAddProduct:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+    transform: translateY(-1px);
+}
+
+/* ─── Stock Badges & Chips ─── */
+.availableQtyBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #047857;
+    font-weight: 700;
+    font-size: 12.5px;
+    border-radius: 999px;
+}
+
+.qtyBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    font-weight: 700;
+    font-size: 12.5px;
+    border-radius: 999px;
+}
+
+/* ─── Modal Dialog ─── */
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.modalContent {
+    background: #ffffff;
+    width: 100%;
+    max-width: 580px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+    overflow: hidden;
+    animation: slideUp 0.22s ease-out;
+}
+
+.modalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.modalHeaderTitle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modalHeaderIcon {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.modalHeaderTitle h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.modalHeaderTitle p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.modalClose {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.modalClose:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.modalBody {
+    padding: 24px;
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.formGroupFull {
+    grid-column: span 2;
+}
+
+.formGroup label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.formGroup input,
+.formGroup select,
+.formGroup textarea {
+    width: 100%;
+    padding: 9px 12px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    font-size: 13.5px;
+    color: #0f172a;
+    box-sizing: border-box;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.formGroup input:focus,
+.formGroup select:focus,
+.formGroup textarea:focus {
+    outline: none;
+    background: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+.formActions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.btnCancel {
+    padding: 9px 18px;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btnCancel:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.btnSubmit {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 20px;
+    background: #0284c7;
+    color: #ffffff;
+    border: none;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
+    transition: background 0.15s, transform 0.15s;
+}
+
+.btnSubmit:hover {
+    background: #0369a1;
+    transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 1024px) {
     .page { padding: 18px; }
+    .stockKpiGrid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
     .page { padding: 14px; }
     .hero { padding: 16px; gap: 12px; }
     .heroText h1 { font-size: 19px; }
+    .stockKpiGrid { grid-template-columns: 1fr; }
     .toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+    .toolbarRight { width: 100%; flex-direction: column; align-items: stretch; }
     .search { width: 100%; }
+    .btnAddProduct { width: 100%; justify-content: center; }
     .summaryBadge { width: 100%; justify-content: center; }
     .btnDispatch { width: 100%; justify-content: center; }
+    .formGrid { grid-template-columns: 1fr; }
+    .formGroupFull { grid-column: span 1; }
 }
 
 @media (max-width: 480px) {
@@ -402,3 +708,4 @@
         gap: 6px;
     }
 }
+
