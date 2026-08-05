@@ -389,6 +389,12 @@ export class QuotationsService {
 
   async convertToSalesOrder(id: string, userId: string, role?: string) {
     return this.prisma.$transaction(async (tx) => {
+      // Lock the quotation row to prevent race conditions
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "Quotation" WHERE id = $1 FOR UPDATE',
+        id,
+      );
+
       const scope = getSalesScope(userId, role, 'createdById');
       const quotation = await tx.quotation.findFirst({
         where: { id, ...scope },
@@ -428,9 +434,18 @@ export class QuotationsService {
           'Only the latest quotation version can be converted',
         );
       const existingOrder = await tx.salesOrder.findFirst({
-        where: { sourceQuotationId: id },
+        where: {
+          OR: [
+            { sourceQuotationId: id },
+            { quotationId: id }
+          ]
+        },
       });
-      if (existingOrder) return existingOrder;
+      if (existingOrder) {
+        throw new BadRequestException(
+          'Quotation has already been converted to a Sales Order.',
+        );
+      }
 
       let customerId =
         quotation.customerId ||
@@ -535,6 +550,7 @@ export class QuotationsService {
         data: {
           orderNumber,
           customerId,
+          quotationId: id,
           sourceQuotationId: id,
           workflowStateId: soInitialState?.id,
           createdById: userId,

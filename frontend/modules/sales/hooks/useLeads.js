@@ -170,6 +170,19 @@ export function useLeads(showToast) {
     [showToast, refreshLeads, backendRestoreLead]
   );
 
+  const updateLeadStatus = useCallback(
+    async (leadId, status, remarks, expectedVersion) => {
+      if (status === 'Lost') {
+        return markLost(leadId, expectedVersion, remarks);
+      } else if (status === 'New') {
+        return restoreLead(leadId, expectedVersion, remarks);
+      } else {
+        throw new Error(`Unsupported status update: ${status}`);
+      }
+    },
+    [markLost, restoreLead]
+  );
+
   // Return the new structure
   return {
     leads,
@@ -189,6 +202,7 @@ export function useLeads(showToast) {
     markLost,
     deleteLead: markLost,
     restoreLead,
+    updateLeadStatus,
     generateQuotationFromLead: (leadId) => router.push(`/sales/quotations/create?leadId=${leadId}`),
   };
 }

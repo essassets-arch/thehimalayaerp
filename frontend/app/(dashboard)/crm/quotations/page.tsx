@@ -1,3 +1,4 @@
+'use client';
 import React from 'react';
 import { QuotationKanbanBoard } from './components/QuotationKanbanBoard';
 import { Button } from '@/components/ui/button';

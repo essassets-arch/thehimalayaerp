@@ -278,7 +278,7 @@ export default function LeadsView({
       contactPerson.toLowerCase().includes(search.toLowerCase()) ||
       salesperson.toLowerCase().includes(search.toLowerCase());
     if (filter === 'Reminders') return false;
-    const matchesFilter = filter === 'All' || lead.status === filter;
+    const matchesFilter = filter === 'All' ? (lead.status !== 'Lost' && lead.status !== 'Converted') : lead.status === filter;
     return matchesSearch && matchesFilter;
   });
 

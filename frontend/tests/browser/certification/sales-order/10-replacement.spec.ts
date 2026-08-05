@@ -11,7 +11,7 @@ test.describe('10 - Replacement', () => {
   test.beforeAll(async () => {
     const user = await prisma.user.findFirst({ where: { email: process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive@himalayaerp.com' } });
     if (!user) throw new Error('Sales Executive user not found for seeding');
-    const company = await prisma.company.findFirst();
+    const company = await prisma.company.findFirst({ where: { name: { contains: 'Browser Test Company' } } });
 
     const customer = await prisma.customer.create({
       data: {
@@ -25,7 +25,7 @@ test.describe('10 - Replacement', () => {
         orderNumber: `SO-${suffix}`,
         customerId: customer.id,
         createdById: user.id,
-        status: 'DELIVERED',
+        status: 'COMPLETED',
         subtotal: 1000,
         taxableAmount: 1000,
         totalAmount: 1000,

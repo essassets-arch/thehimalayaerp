@@ -1,0 +1,116 @@
+{
+  "audit": {
+    "title": "Lead-to-Order Lifecycle Audit & Bug Analysis Report",
+    "project": "Himalaya ERP",
+    "date": "2026-08-04",
+    "severity_counts": {
+      "critical": 3,
+      "high": 4,
+      "medium": 1,
+      "low": 0
+    }
+  },
+  "bugs": [
+    {
+      "id": "BUG-001",
+      "severity": "CRITICAL",
+      "entity": "All Workflow Entities",
+      "stage": "Workflow State Engine",
+      "symptom": "Statuses can move backward arbitrarily and skip transitions.",
+      "file": "backend/src/modules/workflow/workflow.service.ts",
+      "root_cause": "Workflow transition check falls back to searching for any transition with matching action name, ignoring fromStateId. Hardcoded map also directly changes states without transition verification."
+    },
+    {
+      "id": "BUG-002",
+      "severity": "CRITICAL",
+      "entity": "SalesOrder",
+      "stage": "Quotation-to-Order Conversion",
+      "symptom": "Parallel clicks or requests create duplicate Sales Orders for the same quotation.",
+      "file": "backend/src/modules/quotations/quotations.service.ts",
+      "root_cause": "Unique database constraint is placed on quotationId, but conversion only populates sourceQuotationId. Lacks locking or transaction checks preventing concurrent double creation."
+    },
+    {
+      "id": "BUG-003",
+      "severity": "CRITICAL",
+      "entity": "WorkOrder / Inventory",
+      "stage": "QC Pass & Stock Posting",
+      "symptom": "QC pass on production floor updates FinishedGoods but logs no stock IN transaction. QC approve on QC portal logs stock IN transaction but registers no FinishedGoods.",
+      "file": "backend/src/modules/production/production-workflow.service.ts, backend/src/modules/qc/qc.service.ts",
+      "root_cause": "Two separate competing QC endpoints exist, each performing only half of the required inventory actions and updating different status fields."
+    },
+    {
+      "id": "BUG-004",
+      "severity": "HIGH",
+      "entity": "SalesReturn / ReplacementRequest",
+      "stage": "After-Sales Requests",
+      "symptom": "Unable to request returns or replacements for dispatches marked as POD_RECEIVED or DISPATCH_CLOSED.",
+      "file": "backend/src/modules/sales-returns/sales-returns.service.ts, backend/src/modules/replacements/replacements.service.ts",
+      "root_cause": "Validation logic only checks dispatches in DELIVERED or COMPLETED statuses, returning 0 delivered quantity for dispatches in POD_RECEIVED or DISPATCH_CLOSED."
+    },
+    {
+      "id": "BUG-005",
+      "severity": "HIGH",
+      "entity": "Lead / SampleRequest",
+      "stage": "CRM & Sample Management",
+      "symptom": "Leads and samples controllers can be accessed and modified publicly without authentication.",
+      "file": "backend/src/modules/crm/leads.controller.ts, backend/src/modules/samples/samples.controller.ts",
+      "root_cause": "@Public() decorator applied at class level of controllers, disabling JwtAuthGuard and PermissionsGuard."
+    },
+    {
+      "id": "BUG-006",
+      "severity": "HIGH",
+      "entity": "ProductionPlan",
+      "stage": "Production Planning",
+      "symptom": "Duplicate production plans can be generated for the same Sales Order.",
+      "file": "backend/src/modules/production/production.service.ts",
+      "root_cause": "Manual createPlan service method does not verify if a production plan already exists for the Sales Order. Database schema lacks unique constraint."
+    },
+    {
+      "id": "BUG-007",
+      "severity": "MEDIUM",
+      "entity": "Lead / Quotation UI",
+      "stage": "Lead Listing & Quotation Creation",
+      "symptom": "Generate Quotation button does not disappear after quotation is created.",
+      "file": "frontend/components/LeadsView.jsx, frontend/store/erpStore.ts",
+      "root_cause": "Frontend looks up quotation.status which is undefined because Quotation database model lacks a status field and backend doesn't map it. Zustand store also becomes stale due to page refreshes and direct API calls bypass."
+    }
+  ],
+  "database_constraints": {
+    "existing": [
+      {
+        "table": "SalesOrder",
+        "key": "orderNumber (unique), quotationId (unique)"
+      },
+      {
+        "table": "Lead",
+        "key": "leadNumber (unique)"
+      },
+      {
+        "table": "Quotation",
+        "key": "quotationNumber (unique)"
+      }
+    ],
+    "missing": [
+      {
+        "table": "SalesOrder",
+        "key": "sourceQuotationId should be unique or controlled via strict lock"
+      },
+      {
+        "table": "ProductionPlan",
+        "key": "salesOrderId should be unique"
+      },
+      {
+        "table": "WorkOrder",
+        "key": "salesOrderItemId should be unique or split batches explicitly tracked"
+      }
+    ]
+  },
+  "prioritized_actions": [
+    "BUG-003 Mismatched QC Portals and Inconsistent Inventory Posting",
+    "BUG-001 Porous Workflow Engine Transition Bypass",
+    "BUG-002 Quotation double-conversion via sourceQuotationId",
+    "BUG-005 Lead/Sample API Security Bypass",
+    "BUG-004 Return/Replacement Delivered Quantity Mismatch",
+    "BUG-006 Duplicate Production Plans"
+  ]
+}

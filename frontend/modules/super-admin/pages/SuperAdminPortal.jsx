@@ -244,6 +244,12 @@ export default function SuperAdminPortal() {
     }
   }, [state?.productCatalog]);
 
+  useEffect(() => {
+    if (adminData?.companies && adminData.companies.length > 0) {
+      setCompanies(adminData.companies);
+    }
+  }, [adminData?.companies]);
+
   const DEFAULT_INITIAL_TARGETS = useMemo(() => [
     {
       id: 'TGT-2026-001',
@@ -514,9 +520,9 @@ export default function SuperAdminPortal() {
   const isAdminPortal = window.location.pathname.startsWith('/admin');
   const orders = isAdminPortal ? (state.adminDirectOrders || []) : (state.sales?.orders || []);
   const payments = state.payments || [];
-  const employees = adminData?.employees?.length ? adminData.employees : (state.employees || []);
-  const usersList = adminData?.users?.length ? adminData.users : (state.users || []);
-  const auditLogs = adminData?.auditLogs?.length ? adminData.auditLogs : (state.auditLogs || []);
+  const employees = Array.isArray(adminData?.employees) ? adminData.employees : (state.employees || []);
+  const usersList = Array.isArray(adminData?.users) ? adminData.users : (state.users || []);
+  const auditLogs = Array.isArray(adminData?.auditLogs) ? adminData.auditLogs : (state.auditLogs || []);
   const directOrders = isAdminPortal ? (state.adminDirectOrders || []) : (state.directOrders || []);
 
   const seededTargetOrders = useMemo(() => [
@@ -696,12 +702,15 @@ export default function SuperAdminPortal() {
 
     if (userModalMode === 'create') {
       adminService.createUser({
+        name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
         company_id: currentUser.company_id || 1,
         username: userForm.email ? userForm.email.split('@')[0] : 'user' + Date.now(),
         email: userForm.email,
         password: userForm.password || 'password123',
         first_name,
         last_name,
+        role: userForm.role,
+        roleCode: userForm.role,
         role_name: userForm.role,
         phone: userForm.phone || '',
         department: userForm.department || 'Sales'
@@ -714,10 +723,13 @@ export default function SuperAdminPortal() {
       });
     } else {
       adminService.updateUser(userForm.id, {
+        name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
         company_id: currentUser.company_id || 1,
         email: userForm.email,
         first_name,
         last_name,
+        role: userForm.role,
+        roleCode: userForm.role,
         role_name: userForm.role,
         phone: userForm.phone || '',
         department: userForm.department || 'Sales'
@@ -3382,12 +3394,18 @@ export default function SuperAdminPortal() {
               { header: 'Employee ID', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace' }}>{row.id}</span> },
               { header: 'Employee Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
               { header: 'Login Email', accessor: 'email' },
-              { header: 'Department', accessor: 'department', render: (row) => row.department || 'Executive' },
-              { header: 'Role Level', accessor: 'role', render: (row) => <span style={{ color: row.role === 'Super Admin' ? '#84cc16' : '#0ea5e9', fontWeight: 'bold' }}>{row.role}</span> },
+              { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || row.department?.code || 'Executive') : (row.department || 'Executive')) },
+              { header: 'Role Level', accessor: 'role', render: (row) => {
+                const roleName = typeof row.role === 'object' ? (row.role?.name || row.role?.code || 'Staff') : (row.role || 'Staff');
+                return <span style={{ color: roleName === 'Super Admin' ? '#84cc16' : '#0ea5e9', fontWeight: 'bold' }}>{roleName}</span>;
+              } },
               { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> },
               { header: 'Created By', accessor: 'createdBy', render: () => 'System Seed' },
               { header: 'Last Login', accessor: 'lastLogin', render: () => '10 Mins Ago' },
-              { header: 'Access Level', accessor: 'role', render: (row) => row.role === 'Super Admin' ? 'Root Override' : 'Role Restricted' }
+              { header: 'Access Level', accessor: 'role', render: (row) => {
+                const roleName = typeof row.role === 'object' ? (row.role?.name || row.role?.code || 'Staff') : (row.role || 'Staff');
+                return roleName === 'Super Admin' ? 'Root Override' : 'Role Restricted';
+              } }
             ]}
             data={filteredUsers}
             searchQuery={globalSearch}
@@ -3571,18 +3589,21 @@ export default function SuperAdminPortal() {
                     }
                   });
                   if (formValues && formValues[0]) {
-                    setCompanies([
-                      ...companies,
-                      {
-                        id: `CO-${String(companies.length + 1).padStart(3, '0')}`,
+                    try {
+                      const res = await adminService.createCompany({
                         name: formValues[0],
                         industry: formValues[1] || 'General Manufacturing',
-                        domain: formValues[2] || 'company.com',
-                        branchesCount: 0,
-                        status: 'Active'
-                      }
-                    ]);
-                    showToast('Company registered successfully.');
+                        domain: formValues[2] || 'company.com'
+                      });
+                      setCompanies([
+                        ...companies,
+                        res
+                      ]);
+                      showToast('Company registered successfully.');
+                      refetchAdminData();
+                    } catch (e) {
+                      showToast('Failed to register company.', 'error');
+                    }
                   }
                 }}
               >
@@ -3607,9 +3628,18 @@ export default function SuperAdminPortal() {
             actions={(row) => (
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => {
-                    setCompanies(companies.map(c => c.id === row.id ? { ...c, status: c.status === 'Active' ? 'Inactive' : 'Active' } : c));
-                    showToast('Status updated.');
+                  onClick={async () => {
+                    try {
+                      const newStatus = row.status === 'Active' ? 'Inactive' : 'Active';
+                      await adminService.updateCompany(row.id, {
+                        ...row,
+                        status: newStatus
+                      });
+                      setCompanies(companies.map(c => c.id === row.id ? { ...c, status: newStatus } : c));
+                      showToast('Status updated.');
+                    } catch (e) {
+                      showToast('Failed to update status.', 'error');
+                    }
                   }}
                   className="action-btn"
                   style={{ background: 'rgba(245, 158, 11, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#f59e0b', cursor: 'pointer' }}
@@ -3618,9 +3648,15 @@ export default function SuperAdminPortal() {
                   <RefreshCw size={12} />
                 </button>
                 <button
-                  onClick={() => {
-                    setCompanies(companies.filter(c => c.id !== row.id));
-                    showToast('Company record removed.');
+                  onClick={async () => {
+                    try {
+                      await adminService.deleteCompany(row.id);
+                      setCompanies(companies.filter(c => c.id !== row.id));
+                      showToast('Company record removed.');
+                      refetchAdminData();
+                    } catch (e) {
+                      showToast('Failed to delete company.', 'error');
+                    }
                   }}
                   className="action-btn"
                   style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
@@ -4640,13 +4676,25 @@ export default function SuperAdminPortal() {
                       }
                     });
                     if (formValues) {
-                      setProductsList(productsList.map(p => p.id === row.id ? {
-                        ...p,
-                        costPrice: Number(formValues[0]),
-                        price: Number(formValues[1]),
-                        tax: Number(formValues[2])
-                      } : p));
-                      showToast(`Pricing updated for ${row.name}`);
+                      try {
+                        const newCost = Number(formValues[0]);
+                        const newSell = Number(formValues[1]);
+                        const newTax = Number(formValues[2]);
+
+                        await apiClient.patch(`/backend/products/${row.id}`, {
+                          unitPrice: newSell
+                        });
+
+                        setProductsList(productsList.map(p => p.id === row.id ? {
+                          ...p,
+                          costPrice: newCost,
+                          price: newSell,
+                          tax: newTax
+                        } : p));
+                        showToast(`Pricing updated for ${row.name}`);
+                      } catch (e) {
+                        showToast('Failed to update pricing matrix in backend.', 'error');
+                      }
                     }
                   }}
                   className="action-btn"
@@ -4709,14 +4757,34 @@ export default function SuperAdminPortal() {
                     if (newStock !== undefined && newStock !== '') {
                       const qty = Number(newStock);
                       if (row.type === 'Finished Goods') {
-                        setProductsList(productsList.map(p => p.id === row.id ? { ...p, stock: qty } : p));
+                        try {
+                          const diff = qty - (row.stock || 0);
+                          if (diff !== 0) {
+                            const warehouseId = state.warehouses?.[0]?.id || 'wh-1';
+                            await apiClient.post('/backend/inventory/transactions', {
+                              productId: row.id,
+                              warehouseId,
+                              type: diff > 0 ? 'IN' : 'OUT',
+                              quantity: Math.abs(diff)
+                            });
+                          }
+                          setProductsList(productsList.map(p => p.id === row.id ? { ...p, stock: qty } : p));
+                          showToast(`Stock updated to ${qty} ${row.unit}.`);
+                        } catch (e) {
+                          showToast('Failed to adjust Finished Goods stock.', 'error');
+                        }
                       } else {
-                        dispatch({
-                          type: 'UPDATE_RAW_INVENTORY',
-                          payload: { id: row.id, quantity: qty, stock: qty }
-                        });
+                        try {
+                          await apiClient.patch(`/backend/inventory/items/${row.id}`, { balance: qty });
+                          dispatch({
+                            type: 'UPDATE_RAW_INVENTORY',
+                            payload: { id: row.id, quantity: qty, stock: qty }
+                          });
+                          showToast(`Stock updated to ${qty} ${row.unit}.`);
+                        } catch (e) {
+                          showToast('Failed to adjust Raw Material stock.', 'error');
+                        }
                       }
-                      showToast(`Stock updated to ${qty} ${row.unit}.`);
                     }
                   }}
                   className="action-btn"

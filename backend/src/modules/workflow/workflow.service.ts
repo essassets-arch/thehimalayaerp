@@ -83,7 +83,18 @@ export class WorkflowService {
     },
     db: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    let transition = await db.workflowTransition.findFirst({
+    if (params.currentStateId) {
+      const currentStateObj = await db.workflowState.findUnique({
+        where: { id: params.currentStateId },
+      });
+      if (currentStateObj?.isFinal) {
+        throw new BadRequestException(
+          `Entity is in a terminal state (${currentStateObj.name}) and cannot be transitioned.`,
+        );
+      }
+    }
+
+    const transition = await db.workflowTransition.findFirst({
       where: {
         workflow: { code: params.workflowCode },
         fromStateId: params.currentStateId,
@@ -99,48 +110,11 @@ export class WorkflowService {
     });
 
     if (!transition) {
-      const anyTransition = await db.workflowTransition.findFirst({
-        where: {
-          workflow: { code: params.workflowCode },
-          actionName: params.actionName,
-        },
-        include: {
-          workflow: {
-            include: {
-              states: true,
-            },
-          },
-        },
-      });
-
-      if (anyTransition) {
-        transition = anyTransition;
-      } else {
-        const targetStateCodeMap: Record<string, string> = {
-          SEND_TO_PLANT: 'SENT_TO_PLANT',
-          SEND_TO_PLANT_HEAD: 'SENT_TO_PLANT',
-          SEND_TO_PLANT_HEAD_DIRECT: 'SENT_TO_PLANT',
-          SUBMIT: 'PENDING_APPROVAL',
-          CONFIRM: 'CONFIRMED',
-          MARK_READY: 'READY_FOR_DISPATCH',
-          COMPLETE: 'COMPLETED',
-          CANCEL: 'CANCELLED',
-        };
-        const targetStateCode = targetStateCodeMap[params.actionName];
-        if (targetStateCode) {
-          const fallbackState = await db.workflowState.findFirst({
-            where: { workflow: { code: params.workflowCode }, code: targetStateCode },
-          });
-          if (fallbackState) {
-            return { nextStateId: fallbackState.id };
-          }
-        }
-
-        throw new BadRequestException(
-          `Action ${params.actionName} is not valid from the current state.`,
-        );
-      }
+      throw new BadRequestException(
+        `Action ${params.actionName} is not valid from the current state.`,
+      );
     }
+
 
     const fromState = transition.workflow.states.find(
       (s) => s.id === transition.fromStateId,

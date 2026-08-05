@@ -10,11 +10,9 @@ import {
   Body,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { Public } from '../../common/decorators/public.decorator';
 import { PlantHeadService } from './plant-head.service';
 import type { Request } from 'express';
 
-@Public()
 @Controller('plant-head')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PlantHeadController {

@@ -34,7 +34,7 @@ export function useSuperAdminData() {
 
       setData({
         users: Array.isArray(usersRes.data?.data) ? usersRes.data.data : (Array.isArray(usersRes.data) ? usersRes.data : []),
-        employees: employeesRes.data || [],
+        employees: Array.isArray(employeesRes.data?.items) ? employeesRes.data.items : (Array.isArray(employeesRes.data) ? employeesRes.data : []),
         modules: modulesRes.data || [],
         auditLogs: auditLogsRes.data || [],
         companies: companiesRes.data || [],

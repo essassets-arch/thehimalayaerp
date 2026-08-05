@@ -31,7 +31,7 @@ export class SalesReturnsService {
 
       const delivered = order.dispatches
         .filter((dispatch) =>
-          ['DELIVERED', 'COMPLETED'].includes(dispatch.status),
+          ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'COMPLETED'].includes(dispatch.status),
         )
         .flatMap((dispatch) => dispatch.items)
         .filter(
@@ -103,7 +103,7 @@ export class SalesReturnsService {
                 .productId,
               deliveredQuantity: order.dispatches
                 .filter((dispatch) =>
-                  ['DELIVERED', 'COMPLETED'].includes(dispatch.status),
+                  ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'COMPLETED'].includes(dispatch.status),
                 )
                 .flatMap((dispatch) => dispatch.items)
                 .filter(

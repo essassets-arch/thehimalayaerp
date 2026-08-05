@@ -1,7 +1,7 @@
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UseGuards, Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { UseGuards, Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -46,5 +46,14 @@ export class InventoryController {
   @Get('items')
   getItems() {
     return this.inventoryService.getItems();
+  }
+
+  @RequirePermissions('inventory.inventory.update', 'store.inventory.update')
+  @Patch('items/:id')
+  updateItemBalance(
+    @Param('id') id: string,
+    @Body('balance') balance: number,
+  ) {
+    return this.inventoryService.updateItemBalance(id, balance);
   }
 }

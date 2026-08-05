@@ -153,4 +153,92 @@ export class SuperAdminService {
     });
     return permissions;
   }
+
+  async getCompanies() {
+    const list = await this.prisma.company.findMany({
+      where: { deletedAt: null },
+      include: {
+        _count: {
+          select: { branches: true }
+        }
+      }
+    });
+    return list.map(c => ({
+      id: c.id,
+      publicId: c.publicId,
+      name: c.name,
+      industry: 'General Manufacturing',
+      domain: c.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com',
+      branchesCount: c._count.branches,
+      status: 'Active',
+      createdAt: c.createdAt
+    }));
+  }
+
+  async createCompany(dto: any) {
+    const { randomUUID } = await import('crypto');
+    const company = await this.prisma.company.create({
+      data: {
+        publicId: randomUUID(),
+        name: dto.name
+      }
+    });
+    return {
+      id: company.id,
+      publicId: company.publicId,
+      name: company.name,
+      industry: dto.industry || 'General Manufacturing',
+      domain: dto.domain || (company.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com'),
+      branchesCount: 0,
+      status: 'Active',
+      createdAt: company.createdAt
+    };
+  }
+
+  async updateCompany(id: string, dto: any) {
+    const company = await this.prisma.company.update({
+      where: { id },
+      data: {
+        name: dto.name
+      }
+    });
+    return {
+      id: company.id,
+      publicId: company.publicId,
+      name: company.name,
+      industry: dto.industry || 'General Manufacturing',
+      domain: dto.domain || (company.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com'),
+      branchesCount: 0,
+      status: 'Active',
+      createdAt: company.createdAt
+    };
+  }
+
+  async deleteCompany(id: string) {
+    await this.prisma.company.update({
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
+    return { success: true };
+  }
+
+  async getRoles() {
+    const list = await this.prisma.role.findMany({
+      include: {
+        _count: {
+          select: { users: true }
+        }
+      }
+    });
+    return list.map(r => ({
+      id: r.id,
+      publicId: r.publicId,
+      name: r.name,
+      code: r.code,
+      assignedUsersCount: r._count.users,
+      isSystemType: true,
+      isActive: true,
+      createdAt: r.createdAt
+    }));
+  }
 }

@@ -72,7 +72,7 @@ function SampleDispatchListContent() {
           const liveSamples = dataArray.map((sample: any) => ({
             id: sample.id ? `req-${sample.id}` : `req-${sample.sampleId}`,
             orderNo: sample.sampleNumber || sample.sampleId || `#SMP-${sample.id}`,
-            customer: sample.customer || sample.customerName || sample.companyName || sample.leadName || 'Unknown Customer',
+            customer: sample.customer || sample.customerName || sample.companyName || sample.leadName || sample.lead?.companyName || 'Unknown Customer',
             address: sample.address || 'See Lead/Customer address',
             product: sample.product || sample.productName || sample.products?.[0]?.productName || 'Sample Product',
             approvedQty: sample.quantity || sample.products?.[0]?.quantity || 1,

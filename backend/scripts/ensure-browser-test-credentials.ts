@@ -60,7 +60,17 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, bcryptRounds);
 
   // Get or create Company
-  let company = await prisma.company.findFirst();
+  let company = await prisma.company.findFirst({
+    where: { publicId: 'HIMALAYA-BROWSER-TEST' }
+  });
+  if (!company) {
+    company = await prisma.company.findFirst({
+      where: { name: { contains: 'Browser Test Company' } }
+    });
+  }
+  if (!company) {
+    company = await prisma.company.findFirst();
+  }
   if (!company) {
     company = await prisma.company.create({
       data: {

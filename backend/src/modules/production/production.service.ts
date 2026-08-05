@@ -63,6 +63,15 @@ export class ProductionService {
     userId?: string,
     role?: string,
   ) {
+    const existingPlan = await this.prisma.productionPlan.findFirst({
+      where: { salesOrderId: dto.salesOrderId, status: { not: 'CANCELLED' } },
+    });
+    if (existingPlan) {
+      throw new BadRequestException(
+        `A production plan already exists for Sales Order ${dto.salesOrderId}.`,
+      );
+    }
+
     const initialState =
       await this.workflowService.getInitialState('PRODUCTION_PLAN');
     const count = await this.prisma.productionPlan.count();

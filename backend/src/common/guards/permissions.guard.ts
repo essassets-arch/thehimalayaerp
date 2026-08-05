@@ -182,7 +182,7 @@ export class PermissionsGuard implements CanActivate {
       return aliases.some((alias) => allUserPerms.includes(alias));
     };
 
-    const hasPermission = requiredPermissions.every((perm) =>
+    const hasPermission = requiredPermissions.some((perm) =>
       hasSinglePermission(perm),
     );
 

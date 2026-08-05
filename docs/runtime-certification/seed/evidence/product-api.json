@@ -1,8 +1,14 @@
 {
   "url": "http://127.0.0.1:4000/api/v1/products",
   "status": 200,
-  "count": 10,
+  "count": 16,
   "productIds": [
+    "PRD-MR-1785770809368-0",
+    "PROD-005",
+    "PROD-004",
+    "PROD-003",
+    "PROD-002",
+    "PROD-001",
     "FG-DRAIN-COVER",
     "FG-KERB-STD",
     "FG-PAVER-STD",
@@ -14,5 +20,5 @@
     "FG-RMC-M20",
     "FG-CEMENT-53"
   ],
-  "timestamp": "2026-08-03T12:06:08.121Z"
+  "timestamp": "2026-08-04T18:29:29.990Z"
 }

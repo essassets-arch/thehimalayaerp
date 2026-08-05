@@ -14,7 +14,7 @@ test.describe('02 - Sample Dispatch', () => {
     // We assume the E2E_SALES_EXECUTIVE user exists in the DB, or we can just fetch the first user
     const user = await prisma.user.findFirst({ where: { email: process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive@himalayaerp.com' } });
     if (!user) throw new Error('Sales Executive user not found for seeding');
-    const company = await prisma.company.findFirst();
+    const company = await prisma.company.findFirst({ where: { name: { contains: 'Browser Test Company' } } });
 
     const lead = await prisma.lead.create({
       data: {
@@ -30,13 +30,12 @@ test.describe('02 - Sample Dispatch', () => {
 
     const sample = await prisma.sampleRequest.create({
       data: {
-        requestNumber: `SMP-${suffix}`,
+        sampleNumber: `SMP-${suffix}`,
         leadId,
         companyId: company?.id,
-        status: 'PENDING',
-        requestedById: user.id,
+        status: 'PENDING_DISPATCH',
+        createdById: user.id,
         expectedDeliveryDate: new Date(),
-        shippingAddress: { city: 'Test City' },
       },
     });
     sampleId = sample.id;
@@ -54,12 +53,19 @@ test.describe('02 - Sample Dispatch', () => {
     await page.click(`tr:has-text("${companyName}") button:has-text("Dispatch"), tr:has-text("${companyName}") button:has-text("Create Dispatch")`);
     
     // Fill logistics details
-    await page.fill('input[placeholder*="weight"]', '10');
-    await page.fill('input[placeholder*="Vehicle"]', 'DL-02-CD-5678');
-    await page.fill('input[placeholder*="Driver name"]', 'Driver Ramesh');
-    await page.fill('input[placeholder*="Driver phone"]', '9876543210');
-    await page.fill('input[placeholder*="Transporter"]', 'DTDC Courier Service');
-    await page.click('button:has-text("Book Dispatch Consignment")');
+    await page.locator('div:has(> label:has-text("Weight")) input, input[placeholder*="15.5"], input[placeholder*="weight"]').first().fill('10');
+    await page.locator('div:has(> label:has-text("Vehicle")) input, input[placeholder*="UK-07"], input[placeholder*="Vehicle"]').first().fill('DL-02-CD-5678');
+    await page.locator('div:has(> label:has-text("Driver Name")) input, div:has(> label:has-text("Driver name")) input, input[placeholder*="Ramesh"], input[placeholder*="Driver name"]').first().fill('Driver Ramesh');
+    await page.locator('div:has(> label:has-text("Driver Phone")) input, div:has(> label:has-text("Driver phone")) input, input[placeholder*="9876543210"], input[placeholder*="Driver phone"]').first().fill('9876543210');
+    await page.locator('div:has(> label:has-text("Courier")) input, div:has(> label:has-text("Transport")) input, input[placeholder*="Himalaya Own"], input[placeholder*="Transporter"]').first().fill('DTDC Courier Service');
+    
+    // Fill dispatch date with today
+    const todayStr = new Date().toISOString().split('T')[0];
+    await page.locator('input[type="date"]').first().fill(todayStr);
+
+    // Submit
+    const submitBtn = page.locator('button[type="submit"], button:has-text("Book Dispatch Consignment"), button:has-text("Confirm Pick-up")').first();
+    await submitBtn.click();
     await page.waitForURL('**/dispatch/sample-dispatch?status=in-transit');
 
     // Start delivery (out-for-delivery)
@@ -74,7 +80,7 @@ test.describe('02 - Sample Dispatch', () => {
     await page.click(`tr:has-text("${companyName}") button:has-text("Upload Proof")`);
     
     const fileChooserPromise = page.waitForEvent('filechooser');
-    await page.click('label:has-text("Choose File")');
+    await page.click('input[type="file"]', { force: true });
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles({
       name: 'sample-proof.png',
@@ -87,6 +93,6 @@ test.describe('02 - Sample Dispatch', () => {
 
     // Verify Sample Dispatch Completed in DB
     const updatedSample = await prisma.sampleRequest.findUnique({ where: { id: sampleId } });
-    expect(updatedSample?.status).toBe('DELIVERED');
+    expect(updatedSample?.status).toBe('COMPLETED');
   });
 });

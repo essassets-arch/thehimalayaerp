@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { forwardBackendRequest } from '@/lib/server/backendApiClient';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +20,24 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     '/reports/inventory/stock-levels': '/inventory/stock-levels',
     '/store/material-requests': '/material-requests',
   };
-  const backendPath = backendPathAliases[requestedPath] || requestedPath;
+  
+  let finalMethod = method;
+  let backendPath = backendPathAliases[requestedPath] || requestedPath;
+
+  if (backendPath.startsWith('/backend/sales-targets')) {
+    backendPath = backendPath.replace('/backend/sales-targets', '/sales-targets');
+  } else if (backendPath.startsWith('/backend/users')) {
+    backendPath = backendPath.replace('/backend/users', '/users');
+  } else if (backendPath.startsWith('/admin/companies')) {
+    backendPath = backendPath.replace('/admin/companies', '/super-admin/companies');
+  } else if (backendPath.startsWith('/admin/users')) {
+    backendPath = backendPath.replace('/admin/users', '/users');
+  } else if (backendPath.startsWith('/admin/employees')) {
+    backendPath = backendPath.replace('/admin/employees', '/hr/employees');
+    if (finalMethod === 'PUT') finalMethod = 'PATCH';
+  } else if (backendPath.startsWith('/admin/roles')) {
+    backendPath = backendPath.replace('/admin/roles', '/super-admin/roles');
+  }
 
   // Global in-memory state for sample dispatch so we can mock all actions
   const globalAny = global as any;
@@ -54,11 +74,74 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     };
   }
   const contentType = request.headers.get('content-type') || '';
-  const body = method === 'GET' || method === 'DELETE'
+  let body = method === 'GET' || method === 'DELETE'
     ? undefined
     : contentType.includes('multipart/form-data')
       ? await request.formData()
       : await request.json().catch(() => undefined);
+
+  if (backendPath === '/hr/employees' && finalMethod === 'POST') {
+    if (body && !body.hasOwnProperty('employeeData')) {
+      const nameParts = (body.name || '').trim().split(/\s+/);
+      const first_name = nameParts[0] || 'Staff';
+      const last_name = nameParts.slice(1).join(' ') || 'Member';
+
+      // Look up first department
+      const firstDept = await prisma.department.findFirst({ where: { isActive: true } });
+      // Look up first location
+      const firstLoc = await prisma.workLocation.findFirst({ where: { isActive: true } });
+      
+      const deptId = firstDept?.id || 'dept-1';
+      const locId = firstLoc?.id || 'loc-1';
+
+      const mappedPayload = {
+        employeeCode: body.employeeCode || `EMP-${Date.now().toString().slice(-4)}`,
+        firstName: first_name,
+        lastName: last_name,
+        dateOfBirth: '1990-01-01',
+        gender: 'MALE',
+        jobTitle: body.designation || body.role || 'Staff',
+        departmentId: deptId,
+        workLocationId: locId,
+        employmentType: 'FULL_TIME',
+        joiningDate: body.date_of_joining || new Date().toISOString(),
+        workEmail: body.email || '',
+        phoneNumber: body.phone || '9999999999',
+        residentialAddress: '123 Industrial Area, Haridwar',
+        emergencyContactName: 'Emergency Contact',
+        emergencyContactPhone: '9999999999',
+        emergencyRelationship: 'Friend',
+        panNumber: 'ABCDE1234F',
+        aadhaarNumber: '123456789012',
+        bankName: 'State Bank of India',
+        accountHolderName: `${first_name} ${last_name}`.trim(),
+        bankAccountType: 'SAVINGS',
+        bankAccountNumber: '1234567890',
+        confirmAccountNumber: '1234567890',
+        ifscCode: 'SBIN0000001',
+      };
+      
+      body = {
+        employeeData: JSON.stringify(mappedPayload)
+      };
+    }
+  } else if (backendPath.startsWith('/hr/employees/')) {
+    if (finalMethod === 'PATCH' || finalMethod === 'PUT') {
+      const parts = backendPath.split('/');
+      const empId = parts[parts.length - 1];
+      
+      const dbEmp = await prisma.employee.findUnique({ where: { id: empId } });
+      if (dbEmp) {
+        body = {
+          ...body,
+          version: dbEmp.version,
+          // map fields
+          phoneNumber: body.phone || body.phoneNumber,
+          jobTitle: body.designation || body.role || body.jobTitle,
+        };
+      }
+    }
+  }
 
   // Intercept all requests to the sample dispatch
   if (requestedPath.startsWith('/logistics/dispatches/sample-dispatch-detail')) {
@@ -149,7 +232,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
 
   return forwardBackendRequest({
     path: backendPath,
-    method,
+    method: finalMethod,
     body,
     query: new URL(request.url).searchParams,
     token,

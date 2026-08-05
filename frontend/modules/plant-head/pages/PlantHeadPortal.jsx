@@ -2856,27 +2856,49 @@ export default function PlantHeadPortal() {
                   </button>
                 </>
               )}
-              {(!row.workOrder) && (
-                <button
-                  data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
-                  style={{
-                    padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', 
-                    fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.background = '#0369a1'}
-                  onMouseOut={(e) => e.currentTarget.style.background = '#0284c7'}
-                  onClick={() => {
-                    setSelectedOrderForPlanning(row);
-                    const d = new Date(); d.setDate(d.getDate() + 7);
-                    setTargetDate(row.targetDate ? row.targetDate.slice(0, 10) : d.toISOString().split('T')[0]);
-                    setPriority(row.priority || 'Medium');
-                    setShowPlanningModal(true);
-                  }}
-                >
-                  <Plus size={14} /> Plan &amp; Send to Production
-                </button>
-              )}
+              {(() => {
+                const isPlanned = Boolean(
+                  row.planningStatus === 'PRODUCTION_PLANNED' ||
+                  row.status === 'PLANNED' ||
+                  row.productionStatus === 'PLANNED' ||
+                  row.productionStatus === 'IN_PRODUCTION' ||
+                  row.productionStatus === 'WORK_ORDER_CREATED' ||
+                  row.productionPlanId ||
+                  row.productionPlan ||
+                  row.workOrder ||
+                  (Array.isArray(row.workOrders) && row.workOrders.length > 0)
+                );
+
+                if (isPlanned) {
+                  return (
+                    <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                      ✓ Planned
+                    </span>
+                  );
+                }
+
+                return (
+                  <button
+                    data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                    style={{
+                      padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', 
+                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = '#0369a1'}
+                    onMouseOut={(e) => e.currentTarget.style.background = '#0284c7'}
+                    onClick={() => {
+                      setSelectedOrderForPlanning(row);
+                      const d = new Date(); d.setDate(d.getDate() + 7);
+                      setTargetDate(row.targetDate ? row.targetDate.slice(0, 10) : d.toISOString().split('T')[0]);
+                      setPriority(row.priority || 'Medium');
+                      setShowPlanningModal(true);
+                    }}
+                  >
+                    <Plus size={14} /> Plan &amp; Send to Production
+                  </button>
+                );
+              })()}
             </div>
           )}
           emptyMessage="No incoming orders found."

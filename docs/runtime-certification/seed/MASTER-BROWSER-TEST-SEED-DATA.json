@@ -1,7 +1,7 @@
 {
   "Companies": {
     "expected": 1,
-    "created": 2,
+    "created": 3,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
@@ -15,7 +15,7 @@
   },
   "Departments": {
     "expected": 7,
-    "created": 7,
+    "created": 12,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
@@ -29,49 +29,49 @@
   },
   "Permissions": {
     "expected": 30,
-    "created": 75,
+    "created": 293,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
   },
   "Users": {
     "expected": 14,
-    "created": 15,
+    "created": 42,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
   },
   "Employees": {
     "expected": 14,
-    "created": 15,
+    "created": 28,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
   },
   "Units": {
     "expected": 4,
-    "created": 4,
+    "created": 10,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
   },
   "Categories": {
     "expected": 1,
-    "created": 1,
+    "created": 7,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
   },
   "Products": {
     "expected": 10,
-    "created": 11,
+    "created": 17,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
   },
   "Customers": {
     "expected": 3,
-    "created": 27,
+    "created": 126,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"
@@ -85,7 +85,7 @@
   },
   "Sequences": {
     "expected": 12,
-    "created": 12,
+    "created": 29,
     "missing": 0,
     "duplicates": 0,
     "status": "VERIFIED"

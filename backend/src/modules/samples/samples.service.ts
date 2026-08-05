@@ -157,10 +157,28 @@ export class SamplesService {
     userId: string = 'system',
     role?: string,
   ) {
-    const { expectedVersion, items, ...updateData } = updateDto;
+    const { expectedVersion, items, dispatchDetails, deliveryState, retrievalStatus, returnRequestedDate, ...updateData } = updateDto;
 
     // ensure it exists and user owns it
     await this.findOne(id, companyId, userId, role);
+
+    const prismaUpdateData: any = { ...updateData };
+    if (dispatchDetails) {
+      if (dispatchDetails.vehicleNo) prismaUpdateData.vehicleNo = dispatchDetails.vehicleNo;
+      if (dispatchDetails.driverName) prismaUpdateData.driverName = dispatchDetails.driverName;
+      if (dispatchDetails.driverPhone) prismaUpdateData.driverPhone = dispatchDetails.driverPhone;
+      if (dispatchDetails.lrNo) prismaUpdateData.lrNo = dispatchDetails.lrNo;
+      if (dispatchDetails.transport) prismaUpdateData.transportMode = dispatchDetails.transport;
+      if (dispatchDetails.cost) prismaUpdateData.transportCost = dispatchDetails.cost;
+      if (dispatchDetails.dispatchDate) {
+        prismaUpdateData.dispatchDate = new Date(dispatchDetails.dispatchDate);
+      } else {
+        prismaUpdateData.dispatchDate = new Date();
+      }
+    }
+    if (returnRequestedDate) {
+      prismaUpdateData.returnRequestedAt = new Date(returnRequestedDate);
+    }
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Optimistic update for the parent fields
@@ -169,7 +187,7 @@ export class SamplesService {
         'sampleRequest',
         id,
         expectedVersion,
-        updateData,
+        prismaUpdateData,
       );
 
       // 2. If items were passed, we recreate them or update them. For simplicity in this migration phase, we'll delete and recreate.
@@ -189,7 +207,7 @@ export class SamplesService {
         data: {
           sampleRequestId: id,
           action: 'UPDATED',
-          details: updateData,
+          details: { ...prismaUpdateData, dispatchDetails, deliveryState },
           createdById: userId,
         },
       });

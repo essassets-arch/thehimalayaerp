@@ -19,9 +19,7 @@ import { UpdateSampleDto } from './dto/update-sample.dto';
 import { SampleStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { Public } from '../../common/decorators/public.decorator';
 
-@Public()
 @Controller(['samples', 'sales/samples'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SamplesController {
@@ -29,8 +27,8 @@ export class SamplesController {
 
   private extractAuthData(req: any, headers: any) {
     const companyId =
-      headers['x-company-id'] ||
       req.user?.companyId ||
+      headers['x-company-id'] ||
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const userId =
       req.user?.sub || req.user?.id || 'a6605e65-beca-40f2-a19f-8e451e270867';
@@ -43,6 +41,28 @@ export class SamplesController {
     return { companyId, userId, role };
   }
 
+  private mapSampleStatus(data: any): any {
+    if (!data) return data;
+    if (Array.isArray(data)) {
+      return data.map((item) => this.mapSampleStatus(item));
+    }
+    const statusMap: Record<string, string> = {
+      CREATED: 'SAMPLE_CREATED',
+      PENDING_DISPATCH: 'READY_FOR_DISPATCH',
+      TESTING: 'UNDER_TESTING',
+    };
+    const leadName = data.lead?.companyName || data.lead?.leadNumber || data.customer?.companyName || data.company?.name || 'Unknown Lead/Customer';
+    const product = data.items?.[0]?.product?.name || 'Sample Product';
+    return {
+      ...data,
+      status: statusMap[data.status] || data.status,
+      leadName,
+      customerName: leadName,
+      companyName: leadName,
+      product,
+    };
+  }
+
   @RequirePermissions('admin.samples.create')
   @Post()
   async create(
@@ -53,28 +73,31 @@ export class SamplesController {
     const { companyId, userId } = this.extractAuthData(req, headers);
     createSampleDto.companyId = companyId;
     try {
-      return await this.samplesService.create(createSampleDto, userId);
+      const result = await this.samplesService.create(createSampleDto, userId);
+      return this.mapSampleStatus(result);
     } catch (error) {
       console.error('CREATE SAMPLE FAILED:', error);
       throw error;
     }
   }
 
-  @RequirePermissions('admin.samples.read')
+  @RequirePermissions('admin.samples.read', 'logistics.dispatches.read')
   @Get()
   async findAll(@Request() req, @Headers() headers) {
     const { companyId, userId, role } = this.extractAuthData(req, headers);
-    return this.samplesService.findAll(companyId, userId, role);
+    const result = await this.samplesService.findAll(companyId, userId, role);
+    return this.mapSampleStatus(result);
   }
 
-  @RequirePermissions('admin.samples.read')
+  @RequirePermissions('admin.samples.read', 'logistics.dispatches.read')
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req, @Headers() headers) {
     const { companyId, userId, role } = this.extractAuthData(req, headers);
-    return this.samplesService.findOne(id, companyId, userId, role);
+    const result = await this.samplesService.findOne(id, companyId, userId, role);
+    return this.mapSampleStatus(result);
   }
 
-  @RequirePermissions('admin.samples.update')
+  @RequirePermissions('admin.samples.update', 'logistics.dispatches.read')
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -83,16 +106,17 @@ export class SamplesController {
     @Headers() headers,
   ) {
     const { companyId, userId, role } = this.extractAuthData(req, headers);
-    return this.samplesService.update(
+    const result = await this.samplesService.update(
       id,
       companyId,
       updateSampleDto,
       userId,
       role,
     );
+    return this.mapSampleStatus(result);
   }
 
-  @RequirePermissions('admin.samples.create')
+  @RequirePermissions('admin.samples.create', 'admin.samples.update', 'logistics.dispatches.start-delivery', 'logistics.dispatches.confirm-delivery')
   @Post(':id/status')
   async updateStatus(
     @Param('id') id: string,
@@ -109,12 +133,13 @@ export class SamplesController {
       throw new BadRequestException('status and expectedVersion are required');
     }
     const { companyId, userId } = this.extractAuthData(req, headers);
-    return this.samplesService.updateStatus(
+    const result = await this.samplesService.updateStatus(
       id,
       companyId,
       body.status,
       body.expectedVersion,
       userId,
     );
+    return this.mapSampleStatus(result);
   }
 }

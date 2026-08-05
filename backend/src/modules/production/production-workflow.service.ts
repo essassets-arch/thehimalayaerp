@@ -353,7 +353,18 @@ export class ProductionWorkflowService {
     return this.prisma.$transaction(async (tx) => {
       const workOrder = await tx.workOrder.findUnique({
         where: { id: workOrderId },
-        include: { salesOrderItem: true, productionPlan: true },
+        include: {
+          salesOrderItem: true,
+          productionPlan: {
+            include: {
+              salesOrder: {
+                include: {
+                  customer: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!workOrder) throw new NotFoundException('Work order not found.');
@@ -382,6 +393,7 @@ export class ProductionWorkflowService {
       const updatedWorkOrder = await tx.workOrder.update({
         where: { id: workOrderId },
         data: {
+          status: 'QC_APPROVED',
           productionStatus: 'READY_FOR_DISPATCH',
           qcResult: 'PASS',
           qcRemarks: dto.remarks ?? null,
@@ -411,6 +423,40 @@ export class ProductionWorkflowService {
           receivedById: userId,
         },
       });
+
+      const pendingInspection = await tx.qCInspection.findFirst({
+        where: { workOrderId: workOrderId, status: 'PENDING' },
+      });
+      const refId = pendingInspection?.id || workOrderId;
+      const refType = pendingInspection ? 'QCInspection' : 'WorkOrder';
+
+      const companyId = workOrder.productionPlan?.salesOrder?.customer?.companyId;
+      if (companyId && workOrder.salesOrderItem?.productId) {
+        let warehouse = await tx.warehouse.findFirst({
+          where: { companyId, name: 'Finished Goods' },
+        });
+        if (!warehouse) {
+          warehouse = await tx.warehouse.create({
+            data: { companyId, name: 'Finished Goods', location: 'Production' },
+          });
+        }
+        const existingReceipt = await tx.inventoryTransaction.findFirst({
+          where: { referenceType: refType, referenceId: refId, type: 'IN' },
+        });
+        if (!existingReceipt) {
+          await tx.inventoryTransaction.create({
+            data: {
+              companyId,
+              productId: workOrder.salesOrderItem.productId,
+              warehouseId: warehouse.id,
+              type: 'IN',
+              quantity: dto.approvedQuantity,
+              referenceType: refType,
+              referenceId: refId,
+            },
+          });
+        }
+      }
 
       await tx.qCInspection.updateMany({
         where: { workOrderId: workOrderId, status: 'PENDING' },

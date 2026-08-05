@@ -26,7 +26,9 @@ export class DispatchController {
   private extractAuthData(req: any, headers: Record<string, string>) {
     const userId = req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867';
     const companyId =
-      headers['x-company-id'] || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+      req.user?.companyId ||
+      headers['x-company-id'] ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     return { userId, companyId };
   }
 

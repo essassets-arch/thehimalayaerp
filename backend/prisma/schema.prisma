@@ -1016,7 +1016,7 @@ model SalesOrder {
   orderNumber                  String           @unique
   customerId                   String
   quotationId                  String?          @unique
-  sourceQuotationId            String?
+  sourceQuotationId            String?          @unique
   quotation                    Quotation?       @relation("SalesOrderQuotation", fields: [quotationId], references: [id])
   sourceQuotation              Quotation?       @relation("SalesOrderSourceQuotation", fields: [sourceQuotationId], references: [id])
   customerPurchaseOrderNo      String?
@@ -2214,7 +2214,7 @@ model FollowUp {
 model ProductionPlan {
   id               String               @id @default(uuid())
   planNumber       String               @unique
-  salesOrderId     String
+  salesOrderId     String               @unique
   assignedToId     String?
   status           ProductionPlanStatus @default(DRAFT)
   plannedStartDate DateTime?
@@ -2455,6 +2455,8 @@ model DispatchItem {
   createdAt        DateTime       @default(now())
   dispatch         Dispatch       @relation(fields: [dispatchId], references: [id])
   salesOrderItem   SalesOrderItem @relation(fields: [salesOrderItemId], references: [id])
+
+  @@unique([dispatchId, salesOrderItemId])
 }
 
 model InvoiceItem {

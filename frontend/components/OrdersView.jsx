@@ -189,11 +189,12 @@ export default function OrdersView({
   };
 
   const canSendToPlantHead = (order) => {
-    return Boolean(
-      order &&
-      order.commercialStatus === 'ORDER_CONFIRMED' &&
-      order.planningStatus === 'NOT_SENT'
-    );
+    if (!order) return false;
+    if (order.sentToPlantHead || order.sentToPlantHeadAt) return false;
+    if (order.planningStatus && order.planningStatus !== 'NOT_SENT') return false;
+    const status = String(order.status || order.orderStatus || order.workflowStateCode || order.workflowState?.code || '').toUpperCase();
+    if (['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_PENDING', 'PLANT_HEAD_ACCEPTED', 'PRODUCTION_PLANNED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'COMPLETED'].includes(status)) return false;
+    return true;
   };
 
   const canAskReplacement = (order) => {
@@ -209,18 +210,17 @@ export default function OrdersView({
     if (items.length === 0) {
       const singleName = order?.productName || order?.name || '';
       const singleCat = order?.category || order?.brand || '';
-      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(singleCat.toUpperCase())) return true;
+      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER'].includes(singleCat.toUpperCase())) return true;
       if (singleName.toLowerCase().includes('wcb') || singleName.toLowerCase().includes('coverblock')) return true;
       return false;
     }
     return items.every((item) => {
-      const type = item.productType || item.product?.productType || '';
-      const cat = item.category || item.product?.category || item.brand || '';
-      const name = item.productNameSnapshot || item.productName || item.name || '';
+      const type = (item.productType || item.product?.productType || '').toUpperCase();
+      const cat = (item.category || item.product?.category || item.brand || '').toUpperCase();
+      const name = (item.productNameSnapshot || item.productName || item.name || '').toLowerCase();
       if (type === 'TRADING') return true;
-      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(cat.toUpperCase())) return true;
-      if (name.toLowerCase().includes('wcb') || name.toLowerCase().includes('coverblock')) return true;
-      if (type === 'MANUFACTURING' || ['FRP COVERS', 'FRP GRATINGS'].includes(cat.toUpperCase())) return false;
+      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER'].includes(cat)) return true;
+      if (name.includes('wcb') || name.includes('coverblock')) return true;
       return false;
     });
   };
@@ -236,23 +236,23 @@ export default function OrdersView({
     }
     if (order.qcStatus === 'QC_APPROVED') return 'QC Approved';
     if (order.productionStatus === 'PRODUCTION_COMPLETED') return 'Production Completed';
-    if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus)) return 'In Production';
+    if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus) || order.status === 'IN_PRODUCTION') return 'In Production';
     if (order.productionStatus === 'WORK_ORDER_CREATED') return 'Work Order Created';
-    if (order.planningStatus === 'PRODUCTION_PLANNED') return 'Production Planned';
-    if (order.planningStatus === 'PLANT_HEAD_ACCEPTED') return 'Accepted by Plant Head';
-    if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.status === 'SENT_TO_PLANT' || order.status === 'SENT_TO_PLANT_HEAD') {
+    if (order.planningStatus === 'PRODUCTION_PLANNED' || order.status === 'PRODUCTION_PLANNED' || order.status === 'READY_FOR_PRODUCTION') return 'Production Planned';
+    if (order.planningStatus === 'PLANT_HEAD_ACCEPTED' || order.status === 'PLANT_APPROVED') return 'Accepted by Plant Head';
+    if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.status === 'SENT_TO_PLANT' || order.status === 'SENT_TO_PLANT_HEAD' || order.sentToPlantHead) {
       return isTradingOrder(order) ? 'Sent to Dispatch' : 'Sent to Plant Head';
     }
-    if (order.commercialStatus === 'ORDER_CONFIRMED' && (order.planningStatus === 'NOT_SENT' || !order.planningStatus)) return 'Confirmed';
-    return order.status || order.workflowStatus || 'Pending';
+    if (order.status === 'CONFIRMED' || order.commercialStatus === 'ORDER_CONFIRMED') return 'Confirmed';
+    return order.status || order.workflowStatus || 'Draft';
   };
 
   const getOrderActionState = (order) => {
     if (!order) return { action: null, label: 'No Action' };
 
     const backendStatus = String(
-      order.workflowStateCode ||
       order.status ||
+      order.workflowStateCode ||
       order.orderStatus ||
       ''
     ).trim().toUpperCase();
@@ -263,76 +263,29 @@ export default function OrdersView({
       return { action: null, label: isTrading ? 'Sent to Dispatch' : 'Ready for Dispatch' };
     }
 
-    const nonSubmittableWorkflowLabels = {
-      SENT_TO_PLANT: isTrading ? 'Sent to Dispatch' : 'Sent to Plant Head',
-      SENT_TO_PLANT_HEAD: isTrading ? 'Sent to Dispatch' : 'Sent to Plant Head',
-      PLANT_APPROVED: 'Accepted by Plant Head',
-      READY_FOR_PRODUCTION: 'Ready for Production',
-      IN_PRODUCTION: 'In Production',
-      COMPLETED: 'Completed',
-      CANCELLED: 'Cancelled',
-    };
-    if (nonSubmittableWorkflowLabels[backendStatus]) {
-      return { action: null, label: nonSubmittableWorkflowLabels[backendStatus] };
+    const isAlreadySent = Boolean(
+      order.sentToPlantHead ||
+      order.sentToPlantHeadAt ||
+      (order.planningStatus && order.planningStatus !== 'NOT_SENT') ||
+      ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_PENDING', 'PLANT_APPROVED', 'PLANT_HEAD_ACCEPTED', 'PRODUCTION_PLANNED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'COMPLETED'].includes(backendStatus)
+    );
+
+    if (isAlreadySent) {
+      if (backendStatus === 'PLANT_APPROVED' || order.planningStatus === 'PLANT_HEAD_ACCEPTED') {
+        return { action: null, label: 'Accepted by Plant Head' };
+      }
+      if (order.planningStatus === 'PRODUCTION_PLANNED' || order.productionStatus === 'PLANNED' || backendStatus === 'PRODUCTION_PLANNED' || backendStatus === 'READY_FOR_PRODUCTION') {
+        return { action: null, label: 'Production Planned' };
+      }
+      if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus) || backendStatus === 'IN_PRODUCTION') {
+        return { action: null, label: 'In Production' };
+      }
+      return { action: null, label: isTrading ? 'Sent to Dispatch' : 'Sent to Plant Head' };
     }
 
     const actionLabel = isTrading ? 'Send to Dispatch' : 'Send to Plant Head';
 
-    if (backendStatus === 'DRAFT' || backendStatus === 'PENDING_APPROVAL' || backendStatus === 'CONFIRMED' || backendStatus === 'SUBMITTED') {
-      return { action: 'SEND_TO_PLANT', label: actionLabel };
-    }
-
-    const isConfirmed = order.commercialStatus === 'ORDER_CONFIRMED' || order.orderStatus === 'CONFIRMED';
-    const isNotSent = order.planningStatus === 'NOT_SENT' || !order.planningStatus;
-    const isFullyReserved = order.allocationStatus === 'FINISHED_GOODS_RESERVED';
-
-    if (isConfirmed && isFullyReserved) {
-      return { action: null, label: 'Ready for Dispatch' };
-    }
-
-    if (isConfirmed && isNotSent && !isFullyReserved) {
-      return { action: 'SEND_TO_PLANT', label: actionLabel };
-    }
-    
-    if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.orderStatus === 'SENT_TO_PLANT_HEAD') {
-      return { action: null, label: isTrading ? 'Sent to Dispatch' : 'Awaiting Plant Head' };
-    }
-    if (order.planningStatus === 'PLANT_HEAD_ACCEPTED') {
-      return { action: null, label: 'Awaiting Production Plan' };
-    }
-    if ((order.planningStatus === 'PRODUCTION_PLANNED' || order.productionStatus === 'PLANNED') && (order.productionStatus === 'NOT_STARTED' || !order.productionStatus)) {
-      return { action: null, label: 'Production Planned' };
-    }
-    if (order.productionStatus === 'WORK_ORDER_CREATED') {
-      return { action: null, label: 'Work Order Created' };
-    }
-    if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION', 'IN_PROGRESS'].includes(order.productionStatus)) {
-      return { action: null, label: 'In Production' };
-    }
-    if (order.productionStatus === 'PRODUCTION_COMPLETED' || order.productionStatus === 'COMPLETED') {
-      if (order.qcStatus !== 'QC_APPROVED' && order.qcStatus !== 'APPROVED') {
-        return { action: null, label: 'Awaiting QC' };
-      }
-    }
-    if ((order.qcStatus === 'QC_APPROVED' || order.qcStatus === 'APPROVED' || isFullyReserved) && (order.dispatchStatus === 'NOT_READY' || !order.dispatchStatus)) {
-      return { action: null, label: 'Ready for Dispatch' };
-    }
-    if (order.dispatchStatus === 'DISPATCH_CREATED' || order.dispatchStatus === 'READY') {
-      return { action: null, label: 'Dispatch Created' };
-    }
-    if (order.dispatchStatus === 'IN_TRANSIT') {
-      return { action: null, label: 'In Transit' };
-    }
-    if (order.dispatchStatus === 'DELIVERED' && order.paymentStatus !== 'FULLY_PAID') {
-      return { action: 'AFTER_DELIVERY', label: 'Payment / After-Sales' };
-    }
-    if (order.dispatchStatus === 'DELIVERED' && order.paymentStatus === 'FULLY_PAID') {
-      return { action: 'AFTER_SALES', label: 'After-Sales Service' };
-    }
-    if (order.commercialStatus === 'ORDER_CLOSED' || order.closureStatus === 'CLOSED') {
-      return { action: 'AFTER_SALES', label: 'Closed' };
-    }
-    return { action: null, label: 'No Action' };
+    return { action: 'SEND_TO_PLANT', label: actionLabel };
   };
 
   const validOrders = orders.filter(o => {

@@ -5,7 +5,7 @@ export async function withOptimisticUpdate<T>(
   prisma: PrismaService,
   modelName: string, // e.g., 'customer', 'lead'
   id: string,
-  expectedVersion: number,
+  expectedVersion: number | undefined,
   updateData: any,
 ): Promise<T> {
   const result = await (prisma[modelName] as any).updateMany({

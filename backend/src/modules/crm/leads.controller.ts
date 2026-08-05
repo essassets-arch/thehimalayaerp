@@ -13,9 +13,7 @@ import {
 } from '@nestjs/common';
 import { LeadsService } from './leads.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { Public } from '../../common/decorators/public.decorator';
 
-@Public()
 @Controller(['crm/leads', 'sales/leads'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class LeadsController {
@@ -193,6 +191,17 @@ export class LeadsController {
       'LOST',
       dto.remarks,
       req.user?.sub,
+      req.user?.role,
+    );
+  }
+
+  @Post(':id/restore')
+  @RequirePermissions('sales.leads.update')
+  async restore(@Param('id') id: string, @Req() req: any) {
+    return this.leadsService.restoreLead(
+      id,
+      req.user?.sub || 'SYSTEM',
+      req.headers['x-company-id'] || req.user?.companyId,
       req.user?.role,
     );
   }

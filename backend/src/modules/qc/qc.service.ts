@@ -172,7 +172,14 @@ export class QcService {
         // Move WorkOrder to QC_APPROVED status as part of QC Approval
         await tx.workOrder.update({
           where: { id: inspection.workOrderId },
-          data: { status: 'QC_APPROVED' },
+          data: {
+            status: 'QC_APPROVED',
+            productionStatus: 'READY_FOR_DISPATCH',
+            qcResult: 'PASS',
+            qcRemarks: remarks ?? null,
+            qcTimestamp: new Date(),
+            qcCheckedById: userId || 'SYSTEM',
+          },
         });
       } else if (actionName === 'REJECT') {
         updateData.status = 'FAILED';
@@ -219,6 +226,27 @@ export class QcService {
             },
           });
         }
+        await tx.finishedGoods.upsert({
+          where: { workOrderId: inspection.workOrderId },
+          create: {
+            workOrderId: inspection.workOrderId,
+            productId: orderItem.productId,
+            salesOrderId: inspection.workOrder.productionPlan?.salesOrderId || '',
+            quantity: inspection.workOrder.quantity,
+            availableQuantity: inspection.workOrder.quantity,
+            unit: 'Units',
+            status: 'AVAILABLE',
+            receivedAt: new Date(),
+            receivedById: userId || 'SYSTEM',
+          },
+          update: {
+            quantity: inspection.workOrder.quantity,
+            availableQuantity: inspection.workOrder.quantity,
+            status: 'AVAILABLE',
+            receivedAt: new Date(),
+            receivedById: userId || 'SYSTEM',
+          },
+        });
         const planId = inspection.workOrder.productionPlanId;
         const planWorkOrders = await tx.workOrder.findMany({
           where: { productionPlanId: planId },

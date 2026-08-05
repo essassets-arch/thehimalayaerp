@@ -306,4 +306,24 @@ export class LeadsService {
       });
     });
   }
+
+  async restoreLead(
+    id: string,
+    userId: string,
+    companyId?: string,
+    role?: string,
+  ) {
+    await this.getLead(id, companyId, userId, role);
+    const initialState = await this.workflowService.getInitialState('LEAD');
+    return this.prisma.lead.update({
+      where: { id },
+      data: {
+        workflowStateId: initialState.id,
+        lostReason: null,
+        updatedById: userId,
+        version: { increment: 1 },
+      },
+      include: { workflowState: true },
+    });
+  }
 }

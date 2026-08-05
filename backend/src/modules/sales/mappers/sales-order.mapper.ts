@@ -24,7 +24,7 @@ export function mapSalesOrder(
   const workflowStatus = order.workflowState?.code as
     typeof order.status | undefined;
   const effectiveStatus =
-    order.status === 'SENT_TO_PLANT_HEAD'
+    order.status && order.status !== 'DRAFT'
       ? order.status
       : (workflowStatus ?? order.status);
   const completedDispatchStatuses = new Set([
@@ -161,6 +161,23 @@ export function mapSalesOrder(
 
     // Unified lifecycle status
     status: effectiveStatus,
+    sentToPlantHead: Boolean(
+      order.status === 'SENT_TO_PLANT_HEAD' ||
+      order.status === 'PLANT_APPROVED' ||
+      order.status === 'READY_FOR_PRODUCTION' ||
+      order.status === 'IN_PRODUCTION' ||
+      order.status === 'READY_FOR_DISPATCH' ||
+      order.status === 'COMPLETED' ||
+      productionPlan?.id
+    ),
+    sentToPlantHeadAt: (order.status === 'SENT_TO_PLANT_HEAD' || order.status === 'PLANT_APPROVED') ? order.updatedAt?.toISOString() : undefined,
+    planningStatus: (order.status === 'SENT_TO_PLANT_HEAD')
+      ? 'PENDING_ACCEPTANCE'
+      : (order.status === 'PLANT_APPROVED')
+        ? 'PLANT_HEAD_ACCEPTED'
+        : productionPlan?.id
+          ? 'PRODUCTION_PLANNED'
+          : 'NOT_SENT',
     dispatchStatus,
     deliveredAt: deliveredAt?.toISOString(),
     podUrl: podUrl ?? undefined,

@@ -40,6 +40,9 @@ export interface SalesOrderResponseDto {
 
   // Single unified lifecycle status (replaces the old roll-up fields)
   status: SalesOrderStatus;
+  sentToPlantHead?: boolean;
+  sentToPlantHeadAt?: string;
+  planningStatus?: string;
   productionPlanId?: string | null;
   productionStatus?: string | null;
   productionAssignedToId?: string | null;

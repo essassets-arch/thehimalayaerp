@@ -19,37 +19,51 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 export class QuotationsController {
   constructor(private readonly quotationsService: QuotationsService) {}
 
+  private mapQuotationStatus(data: any): any {
+    if (!data) return data;
+    if (Array.isArray(data)) {
+      return data.map((item) => this.mapQuotationStatus(item));
+    }
+    return {
+      ...data,
+      status: data.workflowState?.code || data.status,
+    };
+  }
+
   @Get()
   @RequirePermissions('crm.quotations.read')
   async listQuotations(@Req() req: any, @Query('search') search?: string) {
-    return this.quotationsService.listQuotations(
+    const result = await this.quotationsService.listQuotations(
       req.user?.companyId,
       search,
       req.user?.sub,
       req.user?.role,
     );
+    return this.mapQuotationStatus(result);
   }
 
   @Get(':id')
   @RequirePermissions('crm.quotations.read')
   async getQuotation(@Param('id') id: string, @Req() req: any) {
-    return this.quotationsService.getQuotation(
+    const result = await this.quotationsService.getQuotation(
       id,
       req.user?.companyId,
       req.user?.sub,
       req.user?.role,
     );
+    return this.mapQuotationStatus(result);
   }
 
   @Post()
   @RequirePermissions('crm.quotations.create')
   async createQuotation(@Body() dto: any, @Req() req: any) {
-    return this.quotationsService.createQuotation(
+    const result = await this.quotationsService.createQuotation(
       dto,
       req.user?.sub || 'SYSTEM',
       req.user?.companyId,
       req.user?.role,
     );
+    return this.mapQuotationStatus(result);
   }
 
   @Patch(':id')
@@ -59,13 +73,14 @@ export class QuotationsController {
     @Body() dto: any,
     @Req() req: any,
   ) {
-    return this.quotationsService.updateQuotation(
+    const result = await this.quotationsService.updateQuotation(
       id,
       dto,
       req.user?.sub || 'SYSTEM',
       req.user?.companyId,
       req.user?.role,
     );
+    return this.mapQuotationStatus(result);
   }
 
   @Post(':id/action')
@@ -75,33 +90,36 @@ export class QuotationsController {
     @Body() dto: { action: string; remarks?: string },
     @Req() req: any,
   ) {
-    return this.quotationsService.processAction(
+    const result = await this.quotationsService.processAction(
       id,
       dto.action,
       dto.remarks,
       req.user?.sub,
       req.user?.role,
     );
+    return this.mapQuotationStatus(result);
   }
 
   @Post(':id/duplicate')
   @RequirePermissions('crm.quotations.create')
   async duplicateVersion(@Param('id') id: string, @Req() req: any) {
-    return this.quotationsService.duplicateVersion(
+    const result = await this.quotationsService.duplicateVersion(
       id,
       req.user?.sub || 'SYSTEM',
       req.user?.role,
     );
+    return this.mapQuotationStatus(result);
   }
 
   @Post(':id/version')
   @RequirePermissions('crm.quotations.create')
   async createVersion(@Param('id') id: string, @Req() req: any) {
-    return this.quotationsService.duplicateVersion(
+    const result = await this.quotationsService.duplicateVersion(
       id,
       req.user?.sub || 'SYSTEM',
       req.user?.role,
     );
+    return this.mapQuotationStatus(result);
   }
 
   @Post(':id/convert')

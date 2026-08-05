@@ -111,4 +111,13 @@ export class InventoryService {
     }
     return [];
   }
+
+  async updateItemBalance(idOrCode: string, balance: number) {
+    const isId = /^\d+$/.test(idOrCode);
+    const where = isId ? { id: Number(idOrCode) } : { code: idOrCode };
+    return (this.prisma as any).inventoryItem.update({
+      where,
+      data: { balance: Math.round(Number(balance)) },
+    });
+  }
 }

@@ -195,4 +195,10 @@ export class EmployeesController {
   ) {
     return this.employees.deleteDocument(employeeId, documentId, req.user);
   }
+
+  @Delete('employees/:id')
+  @RequirePermissions('hr.employees.delete')
+  delete(@Param('id') id: string, @Req() req: any) {
+    return this.employees.delete(id, req.user);
+  }
 }
