@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: himalaya-local-migrate
     restart: "no"
-    command: npx prisma migrate deploy
+    command: sh -c "npx prisma db push --accept-data-loss --skip-generate || npx prisma migrate deploy"
     environment:
       DATABASE_URL: postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public
     networks:
@@ -67,7 +67,7 @@ services:
       target: builder
     container_name: himalaya-local-backend
     restart: unless-stopped
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma generate && npx prisma db push --accept-data-loss --skip-generate && npm run start:dev"
     environment:
       NODE_ENV: development
       PORT: 4000

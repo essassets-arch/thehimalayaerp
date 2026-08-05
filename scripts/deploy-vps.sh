@@ -49,6 +49,7 @@ echo " ✅ Database migrations completed."
 echo ""
 echo "🚀 Step 5: Updating backend service..."
 docker compose up -d backend
+docker exec himalaya-backend npx prisma db push --accept-data-loss --skip-generate || true
 
 echo "⏳ Waiting for backend to pass health check..."
 until [ "$(docker inspect -f '{{.State.Health.Status}}' himalaya-backend 2>/dev/null)" == "healthy" ]; do
