@@ -41,17 +41,19 @@ export default function DispatchPortal() {
   const [replacementLoading, setReplacementLoading] = useState(false);
   const [backendDispatches, setBackendDispatches] = useState([]);
   const [backendReadyWorkOrders, setBackendReadyWorkOrders] = useState([]);
+  const [backendFinishedGoods, setBackendFinishedGoods] = useState([]);
   const [backendReturns, setBackendReturns] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
 
   const fetchDashboardData = async () => {
     setDashboardLoading(true);
     try {
-      const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes] = await Promise.allSettled([
+      const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes, finishedGoodsRes] = await Promise.allSettled([
         backendFetch('/api/backend/logistics/dispatches'),
         backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH'),
         backendFetch('/api/backend/sales-returns'),
         backendFetch('/api/backend/replacements'),
+        backendFetch('/api/backend/production/finished-goods'),
       ]);
 
       if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
@@ -62,6 +64,11 @@ export default function DispatchPortal() {
       }
       if (returnsRes.status === 'fulfilled' && Array.isArray(returnsRes.value)) {
         setBackendReturns(returnsRes.value);
+      }
+      if (finishedGoodsRes.status === 'fulfilled') {
+        const val = finishedGoodsRes.value;
+        const list = Array.isArray(val?.data) ? val.data : Array.isArray(val) ? val : [];
+        setBackendFinishedGoods(list);
       }
       if (replacementsRes.status === 'fulfilled' && Array.isArray(replacementsRes.value)) {
         setReplacementDispatches((replacementsRes.value || [])
@@ -231,8 +238,33 @@ export default function DispatchPortal() {
 
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  // Canonical Dispatch Queue (from Finished Goods ΓåÆ Send to Dispatch)
-  const dispatchQueueOrders = useERPStore(s => s.dispatch?.dispatchOrders || s.state?.dispatch?.dispatchOrders) || [];
+  // Canonical Dispatch Queue (from Finished Goods & Live Backend Stock)
+  const storeDispatchQueueOrders = useERPStore(s => s.dispatch?.dispatchOrders || s.state?.dispatch?.dispatchOrders) || [];
+
+  const dispatchQueueOrders = useMemo(() => {
+    const list = [...storeDispatchQueueOrders];
+    (backendFinishedGoods || []).forEach((fg) => {
+      const fgId = fg.id || fg.workOrderId;
+      const orderId = fg.jobNo || fg.workOrder?.workOrderNumber || `WO-${String(fgId).slice(-4)}`;
+      if (!list.some(item => item.id === fgId || item.orderId === orderId)) {
+        list.push({
+          id: fgId,
+          orderId,
+          batchId: fg.productCode || 'FG-STOCK',
+          customerName: fg.customerName || fg.workOrder?.productionPlan?.salesOrder?.customer?.companyName || 'Factory Staging Area',
+          items: [{
+            productName: fg.productName || 'Finished Good Product',
+            approvedQuantity: fg.quantity || 1,
+            dispatchableQuantity: fg.availableQuantity ?? fg.quantity ?? 1,
+            unit: fg.unit || 'Pcs',
+          }],
+          status: fg.status === 'READY_FOR_DISPATCH' || fg.status === 'AVAILABLE' ? 'READY_FOR_DISPATCH' : fg.status,
+          workOrderId: fg.workOrderId || fg.id,
+        });
+      }
+    });
+    return list;
+  }, [storeDispatchQueueOrders, backendFinishedGoods]);
 
   // Legacy selector-based orders (for existing QC-passed records compatibility)
   const orders = useERPStore(selectDispatchOrders);

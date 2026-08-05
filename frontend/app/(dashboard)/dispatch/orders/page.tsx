@@ -157,9 +157,10 @@ export default function DispatchOrdersPage() {
         return [];
       };
 
-      const [workOrdersPayload, salesOrdersPayload] = await Promise.allSettled([
+      const [workOrdersPayload, salesOrdersPayload, finishedGoodsPayload] = await Promise.allSettled([
         backendFetch<any>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH"),
         backendFetch<any>("/api/backend/sales/orders?status=READY_FOR_DISPATCH"),
+        backendFetch<any>("/api/backend/production/finished-goods"),
       ]);
 
       const workOrders: WorkOrder[] =
@@ -172,11 +173,41 @@ export default function DispatchOrdersPage() {
           ? extractArray(salesOrdersPayload.value)
           : [];
 
+      const rawFinishedGoods =
+        finishedGoodsPayload.status === "fulfilled"
+          ? extractArray(finishedGoodsPayload.value)
+          : [];
+
       const linkedSalesOrderIds = new Set(
         workOrders
           .map((wo) => wo.productionPlan?.salesOrder?.id)
           .filter(Boolean)
       );
+
+      const unifiedFinishedGoods: UnifiedPendingDispatchItem[] = rawFinishedGoods
+        .filter((fg) => {
+          const s = String(fg.status || '').toUpperCase();
+          return ['AVAILABLE', 'READY_FOR_DISPATCH', 'QC_APPROVED', 'PASSED', 'STAGED', 'IN_STAGING'].includes(s);
+        })
+        .map((fg) => {
+          const wo = fg.workOrder;
+          const salesOrder = wo?.productionPlan?.salesOrder;
+          const customer = salesOrder?.customer;
+          const address = formatAddress(salesOrder, customer);
+          const qty = fg.availableQuantity ?? fg.quantity ?? 1;
+          return {
+            id: `fg-${fg.id || fg.workOrderId}`,
+            itemType: "WORK_ORDER",
+            orderNumber: fg.jobNo || salesOrder?.orderNumber || "WO-FG",
+            customerName: fg.customerName || customer?.companyName || "Factory Stock Staging",
+            deliveryAddress: address !== "N/A" ? address : "Factory Staging Area",
+            productName: fg.productName || "Finished Product",
+            approvedQuantity: `${qty} ${fg.unit || 'Pcs'}`,
+            workOrderId: fg.workOrderId || fg.id,
+            salesOrderId: salesOrder?.id,
+            workOrderNumber: fg.jobNo,
+          };
+        });
 
       const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders
         .filter((wo) => {
@@ -249,7 +280,19 @@ export default function DispatchOrdersPage() {
         }
       });
 
-      return [...unifiedWorkOrders, ...unifiedSalesOrders];
+      const combined = [...unifiedWorkOrders];
+      unifiedFinishedGoods.forEach((fg) => {
+        if (!combined.some((c) => c.workOrderId === fg.workOrderId || c.id === fg.id)) {
+          combined.push(fg);
+        }
+      });
+      unifiedSalesOrders.forEach((so) => {
+        if (!combined.some((c) => c.id === so.id)) {
+          combined.push(so);
+        }
+      });
+
+      return combined;
     },
   });
 

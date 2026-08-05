@@ -56,6 +56,7 @@ export const navigationConfig = {
       ]
     },
     { id: 'raw-inventory', label: 'Raw Inventory', icon: Layers, path: '/plant-head/raw-inventory' },
+    { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods' },
     { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' },
     { id: 'testing', label: 'Production Testing', icon: ClipboardCheck, path: '/plant-head/testing' }
   ],

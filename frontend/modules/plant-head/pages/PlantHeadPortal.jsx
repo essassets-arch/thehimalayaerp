@@ -220,6 +220,7 @@ export default function PlantHeadPortal() {
   const canonicalWorkOrders = useERPStore(s => s.state?.production?.workOrders) || [];
   const [directBackendOrders, setDirectBackendOrders] = useState([]);
   const [directRawInventory, setDirectRawInventory] = useState([]);
+  const [directFinishedGoods, setDirectFinishedGoods] = useState([]);
   const [directQCFailures, setDirectQCFailures] = useState([]);
 
   useEffect(() => {
@@ -236,6 +237,11 @@ export default function PlantHeadPortal() {
           };
         });
         setDirectRawInventory(formatted);
+      }).catch(console.error);
+    } else if (currentView === 'finished-goods') {
+      backendFetch('/api/backend/production/finished-goods').then(res => {
+        const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+        setDirectFinishedGoods(list);
       }).catch(console.error);
     } else if (currentView === 'qc-failures') {
       backendFetch('/api/backend/qc/inspections').then(res => {
@@ -3039,7 +3045,6 @@ export default function PlantHeadPortal() {
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                 }}
                 onMouseOver={(e) => e.currentTarget.style.background = '#0369a1'}
-                onMouseOut={(e) => e.currentTarget.style.background = '#0284c7'}
                 onClick={() => {
                   setSelectedOrderForPlanning(row);
                   const d = new Date(); d.setDate(d.getDate() + 7);
@@ -3163,6 +3168,100 @@ export default function PlantHeadPortal() {
           searchField="customerName"
           emptyMessage="No QC failure logs recorded."
         />
+      </div>
+    );
+  };
+
+  const renderFinishedGoods = () => {
+    const handleSendToDispatch = async (row) => {
+      try {
+        const woId = row.workOrder?.id || row.workOrderId || row.id;
+        if (!woId) throw new Error("Work Order ID missing");
+        await backendFetch(`/api/backend/production/work-orders/${woId}/send-to-dispatch`, {
+          method: "POST",
+        });
+        Swal.fire({ icon: 'success', title: 'Sent to Dispatch', text: `Finished goods sent to dispatch queue!`, timer: 1500, showConfirmButton: false });
+        backendFetch('/api/backend/production/finished-goods').then(res => {
+          const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+          setDirectFinishedGoods(list);
+        }).catch(console.error);
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to send to dispatch' });
+      }
+    };
+
+    const totalStock = directFinishedGoods.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const availableStock = directFinishedGoods.reduce((sum, item) => sum + (Number(item.availableQuantity ?? item.quantity) || 0), 0);
+    const readyItemsCount = directFinishedGoods.length;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'grid', placeItems: 'center' }}>
+              <Package size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalStock.toLocaleString()}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Finished Stock Qty</div>
+            </div>
+          </div>
+
+          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
+              <CheckCircle2 size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{availableStock.toLocaleString()}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Available Qty (Dispatch)</div>
+            </div>
+          </div>
+
+          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#f3e8ff', color: '#7e22ce', display: 'grid', placeItems: 'center' }}>
+              <Layers size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{readyItemsCount}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Finished Goods Count</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="app-card">
+          <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h2 className="card-heading" style={{ margin: 0 }}>Finished Goods Inventory Stock</h2>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
+                Factory staging area for quality approved products awaiting dispatch.
+              </p>
+            </div>
+          </div>
+
+          <DataTable
+            columns={[
+              { header: 'WO Number', accessor: 'jobNo', render: (row) => <strong>{row.jobNo || row.workOrderId}</strong> },
+              { header: 'Product', accessor: 'productName', render: (row) => <div><strong>{row.productName || 'Finished Good'}</strong><br/><span style={{ fontSize: '11px', color: '#64748b' }}>{row.productCode || 'FG-STOCK'}</span></div> },
+              { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || 'Internal' },
+              { header: 'Total Qty', accessor: 'quantity', render: (row) => <span>{row.quantity} {row.unit || 'Pcs'}</span> },
+              { header: 'Available Qty', accessor: 'availableQuantity', render: (row) => <strong style={{ color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>{row.availableQuantity ?? row.quantity} {row.unit || 'Pcs'}</strong> },
+              { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || 'AVAILABLE'} /> },
+            ]}
+            data={directFinishedGoods}
+            searchQuery={globalSearch}
+            searchField="productName"
+            actions={(row) => (
+              <button
+                className="action-btn"
+                style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => handleSendToDispatch(row)}
+              >
+                <Truck size={14} /> Send to Dispatch
+              </button>
+            )}
+            emptyMessage="No finished goods records currently in stock."
+          />
+        </div>
       </div>
     );
   };
@@ -4362,11 +4461,12 @@ export default function PlantHeadPortal() {
       {currentView === 'products' && renderProducts()}
       {(currentView === 'products-add' || currentView === 'products-edit') && renderProductFormPage()}
       {currentView === 'raw-inventory' && renderRawInventory()}
+      {currentView === 'finished-goods' && renderFinishedGoods()}
       {currentView === 'add-material' && renderAddMaterialPage()}
       {currentView === 'edit-material' && renderEditMaterialPage()}
       {currentView === 'indent-approvals' && <MaterialIndentApproval />}
 
-      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'material-analytics', 'department-overview', 'executive-reports', 'reports', 'qc-failures', 'products', 'products-add', 'products-edit', 'raw-inventory', 'add-material', 'edit-material', 'indent-approvals'].includes(currentView) && (
+      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'material-analytics', 'department-overview', 'executive-reports', 'reports', 'qc-failures', 'products', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals'].includes(currentView) && (
         <ModulePlaceholder 
           title="Module Not Available" 
           description="This Plant Head feature is not implemented yet." 
