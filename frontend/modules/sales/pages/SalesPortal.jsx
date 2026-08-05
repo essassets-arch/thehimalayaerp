@@ -1204,6 +1204,7 @@ export default function SalesPortal() {
             }}
             onAskReplacement={handleAskReplacement}
             onAskReturn={handleAskReturn}
+            onConfirmPayment={handleSalesConfirmPayment}
             searchQuery={globalSearch}
             setSearchQuery={setGlobalSearch}
             reminders={reminders}
