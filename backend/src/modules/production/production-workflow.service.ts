@@ -90,26 +90,32 @@ export class ProductionWorkflowService {
   }
 
   async getJobsByStatus(statuses: ProductionStatus[]) {
-    return this.prisma.workOrder.findMany({
-      where: { productionStatus: { in: statuses } },
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        productionPlan: {
-          include: {
-            salesOrder: {
-              include: {
-                customer: true,
+    try {
+      const records = await this.prisma.workOrder.findMany({
+        where: { productionStatus: { in: statuses as any } },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          productionPlan: {
+            include: {
+              salesOrder: {
+                include: {
+                  customer: true,
+                },
               },
             },
           },
-        },
-        salesOrderItem: {
-          include: {
-            product: true,
+          salesOrderItem: {
+            include: {
+              product: true,
+            },
           },
         },
-      },
-    });
+      });
+      return Array.isArray(records) ? records : [];
+    } catch (err) {
+      console.error(`[ProductionWorkflow] getJobsByStatus failed for ${statuses}:`, err);
+      return [];
+    }
   }
 
   async getDashboardCounts() {
