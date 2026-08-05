@@ -59,7 +59,7 @@ const DEMO_ACCOUNTS = [
   { role: 'Production Operator', email: 'production.operator@himalayaerp.com' },
   { role: 'Dispatch Executive', email: 'dispatch.executive@himalayaerp.com' },
   { role: 'Finance Executive', email: 'finance.executive@himalayaerp.com' },
-  { role: 'Finance Manager', email: 'finance.manager@himalayaerp.com' },
+  { role: 'Finance Manager', email: 'sahad.accounts@himalayaerp.com' },
   { role: 'Store Manager', email: 'store.manager@himalayaerp.com' },
   { role: 'HR', email: 'hr@himalayaerp.com' },
 ] as const;
@@ -84,7 +84,7 @@ function inferDemoRoleFromEmail(email: string): string {
   if (e.includes('plant')) return 'Plant Head';
   if (e.includes('production')) return 'Production Operator';
   if (e.includes('dispatch')) return 'Dispatch Executive';
-  if (e.includes('finance') && e.includes('manager')) return 'Finance Manager';
+  if (e.includes('accounts') || (e.includes('finance') && e.includes('manager'))) return 'Finance Manager';
   if (e.includes('finance')) return 'Finance Executive';
   if (e.includes('store')) return 'Store Manager';
   if (e.includes('qc')) return 'QC';

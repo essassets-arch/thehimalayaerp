@@ -837,6 +837,29 @@ async function main() {
     });
   }
 
+  // Seeding requested Finance Manager account (Sahad Accounts)
+  const sahadPassword = await bcrypt.hash('Hcpp1@5253', 12);
+  const finManagerRole = allRoles.find((r) => r.code === 'FINANCE_MANAGER');
+  if (finManagerRole) {
+    await prisma.user.upsert({
+      where: { email: 'sahad.accounts@himalayaerp.com' },
+      update: {
+        password: sahadPassword,
+        roleId: finManagerRole.id,
+        isActive: true,
+      },
+      create: {
+        publicId: uid('USR'),
+        email: 'sahad.accounts@himalayaerp.com',
+        password: sahadPassword,
+        name: 'Sahad Accounts',
+        roleId: finManagerRole.id,
+        companyId: company.id,
+        isActive: true,
+      },
+    });
+  }
+
   // ── 6. Document Sequences ───────────────────────────────────────────────────
   console.log('🔢 Seeding document sequences...');
   const currentYear = new Date().getFullYear();
