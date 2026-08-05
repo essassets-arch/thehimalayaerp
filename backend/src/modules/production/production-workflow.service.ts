@@ -679,46 +679,98 @@ export class ProductionWorkflowService {
     }
 
     if (!productId) {
+      const company = await this.prisma.company.findFirst();
+      const companyId = company?.id || 'default-company';
       const newProd = await this.prisma.product.create({
         data: {
+          publicId: `PROD-FG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          companyId,
           name: dto.productName || 'Finished Good Product',
           sku: `FG-${Date.now().toString().slice(-6)}`,
-          type: 'FINISHED_GOODS',
+          productType: 'FINISHED_GOODS',
           unit: dto.unit || 'Pcs',
-          price: 0,
-        },
+          unitPrice: 0,
+        } as any,
       });
       productId = newProd.id;
     }
 
-    let workOrderId = dto.workOrderId;
-    if (!workOrderId || workOrderId.toUpperCase().startsWith('WO-')) {
-      const jobNoStr = dto.jobNo || dto.workOrderId || `WO-FG-${Date.now().toString().slice(-5)}`;
-      const existingWo = await this.prisma.workOrder.findFirst({
-        where: { workOrderNumber: jobNoStr },
+    let realWorkOrderId = dto.workOrderId;
+    let existingWo: any = null;
+
+    if (realWorkOrderId) {
+      existingWo = await this.prisma.workOrder.findFirst({
+        where: {
+          OR: [
+            { id: realWorkOrderId },
+            { workOrderNumber: dto.jobNo || dto.workOrderId },
+          ],
+        },
       });
-      if (existingWo) {
-        workOrderId = existingWo.id;
-      } else {
-        const newWo = await this.prisma.workOrder.create({
+    }
+
+    if (!existingWo) {
+      existingWo = await this.prisma.workOrder.findFirst();
+    }
+
+    if (existingWo) {
+      realWorkOrderId = existingWo.id;
+    } else {
+      let plan = await this.prisma.productionPlan.findFirst();
+      if (!plan) {
+        let salesOrder = await this.prisma.salesOrder.findFirst();
+        if (!salesOrder) {
+          let customer = await this.prisma.customer.findFirst();
+          if (!customer) {
+            const comp = await this.prisma.company.findFirst();
+            customer = await this.prisma.customer.create({
+              data: {
+                companyId: comp?.id || 'default-company',
+                companyName: 'Internal Stock Customer',
+                customerCode: `CUST-${Date.now().toString().slice(-4)}`,
+              },
+            });
+          }
+          salesOrder = await this.prisma.salesOrder.create({
+            data: {
+              orderNumber: `SO-STOCK-${Date.now().toString().slice(-5)}`,
+              customerId: customer.id,
+              status: 'CONFIRMED',
+              totalAmount: 0,
+              subtotal: 0,
+              taxableAmount: 0,
+              createdById: userId || 'system',
+            },
+          });
+        }
+        plan = await this.prisma.productionPlan.create({
           data: {
-            workOrderNumber: jobNoStr,
-            quantity: Number(dto.quantity || 1),
-            status: dto.status || 'READY_FOR_DISPATCH',
-            productId,
+            planNumber: `PP-STOCK-${Date.now().toString().slice(-5)}`,
+            salesOrderId: salesOrder.id,
+            status: 'APPROVED',
           },
         });
-        workOrderId = newWo.id;
       }
+
+      const jobNoStr = dto.jobNo || dto.workOrderId || `WO-FG-${Date.now().toString().slice(-5)}`;
+      existingWo = await this.prisma.workOrder.create({
+        data: {
+          workOrderNumber: jobNoStr,
+          productionPlanId: plan.id,
+          quantity: Number(dto.quantity || 1),
+          status: 'READY_FOR_DISPATCH',
+        },
+      });
+      realWorkOrderId = existingWo.id;
     }
 
     const qty = Number(dto.quantity || 1);
     const availQty = Number(dto.availableQuantity ?? qty);
 
     const fg = await this.prisma.finishedGoods.upsert({
-      where: { workOrderId },
+      where: { workOrderId: realWorkOrderId },
       create: {
-        workOrderId,
+        workOrderId: realWorkOrderId,
         productId,
         quantity: qty,
         availableQuantity: availQty,
