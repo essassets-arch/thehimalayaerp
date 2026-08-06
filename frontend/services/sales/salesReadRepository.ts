@@ -49,7 +49,7 @@ export interface SalesOrder {
   deliveredAt?: string | null;
   replacementStatus?: string;
   returnStatus?: string;
-
+  remarks?: string;
   createdAt: string;
   updatedAt: string;
 }

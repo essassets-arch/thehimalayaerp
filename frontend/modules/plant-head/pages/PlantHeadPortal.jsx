@@ -2993,22 +2993,15 @@ export default function PlantHeadPortal() {
         </div>
 
         <div style={{ marginBottom: '12px' }}>
-          <div className="tab-filters-row" style={{ marginBottom: '10px', overflowX: 'auto' }}>
+          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'inline-flex', marginBottom: '10px', overflowX: 'auto' }}>
             {planningTabs.map(tab => (
               <button
                 key={tab.key}
                 className={`filter-pill ${planningViewTab === tab.key ? 'active' : ''}`}
+                style={{ color: planningViewTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
                 onClick={() => setPlanningViewTab(tab.key)}
               >
                 {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'inline-flex' }}>
-            {PRIORITY_OPTS.map(p => (
-              <button key={p} className={`filter-pill ${planningPriorityFilter === p ? 'active' : ''}`} onClick={() => setPlanningPriorityFilter(p)}
-                style={{ color: planningPriorityFilter === p ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
-                {p === 'All' ? 'All Priority' : p}
               </button>
             ))}
           </div>
@@ -4477,7 +4470,7 @@ export default function PlantHeadPortal() {
 
       {/* Planning Modal */}
       {showPlanningModal && selectedOrderForPlanning && (
-        <div className="modal-overlay active" onClick={() => { setShowPlanningModal(false); if(orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000 }}>
+        <div className="modal-overlay active" onClick={() => { setShowPlanningModal(false); if(orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '640px', maxWidth: 'calc(100vw - 32px)' }}>
             <div className="modal-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '12px', marginBottom: '16px' }}>
               <h3 className="modal-title-text" style={{ margin: 0, fontWeight: '800' }}>Decide Production Date</h3>
