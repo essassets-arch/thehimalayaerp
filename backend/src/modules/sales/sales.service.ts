@@ -327,6 +327,7 @@ export class SalesService {
             ? { status: statusByAction[dto.action] }
             : {}),
           ...(dto.action === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
+          ...(dto.remarks ? { remarks: dto.remarks } : {}),
           version: { increment: 1 },
         },
         include: {

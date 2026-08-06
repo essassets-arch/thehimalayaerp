@@ -737,6 +737,7 @@ export function acceptOrderByPlantHead(
     workflowStatus: 'PLANT_HEAD_ACCEPTED',
     plantHeadStatus: 'ACCEPTED',
     acceptedByPlantHeadAt: new Date().toISOString(),
+    remarks: payload?.remarks || order.remarks,
   };
 
   return withSales(

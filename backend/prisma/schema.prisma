@@ -969,12 +969,11 @@ model Quotation {
   leadId          String?
   customerId      String?
   validUntil      DateTime?
-
   subtotal Decimal @default(0) @db.Decimal(18, 2)
   discount Decimal @default(0) @db.Decimal(18, 2)
   tax      Decimal @default(0) @db.Decimal(18, 2)
   total    Decimal @default(0) @db.Decimal(18, 2)
-
+  expectedTransportationCost Decimal @default(0) @db.Decimal(18, 2)
   remarks           String?
   version           Int     @default(1)
   parentQuotationId String?

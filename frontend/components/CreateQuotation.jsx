@@ -165,7 +165,7 @@ export default function CreateQuotation({
     validTill: defaultValidTill(),
     paymentTerms: '15 Days',
     items: getInitialItems(),
-    transportCharge: 0,
+    transportCharge: quotationDraft ? (quotationDraft.transportCharge !== undefined && quotationDraft.transportCharge !== null ? quotationDraft.transportCharge : (quotationDraft.expectedTransportationCost !== undefined && quotationDraft.expectedTransportationCost !== null ? quotationDraft.expectedTransportationCost : '')) : '',
     notes: quotationDraft?.notes || ''
   };
 
@@ -442,8 +442,8 @@ export default function CreateQuotation({
       return;
     }
     
-    if (transportCharge === '' || transportCharge === null || transportCharge === undefined) {
-      alert('Please specify the Expected Transportation Cost.');
+    if (transportCharge === '' || transportCharge === null || transportCharge === undefined || Number(transportCharge) <= 0) {
+      alert('Please specify a valid Expected Transportation Cost (greater than 0).');
       return;
     }
     

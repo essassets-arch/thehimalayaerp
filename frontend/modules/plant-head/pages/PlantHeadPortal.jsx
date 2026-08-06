@@ -3030,6 +3030,7 @@ export default function PlantHeadPortal() {
             { header: 'Product Item', accessor: 'products', render: (row) => row.products || row.productItem || '—' },
             { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
             { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
+            { header: 'Remarks', accessor: 'remarks', render: (row) => row.remarks || '—' },
             { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row.planningStatus) },
           ]}
           data={filtered}

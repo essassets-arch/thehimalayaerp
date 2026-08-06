@@ -96,6 +96,7 @@ export function mapSalesOrder(
     customer: order.customer,
     shippingAddress: order.shippingAddress,
     billingAddress: order.billingAddress,
+    remarks: order.remarks ?? undefined,
 
     items: order.items.map((item) => {
       const deliveredQuantity = dispatches

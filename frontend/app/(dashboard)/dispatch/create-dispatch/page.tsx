@@ -171,6 +171,7 @@ export default function CreateDispatchPage() {
                 salesOrder: {
                   id: so.id,
                   orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
+                  freightAmount: so.freightAmount,
                   shippingAddress: so.shippingAddress,
                   customer: so.customer || { id: so.customerId, companyName: so.customerName || "N/A" },
                 },

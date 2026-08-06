@@ -185,6 +185,7 @@ export class QuotationsService {
         discount: totals.discount,
         tax: totals.tax,
         total: totals.total,
+        expectedTransportationCost: Number(dto.expectedTransportationCost || dto.transportCharge || 0),
         remarks: dto.remarks,
         workflowStateId: initialState.id,
         createdById: userId,
@@ -243,6 +244,7 @@ export class QuotationsService {
           validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
           remarks: dto.remarks,
           updatedById: userId,
+          expectedTransportationCost: dto.expectedTransportationCost !== undefined || dto.transportCharge !== undefined ? Number(dto.expectedTransportationCost || dto.transportCharge || 0) : undefined,
           ...(totals
             ? {
                 subtotal: totals.subtotal,
