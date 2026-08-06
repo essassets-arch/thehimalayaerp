@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../shared/context/AuthContext';
 import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
@@ -14,6 +15,18 @@ export default function StoreMaterialIssueView() {
   const history = data.filter(request => request.status !== 'PLANT_HEAD_APPROVED' && request.status !== 'SUBMITTED' && request.status !== 'DRAFT');
   const requests = tab === 'Pending' ? pending : history;
   const actor = user?.name || 'Store';
+
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const pageSize = 30;
+
+  // Reset page when tab changes
+  useEffect(() => {
+    setPage(1);
+  }, [tab]);
+
+  const totalPages = Math.ceil(requests.length / pageSize);
+  const paginatedRequests = requests.slice((page - 1) * pageSize, page * pageSize);
 
   const approve = async (request) => {
     try {
@@ -72,7 +85,7 @@ export default function StoreMaterialIssueView() {
               <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: '#5E6B82' }}>
                 {tab === 'Pending' ? 'No approved material requests available for release.' : 'No processed material requests in history.'}
               </td></tr>
-            ) : requests.flatMap((request) => {
+            ) : paginatedRequests.flatMap((request) => {
               return request.items.map((item, index) => (
                 <tr key={`${request.id}-${item.materialId || index}`}>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9', fontWeight: 700 }}>{request.id}</td>
@@ -109,6 +122,73 @@ export default function StoreMaterialIssueView() {
             })}
           </tbody>
         </table>
+      </div>
+      <PaginationControl
+        currentPage={page}
+        totalPages={totalPages}
+        totalItems={requests.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        themeColor="#0f766e"
+      />
+    </div>
+  );
+}
+
+function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPageChange, themeColor = '#2F4375' }) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+        Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
+      </div>
+
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <button 
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === 1 ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          <ChevronLeft size={16} /> Previous
+        </button>
+
+        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          let pNum = i + 1;
+          if (totalPages > 5 && currentPage > 3) {
+            pNum = currentPage - 2 + i;
+            if (pNum > totalPages) pNum = totalPages - (4 - i);
+          }
+          return (
+            <button
+              type="button"
+              key={pNum}
+              onClick={() => onPageChange(pNum)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: currentPage === pNum ? 'none' : '1px solid #CBD5E1',
+                background: currentPage === pNum ? themeColor : '#FFFFFF',
+                color: currentPage === pNum ? '#FFFFFF' : '#334155'
+              }}
+            >
+              {pNum}
+            </button>
+          );
+        })}
+
+        <button 
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === totalPages ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          Next <ChevronRight size={16} />
+        </button>
       </div>
     </div>
   );

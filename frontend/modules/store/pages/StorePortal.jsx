@@ -13,7 +13,7 @@ import { productionService } from '../../../services/production.service';
 import { apiClient } from '../../../lib/apiClient';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
-import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileText, CheckCircle, AlertTriangle, AlertCircle, Eye, Edit2, Search, Sliders, X, Download, PackageCheck, Upload } from 'lucide-react';
+import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileText, CheckCircle, AlertTriangle, AlertCircle, Eye, Edit2, Search, Sliders, X, Download, PackageCheck, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
 import StoreMaterialIssueView from '../../../components/material-workflow/StoreMaterialIssueView';
 import StoreReleasesView from '../../../components/material-workflow/StoreReleasesView';
 import StoreMaterialReturnVerificationView from '../../../components/material-workflow/StoreMaterialReturnVerificationView';
@@ -216,6 +216,65 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
   );
 }
 
+function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPageChange, themeColor = '#2F4375' }) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+        Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
+      </div>
+
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <button 
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === 1 ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          <ChevronLeft size={16} /> Previous
+        </button>
+
+        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          let pNum = i + 1;
+          if (totalPages > 5 && currentPage > 3) {
+            pNum = currentPage - 2 + i;
+            if (pNum > totalPages) pNum = totalPages - (4 - i);
+          }
+          return (
+            <button
+              type="button"
+              key={pNum}
+              onClick={() => onPageChange(pNum)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: currentPage === pNum ? 'none' : '1px solid #CBD5E1',
+                background: currentPage === pNum ? themeColor : '#FFFFFF',
+                color: currentPage === pNum ? '#FFFFFF' : '#334155'
+              }}
+            >
+              {pNum}
+            </button>
+          );
+        })}
+
+        <button 
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === totalPages ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          Next <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function StorePortal() {
   const params = useParams(); const view = params?.slug?.[0]; const materialName = params?.slug?.[1];
   const navigate = useRouter();
@@ -292,6 +351,11 @@ export default function StorePortal() {
   const [photo2Files, setPhoto2Files] = useState({});
   const [deliveryMetadata, setDeliveryMetadata] = useState({});
   const [lowStockTab, setLowStockTab] = useState('Alerts');
+
+  // Pagination states
+  const [rawInvPage, setRawInvPage] = useState(1);
+  const [issuedHistoryPage, setIssuedHistoryPage] = useState(1);
+  const [lowStockPage, setLowStockPage] = useState(1);
 
   // Unified Raw Inventory UI states
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
@@ -406,6 +470,18 @@ export default function StorePortal() {
   }, [currentView, matCode, state.rawInventory]);
 
 
+
+  // Reset pages when view or tab changes
+  useEffect(() => {
+    setRawInvPage(1);
+    setIssuedHistoryPage(1);
+    setLowStockPage(1);
+  }, [currentView, lowStockTab, activeTab]);
+
+  // Reset raw inventory page when search query changes
+  useEffect(() => {
+    setRawInvPage(1);
+  }, [rawSearchQuery]);
 
   useEffect(() => {
     const currentParams = new URLSearchParams(location.search);
@@ -1124,6 +1200,10 @@ export default function StorePortal() {
       );
     });
 
+    const rawInvPageSize = 30;
+    const rawInvTotalPages = Math.ceil(filteredItems.length / rawInvPageSize);
+    const paginatedRawInvItems = filteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
+
     const totalMaterials = mappedInventory.length;
     const totalStockQty = mappedInventory.reduce((sum, i) => sum + i.stock, 0);
     const lowStockItems = mappedInventory.filter(i => i.stock <= i.reorderLevel && i.stock > 0).length;
@@ -1473,7 +1553,7 @@ export default function StorePortal() {
                   </td>
                 </tr>
               ) : (
-                filteredItems.map(item => {
+                paginatedRawInvItems.map(item => {
                   const isOutOfStock = item.stock === 0;
                   const isLowStock = item.stock <= item.reorderLevel && item.stock > 0;
 
@@ -1537,6 +1617,15 @@ export default function StorePortal() {
             </tbody>
           </table>
         </div>
+
+        <PaginationControl
+          currentPage={rawInvPage}
+          totalPages={rawInvTotalPages}
+          totalItems={filteredItems.length}
+          pageSize={rawInvPageSize}
+          onPageChange={setRawInvPage}
+          themeColor="#0f766e"
+        />
 
         {/* MODAL: Add Stock */}
         {showAddStockModal && (
@@ -1759,6 +1848,9 @@ export default function StorePortal() {
       return acc;
     }, {});
     const orderGroups = Object.entries(groupedByOrder);
+    const issuedHistoryPageSize = 30;
+    const issuedHistoryTotalPages = Math.ceil(orderGroups.length / issuedHistoryPageSize);
+    const paginatedOrderGroups = orderGroups.slice((issuedHistoryPage - 1) * issuedHistoryPageSize, issuedHistoryPage * issuedHistoryPageSize);
 
     if (orderGroups.length === 0) {
       return (
@@ -1782,7 +1874,7 @@ export default function StorePortal() {
           </div>
         </div>
 
-        {orderGroups.map(([orderNo, reqs]) => {
+        {paginatedOrderGroups.map(([orderNo, reqs]) => {
           const order = orders.find(o => o.orderNo === orderNo);
           const approvedReqs = reqs.filter(r => r.status === 'APPROVED');
           const preparedReqs = reqs.filter(r => r.status === 'READY_FOR_RELEASE');
@@ -1937,6 +2029,15 @@ export default function StorePortal() {
             </div>
           );
         })}
+
+        <PaginationControl
+          currentPage={issuedHistoryPage}
+          totalPages={issuedHistoryTotalPages}
+          totalItems={orderGroups.length}
+          pageSize={issuedHistoryPageSize}
+          onPageChange={setIssuedHistoryPage}
+          themeColor="#0f766e"
+        />
       </div>
     );
   };
@@ -1977,6 +2078,10 @@ export default function StorePortal() {
 
     // Sort: Out of Stock products FIRST, then Low Stock products
     const sortedLowStockItems = [...outOfStockItems, ...lowStockItemsOnly];
+
+    const lowStockPageSize = 30;
+    const lowStockTotalPages = Math.ceil(sortedLowStockItems.length / lowStockPageSize);
+    const paginatedLowStockItems = sortedLowStockItems.slice((lowStockPage - 1) * lowStockPageSize, lowStockPage * lowStockPageSize);
 
     const outOfStockCount = outOfStockItems.length;
     const lowStockCount = lowStockItemsOnly.length;
@@ -2124,7 +2229,7 @@ export default function StorePortal() {
                 <tbody>
                   {sortedLowStockItems.length === 0 ? (
                     <tr><td colSpan="7" style={{ textAlign: 'center', padding: '28px', color: '#8893A7' }}>✅ All materials are sufficiently stocked.</td></tr>
-                  ) : sortedLowStockItems.map(item => {
+                  ) : paginatedLowStockItems.map(item => {
                     const requiredQty = Math.max(0, item.minStock - item.stock);
                     const isOutOfStock = item.stock === 0;
                     const isIndented = materialIndents.some(ind => 
@@ -2185,6 +2290,15 @@ export default function StorePortal() {
                 </tbody>
               </table>
             </div>
+
+            <PaginationControl
+              currentPage={lowStockPage}
+              totalPages={lowStockTotalPages}
+              totalItems={sortedLowStockItems.length}
+              pageSize={lowStockPageSize}
+              onPageChange={setLowStockPage}
+              themeColor="#2F4375"
+            />
           </>
         )}
 

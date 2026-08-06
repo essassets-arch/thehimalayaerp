@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../shared/context/AuthContext';
 import { useERPStore } from '../../store/erpStore';
 import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './StoreReleasesView.css';
 
 const getIssueQty = (item) => Number(item.issuedQty ?? item.issueQty ?? 0);
@@ -35,6 +36,15 @@ export default function StoreReleasesView() {
   const [issuedQuantities, setIssuedQuantities] = useState({});
   // Track editable input quantities per item for current transaction
   const [inputQuantities, setInputQuantities] = useState({});
+
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const pageSize = 30;
+
+  // Reset page when activeTab changes
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
 
   // Fallback demo request so WO-109 is always testable
   const fallbackDemoRequests = useMemo(() => [
@@ -107,6 +117,11 @@ export default function StoreReleasesView() {
       return !isComplete; // pending tab shows orders with remaining qty > 0
     });
   }, [orderIds, combinedRequests, activeTab, issuedQuantities]);
+
+  const totalPages = Math.ceil(visibleOrderIds.length / pageSize);
+  const paginatedVisibleOrderIds = useMemo(() => {
+    return visibleOrderIds.slice((page - 1) * pageSize, page * pageSize);
+  }, [visibleOrderIds, page, pageSize]);
 
   const handleInputChange = (itemKey, maxQty, value) => {
     const num = Math.max(0, Math.min(maxQty, Number(value) || 0));
@@ -257,7 +272,7 @@ export default function StoreReleasesView() {
       </div>
 
       {/* Orders Cards List */}
-      {visibleOrderIds.map((orderId) => {
+      {paginatedVisibleOrderIds.map((orderId) => {
         const visibleRequests = combinedRequests.filter((request) => request.orderId === orderId);
         const currentCardDept = cardDepartments[orderId] || visibleRequests[0]?.department || 'Production';
 
@@ -454,6 +469,74 @@ export default function StoreReleasesView() {
           {activeTab === 'pending' ? 'No pending store releases.' : 'No release history found.'}
         </div>
       )}
+
+      <PaginationControl
+        currentPage={page}
+        totalPages={totalPages}
+        totalItems={visibleOrderIds.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        themeColor="#2F4375"
+      />
+    </div>
+  );
+}
+
+function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPageChange, themeColor = '#2F4375' }) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+        Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
+      </div>
+
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <button 
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === 1 ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          <ChevronLeft size={16} /> Previous
+        </button>
+
+        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          let pNum = i + 1;
+          if (totalPages > 5 && currentPage > 3) {
+            pNum = currentPage - 2 + i;
+            if (pNum > totalPages) pNum = totalPages - (4 - i);
+          }
+          return (
+            <button
+              type="button"
+              key={pNum}
+              onClick={() => onPageChange(pNum)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: currentPage === pNum ? 'none' : '1px solid #CBD5E1',
+                background: currentPage === pNum ? themeColor : '#FFFFFF',
+                color: currentPage === pNum ? '#FFFFFF' : '#334155'
+              }}
+            >
+              {pNum}
+            </button>
+          );
+        })}
+
+        <button 
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === totalPages ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          Next <ChevronRight size={16} />
+        </button>
+      </div>
     </div>
   );
 }
