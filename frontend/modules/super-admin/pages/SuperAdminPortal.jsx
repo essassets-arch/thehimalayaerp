@@ -6,6 +6,9 @@ import { useSearchStore } from '@/store/searchStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useERP, useERPStore } from '../../../shared/context/ERPContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
+import ExpenseManagementView from '../../../shared/components/ExpenseManagementView';
+import LeaveApprovalView from '../../../shared/components/LeaveApprovalView';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { adminService } from '../../../services/admin.service';
 import { productService } from '../../../services/product.service';
@@ -360,8 +363,38 @@ export default function SuperAdminPortal() {
     }
   }, [view]);
 
+  useEffect(() => {
+    if (view === 'production-target') {
+      const loadProductionTargets = async () => {
+        try {
+          const res = await apiClient.get('/backend/production-targets');
+          if (res.data && Array.isArray(res.data.data)) {
+            setProductionTargets(res.data.data);
+          }
+        } catch (err) {
+          console.warn('Failed to load production targets:', err);
+        }
+      };
+      loadProductionTargets();
+    }
+  }, [view]);
+
   const [selectedSalesTarget, setSelectedSalesTarget] = useState(null);
   const [showSalesTargetModal, setShowSalesTargetModal] = useState(false);
+
+  // ── Production Targets Module State ──
+  const [productionTargets, setProductionTargets] = useState([]);
+  const [showProductionTargetModal, setShowProductionTargetModal] = useState(false);
+  const [productionTargetModalMode, setProductionTargetModalMode] = useState('create'); // 'create' | 'edit'
+  const [productionTargetForm, setProductionTargetForm] = useState({
+    id: '',
+    period: 'Monthly',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
+    targetQty: 15000,
+    remarks: '',
+    plantId: '1'
+  });
   const [salesTargetModalMode, setSalesTargetModalMode] = useState('create'); // 'create' | 'edit'
   const [salesTargetForm, setSalesTargetForm] = useState({
     id: '',
@@ -419,6 +452,31 @@ export default function SuperAdminPortal() {
     department: 'All',
     priority: 'High'
   });
+  const [selectedNotifDepts, setSelectedNotifDepts] = useState(['ALL']);
+  const [broadcastHistory, setBroadcastHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchBroadcastHistory = useCallback(async () => {
+    try {
+      setLoadingHistory(true);
+      const res = await apiClient.get('/notifications/broadcast-history');
+      if (res && res.success && Array.isArray(res.data)) {
+        setBroadcastHistory(res.data);
+      } else if (Array.isArray(res)) {
+        setBroadcastHistory(res);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch broadcast history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'notifications') {
+      fetchBroadcastHistory();
+    }
+  }, [view, fetchBroadcastHistory]);
 
   // Local settings form state
   const [companySettings, setCompanySettings] = useState(state.settings || {
@@ -1292,19 +1350,24 @@ export default function SuperAdminPortal() {
       showToast('Please specify a title and message body.');
       return;
     }
+    if (selectedNotifDepts.length === 0) {
+      showToast('Please select at least one department or All.');
+      return;
+    }
 
     try {
-      await apiClient.post('/notifications', {
+      await apiClient.post('/notifications/broadcast', {
         title: notifComposer.title,
         message: notifComposer.message,
-        department: notifComposer.department === 'All' ? 'All' : notifComposer.department,
-        priority: notifComposer.priority
+        roleCodes: selectedNotifDepts
       });
 
-      logActivity('Global Announcement Sent', `Sent announcement: ${notifComposer.title} to department: ${notifComposer.department}`, 'Global Notifications');
+      logActivity('Broadcast Notification Sent', `Sent announcement: ${notifComposer.title} to: ${selectedNotifDepts.join(', ')}`, 'Global Notifications');
       showToast('Global Announcement broadcasted successfully.');
       setNotifComposer({ title: '', message: '', department: 'All', priority: 'High' });
+      setSelectedNotifDepts(['ALL']);
       await syncData();
+      await fetchBroadcastHistory();
     } catch (err) {
       console.error('Failed to send announcement:', err);
       showToast(`Failed to broadcast announcement: ${err.message || 'Server error'}`);
@@ -3708,11 +3771,27 @@ export default function SuperAdminPortal() {
       try {
         if (salesTargetModalMode === 'create') {
           const res = await apiClient.post('/backend/sales-targets', payload);
+          if (!res.success) {
+            fireSwal({
+              title: 'Target Setup Failed',
+              text: res.message || 'An error occurred while saving the target.',
+              icon: 'error'
+            });
+            return;
+          }
           showToast(res.data.message || 'Revenue Target assigned successfully.');
           
           setSalesTargets([...salesTargets, res.data.data]);
         } else {
           const res = await apiClient.patch(`/backend/sales-targets/${salesTargetForm.id}`, payload);
+          if (!res.success) {
+            fireSwal({
+              title: 'Target Setup Failed',
+              text: res.message || 'An error occurred while saving the target.',
+              icon: 'error'
+            });
+            return;
+          }
           showToast(res.data.message || 'Revenue Target updated successfully.');
           
           setSalesTargets(salesTargets.map(t => t.id === salesTargetForm.id ? { ...t, ...res.data.data } : t));
@@ -3722,7 +3801,7 @@ export default function SuperAdminPortal() {
       } catch (err) {
         fireSwal({
           title: 'Target Setup Failed',
-          text: err.response?.data?.message || 'An error occurred while saving the target.',
+          text: err.response?.data?.message || err.message || 'An error occurred while saving the target.',
           icon: 'error'
         });
       }
@@ -4260,6 +4339,328 @@ export default function SuperAdminPortal() {
               }}>
                 <button onClick={() => setShowTargetProgressModal(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Close Window</button>
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderProductionTarget = () => {
+    const activeTarget = productionTargets.find(t => t.status === 'ACTIVE') || {};
+    const totalTarget = productionTargets.reduce((sum, t) => t.status === 'ACTIVE' ? sum + Number(t.quantityTarget) : sum, 0);
+    const totalAchieved = productionTargets.reduce((sum, t) => t.status === 'ACTIVE' ? sum + Number(t.achieved || 0) : sum, 0);
+    const overallPct = totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0;
+
+    const handleSaveProductionTarget = async (e) => {
+      e.preventDefault();
+      const payload = {
+        targetPeriod: productionTargetForm.period,
+        startDate: productionTargetForm.startDate,
+        endDate: productionTargetForm.endDate,
+        quantityTarget: Number(productionTargetForm.targetQty),
+        remarks: productionTargetForm.remarks || '',
+        plantId: productionTargetForm.plantId || '1',
+      };
+      try {
+        if (productionTargetModalMode === 'create') {
+          const res = await apiClient.post('/backend/production-targets', payload);
+          if (!res.success) {
+            fireSwal({
+              title: 'Failed to Save Target',
+              text: res.message || 'An error occurred while saving the production target.',
+              icon: 'error'
+            });
+            return;
+          }
+          showToast(res.data.message || 'Production Target created successfully.');
+          setProductionTargets([res.data.data, ...productionTargets]);
+        } else {
+          const res = await apiClient.patch(`/backend/production-targets/${productionTargetForm.id}`, payload);
+          if (!res.success) {
+            fireSwal({
+              title: 'Failed to Save Target',
+              text: res.message || 'An error occurred while saving the production target.',
+              icon: 'error'
+            });
+            return;
+          }
+          showToast(res.data.message || 'Production Target updated successfully.');
+          setProductionTargets(productionTargets.map(t => t.id === productionTargetForm.id ? { ...t, ...res.data.data } : t));
+        }
+        queryClient.invalidateQueries({ queryKey: ['production-target-achievement'] });
+        setShowProductionTargetModal(false);
+      } catch (err) {
+        fireSwal({
+          title: 'Failed to Save Target',
+          text: err.response?.data?.message || err.message || 'An error occurred while saving the production target.',
+          icon: 'error'
+        });
+      }
+    };
+
+    const handleCancelProductionTarget = async (row) => {
+      try {
+        const res = await apiClient.patch(`/backend/production-targets/${row.id}`, { status: 'CANCELLED' });
+        showToast('Production target cancelled.');
+        setProductionTargets(productionTargets.map(t => t.id === row.id ? { ...t, status: 'CANCELLED' } : t));
+        queryClient.invalidateQueries({ queryKey: ['production-target-achievement'] });
+      } catch (err) {
+        showToast('Failed to cancel target.', 'error');
+      }
+    };
+
+    const handleDeleteProductionTarget = async (row) => {
+      try {
+        await apiClient.delete(`/backend/production-targets/${row.id}`);
+        showToast('Production target deleted.');
+        setProductionTargets(productionTargets.filter(t => t.id !== row.id));
+        queryClient.invalidateQueries({ queryKey: ['production-target-achievement'] });
+      } catch (err) {
+        showToast('Failed to delete target.', 'error');
+      }
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* KPI Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '16px'
+        }}>
+          <div className="app-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #3b82f6' }}>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Active Targets Total</span>
+            <strong style={{ fontSize: '20px', color: '#1e293b' }}>{totalTarget.toLocaleString()} Units</strong>
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Cumulative target count</span>
+          </div>
+          <div className="app-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #10b981' }}>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Active Achieved Total</span>
+            <strong style={{ fontSize: '20px', color: '#10b981' }}>{totalAchieved.toLocaleString()} Units</strong>
+            <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold' }}>{overallPct}% Avg Achievement</span>
+          </div>
+          <div className="app-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #ef4444' }}>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Remaining Active Target</span>
+            <strong style={{ fontSize: '20px', color: '#ef4444' }}>{Math.max(0, totalTarget - totalAchieved).toLocaleString()} Units</strong>
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Remaining units to produce</span>
+          </div>
+        </div>
+
+        {/* Targets Table */}
+        <div className="app-card">
+          <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h2 className="card-heading">Production Targets</h2>
+              <span style={{ fontSize: '11px', color: '#475569' }}>Configure and track volume production targets for production runs</span>
+            </div>
+            <div>
+              <button
+                className="action-btn"
+                style={{ background: 'var(--color-primary)', border: 'none', padding: '8px 16px', borderRadius: '6px', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                onClick={() => {
+                  setProductionTargetForm({
+                    id: '',
+                    period: 'Monthly',
+                    startDate: new Date().toISOString().split('T')[0],
+                    endDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
+                    targetQty: 15000,
+                    remarks: '',
+                    plantId: '1'
+                  });
+                  setProductionTargetModalMode('create');
+                  setShowProductionTargetModal(true);
+                }}
+              >
+                <Plus size={16} /> Assign Production Target
+              </button>
+            </div>
+          </div>
+
+          <DataTable
+            columns={[
+              { header: 'Period', accessor: 'targetPeriod', render: (row) => <strong>{row.targetPeriod}</strong> },
+              { header: 'Start Date', accessor: 'startDate', render: (row) => <span>{row.startDate ? (typeof row.startDate === 'string' ? row.startDate.slice(0, 10) : new Date(row.startDate).toISOString().slice(0, 10)) : ''}</span> },
+              { header: 'End Date', accessor: 'endDate', render: (row) => <span>{row.endDate ? (typeof row.endDate === 'string' ? row.endDate.slice(0, 10) : new Date(row.endDate).toISOString().slice(0, 10)) : ''}</span> },
+              { header: 'Target Qty', accessor: 'quantityTarget', render: (row) => <strong>{Number(row.quantityTarget || 0).toLocaleString()}</strong> },
+              { header: 'Achieved', accessor: 'achieved', render: (row) => <span>{Number(row.achieved || 0).toLocaleString()}</span> },
+              { header: 'Achievement %', accessor: 'achievement', render: (row) => <strong>{row.achievement || 0}%</strong> },
+              {
+                header: 'Status',
+                accessor: 'status',
+                render: (row) => {
+                  const style = row.status === 'ACTIVE'
+                    ? { color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', label: 'Active' }
+                    : { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', label: 'Cancelled' };
+                  return (
+                    <span style={{ color: style.color, background: style.bg, padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
+                      {style.label}
+                    </span>
+                  );
+                }
+              }
+            ]}
+            data={productionTargets}
+            searchQuery={globalSearch}
+            searchField="targetPeriod"
+            emptyMessage="No production targets configured."
+            actions={(row) => (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    setProductionTargetForm({
+                      id: row.id,
+                      period: row.targetPeriod,
+                      startDate: row.startDate ? (typeof row.startDate === 'string' ? row.startDate.slice(0, 10) : new Date(row.startDate).toISOString().slice(0, 10)) : '',
+                      endDate: row.endDate ? (typeof row.endDate === 'string' ? row.endDate.slice(0, 10) : new Date(row.endDate).toISOString().slice(0, 10)) : '',
+                      targetQty: row.quantityTarget,
+                      remarks: row.remarks || '',
+                      plantId: row.plantId || '1'
+                    });
+                    setProductionTargetModalMode('edit');
+                    setShowProductionTargetModal(true);
+                  }}
+                  className="action-btn"
+                  style={{ background: 'rgba(59, 130, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer' }}
+                  title="Edit Target"
+                >
+                  <Edit2 size={12} />
+                </button>
+                {row.status === 'ACTIVE' && (
+                  <button
+                    onClick={() => handleCancelProductionTarget(row)}
+                    className="action-btn"
+                    style={{ background: 'rgba(245, 158, 11, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#f59e0b', cursor: 'pointer' }}
+                    title="Cancel Target"
+                  >
+                    <XCircle size={12} />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDeleteProductionTarget(row)}
+                  className="action-btn"
+                  style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
+                  title="Delete Target"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            )}
+          />
+        </div>
+
+        {/* modal */}
+        {showProductionTargetModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}>
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              width: '100%',
+              maxWidth: '520px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                padding: '24px 28px',
+                borderBottom: '1px solid #f1f5f9',
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
+                  {productionTargetModalMode === 'create' ? 'Assign Production Target' : 'Edit Production Target'}
+                </h3>
+                <button onClick={() => setShowProductionTargetModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+              </div>
+
+              <form onSubmit={handleSaveProductionTarget}>
+                <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px' }}>Target Period *</label>
+                    <select
+                      className="form-select"
+                      required
+                      value={productionTargetForm.period}
+                      onChange={(e) => setProductionTargetForm({ ...productionTargetForm, period: e.target.value })}
+                    >
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Yearly">Yearly</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px' }}>Start Date *</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        required
+                        value={productionTargetForm.startDate}
+                        onChange={(e) => setProductionTargetForm({ ...productionTargetForm, startDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px' }}>End Date *</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        required
+                        value={productionTargetForm.endDate}
+                        onChange={(e) => setProductionTargetForm({ ...productionTargetForm, endDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px' }}>Target Qty (Units) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-input"
+                      required
+                      value={productionTargetForm.targetQty}
+                      onChange={(e) => setProductionTargetForm({ ...productionTargetForm, targetQty: Number(e.target.value) })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '700', marginBottom: '6px' }}>Remarks</label>
+                    <textarea
+                      className="form-input"
+                      rows="2"
+                      value={productionTargetForm.remarks}
+                      onChange={(e) => setProductionTargetForm({ ...productionTargetForm, remarks: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '20px 28px',
+                  borderTop: '1px solid #f1f5f9',
+                  background: '#f8fafc',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '12px'
+                }}>
+                  <button type="button" onClick={() => setShowProductionTargetModal(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" style={{ padding: '10px 20px', borderRadius: '8px', background: 'var(--color-primary)', border: 'none', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>Save Target</button>
+                </div>
+              </form>
             </div>
           </div>
         )}
@@ -6171,66 +6572,184 @@ export default function SuperAdminPortal() {
 
   // 15. GLOBAL NOTIFICATIONS
   const renderGlobalNotifications = () => {
+    const DEPARTMENTS = [
+      { code: 'SALES_EXECUTIVE', name: 'Sales' },
+      { code: 'PRODUCTION_PLANNER', name: 'Production' },
+      { code: 'STORE_MANAGER', name: 'Store' },
+      { code: 'QC_INSPECTOR', name: 'QC' },
+      { code: 'DISPATCH_EXECUTIVE', name: 'Dispatch' },
+      { code: 'FINANCE_EXECUTIVE', name: 'Finance' },
+      { code: 'HR', name: 'HR' }
+    ];
+
+    const isAllSelected = selectedNotifDepts.includes('ALL');
+
+    const toggleDept = (code) => {
+      if (code === 'ALL') {
+        if (isAllSelected) {
+          setSelectedNotifDepts([]);
+        } else {
+          setSelectedNotifDepts(['ALL']);
+        }
+      } else {
+        let updated = [...selectedNotifDepts].filter(x => x !== 'ALL');
+        if (updated.includes(code)) {
+          updated = updated.filter(x => x !== code);
+        } else {
+          updated.push(code);
+        }
+        setSelectedNotifDepts(updated);
+      }
+    };
+
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
         <div>
-          <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '0 0 4px 4px' }}>Compose Global Announcement</h2>
-          <span style={{ fontSize: '11px', color: '#475569', marginLeft: '4px' }}>
-            Broadcast alert updates to specific roles, departments, or publish globally to all logged-in workers.
+          <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '0 0 4px 4px' }}>Notification Management</h2>
+          <span style={{ fontSize: '12px', color: '#475569', marginLeft: '4px' }}>
+            Broadcast alerts to specific departments, multiple channels, or publish globally to all roles.
           </span>
         </div>
 
-        <form onSubmit={handleSendNotification} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Announcement Title *</label>
-            <input
-              type="text" required className="form-input" placeholder="e.g. Server Maintenance Scheduled"
-              value={notifComposer.title} onChange={e => setNotifComposer({ ...notifComposer, title: e.target.value })}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        {/* Two-Column Responsive Layout Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', alignItems: 'start' }}>
+          
+          {/* Column 1: Compose Form */}
+          <form onSubmit={handleSendNotification} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', margin: '0 0 4px 0' }}>
+              Compose Announcement
+            </h3>
+            
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Target Audience Department</label>
-              <select className="form-select" value={notifComposer.department} onChange={e => setNotifComposer({ ...notifComposer, department: e.target.value })}>
-                <option value="All">All Departments</option>
-                <option value="Sales">Sales</option>
-                <option value="Production">Production</option>
-                <option value="HR">HR</option>
-                <option value="Store">Store</option>
-                <option value="QC">QC</option>
-                <option value="Dispatch">Dispatch</option>
-                <option value="Finance">Finance</option>
-              </select>
+              <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Announcement Title *</label>
+              <input
+                type="text" required className="form-input" placeholder="e.g. Scheduled System Upgrades"
+                value={notifComposer.title} onChange={e => setNotifComposer({ ...notifComposer, title: e.target.value })}
+                style={{ marginTop: '6px' }}
+              />
             </div>
+
+            {/* Department Selector */}
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Alert Priority</label>
-              <select className="form-select" value={notifComposer.priority} onChange={e => setNotifComposer({ ...notifComposer, priority: e.target.value })}>
-                <option value="High">ðŸ”´ High Priority</option>
-                <option value="Medium">ðŸŸ¡ Medium Priority</option>
-                <option value="Low">ðŸŸ¢ Low Priority</option>
-              </select>
+              <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b', display: 'block', marginBottom: '8px' }}>
+                Target Departments *
+              </label>
+              
+              {/* Select All Toggle */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => toggleDept('ALL')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    border: '1.5px solid ' + (isAllSelected ? '#0ea5e9' : '#cbd5e1'),
+                    background: isAllSelected ? '#e0f2fe' : '#ffffff',
+                    color: isAllSelected ? '#0369a1' : '#475569',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  📢 All Departments
+                </button>
+              </div>
+
+              {/* Checkbox Grid for individual selection */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                {DEPARTMENTS.map(dept => {
+                  const isChecked = isAllSelected || selectedNotifDepts.includes(dept.code);
+                  return (
+                    <label key={dept.code} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12.5px', fontWeight: '600', color: '#334155' }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        disabled={isAllSelected}
+                        onChange={() => toggleDept(dept.code)}
+                        style={{ width: '16px', height: '16px', cursor: isAllSelected ? 'not-allowed' : 'pointer' }}
+                      />
+                      {dept.name}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Message Details Body *</label>
+              <textarea
+                required className="form-input" rows="4" placeholder="Type announcement details here..."
+                value={notifComposer.message} onChange={e => setNotifComposer({ ...notifComposer, message: e.target.value })}
+                style={{ marginTop: '6px', resize: 'vertical' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '8px' }}>
+              <button type="submit" className="action-btn" style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)' }}>
+                Broadcast Announcement
+              </button>
+            </div>
+          </form>
+
+          {/* Column 2: Broadcast History Log */}
+          <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                All Notifications Delivery History
+              </h3>
+              <button
+                type="button"
+                onClick={fetchBroadcastHistory}
+                disabled={loadingHistory}
+                style={{ background: 'transparent', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <RefreshCw size={12} className={loadingHistory ? 'spin' : ''} /> Refresh
+              </button>
+            </div>
+
+            {loadingHistory && broadcastHistory.length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+                Loading history stream...
+              </div>
+            ) : broadcastHistory.length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+                No notifications logged yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '480px', overflowY: 'auto', paddingRight: '4px' }}>
+                {broadcastHistory.map((notif, idx) => (
+                  <div key={idx} style={{ padding: '12px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <strong style={{ fontSize: '13.5px', color: '#0f172a', fontWeight: '800' }}>{notif.title}</strong>
+                      <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                        {new Date(notif.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '12.5px', color: '#475569', margin: 0, lineHeight: '1.4', wordBreak: 'break-word' }}>
+                      {notif.message}
+                    </p>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '4px', fontSize: '11.5px', color: '#64748b', fontWeight: '600' }}>
+                      <div>
+                        Recipient: <strong style={{ color: '#334155' }}>{notif.recipientName}</strong> ({notif.recipientRole})
+                      </div>
+                      <div>
+                        <span style={{ background: notif.status === 'READ' ? '#dcfce7' : '#fee2e2', color: notif.status === 'READ' ? '#15803d' : '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '800' }}>
+                          {notif.status === 'READ' ? 'Read' : 'Unread'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Message Details Body *</label>
-            <textarea
-              required className="form-input" rows="4" placeholder="Type announcement details here..."
-              value={notifComposer.message} onChange={e => setNotifComposer({ ...notifComposer, message: e.target.value })}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px', marginTop: '10px' }}>
-            <button type="submit" className="action-btn" style={{ background: 'var(--color-primary)', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-              Broadcast Announcement
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
     );
   };
-
   const renderInvoices = () => {
     const totalInvoiced = payments.reduce((sum, p) => sum + (Number(p.totalAmount || p.amount) || 0), 0);
     const totalCollected = payments.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
@@ -6817,6 +7336,12 @@ export default function SuperAdminPortal() {
     }
 
     switch (view) {
+      case 'profile':
+        return <MyProfileView />;
+      case 'expense-management':
+        return <ExpenseManagementView />;
+      case 'leave-approvals':
+        return <LeaveApprovalView roleMode="SUPER_ADMIN" />;
       case 'purchase-indents':
         return <PurchaseIndentsView />;
       case 'analysis-requests':
@@ -6861,6 +7386,8 @@ export default function SuperAdminPortal() {
         return renderCompanies();
       case 'sales-target':
         return renderSalesTarget();
+      case 'production-target':
+        return renderProductionTarget();
       case 'employees':
         return renderEmployees();
       case 'categories':

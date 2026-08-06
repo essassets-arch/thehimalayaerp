@@ -8,6 +8,7 @@ import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigat
 import Swal from 'sweetalert2';
 import { useERP } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
 import { dispatchService } from '../../../services/dispatch.service';
 import { salesService } from '../../../services/sales.service';
 import { apiClient } from '../../../lib/apiClient';
@@ -3660,6 +3661,7 @@ export default function DispatchPortal() {
       {currentView === 'reports' && renderReports()}
       {currentView === 'partial' && renderPartialDispatch()}
       {currentView === 'remaining' && renderRemainingDispatch()}
+      {currentView === 'profile' && <MyProfileView />}
 
       {/* Delivery Proof modal */}
       {showDeliveryModal && selectedDispatchForDelivery && (

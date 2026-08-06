@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { useSearchStore } from '@/store/searchStore';
 import { useERP } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
 import DataTable from '../../../shared/components/DataTable';
 import Swal from 'sweetalert2';
 import * as adminService from '../../../services/admin.service';
@@ -1078,6 +1079,7 @@ export default function AdminPortal() {
 
   const renderContent = () => {
     switch (view) {
+      case 'profile':          return <MyProfileView />;
       case 'dashboard':        return renderDashboard();
       case 'users':            return renderUsers();
       case 'roles':            return renderRoles();

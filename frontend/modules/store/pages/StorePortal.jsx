@@ -9,6 +9,7 @@ import { StoreDashboard } from './StoreDashboard';
 import { StoreSummaryReport } from './StoreSummaryReport';
 import { useERP, useERPStore } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
 import { productionService } from '../../../services/production.service';
 import { apiClient } from '../../../lib/apiClient';
 import DataTable from '../../../shared/components/DataTable';
@@ -3498,7 +3499,8 @@ export default function StorePortal() {
       {currentView === 'procurement-indents' && <CreateMaterialIndent />}
       {currentView === 'procurement-deliveries' && <VerifyPODelivery />}
       {currentView === 'replacement-deliveries' && <ReceiveReplacement />}
-      {!['dashboard', 'raw-inventory', 'finished-inventory', 'material-requests', 'store-releases', 'issued-history', 'low-stock-alerts', 'analysis-requests', 'reports', 'po', 'purchase', 'add-material', 'edit-material', 'grn-inspection', 'procurement-indents', 'procurement-deliveries', 'replacement-deliveries'].includes(currentView) && (
+      {currentView === 'profile' && <MyProfileView />}
+      {!['dashboard', 'raw-inventory', 'finished-inventory', 'material-requests', 'store-releases', 'issued-history', 'low-stock-alerts', 'analysis-requests', 'reports', 'po', 'purchase', 'add-material', 'edit-material', 'grn-inspection', 'procurement-indents', 'procurement-deliveries', 'replacement-deliveries', 'profile'].includes(currentView) && (
         <ModulePlaceholder 
           title="Module Not Available" 
           description="This Store feature is not implemented yet." 

@@ -9,6 +9,7 @@ import { useERP } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
 import { STATUS } from '../../../shared/constants';
 import { useAuth } from '../../../shared/context/AuthContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
 import { productionService } from '../../../services/production.service';
 import { backendFetch } from '../../../lib/backendFetch';
 import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
@@ -429,8 +430,16 @@ export default function ProductionPortal() {
   const globalSearch = useSearchStore(s => s.globalSearch);
 
   const [isMounted, setIsMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
   useEffect(() => {
     setIsMounted(true);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -442,9 +451,139 @@ export default function ProductionPortal() {
   const [backendWorkOrders, setBackendWorkOrders] = useState([]);
   const [mrTab, setMrTab] = useState(searchParams.get('tab') === 'history' ? 'Past' : 'Raise');
 
+  // ── Machine Performance Module State ──
+  const [machines, setMachines] = useState([]);
+  const [machineSearch, setMachineSearch] = useState('');
+  const [machinePage, setMachinePage] = useState(1);
+  const [machineLimit] = useState(10);
+  const [machineTotal, setMachineTotal] = useState(0);
+  const [loadingMachines, setLoadingMachines] = useState(false);
+  const [showAddMachineModal, setShowAddMachineModal] = useState(false);
+  const [addMachineForm, setAddMachineForm] = useState({
+    machineId: '',
+    machineName: '',
+    machineType: 'Hydraulic Press',
+    serialNumber: '',
+    location: '',
+  });
+
+  const [machineStatuses, setMachineStatuses] = useState([]);
+  const [machineStatusesDate, setMachineStatusesDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [loadingStatuses, setLoadingStatuses] = useState(false);
+  const [savingStatuses, setSavingStatuses] = useState(false);
+
+  const fetchMachines = useCallback(async (page = 1, search = '') => {
+    try {
+      setLoadingMachines(true);
+      const res = await backendFetch(`/api/backend/machines?page=${page}&limit=${machineLimit}&search=${encodeURIComponent(search)}`);
+      if (res && typeof res === 'object') {
+        setMachines(res.items || []);
+        setMachineTotal(res.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch machines:', err);
+    } finally {
+      setLoadingMachines(false);
+    }
+  }, [machineLimit]);
+
+  const fetchMachineStatuses = useCallback(async (dateStr) => {
+    try {
+      setLoadingStatuses(true);
+      const res = await backendFetch(`/api/backend/machine-status?date=${dateStr}`);
+      if (Array.isArray(res)) {
+        setMachineStatuses(res);
+      } else {
+        setMachineStatuses([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch machine statuses:', err);
+      setMachineStatuses([]);
+    } finally {
+      setLoadingStatuses(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'machines') {
+      fetchMachines(machinePage, machineSearch);
+    }
+  }, [view, machinePage, machineSearch, fetchMachines]);
+
+  useEffect(() => {
+    if (view === 'machines') {
+      fetchMachineStatuses(machineStatusesDate);
+    }
+  }, [view, machineStatusesDate, fetchMachineStatuses]);
+
   useEffect(() => {
     setMrTab(searchParams.get('tab') === 'history' ? 'Past' : 'Raise');
   }, [searchParams]);
+
+  const handleAddMachineSubmit = async () => {
+    if (!addMachineForm.machineId.trim() || !addMachineForm.machineName.trim() || !addMachineForm.machineType.trim()) {
+      showToast('Please fill in all required fields');
+      return;
+    }
+    try {
+      await backendFetch('/api/backend/machines', {
+        method: 'POST',
+        body: addMachineForm,
+      });
+      showToast('Machine added successfully');
+      setShowAddMachineModal(false);
+      setAddMachineForm({
+        machineId: '',
+        machineName: '',
+        machineType: 'Hydraulic Press',
+        serialNumber: '',
+        location: '',
+      });
+      fetchMachines(machinePage, machineSearch);
+      fetchMachineStatuses(machineStatusesDate);
+    } catch (err) {
+      console.error('Failed to add machine:', err);
+      showToast('Failed to add machine');
+    }
+  };
+
+  const handleSaveStatusesSubmit = async () => {
+    try {
+      setSavingStatuses(true);
+      const payload = {
+        workDate: machineStatusesDate,
+        machines: machineStatuses.map((m) => ({
+          machineId: m.id,
+          status: m.status || 'USE',
+          remarks: m.remarks || '',
+        })),
+      };
+      await backendFetch('/api/backend/machine-status', {
+        method: 'POST',
+        body: payload,
+      });
+      showToast('Daily machine status updated successfully');
+      fetchMachineStatuses(machineStatusesDate);
+    } catch (err) {
+      console.error('Failed to save status:', err);
+      showToast('Failed to save daily machine status');
+    } finally {
+      setSavingStatuses(false);
+    }
+  };
+
+  const updateLocalStatus = (machineId, status) => {
+    setMachineStatuses((prev) =>
+      prev.map((m) => (m.id === machineId ? { ...m, status } : m))
+    );
+  };
+
+  const updateLocalRemarks = (machineId, remarks) => {
+    setMachineStatuses((prev) =>
+      prev.map((m) => (m.id === machineId ? { ...m, remarks } : m))
+    );
+  };
+
 
   const loadBackendWorkOrders = useCallback(async () => {
     try {
@@ -527,6 +666,26 @@ export default function ProductionPortal() {
   const [testingItemName, setTestingItemName] = useState('');
   const [testingItemQty, setTestingItemQty] = useState('');
   const [dashboardStats, setDashboardStats] = useState(null);
+  const [productionTargetAchievement, setProductionTargetAchievement] = useState(null);
+  const [loadingTarget, setLoadingTarget] = useState(true);
+
+  const fetchTargetAchievement = async () => {
+    try {
+      setLoadingTarget(true);
+      const res = await backendFetch('/api/backend/production-targets/achievement');
+      if (res) {
+        setProductionTargetAchievement(res);
+      }
+    } catch (e) {
+      console.error('Failed to fetch target achievement stats', e);
+    } finally {
+      setLoadingTarget(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTargetAchievement();
+  }, [view]);
   const [testingEntries, setTestingEntries] = useState([]);
   const [rejectionEntries, setRejectionEntries] = useState([]);
   const [globalSummary, setGlobalSummary] = useState(null);
@@ -1571,7 +1730,8 @@ export default function ProductionPortal() {
               { id: 'production-work', label: 'Production Floor', icon: Wrench, path: '/production/production-work', color: '#ec4899' },
               { id: 'completed', label: 'Completed', icon: CheckCircle2, path: '/production/completed', color: '#14b8a6' },
               { id: 'rework', label: 'QC Failed & Reprod.', icon: RefreshCw, path: '/production/rework', color: '#ef4444' },
-              { id: 'testing', label: 'Testing', icon: Clock, path: '/production/testing', color: '#6366f1', badge: derivedStats.underTesting ? `${derivedStats.underTesting} units` : '0 units' }
+              { id: 'testing', label: 'Testing', icon: Clock, path: '/production/testing', color: '#6366f1', badge: derivedStats.underTesting ? `${derivedStats.underTesting} units` : '0 units' },
+              { id: 'machines', label: 'Machine Performance', icon: Cpu, path: '/production/machines', color: '#8b5cf6' }
             ].map(menuItem => {
               const Icon = menuItem.icon;
               const isActive = view === menuItem.id || (menuItem.id === 'dashboard' && view === 'dashboard');
@@ -1623,6 +1783,8 @@ export default function ProductionPortal() {
 
         <ProductionOperationsDashboard
           workOrders={workOrders}
+          productionTargetAchievement={productionTargetAchievement}
+          loadingTarget={loadingTarget}
           initialShiftEntries={(globalSummary?.shiftEntries || []).map(entry => ({
             ...entry,
             date: entry.date ? entry.date.slice(0, 10) : '',
@@ -3367,6 +3529,310 @@ export default function ProductionPortal() {
     );
   };
 
+  const renderMachinePerformancePage = () => {
+    const filteredStatuses = machineStatuses.filter((m) => {
+      const term = machineSearch.toLowerCase();
+      return (
+        m.machineId.toLowerCase().includes(term) ||
+        m.machineName.toLowerCase().includes(term) ||
+        m.machineType.toLowerCase().includes(term) ||
+        (m.location && m.location.toLowerCase().includes(term))
+      );
+    });
+
+    const formatDateDDMMYYYY = (dateStr) => {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#24345C', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Cpu size={22} color="#8b5cf6" /> Machine Performance & Daily Log
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#5E6B82' }}>Configure the factory machine directory and record daily operations status</p>
+          </div>
+          <button
+            onClick={() => setShowAddMachineModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 16px',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #2F4375 0%, #3BAEEB 100%)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 4px 10px rgba(47,67,117,0.15)',
+              width: isMobile ? '100%' : 'auto',
+              justifyContent: 'center'
+            }}
+          >
+            <Plus size={16} /> Add Machine
+          </button>
+        </div>
+
+        {/* Single unified card table */}
+        <div style={{ background: '#ffffff', borderRadius: '14px', padding: isMobile ? '12px' : '20px', border: '1px solid #e2e8f0', boxShadow: 'var(--shadow-soft)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+            {/* Search Bar */}
+            <div style={{ position: 'relative', width: isMobile ? '100%' : '320px' }}>
+              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#8893A7' }} />
+              <input
+                type="text"
+                placeholder="Search by ID, Name or Type..."
+                value={machineSearch}
+                onChange={(e) => setMachineSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px 8px 34px',
+                  borderRadius: '8px',
+                  border: '1px solid #DCE5F0',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            {/* Date Picker & Refresh */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
+              <input
+                type="date"
+                value={machineStatusesDate}
+                onChange={(e) => setMachineStatusesDate(e.target.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #DCE5F0',
+                  fontSize: '12.5px',
+                  fontWeight: '600',
+                  outline: 'none',
+                  flex: isMobile ? 1 : 'none'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fetchMachineStatuses(machineStatusesDate)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: '1px solid #DCE5F0',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Refresh Statuses"
+              >
+                <RefreshCw size={14} color="#5E6B82" />
+              </button>
+            </div>
+          </div>
+
+          <div style={{ minHeight: '260px' }}>
+            {loadingStatuses ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', fontSize: '13px', color: '#8893A7' }}>⏳ Loading daily statuses...</div>
+            ) : filteredStatuses.length === 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', fontSize: '13px', color: '#8893A7' }}>No machines found matching search.</div>
+            ) : isMobile ? (
+              /* Responsive Mobile Cards */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {filteredStatuses.map((m) => {
+                  const isUse = m.status === 'USE';
+                  const isNotUse = m.status === 'NOT_USE';
+                  return (
+                    <div key={m.id} style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontWeight: '800', fontSize: '14px', color: '#8b5cf6', fontFamily: 'monospace' }}>{m.machineId}</div>
+                          <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a', marginTop: '2px' }}>{m.machineName}</div>
+                        </div>
+                        <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 6px', borderRadius: '8px', background: '#f1f5f9', color: '#475569' }}>
+                          {m.machineType}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '2px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                          <span style={{ fontSize: '9px', textTransform: 'uppercase', color: '#8893A7', fontWeight: '800' }}>Location</span>
+                          <span style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{m.location || '—'}</span>
+                        </div>
+
+                        <div style={{ display: 'inline-flex', background: '#F5FAFE', padding: '3px', borderRadius: '8px', border: '1px solid #DCE5F0', gap: '3px' }}>
+                          <button
+                            type="button"
+                            onClick={() => updateLocalStatus(m.id, 'USE')}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: isUse ? '#ffffff' : 'transparent',
+                              color: isUse ? '#10b981' : '#64748b',
+                              boxShadow: isUse ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: isUse ? '#10b981' : '#64748b' }} />
+                            Use
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => updateLocalStatus(m.id, 'NOT_USE')}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: isNotUse ? '#ffffff' : 'transparent',
+                              color: isNotUse ? '#ef4444' : '#64748b',
+                              boxShadow: isNotUse ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: isNotUse ? '#ef4444' : '#64748b' }} />
+                            Not Use
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Desktop Table View */
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '12px 10px' }}>Machine ID</th>
+                      <th style={{ padding: '12px 10px' }}>Machine Name</th>
+                      <th style={{ padding: '12px 10px' }}>Type</th>
+                      <th style={{ padding: '12px 10px' }}>Location</th>
+                      <th style={{ padding: '12px 10px', textAlign: 'center' }}>Daily Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStatuses.map((m) => {
+                      const isUse = m.status === 'USE';
+                      const isNotUse = m.status === 'NOT_USE';
+
+                      return (
+                        <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '12px 10px', fontWeight: '800', fontFamily: 'monospace', color: '#8b5cf6' }}>{m.machineId}</td>
+                          <td style={{ padding: '12px 10px', fontWeight: '700', color: '#0f172a' }}>{m.machineName}</td>
+                          <td style={{ padding: '12px 10px', color: '#475569' }}>{m.machineType}</td>
+                          <td style={{ padding: '12px 10px', color: '#64748b' }}>{m.location || '—'}</td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', background: '#F5FAFE', padding: '4px', borderRadius: '10px', border: '1px solid #DCE5F0', gap: '4px' }}>
+                              
+                              <button
+                                type="button"
+                                onClick={() => updateLocalStatus(m.id, 'USE')}
+                                style={{
+                                  padding: '6px 16px',
+                                  borderRadius: '6px',
+                                  border: 'none',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  background: isUse ? '#ffffff' : 'transparent',
+                                  color: isUse ? '#10b981' : '#64748b',
+                                  boxShadow: isUse ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                  transition: 'all 0.15s'
+                                }}
+                              >
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isUse ? '#10b981' : '#64748b' }} />
+                                Use
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => updateLocalStatus(m.id, 'NOT_USE')}
+                                style={{
+                                  padding: '6px 16px',
+                                  borderRadius: '6px',
+                                  border: 'none',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  background: isNotUse ? '#ffffff' : 'transparent',
+                                  color: isNotUse ? '#ef4444' : '#64748b',
+                                  boxShadow: isNotUse ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                  transition: 'all 0.15s'
+                                }}
+                              >
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isNotUse ? '#ef4444' : '#64748b' }} />
+                                Not Use
+                              </button>
+
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={handleSaveStatusesSubmit}
+              disabled={savingStatuses || machineStatuses.length === 0}
+              style={{
+                padding: '11px 24px',
+                borderRadius: '10px',
+                border: 'none',
+                background: savingStatuses ? '#94a3b8' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: savingStatuses || machineStatuses.length === 0 ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 10px rgba(16,185,129,0.15)',
+                transition: 'all 0.15s',
+                width: isMobile ? '100%' : 'auto'
+              }}
+            >
+              {savingStatuses ? '⏳ Saving Log...' : '✓ Save Daily Status'}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       {view === 'dashboard' && renderDashboard()}
@@ -3391,12 +3857,14 @@ export default function ProductionPortal() {
       {view === 'rework' && renderRework()}
       {view === 'testing' && renderTesting()}
       {view === 'finished-goods' && renderFinishedGoods()}
+      {view === 'machines' && renderMachinePerformancePage()}
 
       {/* QC & Operations Routes */}
       {view === 'qc-pending' && <QCPendingView />}
       {view === 'qc-history' && <QCHistoryView />}
       {view === 'floor' && renderProductionWork()}
       {view === 'qc-failed' && renderRework()}
+      {view === 'profile' && <MyProfileView />}
 
 
 
@@ -3512,6 +3980,76 @@ export default function ProductionPortal() {
               <button type="button" onClick={() => setCompleteModal(null)} disabled={isCompleting} style={{ padding: '11px 20px', borderRadius: '10px', border: '1.5px solid #DCE5F0', background: '#fff', color: '#5E6B82', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
               <button type="button" onClick={handleSubmitCompletion} disabled={isCompleting} style={{ flex: 1, padding: '11px 20px', borderRadius: '10px', border: 'none', background: isCompleting ? '#86efac' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', fontSize: '13px', fontWeight: '700', cursor: isCompleting ? 'not-allowed' : 'pointer' }}>
                 {isCompleting ? '⏳ Completing...' : '✅ Complete & Send to QC'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Machine Modal ── */}
+      {showAddMachineModal && (
+        <div className="modal-overlay active" style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }}>
+          <div className="modal-box" style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 60px rgba(15,23,42,0.22)', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#24345C' }}>⚙️ Add New Machine</h3>
+              <button type="button" onClick={() => setShowAddMachineModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8893A7' }}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#374151', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Machine ID *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. HM007"
+                  value={addMachineForm.machineId}
+                  onChange={e => setAddMachineForm(p => ({ ...p, machineId: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #DCE5F0', fontSize: '13.5px', fontWeight: '600', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#374151', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Machine Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Hydraulic Machine 7"
+                  value={addMachineForm.machineName}
+                  onChange={e => setAddMachineForm(p => ({ ...p, machineName: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #DCE5F0', fontSize: '13.5px', fontWeight: '600', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#374151', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Machine Type *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Hydraulic Press"
+                  value={addMachineForm.machineType}
+                  onChange={e => setAddMachineForm(p => ({ ...p, machineType: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #DCE5F0', fontSize: '13.5px', fontWeight: '600', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#374151', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Serial Number <span style={{ fontWeight: '400', color: '#8893A7' }}>(optional)</span></label>
+                <input
+                  type="text"
+                  placeholder="e.g. SN-88231"
+                  value={addMachineForm.serialNumber}
+                  onChange={e => setAddMachineForm(p => ({ ...p, serialNumber: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #DCE5F0', fontSize: '13.5px', fontWeight: '600', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#374151', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Location <span style={{ fontWeight: '400', color: '#8893A7' }}>(optional)</span></label>
+                <input
+                  type="text"
+                  placeholder="e.g. Section C"
+                  value={addMachineForm.location}
+                  onChange={e => setAddMachineForm(p => ({ ...p, location: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #DCE5F0', fontSize: '13.5px', fontWeight: '600', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+            <div style={{ padding: '14px 24px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '10px' }}>
+              <button type="button" onClick={() => setShowAddMachineModal(false)} style={{ flex: 1, padding: '10px 20px', borderRadius: '8px', border: '1.5px solid #DCE5F0', background: '#fff', color: '#5E6B82', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
+              <button type="button" onClick={handleAddMachineSubmit} style={{ flex: 1, padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #2F4375 0%, #3BAEEB 100%)', color: '#ffffff', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                Save Machine
               </button>
             </div>
           </div>

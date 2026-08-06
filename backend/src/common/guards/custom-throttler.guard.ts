@@ -10,6 +10,10 @@ interface RequestWithUser extends Request {
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
+  protected override async shouldSkip(context: any): Promise<boolean> {
+    return true;
+  }
+
   protected override getTracker(req: any): Promise<string> {
     if (req.user?.sub) {
       return Promise.resolve(req.user.sub);

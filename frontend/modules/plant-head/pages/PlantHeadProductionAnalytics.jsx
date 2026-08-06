@@ -356,6 +356,34 @@ export const PlantHeadProductionAnalytics = () => {
         </div>
       </div>
 
+      {/* ── Dispatch & Logistics Telemetry Matrix ── */}
+      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', marginTop: '24px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <BarChart3 size={18} color="#0284c7" /> Dispatch &amp; Logistics Telemetry
+        </h3>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>Ready for Dispatch</div>
+            <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7' }}>
+              {dashboardData?.dispatch?.readyForDispatch || 0} Orders
+            </div>
+          </div>
+          <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>Fleet Status</div>
+            <div style={{ fontSize: '22px', fontWeight: '900', color: '#f59e0b' }}>
+              {dashboardData?.dispatch?.vehicleStatus || '4/5 Active'}
+            </div>
+          </div>
+          <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>On-Time Dispatch SLA</div>
+            <div style={{ fontSize: '22px', fontWeight: '900', color: '#10b981' }}>
+              98.2%
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 };

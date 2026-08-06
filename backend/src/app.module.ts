@@ -49,9 +49,14 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { BrandAnalysisModule } from './modules/brand-analysis/brand-analysis.module';
 import { SalesReportsModule } from './modules/sales-reports/sales-reports.module';
 import { SalesTargetModule } from './modules/sales-target/sales-target.module';
+import { ProductionTargetModule } from './modules/production-target/production-target.module';
 import { PlantHeadModule } from './modules/plant-head/plant-head.module';
 import { StoreReportsModule } from './modules/store-reports/store-reports.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { ProfileModule } from './modules/profile/profile.module';
+import { ExpenseModule } from './modules/expense/expense.module';
+import { LeaveModule } from './modules/leave/leave.module';
+import { AttendanceRequestModule } from './modules/attendance-request/attendance-request.module';
 
 @Module({
   imports: [
@@ -77,6 +82,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     HealthModule,
     BrandAnalysisModule,
     SalesTargetModule,
+    ProductionTargetModule,
     CustomersModule,
     SalesModule,
     SequenceModule,
@@ -108,6 +114,10 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     PlantHeadModule,
     StoreReportsModule,
     SuperAdminModule,
+    ProfileModule,
+    ExpenseModule,
+    LeaveModule,
+    AttendanceRequestModule,
   ],
   controllers: [AppController],
   providers: [

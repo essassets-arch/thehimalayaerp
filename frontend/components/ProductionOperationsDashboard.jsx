@@ -20,7 +20,7 @@ function Modal({ title, onClose, children }) {
 
 const Field = ({ label, children }) => <label className="pod-field"><span>{label}</span>{children}</label>;
 
-export default function ProductionOperationsDashboard({ workOrders = [], initialShiftEntries = [], initialScrapEntries = [], onCompleteRework }) {
+export default function ProductionOperationsDashboard({ workOrders = [], initialShiftEntries = [], initialScrapEntries = [], onCompleteRework, productionTargetAchievement, loadingTarget }) {
   const [shiftEntries, setShiftEntries] = useState(initialShiftEntries);
   const [scrapEntries, setScrapEntries] = useState(initialScrapEntries);
   const [completedRework, setCompletedRework] = useState([]);
@@ -111,7 +111,40 @@ export default function ProductionOperationsDashboard({ workOrders = [], initial
 
   return <section className="pod-shell">
     <div className="pod-heading"><div><span>Production control</span><h2>Production Performance & Quality Flow</h2><p>Shift output, rework, wastage and production efficiency in one live view.</p></div><div className="pod-actions"><button onClick={() => setModal('shift')}><ClipboardPlus size={17} /> Shift Production Entry</button><button className="secondary" onClick={() => setModal('scrap')}><Trash2 size={17} /> Scrap / Wastage Entry</button></div></div>
-    <div className="pod-kpis">{kpis.map(([label, value, note, color]) => <article key={label} style={{ '--accent': color }}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}</div>
+    <div className="pod-kpis">
+      <article style={{ '--accent': '#10b981', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <span>🎯 Target Achievement</span>
+        {loadingTarget ? (
+          <strong>Loading...</strong>
+        ) : !productionTargetAchievement || !productionTargetAchievement.hasTarget ? (
+          <>
+            <strong>No Target</strong>
+            <small>No active target assigned</small>
+          </>
+        ) : (
+          <>
+            <strong style={{ fontSize: '22px' }}>{productionTargetAchievement.achievement}%</strong>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '10px', color: '#64748b', marginTop: '4px', width: '100%', borderTop: '1px dashed #e2e8f0', paddingTop: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Target:</span>
+                <b>{Number(productionTargetAchievement.target).toLocaleString()}</b>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Achieved:</span>
+                <b style={{ color: '#10b981' }}>{Number(productionTargetAchievement.achieved).toLocaleString()}</b>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Remaining:</span>
+                <b style={{ color: productionTargetAchievement.remaining > 0 ? '#ef4444' : '#10b981' }}>
+                  {Number(productionTargetAchievement.remaining).toLocaleString()}
+                </b>
+              </div>
+            </div>
+          </>
+        )}
+      </article>
+      {kpis.map(([label, value, note, color]) => <article key={label} style={{ '--accent': color }}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}
+    </div>
     <div className="pod-chart-grid">
       <article className="pod-panel"><div className="pod-panel-title"><div><h3>Shift-wise Production Performance</h3><p>Morning vs Night shift output and good production</p></div></div><div className="pod-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={shiftChart}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="shift" /><YAxis allowDecimals={false} /><Tooltip /><Legend /><Bar dataKey="Target" fill="#D6E2F0" radius={[5,5,0,0]} /><Bar dataKey="Produced" fill="#3b82f6" radius={[5,5,0,0]} /><Bar dataKey="Good" fill="#10b981" radius={[5,5,0,0]} /></BarChart></ResponsiveContainer></div><div className="pod-shift-summary">{shiftChart.map(row => <div key={row.shift}><b>{row.shift}</b><span>{row.efficiency === '—' ? 'No production data' : `${row.efficiency}% efficiency`}</span></div>)}</div></article>
       <article className="pod-panel"><div className="pod-panel-title"><div><h3>Target vs Actual Production</h3><p>Latest recorded production shifts</p></div></div>{targetActual.length ? <div className="pod-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={targetActual}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Legend /><Bar dataKey="Target" fill="#8893A7" radius={[5,5,0,0]} /><Bar dataKey="Actual" fill="#6366f1" radius={[5,5,0,0]} /></BarChart></ResponsiveContainer></div> : <div className="pod-empty"><Factory size={34} /><b>No shift production recorded</b><span>Add the first shift entry to populate this chart.</span></div>}</article>

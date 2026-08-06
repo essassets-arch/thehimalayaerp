@@ -24,7 +24,8 @@ export const navigationConfig = {
     { id: 'payment-history', label: 'Payment History', icon: History, path: '/sales/payment-history', group: 'Sales' },
     { id: 'customers', label: 'Customers', icon: UserCheck, path: '/sales/customers', group: 'Sales' },
     { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/sales/customer-complaints', group: 'Sales' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/sales/reports' }
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/sales/reports' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/sales/profile' }
   ],
 
   'Production': [
@@ -49,10 +50,12 @@ export const navigationConfig = {
     { id: 'testing', label: 'Testing', icon: ClipboardCheck, path: '/production/testing' },
     { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' },
+    { id: 'machines', label: 'Machine Performance', icon: Cpu, path: '/production/machines' },
 
     { type: 'badge', label: 'QUALITY CONTROL' },
     { id: 'qc-pending', label: 'Pending Inspections', icon: Clock, path: '/production/qc-pending' },
-    { id: 'qc-history', label: 'Inspected History', icon: ClipboardList, path: '/production/qc-history' }
+    { id: 'qc-history', label: 'Inspected History', icon: ClipboardList, path: '/production/qc-history' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/production/profile' }
   ],
 
   'Plant Head': [
@@ -72,6 +75,7 @@ export const navigationConfig = {
       path: '/plant-head/production-analytics',
       subItems: [
         { id: 'production-analytics', label: 'Production Analytics', path: '/plant-head/production-analytics' },
+        { id: 'dispatch-analytics', label: 'Dispatch Analytics', path: '/plant-head/dispatch-analytics' },
         { id: 'material-analytics', label: 'Material Analytics', path: '/plant-head/material-analytics' },
         { id: 'department-overview', label: 'Department Overview', path: '/plant-head/department-overview' },
         { id: 'executive-reports', label: 'Executive Reports', path: '/plant-head/executive-reports' }
@@ -79,7 +83,9 @@ export const navigationConfig = {
     },
     { id: 'raw-inventory', label: 'Raw Inventory', icon: Layers, path: '/plant-head/raw-inventory' },
     { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' },
-    { id: 'testing', label: 'Production Testing', icon: ClipboardCheck, path: '/plant-head/testing' }
+    { id: 'testing', label: 'Production Testing', icon: ClipboardCheck, path: '/plant-head/testing' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/plant-head/profile' },
+    { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/plant-head/leave-approvals' }
   ],
 
   'Store': [
@@ -113,7 +119,8 @@ export const navigationConfig = {
       subItems: [
         { id: 'summary-report', label: 'Store Summary Report', path: '/store/reports' }
       ]
-    }
+    },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/store/profile' }
   ],
 
   'Dispatch': [
@@ -163,7 +170,8 @@ export const navigationConfig = {
       ],
     },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch/remaining' },
-    { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch/history' }
+    { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch/history' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch/profile' }
   ],
 
   'Finance Executive': [
@@ -182,6 +190,7 @@ export const navigationConfig = {
       ],
     },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance-executive/reports' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/finance-executive/profile' }
   ],
 
   'Finance': [
@@ -240,7 +249,8 @@ export const navigationConfig = {
       ]
     },
 
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance/reports' }
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance/reports' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/finance/profile' }
   ],
 
   'HR': [
@@ -264,7 +274,11 @@ export const navigationConfig = {
         { id: 'salary-history', label: 'Salary History', path: '/hr/salary/history' }
       ]
     },
-    { id: 'notifications', label: 'HR Notifications', icon: Bell, path: '/hr/notifications' }
+    { id: 'notifications', label: 'HR Notifications', icon: Bell, path: '/hr/notifications' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/hr/profile' },
+    { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/hr/expense-management' },
+    { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/hr/leave-approvals' },
+    { id: 'attendance-requests', label: 'Attendance Requests', icon: Clock, path: '/hr/attendance-requests' }
   ],
 
   'Super Admin': [
@@ -281,6 +295,7 @@ export const navigationConfig = {
     { id: 'employees', label: 'Employees', icon: UserCheck, path: '/super-admin/employees' },
     { id: 'companies', label: 'Companies', icon: Building, path: '/super-admin/companies' },
     { id: 'sales-target', label: 'Sales Targets', icon: Target, path: '/super-admin/sales-target' },
+    { id: 'production-target', label: 'Production Targets', icon: Target, path: '/super-admin/production-target' },
 
     { type: 'badge', label: 'MASTER DATA' },
     { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
@@ -298,6 +313,9 @@ export const navigationConfig = {
     { id: 'analytics-dispatch', label: 'Dispatch Analytics', icon: Truck, path: '/super-admin/analytics/dispatch' },
     { id: 'analytics-profitability', label: 'Profitability Analytics', icon: DollarSign, path: '/super-admin/analytics/profitability' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' },
-
+    { id: 'notifications', label: 'Notification Management', icon: Bell, path: '/super-admin/notifications' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/super-admin/profile' },
+    { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/super-admin/expense-management' },
+    { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/super-admin/leave-approvals' }
   ]
 };

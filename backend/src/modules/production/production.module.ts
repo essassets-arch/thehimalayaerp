@@ -5,6 +5,10 @@ import { ProductionTestingController } from './production-testing.controller';
 import { ProductionTestingService } from './production-testing.service';
 import { ProductionWorkflowController } from './production-workflow.controller';
 import { ProductionWorkflowService } from './production-workflow.service';
+import { MachineController } from './machine.controller';
+import { MachineService } from './machine.service';
+import { MachineStatusController } from './machine-status.controller';
+import { MachineStatusService } from './machine-status.service';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { SequenceModule } from '../../common/sequence/sequence.module';
 
@@ -14,11 +18,16 @@ import { SequenceModule } from '../../common/sequence/sequence.module';
     ProductionController,
     ProductionTestingController,
     ProductionWorkflowController,
+    MachineController,
+    MachineStatusController,
   ],
   providers: [
     ProductionService,
     ProductionTestingService,
     ProductionWorkflowService,
+    MachineService,
+    MachineStatusService,
   ],
 })
 export class ProductionModule {}
+

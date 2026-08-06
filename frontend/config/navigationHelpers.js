@@ -27,11 +27,11 @@ export function getNavigationForPath(pathname, role) {
   const isSuperOrAdmin = roleName === 'Super Admin' || roleName === 'Admin' || roleName === 'SUPER_ADMIN' || roleName === 'ADMIN';
 
   const moduleKey = getModuleKeyFromPath(pathname);
+  
+  let nav = [];
   if (isSuperOrAdmin && moduleKey && navigationConfig[moduleKey]) {
-    return navigationConfig[moduleKey];
-  }
-
-  if (role) {
+    nav = navigationConfig[moduleKey];
+  } else if (role) {
     const roleKeyMap = {
       'finance-executive': 'Finance Executive',
       'Finance Executive': 'Finance Executive',
@@ -50,50 +50,101 @@ export function getNavigationForPath(pathname, role) {
     };
     const roleKey = roleKeyMap[role] || role;
     if (navigationConfig[roleKey]) {
-      return navigationConfig[roleKey];
-    }
-    
-    const roleStr = String(role).toLowerCase();
+      nav = navigationConfig[roleKey];
+    } else {
+      const roleStr = String(role).toLowerCase();
 
-    // Check custom roles first
-    let customRoles = [];
-    try {
-      const erpStore = require('../store/erpStore').useERPStore;
-      if (erpStore) {
-        customRoles = erpStore.getState().state?.customRoles || [];
-      }
-    } catch (e) {
-      // Ignore if store is not accessible
-    }
-
-    const customRole = customRoles.find(r => r.name.toLowerCase() === roleStr);
-    if (customRole && customRole.allowedPanels && customRole.allowedPanels.length > 0) {
-      let stitchedNav = [];
-      customRole.allowedPanels.forEach(panel => {
-        if (navigationConfig[panel]) {
-          stitchedNav = [...stitchedNav, ...navigationConfig[panel]];
+      // Check custom roles first
+      let customRoles = [];
+      try {
+        const erpStore = require('../store/erpStore').useERPStore;
+        if (erpStore) {
+          customRoles = erpStore.getState().state?.customRoles || [];
         }
-      });
-      // Deduplicate by path
-      const seenPaths = new Set();
-      return stitchedNav.filter(item => {
-        if (seenPaths.has(item.path)) return false;
-        seenPaths.add(item.path);
-        return true;
-      });
-    }
+      } catch (e) {
+        // Ignore if store is not accessible
+      }
 
-    if (roleStr.includes('finance')) return navigationConfig[roleStr.includes('executive') ? 'Finance Executive' : 'Finance'] || [];
-    if (roleStr.includes('sales')) return navigationConfig['Sales'] || [];
-    if (roleStr.includes('hr')) return navigationConfig['HR'] || [];
-    if (roleStr.includes('production')) return navigationConfig['Production'] || [];
-    if (roleStr.includes('store')) return navigationConfig['Store'] || [];
-    if (roleStr.includes('qc') || roleStr.includes('quality')) return navigationConfig['QC'] || [];
-    if (roleStr.includes('dispatch')) return navigationConfig['Dispatch'] || [];
-    if (roleStr.includes('plant')) return navigationConfig['Plant Head'] || [];
-    if (roleStr.includes('super')) return navigationConfig['Super Admin'] || [];
-    if (roleStr.includes('admin')) return navigationConfig['Admin'] || [];
+      const customRole = customRoles.find(r => r.name.toLowerCase() === roleStr);
+      if (customRole && customRole.allowedPanels && customRole.allowedPanels.length > 0) {
+        let stitchedNav = [];
+        customRole.allowedPanels.forEach(panel => {
+          if (navigationConfig[panel]) {
+            stitchedNav = [...stitchedNav, ...navigationConfig[panel]];
+          }
+        });
+        // Deduplicate by path
+        const seenPaths = new Set();
+        nav = stitchedNav.filter(item => {
+          if (seenPaths.has(item.path)) return false;
+          seenPaths.add(item.path);
+          return true;
+        });
+      } else if (roleStr.includes('finance')) {
+        nav = navigationConfig[roleStr.includes('executive') ? 'Finance Executive' : 'Finance'] || [];
+      } else if (roleStr.includes('sales')) {
+        nav = navigationConfig['Sales'] || [];
+      } else if (roleStr.includes('hr')) {
+        nav = navigationConfig['HR'] || [];
+      } else if (roleStr.includes('production')) {
+        nav = navigationConfig['Production'] || [];
+      } else if (roleStr.includes('store')) {
+        nav = navigationConfig['Store'] || [];
+      } else if (roleStr.includes('qc') || roleStr.includes('quality')) {
+        nav = navigationConfig['QC'] || [];
+      } else if (roleStr.includes('dispatch')) {
+        nav = navigationConfig['Dispatch'] || [];
+      } else if (roleStr.includes('plant')) {
+        nav = navigationConfig['Plant Head'] || [];
+      } else if (roleStr.includes('super')) {
+        nav = navigationConfig['Super Admin'] || [];
+      } else if (roleStr.includes('admin')) {
+        nav = navigationConfig['Admin'] || [];
+      }
+    }
+  } else {
+    nav = navigationConfig['Super Admin'] || [];
   }
 
-  return navigationConfig['Super Admin'] || [];
+  // Clone array to prevent direct mutation of original config items
+  const resultNav = [...nav];
+
+  // Resolve prefix dynamically from pathname
+  const activeModuleKey = moduleKey || 'Sales';
+  const prefix = {
+    'Sales': '/sales',
+    'Production': '/production',
+    'Plant Head': '/plant-head',
+    'Store': '/store',
+    'QC': '/qc',
+    'Dispatch': '/dispatch',
+    'Finance Executive': '/finance-executive',
+    'Finance': '/finance',
+    'HR': '/hr',
+    'Admin': '/admin',
+    'Super Admin': '/super-admin'
+  }[activeModuleKey] || '/sales';
+
+  // Inject My Profile if not present
+  if (!resultNav.some(item => item.id === 'profile')) {
+    resultNav.push({
+      id: 'profile',
+      label: 'My Profile',
+      icon: 'UserCircle',
+      path: `${prefix}/profile`
+    });
+  }
+
+  // Inject Expense Management if HR or Super Admin
+  const isHrOrSuper = String(roleName).toUpperCase().includes('HR') || String(roleName).toUpperCase().includes('SUPER_ADMIN');
+  if (isHrOrSuper && !resultNav.some(item => item.id === 'expense-management')) {
+    resultNav.push({
+      id: 'expense-management',
+      label: 'Expense Management',
+      icon: 'CreditCard',
+      path: `${prefix}/expense-management`
+    });
+  }
+
+  return resultNav;
 }

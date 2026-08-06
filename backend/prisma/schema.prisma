@@ -67,6 +67,7 @@ model Company {
   recruitmentRequests            RecruitmentRequest[]
   departments                    Department[]
   workLocations                  WorkLocation[]
+  leaveRequests                  LeaveRequest[]
 }
 
 model Branch {
@@ -158,6 +159,7 @@ model User {
   brandAnalysisFinanceCompleted BrandAnalysisRequest[] @relation("BrandAnalysisFinanceCompletedBy")
   brandAnalysisHistoryPerformed BrandAnalysisHistory[] @relation("BrandAnalysisHistoryPerformedBy")
   salesTargets                  SalesTarget[]
+  machineStatusUpdates          MachineDailyStatus[]   @relation("UserMachineStatusUpdates")
 }
 
 model RefreshSession {
@@ -566,6 +568,7 @@ model Department {
   updatedAt DateTime   @updatedAt
   company   Company    @relation(fields: [companyId], references: [id])
   employees Employee[]
+  leaveRequests LeaveRequest[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
@@ -644,6 +647,8 @@ model Employee {
   attendanceSummaries    EmployeeMonthlyAttendanceSummary[]
   payrollRecords         PayrollRecord[]
   completedDraft         EmployeeDraft?                     @relation("CompletedEmployeeDraft")
+  leaveRequests          LeaveRequest[]
+  manualAttendanceRequests ManualAttendanceRequest[]
 
   @@index([companyId, status])
   @@index([departmentId])
@@ -3055,3 +3060,160 @@ model InventoryItem {
 
   @@map("inventory_items")
 }
+
+enum MachineStatus {
+  USE
+  NOT_USE
+}
+
+model Machine {
+  id           BigInt   @id @default(autoincrement())
+  machineId    String   @unique @map("machine_id") @db.VarChar(30)
+  machineName  String   @map("machine_name") @db.VarChar(150)
+  machineType  String   @map("machine_type") @db.VarChar(100)
+  serialNumber String?  @map("serial_number") @db.VarChar(100)
+  location     String?  @map("location") @db.VarChar(100)
+  plantId      BigInt   @map("plant_id") @default(1)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
+
+  dailyStatuses MachineDailyStatus[]
+
+  @@map("machines")
+}
+
+model MachineDailyStatus {
+  id          BigInt        @id @default(autoincrement())
+  machineId   BigInt        @map("machine_id")
+  plantId     BigInt        @map("plant_id") @default(1)
+  workDate    DateTime      @map("work_date") @db.Date
+  status      MachineStatus @map("status")
+  remarks     String?       @map("remarks") @db.VarChar(300)
+  updatedById String?       @map("updated_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamp
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp
+
+  machine     Machine       @relation(fields: [machineId], references: [id])
+  updatedBy   User?         @relation("UserMachineStatusUpdates", fields: [updatedById], references: [id])
+
+  @@unique([machineId, workDate])
+  @@map("machine_daily_status")
+}
+
+enum ProductionTargetStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model ProductionTarget {
+  id             String                 @id @default(cuid())
+  targetPeriod   TargetPeriod           @map("target_period")
+  startDate      DateTime               @map("start_date") @db.Date
+  endDate        DateTime               @map("end_date") @db.Date
+  quantityTarget Int                    @map("quantity_target")
+  remarks        String?                @map("remarks") @db.VarChar(500)
+  status         ProductionTargetStatus @default(ACTIVE) @map("status")
+  plantId        String?                @map("plant_id")
+  createdById    String?                @map("created_by_id")
+  updatedById    String?                @map("updated_by_id")
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamp
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamp
+
+  @@index([startDate, endDate])
+  @@index([status, targetPeriod])
+  @@map("production_targets")
+}
+
+enum ExpenseStatus {
+  PENDING_HR
+  PENDING_SUPER_ADMIN
+  APPROVED
+  REJECTED
+}
+
+model Expense {
+  id              String        @id @default(uuid())
+  companyId       String
+  employeeId      String
+  expenseName     String
+  amount          Decimal       @db.Decimal(10, 2)
+  expenseDate     DateTime
+  receiptUrl      String?       @db.Text
+  status          ExpenseStatus @default(PENDING_HR)
+  hrApprovedBy    String?
+  hrApprovedAt    DateTime?
+  superApprovedBy String?
+  superApprovedAt DateTime?
+  remarks         String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+enum LeaveStatus {
+  PENDING_HR
+  PENDING_PLANT_HEAD
+  PENDING_SUPER_ADMIN
+  APPROVED
+  REJECTED
+}
+
+model LeaveRequest {
+  id               String          @id @default(uuid())
+  companyId        String
+  employeeId       String
+  departmentId     String
+  leaveType        String
+  fromDate         DateTime
+  toDate           DateTime
+  totalDays        Int
+  reason           String
+  attachment       String?         @db.Text
+  status           LeaveStatus     @default(PENDING_HR)
+  currentApprover  String?
+  approvedBy       String?
+  approvedAt       DateTime?
+  remarks          String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  company          Company         @relation(fields: [companyId], references: [id])
+  employee         Employee        @relation(fields: [employeeId], references: [id])
+  department       Department      @relation(fields: [departmentId], references: [id])
+  approvals        LeaveApproval[]
+
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+model LeaveApproval {
+  id             String       @id @default(uuid())
+  leaveRequestId String
+  approverId     String
+  approverRole   String
+  action         String
+  remarks        String?
+  actionDate     DateTime     @default(now())
+
+  leaveRequest   LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+
+  @@index([leaveRequestId])
+}
+
+model ManualAttendanceRequest {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  date        DateTime
+  reason      String
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  remarks     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+}
+

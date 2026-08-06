@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 
 import { useERP } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
 import { calculatePerformance } from '../services/analyticsService';
 
 // Import sub-views
@@ -104,6 +105,8 @@ export default function SalesAdminPortal() {
   // Render correct sub-view component
   const renderView = () => {
     switch (activeView) {
+      case 'profile':
+        return <MyProfileView />;
       case 'dashboard':
         return (
           <DashboardControlTower 

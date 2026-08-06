@@ -3082,7 +3082,7 @@ textarea {
 
   /* Mobile Sticky Bottom Navigation */
   .mobile-bottom-nav {
-    display: none !important;
+    display: flex !important;
     position: fixed;
     bottom: 0;
     left: 0;

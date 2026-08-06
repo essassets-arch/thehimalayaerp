@@ -21,8 +21,14 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   let finalMethod = method;
   let backendPath = backendPathAliases[requestedPath] || requestedPath;
 
+  if (backendPath.startsWith('/backend/backend/')) {
+    backendPath = backendPath.replace('/backend/backend/', '/backend/');
+  }
+
   if (backendPath.startsWith('/backend/sales-targets')) {
     backendPath = backendPath.replace('/backend/sales-targets', '/sales-targets');
+  } else if (backendPath.startsWith('/backend/production-targets')) {
+    backendPath = backendPath.replace('/backend/production-targets', '/production-targets');
   } else if (backendPath.startsWith('/backend/users')) {
     backendPath = backendPath.replace('/backend/users', '/users');
   } else if (backendPath.startsWith('/admin/companies')) {
@@ -224,22 +230,68 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     }
   }
 
+  // Intercept modules requests
+  if (backendPath === '/admin/modules') {
+    if (!globalAny.mockModules) {
+      globalAny.mockModules = [
+        { id: 1, module_name: 'admin', is_enabled: 1 },
+        { id: 2, module_name: 'dispatch', is_enabled: 1 },
+        { id: 3, module_name: 'finance', is_enabled: 1 },
+        { id: 4, module_name: 'finance-executive', is_enabled: 1 },
+        { id: 5, module_name: 'hr', is_enabled: 1 },
+        { id: 6, module_name: 'notifications', is_enabled: 1 },
+        { id: 7, module_name: 'plant-head', is_enabled: 1 },
+        { id: 8, module_name: 'production', is_enabled: 1 },
+        { id: 9, module_name: 'purchase', is_enabled: 1 },
+        { id: 10, module_name: 'qc', is_enabled: 1 },
+        { id: 11, module_name: 'sales', is_enabled: 1 },
+        { id: 12, module_name: 'sales-admin', is_enabled: 1 },
+        { id: 13, module_name: 'store', is_enabled: 1 }
+      ];
+    }
+    return NextResponse.json(globalAny.mockModules);
+  }
+
+  if (backendPath === '/admin/modules/toggle') {
+    if (body && body.module_id) {
+      if (!globalAny.mockModules) {
+        globalAny.mockModules = [];
+      }
+      globalAny.mockModules = globalAny.mockModules.map((m: any) => {
+        if (m.module_name === body.module_id) {
+          return { ...m, is_enabled: m.is_enabled === 1 ? 0 : 1 };
+        }
+        return m;
+      });
+    }
+    return NextResponse.json({ success: true, data: globalAny.mockModules });
+  }
+
   const cookieToken = request.cookies.get('accessToken')?.value;
   const token = authorization?.replace(/^Bearer\s+/i, '') || cookieToken;
 
-  return forwardBackendRequest({
-    path: backendPath,
-    method: finalMethod,
-    body,
-    query: new URL(request.url).searchParams,
-    token,
-    idempotencyKey: request.headers.get('idempotency-key') || undefined,
-    requestId: request.headers.get('x-request-id') || undefined,
-    headers: {
-      ...(request.headers.get('cookie') ? { cookie: request.headers.get('cookie')! } : {}),
-      ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {})
-    }
-  });
+  console.log(`[NEXT_API_PROXY] ${method} ${requestedPath} -> NestJS: ${backendPath}`);
+
+  try {
+    const res = await forwardBackendRequest({
+      path: backendPath,
+      method: finalMethod,
+      body,
+      query: new URL(request.url).searchParams,
+      token,
+      idempotencyKey: request.headers.get('idempotency-key') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+      headers: {
+        ...(request.headers.get('cookie') ? { cookie: request.headers.get('cookie')! } : {}),
+        ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {})
+      }
+    });
+    console.log(`[NEXT_API_PROXY_SUCCESS] ${method} ${requestedPath} -> NestJS: ${backendPath} - Status: ${res.status}`);
+    return res;
+  } catch (err) {
+    console.error(`[NEXT_API_PROXY_ERROR] ${method} ${requestedPath} -> NestJS: ${backendPath}:`, err);
+    throw err;
+  }
 }
 
 export const GET = proxy;

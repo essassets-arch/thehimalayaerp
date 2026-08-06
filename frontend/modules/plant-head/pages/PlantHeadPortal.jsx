@@ -10,6 +10,8 @@ import { useERPStore } from '@/store/erpStore';
 import { selectPlantHeadIncomingOrders, selectPlantHeadPlanningOrders } from '@/store/domains/sales/salesSelectors';
 import { STATUS } from '../../../shared/constants';
 import { useAuth } from '../../../shared/context/AuthContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
+import LeaveApprovalView from '../../../shared/components/LeaveApprovalView';
 import { productionService } from '../../../services/production.service';
 import { productService } from '../../../services/product.service';
 import { apiClient } from '../../../lib/apiClient';
@@ -28,6 +30,7 @@ import ReplacementsView from './ReplacementsView';
 import ReturnsView from './ReturnsView';
 import { PlantHeadDashboard } from './PlantHeadDashboard';
 import { PlantHeadProductionAnalytics } from './PlantHeadProductionAnalytics';
+import { PlantHeadDispatchAnalytics } from './PlantHeadDispatchAnalytics';
 import { PlantHeadMaterialAnalytics } from './PlantHeadMaterialAnalytics';
 import { PlantHeadDepartmentOverview } from './PlantHeadDepartmentOverview';
 import { PlantHeadExecutiveReports } from './PlantHeadExecutiveReports';
@@ -2945,11 +2948,24 @@ export default function PlantHeadPortal() {
       })
       .filter(order => {
         const planning = normalizeStatus(order.planningStatus);
+        const isPlanned = Boolean(
+          planning === 'PRODUCTION_PLANNED' ||
+          order.status === 'PLANNED' ||
+          order.productionStatus === 'PLANNED' ||
+          order.productionStatus === 'IN_PRODUCTION' ||
+          order.productionStatus === 'WORK_ORDER_CREATED' ||
+          order.productionPlanId ||
+          order.productionPlan ||
+          order.workOrder ||
+          order.targetDate ||
+          (Array.isArray(order.workOrders) && order.workOrders.length > 0)
+        );
+
         if (planningViewTab === 'history') return isPlanningHistoryOrder(order);
         if (planningViewTab === 'active') {
-          return planning === 'PRODUCTION_PLANNED' && !isPlanningHistoryOrder(order);
+          return isPlanned && !isPlanningHistoryOrder(order);
         }
-        return planning === 'PLANT_HEAD_ACCEPTED' && !order.workOrder;
+        return !isPlanned && !isPlanningHistoryOrder(order);
       });
 
     const filtered = allPlanningOrders.filter(o => {
@@ -3029,28 +3045,49 @@ export default function PlantHeadPortal() {
           data={filtered}
           searchQuery={''}
           searchField="customerName"
-          actions={(row) => planningViewTab === 'pending' ? (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button
-                data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
-                style={{
-                  padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', 
-                  fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.background = '#0369a1'}
-                onClick={() => {
-                  setSelectedOrderForPlanning(row);
-                  const d = new Date(); d.setDate(d.getDate() + 7);
-                  setTargetDate(d.toISOString().split('T')[0]);
-                  setPriority(row.priority || 'Medium');
-                  setShowPlanningModal(true);
-                }}
-              >
-                <Plus size={14} /> Plan &amp; Send to Production
-              </button>
-            </div>
-          ) : null}
+          actions={(row) => {
+            const isPlanned = Boolean(
+              normalizeStatus(row.planningStatus) === 'PRODUCTION_PLANNED' ||
+              row.status === 'PLANNED' ||
+              row.productionStatus === 'PLANNED' ||
+              row.productionStatus === 'IN_PRODUCTION' ||
+              row.productionStatus === 'WORK_ORDER_CREATED' ||
+              row.productionPlanId ||
+              row.productionPlan ||
+              row.workOrder ||
+              row.targetDate ||
+              (Array.isArray(row.workOrders) && row.workOrders.length > 0)
+            );
+            return planningViewTab === 'pending' ? (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  disabled={isPlanned}
+                  data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                  style={{
+                    padding: '6px 12px', background: isPlanned ? '#94a3b8' : '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', 
+                    fontWeight: 'bold', cursor: isPlanned ? 'not-allowed' : 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)', opacity: isPlanned ? 0.7 : 1
+                  }}
+                  onMouseOver={(e) => { if (!isPlanned) e.currentTarget.style.background = '#0369a1'; }}
+                  onMouseOut={(e) => { if (!isPlanned) e.currentTarget.style.background = '#0284c7'; }}
+                  onClick={() => {
+                    if (isPlanned) return;
+                    setSelectedOrderForPlanning(row);
+                    const d = new Date(); d.setDate(d.getDate() + 7);
+                    setTargetDate(d.toISOString().split('T')[0]);
+                    setPriority(row.priority || 'Medium');
+                    setShowPlanningModal(true);
+                  }}
+                >
+                  {isPlanned ? (
+                    <>Planned</>
+                  ) : (
+                    <><Plus size={14} /> Plan &amp; Send to Production</>
+                  )}
+                </button>
+              </div>
+            ) : null;
+          }}
           emptyMessage="No orders in Plant Head planning board."
         />
       </div>
@@ -4447,6 +4484,7 @@ export default function PlantHeadPortal() {
       {currentView === 'replacements' && <ReplacementsView />}
       {currentView === 'returns' && <ReturnsView />}
       {currentView === 'production-analytics' && <PlantHeadProductionAnalytics />}
+      {currentView === 'dispatch-analytics' && <PlantHeadDispatchAnalytics />}
       {currentView === 'material-analytics' && <PlantHeadMaterialAnalytics />}
       {currentView === 'department-overview' && <PlantHeadDepartmentOverview />}
       {currentView === 'executive-reports' && <PlantHeadExecutiveReports />}
@@ -4458,9 +4496,11 @@ export default function PlantHeadPortal() {
       {currentView === 'finished-goods' && renderFinishedGoods()}
       {currentView === 'add-material' && renderAddMaterialPage()}
       {currentView === 'edit-material' && renderEditMaterialPage()}
+      {currentView === 'profile' && <MyProfileView />}
       {currentView === 'indent-approvals' && <MaterialIndentApproval />}
+      {currentView === 'leave-approvals' && <LeaveApprovalView roleMode="PLANT_HEAD" />}
 
-      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'material-analytics', 'department-overview', 'executive-reports', 'reports', 'qc-failures', 'products', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals'].includes(currentView) && (
+      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'department-overview', 'executive-reports', 'reports', 'qc-failures', 'products', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals'].includes(currentView) && (
         <ModulePlaceholder 
           title="Module Not Available" 
           description="This Plant Head feature is not implemented yet." 

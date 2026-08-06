@@ -9,6 +9,7 @@ import { useERP } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
 import { issuePurchaseOrder, closePurchaseOrder, evaluatePOClose } from '../../../store/procurementActions';
 import { useAuth } from '../../../shared/context/AuthContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
 import { financeService } from '../../../services/finance.service';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
@@ -3254,6 +3255,7 @@ export default function FinancePortal() {
   return (
     <>
       {view === 'dashboard' && renderDashboard()}
+      {view === 'profile' && <MyProfileView />}
       {view === 'invoices' && renderInvoices()}
       {view === 'create-po' && <CreatePurchaseOrder />}
       {view === 'delivery-audit' && <DeliveryAudit />}

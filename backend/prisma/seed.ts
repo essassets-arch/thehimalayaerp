@@ -1260,6 +1260,24 @@ async function main() {
     console.log(`  ✓ ${wf.name}`);
   }
 
+  // Seeding initial machines
+  console.log('⚙️ Seeding machines...');
+  const initialMachines = [
+    { machineId: 'HM001', machineName: 'Hydraulic Machine 1', machineType: 'Hydraulic Press', location: 'Section A' },
+    { machineId: 'HM002', machineName: 'Hydraulic Machine 2', machineType: 'Hydraulic Press', location: 'Section A' },
+    { machineId: 'HM003', machineName: 'Hydraulic Machine 3', machineType: 'Hydraulic Press', location: 'Section B' },
+    { machineId: 'HM004', machineName: 'Hydraulic Machine 4', machineType: 'Hydraulic Press', location: 'Section B' },
+    { machineId: 'HM005', machineName: 'Hydraulic Machine 5', machineType: 'Hydraulic Press', location: 'Section C' },
+    { machineId: 'HM006', machineName: 'Hydraulic Machine 6', machineType: 'Hydraulic Press', location: 'Section C' },
+  ];
+  for (const m of initialMachines) {
+    await prisma.machine.upsert({
+      where: { machineId: m.machineId },
+      update: { machineName: m.machineName, machineType: m.machineType, location: m.location, isActive: true },
+      create: { machineId: m.machineId, machineName: m.machineName, machineType: m.machineType, location: m.location, isActive: true },
+    });
+  }
+
   console.log('\n✅ Seed complete!');
   console.log(`\n🏢 Company: Himalaya Wellness Pvt. Ltd.`);
   console.log(`📦 Products: ${createdCount} created, ${skippedCount} skipped`);

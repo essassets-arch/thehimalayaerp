@@ -5,6 +5,10 @@ import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import { useERP } from '../../../shared/context/ERPContext';
+import MyProfileView from '../../../shared/components/MyProfileView';
+import ExpenseManagementView from '../../../shared/components/ExpenseManagementView';
+import LeaveApprovalView from '../../../shared/components/LeaveApprovalView';
+import HRAttendanceRequestsView from '../../../shared/components/HRAttendanceRequestsView';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { adminService } from '../../../services/admin.service';
 import { apiClient } from '../../../lib/apiClient';
@@ -952,6 +956,14 @@ export default function HRPortal() {
 
   const renderActiveView = () => {
     switch (view) {
+      case 'profile':
+        return <MyProfileView />;
+      case 'expense-management':
+        return <ExpenseManagementView />;
+      case 'leave-approvals':
+        return <LeaveApprovalView roleMode="HR" />;
+      case 'attendance-requests':
+        return <HRAttendanceRequestsView />;
       case 'dashboard':
         return renderDashboard();
       case 'employees':

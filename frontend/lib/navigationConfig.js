@@ -50,6 +50,7 @@ export const navigationConfig = {
       path: '/plant-head/production-analytics',
       subItems: [
         { id: 'production-analytics', label: 'Production Analytics', path: '/plant-head/production-analytics' },
+        { id: 'dispatch-analytics', label: 'Dispatch Analytics', path: '/plant-head/dispatch-analytics' },
         { id: 'material-analytics', label: 'Material Analytics', path: '/plant-head/material-analytics' },
         { id: 'department-overview', label: 'Department Overview', path: '/plant-head/department-overview' },
         { id: 'executive-reports', label: 'Executive Reports', path: '/plant-head/executive-reports' }
@@ -238,6 +239,7 @@ export const navigationConfig = {
     { id: 'employees', label: 'Employees', icon: UserCheck, path: '/super-admin/employees' },
     { id: 'companies', label: 'Companies', icon: Building, path: '/super-admin/companies' },
     { id: 'sales-target', label: 'Sales Targets', icon: Target, path: '/super-admin/sales-target' },
+    { id: 'production-target', label: 'Production Targets', icon: Target, path: '/super-admin/production-target' },
     { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
     { id: 'price-master', label: 'Price Master', icon: DollarSign, path: '/super-admin/price-master' },
@@ -267,6 +269,7 @@ export const navigationConfig = {
     { id: 'api-keys', label: 'API Keys', icon: Key, path: '/super-admin/api-keys' },
     { id: 'dev-tools', label: 'Developer Tools', icon: Wrench, path: '/super-admin/dev-tools' },
     { id: 'environment', label: 'Environment', icon: Server, path: '/super-admin/environment' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' }
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' },
+    { id: 'notifications', label: 'Notification Management', icon: Bell, path: '/super-admin/notifications' }
   ]
 };

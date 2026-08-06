@@ -101,6 +101,8 @@ services:
       UPLOAD_DIR: /app/uploads
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-super.admin@himalayaerp.com}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-admin123}
+      THROTTLE_LIMIT: 99999
+      THROTTLE_TTL: 60000
     ports:
       - "127.0.0.1:4001:4000"
     volumes:

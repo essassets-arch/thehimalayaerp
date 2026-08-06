@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Swal from 'sweetalert2';
 import {
   Factory, LayoutGrid, Calendar, BatteryCharging, Zap, Cpu, Clock,
   AlertTriangle, CheckCircle, XCircle, FileText, BarChart3, TrendingUp,
@@ -32,19 +33,57 @@ export const PlantHeadDashboard = () => {
   const [backendMatAnalytics, setBackendMatAnalytics] = useState(null);
   const [backendDeptOverview, setBackendDeptOverview] = useState(null);
   const [workOrders, setWorkOrders] = useState([]);
+  const [incomingOrders, setIncomingOrders] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [productionTargetAchievement, setProductionTargetAchievement] = useState(null);
+  const [loadingTarget, setLoadingTarget] = useState(true);
+  const [dateFilter, setDateFilter] = useState('Today');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  // ── Machine Performance Live Log State ──
+  const [machinePerformanceDate, setMachinePerformanceDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [machineStatuses, setMachineStatuses] = useState([]);
+  const [loadingMachineStatuses, setLoadingMachineStatuses] = useState(false);
+
+  const fetchMachineStatuses = useCallback(async (dateStr) => {
+    try {
+      setLoadingMachineStatuses(true);
+      const res = await backendFetch(`/api/backend/machine-status?date=${dateStr}`);
+      if (Array.isArray(res)) {
+        setMachineStatuses(res);
+      } else {
+        setMachineStatuses([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch machine statuses for Plant Head:', err);
+      setMachineStatuses([]);
+    } finally {
+      setLoadingMachineStatuses(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'machine_performance') {
+      fetchMachineStatuses(machinePerformanceDate);
+    }
+  }, [activeTab, machinePerformanceDate, fetchMachineStatuses]);
 
   // Fetch Live Data from Backend API
   const fetchPlantData = useCallback(async () => {
     setLoading(true);
+    setLoadingTarget(true);
     try {
-      const [dbRes, prodRes, matRes, deptRes, ordersRes, itemsRes] = await Promise.allSettled([
-        backendFetch('/api/backend/plant-head/dashboard-data'),
-        backendFetch('/api/backend/plant-head/analytics/production'),
-        backendFetch('/api/backend/plant-head/analytics/material'),
+      const queryParams = `?filter=${dateFilter}&customStart=${customStart}&customEnd=${customEnd}`;
+      const [dbRes, prodRes, matRes, deptRes, ordersRes, itemsRes, targetRes, incomingRes] = await Promise.allSettled([
+        backendFetch('/api/backend/plant-head/dashboard-data' + queryParams),
+        backendFetch('/api/backend/plant-head/analytics/production' + queryParams),
+        backendFetch('/api/backend/plant-head/analytics/material' + queryParams),
         backendFetch('/api/backend/plant-head/overview/departments'),
         backendFetch('/api/backend/plant-head/planning'),
-        backendFetch('/api/backend/inventory/items')
+        backendFetch('/api/backend/inventory/items'),
+        backendFetch('/api/backend/production-targets/achievement'),
+        backendFetch('/api/backend/plant-head/incoming-orders')
       ]);
 
       if (dbRes.status === 'fulfilled' && dbRes.value) {
@@ -66,6 +105,15 @@ export const PlantHeadDashboard = () => {
       if (itemsRes.status === 'fulfilled' && Array.isArray(itemsRes.value)) {
         setInventoryItems(itemsRes.value);
       }
+
+      if (targetRes.status === 'fulfilled' && targetRes.value) {
+        setProductionTargetAchievement(targetRes.value);
+      }
+
+      if (incomingRes.status === 'fulfilled' && Array.isArray(incomingRes.value)) {
+        setIncomingOrders(incomingRes.value);
+      }
+      setLoadingTarget(false);
 
       // Process Orders or fallback to structured work orders
       let ordersList = [];
@@ -107,7 +155,65 @@ export const PlantHeadDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateFilter, customStart, customEnd]);
+
+  const handleAcceptOrder = async (order) => {
+    const { value: remarks } = await Swal.fire({
+      title: 'Accept Order',
+      input: 'textarea',
+      inputLabel: 'Acceptance Remarks (optional)',
+      inputPlaceholder: 'e.g. Capacity available, scheduling for production…',
+      showCancelButton: true,
+      confirmButtonText: 'Accept Order',
+      customClass: {
+        popup: 'swal-premium-popup',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      buttonsStyling: false
+    });
+    if (remarks === undefined) return;
+    try {
+      await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
+        method: 'POST',
+        body: { action: 'PLANT_APPROVE', remarks },
+      });
+      Swal.fire({ icon: 'success', title: 'Order Accepted', text: `Order ${order.orderNo || order.id} has been accepted.`, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
+      fetchPlantData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Accept Failed', text: err.message, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
+    }
+  };
+
+  const handleRejectOrder = async (order) => {
+    const { value: remarks } = await Swal.fire({
+      title: 'Reject Order',
+      input: 'textarea',
+      inputLabel: 'Rejection Reason (required)',
+      inputPlaceholder: 'e.g. Insufficient raw material / capacity constraint…',
+      inputValidator: (v) => !v && 'Please provide a rejection reason.',
+      showCancelButton: true,
+      confirmButtonText: 'Reject Order',
+      confirmButtonColor: '#ef4444',
+      customClass: {
+        popup: 'swal-premium-popup',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      buttonsStyling: false
+    });
+    if (!remarks) return;
+    try {
+      await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
+        method: 'POST',
+        body: { action: 'PLANT_REJECT', remarks },
+      });
+      Swal.fire({ icon: 'success', title: 'Order Rejected', text: `Order ${order.orderNo || order.id} has been rejected.`, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
+      fetchPlantData();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Reject Failed', text: err.message, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
+    }
+  };
 
   useEffect(() => {
     fetchPlantData();
@@ -118,7 +224,7 @@ export const PlantHeadDashboard = () => {
     const plannedTotal = workOrders.reduce((sum, w) => sum + w.plannedQty, 0) || 6050;
     const actualTotal = workOrders.reduce((sum, w) => sum + w.actualQty, 0) || 4070;
     const targetAch = ((actualTotal / (plannedTotal || 1)) * 100).toFixed(1);
-    
+
     const prodData = backendDashboard?.production || {};
     const qcData = backendDashboard?.qc || {};
 
@@ -127,10 +233,10 @@ export const PlantHeadDashboard = () => {
     const machineUtil = '82.5%';
     const onTimeProd = `${qcData.passRate || 92.1}%`;
     const delayCount = workOrders.filter(w => w.status === 'Delayed').length || prodData.delayed || 2;
-    
+
     const invValNum = inventoryItems.reduce((s, item) => s + (Number(item.balance || 50) * Number(item.price || 250)), 0);
     const inventoryValue = invValNum > 0 ? `₹ ${(invValNum / 100000).toFixed(2)} L` : '₹ 1.28 Cr';
-    
+
     const rejectionRate = `${qcData.failed > 0 ? (100 - (qcData.passRate || 98.6)).toFixed(1) : '1.4'}%`;
     const safetyStatus = '342 Days Safe';
 
@@ -227,7 +333,7 @@ export const PlantHeadDashboard = () => {
 
   return (
     <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b' }}>
-      
+
       {/* ── Page Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -246,8 +352,44 @@ export const PlantHeadDashboard = () => {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Date Filter & Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          
+          {/* Date Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>Period:</span>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              style={{ border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '800', color: '#0f172a', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="Today">Today</option>
+              <option value="This Week">This Week</option>
+              <option value="This Month">This Month</option>
+              <option value="Annually">Annually</option>
+              <option value="Custom">Custom Range</option>
+            </select>
+          </div>
+
+          {/* Custom Date Inputs */}
+          {dateFilter === 'Custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                style={{ border: 'none', outline: 'none', fontSize: '12px', color: '#334155', fontWeight: '600' }}
+              />
+              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                style={{ border: 'none', outline: 'none', fontSize: '12px', color: '#334155', fontWeight: '600' }}
+              />
+            </div>
+          )}
+
           <button
             onClick={fetchPlantData}
             disabled={loading}
@@ -266,7 +408,7 @@ export const PlantHeadDashboard = () => {
 
       {/* ── 10 Executive KPI Cards (Top Section) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
-        
+
         {/* 1. Today's Production */}
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
           <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🏭 Today's Production</div>
@@ -275,10 +417,38 @@ export const PlantHeadDashboard = () => {
         </div>
 
         {/* 2. Target Achievement % */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #10b981' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🎯 Target Achievement %</div>
-          <div style={{ fontSize: '20px', fontWeight: '900', color: '#10b981', margin: '4px 0' }}>{kpis.targetAch}</div>
-          <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '700' }}>SLA Production Output</div>
+        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #10b981', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🎯 Target Achievement</div>
+          {loadingTarget ? (
+            <div style={{ fontSize: '14px', color: '#64748b', margin: '8px 0' }}>Loading...</div>
+          ) : !productionTargetAchievement || !productionTargetAchievement.hasTarget ? (
+            <>
+              <div style={{ fontSize: '18px', fontWeight: '900', color: '#ea580c', margin: '4px 0' }}>No Active Target</div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>Assign a production target from Super Admin.</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: '24px', fontWeight: '900', color: '#10b981', margin: '2px 0' }}>
+                {productionTargetAchievement.achievement}%
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', color: '#475569', borderTop: '1px dashed #e2e8f0', paddingTop: '6px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Production Target:</span>
+                  <strong>{Number(productionTargetAchievement.target).toLocaleString()} Units</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Achieved:</span>
+                  <strong style={{ color: '#10b981' }}>{Number(productionTargetAchievement.achieved).toLocaleString()} Units</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Remaining:</span>
+                  <strong style={{ color: productionTargetAchievement.remaining > 0 ? '#ef4444' : '#10b981' }}>
+                    {Number(productionTargetAchievement.remaining).toLocaleString()} Units
+                  </strong>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 3. OEE */}
@@ -329,14 +499,6 @@ export const PlantHeadDashboard = () => {
           <div style={{ fontSize: '20px', fontWeight: '900', color: '#dc2626', margin: '4px 0' }}>{kpis.rejectionRate}</div>
           <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>QC scrap &amp; rejections</div>
         </div>
-
-        {/* 10. Safety Status */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #10b981' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🛡️ Safety Status</div>
-          <div style={{ fontSize: '18px', fontWeight: '900', color: '#15803d', margin: '4px 0' }}>{kpis.safetyStatus}</div>
-          <div style={{ fontSize: '11px', color: '#15803d', fontWeight: '700' }}>Zero LTI incidents</div>
-        </div>
-
       </div>
 
       {/* ── 10 Dashboard Tabs Bar ── */}
@@ -345,7 +507,7 @@ export const PlantHeadDashboard = () => {
           { id: 'executive_overview', label: '📊 Executive Overview' },
           { id: 'planning_calendar', label: '📅 Production Planning' },
           { id: 'capacity_planning', label: '🔋 Capacity Planning' },
-          { id: 'daily_operations', label: '⚡ Daily Operations' },
+          { id: 'approval_rate', label: '⚡ Approval Rate' },
           { id: 'machine_performance', label: '⚙️ Machine Performance' },
           { id: 'delay_analysis', label: '⏳ Delay & Bottleneck' },
           { id: 'material_analytics', label: '📦 Material Analytics' },
@@ -383,7 +545,7 @@ export const PlantHeadDashboard = () => {
         <div>
           {/* Charts Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-            
+
             {/* Category-wise Production Chart */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -451,7 +613,7 @@ export const PlantHeadDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {workOrders.map((wo, idx) => (
+                  {workOrders.filter(wo => ['In Progress', 'Delayed'].includes(wo.status)).map((wo, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#0284c7' }}>{wo.id}</td>
                       <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{wo.product}</td>
@@ -482,23 +644,86 @@ export const PlantHeadDashboard = () => {
 
       {/* ── TAB 2: PRODUCTION PLANNING CALENDAR ── */}
       {activeTab === 'planning_calendar' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar size={18} color="#0284c7" /> 1. Production Planning Calendar &amp; Machine Allocation
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-            {workOrders.map((wo, i) => (
-              <div key={i} style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#f8fafc' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '900', color: '#0284c7', fontFamily: 'monospace' }}>{wo.id}</span>
-                  <span style={{ fontSize: '11px', fontWeight: '800', background: wo.status === 'Delayed' ? '#fee2e2' : '#dcfce7', color: wo.status === 'Delayed' ? '#b91c1c' : '#15803d', padding: '2px 8px', borderRadius: '4px' }}>{wo.status}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Machine Allocation Cards */}
+          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={18} color="#0284c7" /> 1. Production Planning Calendar &amp; Machine Allocation
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+              {workOrders.map((wo, i) => (
+                <div key={i} style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '900', color: '#0284c7', fontFamily: 'monospace' }}>{wo.id}</span>
+                    <span style={{ fontSize: '11px', fontWeight: '800', background: wo.status === 'Delayed' ? '#fee2e2' : wo.status === 'Completed' ? '#dcfce7' : wo.status === 'Planned' ? '#f1f5f9' : '#e0f2fe', color: wo.status === 'Delayed' ? '#b91c1c' : wo.status === 'Completed' ? '#15803d' : wo.status === 'Planned' ? '#475569' : '#0369a1', padding: '2px 8px', borderRadius: '4px' }}>{wo.status}</span>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>{wo.product}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Allocation: <strong>{wo.machine}</strong> ({wo.line})</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Operator: <strong>{wo.operator}</strong></div>
+                  <div style={{ fontSize: '12px', color: '#059669', fontWeight: '700', marginTop: '8px' }}>Output: {wo.actualQty} / {wo.plannedQty} {wo.unit}</div>
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>{wo.product}</div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Allocation: <strong>{wo.machine}</strong> ({wo.line})</div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Operator: <strong>{wo.operator}</strong></div>
-                <div style={{ fontSize: '12px', color: '#059669', fontWeight: '700', marginTop: '8px' }}>Output: {wo.actualQty} / {wo.plannedQty} {wo.unit}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Incoming Orders Queue */}
+          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} color="#f59e0b" /> Incoming Production Demand Queue
+            </h3>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 16px 0' }}>
+              Accept or reject incoming order releases waiting to be scheduled on the plant floor.
+            </p>
+
+            {incomingOrders.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '13px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                No pending incoming orders at this time.
               </div>
-            ))}
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 12px' }}>Order No</th>
+                      <th style={{ padding: '10px 12px' }}>Customer</th>
+                      <th style={{ padding: '10px 12px' }}>Product Items</th>
+                      <th style={{ padding: '10px 12px' }}>Status</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {incomingOrders.map((ord, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#0284c7' }}>{ord.orderNo || ord.id}</td>
+                        <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{ord.customerName || ord.customer?.name || '—'}</td>
+                        <td style={{ padding: '10px 12px', color: '#475569' }}>{ord.products || (ord.items && ord.items.map(i => `${i.product?.name || i.productName} (${i.orderedQuantity})`).join(', ')) || '—'}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ background: '#fef3c7', color: '#d97706', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '800' }}>
+                            Pending
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleAcceptOrder(ord)}
+                              style={{ padding: '6px 12px', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleRejectOrder(ord)}
+                              style={{ padding: '6px 12px', background: '#ef4444', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -530,74 +755,141 @@ export const PlantHeadDashboard = () => {
         </div>
       )}
 
-      {/* ── TAB 4: DAILY OPERATIONS ── */}
-      {activeTab === 'daily_operations' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Zap size={18} color="#f59e0b" /> 3. Daily Operations KPI &amp; Labor Productivity
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Production Yield %</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#10b981' }}>96.8%</div>
+      {/* ── TAB 4: APPROVAL RATE ── */}
+      {activeTab === 'approval_rate' && (() => {
+        const approvalStats = backendDashboard?.approvalStats || { totalOrders: 0, acceptedOrders: 0, approvalRate: 0 };
+        return (
+          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={18} color="#0284c7" /> Plant Order Approval Rate Analysis
+            </h3>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 20px 0' }}>
+              Real-time tracker measuring the percentage of sales orders approved and scheduled for production by the Plant Head.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              {/* Main Gauge Card */}
+              <div style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center' }}>
+                <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569' }}>Overall Approval Rate</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '36px', fontWeight: '900', color: '#0284c7' }}>{approvalStats.approvalRate}%</span>
+                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Target: 85.0%</span>
+                </div>
+
+                {/* Progress Bar */}
+                <div style={{ width: '100%', height: '8px', background: '#cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${approvalStats.approvalRate}%`, height: '100%', background: '#0284c7', borderRadius: '4px', transition: 'width 0.5s ease-out' }} />
+                </div>
+              </div>
+
+              {/* Status Breakdowns */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>Accepted Orders</span>
+                  <span style={{ fontSize: '24px', fontWeight: '900', color: '#10b981' }}>{approvalStats.acceptedOrders}</span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Clearance approved</span>
+                </div>
+                <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>Total Orders</span>
+                  <span style={{ fontSize: '24px', fontWeight: '900', color: '#475569' }}>{approvalStats.totalOrders}</span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Total pipeline volume</span>
+                </div>
+              </div>
             </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Labor Productivity</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7' }}>185 Pcs/Operator</div>
-            </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Energy Consumption</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#7c3aed' }}>4,250 kWh</div>
-            </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Scrap &amp; Rejection</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#ef4444' }}>{kpis.rejectionRate}</div>
+
+            {/* Explanation box */}
+            <div style={{ marginTop: '20px', padding: '14px 16px', background: 'rgba(2,132,199,0.04)', borderLeft: '4px solid #0284c7', borderRadius: '0 8px 8px 0', fontSize: '12px', color: '#0369a1', lineHeight: '1.5' }}>
+              <strong>Formula:</strong> (Accepted Orders / Total Orders) × 100. Toggling an order to approved adds it to plant scheduling lists and dynamically advances this acceptance KPI.
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── TAB 5: MACHINE PERFORMANCE ── */}
       {activeTab === 'machine_performance' && (
         <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Cpu size={18} color="#7c3aed" /> 4. Machine Performance, MTBF &amp; MTTR Analysis
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Cpu size={18} color="#7c3aed" /> Machine Performance status
+            </h3>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ fontSize: '13px', fontWeight: '700', color: '#475569' }}>Select Date:</label>
+              <input
+                type="date"
+                value={machinePerformanceDate}
+                onChange={(e) => setMachinePerformanceDate(e.target.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fetchMachineStatuses(machinePerformanceDate)}
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  background: '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
+                title="Refresh Statuses"
+              >
+                <RefreshCw size={14} color="#475569" className={loadingMachineStatuses ? "animate-spin" : ""} />
+              </button>
+            </div>
+          </div>
+
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '10px 12px' }}>Machine ID</th>
-                  <th style={{ padding: '10px 12px' }}>Machine Name</th>
-                  <th style={{ padding: '10px 12px' }}>Line</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Utilization %</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Runtime</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Downtime</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>OEE %</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>MTBF</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>MTTR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {machineData.map((m, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#7c3aed' }}>{m.id}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{m.name}</td>
-                    <td style={{ padding: '10px 12px', color: '#64748b' }}>{m.line}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <span style={{ background: m.status === 'Running' ? '#dcfce7' : m.status === 'Maintenance' ? '#fee2e2' : '#fef3c7', color: m.status === 'Running' ? '#15803d' : m.status === 'Maintenance' ? '#b91c1c' : '#b45309', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '800' }}>{m.status}</span>
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{m.utilization}%</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{m.runtime} hrs</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#dc2626', fontWeight: '700' }}>{m.downtime} hrs</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '800', color: '#10b981' }}>{m.oee}%</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#475569' }}>{m.mtbf}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#475569' }}>{m.mttr}</td>
+            {loadingMachineStatuses ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', fontSize: '13px', color: '#64748b' }}>⏳ Loading machine statuses...</div>
+            ) : machineStatuses.length === 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', fontSize: '13px', color: '#64748b' }}>No statuses reported for this day.</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px' }}>Machine ID</th>
+                    <th style={{ padding: '12px' }}>Machine Name</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {machineStatuses.map((m) => {
+                    const isUse = m.status === 'USE';
+                    const isNotUse = m.status === 'NOT_USE';
+
+                    return (
+                      <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px', fontWeight: '800', fontFamily: 'monospace', color: '#7c3aed' }}>{m.machineId}</td>
+                        <td style={{ padding: '12px', fontWeight: '700', color: '#0f172a' }}>{m.machineName}</td>
+                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                          {isUse ? (
+                            <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', display: 'inline-block' }}>Use</span>
+                          ) : isNotUse ? (
+                            <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', display: 'inline-block' }}>Not Use</span>
+                          ) : (
+                            <span style={{ background: '#f1f5f9', color: '#64748b', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', display: 'inline-block' }}>Not Updated</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
@@ -646,31 +938,61 @@ export const PlantHeadDashboard = () => {
             </div>
           </div>
         </div>
-      )}
+      )}      {/* ── TAB 8: PRODUCTION & DISPATCH ANALYTICS ── */}
+      {activeTab === 'production_analytics' && (() => {
+        const disp = backendDashboard?.dispatch || { readyForDispatch: 0, vehicleStatus: '4/5 Active' };
+        return (
+          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <TrendingUp size={18} color="#10b981" /> 8. Production &amp; Dispatch Analytics
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+              {/* Production Analytics */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', background: '#f8fafc' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🏭 Production Operations
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Total Production Volume:</span>
+                    <strong style={{ fontSize: '14px', color: '#059669' }}>48,500 Pcs/mo</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>First Pass Yield (FPY):</span>
+                    <strong style={{ fontSize: '14px', color: '#0284c7' }}>97.4%</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Avg Cost per Unit:</span>
+                    <strong style={{ fontSize: '14px', color: '#7c3aed' }}>₹ 142.50</strong>
+                  </div>
+                </div>
+              </div>
 
-      {/* ── TAB 8: PRODUCTION ANALYTICS ── */}
-      {activeTab === 'production_analytics' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <TrendingUp size={18} color="#10b981" /> 8. Executive Production Insights &amp; Unit Cost
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Total Production Volume</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#059669' }}>48,500 Pcs/mo</div>
-            </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>First Pass Yield (FPY)</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7' }}>97.4%</div>
-            </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Avg Cost per Unit</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#7c3aed' }}>₹ 142.50</div>
+              {/* Dispatch Analytics */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', background: '#f8fafc' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  📦 Dispatch &amp; Logistics Telemetry
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Ready for Dispatch:</span>
+                    <strong style={{ fontSize: '14px', color: '#0284c7' }}>{disp.readyForDispatch} Orders</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Fleet Utilization:</span>
+                    <strong style={{ fontSize: '14px', color: '#f59e0b' }}>{disp.vehicleStatus}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>On-Time Dispatch SLA:</span>
+                    <strong style={{ fontSize: '14px', color: '#10b981' }}>98.2%</strong>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
+        );
+      })()}
       {/* ── TAB 9: APPROVAL HISTORY ── */}
       {activeTab === 'approvals_history' && (
         <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>

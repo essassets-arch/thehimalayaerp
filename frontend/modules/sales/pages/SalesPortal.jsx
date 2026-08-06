@@ -18,6 +18,7 @@ import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import Swal from 'sweetalert2';
+import MyProfileView from '../../../shared/components/MyProfileView';
 import { useERP, useERPStore, useSalesBackend } from '../../../shared/context/ERPContext.jsx';
 import { useAuth } from '../../../shared/context/AuthContext.jsx';
 import { apiClient } from '../../../lib/apiClient.js';
@@ -882,6 +883,9 @@ export default function SalesPortal() {
   // ── Route → View mapping ───────────────────────────────────────────────────
 
   switch (currentView) {
+    case 'profile':
+      return <MyProfileView />;
+
     case 'daily-task':
       return <DailyTaskView state={{ ...state, leads, samples, quotations, orders, customers, reminders }} dispatch={dispatch} navigate={navigate} showToast={showToast} completeReminder={completeReminder} updateReminder={updateReminder} />;
 

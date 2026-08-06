@@ -12,7 +12,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { useBadgeStore } from '@/store/badgeStore';
 import { ERPProvider } from '@/shared/context/ERPContext';
 import MockDataSeeder from '@/components/MockDataSeeder';
-import { getNavigationForPath } from '@/config/navigationHelpers';
+import { getNavigationForPath, getModuleKeyFromPath } from '@/config/navigationHelpers';
 import AuthGuard from '@/shared/components/AuthGuard';
 
 import * as Lucide from 'lucide-react';
@@ -174,6 +174,90 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Suspense fallback={<PageLoader />}>
           {children}
         </Suspense>
+
+        {/* Mobile Bottom Tab Bar */}
+        <div className="mobile-bottom-nav">
+          <a
+            className="mobile-nav-item"
+            onClick={() => {
+              const moduleKey = getModuleKeyFromPath(pathname) || 'Sales';
+              const prefix = {
+                'Sales': '/sales',
+                'Production': '/production',
+                'Plant Head': '/plant-head',
+                'Store': '/store',
+                'QC': '/qc',
+                'Dispatch': '/dispatch',
+                'Finance Executive': '/finance-executive',
+                'Finance': '/finance',
+                'HR': '/hr',
+                'Admin': '/admin',
+                'Super Admin': '/super-admin'
+              }[moduleKey] || '/sales';
+              router.push(`${prefix}/dashboard`);
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: '20px' }}>🏠</span>
+            <span>Dashboard</span>
+          </a>
+
+          <a
+            className="mobile-nav-item"
+            onClick={() => {
+              const moduleKey = getModuleKeyFromPath(pathname) || 'Sales';
+              const prefix = {
+                'Sales': '/sales',
+                'Production': '/production',
+                'Plant Head': '/plant-head',
+                'Store': '/store',
+                'QC': '/qc',
+                'Dispatch': '/dispatch',
+                'Finance Executive': '/finance-executive',
+                'Finance': '/finance',
+                'HR': '/hr',
+                'Admin': '/admin',
+                'Super Admin': '/super-admin'
+              }[moduleKey] || '/sales';
+              router.push(`${prefix}/profile`);
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: '20px' }}>👤</span>
+            <span>My Profile</span>
+          </a>
+
+          <a
+            className="mobile-nav-item"
+            onClick={() => {
+              const roleCode = String(user?.role?.code || '').toUpperCase();
+              const moduleKey = getModuleKeyFromPath(pathname) || 'Sales';
+              const prefix = {
+                'Sales': '/sales',
+                'Production': '/production',
+                'Plant Head': '/plant-head',
+                'Store': '/store',
+                'QC': '/qc',
+                'Dispatch': '/dispatch',
+                'Finance Executive': '/finance-executive',
+                'Finance': '/finance',
+                'HR': '/hr',
+                'Admin': '/admin',
+                'Super Admin': '/super-admin'
+              }[moduleKey] || '/sales';
+              
+              if (roleCode.includes('HR') || roleCode.includes('SUPER_ADMIN')) {
+                router.push(`${prefix}/expense-management`);
+              } else {
+                router.push(`${prefix}/profile`);
+              }
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: '20px' }}>🪙</span>
+            <span>Expenses</span>
+          </a>
+        </div>
 
       </main>
 

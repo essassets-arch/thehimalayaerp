@@ -1,7 +1,7 @@
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UseGuards, Controller, Get, Patch, Param, Req } from '@nestjs/common';
+import { UseGuards, Controller, Get, Patch, Param, Req, Post, Body } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 
 @Controller('notifications')
@@ -28,5 +28,19 @@ export class NotificationsController {
   async markAllAsRead(@Req() req: any) {
     const userId = req.user?.sub;
     return this.notificationsService.markAllAsRead(userId);
+  }
+
+  @RequirePermissions('admin.notifications.create')
+  @Post('broadcast')
+  async broadcast(@Body() body: any, @Req() req: any) {
+    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    return this.notificationsService.broadcast(body, companyId);
+  }
+
+  @RequirePermissions('admin.notifications.read')
+  @Get('broadcast-history')
+  async getBroadcastHistory(@Req() req: any) {
+    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    return this.notificationsService.getBroadcastHistory(companyId);
   }
 }

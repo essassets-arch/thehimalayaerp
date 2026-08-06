@@ -42,6 +42,10 @@ export class PlantHeadService {
           startDate.setHours(0, 0, 0, 0);
           break;
         }
+        case 'Annually':
+          startDate.setMonth(0, 1);
+          startDate.setHours(0, 0, 0, 0);
+          break;
         default:
           startDate.setMonth(now.getMonth() - 1); // default to last 1 month
       }
@@ -112,6 +116,55 @@ export class PlantHeadService {
       where: { companyId, minimumStock: { gt: 0 } },
     }); // Needs more complex inventory logic for real "low stock", mocking conceptually
 
+    // 1. Incoming Orders
+    const incomingTotal = await this.prisma.salesOrder.count({ where: { customer: { companyId } } });
+    const incomingApproved = await this.prisma.salesOrder.count({
+      where: {
+        customer: { companyId },
+        status: { in: ['PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'COMPLETED'] },
+      },
+    });
+
+    // 2. Planning
+    const planningTotal = await this.prisma.productionPlan.count({});
+    const planningApproved = await this.prisma.productionPlan.count({
+      where: { status: { in: ['APPROVED', 'RELEASED', 'IN_PROGRESS', 'COMPLETED'] } },
+    });
+
+    // 3. Material Approvals
+    const materialTotal = await this.prisma.materialRequest.count({ where: { companyId } });
+    const materialApproved = await this.prisma.materialRequest.count({
+      where: {
+        companyId,
+        status: { notIn: ['PENDING_PLANT_HEAD_APPROVAL', 'PLANT_HEAD_REJECTED'] },
+      },
+    });
+
+    // 4. Indent Approvals
+    const indentTotal = await this.prisma.purchaseIndent.count({ where: { companyId } });
+    const indentApproved = await this.prisma.purchaseIndent.count({
+      where: {
+        companyId,
+        status: { notIn: ['PENDING_PLANT_HEAD_APPROVAL', 'PLANT_HEAD_REJECTED', 'PLANT_HEAD_CORRECTION_REQUIRED', 'INDENT_CANCELLED'] },
+      },
+    });
+
+    // 5. Replacements
+    const replacementTotal = await this.prisma.replacementRequest.count({});
+    const replacementApproved = await this.prisma.replacementRequest.count({
+      where: { status: 'APPROVED' },
+    });
+
+    // 6. Returns
+    const returnTotal = await this.prisma.salesReturn.count({});
+    const returnApproved = await this.prisma.salesReturn.count({
+      where: { status: { notIn: ['REQUESTED', 'UNDER_REVIEW', 'REJECTED', 'CANCELLED'] } },
+    });
+
+    const totalCount = incomingTotal + planningTotal + materialTotal + indentTotal + replacementTotal + returnTotal;
+    const approvedCount = incomingApproved + planningApproved + materialApproved + indentApproved + replacementApproved + returnApproved;
+    const approvalRate = totalCount > 0 ? Number(((approvedCount / totalCount) * 100).toFixed(2)) : 0.00;
+
     // Returns
     return {
       production: {
@@ -140,6 +193,11 @@ export class PlantHeadService {
       financial: {
         receivables: 1450000,
         payables: 45000,
+      },
+      approvalStats: {
+        totalOrders: totalCount,
+        acceptedOrders: approvedCount,
+        approvalRate: approvalRate,
       },
     };
   }
