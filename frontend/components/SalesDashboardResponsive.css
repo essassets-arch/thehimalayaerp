@@ -25,7 +25,7 @@
   .sales-dashboard .sales-dashboard-sidebar-col > :first-child { grid-row: span 2; height: auto !important; min-height: 420px; }
 }
 @media (max-width: 768px) {
-  .sales-dashboard { padding: 8px 16px 96px !important; gap: 16px !important; }
+  .sales-dashboard { padding: 8px 16px 16px !important; gap: 16px !important; }
   .sales-dashboard .sales-info-bar { padding: 14px 16px !important; }
   .sales-dashboard .sales-info-badges { width: 100%; justify-content: flex-start; }
   .sales-dashboard .sales-dashboard-filters { padding: 14px !important; }

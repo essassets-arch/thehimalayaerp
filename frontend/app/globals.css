@@ -6325,7 +6325,7 @@ body.notification-open {
     height: calc(100dvh - 72px) !important; /* minus bottom nav height */
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    padding: 0 0 80px 0 !important;
+    padding: 0 0 16px 0 !important;
     gap: 0 !important;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
@@ -7442,7 +7442,7 @@ body, #root, .app-container {
 @media (max-width: 768px) {
   /* Safe area inset bottom for mobile devices with home bars (iPhone) */
   main {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 20px)) !important;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
 
@@ -8347,8 +8347,8 @@ body, #root, .app-container {
 
   .brand-analysis-modal {
     width: 100%;
-    max-height: 100dvh;
-    min-height: 100dvh;
+    max-height: 90dvh;
+    min-height: auto;
     border: 0;
     border-radius: 0;
   }

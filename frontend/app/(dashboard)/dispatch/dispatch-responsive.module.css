@@ -74,7 +74,7 @@
 @media (max-width: 768px) {
   .page,
   .content {
-    padding: 14px 14px 96px !important;
+    padding: 14px 14px 16px !important;
   }
 
   .page :global(.rounded-2xl),
