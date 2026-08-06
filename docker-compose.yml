@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5435:5432"
     networks:
       - erp-network
     healthcheck:
@@ -102,7 +102,7 @@ services:
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-super.admin@himalayaerp.com}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-admin123}
     ports:
-      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:4001:4000"
     volumes:
       - backend_uploads:/app/uploads
     networks:
@@ -136,7 +136,7 @@ services:
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:4000/api/v1}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://erp.example.com}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3001:3000"
     volumes:
       - frontend_uploads:/app/public/uploads
     networks:
