@@ -23,7 +23,7 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
     } else if (filter === 'Awaiting Materials') {
       matchesFilter = ['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'PENDING_PLANNING'].includes(orderStatus) || prodStatus === 'PENDING_PLANNING';
     } else if (filter === 'Manufacturing') {
-      matchesFilter = ['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PLANNED', 'IN_PRODUCTION'].includes(prodStatus);
+      matchesFilter = ['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PLANNED', 'RELEASED', 'IN_PRODUCTION', 'PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS'].includes(prodStatus);
     } else if (filter === 'QC Inspection') {
       // In this backend, QC is part of production completion, but we can treat READY_FOR_DISPATCH as post-QC
       matchesFilter = orderStatus === 'READY_FOR_DISPATCH' && prodStatus !== 'COMPLETED';
@@ -45,10 +45,14 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
   const runningCount = orders.filter(o => {
     const status = String(o.status || '').toUpperCase();
     const pStatus = String(o.productionStatus || '').toUpperCase();
-    return ['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(status) || ['PLANNED', 'IN_PRODUCTION'].includes(pStatus);
+    return ['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(status) || ['PLANNED', 'RELEASED', 'IN_PRODUCTION', 'PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS'].includes(pStatus);
   }).length;
 
-  const holdCount = 0; // Not natively in standard schema yet
+  const holdCount = orders.filter(o => {
+    const status = String(o.status || '').toUpperCase();
+    const pStatus = String(o.productionStatus || '').toUpperCase();
+    return ['HOLD', 'ON_HOLD', 'ON-HOLD', 'SUSPENDED'].includes(status) || ['HOLD', 'ON_HOLD', 'ON-HOLD', 'SUSPENDED'].includes(pStatus);
+  }).length;
 
   const completedCount = orders.filter(o => {
     const status = String(o.status || '').toUpperCase();
@@ -83,7 +87,7 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
     let s2 = 'pending';
     if (['READY_FOR_DISPATCH', 'COMPLETED'].includes(orderStatus) || prodStatus === 'COMPLETED') {
       s2 = 'completed';
-    } else if (['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PENDING_PLANNING', 'PLANNED', 'IN_PRODUCTION'].includes(prodStatus)) {
+    } else if (['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PENDING_PLANNING', 'PLANNED', 'RELEASED', 'IN_PRODUCTION', 'PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS'].includes(prodStatus)) {
       s2 = 'active';
     } else if (s1 === 'completed') {
       s2 = 'pending'; // Waiting for plant head
@@ -117,7 +121,7 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
       activeText = 'Dispatch Planned';
     } else if (s3 === 'active' || s3 === 'completed') {
       activeText = 'Production Completed - Awaiting Dispatch';
-    } else if (['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PLANNED', 'IN_PRODUCTION'].includes(prodStatus)) {
+    } else if (['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(orderStatus) || ['PLANNED', 'RELEASED', 'IN_PRODUCTION', 'PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS'].includes(prodStatus)) {
       activeText = 'Manufacturing Floor Execution';
     } else if (['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED'].includes(orderStatus) || prodStatus === 'PENDING_PLANNING') {
       activeText = 'Plant Head Review / Planning';

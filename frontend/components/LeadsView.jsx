@@ -563,51 +563,58 @@ export default function LeadsView({
                               {/* 1. Generate / Continue Quotation */}
                               {(() => {
                                 const quoState = getLeadQuotationState(erpStore.state, lead.id || lead.leadId);
-                                if (quoState.state === 'COMPLETED') return null;
+                                const isQuotationGenerated = displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || quoState.state === 'COMPLETED';
 
                                 return (
                                   <button
-                                    onClick={() => handleGenerateQuotationClick(lead)}
+                                    onClick={() => !isQuotationGenerated && handleGenerateQuotationClick(lead)}
+                                    disabled={isQuotationGenerated}
                                     data-testid={`lead-generate-quotation-${lead.leadNumber || lead.id || lead.leadId}`}
-                                    title={quoState.state === 'DRAFT' ? "Continue Quotation" : "Generate Quotation"}
+                                    title={isQuotationGenerated ? "Quotation Generated" : (quoState.state === 'DRAFT' ? "Continue Quotation" : "Generate Quotation")}
                                     style={{
                                       display: 'inline-flex', alignItems: 'center',
                                       padding: '6px 12px', height: '32px',
-                                      background: quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375',
-                                      border: `1px solid ${quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375'}`,
-                                      borderRadius: '8px', cursor: 'pointer',
+                                      background: isQuotationGenerated ? '#cbd5e1' : (quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375'),
+                                      border: `1px solid ${isQuotationGenerated ? '#cbd5e1' : (quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375')}`,
+                                      borderRadius: '8px', cursor: isQuotationGenerated ? 'not-allowed' : 'pointer',
                                       fontSize: '11.5px', fontWeight: '800',
-                                      color: '#ffffff', whiteSpace: 'nowrap',
+                                      color: isQuotationGenerated ? '#64748b' : '#ffffff', whiteSpace: 'nowrap',
                                       flexShrink: 0,
-                                      boxShadow: `0 1px 4px ${quoState.state === 'DRAFT' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(47,67,117,0.3)'}`
+                                      opacity: isQuotationGenerated ? 0.6 : 1,
+                                      boxShadow: isQuotationGenerated ? 'none' : `0 1px 4px ${quoState.state === 'DRAFT' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(47,67,117,0.3)'}`
                                     }}
                                   >
-                                    {quoState.state === 'DRAFT' ? 'Continue Quotation →' : 'Generate Quotation →'}
+                                    {isQuotationGenerated ? 'Quotation Generated' : (quoState.state === 'DRAFT' ? 'Continue Quotation →' : 'Generate Quotation →')}
                                   </button>
                                 );
                               })()}
                               {/* 2. Send / Continue Sample */}
                               {(() => {
                                 const smpState = getLeadSampleState(erpStore.state, lead.id || lead.leadId);
-                                if (smpState.state === 'COMPLETED') return null;
+                                const quoState = getLeadQuotationState(erpStore.state, lead.id || lead.leadId);
+                                const isQuotationGenerated = displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || quoState.state === 'COMPLETED';
+                                const isSampleSent = displayStatus === 'Sample Sent' || smpState.state === 'COMPLETED';
+                                const isSampleDisabled = isSampleSent || isQuotationGenerated;
 
                                 return (
                                   <button
-                                    onClick={() => handleGenerateSampleClick(lead)}
+                                    onClick={() => !isSampleDisabled && handleGenerateSampleClick(lead)}
+                                    disabled={isSampleDisabled}
                                     data-testid={`lead-send-sample-${lead.leadNumber || lead.id || lead.leadId}`}
-                                    title={smpState.state === 'DRAFT' ? "Continue Sample" : "Send Sample"}
+                                    title={isSampleSent ? "Sample Sent" : (isQuotationGenerated ? "Quotation Generated" : (smpState.state === 'DRAFT' ? "Continue Sample" : "Send Sample"))}
                                     style={{
                                       display: 'inline-flex', alignItems: 'center',
                                       padding: '6px 12px', height: '32px',
-                                      background: smpState.state === 'DRAFT' ? '#FEF3C7' : '#ffffff',
-                                      border: `1px solid ${smpState.state === 'DRAFT' ? '#FDE68A' : '#D6E2F0'}`,
-                                      borderRadius: '8px', cursor: 'pointer',
+                                      background: isSampleDisabled ? '#f1f5f9' : (smpState.state === 'DRAFT' ? '#FEF3C7' : '#ffffff'),
+                                      border: `1px solid ${isSampleDisabled ? '#e2e8f0' : (smpState.state === 'DRAFT' ? '#FDE68A' : '#D6E2F0')}`,
+                                      borderRadius: '8px', cursor: isSampleDisabled ? 'not-allowed' : 'pointer',
                                       fontSize: '11.5px', fontWeight: '700',
-                                      color: smpState.state === 'DRAFT' ? '#92400E' : '#334155', whiteSpace: 'nowrap',
-                                      flexShrink: 0
+                                      color: isSampleDisabled ? '#94a3b8' : (smpState.state === 'DRAFT' ? '#92400E' : '#334155'), whiteSpace: 'nowrap',
+                                      flexShrink: 0,
+                                      opacity: isSampleDisabled ? 0.6 : 1
                                     }}
                                   >
-                                    {smpState.state === 'DRAFT' ? 'Continue Sample' : 'Send Sample'}
+                                    {isSampleSent ? 'Sample Sent' : (smpState.state === 'DRAFT' ? 'Continue Sample' : 'Send Sample')}
                                   </button>
                                 );
                               })()}

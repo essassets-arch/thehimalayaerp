@@ -229,22 +229,59 @@ export default function OrdersView({
   const getOrderStatusLabel = (order) => {
     if (!order) return 'Pending';
     if (order.commercialStatus === 'ORDER_CLOSED') return 'Closed';
-    if (order.dispatchStatus === 'DELIVERED' || order.status === 'DELIVERED' || order.status === 'COMPLETED') return 'Delivered';
-    if (order.dispatchStatus === 'IN_TRANSIT' || order.status === 'IN_TRANSIT') return 'In Transit';
-    if (order.dispatchStatus === 'DISPATCH_CREATED' || order.status === 'DISPATCH_CREATED') return 'Dispatch Created';
-    if (order.status === 'READY_FOR_DISPATCH' || order.workflowStateCode === 'READY_FOR_DISPATCH') {
+    
+    const status = String(order.status || order.orderStatus || '').toUpperCase();
+    const prodStatus = String(order.productionStatus || '').toUpperCase();
+    const dispStatus = String(order.dispatchStatus || '').toUpperCase();
+    
+    // 1. Delivered
+    if (dispStatus === 'DELIVERED' || status === 'DELIVERED' || status === 'COMPLETED') {
+      return 'Delivered';
+    }
+    
+    // 2. In Transit
+    if (['SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(dispStatus) || status === 'IN_TRANSIT') {
+      return 'In Transit';
+    }
+    
+    // 3. Dispatch Planned / Ready for Dispatch
+    if (['DISPATCH_DRAFT', 'DISPATCH_CREATED', 'DISPATCH_READY'].includes(dispStatus) || status === 'READY_FOR_DISPATCH' || order.workflowStateCode === 'READY_FOR_DISPATCH') {
       return isTradingOrder(order) ? 'Sent to Dispatch' : 'Ready for Dispatch';
     }
-    if (order.qcStatus === 'QC_APPROVED') return 'QC Approved';
-    if (order.productionStatus === 'PRODUCTION_COMPLETED') return 'Production Completed';
-    if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus) || order.status === 'IN_PRODUCTION') return 'In Production';
-    if (order.productionStatus === 'WORK_ORDER_CREATED') return 'Work Order Created';
-    if (order.planningStatus === 'PRODUCTION_PLANNED' || order.status === 'PRODUCTION_PLANNED' || order.status === 'READY_FOR_PRODUCTION') return 'Production Planned';
-    if (order.planningStatus === 'PLANT_HEAD_ACCEPTED' || order.status === 'PLANT_APPROVED') return 'Accepted by Plant Head';
-    if (order.planningStatus === 'PENDING_ACCEPTANCE' || order.status === 'SENT_TO_PLANT' || order.status === 'SENT_TO_PLANT_HEAD' || order.sentToPlantHead) {
+    
+    // 4. QC / Quality check / Production Completed
+    if (order.qcStatus === 'QC_APPROVED' || ['COMPLETED', 'PRODUCTION_COMPLETED', 'QC_APPROVED'].includes(prodStatus)) {
+      return 'QC Approved';
+    }
+    if (['QUALITY_CHECK', 'QC_INSPECTION', 'QC'].includes(prodStatus)) {
+      return 'QC Inspection';
+    }
+    
+    // 5. In Production
+    if (['RELEASED', 'PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(prodStatus) || status === 'IN_PRODUCTION') {
+      return 'In Production';
+    }
+    
+    // 6. Production Planned (Plant Head Review)
+    if (order.planningStatus === 'PRODUCTION_PLANNED' || prodStatus === 'PLANNED' || status === 'PRODUCTION_PLANNED' || status === 'READY_FOR_PRODUCTION') {
+      return 'Production Planned';
+    }
+    
+    // 7. Accepted by Plant Head
+    if (order.planningStatus === 'PLANT_HEAD_ACCEPTED' || status === 'PLANT_APPROVED') {
+      return 'Accepted by Plant Head';
+    }
+    
+    // 8. Sent to Plant Head
+    if (order.planningStatus === 'PENDING_ACCEPTANCE' || ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(status) || order.sentToPlantHead) {
       return isTradingOrder(order) ? 'Sent to Dispatch' : 'Sent to Plant Head';
     }
-    if (order.status === 'CONFIRMED' || order.commercialStatus === 'ORDER_CONFIRMED' || order.status === 'DRAFT' || order.status === 'SUBMITTED' || order.status === 'PENDING_APPROVAL') return 'Confirmed';
+    
+    // 9. Confirmed
+    if (['CONFIRMED', 'ORDER_CONFIRMED', 'DRAFT', 'SUBMITTED', 'PENDING_APPROVAL'].includes(status) || order.commercialStatus === 'ORDER_CONFIRMED') {
+      return 'Confirmed';
+    }
+    
     return order.status || order.workflowStatus || 'Confirmed';
   };
 
