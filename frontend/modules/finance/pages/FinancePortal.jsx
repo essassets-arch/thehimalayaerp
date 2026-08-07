@@ -58,7 +58,10 @@ const financeMenu = {
     "verify-close",
     "history-ledger",
     "history",
-    "brand-analysis"
+    "brand-analysis",
+    "rejection-management",
+    "salary",
+    "profile"
   ],
   "finance-lead": [
     "dashboard",
@@ -83,7 +86,10 @@ const financeMenu = {
     "verify-close",
     "history-ledger",
     "history",
-    "brand-analysis"
+    "brand-analysis",
+    "rejection-management",
+    "salary",
+    "profile"
   ],
   "finance-executive": [
     "dashboard",
@@ -94,7 +100,10 @@ const financeMenu = {
     "receipts",
     "outstanding",
     "customers",
-    "reports"
+    "reports",
+    "rejection-management",
+    "salary",
+    "profile"
   ],
   "Super Admin": [
     "dashboard",
@@ -119,7 +128,10 @@ const financeMenu = {
     "verify-close",
     "history-ledger",
     "history",
-    "brand-analysis"
+    "brand-analysis",
+    "rejection-management",
+    "salary",
+    "profile"
   ]
 };
 
