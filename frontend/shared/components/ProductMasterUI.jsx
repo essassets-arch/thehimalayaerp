@@ -41,7 +41,9 @@ export default function ProductMasterUI({ role }) {
     brand: 'HIMALAYA',
     gst_rate: 18,
     hsn_sac_code: '',
-    dispatch_category: 'DISPATCH 1'
+    dispatch_category: 'DISPATCH 1',
+    weight: '',
+    image_url: ''
   };
   const [formData, setFormData] = useState(initialFormState);
 
@@ -143,7 +145,9 @@ export default function ProductMasterUI({ role }) {
       brand: p.brand || 'HIMALAYA',
       gst_rate: p.gst_rate ?? 18,
       hsn_sac_code: p.hsn_sac_code || '',
-      dispatch_category: p.dispatch_category || 'DISPATCH 1'
+      dispatch_category: p.dispatch_category || 'DISPATCH 1',
+      weight: p.weight || '',
+      image_url: p.imageUrl || ''
     });
     setIsModalOpen(true);
   };
@@ -172,6 +176,8 @@ export default function ProductMasterUI({ role }) {
       gstRate: Number(formData.gst_rate || 18),
       hsnCode: formData.hsn_sac_code || '',
       variantDetails: formData.variant_details || '',
+      weight: Number(formData.weight || 0),
+      imageUrl: formData.image_url || '',
     };
 
     try {
@@ -717,6 +723,45 @@ export default function ProductMasterUI({ role }) {
                       onChange={e => setFormData({ ...formData, hsn_sac_code: e.target.value })} 
                       style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }} 
                     />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Weight</label>
+                    <input 
+                      type="number" 
+                      value={formData.weight} 
+                      onChange={e => setFormData({ ...formData, weight: e.target.value })} 
+                      style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Image</label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        id="product-image-upload"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => setFormData({ ...formData, image_url: reader.result });
+                          reader.readAsDataURL(file);
+                        }} 
+                        style={{ display: 'none' }} 
+                      />
+                      <label 
+                        htmlFor="product-image-upload"
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '8px', color: '#64748B', fontSize: '14px', cursor: 'pointer', outline: 'none', justifyContent: 'center' }}
+                      >
+                        <Upload size={16} />
+                        <span style={{ fontWeight: 500, color: formData.image_url ? '#10B981' : '#64748B' }}>
+                          {formData.image_url ? 'Image Selected (Change)' : 'Choose File'}
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 </div>
 

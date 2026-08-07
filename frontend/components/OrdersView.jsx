@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Eye, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Eye, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import Swal from 'sweetalert2';
 import StatusBadge from '../shared/components/StatusBadge';
 import { useAuth } from '../shared/context/AuthContext';
@@ -142,7 +142,7 @@ export default function OrdersView({
   const isDeliveredOrder = (order) => {
     const dispatchSt = String(order?.dispatchStatus || '').toUpperCase();
     const orderSt = String(order?.orderStatus || order?.status || order?.workflowStatus || '').toUpperCase();
-    return dispatchSt === 'DELIVERED' || orderSt === 'DELIVERED' || Boolean(order?.deliveredDate || order?.deliveredAt);
+    return dispatchSt === 'DELIVERED' || orderSt === 'DELIVERED' || orderSt === 'CLOSED' || Boolean(order?.deliveredDate || order?.deliveredAt);
   };
 
   const hasPendingFinanceConfirmation = (order) => {
@@ -481,7 +481,7 @@ export default function OrdersView({
       </div>
 
       {/* Table */}
-      <div className="crm-table-container">
+      <div className="crm-table-container desktop-only">
         <table className={`crm-table responsive-table ${styles.ordersTable}`}>
           <colgroup>
             {isProductionUser ? (
@@ -833,6 +833,129 @@ export default function OrdersView({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card Layout */}
+      <div className="mobile-only orders-mobile-list" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
+        <style>{`
+          @media (max-width: 640px) {
+            .desktop-only { display: none !important; }
+            .mobile-only.orders-mobile-list { display: flex !important; }
+          }
+        `}</style>
+        {filteredOrders.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+            No orders generated.
+          </div>
+        ) : (
+          displayedOrders.map((o) => {
+            const paid = Number(o.verifiedPaidAmount ?? o.payment?.paid ?? 0) || 0;
+            const total = Number(o.grandTotal ?? o.totalAmount ?? o.payment?.totalAmount ?? o.totalValue ?? 0) || 0;
+            const paymentKey = String(o.paymentStatus || '').toUpperCase();
+            const paymentLabel = PAYMENT_LABELS[paymentKey] || (paymentKey ? paymentKey.replaceAll('_', ' ') : 'Awaiting Payment');
+            
+            let itemsList = '—';
+            if (o.products) { itemsList = o.products; }
+            else if (Array.isArray(o.items) && o.items.length > 0) {
+              itemsList = o.items.map(i => `${i.productName || i.name || i.product?.name || i.productNameSnapshot || 'Item'} (${i.quantity ?? i.orderedQuantity ?? 1} Qty)`).join(', ');
+            } else if (Array.isArray(o.detailedItems) && o.detailedItems.length > 0) {
+              itemsList = o.detailedItems.map(i => `${i.productName || i.name || 'Item'} (${i.quantity || 1} Qty)`).join(', ');
+            }
+
+            const orderNo = o.orderNo || o.id;
+            const actionState = getOrderActionState(o);
+            const statusLabel = isProductionUser ? (o.orderStage || 'In Production') : (filter === 'Delivered' ? paymentLabel : getOrderStatusLabel(o));
+
+            return (
+              <div key={orderNo} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span onClick={() => navigate.push(`/orders/${orderNo}`)} style={{ fontSize: '15px', fontWeight: '800', color: '#1e3a8a', textDecoration: 'underline', cursor: 'pointer' }}>{orderNo}</span>
+                  <button onClick={() => setSelectedOrder(o)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#6b7280', cursor: 'pointer' }}>
+                    <MoreVertical size={16} />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Customer</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>{o.customerName || o.customer?.name || '—'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Total Value</div>
+                    <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b' }}>{formatINR(total)}</div>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Products / Items</div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#4b5563' }}>{itemsList}</div>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px' }}>Status</div>
+                    <StatusBadge status={statusLabel} />
+                  </div>
+                </div>
+                <div style={{ borderTop: '1px solid #f1f3f5', paddingTop: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b', marginBottom: '10px' }}>Actions</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    
+                    {actionState && actionState.label && (
+                      <button
+                        type="button"
+                        onClick={actionState.onClick}
+                        disabled={actionState.disabled}
+                        style={{
+                          gridColumn: actionState.label === 'Send to Plant Head' ? '1 / -1' : 'auto',
+                          padding: '8px 12px', height: '36px',
+                          background: actionState.label === 'Send to Plant Head' ? '#1e3a8a' : (actionState.disabled ? '#f1f5f9' : '#eff6ff'),
+                          border: actionState.label === 'Send to Plant Head' ? 'none' : `1px solid ${actionState.disabled ? '#e2e8f0' : '#3b82f6'}`,
+                          borderRadius: '8px', cursor: actionState.disabled ? 'not-allowed' : 'pointer',
+                          fontSize: '13px', fontWeight: '700',
+                          color: actionState.label === 'Send to Plant Head' ? '#ffffff' : (actionState.disabled ? '#94a3b8' : '#1d4ed8'),
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        {actionState.label}
+                      </button>
+                    )}
+
+                    {onAskReplacement && isDeliveredOrder(o) && !hasActiveReplacement(o) && !['COMPLETED', 'REJECTED'].includes(String(o.replacementStatus || '').toUpperCase()) && (
+                      <button
+                        type="button"
+                        onClick={() => onAskReplacement(o)}
+                        style={{
+                          gridColumn: actionState && actionState.label ? 'auto' : '1',
+                          padding: '8px 12px', height: '36px',
+                          background: '#fef9c3', border: '1px solid #fde047',
+                          borderRadius: '8px', cursor: 'pointer',
+                          fontSize: '12px', fontWeight: '800',
+                          color: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        Ask for Replacement
+                      </button>
+                    )}
+                    
+                    {onAskReturn && isDeliveredOrder(o) && !hasActiveReturn(o) && !['COMPLETED', 'REJECTED'].includes(String(o.returnStatus || '').toUpperCase()) && (
+                      <button
+                        type="button"
+                        onClick={() => onAskReturn(o)}
+                        style={{
+                          gridColumn: (actionState && actionState.label) || onAskReplacement ? 'auto' : '1',
+                          padding: '8px 12px', height: '36px',
+                          background: '#ffe4e6', border: '1px solid #fda4af',
+                          borderRadius: '8px', cursor: 'pointer',
+                          fontSize: '12px', fontWeight: '800',
+                          color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        Ask for Return
+                      </button>
+                    )}
+
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Pagination controls */}

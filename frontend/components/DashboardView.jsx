@@ -1021,77 +1021,7 @@ export default function DashboardView({
           {activeTab === 'alerts' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
-              {/* System Alerts */}
-              <div style={{
-                background: '#ffffff', border: '1px solid var(--color-border)',
-                padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px',
-                boxShadow: 'var(--shadow-premium)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertTriangle size={18} style={{ color: '#ef4444' }} />
-                  <span style={{ fontWeight: '800', fontSize: '13px', color: 'var(--color-text-primary)' }}>
-                    System Alerts
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  
-                  {/* Overdue Follow-ups */}
-                  <div style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px',
-                    borderRadius: '8px', background: overdueFollowUps.length > 0 ? '#fef2f2' : '#F5FAFE',
-                    borderLeft: `3px solid ${overdueFollowUps.length > 0 ? '#ef4444' : '#D6E2F0'}`
-                  }}>
-                    <Clock size={15} style={{ color: overdueFollowUps.length > 0 ? '#ef4444' : '#5E6B82', marginTop: '1px', flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '11.5px', fontWeight: '750', color: overdueFollowUps.length > 0 ? '#991b1b' : '#334155' }}>Overdue Follow-ups</div>
-                      <div style={{ fontSize: '10.5px', color: overdueFollowUps.length > 0 ? '#b91c1c' : '#5E6B82', marginTop: '1px' }}>
-                        {overdueFollowUps.length > 0 ? `${overdueFollowUps.length} follow-ups overdue` : 'Up to date'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Expired Samples */}
-                  <div style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px',
-                    borderRadius: '8px', background: expiredSamples.length > 0 ? '#fffbeb' : '#F5FAFE',
-                    borderLeft: `3px solid ${expiredSamples.length > 0 ? '#d97706' : '#D6E2F0'}`
-                  }}>
-                    <FlaskConical size={15} style={{ color: expiredSamples.length > 0 ? '#d97706' : '#5E6B82', marginTop: '1px', flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '11.5px', fontWeight: '750', color: expiredSamples.length > 0 ? '#92400e' : '#334155' }}>Expired Samples</div>
-                      <div style={{ fontSize: '10.5px', color: expiredSamples.length > 0 ? `${expiredSamples.length} samples > 14d` : 'No expired samples' }} />
-                    </div>
-                  </div>
-
-                  {/* Expired Quotations */}
-                  <div style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px',
-                    borderRadius: '8px', background: expiredQuotes.length > 0 ? '#fef2f2' : '#F5FAFE',
-                    borderLeft: `3px solid ${expiredQuotes.length > 0 ? '#ef4444' : '#D6E2F0'}`
-                  }}>
-                     <FileCheck size={15} style={{ color: expiredQuotes.length > 0 ? '#ef4444' : '#5E6B82', marginTop: '1px', flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '11.5px', fontWeight: '750', color: expiredQuotes.length > 0 ? '#991b1b' : '#334155' }}>Expired Quotations</div>
-                      <div style={{ fontSize: '10.5px', color: expiredQuotes.length > 0 ? `${expiredQuotes.length} quotes expired` : 'No expired quotes' }} />
-                    </div>
-                  </div>
-
-                  {/* Overdue Payments */}
-                  <div style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px',
-                    borderRadius: '8px', background: overduePayments.length > 0 ? '#fef2f2' : '#F5FAFE',
-                    borderLeft: `3px solid ${overduePayments.length > 0 ? '#ef4444' : '#D6E2F0'}`
-                  }}>
-                    <DollarSign size={15} style={{ color: overduePayments.length > 0 ? '#ef4444' : '#5E6B82', marginTop: '1px', flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '11.5px', fontWeight: '750', color: overduePayments.length > 0 ? '#991b1b' : '#334155' }}>Overdue Payments</div>
-                      <div style={{ fontSize: '10.5px', color: overduePayments.length > 0 ? `${overduePayments.length} payments overdue` : 'No overdue payments' }} />
-                    </div>
-                  </div>
-
-                </div>
-              </div>
+              {/* Removed System Alerts per user request */}
 
               {/* Conversion Trend Chart (Compact) */}
               <div className="sales-pipeline-card" style={{
@@ -1128,44 +1058,7 @@ export default function DashboardView({
                 </div>
               </div>
 
-              {/* Quick Summary */}
-              <div style={{
-                background: '#ffffff', border: '1px solid var(--color-border)',
-                padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px',
-                boxShadow: 'var(--shadow-premium)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Activity size={18} style={{ color: '#0ea5e9' }} />
-                  <span style={{ fontWeight: '800', fontSize: '13px', color: 'var(--color-text-primary)' }}>
-                    Quick Summary
-                  </span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  {[
-                    { label: 'Total Leads', val: totalLeadsCount, color: '#3b82f6' },
-                    { label: 'Qualified Leads', val: qualifiedLeadsCount, color: '#8b5cf6' },
-                    { label: 'Won Orders', val: wonOrdersCount, color: '#10b981' },
-                    { label: 'Lost Leads', val: lostLeadsCount, color: '#f43f5e' },
-                    { label: 'Conversion Rate', val: `${conversionRate.toFixed(1)}%`, color: '#06b6d4' },
-                    { label: 'Revenue', val: `₹${mySalesTotal.toLocaleString('en-IN')}`, color: '#10b981', fullWidth: true },
-                    { label: 'Avg Order Value', val: `₹${avgOrderValue.toLocaleString('en-IN')}`, color: '#f59e0b', fullWidth: true },
-                    { label: 'Active Customers', val: activeCustomersCount, color: '#6366f1' }
-                  ].map((item) => (
-                    <div key={item.label} style={{
-                      gridColumn: item.fullWidth ? '1 / -1' : 'auto',
-                      background: '#F5FAFE', padding: '8px', borderRadius: '6px',
-                      display: 'flex', flexDirection: 'column', gap: '2px', border: '1px solid var(--color-border)'
-                    }}>
-                      <span style={{ fontSize: '9px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
-                        {item.label}
-                      </span>
-                      <span style={{ fontSize: '12px', fontWeight: '900', color: item.color }}>
-                        {item.val}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Removed Quick Summary per user request */}
 
             </div>
           )}
@@ -1225,18 +1118,29 @@ export default function DashboardView({
             </div>
           )}
           
-          <div style={{ width: '100%', height: '260px', minWidth: 0 }}><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyTargetData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#DCE5F0"/><XAxis dataKey="month" tick={{ fontSize: 11 }}/><YAxis tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 100000)}L`}/><Tooltip formatter={value => `₹${Number(value).toLocaleString('en-IN')}`}/><Legend wrapperStyle={{ fontSize: '11px' }}/><Bar dataKey="Target" fill="#D6E2F0" radius={[4,4,0,0]}/><Bar dataKey="Achieved" fill="#84cc16" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer></div>
+          <div style={{ width: '100%', height: '260px', minWidth: 0 }}>{isMounted && <ResponsiveContainer width="99%" height={260}><BarChart data={monthlyTargetData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#DCE5F0"/><XAxis dataKey="month" tick={{ fontSize: 11 }}/><YAxis tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 100000)}L`}/><Tooltip formatter={value => `₹${Number(value).toLocaleString('en-IN')}`}/><Legend wrapperStyle={{ fontSize: '11px' }}/><Bar dataKey="Target" fill="#D6E2F0" radius={[4,4,0,0]}/><Bar dataKey="Achieved" fill="#84cc16" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>}</div>
         </section>
 
         <section className="app-card sales-analytics-card" style={{ padding: '20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '14px', boxShadow: 'var(--shadow-premium)', minWidth: 0 }}>
           <div style={{ marginBottom: '18px' }}><h2 style={{ margin: 0, fontSize: '17px', fontWeight: 850, color: '#24345C' }}>Sales Return Analysis</h2><p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5E6B82' }}>Delivered orders and recorded customer return requests</p></div>
-          <div className="sales-return-kpis" style={{ marginBottom: '18px' }}>
-            {[
-              ['Delivered Orders', deliveredOrdersForReturns.length], ['Return Requests', returnOrders.length], ['Returned Quantity', returnedQuantity.toLocaleString('en-IN')], ['Return Value', `₹${Math.round(returnValue).toLocaleString('en-IN')}`], ['Return Rate', `${returnRate.toFixed(1)}%`]
-            ].map(([label,value]) => <div className="sales-analytics-kpi" key={label} style={{ padding: '11px 12px', borderRadius: '9px', background: '#F5FAFE', border: '1px solid #DCE5F0' }}><div style={{ fontSize: '10px', fontWeight: 750, color: '#5E6B82', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: '4px', fontSize: '16px', fontWeight: 850, color: '#24345C', overflowWrap: 'anywhere' }}>{value}</div></div>)}
-          </div>
-          <div style={{ width: '100%', height: '250px', minWidth: 0 }}><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyReturnData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#DCE5F0"/><XAxis dataKey="month" tick={{ fontSize: 11 }}/><YAxis yAxisId="qty" tick={{ fontSize: 10 }}/><YAxis yAxisId="value" orientation="right" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 1000)}k`}/><Tooltip formatter={(value,name) => name === 'ReturnValue' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')}/><Legend wrapperStyle={{ fontSize: '11px' }}/><Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[4,4,0,0]}/><Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer></div>
-          <div style={{ borderTop: '1px solid #DCE5F0', paddingTop: '14px', marginTop: '8px' }}><h3 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px', color: '#334155' }}>Top Return Reasons</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>{topReturnReasons.map(item => <span key={item.reason} style={{ padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: item.count ? '#fff7ed' : '#F5FAFE', color: item.count ? '#c2410c' : '#8893A7', border: `1px solid ${item.count ? '#fed7aa' : '#DCE5F0'}` }}>{item.reason} · {item.count}</span>)}</div></div>
+          
+          {returnOrders.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <Package size={36} style={{ opacity: 0.3, marginBottom: '12px', color: '#3b82f6' }} />
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#24345C' }}>No return requests recorded</p>
+              <p style={{ margin: '6px 0 0', fontSize: '12px', maxWidth: '300px' }}>Your delivered orders are in perfect condition. Any customer returns, defects, or RMAs will be analyzed here.</p>
+            </div>
+          ) : (
+            <>
+              <div className="sales-return-kpis" style={{ marginBottom: '18px' }}>
+                {[
+                  ['Delivered Orders', deliveredOrdersForReturns.length], ['Return Requests', returnOrders.length], ['Returned Quantity', returnedQuantity.toLocaleString('en-IN')], ['Return Value', `₹${Math.round(returnValue).toLocaleString('en-IN')}`], ['Return Rate', `${returnRate.toFixed(1)}%`]
+                ].map(([label,value]) => <div className="sales-analytics-kpi" key={label} style={{ padding: '11px 12px', borderRadius: '9px', background: '#F5FAFE', border: '1px solid #DCE5F0' }}><div style={{ fontSize: '10px', fontWeight: 750, color: '#5E6B82', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: '4px', fontSize: '16px', fontWeight: 850, color: '#24345C', overflowWrap: 'anywhere' }}>{value}</div></div>)}
+              </div>
+              <div style={{ width: '100%', height: '250px', minWidth: 0 }}>{isMounted && <ResponsiveContainer width="99%" height={250}><BarChart data={monthlyReturnData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#DCE5F0"/><XAxis dataKey="month" tick={{ fontSize: 11 }}/><YAxis yAxisId="qty" tick={{ fontSize: 10 }}/><YAxis yAxisId="value" orientation="right" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 1000)}k`}/><Tooltip formatter={(value,name) => name === 'ReturnValue' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')}/><Legend wrapperStyle={{ fontSize: '11px' }}/><Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[4,4,0,0]}/><Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>}</div>
+              <div style={{ borderTop: '1px solid #DCE5F0', paddingTop: '14px', marginTop: '8px' }}><h3 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px', color: '#334155' }}>Top Return Reasons</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>{topReturnReasons.map(item => <span key={item.reason} style={{ padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: item.count ? '#fff7ed' : '#F5FAFE', color: item.count ? '#c2410c' : '#8893A7', border: `1px solid ${item.count ? '#fed7aa' : '#DCE5F0'}` }}>{item.reason} · {item.count}</span>)}</div></div>
+            </>
+          )}
         </section>
       </div>
 

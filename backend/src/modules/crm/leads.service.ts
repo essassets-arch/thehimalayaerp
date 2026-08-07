@@ -87,7 +87,7 @@ export class LeadsService {
     if (!resolvedCompanyId) throw new NotFoundException('Company not found');
     const leadNumber = await this.sequenceService.generateNext(
       'lead_number',
-      `LD-${new Date().getFullYear()}-`,
+      `LEAD-${new Date().getFullYear()}-`,
     );
 
     return this.prisma.lead.create({

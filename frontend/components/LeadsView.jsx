@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Eye, Plus, Clipboard, Edit, ChevronLeft, ChevronRight, Bell, Trash2, FlaskConical, FileText, ShieldCheck } from 'lucide-react';
+import { Search, Eye, Plus, Clipboard, Edit, ChevronLeft, ChevronRight, Bell, Trash2, FlaskConical, FileText, ShieldCheck, MoreVertical } from 'lucide-react';
 import Swal from 'sweetalert2';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
 import {
@@ -411,7 +411,7 @@ export default function LeadsView({
       )}
 
       {/* Table */}
-      <div className="crm-table-container">
+      <div className="crm-table-container desktop-only">
         {isRemindersView ? (
           <table className="crm-table responsive-table">
             <thead>
@@ -707,6 +707,143 @@ export default function LeadsView({
           </table>
         )}
       </div>
+
+      {/* Mobile Card Layout for Leads */}
+      {!isRemindersView && (
+        <div className="mobile-only leads-mobile-list" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
+          <style>{`
+            @media (max-width: 640px) {
+              .desktop-only { display: none !important; }
+              .mobile-only.leads-mobile-list { display: flex !important; }
+            }
+          `}</style>
+          {filteredLeads.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+              <strong>No leads found.</strong>
+              <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
+                Create your first lead to begin the sales workflow.
+              </div>
+            </div>
+          ) : (
+            displayedLeads.map((lead) => {
+              const displayStatus = getSmartLeadStatus(lead, orders, quotations, samples, reminders, erpStore.state);
+              const quoState = getLeadQuotationState(erpStore.state, lead.id || lead.leadId);
+              const smpState = getLeadSampleState(erpStore.state, lead.id || lead.leadId);
+              
+              const isQuotationGenerated = displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || quoState.state === 'COMPLETED';
+              const isSampleSent = displayStatus === 'Sample Sent' || smpState.state === 'COMPLETED';
+              const isSampleDisabled = isSampleSent || isQuotationGenerated;
+
+              return (
+                <div key={lead.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <span onClick={() => onOpenLead && onOpenLead(lead)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>{displayEntityId(lead.id)}</span>
+                    <button onClick={() => onOpenLead && onOpenLead(lead)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                      <MoreVertical size={18} />
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</div>
+                      <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</div>
+                      <div style={{ fontSize: '13px', color: '#64748b' }}>{lead.email || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ 
+                        padding: '4px 10px', 
+                        borderRadius: '6px', 
+                        fontSize: '11px', 
+                        fontWeight: '700',
+                        backgroundColor: (displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#dcfce7' : (displayStatus === 'New' ? '#dbeafe' : '#f1f5f9'),
+                        color: (displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#15803d' : (displayStatus === 'New' ? '#1d4ed8' : '#475569')
+                      }}>
+                        {displayStatus}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    <button
+                      title="View Details"
+                      onClick={() => onOpenLead && onOpenLead(lead)}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button
+                      title="Edit Lead"
+                      onClick={() => onEditLeadClick && onEditLeadClick(lead)}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
+                    >
+                      <Edit size={16} />
+                    </button>
+                    
+                    {lead.status !== 'Lost' && lead.status !== 'Converted' ? (
+                      <>
+                        <button
+                          onClick={() => !isQuotationGenerated && handleGenerateQuotationClick(lead)}
+                          disabled={isQuotationGenerated}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '0 12px', height: '36px', flex: '1',
+                            background: isQuotationGenerated ? '#f1f5f9' : (quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375'),
+                            border: `1px solid ${isQuotationGenerated ? '#e2e8f0' : (quoState.state === 'DRAFT' ? '#F59E0B' : '#2F4375')}`,
+                            borderRadius: '8px', cursor: isQuotationGenerated ? 'not-allowed' : 'pointer',
+                            fontSize: '11px', fontWeight: '700',
+                            color: isQuotationGenerated ? '#94a3b8' : '#ffffff', whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {isQuotationGenerated ? 'Quotation Generated' : (quoState.state === 'DRAFT' ? 'Continue Quotation →' : 'Generate Quotation →')}
+                        </button>
+                        
+                        {!isQuotationGenerated && (
+                          <button
+                            onClick={() => !isSampleDisabled && handleGenerateSampleClick(lead)}
+                            disabled={isSampleDisabled}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              padding: '0 10px', height: '36px',
+                              background: isSampleDisabled ? '#f8fafc' : '#ffffff',
+                              border: `1px solid ${isSampleDisabled ? '#f1f5f9' : '#e2e8f0'}`,
+                              borderRadius: '8px', cursor: isSampleDisabled ? 'not-allowed' : 'pointer',
+                              fontSize: '11px', fontWeight: '600',
+                              color: isSampleDisabled ? '#cbd5e1' : '#475569', whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Send Sample
+                          </button>
+                        )}
+                        
+                        <button
+                          onClick={() => setReminderModal({ lead, reminder: null })}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                            padding: '0 10px', height: '36px',
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '8px', cursor: 'pointer',
+                            fontSize: '11px', fontWeight: '700',
+                            color: '#334155', whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Bell size={14} /> Reminder
+                        </button>
+                      </>
+                    ) : (
+                      lead.status === 'Converted' && (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '36px', background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: '8px', fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>
+                          Order Generated
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
       {/* Pagination controls */}
       {!flat && totalPages > 1 && (

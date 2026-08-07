@@ -592,7 +592,7 @@ export default function SamplesView({
         )}
 
         {/* Detailed Grid: Product Info, Logistics, Testing Tracks */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '24px' }}>
           {/* Left Column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Box 1: Product Info */}
@@ -910,7 +910,7 @@ export default function SamplesView({
               <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-text-secondary)', margin: 0 }}>
                 Operations Control
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px' }}>
                 <button
                   type="button"
                   className="btn-small"
@@ -1172,7 +1172,7 @@ export default function SamplesView({
                 </div>
 
                 {/* Return Transit milestones list */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '12px' }}>
                   <div style={{ padding: '10px 14px', background: '#ffffff', borderRadius: '8px', border: '1px solid #DCE5F0' }}>
                     <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>Retrieval Request</span>
                     <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '2px' }}>Initiated by Sales</div>
@@ -1240,7 +1240,7 @@ export default function SamplesView({
                   </div>
 
                   {/* Comprehensive Step-by-Step Transit Route with Timestamps */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '12px' }}>
                     <div style={{ padding: '12px 14px', background: '#ffffff', borderRadius: '10px', border: '1px solid #86efac', borderLeft: '4px solid #16a34a' }}>
                       <span style={{ fontSize: '10.5px', color: 'var(--color-text-secondary)', fontWeight: '800', textTransform: 'uppercase' }}>Step 1: Packed</span>
                       <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '3px' }}>🏭 Haridwar Factory</div>
@@ -1648,7 +1648,7 @@ export default function SamplesView({
             </div>
 
             {/* General Details Summary */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#F5FAFE', padding: '14px', borderRadius: '10px', fontSize: '13px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '12px', background: '#F5FAFE', padding: '14px', borderRadius: '10px', fontSize: '13px', marginBottom: '20px' }}>
               <div><span style={{ color: '#5E6B82' }}>Product:</span> <strong>{selectedSample.product}</strong></div>
               <div><span style={{ color: '#5E6B82' }}>Quantity:</span> <strong>{selectedSample.quantity} Pcs</strong></div>
               <div><span style={{ color: '#5E6B82' }}>Status:</span> <strong style={{ color: '#2563eb' }}>{selectedSample.status}</strong></div>

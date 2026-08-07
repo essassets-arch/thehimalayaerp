@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useERPStore } from "@/store/erpStore";
+import { apiClient } from "@/lib/apiClient";
 import { ArrowLeft, Package, User, MapPin, Calendar, Clock, Hash, Truck, CheckCircle, AlertCircle, FileText, DollarSign, Layers } from "lucide-react";
 
 const statusColors = {
@@ -57,13 +58,48 @@ export default function OrderDetailPage() {
   const productionQcRecords = useMemo(() => storeState?.production?.qcRecords || [], [storeState?.production?.qcRecords]);
   const dispatchConsignments = useMemo(() => storeState?.dispatch?.consignments || [], [storeState?.dispatch?.consignments]);
 
-  const order = useMemo(() => {
+  const [fetchedOrder, setFetchedOrder] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const storeOrder = useMemo(() => {
     return salesOrders.find((o: any) =>
       String(o.id) === String(orderId) ||
       String(o.orderNo) === String(orderId) ||
       String(o.order_no) === String(orderId)
     ) || null;
   }, [salesOrders, orderId]);
+
+  useEffect(() => {
+    if (storeOrder) {
+      setIsLoading(false);
+      return;
+    }
+    
+    // If not in store, fetch it dynamically
+    const fetchOrderData = async () => {
+      try {
+        setIsLoading(true);
+        const res = await apiClient.get(`/sales/orders/${orderId}`);
+        const orderData = res?.data?.data || res?.data || res;
+        
+        // Handle case where backend returns success: false
+        if (orderData && !orderData.success && orderData.success === false) {
+           setFetchedOrder(null);
+        } else {
+           setFetchedOrder(orderData);
+        }
+      } catch (err) {
+        console.error("Failed to fetch order dynamically:", err);
+        setFetchedOrder(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrderData();
+  }, [storeOrder, orderId]);
+
+  const order = storeOrder || fetchedOrder;
 
   const workOrder = useMemo(() => {
     if (!order) return null;
@@ -90,7 +126,15 @@ export default function OrderDetailPage() {
     ) || null;
   }, [productionQcRecords, order]);
 
-  if (!order) {
+  if (isLoading) {
+    return (
+      <div style={{ padding:60,textAlign:"center" }}>
+        <div style={{ fontSize:15,fontWeight:600,color:"#64748b",marginBottom:12 }}>Loading order details...</div>
+      </div>
+    );
+  }
+
+  if (!order || Object.keys(order).length === 0 || order.success === false) {
     return (
       <div style={{ padding:40,textAlign:"center" }}>
         <div style={{ fontSize:18,fontWeight:700,color:"#24345C",marginBottom:8 }}>Order Not Found</div>

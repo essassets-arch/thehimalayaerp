@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { exportQuotationPDF } from '../services/export.service';
-import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown } from 'lucide-react';
+import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical } from 'lucide-react';
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
 import { useERPStore } from '../shared/context/ERPContext';
@@ -992,7 +992,7 @@ export default function QuotationsView({
       )}
 
       {/* Table */}
-      <div className="crm-table-container">
+      <div className="crm-table-container desktop-only">
         {isRemindersView ? (
           <table className="crm-table responsive-table flat-table">
             <thead>
@@ -1174,6 +1174,113 @@ export default function QuotationsView({
         )}
       </div>
 
+      {/* Mobile Card Layout for Quotations */}
+      {!isRemindersView && (
+        <div className="mobile-only quotations-mobile-list" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
+          <style>{`
+            @media (max-width: 640px) {
+              .desktop-only { display: none !important; }
+              .mobile-only.quotations-mobile-list { display: flex !important; }
+            }
+          `}</style>
+          {filteredQuotations.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+              <strong>No quotations cataloged.</strong>
+            </div>
+          ) : (
+            displayedQuotations.map((q) => {
+              return (
+                <div key={q.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Header Row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span onClick={() => setSelectedQuotation(q)} style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>
+                      #{String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {canConvertQuotation(q.status) ? (
+                        <button
+                          onClick={() => handleConvertToOrderClick(q)}
+                          style={{
+                            background: '#2F4375', color: '#ffffff', border: '1px solid #2F4375',
+                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11px',
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Convert to Order →
+                        </button>
+                      ) : !['CONVERTED', 'CONVERTED_TO_SO', 'CANCELLED', 'REJECTED', 'SUPERSEDED'].includes(normalizedQuotationStatus(q.status)) ? (
+                        <button
+                          onClick={() => handleSendQuotationClick(q)}
+                          style={{
+                            background: '#2F4375', color: '#ffffff', border: '1px solid #2F4375',
+                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11px',
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Send Quotation →
+                        </button>
+                      ) : null}
+                      <button onClick={() => setSelectedQuotation(q)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                        <MoreVertical size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Body Row 1: Customer Name */}
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b' }}>
+                    {q.customerName}
+                  </div>
+                  
+                  {/* Body Row 2: Items, Total, Status */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500', flex: 1, paddingRight: '8px' }}>
+                      {quotationItemsText(q)}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>
+                        {formatINR(quotationTotal(q))}
+                      </span>
+                      <div style={{ 
+                        padding: '4px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700',
+                        backgroundColor: (q.status === 'Converted' || q.status === 'Approved') ? '#dcfce7' : (q.status === 'New' || q.status === 'Draft' ? '#dbeafe' : '#f1f5f9'),
+                        color: (q.status === 'Converted' || q.status === 'Approved') ? '#15803d' : (q.status === 'New' || q.status === 'Draft' ? '#1d4ed8' : '#475569')
+                      }}>
+                        {q.status || 'Draft'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Row: Actions */}
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <button
+                      title="View Quotation"
+                      onClick={() => setSelectedQuotation(q)}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button
+                      title="Edit Quotation"
+                      onClick={() => startEditingQuotation(q)}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      title="Add Reminder"
+                      onClick={() => setReminderModal({ quotation: q })}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
+                    >
+                      <Bell size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {/* Pagination controls */}
       {!flat && totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
@@ -1215,23 +1322,56 @@ export default function QuotationsView({
             boxSizing: 'border-box'
           }}
         >
+          <style>{`
+            .quotation-sheet-mobile-flex {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+            }
+            .quotation-sheet-title-flex {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 20px;
+            }
+            .quotation-footer-flex {
+               display: flex;
+               justify-content: space-between;
+               align-items: flex-end;
+            }
+            @media (max-width: 640px) {
+              .quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 12px;
+              }
+              .quotation-sheet-mobile-flex > div:nth-child(2),
+              .quotation-footer-flex > div:nth-child(2) {
+                align-self: flex-start;
+                text-align: left !important;
+              }
+              .invoice-sheet-modal {
+                padding: 16px !important;
+              }
+            }
+            .invoice-sheet-modal {
+              max-height: calc(100vh - 48px);
+              overflow-y: auto;
+              width: 840px;
+              max-width: 100%;
+              padding: 28px 32px;
+              box-sizing: border-box;
+              background: #ffffff;
+              border-radius: 16px;
+              margin: auto;
+            }
+          `}</style>
           <div
             className="invoice-sheet-modal"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              maxHeight: 'calc(100vh - 48px)',
-              overflowY: 'auto',
-              width: '840px',
-              maxWidth: '100%',
-              padding: '28px 32px',
-              boxSizing: 'border-box',
-              background: '#ffffff',
-              borderRadius: '16px',
-              margin: 'auto'
-            }}
           >
             {/* Sheet Branding Header - Himalaya Letterhead */}
-            <div className="sheet-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+            <div className="sheet-header quotation-sheet-mobile-flex" style={{ marginBottom: '14px' }}>
               <div>
                 <h1 style={{ fontSize: '18px', fontWeight: '800', color: '#0F2C59', margin: 0, fontFamily: 'sans-serif', letterSpacing: '-0.2px' }}>
                   Himalaya Composites &amp; Precast Pvt Ltd
@@ -1255,7 +1395,7 @@ export default function QuotationsView({
             <hr style={{ border: 'none', borderTop: '2px solid #000000', margin: '0 0 16px 0' }} />
 
             {/* Document Title & Ref Banner */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div className="quotation-sheet-title-flex">
               <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', letterSpacing: '0.5px', margin: 0, textTransform: 'uppercase' }}>QUOTATION</h2>
               <p style={{ fontSize: '13px', color: '#475569', fontWeight: '700', margin: 0 }}>Ref: QT-2026-{selectedQuotation.id || selectedQuotation.quotationNo}</p>
             </div>
@@ -1276,8 +1416,8 @@ export default function QuotationsView({
             </div>
 
             {/* Items Table */}
-            <div className="crm-table-container" style={{ margin: '0 0 20px 0', border: '1px solid #eaeaea' }}>
-              <table className="crm-table responsive-table" style={{ border: 'none' }}>
+            <div className="crm-table-container" style={{ margin: '0 0 20px 0', border: '1px solid #eaeaea', overflowX: 'auto' }}>
+              <table className="crm-table responsive-table" style={{ border: 'none', minWidth: '600px' }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa' }}>
                     <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Product Details</th>
@@ -1340,40 +1480,84 @@ export default function QuotationsView({
               </div>
             </div>
 
+            {/* Embedded styles for Terms & Clients */}
+            <style dangerouslySetInnerHTML={{__html: `
+              .terms-container {
+                padding: 10px 16px;
+                background: #ffffff;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+              }
+              .term-item {
+                display: flex;
+                align-items: flex-start;
+                padding: 4px 0;
+              }
+              .term-number {
+                width: 40px;
+                font-weight: 600;
+                color: #1e293b;
+              }
+              .term-text {
+                flex: 1;
+                color: #1e293b;
+              }
+              
+              .clients-container {
+                padding: 16px 24px;
+                background: #ffffff;
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 20px;
+              }
+
+              @media (max-width: 640px) {
+                .clients-container {
+                  display: grid;
+                  grid-template-columns: repeat(2, 1fr);
+                  gap: 24px 16px;
+                  justify-items: center;
+                  padding: 24px 16px;
+                }
+                .clients-container img {
+                  max-height: 40px !important;
+                }
+              }
+            `}} />
+
             {/* Terms & Conditions Section */}
             <div style={{ marginTop: '24px', border: '1px solid #1e293b' }}>
               <div style={{ background: '#1e293b', color: '#ffffff', padding: '6px 12px', fontWeight: '700', fontSize: '13px', textDecoration: 'underline', letterSpacing: '0.5px' }}>
                 TERMS AND CONDITIONS :-
               </div>
-              <div style={{ padding: '10px 16px', background: '#ffffff', fontSize: '12.5px', color: '#1e293b' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ width: '40px', verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>1</td>
-                      <td style={{ padding: '4px 0' }}>Payment Terms</td>
-                    </tr>
-                    <tr>
-                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>2</td>
-                      <td style={{ padding: '4px 0' }}>Unloading at Client scope &amp; breakage risk &amp; responsibility</td>
-                    </tr>
-                    <tr>
-                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>3</td>
-                      <td style={{ padding: '4px 0' }}>Delivery timeline</td>
-                    </tr>
-                    <tr>
-                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>4</td>
-                      <td style={{ padding: '4px 0' }}>Any Dispute Shall Be Subject To Ahmedabad Jurisdiction</td>
-                    </tr>
-                    <tr>
-                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>5</td>
-                      <td style={{ padding: '4px 0' }}>Manufacturer Test Report shall be provided</td>
-                    </tr>
-                    <tr>
-                      <td style={{ verticalAlign: 'top', fontWeight: '600', padding: '4px 0' }}>6</td>
-                      <td style={{ padding: '4px 0' }}>Different Colour Options available at additional 10% cost</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="terms-container">
+                <div className="term-item">
+                  <div className="term-number">1</div>
+                  <div className="term-text">Payment Terms</div>
+                </div>
+                <div className="term-item">
+                  <div className="term-number">2</div>
+                  <div className="term-text">Unloading at Client scope &amp; breakage risk &amp; responsibility</div>
+                </div>
+                <div className="term-item">
+                  <div className="term-number">3</div>
+                  <div className="term-text">Delivery timeline</div>
+                </div>
+                <div className="term-item">
+                  <div className="term-number">4</div>
+                  <div className="term-text">Any Dispute Shall Be Subject To Ahmedabad Jurisdiction</div>
+                </div>
+                <div className="term-item">
+                  <div className="term-number">5</div>
+                  <div className="term-text">Manufacturer Test Report shall be provided</div>
+                </div>
+                <div className="term-item">
+                  <div className="term-number">6</div>
+                  <div className="term-text">Different Colour Options available at additional 10% cost</div>
+                </div>
               </div>
             </div>
 
@@ -1382,7 +1566,7 @@ export default function QuotationsView({
               <div style={{ background: '#1e293b', color: '#ffffff', padding: '6px 12px', textAlign: 'center', fontWeight: '700', fontSize: '13px', textDecoration: 'underline', letterSpacing: '0.5px' }}>
                 VALUABLE CLIENTS
               </div>
-              <div style={{ padding: '16px 24px', background: '#ffffff', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+              <div className="clients-container">
                 {/* Reliance Logo */}
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                   <img src="/client-logos/reliance-logo.png" alt="Reliance Industries Limited" style={{ maxHeight: '48px', maxWidth: '140px', objectFit: 'contain' }} />
@@ -1403,7 +1587,7 @@ export default function QuotationsView({
             </div>
 
             {/* Sign-off & Authorised Signatory Footer */}
-            <div style={{ marginTop: '28px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: '12px' }}>
+            <div className="quotation-footer-flex" style={{ marginTop: '28px', marginBottom: '20px', paddingBottom: '12px' }}>
               <div style={{ fontSize: '13px', color: '#1e293b', fontStyle: 'italic', lineHeight: '1.6' }}>
                 <p style={{ margin: 0 }}>Thanks and waiting for your valued order</p>
                 <p style={{ margin: '8px 0 0 0' }}>Yours truly,</p>
@@ -1453,18 +1637,38 @@ export default function QuotationsView({
                   type="button"
                   className="btn-small btn-outline-small"
                   onClick={async () => {
-                    const shareData = {
-                      title: `Quotation ${selectedQuotation.quotationNo}`,
-                      text: `Here is the quotation for ${selectedQuotation.customerName}.`,
-                      url: window.location.href
-                    };
-                    if (navigator.share) {
-                      try {
+                    try {
+                      // 1. Generate the PDF blob
+                      const pdfBlob = exportQuotationPDF(selectedQuotation, true);
+                      
+                      // 2. Prepare sharing data
+                      const file = new File([pdfBlob], `Quotation_${selectedQuotation.quotationNo || 'Draft'}.pdf`, { type: 'application/pdf' });
+                      const shareData = {
+                        title: `Quotation ${selectedQuotation.quotationNo}`,
+                        text: `Here is the quotation for ${selectedQuotation.customerName}.`,
+                        files: [file]
+                      };
+                      
+                      // 3. Try native share with files
+                      if (navigator.canShare && navigator.canShare(shareData)) {
                         await navigator.share(shareData);
-                      } catch (err) {
-                        console.log('Error sharing:', err);
+                        return;
                       }
-                    } else {
+                      
+                      // Fallback text if file sharing is not supported
+                      const textShareData = {
+                        title: `Quotation ${selectedQuotation.quotationNo}`,
+                        text: `Here is the quotation for ${selectedQuotation.customerName}.`,
+                        url: window.location.href
+                      };
+                      
+                      if (navigator.share) {
+                        await navigator.share(textShareData);
+                      } else {
+                        throw new Error("Share API not supported");
+                      }
+                    } catch (err) {
+                      console.log('Native share failed or unsupported, using fallback popup:', err);
                       const encodedText = encodeURIComponent(`Here is the quotation for ${selectedQuotation.customerName}: ${window.location.href}`);
                       Swal.fire({
                         title: 'Share Quotation',

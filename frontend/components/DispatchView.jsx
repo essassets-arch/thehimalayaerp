@@ -162,7 +162,7 @@ export default function DispatchView({ orders, onUpdateDispatchStatus }) {
       </div>
 
       {/* Grid of logistics cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '20px' }}>
         {dispatchOrders.length === 0 ? (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', background: '#f8f9fa', border: '1px solid var(--color-border)', borderRadius: '14px', color: 'var(--color-text-muted)' }}>
             No dispatch listings waiting or in transit.

@@ -161,7 +161,7 @@ export default function ProductionMaterialCreateView() {
       </div>
 
       {/* Form Details Card */}
-      <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+      <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '20px' }}>
         <div>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: '#5E6B82', marginBottom: '8px' }}>Source Warehouse / Store</label>
           <select

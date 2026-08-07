@@ -284,7 +284,7 @@ export default function CreateSample({ leads = [], defaultLeadId, onAddSample, o
 
             {/* Customer Details Display Card */}
             {selectedLead && (
-              <div style={{ background: '#ffffff', border: '1.5px solid #D6E2F0', borderRadius: '12px', padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ background: '#ffffff', border: '1.5px solid #D6E2F0', borderRadius: '12px', padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <div>
                   <span style={{ fontSize: '11px', color: '#5E6B82', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Customer / Company</span>
                   <strong style={{ fontSize: '14px', color: '#24345C' }}>{selectedLead.companyName || selectedLead.projectName || 'N/A'}</strong>
@@ -346,7 +346,7 @@ export default function CreateSample({ leads = [], defaultLeadId, onAddSample, o
                     borderRadius: '12px', 
                     padding: '16px', 
                     display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) auto', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr)) auto', 
                     gap: '14px',
                     alignItems: 'center' 
                   }}

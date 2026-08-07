@@ -384,7 +384,7 @@ export default function OrderTimeline({ orderId, compact = false }) {
             </button>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '12px' }}>
             {[...selectedMilestone.microStages, selectedMilestone.failureStage].filter(Boolean).map((stage, sIdx) => {
               const matchedLog = timeline.find(t => t.stage === stage);
               const isFailedStage = stage === selectedMilestone.failureStage;

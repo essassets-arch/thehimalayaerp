@@ -189,68 +189,6 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {/* KPI Stats cards */}
-      <div className="finance-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-        <div className="app-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <p className="card-sub-label">Total Orders</p>
-              <h3 className="card-value-lg">{total}</h3>
-            </div>
-            <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', padding: '8px', borderRadius: '8px' }}>
-              <Activity size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="app-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <p className="card-sub-label">Awaiting Materials</p>
-              <h3 className="card-value-lg" style={{ color: awaitingMaterials > 0 ? 'var(--color-accent-purple)' : 'inherit' }}>{awaitingMaterials}</h3>
-            </div>
-            <div style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', padding: '8px', borderRadius: '8px' }}>
-              <Layers size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="app-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <p className="card-sub-label">Active Floor Execution</p>
-              <h3 className="card-value-lg" style={{ color: '#2563eb' }}>{runningCount}</h3>
-            </div>
-            <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '8px', borderRadius: '8px' }}>
-              <Wrench size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="app-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <p className="card-sub-label">Manufacturing On Hold</p>
-              <h3 className="card-value-lg" style={{ color: holdCount > 0 ? '#ea580c' : 'inherit' }}>{holdCount}</h3>
-            </div>
-            <div style={{ background: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', padding: '8px', borderRadius: '8px' }}>
-              <Clock size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="app-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <p className="card-sub-label">QC Approved / Ready</p>
-              <h3 className="card-value-lg" style={{ color: '#16a34a' }}>{completedCount}</h3>
-            </div>
-            <div style={{ background: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', padding: '8px', borderRadius: '8px' }}>
-              <CheckCircle size={20} />
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Main Table view */}
       <div className="app-card" style={{ flex: 1 }}>

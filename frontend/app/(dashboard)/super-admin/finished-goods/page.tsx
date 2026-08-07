@@ -3,7 +3,7 @@
 import React from 'react';
 import DispatchPortal from '../../../../modules/dispatch/pages/DispatchPortal';
 
-export default function PlantHeadFinishedGoodsPage() {
+export default function SuperAdminFinishedGoodsPage() {
   return (
     <div className="w-full pb-12 pt-1 px-1 max-w-[1600px] mx-auto">
       <DispatchPortal view="finished-goods" />

@@ -57,4 +57,13 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   variantDetails?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  weight?: number;
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
 }

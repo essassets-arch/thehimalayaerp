@@ -317,6 +317,8 @@ model Product {
   gstRate                     Decimal?                     @db.Decimal(5, 2)
   hsnCode                     String?
   variantDetails              String?
+  weight                      Decimal?                     @db.Decimal(10, 3)
+  imageUrl                    String?
   unit                        String
   unitPrice                   Decimal                      @db.Decimal(14, 2)
   minimumStock                Decimal                      @default(0) @db.Decimal(14, 2)

@@ -11,12 +11,16 @@ import {
   generatePublicId,
   withOptimisticUpdate,
 } from '../../common/utils/database.util';
+import { SequenceService } from '../../common/sequence/sequence.service';
 import { SampleStatus } from '@prisma/client';
 import { getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SamplesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceService: SequenceService,
+  ) {}
 
   async create(createSampleDto: CreateSampleDto, userId: string = 'system') {
     return this.prisma.$transaction(async (tx) => {
@@ -49,7 +53,11 @@ export class SamplesService {
           );
         }
       }
-      const sampleNumber = await generatePublicId(tx, 'SAMPLE', 'SMP');
+      const sampleNumber = await this.sequenceService.generateNextWithTx(
+        tx,
+        'SAMPLE',
+        `SMP-${new Date().getFullYear()}-`,
+      );
 
       const sample = await tx.sampleRequest.create({
         data: {

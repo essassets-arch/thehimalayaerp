@@ -3627,43 +3627,43 @@ export default function DispatchPortal({ view: propView } = {}) {
         </div>
 
         {/* Stock KPI Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'grid', placeItems: 'center' }}>
-              <Box size={22} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
+            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#e0f2fe', color: '#0284c7', display: 'grid', placeItems: 'center' }}>
+              <Box size={24} />
             </div>
             <div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalQty.toLocaleString()}</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalQty.toLocaleString()}</div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Finished Stock Qty</div>
             </div>
           </div>
 
-          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
-              <Truck size={22} />
+          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
+            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
+              <Truck size={24} />
             </div>
             <div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{availableQty.toLocaleString()}</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{availableQty.toLocaleString()}</div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Dispatchable Stock Qty</div>
             </div>
           </div>
 
-          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#f3e8ff', color: '#7e22ce', display: 'grid', placeItems: 'center' }}>
-              <FileCheck size={22} />
+          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
+            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#f3e8ff', color: '#7e22ce', display: 'grid', placeItems: 'center' }}>
+              <FileCheck size={24} />
             </div>
             <div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalBatches}</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalBatches}</div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Product Batches</div>
             </div>
           </div>
 
-          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#fef3c7', color: '#d97706', display: 'grid', placeItems: 'center' }}>
-              <ClipboardList size={22} />
+          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
+            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#fef3c7', color: '#d97706', display: 'grid', placeItems: 'center' }}>
+              <ClipboardList size={24} />
             </div>
             <div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{readyBatches}</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{readyBatches}</div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Batches Ready for Dispatch</div>
             </div>
           </div>
