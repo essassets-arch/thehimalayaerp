@@ -752,6 +752,12 @@ async function main() {
     'hr.recruitment.requests.override',
     'hr.payroll.override',
 
+    // Sales Analytics Canonical Permissions
+    'finance.sales-analytics.read',
+    'finance.sales-analytics.activity.read',
+    'finance.sales-analytics.receivables.read',
+    'finance.sales-analytics.export',
+
     // Controller specific aliases & domain permissions
     'admin.attachments.read', 'admin.attachments.create', 'admin.attachments.delete',
     'admin.auth.read', 'admin.users.unlock',
@@ -803,6 +809,61 @@ async function main() {
 
   for (const role of adminRoles) {
     for (const perm of allPerms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  // ── Sales Analytics Specific Assignments ──
+  const readPerms = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: [
+          'finance.sales-analytics.read',
+          'finance.sales-analytics.activity.read',
+          'finance.sales-analytics.receivables.read',
+        ],
+      },
+    },
+  });
+
+  const exportPerms = await prisma.permission.findMany({
+    where: { code: 'finance.sales-analytics.export' },
+  });
+
+  // Finance Executive, Finance Lead, Finance
+  const execRoles = await prisma.role.findMany({
+    where: {
+      OR: [
+        { code: { in: ['FINANCE_EXECUTIVE', 'FINANCE_LEAD', 'FINANCE'] } },
+        { name: { in: ['Finance Executive', 'Finance Lead', 'Finance', 'FINANCE_EXECUTIVE', 'FINANCE_LEAD', 'FINANCE'] } },
+      ],
+    },
+  });
+  for (const role of execRoles) {
+    for (const perm of readPerms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: perm.id },
+      });
+    }
+  }
+
+  // Finance Manager
+  const mgrRoles = await prisma.role.findMany({
+    where: {
+      OR: [
+        { code: { in: ['FINANCE_MANAGER'] } },
+        { name: { in: ['Finance Manager', 'FINANCE_MANAGER'] } },
+      ],
+    },
+  });
+  for (const role of mgrRoles) {
+    for (const perm of [...readPerms, ...exportPerms]) {
       await prisma.rolePermission.upsert({
         where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
         update: {},

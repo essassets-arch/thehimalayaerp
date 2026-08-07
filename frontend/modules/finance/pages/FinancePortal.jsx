@@ -30,11 +30,16 @@ import DeliveryAudit from '../../procurement/finance/DeliveryAudit';
 import RejectionManagement from '../../procurement/finance/RejectionManagement';
 import VendorInvoiceWorkspace from '../../procurement/finance/VendorInvoiceWorkspace';
 import FinanceBrandAnalysis from './FinanceBrandAnalysis';
+import FinanceSalesAnalyticsView from './FinanceSalesAnalyticsView';
+import FinanceSalespersonDetailView from './FinanceSalespersonDetailView';
+import SalesAnalyticsSummaryCard from '../components/SalesAnalyticsSummaryCard';
 
 const financeMenu = {
   "Finance": [
     "dashboard",
     "daily-tasks",
+    "sales",
+    "sales-analytics",
     "invoices",
     "payment-verification",
     "receipts",
@@ -58,6 +63,8 @@ const financeMenu = {
   "finance-lead": [
     "dashboard",
     "daily-tasks",
+    "sales",
+    "sales-analytics",
     "invoices",
     "payment-verification",
     "receipts",
@@ -80,6 +87,8 @@ const financeMenu = {
   ],
   "finance-executive": [
     "dashboard",
+    "sales",
+    "sales-analytics",
     "payment-verification",
     "daily-tasks",
     "receipts",
@@ -90,6 +99,8 @@ const financeMenu = {
   "Super Admin": [
     "dashboard",
     "daily-tasks",
+    "sales",
+    "sales-analytics",
     "invoices",
     "payment-verification",
     "receipts",
@@ -401,29 +412,26 @@ export default function FinancePortal() {
     navigate.push(`/finance/po-requests?tab=${encodeURIComponent(tab)}`);
   };
 
-  const resolvedRole = user?.role === 'Finance Manager' || user?.role === 'Finance Lead' || user?.role === 'finance-lead'
-    ? 'Finance'
-    : user?.role === 'Finance Executive'
-      ? 'finance-executive'
-      : user?.role || '';
-  const allowed = financeMenu[resolvedRole] || [];
-  if (!allowed.includes(view)) {
+  if (!user) {
     return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '65vh',
-        color: '#fff',
-        gap: '12px',
-        fontFamily: 'sans-serif'
-      }}>
-        <h2 style={{ color: '#ef4444', fontSize: '28px', fontWeight: 'bold' }}>Access Denied</h2>
-        <p style={{ color: '#8893A7', fontSize: '14.5px' }}>You don't have permission</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '65vh', color: '#8893A7', fontFamily: 'sans-serif' }}>
+        <p>Loading session...</p>
       </div>
     );
   }
+
+  const normalizedUserRole = String(user?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+  const isFinanceOrAdmin = [
+    'SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'FINANCE_EXECUTIVE', 'FINANCE'
+  ].includes(normalizedUserRole) || String(user?.role || '').toLowerCase().includes('finance') || String(user?.role || '').toLowerCase().includes('admin');
+
+  const resolvedRole = ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'FINANCE'].includes(normalizedUserRole) || user?.role === 'Finance Manager' || user?.role === 'Finance Lead' || user?.role === 'finance-lead' || user?.role === 'Finance'
+    ? 'Finance'
+    : ['FINANCE_EXECUTIVE'].includes(normalizedUserRole) || user?.role === 'Finance Executive'
+      ? 'finance-executive'
+      : 'Finance';
+
+  const allowed = financeMenu[resolvedRole] || financeMenu['Finance'] || [];
 
   const orders = state.sales?.orders || [];
   const payments = state.payments || [];
@@ -670,6 +678,7 @@ export default function FinancePortal() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <SalesAnalyticsSummaryCard />
         <BrandAnalysisWidget />
         
         {/* KPI Summary Cards */}
@@ -3255,6 +3264,16 @@ export default function FinancePortal() {
   return (
     <>
       {view === 'dashboard' && renderDashboard()}
+      {(view === 'sales' || view === 'sales-analytics') && (
+        params?.slug?.[1] ? (
+          <FinanceSalespersonDetailView
+            salespersonId={params.slug[1]}
+            onBack={() => navigate.push('/finance/sales')}
+          />
+        ) : (
+          <FinanceSalesAnalyticsView />
+        )
+      )}
       {view === 'profile' && <MyProfileView />}
       {view === 'invoices' && renderInvoices()}
       {view === 'create-po' && <CreatePurchaseOrder />}

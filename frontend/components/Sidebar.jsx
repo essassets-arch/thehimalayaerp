@@ -172,9 +172,19 @@ export default function Sidebar({ isOpen, onClose }) {
                   href={item.path}
                   className={(function () {
                     const currentPath = location.pathname + location.search;
+                    const isDashboardAlias = item.id === 'dashboard' && (
+                      location.pathname === item.path.replace(/\/dashboard$/, '') ||
+                      location.pathname === item.path.replace(/\/dashboard$/, '/')
+                    );
+                    const isSalesAnalyticsAlias = item.id === 'sales-analytics' && (
+                      location.pathname === '/finance/sales' ||
+                      location.pathname === '/finance/sales-analytics' ||
+                      location.pathname.startsWith('/finance/sales/') ||
+                      location.pathname.startsWith('/finance/sales-analytics/')
+                    );
                     const isCurrent = item.path.includes('?')
                       ? (currentPath === item.path)
-                      : (location.pathname === item.path || (item.subItems && item.subItems.some((sub) => location.pathname === sub.path.split('?')[0])));
+                      : (location.pathname === item.path || isDashboardAlias || isSalesAnalyticsAlias || (item.subItems && item.subItems.some((sub) => location.pathname === sub.path.split('?')[0])));
                     return `nav-item ${isCurrent ? 'active' : ''}`;
                   })()}
                   data-title={item.label}

@@ -21,17 +21,17 @@ import { useAuthStore } from '@/store/authStore';
  * Empty array means any authenticated user can access.
  */
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
-  'super-admin':    ['Super Admin'],
-  'admin':          ['Admin', 'Super Admin'],
-  'sales':          ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'Super Admin'],
-  'plant-head':     ['Plant Head', 'Super Admin'],
-  'production':     ['Production', 'Production Planner', 'Production Operator', 'Plant Head', 'Super Admin'],
-  'store':          ['Store', 'Store Manager', 'Plant Head', 'Super Admin'],
-  'qc':             ['QC', 'Plant Head', 'Super Admin'],
-  'dispatch':       ['Dispatch', 'Super Admin', 'Plant Head', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'Dispatch Executive'],
-  'finance-executive': ['Finance Executive', 'Finance', 'Super Admin'],
-  'finance':        ['Finance', 'Finance Executive', 'Finance Manager', 'Super Admin'],
-  'hr':             ['HR', 'Super Admin'],
+  'super-admin':    ['Super Admin', 'SUPER_ADMIN'],
+  'admin':          ['Admin', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
+  'sales':          ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'Super Admin', 'SALES', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
+  'plant-head':     ['Plant Head', 'Super Admin', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN'],
+  'production':     ['Production', 'Production Planner', 'Production Operator', 'Plant Head', 'Super Admin', 'PRODUCTION', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'ADMIN', 'SUPER_ADMIN'],
+  'store':          ['Store', 'Store Manager', 'Plant Head', 'Super Admin', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
+  'qc':             ['QC', 'Plant Head', 'Super Admin', 'QC_INSPECTOR', 'ADMIN', 'SUPER_ADMIN'],
+  'dispatch':       ['Dispatch', 'Super Admin', 'Plant Head', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'Dispatch Executive', 'DISPATCH_EXECUTIVE', 'ADMIN', 'SUPER_ADMIN'],
+  'finance-executive': ['Finance Executive', 'Finance', 'Finance Manager', 'Finance Lead', 'FINANCE_EXECUTIVE', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'finance':        ['Finance', 'Finance Executive', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'hr':             ['HR', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
 };
 
 interface AuthGuardProps {

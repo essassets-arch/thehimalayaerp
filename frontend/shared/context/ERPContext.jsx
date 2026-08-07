@@ -546,9 +546,11 @@ export const useSalesBackend = () => {
 export const ERPProvider = ({ children }) => {
   const { syncData, state } = useERP();
   const currentUser = useAuthStore(auth => auth.user);
-  const shouldLoadSalesOrders = Boolean(currentUser);
-  const shouldLoadLeads = Boolean(currentUser);
-  const shouldLoadCustomers = Boolean(currentUser);
+  const userRoleStr = String(currentUser?.role || '').toLowerCase();
+  const isSalesOrAdmin = userRoleStr.includes('sales') || userRoleStr.includes('admin') || userRoleStr.includes('super');
+  const shouldLoadSalesOrders = Boolean(currentUser) && isSalesOrAdmin;
+  const shouldLoadLeads = Boolean(currentUser) && isSalesOrAdmin;
+  const shouldLoadCustomers = Boolean(currentUser) && isSalesOrAdmin;
 
   const [salesOrders, setSalesOrders] = React.useState([]);
   const [salesOrdersPagination, setSalesOrdersPagination] = React.useState({
@@ -818,9 +820,9 @@ export const ERPProvider = ({ children }) => {
     if (shouldLoadSalesOrders && salesOrders.length === 0) loadSalesOrders().catch(e => console.warn('Skipping salesOrders:', e.message));
     if (shouldLoadLeads && leads.length === 0) loadLeads().catch(e => console.warn('Skipping leads:', e.message));
     if (shouldLoadCustomers && customers.length === 0) loadCustomers().catch(e => console.warn('Skipping customers:', e.message));
-    if (samples.length === 0) loadSamples().catch(e => console.warn('Skipping samples:', e.message));
+    if (isSalesOrAdmin && samples.length === 0) loadSamples().catch(e => console.warn('Skipping samples:', e.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldLoadSalesOrders, shouldLoadLeads, shouldLoadCustomers]);
+  }, [shouldLoadSalesOrders, shouldLoadLeads, shouldLoadCustomers, isSalesOrAdmin]);
 
   return (
     <SalesBackendContext.Provider value={salesContextValue}>

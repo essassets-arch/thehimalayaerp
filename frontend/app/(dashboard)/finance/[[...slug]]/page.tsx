@@ -34,7 +34,8 @@ export default function Page() {
   }, []);
 
   const subPath = (params?.slug as string[])?.[0] || 'dashboard';
-  const isRestricted = isMounted && user?.role === 'Finance Executive' && RESTRICTED_FOR_EXECUTIVE.includes(subPath);
+  const isExec = user?.role === 'Finance Executive' || user?.role === 'FINANCE_EXECUTIVE';
+  const isRestricted = isMounted && isExec && RESTRICTED_FOR_EXECUTIVE.includes(subPath);
 
   if (isRestricted) {
     return (

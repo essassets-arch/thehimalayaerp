@@ -177,6 +177,7 @@ export const navigationConfig = {
   'Finance Executive': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance-executive/dashboard' },
     { id: 'daily-tasks', label: 'Tasks', icon: ClipboardList, path: '/finance-executive/daily-tasks' },
+    { id: 'sales-analytics', label: 'Sales Analytics', icon: TrendingUp, path: '/finance/sales' },
     {
       id: 'payment-verification',
       label: 'Payment Verification',
@@ -196,6 +197,7 @@ export const navigationConfig = {
   'Finance': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
     { id: 'daily-tasks', label: 'Daily Tasks', icon: ClipboardList, path: '/finance/daily-tasks' },
+    { id: 'sales-analytics', label: 'Sales Analytics', icon: TrendingUp, path: '/finance/sales' },
     { id: 'brand-analysis', label: 'Brand Analysis', icon: ClipboardCheck, path: '/finance/brand-analysis' },
     {
       id: 'payment-verification',

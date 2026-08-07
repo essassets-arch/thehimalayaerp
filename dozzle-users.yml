@@ -7,4 +7,5 @@ users:
     name: Administrator
     email: admin@thehimalaya.cloud
     # Password: AdminLogsPass123! (Bcrypt hash)
-    password: $2a$12$R.jS.4YQ5r/03f0b2fR02.A6kFqQ0H2H4H2H4H2H4H2H4H2H4H2H4
+    password: $2b$12$GiI4oEsGBWvcIfsivJ.wDOm160zOyqDNP6Z2My4Fa7H757bvdBbPG
+

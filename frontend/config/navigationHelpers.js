@@ -35,18 +35,31 @@ export function getNavigationForPath(pathname, role) {
     const roleKeyMap = {
       'finance-executive': 'Finance Executive',
       'Finance Executive': 'Finance Executive',
+      'FINANCE_EXECUTIVE': 'Finance Executive',
       'finance-lead': 'Finance',
       'Finance Manager': 'Finance',
+      'FINANCE_MANAGER': 'Finance',
+      'FINANCE_LEAD': 'Finance',
+      'FINANCE': 'Finance',
       'Sales Executive': 'Sales',
       'Sales Manager': 'Sales',
+      'SALES_EXECUTIVE': 'Sales',
+      'SALES_MANAGER': 'Sales',
       'System Admin': 'Admin',
       'HR Manager': 'HR',
+      'HR_MANAGER': 'HR',
       'Production Manager': 'Production',
+      'PRODUCTION_MANAGER': 'Production',
       'Store Manager': 'Store',
+      'STORE_MANAGER': 'Store',
       'QC Manager': 'QC',
+      'QC_MANAGER': 'QC',
       'Dispatch Manager': 'Dispatch',
+      'DISPATCH_MANAGER': 'Dispatch',
       'Super Admin': 'Super Admin',
-      'super-admin': 'Super Admin'
+      'super-admin': 'Super Admin',
+      'SUPER_ADMIN': 'Super Admin',
+      'ADMIN': 'Admin'
     };
     const roleKey = roleKeyMap[role] || role;
     if (navigationConfig[roleKey]) {
