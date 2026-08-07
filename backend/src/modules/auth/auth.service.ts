@@ -47,7 +47,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private usersService: UsersService,
-  ) {}
+  ) { }
 
   async validateUser(
     email: string,
@@ -92,9 +92,9 @@ export class AuthService {
     if (!isMatch) {
       const attempts = user.failedLoginAttempts + 1;
       const dataToUpdate: { failedLoginAttempts: number; lockedUntil?: Date } =
-        {
-          failedLoginAttempts: attempts,
-        };
+      {
+        failedLoginAttempts: attempts,
+      };
 
       if (attempts >= 5) {
         dataToUpdate.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins

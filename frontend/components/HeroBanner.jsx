@@ -41,6 +41,7 @@ export default function HeroBanner({
   onAddLead,
   onCreateQuote,
   isDashboard: propIsDashboard,
+  onMenuToggle,
 }) {
   const { user } = useAuth();
   const { notifications, unreadCount, totalCount, markAllAsRead, isMarkingAllRead } = useNotifications();
@@ -222,6 +223,22 @@ export default function HeroBanner({
     <header className={`hero-banner ${!isDashboard ? 'compact' : ''}`}>
       {/* Top Integrated Header */}
       <div className="hero-top-row">
+        {/* Mobile Hamburger Toggle */}
+        <button 
+          className="mobile-menu-toggle hero-mobile-menu-toggle" 
+          id="mobileMenuToggleHero"
+          title="Open Menu" 
+          onClick={() => {
+            if (onMenuToggle) {
+              onMenuToggle();
+            } else if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('toggle-sidebar'));
+            }
+          }}
+        >
+          ☰
+        </button>
+
         <h1 className="brand-title" style={{ cursor: 'pointer' }} onClick={() => navigate.push('/')}>Himalaya</h1>
         
         {/* Live Search with Backend Results Dropdown */}

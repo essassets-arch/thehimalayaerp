@@ -128,29 +128,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main Viewport */}
       <main className="main-viewport">
-        {/* Mobile Header (Hidden on Desktop) */}
-        <div className="mobile-header">
-          <div className="mobile-header-left">
-            <div className="mobile-logo">
-              <Image src="/himalaya-logo-trimmed.png" alt="Himalaya" width={240} height={80} style={{ width: '150px', height: 'auto', objectFit: 'contain' }} priority />
-            </div>
-          </div>
-          <button
-            className="mobile-menu-toggle"
-            id="mobileMenuToggle"
-            title="Open Menu"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            ☰
-          </button>
-        </div>
-
         {/* Global Header & Hero Stats */}
         <HeroBanner
           stats={(((user as any)?.role === 'Super Admin') ? [] : getRoleStats()) as any}
           notifications={state.notifications || []}
           searchQuery={globalSearch}
           setSearchQuery={setGlobalSearch}
+          onMenuToggle={() => setIsSidebarOpen(true)}
           onNavigate={async (id: string) => {
             if (id === 'Logout') {
               try {
@@ -174,90 +158,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Suspense fallback={<PageLoader />}>
           {children}
         </Suspense>
-
-        {/* Mobile Bottom Tab Bar */}
-        <div className="mobile-bottom-nav">
-          <a
-            className="mobile-nav-item"
-            onClick={() => {
-              const moduleKey = getModuleKeyFromPath(pathname) || 'Sales';
-              const prefix = {
-                'Sales': '/sales',
-                'Production': '/production',
-                'Plant Head': '/plant-head',
-                'Store': '/store',
-                'QC': '/qc',
-                'Dispatch': '/dispatch',
-                'Finance Executive': '/finance-executive',
-                'Finance': '/finance',
-                'HR': '/hr',
-                'Admin': '/admin',
-                'Super Admin': '/super-admin'
-              }[moduleKey] || '/sales';
-              router.push(`${prefix}/dashboard`);
-            }}
-            style={{ cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: '20px' }}>🏠</span>
-            <span>Dashboard</span>
-          </a>
-
-          <a
-            className="mobile-nav-item"
-            onClick={() => {
-              const moduleKey = getModuleKeyFromPath(pathname) || 'Sales';
-              const prefix = {
-                'Sales': '/sales',
-                'Production': '/production',
-                'Plant Head': '/plant-head',
-                'Store': '/store',
-                'QC': '/qc',
-                'Dispatch': '/dispatch',
-                'Finance Executive': '/finance-executive',
-                'Finance': '/finance',
-                'HR': '/hr',
-                'Admin': '/admin',
-                'Super Admin': '/super-admin'
-              }[moduleKey] || '/sales';
-              router.push(`${prefix}/profile`);
-            }}
-            style={{ cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: '20px' }}>👤</span>
-            <span>My Profile</span>
-          </a>
-
-          <a
-            className="mobile-nav-item"
-            onClick={() => {
-              const roleCode = String(user?.role?.code || '').toUpperCase();
-              const moduleKey = getModuleKeyFromPath(pathname) || 'Sales';
-              const prefix = {
-                'Sales': '/sales',
-                'Production': '/production',
-                'Plant Head': '/plant-head',
-                'Store': '/store',
-                'QC': '/qc',
-                'Dispatch': '/dispatch',
-                'Finance Executive': '/finance-executive',
-                'Finance': '/finance',
-                'HR': '/hr',
-                'Admin': '/admin',
-                'Super Admin': '/super-admin'
-              }[moduleKey] || '/sales';
-              
-              if (roleCode.includes('HR') || roleCode.includes('SUPER_ADMIN')) {
-                router.push(`${prefix}/expense-management`);
-              } else {
-                router.push(`${prefix}/profile`);
-              }
-            }}
-            style={{ cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: '20px' }}>🪙</span>
-            <span>Expenses</span>
-          </a>
-        </div>
 
       </main>
 

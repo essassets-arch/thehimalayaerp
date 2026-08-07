@@ -107,29 +107,6 @@ export default function MainLayout() {
 
       {/* Main Viewport */}
       <main className="main-viewport">
-        {/* Mobile Header (Hidden on Desktop) */}
-        <div className="mobile-header">
-          <div className="mobile-header-left">
-            <div className="mobile-logo">
-              <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="35" r="14" fill="#dcf26b" />
-                <circle cx="33" cy="65" r="14" fill="#a0c544" />
-                <circle cx="67" cy="65" r="14" fill="#6a9b2b" />
-                <path d="M50 35 L33 65 L67 65 Z" fill="rgba(220, 242, 107, 0.2)" />
-              </svg>
-            </div>
-            <span className="mobile-brand-title">Himalaya</span>
-          </div>
-          <button
-            className="mobile-menu-toggle"
-            id="mobileMenuToggle"
-            title="Open Menu"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            ☰
-          </button>
-        </div>
-
         {/* Global Header & Hero Stats */}
         {!location.pathname.includes('daily-task') && (
           <HeroBanner
@@ -137,6 +114,7 @@ export default function MainLayout() {
             notifications={state.notifications || []}
             searchQuery={globalSearch}
             setSearchQuery={setGlobalSearch}
+            onMenuToggle={() => setIsSidebarOpen(true)}
             onNavigate={(id) => {
               if (id === 'Logout') {
                 router.push('/login');

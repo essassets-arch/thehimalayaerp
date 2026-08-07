@@ -454,17 +454,21 @@ export default function DashboardView({
     <div className="sales-dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* ──🔹 HEADER BAR ── */}
-      <div className="sales-info-bar">
+      <div className="sales-info-bar" style={{
+        background: '#ffffff', padding: '16px', borderRadius: '12px',
+        border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)',
+        display: 'flex', flexDirection: 'column', gap: '12px'
+      }}>
         <div className="sales-info-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-primary)' }}>
-          <Activity size={20} className="pulse-icon" style={{ color: '#0ea5e9' }} />
+          <Activity size={20} className="pulse-icon" style={{ color: '#0ea5e9', flexShrink: 0 }} />
           <span style={{ fontWeight: '800', fontSize: '15px', letterSpacing: '-0.2px' }}>Sales Representative Dashboard</span>
         </div>
-        <div className="sales-info-badges">
+        <div className="sales-info-badges" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           <div className="sales-badge sales-badge-role" style={{
             display: 'flex', alignItems: 'center', gap: '5px',
             fontSize: '11px', fontWeight: '700', padding: '4px 10px',
             background: '#e0f2fe', border: '1px solid #bae6fd',
-            borderRadius: '20px', color: '#0369a1'
+            borderRadius: '20px', color: '#0369a1', whiteSpace: 'nowrap'
           }}>
             <ShieldCheck size={14} />
             <span>Role: Sales Executive</span>
@@ -473,30 +477,60 @@ export default function DashboardView({
             display: 'flex', alignItems: 'center', gap: '5px',
             fontSize: '11px', fontWeight: '700', padding: '4px 10px',
             background: '#dcfce7', border: '1px solid #bbf7d0',
-            borderRadius: '20px', color: '#15803d'
+            borderRadius: '20px', color: '#15803d', whiteSpace: 'nowrap'
           }}>
-            <span className="pulse-red-dot" style={{ width: '6px', height: '6px', backgroundColor: '#10b981', borderRadius: '50%', display: 'inline-block' }}></span>
+            <span className="pulse-red-dot" style={{ width: '6px', height: '6px', backgroundColor: '#10b981', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }}></span>
             <span>Live Sync Mode</span>
           </div>
         </div>
       </div>
 
       {/* ──📅 TIMEFRAME FILTERS ── */}
-      <div className="sales-dashboard-filters">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-primary)' }}>
-          <Calendar size={18} style={{ color: '#0ea5e9' }} />
-          <span style={{ fontSize: '13px', fontWeight: '800' }}>Timeframe Filters:</span>
+      <div className="sales-dashboard-filters" style={{
+        background: '#ffffff',
+        border: '1px solid var(--color-border)',
+        borderRadius: '12px',
+        padding: '12px 14px',
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
+        gap: '12px',
+        boxShadow: 'var(--shadow-card)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-primary)', flexShrink: 0 }}>
+          <Calendar size={16} style={{ color: '#0ea5e9' }} />
+          <span style={{ fontSize: '12px', fontWeight: '800', whiteSpace: 'nowrap' }}>Filter:</span>
         </div>
-        <div className="sales-dashboard-filters-buttons">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          overflowX: 'auto',
+          flex: 1,
+          width: '100%',
+          minWidth: 0,
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          paddingBottom: '2px'
+        }}>
           {['Today', 'This Week', 'This Month', 'This Year', 'Custom'].map(f => (
             <button
               key={f}
               onClick={() => setTimeFilter(f)}
               style={{
-                padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: '700',
-                border: '1px solid var(--color-border)', cursor: 'pointer', transition: 'all 0.2s ease',
-                background: timeFilter === f ? '#0ea5e9' : 'transparent',
-                color: timeFilter === f ? '#ffffff' : 'var(--color-text-secondary)'
+                padding: '5px 12px',
+                borderRadius: '20px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                border: `1px solid ${timeFilter === f ? '#0ea5e9' : 'var(--color-border)'}`,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                background: timeFilter === f ? '#0ea5e9' : '#f8fafc',
+                color: timeFilter === f ? '#ffffff' : 'var(--color-text-secondary)',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                lineHeight: '1.4'
               }}
             >
               {f === 'Custom' ? 'Custom Range' : f}
@@ -504,23 +538,23 @@ export default function DashboardView({
           ))}
 
           {timeFilter === 'Custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px', flexShrink: 0 }}>
               <input
                 type="date"
                 value={customStartDate}
                 onChange={e => setCustomStartDate(e.target.value)}
                 style={{
-                  border: '1px solid var(--color-border)', padding: '5px 8px', borderRadius: '6px',
+                  border: '1px solid var(--color-border)', padding: '4px 8px', borderRadius: '8px',
                   background: 'var(--color-bg)', color: 'var(--color-text-primary)', fontSize: '11px'
                 }}
               />
-              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>to</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', flexShrink: 0 }}>to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={e => setCustomEndDate(e.target.value)}
                 style={{
-                  border: '1px solid var(--color-border)', padding: '5px 8px', borderRadius: '6px',
+                  border: '1px solid var(--color-border)', padding: '4px 8px', borderRadius: '8px',
                   background: 'var(--color-bg)', color: 'var(--color-text-primary)', fontSize: '11px'
                 }}
               />
@@ -529,69 +563,6 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* ──🔔 TODAY'S CRM REMINDERS ── */}
-      <div style={{
-        background: '#ffffff', border: '1px solid var(--color-border)',
-        padding: '20px', borderRadius: '12px',
-        boxShadow: 'var(--shadow-premium)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Bell size={18} style={{ color: '#0ea5e9' }} />
-            <span style={{ fontWeight: '800', fontSize: '14px', color: 'var(--color-text-primary)' }}>
-              Today&apos;s CRM Reminders
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => handleNav('/sales/leads')}
-            style={{
-              fontSize: '12px', fontWeight: '700', color: '#0ea5e9',
-              background: 'none', border: 'none', cursor: 'pointer'
-            }}
-          >
-            View all {'→'}
-          </button>
-        </div>
-
-        {todayCrmReminders.length === 0 ? (
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
-            No reminders scheduled for today.
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-            {todayCrmReminders.map((reminder, idx) => (
-              <div key={reminder.id}>
-                {idx > 0 && <hr style={{ border: 'none', borderTop: '1px solid #DCE5F0', margin: '12px 0' }} />}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                  <span style={{
-                    fontSize: '11px', fontWeight: '800', textTransform: 'uppercase',
-                    color: reminder.moduleType === 'Quotation' ? '#15803d' : '#1d4ed8',
-                    background: reminder.moduleType === 'Quotation' ? '#dcfce7' : '#dbeafe',
-                    padding: '3px 8px', borderRadius: '6px', flexShrink: 0, marginTop: '2px'
-                  }}>
-                    {reminder.moduleType}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-text-primary)' }}>
-                      {resolveReminderLabel(reminder)}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                      {reminder.reminderTime ? formatReminderTime(reminder.reminderTime) : 'All day'}
-                      {reminder.reminderType ? ` · ${reminder.reminderType}` : ''}
-                    </div>
-                    {reminder.remarks && (
-                      <div style={{ fontSize: '12px', color: '#5E6B82', marginTop: '4px', fontStyle: 'italic' }}>
-                        {reminder.remarks}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* ──🔹 SALES FLOW PIPELINE VISUALIZER ── */}
       <div className="sales-flow-pipeline">
@@ -687,7 +658,7 @@ export default function DashboardView({
               <h3 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '12px', letterSpacing: '0.5px' }}>
                 Payment Summary
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
 
                 {/* Total Payment Due */}
                 <div style={{
@@ -760,7 +731,7 @@ export default function DashboardView({
               <h3 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '12px', letterSpacing: '0.5px' }}>
                 Performance Metrics
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                 
                 {/* Payment Verification */}
                 <div onClick={() => handleNav('/sales/payment-followup')} style={{
@@ -889,95 +860,6 @@ export default function DashboardView({
           {/* RIGHT COLUMN: Sidebar elements */}
           <div className="sales-dashboard-sidebar-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            {/* ⚠️ SYSTEM ALERTS */}
-            <div style={{
-              background: '#ffffff', border: '1px solid var(--color-border)',
-              padding: '20px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '16px',
-              boxShadow: 'var(--shadow-premium)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertTriangle size={18} style={{ color: '#ef4444' }} />
-                <span style={{ fontWeight: '800', fontSize: '14px', color: 'var(--color-text-primary)' }}>
-                  System Alerts
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                
-                {/* Overdue Follow-ups */}
-                <div style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px',
-                  borderRadius: '8px', background: overdueFollowUps.length > 0 ? '#fef2f2' : '#F5FAFE',
-                  borderLeft: `3px solid ${overdueFollowUps.length > 0 ? '#ef4444' : '#D6E2F0'}`,
-                  transition: 'all 0.2s ease'
-                }}>
-                  <Clock size={16} style={{ color: overdueFollowUps.length > 0 ? '#ef4444' : '#5E6B82', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: '750', color: overdueFollowUps.length > 0 ? '#991b1b' : '#334155' }}>
-                      Overdue Follow-ups
-                    </div>
-                    <div style={{ fontSize: '11px', color: overdueFollowUps.length > 0 ? '#b91c1c' : '#5E6B82', marginTop: '2px' }}>
-                      {overdueFollowUps.length > 0 ? `${overdueFollowUps.length} lead follow-ups overdue` : 'All follow-ups up to date'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expired Samples */}
-                <div style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px',
-                  borderRadius: '8px', background: expiredSamples.length > 0 ? '#fffbeb' : '#F5FAFE',
-                  borderLeft: `3px solid ${expiredSamples.length > 0 ? '#d97706' : '#D6E2F0'}`,
-                  transition: 'all 0.2s ease'
-                }}>
-                  <FlaskConical size={16} style={{ color: expiredSamples.length > 0 ? '#d97706' : '#5E6B82', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: '750', color: expiredSamples.length > 0 ? '#92400e' : '#334155' }}>
-                      Expired Samples
-                    </div>
-                    <div style={{ fontSize: '11px', color: expiredSamples.length > 0 ? '#b45309' : '#5E6B82', marginTop: '2px' }}>
-                      {expiredSamples.length > 0 ? `${expiredSamples.length} samples older than 14 days` : 'No expired prototype samples'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expired Quotations */}
-                <div style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px',
-                  borderRadius: '8px', background: expiredQuotes.length > 0 ? '#fef2f2' : '#F5FAFE',
-                  borderLeft: `3px solid ${expiredQuotes.length > 0 ? '#ef4444' : '#D6E2F0'}`,
-                  transition: 'all 0.2s ease'
-                }}>
-                   <FileCheck size={16} style={{ color: expiredQuotes.length > 0 ? '#ef4444' : '#5E6B82', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: '750', color: expiredQuotes.length > 0 ? '#991b1b' : '#334155' }}>
-                      Expired Quotations
-                    </div>
-                    <div style={{ fontSize: '11px', color: expiredQuotes.length > 0 ? '#b91c1c' : '#5E6B82', marginTop: '2px' }}>
-                      {expiredQuotes.length > 0 ? `${expiredQuotes.length} quotes past validity limit` : 'No expired quotations'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Overdue Payments */}
-                <div style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px',
-                  borderRadius: '8px', background: overduePayments.length > 0 ? '#fef2f2' : '#F5FAFE',
-                  borderLeft: `3px solid ${overduePayments.length > 0 ? '#ef4444' : '#D6E2F0'}`,
-                  transition: 'all 0.2s ease'
-                }}>
-                  <DollarSign size={16} style={{ color: overduePayments.length > 0 ? '#ef4444' : '#5E6B82', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: '750', color: overduePayments.length > 0 ? '#991b1b' : '#334155' }}>
-                      Overdue Payments
-                    </div>
-                    <div style={{ fontSize: '11px', color: overduePayments.length > 0 ? '#b91c1c' : '#5E6B82', marginTop: '2px' }}>
-                      {overduePayments.length > 0 ? `${overduePayments.length} pending payments overdue` : 'No overdue payments'}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
 
             {/* 📊 QUICK SUMMARY */}
             <div style={{
@@ -1032,10 +914,10 @@ export default function DashboardView({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               {/* Compact 2x3 Metric Cards Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+              <div className="mobile-2col-grid">
                 
                 {/* Total Payment Due */}
-                <div style={{
+                <div className="mobile-2col-card" style={{
                   background: '#ffffff', border: '1px solid #fee2e2', borderLeft: '4px solid #ef4444',
                   padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
                   boxShadow: '0 1px 4px rgba(239,68,68,0.06)'
@@ -1050,7 +932,7 @@ export default function DashboardView({
                 </div>
 
                 {/* Total Collected */}
-                <div style={{
+                <div className="mobile-2col-card" style={{
                   background: '#ffffff', border: '1px solid #dcfce7', borderLeft: '4px solid #22c55e',
                   padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
                   boxShadow: '0 1px 4px rgba(34,197,94,0.06)'
@@ -1064,7 +946,7 @@ export default function DashboardView({
                 </div>
 
                 {/* Total Customers */}
-                <div style={{
+                <div className="mobile-2col-card" style={{
                   background: '#ffffff', border: '1px solid #dbeafe', borderLeft: '4px solid #3b82f6',
                   padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
                   boxShadow: '0 1px 4px rgba(59,130,246,0.06)'
@@ -1076,7 +958,7 @@ export default function DashboardView({
                 </div>
 
                 {/* Verifications */}
-                <div onClick={() => handleNav('/sales/payment-followup')} style={{
+                <div className="mobile-2col-card" onClick={() => handleNav('/sales/payment-followup')} style={{
                   cursor: 'pointer', background: '#ffffff', border: '1px solid var(--color-border)',
                   padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
                   boxShadow: 'var(--shadow-card)'
@@ -1086,7 +968,7 @@ export default function DashboardView({
                 </div>
 
                 {/* My Sales */}
-                <div onClick={() => handleNav('/sales/reports')} style={{
+                <div className="mobile-2col-card" onClick={() => handleNav('/sales/reports')} style={{
                   cursor: 'pointer', background: '#ffffff', border: '1px solid var(--color-border)',
                   padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
                   boxShadow: 'var(--shadow-card)'
@@ -1098,7 +980,7 @@ export default function DashboardView({
                 </div>
 
                 {/* Target Achieved */}
-                <div style={{
+                <div className="mobile-2col-card" style={{
                   background: '#ffffff', border: '1px solid var(--color-border)',
                   padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
                   boxShadow: 'var(--shadow-card)'

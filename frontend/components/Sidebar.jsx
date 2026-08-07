@@ -119,14 +119,14 @@ export default function Sidebar({ isOpen, onClose }) {
 
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         {/* Himalaya brand logo */}
-        <div className="sidebar-logo" id="logoBtn">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', gap: '10px' }}>
+        <div className="sidebar-logo" id="logoBtn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '16px', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
             <Image
               src="/himalaya-logo-trimmed.png"
               alt="Himalaya"
-              width={180}
-              height={60}
-              style={{ width: '120px', height: 'auto', objectFit: 'contain', flexShrink: 0 }}
+              width={140}
+              height={45}
+              style={{ width: '110px', height: 'auto', maxHeight: '42px', objectFit: 'contain', flexShrink: 0 }}
               priority
             />
           </div>
@@ -246,35 +246,37 @@ export default function Sidebar({ isOpen, onClose }) {
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '16px 14px',
+            padding: '10px 10px',
             borderTop: '1px solid var(--color-border)',
-            gap: '12px',
+            gap: '8px',
             marginTop: 'auto',
-            width: '100%'
+            width: '100%',
+            background: '#f8fafc',
+            borderRadius: '10px'
           }}
         >
           {user && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
               <div
                 className="sidebar-avatar"
                 style={{
-                  width: '36px',
-                  height: '36px',
+                  width: '34px',
+                  height: '34px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent-teal) 100%)',
-                  color: '#000000',
+                  background: 'linear-gradient(135deg, #2563eb 0%, #0d9488 100%)',
+                  color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: '800',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   flexShrink: 0
                 }}
               >
                 {getInitials(user.name)}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', textAlign: 'left', flex: 1 }}>
-                <span className="sidebar-profile-name" style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '1.2' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', textAlign: 'left', flex: 1, minWidth: 0 }}>
+                <span className="sidebar-profile-name" style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '1.2' }}>
                   {user.name}
                 </span>
                 <select
@@ -286,7 +288,7 @@ export default function Sidebar({ isOpen, onClose }) {
                     navigate.push(path);
                   }}
                   style={{
-                    fontSize: '10.5px',
+                    fontSize: '10px',
                     color: 'var(--color-text-secondary)',
                     fontWeight: '600',
                     lineHeight: '1.2',
@@ -297,7 +299,7 @@ export default function Sidebar({ isOpen, onClose }) {
                     padding: 0,
                     outline: 'none',
                     width: '100%',
-                    maxWidth: '120px',
+                    maxWidth: '100%',
                     textOverflow: 'ellipsis'
                   }}
                 >
