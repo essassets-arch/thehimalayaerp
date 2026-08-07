@@ -575,11 +575,8 @@ export default function OrdersView({
                             <button
                               type="button"
                               onClick={() => {
-                                if (onConfirmPayment) {
-                                  onConfirmPayment(o);
-                                } else {
-                                  navigate.push('/sales/payment-followup');
-                                }
+                                const targetId = o.id || o.orderNo || o.orderNumber;
+                                navigate.push(`/sales/payment-followup?orderId=${targetId}`);
                               }}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: '4px',
@@ -752,11 +749,8 @@ export default function OrdersView({
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      if (onConfirmPayment) {
-                                        onConfirmPayment(o);
-                                      } else {
-                                        navigate.push('/sales/payment-followup');
-                                      }
+                                      const targetId = o.id || o.orderNo || o.orderNumber;
+                                      navigate.push(`/sales/payment-followup?orderId=${targetId}`);
                                     }}
                                     style={{
                                       display: 'inline-flex', alignItems: 'center', gap: '4px',
@@ -1033,12 +1027,9 @@ export default function OrdersView({
                   <button
                     type="button"
                     onClick={() => {
+                      const targetId = currentDetailsOrder.id || currentDetailsOrder.orderNo || currentDetailsOrder.orderNumber;
                       setSelectedOrder(null);
-                      if (onConfirmPayment) {
-                        onConfirmPayment(currentDetailsOrder);
-                      } else {
-                        navigate.push('/sales/payment-followup');
-                      }
+                      navigate.push(`/sales/payment-followup?orderId=${targetId}`);
                     }}
                     style={{
                       padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,

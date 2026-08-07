@@ -105,7 +105,15 @@ export class SalesService {
   async getOrder(id: string, userId?: string, role?: string) {
     const scope = getSalesScope(userId, role, 'createdById');
     const order = await this.prisma.salesOrder.findFirst({
-      where: { id, ...scope },
+      where: {
+        OR: [
+          { id },
+          { orderNumber: id },
+          { orderNumber: `ORD-${id}` },
+          { orderNumber: id.replace(/^#/, '') },
+        ],
+        ...scope
+      },
       include: {
         customer: true,
         items: true,
@@ -194,7 +202,7 @@ export class SalesService {
       const orderNumber = await this.sequenceService.generateNextWithTx(
         tx,
         'sales_order_number',
-        'ORD-',
+        `SO-${new Date().getFullYear()}-`,
       );
 
       const products = await tx.product.findMany({

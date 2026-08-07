@@ -16,7 +16,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import { useRouter, usePathname, useParams } from 'next/navigation';
+import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
 import Swal from 'sweetalert2';
 import MyProfileView from '../../../shared/components/MyProfileView';
 import { useERP, useERPStore, useSalesBackend } from '../../../shared/context/ERPContext.jsx';
@@ -67,20 +67,35 @@ async function uploadAfterSalesEvidence(files = []) {
   return urls;
 }
 
-export default function SalesPortal() {
+export default function SalesPortal({ overrideView }) {
   const pathname = usePathname();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams?.get('tab');
   const pathSlug = pathname ? pathname.split('/').filter(Boolean) : [];
-  let view = params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
-  if (view === 'sales') view = 'dashboard';
+  
+  let rawView = overrideView;
+  if (!rawView) {
+    if (params?.slug?.[0] === 'sales') {
+      rawView = params?.slug?.[1] || tabParam || 'dashboard';
+    } else {
+      rawView = params?.slug?.[0] || tabParam || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
+    }
+  }
+  if (rawView === 'sales' || rawView === 'analytics') rawView = 'dashboard';
+  let view = rawView;
+
   const leadId = params?.slug?.[1]; const sampleId = params?.slug?.[1];
   const location = { pathname: pathname || '', search: "" };
   const navigate = useRouter();
 
+  const isFinancePortal = pathname?.startsWith('/finance/sales');
+  const basePath = isFinancePortal ? '/finance/sales' : '/sales';
+
   const currentView =
-    (location.pathname.includes('/sales/edit-lead/')
+    (location.pathname.includes(`${basePath}/edit-lead/`) || location.pathname.includes('/sales/edit-lead/')
       ? 'edit-lead'
-      : location.pathname.includes('/sales/edit-sample/')
+      : location.pathname.includes(`${basePath}/edit-sample/`) || location.pathname.includes('/sales/edit-sample/')
       ? 'edit-sample'
       : view);
 
@@ -295,106 +310,11 @@ export default function SalesPortal() {
   };
 
   const handleSalesConfirmPayment = async (order) => {
-    const total = Number(order.totalAmount ?? order.total_amount ?? order.grandTotal ?? order.grand_total ?? 0);
-    const verified = Number(order.verifiedPaidAmount ?? order.verified_paid_amount ?? order.verifiedAmount ?? order.verified_amount ?? 0);
-    const remaining = order.balanceAmount !== undefined 
-      ? Number(order.balanceAmount) 
-      : (order.balance_amount !== undefined 
-        ? Number(order.balance_amount) 
-        : (total - verified));
-
-    if (remaining <= 0) {
-      Swal.fire({ icon: 'info', title: 'Order Fully Paid', text: 'This order has no outstanding balance.' });
-      return;
-    }
-
-    const { value: formValues } = await Swal.fire({
-      title: 'Record Client Payment Collection',
-      html: `
-        <div style="text-align: left; font-family: sans-serif; font-size: 13px; color: var(--color-text-primary);">
-          <div style="margin-bottom: 10px; display: grid; grid-template-columns: 120px 1fr; gap: 8px;">
-            <span><strong>Customer:</strong></span> <span>${order.customerName || order.customer_name || order.customer?.companyName || 'N/A'}</span>
-            <span><strong>Order Ref:</strong></span> <span>${order.orderNo || order.orderNumber || order.order_number || `ORD-${order.id}`}</span>
-            <span><strong>Total Order:</strong></span> <span>INR ${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            <span><strong>Verified Paid:</strong></span> <span>INR ${verified.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            <span><strong>Remaining Bal:</strong></span> <span style="color: var(--color-accent-teal); font-weight: 700;">INR ${remaining.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 12px 0;" />
-          
-          <div style="margin-bottom: 12px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 6px;">Amount Received (INR) *</label>
-            <input id="swal-pay-amount" type="number" class="swal2-input" value="${remaining}" style="margin: 0; width: 100%; border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; background: var(--color-sidebar-bg); color: var(--color-text-primary);" />
-          </div>
-          
-          <div style="margin-bottom: 12px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 6px;">Remarks</label>
-            <textarea id="swal-remarks" placeholder="Add payment notes..." style="width: 100%; height: 50px; border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; background: var(--color-sidebar-bg); color: var(--color-text-primary); resize: none;"></textarea>
-          </div>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: 'Submit Request',
-      cancelButtonText: 'Cancel',
-      customClass: {
-        popup: 'swal-premium-popup',
-        title: 'swal-premium-title',
-        confirmButton: 'swal-premium-confirm-btn',
-        cancelButton: 'swal-premium-cancel-btn',
-      },
-      buttonsStyling: false,
-      focusConfirm: false,
-      preConfirm: () => {
-        const mode = 'NEFT';
-        const ref = `AUTO-${Date.now()}`;
-        const amountInput = document.getElementById('swal-pay-amount').value.trim();
-        const remarks = document.getElementById('swal-remarks').value.trim();
-        const proof = '';
-
-        if (!amountInput) {
-          Swal.showValidationMessage('Please fill all required fields (*)');
-          return false;
-        }
-
-        const paymentAmount = Number(amountInput);
-        if (isNaN(paymentAmount) || paymentAmount <= 0) {
-          Swal.showValidationMessage('Amount received must be a positive number.');
-          return false;
-        }
-
-        if (paymentAmount > remaining) {
-          Swal.showValidationMessage(`Amount cannot exceed the remaining balance of INR ${remaining.toLocaleString('en-IN')}`);
-          return false;
-        }
-
-        return { paymentAmount, paymentMode: mode, transactionReference: ref, remarks, proofDocument: proof };
-      }
-    });
-
-    if (formValues) {
-      showToast('Submitting payment request to Finance…');
-      try {
-        const payload = {
-          salesOrderId: order.id,
-          customerId: order.customerId || order.customer?.id || 'unknown',
-          amount: formValues.paymentAmount,
-          proofUrl: formValues.proofDocument || 'missing-proof.jpg'
-        };
-        await backendFetch('/api/backend/finance/payments/sales-record', {
-          method: 'POST',
-          body: payload
-        });
-        
-        Swal.fire({
-          icon: 'success',
-          title: 'Request Submitted',
-          text: `Payment request for INR ${formValues.paymentAmount.toLocaleString('en-IN')} is pending Finance verification.`,
-          timer: 3000,
-          showConfirmButton: false
-        });
-        await syncData();
-      } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Submission Failed', text: err.message || 'Error occurred' });
-      }
+    const targetId = order?.id || order?.orderNo || order?.orderNumber;
+    if (targetId) {
+      navigate.push(`/sales/payment-followup?orderId=${targetId}`);
+    } else {
+      navigate.push('/sales/payment-followup');
     }
   };
 

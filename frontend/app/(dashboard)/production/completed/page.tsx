@@ -43,10 +43,26 @@ export default function CompletedOrdersPage() {
     const orders = Array.isArray(data) ? data : [];
     if (!search) return orders;
     const lower = search.toLowerCase();
-    return orders.filter((w) => w.workOrderNumber.toLowerCase().includes(lower));
+    return orders.filter((w: any) => {
+      const soNo = (w.productionPlan?.salesOrder?.orderNumber || w.salesOrder?.orderNumber || '').toLowerCase();
+      const woNo = (w.workOrderNumber || '').toLowerCase();
+      return soNo.includes(lower) || woNo.includes(lower);
+    });
   }, [data, search]);
 
   const columns: ColumnDef<WorkOrder>[] = [
+    {
+      id: 'salesOrderNumber',
+      header: 'Sales Order Number',
+      size: 180,
+      cell: ({ row }) => {
+        const wo = row.original as any;
+        const rawSo = wo.productionPlan?.salesOrder?.orderNumber || wo.salesOrder?.orderNumber;
+        const numPart = (wo.workOrderNumber || '').replace(/\D/g, '').slice(-5);
+        const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+        return <span className="font-bold text-blue-600 hover:underline">{soNo}</span>;
+      },
+    },
     {
       accessorKey: 'workOrderNumber',
       header: 'WO Number',

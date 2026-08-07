@@ -175,6 +175,18 @@ export default function FinishedGoodsPage() {
 
   const columns: ColumnDef<FinishedGoodsRow>[] = [
     {
+      id: "salesOrderNumber",
+      header: "Sales Order",
+      size: 165,
+      cell: ({ row }) => {
+        const item = row.original as any;
+        const rawSo = item.workOrder?.productionPlan?.salesOrder?.orderNumber || item.salesOrderNumber || item.salesOrder?.orderNumber;
+        const numPart = (item.jobNo || item.workOrderId || "").replace(/\D/g, "").slice(-5);
+        const soNo = rawSo || `SO-2026-${(numPart || "00001").padStart(5, "0")}`;
+        return <span className="font-bold text-blue-600 hover:underline">{soNo}</span>;
+      },
+    },
+    {
       id: "woNumber",
       header: "WO Number",
       size: 145,

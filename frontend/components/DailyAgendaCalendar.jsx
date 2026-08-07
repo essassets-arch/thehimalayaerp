@@ -334,11 +334,42 @@ export default function DailyAgendaCalendar({ state: stateProp }) {
   }, [allEvents, viewYear, viewMonth, daysInMonth]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '0' }}>
       <style>{`
         @keyframes calSlideIn {
           from { opacity: 0; transform: translateY(6px); }
           to   { opacity: 1; transform: translateY(0); }
+        }
+        .cal-split-container {
+          display: flex;
+          flex-direction: row;
+          gap: 16px;
+          width: 100%;
+          align-items: stretch;
+        }
+        .cal-split-left {
+          flex: 0 0 38%;
+          width: 38%;
+          min-width: 260px;
+          display: flex;
+          flex-direction: column;
+        }
+        .cal-split-right {
+          flex: 1 1 62%;
+          width: 62%;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        @media (max-width: 768px) {
+          .cal-split-container {
+            flex-direction: column;
+          }
+          .cal-split-left, .cal-split-right {
+            flex: 1 1 100%;
+            width: 100%;
+            min-width: 100%;
+          }
         }
         .cal-day-cell {
           aspect-ratio: 1;
@@ -346,20 +377,20 @@ export default function DailyAgendaCalendar({ state: stateProp }) {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 3px;
-          border-radius: 9px;
-          font-size: 12.5px;
+          gap: 2px;
+          border-radius: 8px;
+          font-size: 11.5px;
           font-weight: 600;
           cursor: pointer;
           transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
           position: relative;
           min-width: 0;
-          padding: 3px 2px;
+          padding: 2px;
           user-select: none;
         }
         .cal-day-cell:hover {
           background: #f1f5f9 !important;
-          transform: scale(1.1);
+          transform: scale(1.08);
         }
         .cal-day-dots {
           display: flex;
@@ -382,217 +413,223 @@ export default function DailyAgendaCalendar({ state: stateProp }) {
         .agenda-scroll::-webkit-scrollbar-thumb { background: #DCE5F0; border-radius: 4px; }
       `}</style>
 
-      {/* ── Month Navigation ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: '10px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div className="cal-split-container">
+        {/* ── LEFT COLUMN (40%): Month Navigation + Calendar Grid ── */}
+        <div className="cal-split-left">
+          {/* Month Navigation */}
           <div style={{
-            width: '28px', height: '28px', borderRadius: '8px',
-            background: 'linear-gradient(135deg, #6366f1, #0ea5e9)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 10px rgba(99,102,241,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: '8px',
           }}>
-            <Calendar size={14} color="#fff" />
-          </div>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: '800', color: '#24345C', letterSpacing: '-0.3px' }}>
-              {MONTH_NAMES[viewMonth]} {viewYear}
-            </div>
-            <div style={{ fontSize: '10px', color: '#8893A7', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {monthEventTotal} events this month
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <button onClick={goToday} style={{
-            fontSize: '10px', fontWeight: '700', color: '#6366f1',
-            background: '#eef2ff', border: '1px solid #c7d2fe',
-            padding: '4px 10px', borderRadius: '8px', cursor: 'pointer',
-            marginRight: '2px', transition: 'background 0.15s'
-          }}>
-            Today
-          </button>
-          <button onClick={prevMonth} style={{
-            width: '26px', height: '26px', borderRadius: '7px',
-            background: '#f1f5f9', border: '1px solid #DCE5F0',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          }}>
-            <ChevronLeft size={14} color="#475569" />
-          </button>
-          <button onClick={nextMonth} style={{
-            width: '26px', height: '26px', borderRadius: '7px',
-            background: '#f1f5f9', border: '1px solid #DCE5F0',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          }}>
-            <ChevronRight size={14} color="#475569" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Calendar Grid ── */}
-      <div style={{
-        background: '#ffffff', border: '1px solid #DCE5F0',
-        borderRadius: '14px', padding: '10px', marginBottom: '10px',
-      }}>
-        {/* Day headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginBottom: '4px' }}>
-          {DAY_LABELS.map(d => (
-            <div key={d} style={{
-              textAlign: 'center', fontSize: '9.5px', fontWeight: '800',
-              color: '#8893A7', letterSpacing: '0.05em', padding: '3px 0',
-              textTransform: 'uppercase',
-            }}>
-              {d}
-            </div>
-          ))}
-        </div>
-
-        {/* Day cells */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px' }}>
-          {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
-
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-            const ds = toDateStr(viewYear, viewMonth, day);
-            const isToday    = ds === todayStr;
-            const isSelected = ds === selectedDate;
-            const dayEvents  = allEvents[ds] || [];
-            const eventCount = dayEvents.length;
-
-            let bg    = 'transparent';
-            let color = '#334155';
-            if (isSelected)      { bg = '#6366f1'; color = '#ffffff'; }
-            else if (isToday)    { bg = '#eef2ff'; color = '#6366f1'; }
-            else if (eventCount) { bg = 'transparent'; }
-
-            // Up to 3 unique type colors as dots
-            const dotColors = [...new Set(dayEvents.map(e => EVENT_TYPES[e.type]?.color).filter(Boolean))].slice(0, 3);
-
-            return (
-              <div
-                key={day}
-                className="cal-day-cell"
-                style={{ background: bg, color, fontWeight: isToday || isSelected ? '800' : '600' }}
-                onClick={() => setSelectedDate(ds)}
-                title={eventCount > 0 ? `${eventCount} event${eventCount > 1 ? 's' : ''}` : ''}
-              >
-                <span style={{ lineHeight: 1 }}>{day}</span>
-                {eventCount > 0 && (
-                  <div className="cal-day-dots">
-                    {dotColors.map((c, idx) => (
-                      <div key={idx} className="cal-dot"
-                        style={{ background: isSelected ? 'rgba(255,255,255,0.75)' : c }} />
-                    ))}
-                    {/* Extra grey dot if more types than 3 */}
-                    {eventCount > dotColors.length && (
-                      <div className="cal-dot"
-                        style={{ background: isSelected ? 'rgba(255,255,255,0.4)' : '#8893A7' }} />
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Agenda Panel ── */}
-      <div style={{
-        background: '#ffffff', border: '1px solid #DCE5F0',
-        borderRadius: '14px', overflow: 'hidden',
-        flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0,
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '10px 14px',
-          borderBottom: '1px solid #f1f5f9',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'linear-gradient(to right, #F5FAFE, #ffffff)',
-          flexShrink: 0,
-        }}>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: '800', color: '#24345C' }}>
-              Agenda for {selectedLabel}
-            </div>
-            <div style={{ fontSize: '10px', color: '#8893A7', fontWeight: '600', marginTop: '2px' }}>
-              {selectedEvents.length === 0
-                ? 'No events scheduled'
-                : `${selectedEvents.length} event${selectedEvents.length !== 1 ? 's' : ''} scheduled`}
-            </div>
-          </div>
-          {selectedEvents.length > 0 && (
-            <span style={{
-              fontSize: '11px', fontWeight: '800', color: '#6366f1',
-              background: '#eef2ff', border: '1px solid #c7d2fe',
-              padding: '3px 10px', borderRadius: '20px',
-            }}>
-              {selectedEvents.length}
-            </span>
-          )}
-        </div>
-
-        {/* Type summary pills */}
-        {Object.keys(eventTypeCounts).length > 0 && (
-          <div style={{
-            padding: '7px 14px', display: 'flex', gap: '5px', flexWrap: 'wrap',
-            borderBottom: '1px solid #f1f5f9', flexShrink: 0,
-          }}>
-            {Object.entries(eventTypeCounts).map(([type, count]) => {
-              const cfg = EVENT_TYPES[type];
-              if (!cfg) return null;
-              return (
-                <span key={type} style={{
-                  fontSize: '9.5px', fontWeight: '700', color: cfg.color,
-                  background: cfg.bg, border: `1px solid ${cfg.color}28`,
-                  padding: '2px 7px', borderRadius: '20px',
-                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                }}>
-                  {count} {cfg.label}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Events scrollable list */}
-        <div className="agenda-scroll" style={{
-          flex: 1, overflowY: 'auto',
-          padding: '10px 14px 14px',
-          display: 'flex', flexDirection: 'column', gap: '7px',
-        }}>
-          {selectedEvents.length === 0 ? (
-            <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: '10px',
-              padding: '20px 0', color: '#8893A7',
-            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{
-                width: '40px', height: '40px', borderRadius: '50%',
-                background: '#F5FAFE', border: '1px solid #DCE5F0',
+                width: '26px', height: '26px', borderRadius: '7px',
+                background: 'linear-gradient(135deg, #6366f1, #0ea5e9)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(99,102,241,0.3)',
               }}>
-                <AlertCircle size={18} color="#D6E2F0" />
+                <Calendar size={13} color="#fff" />
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: '#5E6B82' }}>No events</div>
-                <div style={{ fontSize: '11px', color: '#8893A7', marginTop: '2px' }}>
-                  Click any highlighted date to view its agenda
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: '#24345C', letterSpacing: '-0.3px' }}>
+                  {MONTH_NAMES[viewMonth]} {viewYear}
+                </div>
+                <div style={{ fontSize: '9.5px', color: '#8893A7', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {monthEventTotal} events this month
                 </div>
               </div>
             </div>
-          ) : (
-            selectedEvents.map((event, idx) => (
-              <div
-                key={`${event.id}-${idx}`}
-                className="agenda-event-row"
-                style={{ animationDelay: `${idx * 35}ms` }}
-              >
-                <EventChip event={event} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <button onClick={goToday} style={{
+                fontSize: '9.5px', fontWeight: '700', color: '#6366f1',
+                background: '#eef2ff', border: '1px solid #c7d2fe',
+                padding: '3px 7px', borderRadius: '6px', cursor: 'pointer',
+                transition: 'background 0.15s'
+              }}>
+                Today
+              </button>
+              <button onClick={prevMonth} style={{
+                width: '24px', height: '24px', borderRadius: '6px',
+                background: '#f1f5f9', border: '1px solid #DCE5F0',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              }}>
+                <ChevronLeft size={13} color="#475569" />
+              </button>
+              <button onClick={nextMonth} style={{
+                width: '24px', height: '24px', borderRadius: '6px',
+                background: '#f1f5f9', border: '1px solid #DCE5F0',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              }}>
+                <ChevronRight size={13} color="#475569" />
+              </button>
+            </div>
+          </div>
+
+          {/* Calendar Grid */}
+          <div style={{
+            background: '#ffffff', border: '1px solid #DCE5F0',
+            borderRadius: '12px', padding: '8px', flex: 1,
+            display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
+          }}>
+            {/* Day headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginBottom: '4px' }}>
+              {DAY_LABELS.map(d => (
+                <div key={d} style={{
+                  textAlign: 'center', fontSize: '9px', fontWeight: '800',
+                  color: '#8893A7', letterSpacing: '0.05em', padding: '2px 0',
+                  textTransform: 'uppercase',
+                }}>
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {/* Day cells */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px' }}>
+              {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
+
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                const ds = toDateStr(viewYear, viewMonth, day);
+                const isToday    = ds === todayStr;
+                const isSelected = ds === selectedDate;
+                const dayEvents  = allEvents[ds] || [];
+                const eventCount = dayEvents.length;
+
+                let bg    = 'transparent';
+                let color = '#334155';
+                if (isSelected)      { bg = '#6366f1'; color = '#ffffff'; }
+                else if (isToday)    { bg = '#eef2ff'; color = '#6366f1'; }
+                else if (eventCount) { bg = 'transparent'; }
+
+                const dotColors = [...new Set(dayEvents.map(e => EVENT_TYPES[e.type]?.color).filter(Boolean))].slice(0, 3);
+
+                return (
+                  <div
+                    key={day}
+                    className="cal-day-cell"
+                    style={{ background: bg, color, fontWeight: isToday || isSelected ? '800' : '600' }}
+                    onClick={() => setSelectedDate(ds)}
+                    title={eventCount > 0 ? `${eventCount} event${eventCount > 1 ? 's' : ''}` : ''}
+                  >
+                    <span style={{ lineHeight: 1 }}>{day}</span>
+                    {eventCount > 0 && (
+                      <div className="cal-day-dots">
+                        {dotColors.map((c, idx) => (
+                          <div key={idx} className="cal-dot"
+                            style={{ background: isSelected ? 'rgba(255,255,255,0.75)' : c }} />
+                        ))}
+                        {eventCount > dotColors.length && (
+                          <div className="cal-dot"
+                            style={{ background: isSelected ? 'rgba(255,255,255,0.4)' : '#8893A7' }} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── RIGHT COLUMN (60%): Agenda Panel ── */}
+        <div className="cal-split-right">
+          <div style={{
+            background: '#ffffff', border: '1px solid #DCE5F0',
+            borderRadius: '12px', overflow: 'hidden',
+            flex: 1, display: 'flex', flexDirection: 'column', minHeight: '260px',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '10px 14px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: 'linear-gradient(to right, #F5FAFE, #ffffff)',
+              flexShrink: 0,
+            }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: '#24345C' }}>
+                  Agenda for {selectedLabel}
+                </div>
+                <div style={{ fontSize: '10.5px', color: '#8893A7', fontWeight: '600', marginTop: '2px' }}>
+                  {selectedEvents.length === 0
+                    ? 'No events scheduled'
+                    : `${selectedEvents.length} event${selectedEvents.length !== 1 ? 's' : ''} scheduled`}
+                </div>
               </div>
-            ))
-          )}
+              {selectedEvents.length > 0 && (
+                <span style={{
+                  fontSize: '11px', fontWeight: '800', color: '#6366f1',
+                  background: '#eef2ff', border: '1px solid #c7d2fe',
+                  padding: '3px 10px', borderRadius: '20px',
+                }}>
+                  {selectedEvents.length}
+                </span>
+              )}
+            </div>
+
+            {/* Type summary pills */}
+            {Object.keys(eventTypeCounts).length > 0 && (
+              <div style={{
+                padding: '7px 14px', display: 'flex', gap: '5px', flexWrap: 'wrap',
+                borderBottom: '1px solid #f1f5f9', flexShrink: 0,
+              }}>
+                {Object.entries(eventTypeCounts).map(([type, count]) => {
+                  const cfg = EVENT_TYPES[type];
+                  if (!cfg) return null;
+                  return (
+                    <span key={type} style={{
+                      fontSize: '9.5px', fontWeight: '700', color: cfg.color,
+                      background: cfg.bg, border: `1px solid ${cfg.color}28`,
+                      padding: '2px 7px', borderRadius: '20px',
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    }}>
+                      {count} {cfg.label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Events scrollable list */}
+            <div className="agenda-scroll" style={{
+              flex: 1, overflowY: 'auto',
+              padding: '12px 14px',
+              display: 'flex', flexDirection: 'column', gap: '7px',
+            }}>
+              {selectedEvents.length === 0 ? (
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  padding: '24px 0', color: '#8893A7',
+                }}>
+                  <div style={{
+                    width: '38px', height: '38px', borderRadius: '50%',
+                    background: '#F5FAFE', border: '1px solid #DCE5F0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <AlertCircle size={18} color="#94A3B8" />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569' }}>No events scheduled</div>
+                    <div style={{ fontSize: '11px', color: '#8893A7', marginTop: '2px' }}>
+                      Click any highlighted date to view its agenda
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                selectedEvents.map((event, idx) => (
+                  <div
+                    key={`${event.id}-${idx}`}
+                    className="agenda-event-row"
+                    style={{ animationDelay: `${idx * 35}ms` }}
+                  >
+                    <EventChip event={event} />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

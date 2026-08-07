@@ -29,8 +29,8 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
   'store':          ['Store', 'Store Manager', 'Plant Head', 'Super Admin', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
   'qc':             ['QC', 'Plant Head', 'Super Admin', 'QC_INSPECTOR', 'ADMIN', 'SUPER_ADMIN'],
   'dispatch':       ['Dispatch', 'Super Admin', 'Plant Head', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'Dispatch Executive', 'DISPATCH_EXECUTIVE', 'ADMIN', 'SUPER_ADMIN'],
-  'finance-executive': ['Finance Executive', 'Finance', 'Finance Manager', 'Finance Lead', 'FINANCE_EXECUTIVE', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
-  'finance':        ['Finance', 'Finance Executive', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'finance-executive': ['Finance Executive', 'FINANCE_EXECUTIVE', 'Finance Manager', 'Finance Lead', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'finance':        ['Finance', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'hr':             ['HR', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
 };
 

@@ -195,13 +195,13 @@ export default function DeliveryRunPage() {
     }
   };
 
-  // Active delivery list columns
   const activeColumns: ColumnDef<Dispatch>[] = [
     {
       accessorKey: "dispatchNo",
       header: "Dispatch Number",
+      size: 160,
       cell: ({ row }) => (
-        <span className="font-semibold text-blue-600">
+        <span className="font-semibold text-blue-600 whitespace-nowrap">
           {row.original.dispatchNo}
         </span>
       ),
@@ -209,33 +209,41 @@ export default function DeliveryRunPage() {
     {
       id: "customer",
       header: "Customer",
+      size: 180,
       cell: ({ row }) => (
-        <span>{row.original.salesOrder?.customer?.companyName}</span>
+        <span className="font-medium text-gray-900 whitespace-nowrap">{row.original.salesOrder?.customer?.companyName || "—"}</span>
       ),
     },
     {
       accessorKey: "driverName",
       header: "Driver",
-      cell: ({ row }) => <span>{row.original.driverName || "-"}</span>,
+      size: 140,
+      cell: ({ row }) => <span className="whitespace-nowrap">{row.original.driverName || "-"}</span>,
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      size: 140,
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap inline-flex items-center">
+          <StatusBadge status={row.original.status} />
+        </div>
+      ),
     },
     {
       id: "actions",
-      header: () => <div className="text-right">Action</div>,
+      header: () => <div className="text-right whitespace-nowrap">Action</div>,
+      size: 170,
       cell: ({ row }) => (
-        <div className="flex justify-end">
+        <div className="flex justify-end whitespace-nowrap">
           <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleSelectDispatch(row.original)}
-          className="border-blue-200 text-blue-600 hover:bg-blue-50 flex items-center gap-1"
-        >
-          Confirm Delivery
-          <ArrowRight className="h-3 w-3" />
+            variant="default"
+            size="sm"
+            onClick={() => handleSelectDispatch(row.original)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0"
+          >
+            Confirm Delivery
+            <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       ),

@@ -33,15 +33,14 @@ export default function Page() {
     setIsMounted(true);
   }, []);
 
-  const subPath = (params?.slug as string[])?.[0] || 'dashboard';
-  const isExec = user?.role === 'Finance Executive' || user?.role === 'FINANCE_EXECUTIVE';
-  const isRestricted = isMounted && isExec && RESTRICTED_FOR_EXECUTIVE.includes(subPath);
+  const rawRole = typeof user?.role === 'object' ? user?.role?.code || user?.role?.name : user?.role;
+  const isExec = rawRole === 'Finance Executive' || rawRole === 'FINANCE_EXECUTIVE';
 
-  if (isRestricted) {
+  if (isMounted && isExec) {
     return (
       <AccessDenied 
-        requiredRole="Finance" 
-        message="Access Denied: As a Finance Executive, you are not authorized to view restricted Finance settings, payroll, ledger, expenses, or procurement operations." 
+        requiredRole="Finance Manager" 
+        message="Access Denied: The /finance workspace and Finance Sales are reserved exclusively for the Finance Manager (sahad.accounts@himalayaerp.com). Finance Executives should use the /finance-executive portal." 
       />
     );
   }

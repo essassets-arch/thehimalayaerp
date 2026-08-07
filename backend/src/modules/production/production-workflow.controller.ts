@@ -149,14 +149,14 @@ export class ProductionWorkflowController {
   // QC FAILED
   // ==========================================
   @Get('production/qc-failed')
-  @RequirePermissions('production.floor.read')
+  @RequirePermissions('production.floor.read', 'production.qc.read', 'production.productionworkflow.read')
   async getQCFailed() {
     const data = await this.workflowService.getJobsByStatus(['QC_FAILED']);
     return { success: true, data };
   }
 
   @Post('production/:id/start-rework')
-  @RequirePermissions('production.floor.rework')
+  @RequirePermissions('production.floor.rework', 'production.floor.start', 'production.floor.create')
   async startRework(@Param('id') id: string, @Req() req: any) {
     return this.workflowService.startRework(id, req.user?.sub || 'system');
   }

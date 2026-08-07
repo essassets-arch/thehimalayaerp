@@ -44,7 +44,7 @@ export class WorkOrdersService {
         productionPlan: {
           include: {
             salesOrder: {
-              include: { customer: true, items: true },
+              include: { customer: true, items: true, sourceQuotation: true },
             },
           },
         },

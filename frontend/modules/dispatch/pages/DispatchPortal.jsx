@@ -21,11 +21,11 @@ import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
 import { backendFetch } from '../../../lib/backendFetch';
 
-export default function DispatchPortal() {
+export default function DispatchPortal({ view: propView } = {}) {
   const params = useParams();
   const pathname = usePathname();
   const pathSegments = pathname?.split('/').filter(Boolean) || [];
-  const view = params?.slug?.[0] || (pathSegments[0] === 'dispatch' ? pathSegments[1] : undefined);
+  const view = propView || params?.slug?.[0] || (pathSegments[0] === 'dispatch' ? pathSegments[1] : undefined);
   const orderId = params?.slug?.[1];
   const currentView = view || (orderId ? 'partial' : 'dashboard');
   const navigate = useRouter();
@@ -45,6 +45,87 @@ export default function DispatchPortal() {
   const [backendFinishedGoods, setBackendFinishedGoods] = useState([]);
   const [backendReturns, setBackendReturns] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [fgStockTab, setFgStockTab] = useState('all');
+
+  const storeFinishedGoods = useMemo(() => {
+    return state.production?.finishedGoods || [];
+  }, [state.production?.finishedGoods]);
+
+  const combinedFinishedGoodsStock = useMemo(() => {
+    const map = new Map();
+
+    // 1. Backend Finished Goods
+    (backendFinishedGoods || []).forEach((item) => {
+      const id = String(item.id || item.workOrderId || `fg-${item.jobNo}`);
+      map.set(id, {
+        id,
+        workOrderId: item.workOrderId || item.id,
+        jobNo: item.jobNo || item.workOrder?.workOrderNumber || `WO-${id.slice(-6)}`,
+        productName: item.productName || item.product?.name || item.workOrder?.salesOrderItem?.product?.name || 'Finished Product',
+        productCode: item.productCode || item.product?.sku || item.product?.publicId || 'FG-STOCK',
+        customerName: item.customerName || item.workOrder?.productionPlan?.salesOrder?.customer?.companyName || item.workOrder?.productionPlan?.salesOrder?.customer?.name || 'Factory Staging Area',
+        quantity: Number(item.quantity || 1),
+        availableQuantity: Number(item.availableQuantity ?? item.quantity ?? 1),
+        unit: item.unit || 'Pcs',
+        status: item.status || 'AVAILABLE',
+        location: item.location || 'Factory Staging Area',
+        receivedAt: item.receivedAt || item.completedAt || new Date().toISOString(),
+        salesOrderNumber: item.workOrder?.productionPlan?.salesOrder?.orderNumber || item.salesOrderNumber || '—',
+        rawItem: item,
+      });
+    });
+
+    // 2. Store Finished Goods
+    (storeFinishedGoods || []).forEach((item) => {
+      const id = String(item.id || item.workOrderId || `fg-${item.jobNo}`);
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          workOrderId: item.workOrderId || item.id,
+          jobNo: item.jobNo || item.workOrderNumber || `WO-${id.slice(-6)}`,
+          productName: item.productName || item.name || 'Finished Product',
+          productCode: item.productCode || item.batchId || 'FG-STOCK',
+          customerName: item.customerName || 'Factory Staging Area',
+          quantity: Number(item.quantity || item.totalQuantity || 1),
+          availableQuantity: Number(item.availableQuantity ?? item.quantity ?? 1),
+          unit: item.unit || 'Pcs',
+          status: item.status || 'AVAILABLE',
+          location: item.location || 'Factory Staging Area',
+          receivedAt: item.receivedAt || item.createdAt || new Date().toISOString(),
+          salesOrderNumber: item.salesOrderNumber || item.orderId || '—',
+          rawItem: item,
+        });
+      }
+    });
+
+    // 3. Ready Work Orders if not already in finished goods map
+    (backendReadyWorkOrders || []).forEach((wo) => {
+      const id = `fg-wo-${wo.id}`;
+      const woNo = wo.workOrderNumber || wo.jobNo || `WO-${wo.id}`;
+      const exists = Array.from(map.values()).some((fg) => fg.workOrderId === wo.id || fg.jobNo === woNo);
+      if (!exists) {
+        const qty = Number(wo.quantity || 1);
+        map.set(id, {
+          id,
+          workOrderId: wo.id,
+          jobNo: woNo,
+          productName: wo.salesOrderItem?.product?.name || wo.productName || 'Finished Product Batch',
+          productCode: wo.salesOrderItem?.product?.sku || wo.productCode || 'FG-STOCK',
+          customerName: wo.productionPlan?.salesOrder?.customer?.companyName || wo.productionPlan?.salesOrder?.customer?.name || 'Factory Staging Area',
+          quantity: qty,
+          availableQuantity: qty,
+          unit: wo.salesOrderItem?.unit || wo.unit || 'Pcs',
+          status: 'READY_FOR_DISPATCH',
+          location: 'Factory Staging Area',
+          receivedAt: wo.completedAt || new Date().toISOString(),
+          salesOrderNumber: wo.productionPlan?.salesOrder?.orderNumber || '—',
+          rawItem: wo,
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [backendFinishedGoods, storeFinishedGoods, backendReadyWorkOrders]);
 
   const fetchDashboardData = async () => {
     setDashboardLoading(true);
@@ -3517,64 +3598,35 @@ export default function DispatchPortal() {
   };
 
   const renderFinishedGoods = () => {
-    const handleCreateDispatchFromFG = async (fg) => {
-      const { value: formValues } = await Swal.fire({
-        title: `Create Consignment — ${fg.jobNo || fg.workOrderId || fg.id}`,
-        html: `
-          <div style="text-align:left;display:flex;flex-direction:column;gap:12px;padding:8px 0">
-            <label style="font-size:13px;font-weight:700;color:#475569">Product</label>
-            <input class="swal2-input" value="${fg.productName || 'Finished Product'}" readonly style="margin:0;background:#f8fafc;font-size:14px" />
-            <label style="font-size:13px;font-weight:700;color:#475569">Available Quantity</label>
-            <input class="swal2-input" value="${fg.availableQuantity ?? fg.quantity ?? 1} ${fg.unit || 'Pcs'}" readonly style="margin:0;background:#f8fafc;font-size:14px" />
-            <label style="font-size:13px;font-weight:700;color:#475569">Vehicle Number</label>
-            <input id="swal-vehicle" class="swal2-input" placeholder="e.g. UK-07-1234" style="margin:0;font-size:14px" />
-            <label style="font-size:13px;font-weight:700;color:#475569">Driver Name</label>
-            <input id="swal-driver" class="swal2-input" placeholder="e.g. Ramesh Kumar" style="margin:0;font-size:14px" />
-            <label style="font-size:13px;font-weight:700;color:#475569">Driver Mobile</label>
-            <input id="swal-mobile" class="swal2-input" placeholder="e.g. 9876543210" style="margin:0;font-size:14px" />
-          </div>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Create Dispatch',
-        cancelButtonText: 'Cancel',
-        preConfirm: () => {
-          const vehicleNumber = document.getElementById('swal-vehicle').value.trim();
-          const driverName = document.getElementById('swal-driver').value.trim();
-          const driverMobile = document.getElementById('swal-mobile').value.trim();
-          if (!vehicleNumber || !driverName) {
-            Swal.showValidationMessage('Vehicle number and driver name are required.');
-            return false;
-          }
-          return { vehicleNumber, driverName, driverMobile };
-        }
-      });
-      if (!formValues) return;
-      try {
-        const payload = {
-          workOrderId: fg.workOrderId || fg.id,
-          vehicleNumber: formValues.vehicleNumber,
-          driverName: formValues.driverName,
-          driverMobile: formValues.driverMobile,
-          quantity: fg.availableQuantity ?? fg.quantity ?? 1,
-        };
-        await backendFetch('/api/backend/logistics/dispatches', {
-          method: 'POST',
-          body: payload,
-        });
-        await Swal.fire({ icon: 'success', title: 'Dispatch Created', text: `Consignment created successfully for ${fg.jobNo || fg.productName}.`, timer: 1500, showConfirmButton: false });
-        fetchDashboardData();
-      } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to create dispatch' });
-      }
-    };
+    const allStock = combinedFinishedGoodsStock;
+    const readyStock = allStock.filter(i => (i.availableQuantity > 0) && !['DISPATCHED', 'DELIVERED'].includes(i.status));
+    const dispatchedStock = allStock.filter(i => i.availableQuantity === 0 || ['DISPATCHED', 'DELIVERED'].includes(i.status));
 
-    const totalQty = backendFinishedGoods.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-    const availableQty = backendFinishedGoods.reduce((sum, item) => sum + Number(item.availableQuantity ?? item.quantity ?? 0), 0);
-    const totalBatches = backendFinishedGoods.length;
+    const displayedStock = fgStockTab === 'ready' ? readyStock : fgStockTab === 'dispatched' ? dispatchedStock : allStock;
+
+    const totalQty = allStock.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const availableQty = allStock.reduce((sum, item) => sum + Number(item.availableQuantity ?? item.quantity ?? 0), 0);
+    const totalBatches = allStock.length;
+    const readyBatches = readyStock.length;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {/* KPI Cards */}
+        {/* Header Eyebrow */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <span style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', color: '#0284c7', letterSpacing: '0.5px' }}>
+              Logistics &amp; Dispatch Portal
+            </span>
+            <h1 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '2px 0 0 0' }}>
+              Finished Goods Inventory (Read Only)
+            </h1>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
+              Read-only stock ledger of all finished goods in warehouse staging.
+            </p>
+          </div>
+        </div>
+
+        {/* Stock KPI Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
           <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
             <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'grid', placeItems: 'center' }}>
@@ -3592,7 +3644,7 @@ export default function DispatchPortal() {
             </div>
             <div>
               <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{availableQty.toLocaleString()}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Ready for Dispatch Qty</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Dispatchable Stock Qty</div>
             </div>
           </div>
 
@@ -3602,44 +3654,106 @@ export default function DispatchPortal() {
             </div>
             <div>
               <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalBatches}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>QC Approved Product Batches</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Product Batches</div>
+            </div>
+          </div>
+
+          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#fef3c7', color: '#d97706', display: 'grid', placeItems: 'center' }}>
+              <ClipboardList size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{readyBatches}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Batches Ready for Dispatch</div>
             </div>
           </div>
         </div>
 
-        {/* Finished Goods Inventory Table */}
+        {/* Finished Goods Inventory Table (Read Only) */}
         <div className="app-card">
           <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <h2 className="card-heading" style={{ margin: 0 }}>Finished Goods Staging Inventory</h2>
-              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
-                All completed manufacturing products ready in warehouse staging for transport allocation.
-              </p>
+            {/* Filter Tabs */}
+            <div style={{ display: 'flex', gap: '8px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+              <button
+                type="button"
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: fgStockTab === 'all' ? '#ffffff' : 'transparent',
+                  color: fgStockTab === 'all' ? '#0f172a' : '#64748b',
+                  boxShadow: fgStockTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                }}
+                onClick={() => setFgStockTab('all')}
+              >
+                All Stock ({allStock.length})
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: fgStockTab === 'ready' ? '#ffffff' : 'transparent',
+                  color: fgStockTab === 'ready' ? '#0f172a' : '#64748b',
+                  boxShadow: fgStockTab === 'ready' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                }}
+                onClick={() => setFgStockTab('ready')}
+              >
+                Available for Dispatch ({readyStock.length})
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: fgStockTab === 'dispatched' ? '#ffffff' : 'transparent',
+                  color: fgStockTab === 'dispatched' ? '#0f172a' : '#64748b',
+                  boxShadow: fgStockTab === 'dispatched' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                }}
+                onClick={() => setFgStockTab('dispatched')}
+              >
+                Dispatched / Allocated ({dispatchedStock.length})
+              </button>
             </div>
           </div>
 
           <DataTable
             columns={[
+              { header: 'Sales Order', accessor: 'salesOrderNumber', render: (row) => <span style={{ color: '#2563eb', fontWeight: '700' }}>{row.salesOrderNumber || '—'}</span> },
               { header: 'WO Number', accessor: 'jobNo', render: (row) => <strong>{row.jobNo || row.workOrderId || 'WO-STOCK'}</strong> },
-              { header: 'Product Name', accessor: 'productName', render: (row) => <div><strong>{row.productName || 'Finished Product'}</strong><br/><span style={{ fontSize: '11px', color: '#64748b' }}>{row.productCode || 'FG-STOCK'}</span></div> },
-              { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || 'Factory Staging' },
-              { header: 'Total Quantity', accessor: 'quantity', render: (row) => <span>{row.quantity} {row.unit || 'Pcs'}</span> },
-              { header: 'Dispatchable Quantity', accessor: 'availableQuantity', render: (row) => <strong style={{ color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>{row.availableQuantity ?? row.quantity} {row.unit || 'Pcs'}</strong> },
-              { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || 'AVAILABLE'} /> },
+              {
+                header: 'Product', accessor: 'productName', render: (row) => (
+                  <div>
+                    <strong>{row.productName || 'Finished Product'}</strong>
+                    <br />
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Code: {row.productCode || 'FG-STOCK'}</span>
+                  </div>
+                )
+              },
+              { header: 'Qty', accessor: 'quantity', render: (row) => <span>{row.quantity} {row.unit || 'Pcs'}</span> },
+              {
+                header: 'Available Qty', accessor: 'availableQuantity', render: (row) => (
+                  <strong style={{ color: row.availableQuantity > 0 ? '#10b981' : '#64748b', background: row.availableQuantity > 0 ? '#ecfdf5' : '#f1f5f9', padding: '3px 8px', borderRadius: '999px', border: row.availableQuantity > 0 ? '1px solid #a7f3d0' : '1px solid #cbd5e1' }}>
+                    {row.availableQuantity ?? row.quantity} {row.unit || 'Pcs'}
+                  </strong>
+                )
+              },
             ]}
-            data={backendFinishedGoods}
+            data={displayedStock}
             searchQuery={globalSearch}
             searchField="productName"
-            actions={(row) => (
-              <button
-                className="action-btn"
-                style={{ background: 'var(--color-primary, #0f172a)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={() => handleCreateDispatchFromFG(row)}
-              >
-                <Truck size={14} /> Allocate &amp; Dispatch
-              </button>
-            )}
-            emptyMessage="No finished goods currently in staging inventory."
+            emptyMessage="No finished goods stock items found for this filter."
           />
         </div>
       </div>

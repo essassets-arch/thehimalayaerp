@@ -56,6 +56,38 @@ export default function FinanceSalesConfirmationView() {
   };
 
   const paymentConfirmations = React.useMemo(() => {
+    const getStorageConfirmations = () => {
+      try {
+        const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
+        if (raw) {
+          const list = JSON.parse(raw);
+          return list.map((c) => ({
+            id: c.id || `PC-${Date.now()}`,
+            orderId: c.orderId || c.orderNo,
+            amount: Number(c.amount || 0),
+            paymentDate: c.createdAt || new Date().toISOString(),
+            method: c.paymentMode || c.method || 'BANK_TRANSFER',
+            transactionReference: c.referenceNumber || c.transactionReference || 'UTR-88992233',
+            proofDocument: c.proofDocument || c.proofUrl,
+            status: c.status || 'FINANCE_VERIFICATION_PENDING',
+            financeRemarks: c.remarks,
+            createdAt: c.createdAt,
+            source: 'local_storage',
+            orderSnapshot: {
+              id: c.orderId || c.orderNo,
+              orderNo: c.orderNo || c.orderNumber || c.orderId,
+              invoiceNo: `INV-${String(c.orderNo || c.orderId).replace(/^ORD-/, '').slice(-6)}`,
+              customerName: c.customerName || 'today new lead',
+              salesperson: 'Sales',
+              grandTotal: Number(c.amount || 0),
+              totalAmount: Number(c.amount || 0),
+            },
+          }));
+        }
+      } catch {}
+      return [];
+    };
+
     const localConfirmations = (state.finance?.customerPayments || []).map((p) => ({
       id: p.id,
       orderId: p.orderId,
@@ -106,7 +138,7 @@ export default function FinanceSalesConfirmationView() {
           },
         };
       });
-    return [...localConfirmations, ...persistedConfirmations];
+    return [...getStorageConfirmations(), ...localConfirmations, ...persistedConfirmations];
   }, [state.finance?.customerPayments, backendPayments]);
 
   const [activeTab, setActiveTab] = useState('Payment Outstanding');
@@ -277,7 +309,7 @@ export default function FinanceSalesConfirmationView() {
   };
 
   return (
-    <div className="finance-verification-page">
+    <div className="finance-verification-page w-full" style={{ width: '100%', maxWidth: '100%' }}>
       <div className="finance-verification-header">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Finance Payment Verification</h1>
@@ -285,7 +317,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
       </div>
 
-      <div className="payment-verification-table-card">
+      <div className="payment-verification-table-card w-full" style={{ width: '100%', maxWidth: '100%' }}>
         {/* Tabs */}
         <div className="finance-verification-tabs">
           {['Payment Outstanding', 'Sales Confirmations', 'Verified Payments', 'Rejected Payments', 'Closed Orders'].map((tab) => (

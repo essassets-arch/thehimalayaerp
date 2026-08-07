@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import Swal from 'sweetalert2';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '../store/erpStore';
 import { backendFetch } from '../lib/backendFetch';
@@ -42,10 +42,11 @@ const computeReminderStatus = (nextDate, currentStatus) => {
 
 export default function PaymentFollowupERPView({ orders = [] }) {
   const navigate = useRouter();
+  const searchParams = useSearchParams();
   const canonicalState = useERPStore(store => store.state);
   const canonicalOrders = canonicalState?.sales?.orders || [];
   const canonicalQuotations = canonicalState?.sales?.quotations || [];
-  const paymentConfirmations = canonicalState?.sales?.paymentConfirmations || [];
+  const storeConfirmations = canonicalState?.sales?.paymentConfirmations || [];
   const consignments = canonicalState?.dispatch?.consignments || [];
   const isCompact = useMediaQuery('(max-width: 1024px)');
   const [activeTab, setActiveTab] = useState('all'); // all | reminders | overdue | completed
@@ -57,6 +58,21 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const [loadingPending, setLoadingPending] = useState(true);
   const [loadingFollowups, setLoadingFollowups] = useState(true);
   const [reminderFilter, setReminderFilter] = useState('All');
+
+  const [localConfirmations, setLocalConfirmations] = useState([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
+      if (raw) {
+        setLocalConfirmations(JSON.parse(raw));
+      }
+    } catch {}
+  }, []);
+
+  const paymentConfirmations = useMemo(() => {
+    return [...localConfirmations, ...storeConfirmations];
+  }, [localConfirmations, storeConfirmations]);
 
   const refreshPending = async () => {
     setLoadingPending(true);
@@ -87,7 +103,10 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   useEffect(() => {
     refreshPending();
     refreshFollowups();
-  }, []);
+    if (searchParams && (searchParams.get('tab') === 'confirmed' || searchParams.get('filter') === 'confirmed')) {
+      setPendingFilter('confirmed');
+    }
+  }, [searchParams]);
 
 
 
@@ -449,8 +468,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
   const pendingRows = useMemo(() => {
     const apiRows = pendingCollection || [];
+    const syntheticCandidates = localConfirmations.map((c) => ({
+      id: c.orderId || c.orderNo,
+      order_number: c.orderNo || c.orderNumber || c.orderId,
+      orderNo: c.orderNo || c.orderNumber || c.orderId,
+      customer_name: c.customerName,
+      customerName: c.customerName,
+      grand_total: Number(c.amount || 0),
+      totalAmount: Number(c.amount || 0),
+      verified_paid_amount: 0,
+      balance_amount: Number(c.amount || 0),
+      payment_status: 'AWAITING_FINANCE_VERIFICATION',
+      orderStatus: 'DELIVERED',
+      deliveredAt: c.createdAt || new Date().toISOString()
+    }));
     // API/legacy records are fallbacks; canonical Zustand orders must win deduplication.
-    const allCandidates = [...apiRows, ...(orders || []), ...canonicalOrders];
+    const allCandidates = [...syntheticCandidates, ...apiRows, ...(orders || []), ...canonicalOrders];
     
     const map = new Map();
     allCandidates.forEach(o => {
@@ -466,27 +499,37 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
       if (paySt === 'PAID' || (bal <= 0 && total > 0)) return;
 
+      const matchesRef = (ref1, ref2) => {
+        if (!ref1 || !ref2) return false;
+        const c1 = String(ref1).replace(/^#/, '').trim().toLowerCase();
+        const c2 = String(ref2).replace(/^#/, '').trim().toLowerCase();
+        return c1 === c2 || c1.includes(c2) || c2.includes(c1);
+      };
+
       const orderNo = o.order_number || o.orderNo || o.id;
       if (!orderNo) return;
       const quotation = canonicalQuotations.find(q =>
         String(q.id) === String(o.quotationId || o.quotation_id)
       );
       const consignment = consignments.find(c =>
-        String(c.orderId) === String(o.id) ||
-        String(c.orderId) === String(orderNo)
+        matchesRef(c.orderId, o.id) ||
+        matchesRef(c.orderId, orderNo)
       );
       const confirmations = paymentConfirmations.filter(p =>
-        String(p.orderId) === String(o.id) ||
-        String(p.orderId) === String(orderNo)
+        matchesRef(p.orderId, o.id) ||
+        matchesRef(p.orderId, orderNo) ||
+        matchesRef(p.orderNo, orderNo) ||
+        matchesRef(p.orderNumber, orderNo)
       );
       const verifiedFromConfirmations = confirmations
         .filter(p => ['FINANCE_VERIFIED', 'VERIFIED'].includes(String(p.status || '').toUpperCase()))
         .reduce((sum, p) => sum + Number(p.amount || 0), 0);
       const hasPendingConfirmation = confirmations.some(p =>
-        ['FINANCE_VERIFICATION_PENDING', 'PENDING', 'SUBMITTED_FOR_VERIFICATION'].includes(
-          String(p.status || '').toUpperCase()
+        ['FINANCE_VERIFICATION_PENDING', 'PENDING', 'SUBMITTED_FOR_VERIFICATION', 'AWAITING_FINANCE_VERIFICATION'].includes(
+          String(p.status || p.paymentStatus || '').toUpperCase()
         )
-      );
+      ) || ['AWAITING_FINANCE_VERIFICATION', 'SUBMITTED_FOR_VERIFICATION'].includes(String(o.paymentStatus || o.payment_status || '').toUpperCase());
+
       const resolvedTotal = Number(consignment?.payableAmount ?? total) || total;
       const resolvedPaid = Math.max(paid, verifiedFromConfirmations);
       const resolvedBalance = Math.max(0, resolvedTotal - resolvedPaid);
@@ -533,7 +576,13 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         latest_pv_status: o.latest_pv_status || o.latestPvStatus,
         latest_pv_notes: o.latest_pv_notes || o.latestPvNotes
       };
-      map.set(String(orderNo).toLowerCase(), normalized);
+
+      const key = String(orderNo).toLowerCase();
+      const existing = map.get(key);
+      if (existing && existing.payment_status === 'AWAITING_FINANCE_VERIFICATION' && resolvedPaymentStatus !== 'AWAITING_FINANCE_VERIFICATION') {
+        return;
+      }
+      map.set(key, normalized);
     });
 
     const rows = Array.from(map.values());
@@ -685,17 +734,18 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                           <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>View Payment</button>
                         ) : paymentKey === 'PARTIALLY_PAID' ? (
                           <>
-                            <button className="btn-small btn-primary-small" onClick={() => openConfirmPayment(o)}>Confirm Remaining Payment</button>
+                            <button className="btn-small btn-primary-small" onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
+                            <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>Add Follow-up</button>
                             <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>View History</button>
                           </>
                         ) : o.latest_pv_status === 'REJECTED' ? (
                           <>
                             <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>Rejected{o.latest_pv_notes ? ` (Reason: ${o.latest_pv_notes})` : ''}</span>
-                            <button className="btn-small btn-primary-small" onClick={() => openConfirmPayment(o)}>Confirm Payment</button>
+                            <button className="btn-small btn-primary-small" onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
                           </>
                         ) : (
                           <>
-                            <button className="btn-small btn-primary-small" onClick={() => openConfirmPayment(o)}>Confirm Payment</button>
+                            <button className="btn-small btn-primary-small" onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
                             <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>Add Follow-up</button>
                           </>
                         )}
@@ -771,7 +821,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                             ) : paymentKey === 'PARTIALLY_PAID' ? (
                               <div style={{ display: 'inline-flex', gap: 8 }}>
                                 <button className="btn-small btn-primary-small" onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
-                                <button className="btn-small btn-outline-small" onClick={() => openConfirmPayment(o)}>Quick Modal</button>
+                                <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>Add Follow-up</button>
                                 <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>History</button>
                               </div>
                             ) : o.latest_pv_status === 'REJECTED' ? (
@@ -784,7 +834,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                             ) : (
                               <div style={{ display: 'inline-flex', gap: 8 }}>
                                 <button className="btn-small btn-primary-small" style={{ background: '#2563eb', borderColor: '#2563eb', color: '#fff' }} onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
-                                <button className="btn-small btn-outline-small" onClick={() => openConfirmPayment(o)}>Quick Record</button>
                                 <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>Add Follow-up</button>
                               </div>
                             )}

@@ -110,21 +110,19 @@
   border: 0;
   border-radius: 0;
   box-shadow: none;
+  scrollbar-width: thin;
 }
 .tableFrame :global(table) {
   width: 100%;
   min-width: 760px;
   border-collapse: collapse;
 }
-.tableFrame :global(thead) {
-  background: #f8fafc;
-}
 .tableFrame :global(th) {
   height: 44px;
   padding: 0 16px;
   border-bottom: 1px solid #e2e8f0;
   color: #64748b;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.055em;
   text-transform: uppercase;
@@ -137,6 +135,7 @@
   color: #334155;
   font-size: 13px;
   vertical-align: middle;
+  white-space: nowrap;
 }
 .tableFrame :global(tbody tr:last-child td) {
   border-bottom: 0;

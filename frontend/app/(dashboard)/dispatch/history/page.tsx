@@ -52,8 +52,9 @@ export default function DeliveryHistoryPage() {
     {
       accessorKey: "dispatchNo",
       header: "Dispatch Number",
+      size: 160,
       cell: ({ row }) => (
-        <span className="font-semibold text-gray-800 text-sm whitespace-nowrap">
+        <span className="font-semibold text-blue-600 text-sm whitespace-nowrap">
           {row.original.dispatchNo}
         </span>
       ),
@@ -61,8 +62,9 @@ export default function DeliveryHistoryPage() {
     {
       id: "customer",
       header: "Customer",
+      size: 180,
       cell: ({ row }) => (
-        <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+        <span className="text-sm font-medium text-gray-800 whitespace-nowrap">
           {row.original.salesOrder?.customer?.companyName || "N/A"}
         </span>
       ),
@@ -70,6 +72,7 @@ export default function DeliveryHistoryPage() {
     {
       accessorKey: "receivedBy",
       header: "Received By",
+      size: 140,
       cell: ({ row }) => (
         <span className="text-sm text-gray-600 whitespace-nowrap">
           {row.original.receivedBy || "N/A"}
@@ -79,6 +82,7 @@ export default function DeliveryHistoryPage() {
     {
       id: "deliveredAt",
       header: "Delivery Timestamp",
+      size: 180,
       cell: ({ row }) => {
         const date = row.original.deliveredAt
           ? new Date(row.original.deliveredAt).toLocaleString()
@@ -93,8 +97,9 @@ export default function DeliveryHistoryPage() {
     {
       accessorKey: "status",
       header: "Status",
+      size: 140,
       cell: ({ row }) => (
-        <div className="inline-flex items-center whitespace-nowrap">
+        <div className="inline-flex items-center whitespace-nowrap shrink-0">
           <StatusBadge status={row.original.status || "DELIVERED"} />
         </div>
       ),

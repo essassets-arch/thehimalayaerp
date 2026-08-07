@@ -449,9 +449,11 @@ textarea {
 .hero-top-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
   width: 100%;
   min-width: 0;
+  position: relative;
 }
 
 .brand-title {
@@ -460,19 +462,26 @@ textarea {
   color: #ffffff;
   letter-spacing: -0.5px;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  flex-shrink: 0;
+  flex: 1 1 0%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   white-space: nowrap;
+  min-width: 0;
 }
 
 /* Right-side action icon group */
 .hero-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  flex-shrink: 0;
+  flex: 1 1 0%;
+  min-width: 0;
+  margin-left: auto;
 }
 
-/* Hero search box with blur */
+/* Hero search box centered in header bar */
 .hero-search {
   display: flex;
   align-items: center;
@@ -483,11 +492,11 @@ textarea {
   border-radius: var(--radius-xl);
   padding: 8px 16px;
   gap: 10px;
-  /* Fluid width: grows to fill available space, caps at 360px */
-  flex: 1;
-  min-width: 0;
-  max-width: 360px;
+  flex: 0 1 420px;
+  min-width: 240px;
+  max-width: 450px;
   width: 100%;
+  margin: 0 auto;
   transition: var(--transition-smooth);
 }
 
@@ -1903,9 +1912,9 @@ textarea {
 
 .finance-verification-page {
   width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 24px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
   color: #24345C;
 }
 

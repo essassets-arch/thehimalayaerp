@@ -94,7 +94,7 @@
 /* ─── Table base ─── */
 .tableWrapper :global(table) {
     width: 100%;
-    min-width: 860px; /* prevents squashing; allows horizontal scroll */
+    min-width: 980px;
     border-collapse: collapse;
     table-layout: auto !important;
 }
@@ -117,38 +117,50 @@
 
 .tableWrapper :global(td) {
     padding: 14px 16px;
-    font-size: 14px;
+    font-size: 13.5px;
     border-top: 1px solid #f1f5f9;
     color: #1e293b;
     vertical-align: middle;
+    white-space: nowrap;
 }
 
 .tableWrapper :global(tbody tr:hover) {
     background: #f8fafc;
 }
 
-/* Column widths */
+/* 7-column widths */
 .tableWrapper :global(th:nth-child(1)),
 .tableWrapper :global(td:nth-child(1)) {
-    width: 170px;
+    min-width: 170px;
     font-weight: 700;
-    color: #0f172a;
+    color: #2563eb;
 }
 
 .tableWrapper :global(th:nth-child(2)),
-.tableWrapper :global(td:nth-child(2)) { width: 150px; }
+.tableWrapper :global(td:nth-child(2)) { min-width: 150px; }
 
 .tableWrapper :global(th:nth-child(3)),
-.tableWrapper :global(td:nth-child(3)) { width: 150px; }
+.tableWrapper :global(td:nth-child(3)) { min-width: 150px; }
 
 .tableWrapper :global(th:nth-child(4)),
-.tableWrapper :global(td:nth-child(4)) {
-    width: 80px;
+.tableWrapper :global(td:nth-child(4)) { min-width: 160px; }
+
+.tableWrapper :global(th:nth-child(5)),
+.tableWrapper :global(td:nth-child(5)) {
+    min-width: 90px;
     text-align: center;
 }
 
-.tableWrapper :global(th:nth-child(5)),
-.tableWrapper :global(td:nth-child(5)) { width: 110px; }
+.tableWrapper :global(th:nth-child(6)),
+.tableWrapper :global(td:nth-child(6)) {
+    min-width: 130px;
+    text-align: center;
+}
+
+.tableWrapper :global(th:nth-child(7)),
+.tableWrapper :global(td:nth-child(7)) {
+    min-width: 220px;
+}
 
 /* Pagination */
 .tableWrapper :global(.erp-data-table__pagination) {

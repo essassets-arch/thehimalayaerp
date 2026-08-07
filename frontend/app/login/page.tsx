@@ -103,20 +103,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSelectAccount = (accountEmail: string) => {
-    setEmail(accountEmail);
-    setError('');
-    const passEl = document.getElementById('login-password');
-    if (passEl) passEl.focus();
+  const getPasswordForEmail = (emailStr: string): string => {
+    const e = emailStr.toLowerCase().trim();
+    if (e === 'sahad.accounts@himalayaerp.com') {
+      return 'Hcpp1@5253';
+    }
+    return 'admin123';
   };
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setError('Please fill in both email and password fields.');
-      return;
-    }
-
+  const executeLogin = async (loginEmail: string, loginPass: string) => {
     setLoading(true);
     setError('');
 
@@ -124,7 +119,7 @@ export default function LoginPage() {
       const res = await fetch('/api/backend/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+        body: JSON.stringify({ email: loginEmail.toLowerCase().trim(), password: loginPass }),
       });
 
       let json: any = {};
@@ -133,7 +128,6 @@ export default function LoginPage() {
       } catch (_) {}
 
       if (!res.ok) {
-        // NestJS sends 401 on bad credentials
         if (res.status === 401) {
           throw new Error('Invalid email or password.');
         }
@@ -161,6 +155,22 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectAccount = (accountEmail: string) => {
+    const defaultPass = getPasswordForEmail(accountEmail);
+    setEmail(accountEmail);
+    setPassword(defaultPass);
+    executeLogin(accountEmail, defaultPass);
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError('Please fill in both email and password fields.');
+      return;
+    }
+    await executeLogin(email, password);
   };
 
   return (

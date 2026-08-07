@@ -14,7 +14,7 @@ import { productionService } from '../../../services/production.service';
 import { apiClient } from '../../../lib/apiClient';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
-import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileText, CheckCircle, AlertTriangle, AlertCircle, Eye, Edit2, Search, Sliders, X, Download, PackageCheck, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileText, CheckCircle, AlertTriangle, AlertCircle, Eye, Edit2, Search, Sliders, X, Download, PackageCheck, Upload, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import StoreMaterialIssueView from '../../../components/material-workflow/StoreMaterialIssueView';
 import StoreReleasesView from '../../../components/material-workflow/StoreReleasesView';
 import StoreMaterialReturnVerificationView from '../../../components/material-workflow/StoreMaterialReturnVerificationView';
@@ -352,6 +352,7 @@ export default function StorePortal() {
   const [photo2Files, setPhoto2Files] = useState({});
   const [deliveryMetadata, setDeliveryMetadata] = useState({});
   const [lowStockTab, setLowStockTab] = useState('Alerts');
+  const [lowStockFilter, setLowStockFilter] = useState('All');
 
   // Pagination states
   const [rawInvPage, setRawInvPage] = useState(1);
@@ -2070,15 +2071,53 @@ export default function StorePortal() {
   };
 
   const renderLowStockAlerts = () => {
-    const materialIndents = state.procurement?.materialIndents || [];
-    const pendingIndentsCount = materialIndents.filter(ind => ind.status === 'PENDING_PLANT_HEAD_APPROVAL').length;
+    const rawIndents = [
+      ...(state.procurement?.materialIndents || []),
+      ...(state.purchaseIndents || [])
+    ];
+
+    const uniqueIndentsMap = new Map();
+    rawIndents.forEach(ind => {
+      if (ind && (ind.id || ind.publicId)) {
+        uniqueIndentsMap.set(ind.id || ind.publicId, ind);
+      }
+    });
+
+    // Also include any indents submitted in the current session
+    Object.values(submittedIndents).forEach(indentId => {
+      if (indentId && typeof indentId === 'string' && !uniqueIndentsMap.has(indentId)) {
+        uniqueIndentsMap.set(indentId, { id: indentId, status: 'PENDING_PLANT_HEAD_APPROVAL' });
+      }
+    });
+
+    const allIndentsList = Array.from(uniqueIndentsMap.values());
+
+    const isPendingStatus = (st) => {
+      const s = String(st || '').toUpperCase();
+      if (!s) return true;
+      return s === 'PENDING_PLANT_HEAD_APPROVAL' ||
+             s === 'PENDING' ||
+             s === 'PENDING_APPROVAL' ||
+             s === 'REQUESTED' ||
+             s === 'SUBMITTED' ||
+             s === 'DRAFT' ||
+             (!['APPROVED', 'SUPER_ADMIN_APPROVED', 'COMPLETED', 'CLOSED', 'PO_CLOSED', 'REJECTED', 'PLANT_HEAD_REJECTED', 'CANCELLED'].includes(s));
+    };
+
+    const pendingIndentsCount = allIndentsList.filter(ind => isPendingStatus(ind.status)).length;
+    const materialIndents = allIndentsList;
     const mappedInventory = getMappedInventory(state.rawInventory || []);
 
     const outOfStockItems = mappedInventory.filter(item => Number(item.stock || 0) === 0);
     const lowStockItemsOnly = mappedInventory.filter(item => Number(item.stock || 0) > 0 && item.stock <= item.reorderLevel);
+    const allAlertItems = [...outOfStockItems, ...lowStockItemsOnly];
 
-    // Sort: Out of Stock products FIRST, then Low Stock products
-    const sortedLowStockItems = [...outOfStockItems, ...lowStockItemsOnly];
+    // Filter items based on active lowStockFilter state ('All' | 'Out of Stock' | 'Low Stock')
+    const sortedLowStockItems = lowStockFilter === 'Out of Stock'
+      ? outOfStockItems
+      : lowStockFilter === 'Low Stock'
+        ? lowStockItemsOnly
+        : allAlertItems;
 
     const lowStockPageSize = 30;
     const lowStockTotalPages = Math.ceil(sortedLowStockItems.length / lowStockPageSize);
@@ -2086,7 +2125,7 @@ export default function StorePortal() {
 
     const outOfStockCount = outOfStockItems.length;
     const lowStockCount = lowStockItemsOnly.length;
-    const totalAlertsCount = sortedLowStockItems.length;
+    const totalAlertsCount = allAlertItems.length;
 
     const openIndentModal = (item) => {
       setIndentTargetMaterial(item);
@@ -2127,14 +2166,39 @@ export default function StorePortal() {
         await syncData().catch(() => {});
 
         const newIndentId = res?.publicId || res?.id || `INDENT-${Date.now()}`;
+        const newIndentRecord = {
+          id: newIndentId,
+          publicId: newIndentId,
+          materialId: indentTargetMaterial.id,
+          materialCode: indentTargetMaterial.code,
+          materialName: indentTargetMaterial.material,
+          material: indentTargetMaterial.material,
+          currentStock: Number(indentTargetMaterial.stock),
+          minimumStock: Number(indentTargetMaterial.minStock),
+          requiredQuantity: Number(indentRequiredQty),
+          unit: indentTargetMaterial.unit,
+          targetDate: indentTargetDate,
+          priority: indentPriority || 'Medium',
+          remarks: indentRemarks || '',
+          status: 'PENDING_PLANT_HEAD_APPROVAL',
+          createdAt: new Date().toISOString()
+        };
 
-        // Immediately update local submittedIndents state so action button changes to "✓ Indent Created"
+        if (dispatch) {
+          dispatch({
+            type: 'ADD_PURCHASE_INDENT',
+            payload: newIndentRecord
+          });
+        }
+
+        // Immediately update local submittedIndents state so action button changes to "✓ Indent Created" and counter updates
         if (indentTargetMaterial) {
           setSubmittedIndents(prev => ({
             ...prev,
             [indentTargetMaterial.id]: newIndentId,
             [indentTargetMaterial.code]: newIndentId,
-            [indentTargetMaterial.material]: newIndentId
+            [indentTargetMaterial.material]: newIndentId,
+            [newIndentId]: newIndentId
           }));
         }
 
@@ -2188,21 +2252,48 @@ export default function StorePortal() {
           <>
             {/* Summary Cards */}
             <div className="m-theme-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#dc2626' }}>
+              <div 
+                className="m-theme-kpi-card" 
+                onClick={() => { setLowStockFilter('Out of Stock'); setLowStockPage(1); }}
+                style={{ 
+                  '--card-border-color': '#dc2626', 
+                  cursor: 'pointer',
+                  border: lowStockFilter === 'Out of Stock' ? '2px solid #dc2626' : undefined,
+                  boxShadow: lowStockFilter === 'Out of Stock' ? '0 4px 12px rgba(220, 38, 38, 0.15)' : undefined 
+                }}
+              >
                 <span className="m-theme-kpi-label" style={{ color: '#dc2626', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <AlertCircle size={15} color="#dc2626" /> Out of Stock (0 Qty)
                 </span>
                 <span className="m-theme-kpi-value" style={{ color: '#dc2626' }}>{outOfStockCount} Items</span>
               </div>
 
-              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#d97706' }}>
+              <div 
+                className="m-theme-kpi-card" 
+                onClick={() => { setLowStockFilter('Low Stock'); setLowStockPage(1); }}
+                style={{ 
+                  '--card-border-color': '#d97706', 
+                  cursor: 'pointer',
+                  border: lowStockFilter === 'Low Stock' ? '2px solid #d97706' : undefined,
+                  boxShadow: lowStockFilter === 'Low Stock' ? '0 4px 12px rgba(217, 119, 6, 0.15)' : undefined 
+                }}
+              >
                 <span className="m-theme-kpi-label" style={{ color: '#d97706', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <AlertTriangle size={15} color="#d97706" /> Low Stock Warning
                 </span>
                 <span className="m-theme-kpi-value" style={{ color: '#d97706' }}>{lowStockCount} Items</span>
               </div>
 
-              <div className="m-theme-kpi-card" style={{ '--card-border-color': '#2F4375' }}>
+              <div 
+                className="m-theme-kpi-card" 
+                onClick={() => { setLowStockFilter('All'); setLowStockPage(1); }}
+                style={{ 
+                  '--card-border-color': '#2F4375', 
+                  cursor: 'pointer',
+                  border: lowStockFilter === 'All' ? '2px solid #2F4375' : undefined,
+                  boxShadow: lowStockFilter === 'All' ? '0 4px 12px rgba(47, 67, 117, 0.15)' : undefined 
+                }}
+              >
                 <span className="m-theme-kpi-label" style={{ fontWeight: 'bold' }}>Total Critical Alerts</span>
                 <span className="m-theme-kpi-value" style={{ color: '#2F4375' }}>{totalAlertsCount} Items</span>
               </div>
@@ -2211,6 +2302,47 @@ export default function StorePortal() {
                 <span className="m-theme-kpi-label" style={{ fontWeight: 'bold' }}>Pending Indents</span>
                 <span className="m-theme-kpi-value" style={{ color: '#4f46e5' }}>{pendingIndentsCount}</span>
               </div>
+            </div>
+
+            {/* Filter Buttons Toolbar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0 16px 0', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Filter size={15} color="#2F4375" /> Filter Alert Status:
+              </span>
+              {[
+                { id: 'All', label: `All Alerts (${totalAlertsCount})`, color: '#2F4375', activeBg: '#2F4375' },
+                { id: 'Out of Stock', label: `Out of Stock (${outOfStockCount})`, color: '#dc2626', activeBg: '#dc2626' },
+                { id: 'Low Stock', label: `Low Stock (${lowStockCount})`, color: '#d97706', activeBg: '#d97706' }
+              ].map(f => {
+                const isActive = lowStockFilter === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      setLowStockFilter(f.id);
+                      setLowStockPage(1);
+                    }}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: '8px',
+                      border: isActive ? `2px solid ${f.color}` : '1.5px solid #DCE5F0',
+                      background: isActive ? f.activeBg : '#FFFFFF',
+                      color: isActive ? '#FFFFFF' : '#475569',
+                      fontSize: '12.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
+                      boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none'
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Table */}

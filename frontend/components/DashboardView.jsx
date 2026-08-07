@@ -875,19 +875,19 @@ export default function DashboardView({
               </div>
             </div>
 
+            {/* ──📅 DAILY CALENDAR CARD (BELOW CONVERSION TREND) ── */}
+            <div className="app-card" style={{
+              padding: '16px', background: '#ffffff', border: '1px solid var(--color-border)',
+              borderRadius: '12px', minHeight: '480px', display: 'flex', flexDirection: 'column',
+              boxShadow: 'var(--shadow-premium)', marginTop: '20px'
+            }}>
+              <DailyAgendaCalendar state={state} />
+            </div>
+
           </div>
 
           {/* RIGHT COLUMN: Sidebar elements */}
           <div className="sales-dashboard-sidebar-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            
-            {/* Daily Calendar Card */}
-            <div className="app-card" style={{
-              padding: '16px', background: '#ffffff', border: '1px solid var(--color-border)',
-              borderRadius: '12px', height: '480px', display: 'flex', flexDirection: 'column',
-              boxShadow: 'var(--shadow-premium)'
-            }}>
-              <DailyAgendaCalendar state={state} />
-            </div>
 
             {/* ⚠️ SYSTEM ALERTS */}
             <div style={{

@@ -90,7 +90,7 @@ const normalizeIncomingOrder = (order, sourceQuotation) => {
 
   return {
     ...order,
-    orderNo: order.orderNo || order.orderId || order.orderNumber || order.order_no || order.public_id || order.id,
+    orderNo: order.orderNumber || order.orderNo || order.salesOrder?.orderNumber || order.order_no || order.orderId || order.public_id || order.id,
     customerName: order.customerName || order.customer_name || order.customer?.name || sourceQuotation?.customerName || sourceQuotation?.customer_name || '',
     detailedItems,
     products: order.products || order.productItem || order.product_name || productNames,
@@ -2932,12 +2932,12 @@ export default function PlantHeadPortal() {
           plan.id === order.productionPlanId || plan.salesOrderId === order.id
         );
         const items = Array.isArray(order.items) ? order.items : [];
-        const product = items[0] || {};
+        const prodTargetDate = order.productionTargetDate || backendPlan?.plannedEndDate || order.planTargetDate || '';
         return {
           ...order,
           workOrder,
           productionPlan: backendPlan,
-          targetDate: order.targetDate || order.productionTargetDate || backendPlan?.plannedEndDate,
+          targetDate: prodTargetDate || order.targetDate || '',
           workOrderNo: workOrder?.workOrderNo || workOrder?.id || '—',
           products: order.products || order.productItem || product.productName || product.name || '—',
           orderedQuantity: items.reduce((sum, item) => sum + Number(item.quantity ?? item.qty ?? 0), 0),
@@ -2948,6 +2948,7 @@ export default function PlantHeadPortal() {
       })
       .filter(order => {
         const planning = normalizeStatus(order.planningStatus);
+        const hasProdTarget = Boolean(order.productionTargetDate || order.productionPlan?.plannedEndDate || order.planTargetDate);
         const isPlanned = Boolean(
           planning === 'PRODUCTION_PLANNED' ||
           order.status === 'PLANNED' ||
@@ -2957,7 +2958,7 @@ export default function PlantHeadPortal() {
           order.productionPlanId ||
           order.productionPlan ||
           order.workOrder ||
-          order.targetDate ||
+          hasProdTarget ||
           (Array.isArray(order.workOrders) && order.workOrders.length > 0)
         );
 

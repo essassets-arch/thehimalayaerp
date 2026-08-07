@@ -92,11 +92,14 @@ export default function ProductionFloorPage() {
     }
   };
 
-  const filteredJobs = activeJobs.filter((job: any) =>
-    (job.workOrderNumber || job.id)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (job.productionPlan?.planNumber || '')?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (job.workflowState?.name || job.status || '')?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredJobs = activeJobs.filter((job: any) => {
+    const q = searchQuery.toLowerCase();
+    const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
+    const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
+    const planNo = (job.productionPlan?.planNumber || '').toLowerCase();
+    const status = (job.workflowState?.name || job.status || '').toLowerCase();
+    return soNo.includes(q) || woNo.includes(q) || planNo.includes(q) || status.includes(q);
+  });
 
   return (
     <div className={styles.page}>
@@ -127,7 +130,7 @@ export default function ProductionFloorPage() {
               <Search size={16} />
               <input
                 type="text"
-                placeholder="Search jobs..."
+                placeholder="Search sales order, WO..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -158,6 +161,7 @@ export default function ProductionFloorPage() {
             <table>
               <thead>
                 <tr>
+                  <th>Sales Order</th>
                   <th>WO Number</th>
                   <th>Production Plan</th>
                   <th>Customer</th>
@@ -167,29 +171,35 @@ export default function ProductionFloorPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredJobs.map((job: any) => (
-                  <tr key={job.id}>
-                    <td>{job.workOrderNumber || job.id}</td>
-                    <td>{job.productionPlan?.planNumber || job.productionPlan || job.planId || job.productionPlanId || 'PP-00005'}</td>
-                    <td>{job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || job.customer || 'emperorwala'}</td>
-                    <td>{job.quantity || job.orderedQuantity || job.qty}</td>
-                    <td>
-                      <span style={{ 
-                        padding: '4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600,
-                        backgroundColor: (job.workflowState?.name || job.status) === 'REWORK_IN_PROGRESS' ? '#fef3c7' : '#e0e7ff',
-                        color: (job.workflowState?.name || job.status) === 'REWORK_IN_PROGRESS' ? '#d97706' : '#3730a3'
-                      }}>
-                        {String(job.workflowState?.name || job.status || 'STARTED').replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td>
-                      <button onClick={() => handleComplete(job)} className={styles.btnComplete}>
-                        <CheckCircle size={16} style={{ marginRight: '6px' }} />
-                        Complete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredJobs.map((job: any) => {
+                  const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
+                  const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
+                  const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+                  return (
+                    <tr key={job.id}>
+                      <td style={{ fontWeight: 700, color: '#2563eb' }}>{soNo}</td>
+                      <td>{job.workOrderNumber || job.id}</td>
+                      <td>{job.productionPlan?.planNumber || job.productionPlan || job.planId || job.productionPlanId || 'PP-00005'}</td>
+                      <td>{job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || job.customer || 'emperorwala'}</td>
+                      <td>{job.quantity || job.orderedQuantity || job.qty}</td>
+                      <td>
+                        <span style={{ 
+                          padding: '4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600,
+                          backgroundColor: (job.workflowState?.name || job.status) === 'REWORK_IN_PROGRESS' ? '#fef3c7' : '#e0e7ff',
+                          color: (job.workflowState?.name || job.status) === 'REWORK_IN_PROGRESS' ? '#d97706' : '#3730a3'
+                        }}>
+                          {String(job.workflowState?.name || job.status || 'STARTED').replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td>
+                        <button onClick={() => handleComplete(job)} className={styles.btnComplete}>
+                          <CheckCircle size={16} style={{ marginRight: '6px' }} />
+                          Complete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

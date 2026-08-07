@@ -83,7 +83,9 @@ export default function StatusBadge({ status }) {
 
   return (
     <span style={{
-      display: 'inline-block',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       padding: '4px 10px',
       borderRadius: '6px',
       fontSize: '11px',
@@ -92,6 +94,9 @@ export default function StatusBadge({ status }) {
       textTransform: 'capitalize',
       textAlign: 'center',
       whiteSpace: 'nowrap',
+      lineHeight: '1.2',
+      boxSizing: 'border-box',
+      flexShrink: 0,
       ...style
     }}>
       {getStatusDisplay(status)}

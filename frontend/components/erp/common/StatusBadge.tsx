@@ -110,7 +110,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   };
 
   return (
-    <Badge className={cn('font-medium px-2.5 py-0.5 rounded-full border-none', getBadgeVariant(normalized), className)}>
+    <Badge className={cn('font-medium px-2.5 py-0.5 rounded-full border-none whitespace-nowrap inline-flex items-center justify-center shrink-0 tracking-wide text-xs', getBadgeVariant(normalized), className)}>
       {formatStatus(normalized)}
     </Badge>
   );

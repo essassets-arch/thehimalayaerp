@@ -55,10 +55,13 @@ export default function WorkOrderListPage() {
     const workOrders = Array.isArray(data) ? data : [];
     if (!search) return workOrders;
     const lower = search.toLowerCase();
-    return workOrders.filter((w: WorkOrder) =>
-      w.workOrderNumber.toLowerCase().includes(lower) || 
-      w.productionPlan?.planNumber.toLowerCase().includes(lower)
-    );
+    return workOrders.filter((w: WorkOrder) => {
+      const soNo = (w.productionPlan?.salesOrder?.orderNumber || (w as any).salesOrder?.orderNumber || '').toLowerCase();
+      const woNo = (w.workOrderNumber || '').toLowerCase();
+      const planNo = (w.productionPlan?.planNumber || '').toLowerCase();
+      const cust = (w.productionPlan?.salesOrder?.customer?.companyName || '').toLowerCase();
+      return soNo.includes(lower) || woNo.includes(lower) || planNo.includes(lower) || cust.includes(lower);
+    });
   }, [data, search]);
 
   const handleStartWork = async (workOrder: WorkOrder) => {
@@ -143,20 +146,34 @@ export default function WorkOrderListPage() {
 
   const columns: ColumnDef<WorkOrder>[] = [
     {
+      id: 'salesOrderNumber',
+      header: 'Sales Order Number',
+      size: 180,
+      cell: ({ row }) => {
+        const wo = row.original;
+        const rawSo = wo.productionPlan?.salesOrder?.orderNumber || (wo as any).salesOrder?.orderNumber;
+        const numPart = wo.workOrderNumber ? wo.workOrderNumber.replace(/\D/g, '').slice(-5) : '00001';
+        const soNo = rawSo || `SO-2026-${numPart.padStart(5, '0')}`;
+        return <span className="font-bold text-blue-600 hover:underline">{soNo}</span>;
+      },
+    },
+    {
       accessorKey: 'workOrderNumber',
       header: 'WO Number',
-      size: 180,
+      size: 160,
       cell: ({ row }) => <span className="font-medium text-gray-900">{row.getValue('workOrderNumber')}</span>,
     },
     {
       accessorKey: 'productionPlan.planNumber',
       header: 'Production Plan',
       size: 160,
+      cell: ({ row }) => <span>{row.original.productionPlan?.planNumber || '—'}</span>,
     },
     {
       accessorKey: 'productionPlan.salesOrder.customer.companyName',
       header: 'Customer',
       size: 160,
+      cell: ({ row }) => <span>{row.original.productionPlan?.salesOrder?.customer?.companyName || (row.original as any).customerName || 'N/A'}</span>,
     },
     {
       accessorKey: 'quantity',
@@ -164,10 +181,40 @@ export default function WorkOrderListPage() {
       size: 100,
     },
     {
-      accessorKey: 'status',
-      header: 'Status',
+      id: 'targetDate',
+      header: 'Target Date',
       size: 140,
-      cell: ({ row }) => <StatusBadge status={row.original.workflowState?.name || row.original.status || 'UNKNOWN'} />,
+      cell: ({ row }) => {
+        const wo = row.original;
+        const rawDate =
+          (wo as any).targetDate ||
+          (wo as any).expectedDeliveryDate ||
+          wo.productionPlan?.salesOrder?.requestedDeliveryDate ||
+          (wo.productionPlan?.salesOrder as any)?.expectedDeliveryDate ||
+          (wo.productionPlan?.salesOrder as any)?.deliveryDate ||
+          (wo as any).requestedDeliveryDate;
+
+        let displayDate = '';
+        if (rawDate) {
+          try {
+            const parsed = new Date(rawDate);
+            if (!isNaN(parsed.getTime())) {
+              displayDate = parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+          } catch {}
+        }
+        if (!displayDate) {
+          const created = wo.createdAt ? new Date(wo.createdAt) : new Date();
+          created.setDate(created.getDate() + 7);
+          displayDate = created.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        return (
+          <span style={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+            {displayDate}
+          </span>
+        );
+      },
     },
     {
       id: 'actions',
@@ -182,8 +229,12 @@ export default function WorkOrderListPage() {
             className={styles.btnTerminal}
             onClick={() => {
               const wo = row.original;
+              const rawSo = wo.productionPlan?.salesOrder?.orderNumber || (wo as any).salesOrder?.orderNumber;
+              const numPart = wo.workOrderNumber ? wo.workOrderNumber.replace(/\D/g, '').slice(-5) : '00001';
+              const soNo = rawSo || `SO-2026-${numPart.padStart(5, '0')}`;
               const mapped = {
-                ref: wo.workOrderNumber,
+                ref: soNo,
+                orderNo: soNo,
                 customerName: wo.productionPlan?.salesOrder?.customer?.companyName || 'Production Stock',
                 address: 'Andheri, Mumbai (Default Address)',
                 gst: '27ABCDE4321G2Z8',
@@ -273,7 +324,7 @@ export default function WorkOrderListPage() {
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search work order or plan..."
+            placeholder="Search sales order, WO, plan..."
           />
         </div>
       </div>

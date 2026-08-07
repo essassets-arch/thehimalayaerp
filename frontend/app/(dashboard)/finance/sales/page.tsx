@@ -3,11 +3,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function InvoicesDashboard() {
+export default function FinanceSalesRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/finance/payment-verification');
+    router.replace('/finance/dashboard');
   }, [router]);
 
   return null;

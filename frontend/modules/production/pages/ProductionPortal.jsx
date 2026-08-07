@@ -5,7 +5,7 @@ import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
 import Swal from 'sweetalert2';
-import { useERP } from '../../../shared/context/ERPContext';
+import { useERP, useSalesBackend } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
 import { STATUS } from '../../../shared/constants';
 import { useAuth } from '../../../shared/context/AuthContext';
@@ -424,6 +424,7 @@ export default function ProductionPortal() {
   const woIdParam = searchParams.get('woId');
 
   const { state, dispatch, syncData } = useERP();
+  const { salesOrders: backendSalesOrders, loadSalesOrders } = useSalesBackend();
   const { data: workflowMaterialRequests = [] } = useMaterialRequests();
   const { user } = useAuth();
   const showToast = useNotificationStore(s => s.showToast);
@@ -598,7 +599,10 @@ export default function ProductionPortal() {
   useEffect(() => {
     if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
     void loadBackendWorkOrders();
-  }, [view, loadBackendWorkOrders]);
+    if (typeof loadSalesOrders === 'function') {
+      void loadSalesOrders();
+    }
+  }, [view, loadBackendWorkOrders, loadSalesOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
   const [reworkTab, setReworkTab] = useState('failed-list');
@@ -853,11 +857,12 @@ export default function ProductionPortal() {
     }
   };
   const orders = useMemo(() => {
+    const combinedOrders = [...(backendSalesOrders || []), ...(storeOrders || [])];
     const combinedState = {
       ...state,
       sales: {
         ...(state.sales || {}),
-        orders: storeOrders
+        orders: combinedOrders
       }
     };
     return selectProductionWorkOrders(combinedState).map((order) => {
@@ -865,7 +870,7 @@ export default function ProductionPortal() {
       const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
       return normalizeProductionOrder(order, sourceQuotation);
     });
-  }, [state, storeOrders]);
+  }, [state, storeOrders, backendSalesOrders]);
   const filteredStoreWOs = getProductionWorkOrders(state);
   const storeWorkOrders = (filteredStoreWOs && filteredStoreWOs.length > 0) ? filteredStoreWOs : mockWorkOrders;
   const workOrders = useMemo(() => {
@@ -876,7 +881,7 @@ export default function ProductionPortal() {
       return {
         ...o,
         id: o.workOrderId || o.workOrderNo || `WO-${String(o.orderNo || o.id || '').split('-').slice(1).join('-') || o.id}`,
-        orderNo: o.orderNo || o.id,
+        orderNo: o.orderNumber || o.orderNo || o.salesOrder?.orderNumber || o.id,
         productName: o.productName || (typeof o.products === 'string' && o.products ? o.products : (Array.isArray(o.products) ? (o.products[0]?.productName || o.products[0]?.name || o.products[0]) : '')) || (Array.isArray(o.detailedItems) && o.detailedItems.length > 0 ? o.detailedItems.map(i => i.productName || i.name).filter(Boolean).join(', ') : '') || (Array.isArray(o.items) && o.items.length > 0 ? o.items.map(i => i.productName || i.name).filter(Boolean).join(', ') : '') || 'Custom Engineered Product',
         quantity: qty,
         progress: Number(o.progress || 0) || 0,
@@ -895,7 +900,7 @@ export default function ProductionPortal() {
       ) || 0;
       mergedWOsMap.set(wo.id || wo.orderNo, {
         ...wo,
-        orderNo: wo.orderId || wo.orderNo || '',
+        orderNo: wo.salesOrder?.orderNumber || wo.productionPlan?.salesOrder?.orderNumber || wo.orderNumber || wo.orderNo || wo.orderId || '',
         productName: items.length
           ? items.map(item => item.productName || item.name).filter(Boolean).join(', ')
           : (wo.productName || ''),
@@ -920,7 +925,7 @@ export default function ProductionPortal() {
           ...wo,
           ...existing,
           orderId: existing.orderId || wo.orderId || wo.orderNo,
-          orderNo: existing.orderId || existing.orderNo || wo.orderNo,
+          orderNo: (existing.orderNo && existing.orderNo !== '—') ? existing.orderNo : (wo.salesOrder?.orderNumber || wo.productionPlan?.salesOrder?.orderNumber || wo.orderNumber || wo.orderNo || existing.orderId),
           items: existingHasItems ? existing.items : wo.items,
           productName: existingHasItems ? (existing.productName || wo.productName) : wo.productName,
           quantity: existingHasItems
@@ -2886,7 +2891,19 @@ export default function ProductionPortal() {
         <DataTable
           columns={[
             { header: 'Work Order ID', accessor: 'id', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.id}</strong> },
-            { header: 'Order Ref', accessor: 'orderNo', render: (row) => <strong>{row.orderId || row.orderNo || 'Missing Order Link'}</strong> },
+            {
+              header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+                <span
+                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  onClick={() => {
+                    const order = orders.find(o => String(o.orderNo) === String(row.orderNo) || String(o.id) === String(row.orderId || row.orderNo));
+                    if (order) setSelectedOrderDetails(order);
+                  }}
+                >
+                  {row.orderNo || row.orderId || '—'}
+                </span>
+              )
+            },
             { header: 'Product Item', accessor: 'productName', render: (row) => row.productName || 'Missing Product' },
             { header: 'Target Qty', accessor: 'quantity', render: (row) => `${Number(row.quantity || 0).toLocaleString()} ${row.unit || 'Pcs'}` },
             { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') },
@@ -2954,6 +2971,19 @@ export default function ProductionPortal() {
         <DataTable
           columns={[
             { header: 'Work Order ID', accessor: 'id', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.id}</strong> },
+            {
+              header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+                <span
+                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  onClick={() => {
+                    const order = orders.find(o => String(o.orderNo) === String(row.orderNo) || String(o.id) === String(row.orderId || row.orderNo));
+                    if (order) setSelectedOrderDetails(order);
+                  }}
+                >
+                  {row.orderNo || row.orderId || '—'}
+                </span>
+              )
+            },
             { 
               header: 'Customer', accessor: 'orderNo', render: (row) => {
                 const orderRef = row.orderNo || row.order_no || row.orderId;

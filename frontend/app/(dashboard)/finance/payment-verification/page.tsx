@@ -4,7 +4,7 @@ import FinanceSalesConfirmationView from '../../../../modules/finance/pages/Fina
 
 export default function FinancePaymentVerificationPage() {
   return (
-    <div className="p-6">
+    <div className="w-full">
       <FinanceSalesConfirmationView />
     </div>
   );

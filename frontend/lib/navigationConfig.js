@@ -128,7 +128,6 @@ export const navigationConfig = {
         { id: 'customers', label: 'Customers', path: '/finance/customers' }
       ]
     },
-    { id: 'invoices', label: 'Invoices', icon: FileText, path: '/finance/invoices' },
     {
       id: 'procurement',
       label: 'Procurement (PO)',
@@ -163,7 +162,6 @@ export const navigationConfig = {
         { id: 'customers', label: 'Customers', path: '/finance/customers' }
       ]
     },
-    { id: 'invoices', label: 'Invoices', icon: FileText, path: '/finance/invoices' },
     {
       id: 'procurement',
       label: 'Procurement (PO)',

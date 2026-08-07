@@ -1,5 +1,8 @@
 'use client';
-export default function Page() {
-  return <div className='p-6'><h2>finance / reports</h2><p>Page under construction</p></div>;
+
+import FinancePortal from '../../../../modules/finance/pages/FinancePortal';
+
+export default function FinanceReportsPage() {
+  return <FinancePortal forceView="reports" />;
 }
 
