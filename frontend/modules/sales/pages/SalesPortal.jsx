@@ -67,7 +67,7 @@ async function uploadAfterSalesEvidence(files = []) {
   return urls;
 }
 
-export default function SalesPortal({ overrideView }) {
+export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   const pathname = usePathname();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -76,21 +76,22 @@ export default function SalesPortal({ overrideView }) {
   
   let rawView = overrideView;
   if (!rawView) {
-    if (params?.slug?.[0] === 'sales') {
+    if (params?.slug?.[0] === 'sales' || params?.slug?.[0] === 'supersales') {
       rawView = params?.slug?.[1] || tabParam || 'dashboard';
     } else {
       rawView = params?.slug?.[0] || tabParam || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
     }
   }
-  if (rawView === 'sales' || rawView === 'analytics') rawView = 'dashboard';
+  if (rawView === 'sales' || rawView === 'supersales' || rawView === 'analytics') rawView = 'dashboard';
   let view = rawView;
 
   const leadId = params?.slug?.[1]; const sampleId = params?.slug?.[1];
   const location = { pathname: pathname || '', search: "" };
   const navigate = useRouter();
 
+  const isSuperSalesPortal = overrideBasePath === '/supersales' || pathname?.startsWith('/supersales') || mode === 'SUPER_SALES';
   const isFinancePortal = pathname?.startsWith('/finance/sales');
-  const basePath = isFinancePortal ? '/finance/sales' : '/sales';
+  const basePath = overrideBasePath || (isSuperSalesPortal ? '/supersales' : (isFinancePortal ? '/finance/sales' : '/sales'));
 
   const currentView =
     (location.pathname.includes(`${basePath}/edit-lead/`) || location.pathname.includes('/sales/edit-lead/')
@@ -231,7 +232,21 @@ export default function SalesPortal({ overrideView }) {
       gstNumber: sample.gstNumber || '',
     });
     setPrefillQuotationData(sample);
-    navigate.push('/sales/create-quotation');
+    navigate.push(`${basePath}/create-quotation`);
+  };
+
+  const onAddSampleClick = (sample) => {
+    dispatch({
+      type: 'ADD_QUOTATION_DRAFT',
+      customerName: sample.leadName || '',
+      product: sample.product || '',
+      quantity: sample.quantity || 1,
+      source: 'SAMPLE',
+      sourceId: sample.id,
+      gstNumber: sample.gstNumber || '',
+    });
+    setPrefillQuotationData(sample);
+    navigate.push(`${basePath}/create-quotation`);
   };
 
   /** Create quotation; if a matching lead exists, advance its status to 'Quotation'. */
@@ -248,7 +263,7 @@ export default function SalesPortal({ overrideView }) {
         updateLead(matchedLead.id, { status: 'Quotation' }).catch(() => {});
       }
       setPrefillQuotationData(null);
-      navigate.push('/sales/quotations');
+      navigate.push(`${basePath}/quotations`);
     }
   };
 
@@ -258,7 +273,7 @@ export default function SalesPortal({ overrideView }) {
     const res = await confirmOrder(qtn);
     if (res?.success) {
       showToast('🎉 Order created from quotation!');
-      navigate.push('/sales/orders');
+      navigate.push(`${basePath}/orders`);
     }
   };
 
@@ -267,7 +282,7 @@ export default function SalesPortal({ overrideView }) {
     const res = await createOrder(orderData);
     if (res?.success) {
       showToast('🎉 Order created successfully!');
-      navigate.push('/sales/orders');
+      navigate.push(`${basePath}/orders`);
     }
   };
 
@@ -302,7 +317,7 @@ export default function SalesPortal({ overrideView }) {
       if (res.success) {
         await syncData();
         showToast('Payment recorded successfully and queued for Finance verification.');
-        navigate.push('/sales/payment-followup');
+        navigate.push(`${basePath}/payment-followup`);
       }
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Payment Recording Failed', text: err.message });
@@ -826,8 +841,8 @@ export default function SalesPortal({ overrideView }) {
             samples={samples}
             quotations={quotations}
             orders={orders}
-            onAddLeadClick={() => navigate.push('/sales/create-lead')}
-            onEditLeadClick={(id) => navigate.push(`/sales/edit-lead/${id}`)}
+            onAddLeadClick={() => navigate.push(`${basePath}/create-lead`)}
+            onEditLeadClick={(id) => navigate.push(`${basePath}/edit-lead/${id}`)}
             onConvertToSample={convertToSample}
             onGenerateQuotation={generateQuotationFromLead}
             onUpdateStatus={updateLeadStatus}
@@ -861,7 +876,7 @@ export default function SalesPortal({ overrideView }) {
           }
           onGenerateQuotation={!leadToEdit ? generateQuotationFromLead : undefined}
           onDeleteLead={deleteLead}
-          onCancel={() => navigate.push('/sales/leads')}
+          onCancel={() => navigate.push(`${basePath}/leads`)}
           editingLead={leadToEdit}
         />
         </div>
@@ -881,10 +896,10 @@ export default function SalesPortal({ overrideView }) {
            onAddSample={async (data) => {
                const res = await createSample(data);
                await refreshSamples();
-               navigate.push('/sales/samples');
+               navigate.push(`${basePath}/samples`);
                return { success: true };
            }}
-           onCancel={() => navigate.push('/sales/leads')}
+           onCancel={() => navigate.push(`${basePath}/leads`)}
         />
       );
     }
@@ -897,9 +912,9 @@ export default function SalesPortal({ overrideView }) {
           sample={sampleToEdit}
           onSave={(updatedData) => {
             updateSample(sampleToEdit.id, updatedData);
-            navigate.push('/sales/samples');
+            navigate.push(`${basePath}/samples`);
           }}
-          onCancel={() => navigate.push('/sales/samples')}
+          onCancel={() => navigate.push(`${basePath}/samples`)}
         />
       );
     }
@@ -926,11 +941,13 @@ export default function SalesPortal({ overrideView }) {
             leads={leads}
             customers={customers}
             reminders={reminders}
+            isSuperSales={isSuperSalesPortal}
+            basePath={basePath}
             onCreateQuoteClick={() => {
               useERPStore.getState().clearQuotationDraft();
-              navigate.push('/sales/create-quotation');
+              navigate.push(`${basePath}/create-quotation`);
             }}
-            onCreateLead={() => navigate.push('/sales/create-lead')}
+            onCreateLead={() => navigate.push(`${basePath}/create-lead`)}
             onUpdateQuotationStatus={(qId, status) => updateQuotation(qId, { status })}
             onUpdateQuotation={(qId, data) => updateQuotation(qId, data)}
             onConvertToOrder={onConvertToOrder}
@@ -955,11 +972,15 @@ export default function SalesPortal({ overrideView }) {
             prefilledCustomer={prefillQuotationData?.leadName || ''}
             prefilledProduct={prefillQuotationData?.product || prefillQuotationData?.productName || ''}
             prefilledQuantity={prefillQuotationData?.quantity || 1}
+            isSuperSales={isSuperSalesPortal}
+            basePath={basePath}
+            mode={isSuperSalesPortal ? 'SUPER_SALES' : mode}
+            maxPaymentTermDays={isSuperSalesPortal || user?.role === 'SUPER_SALES' || user?.role === 'SuperSales' ? 90 : 20}
             onAddQuotation={onAddQuotation}
-            onCreateLead={() => navigate.push('/sales/create-lead')}
+            onCreateLead={() => navigate.push(`${basePath}/create-lead`)}
             onCancel={() => {
               setPrefillQuotationData(null);
-              navigate.push('/sales/quotations');
+              navigate.push(`${basePath}/quotations`);
             }}
           />
         </div>

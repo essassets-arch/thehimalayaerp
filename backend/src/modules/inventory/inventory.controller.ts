@@ -43,6 +43,13 @@ export class InventoryController {
     return this.inventoryService.getStockLevels(user.companyId, warehouseId);
   }
 
+  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'inventory.stock.read', 'store.dashboard.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @Get('low-stock')
+  getLowStockItems(@CurrentUser() user: any) {
+    return this.inventoryService.getLowStockItems(user.companyId);
+  }
+
+
   @Get('items')
   getItems() {
     return this.inventoryService.getItems();

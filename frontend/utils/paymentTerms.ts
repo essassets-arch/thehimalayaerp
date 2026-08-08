@@ -10,12 +10,12 @@ export const PAYMENT_TERMS_OPTIONS = [
   { label: 'Custom (Max 20 Days)', value: 'custom' },
 ];
 
-export function validatePaymentTerms(days: number): PaymentValidationResult {
+export function validatePaymentTerms(days: number, maxAllowedDays: number = 20): PaymentValidationResult {
   if (isNaN(days) || days < 1) {
     return { valid: false, error: 'Payment terms must be at least 1 day.' };
   }
-  if (days > 20) {
-    return { valid: false, error: 'Payment Terms cannot exceed 20 days.' };
+  if (days > maxAllowedDays) {
+    return { valid: false, error: `Payment terms cannot exceed ${maxAllowedDays} days.` };
   }
   return { valid: true };
 }

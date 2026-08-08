@@ -37,7 +37,7 @@ export class SalesService {
     const skip = (page - 1) * pageSize;
     const take = pageSize;
     const isDispatchScope = status === ('READY_FOR_DISPATCH' as any) || role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN';
-    const scope = isDispatchScope ? {} : getSalesScope(userId, role, 'createdById');
+    const scope = isDispatchScope ? {} : getSalesScope(userId, role, 'SalesOrder');
     const where: Prisma.SalesOrderWhereInput = { ...scope };
 
     if (status) {
@@ -103,7 +103,7 @@ export class SalesService {
   }
 
   async getOrder(id: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'SalesOrder');
     const order = await this.prisma.salesOrder.findFirst({
       where: {
         OR: [

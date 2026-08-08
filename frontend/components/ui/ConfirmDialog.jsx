@@ -1,33 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, X, Shield, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, X, Shield, Info } from 'lucide-react';
 
 const typeConfigs = {
   danger: {
     icon: AlertTriangle,
-    iconBg: 'bg-red-100',
-    iconColor: 'text-red-600',
-    buttonBg: 'bg-red-600 hover:bg-red-700',
+    iconBg: '#FEE2E2',
+    iconColor: '#DC2626',
+    buttonBg: '#EF4444',
     buttonText: 'Delete'
   },
   warning: {
     icon: AlertTriangle,
-    iconBg: 'bg-yellow-100',
-    iconColor: 'text-yellow-600',
-    buttonBg: 'bg-yellow-600 hover:bg-yellow-700',
+    iconBg: '#FEF3C7',
+    iconColor: '#D97706',
+    buttonBg: '#F59E0B',
     buttonText: 'Confirm'
   },
   info: {
     icon: Info,
-    iconBg: 'bg-blue-100',
-    iconColor: 'text-blue-600',
-    buttonBg: 'bg-blue-600 hover:bg-blue-700',
+    iconBg: '#DBEAFE',
+    iconColor: '#2563EB',
+    buttonBg: '#3B82F6',
     buttonText: 'OK'
   },
   critical: {
     icon: Shield,
-    iconBg: 'bg-purple-100',
-    iconColor: 'text-purple-600',
-    buttonBg: 'bg-purple-600 hover:bg-purple-700',
+    iconBg: '#F3E8FF',
+    iconColor: '#7C3AED',
+    buttonBg: '#8B5CF6',
     buttonText: 'Confirm'
   }
 };
@@ -61,7 +61,7 @@ export const ConfirmDialog = ({
   const handleClose = () => {
     if (!isLoading) {
       setIsVisible(false);
-      setTimeout(onClose, 300);
+      setTimeout(onClose, 200);
     }
   };
 
@@ -72,68 +72,142 @@ export const ConfirmDialog = ({
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
-      isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-    }`}>
-      {/* Backdrop */}
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        padding: '16px',
+        opacity: isVisible ? 1 : 0,
+        transition: 'opacity 0.2s ease',
+        pointerEvents: isVisible ? 'auto' : 'none'
+      }}
+      onClick={handleClose}
+    >
+      {/* Dialog Card */}
       <div 
-        className="absolute inset-0 bg-black bg-opacity-50" 
-        onClick={handleClose}
-      />
-
-      {/* Dialog */}
-      <div className={`relative bg-white rounded-lg shadow-2xl max-w-md w-full mx-4 p-6 transform transition-transform duration-300 ${
-        isVisible ? 'scale-100' : 'scale-95'
-      }`}>
-        {/* Close button */}
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '28px 24px',
+          maxWidth: '440px',
+          width: '100%',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          border: '1px solid #E2E8F0',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          transform: isVisible ? 'scale(1)' : 'scale(0.95)',
+          transition: 'transform 0.2s ease'
+        }}
+      >
+        {/* Close Button */}
         <button
+          type="button"
           onClick={handleClose}
           disabled={isLoading}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition disabled:opacity-50"
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            background: 'transparent',
+            border: 'none',
+            color: '#94A3B8',
+            cursor: 'pointer',
+            padding: '6px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.15s ease'
+          }}
         >
-          <X className="w-5 h-5" />
+          <X size={18} />
         </button>
 
-        {/* Icon */}
-        <div className={`mx-auto w-14 h-14 ${config.iconBg} rounded-full flex items-center justify-center mb-4`}>
-          <Icon className={`w-7 h-7 ${config.iconColor}`} />
+        {/* Icon Badge */}
+        <div 
+          style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: config.iconBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: config.iconColor,
+            marginBottom: '16px'
+          }}
+        >
+          <Icon size={28} />
         </div>
 
         {/* Title */}
-        <h3 className="text-lg font-semibold text-center text-gray-900 mb-2">
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', margin: '0 0 8px 0', lineHeight: 1.3 }}>
           {title}
         </h3>
 
         {/* Message */}
-        <p className="text-gray-600 text-center mb-6">
+        <p style={{ fontSize: '14px', color: '#64748B', margin: '0 0 24px 0', lineHeight: 1.5, maxWidth: '380px' }}>
           {message}
         </p>
 
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+        {/* Responsive Actions Bar */}
+        <div style={{ display: 'flex', gap: '12px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button
+            type="button"
             onClick={handleClose}
             disabled={isLoading}
-            className="w-full sm:w-auto px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
+            style={{
+              flex: '1 1 120px',
+              padding: '11px 20px',
+              background: '#F1F5F9',
+              border: '1px solid #CBD5E1',
+              color: '#334155',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
           >
             {cancelText}
           </button>
+          
           <button
+            type="button"
             onClick={handleConfirm}
             disabled={isLoading}
-            className={`w-full sm:w-auto px-6 py-2 text-white rounded-lg transition ${config.buttonBg} disabled:opacity-50 flex items-center justify-center`}
+            style={{
+              flex: '1 1 140px',
+              padding: '11px 20px',
+              background: config.buttonBg,
+              border: 'none',
+              color: '#FFFFFF',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.25)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease'
+            }}
           >
-            {isLoading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Processing...
-              </>
-            ) : (
-              confirmText || config.buttonText
-            )}
+            {isLoading ? 'Processing...' : (confirmText || config.buttonText)}
           </button>
         </div>
       </div>
@@ -141,7 +215,6 @@ export const ConfirmDialog = ({
   );
 };
 
-// Hook for using confirm dialog
 export const useConfirm = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState({});
@@ -161,26 +234,20 @@ export const useConfirm = () => {
     });
   };
 
-  const handleConfirm = () => {
+  const handleClose = () => {
     setIsOpen(false);
-    if (resolve) {
-      resolve(true);
-      setResolve(null);
-    }
+    if (resolve) resolve(false);
   };
 
-  const handleCancel = () => {
+  const handleConfirm = () => {
     setIsOpen(false);
-    if (resolve) {
-      resolve(false);
-      setResolve(null);
-    }
+    if (resolve) resolve(true);
   };
 
   const ConfirmDialogComponent = () => (
     <ConfirmDialog
       isOpen={isOpen}
-      onClose={handleCancel}
+      onClose={handleClose}
       onConfirm={handleConfirm}
       {...config}
     />

@@ -8,6 +8,7 @@ import {
   Post,
   Body,
   Patch,
+  Delete,
   Param,
   Query,
 } from '@nestjs/common';
@@ -52,5 +53,11 @@ export class ProductsController {
     @Body() updateProductDto: UpdateProductDto,
   ) {
     return this.productsService.update(user.companyId, id, updateProductDto);
+  }
+
+  @RequirePermissions('admin.products.update', 'admin.products.delete', 'products.update', 'products.delete', 'products.read', 'inventory.stock.read')
+  @Delete(':id')
+  remove(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.productsService.remove(user.companyId, id);
   }
 }

@@ -22,6 +22,7 @@ function getDefaultPath(role: string): string {
     'QC_INSPECTOR': '/qc/dashboard',
     'DISPATCH': '/dispatch/dashboard',
     'DISPATCH_EXECUTIVE': '/dispatch/dashboard',
+    'DISPATCH_2': '/dispatch-2/dashboard',
     'FINANCE': '/finance/dashboard',
     'FINANCE_EXECUTIVE': '/finance-executive/dashboard',
     'FINANCE_MANAGER': '/finance/dashboard',
@@ -33,6 +34,9 @@ function getDefaultPath(role: string): string {
   const friendly: Record<string, string> = {
     'Sales': '/sales/dashboard',
     'Sales Admin': '/sales/dashboard',
+    'SuperSales': '/supersales/dashboard',
+    'Super Sales': '/supersales/dashboard',
+    'SUPER_SALES': '/supersales/dashboard',
     'Plant Head': '/plant-head/dashboard',
     'Production': '/production/dashboard',
     'Production Planner': '/production/dashboard',
@@ -41,7 +45,10 @@ function getDefaultPath(role: string): string {
     'Store Manager': '/store/dashboard',
     'QC': '/qc/dashboard',
     'Dispatch': '/dispatch/dashboard',
+    'Dispatch 1': '/dispatch/dashboard',
     'Dispatch Executive': '/dispatch/dashboard',
+    'Dispatch 2': '/dispatch-2/dashboard',
+    'Dispatch2': '/dispatch-2/dashboard',
     'Finance': '/finance/dashboard',
     'Finance Executive': '/finance-executive/dashboard',
     'Finance Manager': '/finance/dashboard',
@@ -54,10 +61,12 @@ function getDefaultPath(role: string): string {
 
 const DEMO_ACCOUNTS = [
   { role: 'Super Admin', email: 'super.admin@himalayaerp.com' },
+  { role: 'SuperSales', email: 'super.sales@himalayaerp.com' },
   { role: 'Sales Executive', email: 'sales.executive@himalayaerp.com' },
   { role: 'Plant Head', email: 'plant.head@himalayaerp.com' },
   { role: 'Production Operator', email: 'production.operator@himalayaerp.com' },
-  { role: 'Dispatch Executive', email: 'dispatch.executive@himalayaerp.com' },
+  { role: 'Dispatch 1', email: 'dispatch.executive@himalayaerp.com' },
+  { role: 'Dispatch 2', email: 'dispatch2@himalayaerp.com' },
   { role: 'Finance Executive', email: 'finance.executive@himalayaerp.com' },
   { role: 'Finance Manager', email: 'sahad.accounts@himalayaerp.com' },
   { role: 'Store Manager', email: 'store.manager@himalayaerp.com' },
@@ -70,6 +79,9 @@ function toFriendlyRole(code: string): string {
   const acronymRoles: Record<string, string> = {
     HR: 'HR',
     QC: 'QC',
+    SUPER_SALES: 'SuperSales',
+    DISPATCH_EXECUTIVE: 'Dispatch 1',
+    DISPATCH_2: 'Dispatch 2',
   };
 
   return acronymRoles[normalizedCode] || normalizedCode
@@ -80,10 +92,12 @@ function toFriendlyRole(code: string): string {
 
 function inferDemoRoleFromEmail(email: string): string {
   const e = email.toLowerCase().trim();
+  if (e.includes('super.sales') || e.includes('supersales')) return 'SuperSales';
   if (e.includes('sales')) return 'Sales Executive';
   if (e.includes('plant')) return 'Plant Head';
   if (e.includes('production')) return 'Production Operator';
-  if (e.includes('dispatch')) return 'Dispatch Executive';
+  if (e.includes('dispatch2') || e.includes('dispatch.2') || e.includes('dispatch_2') || e.includes('dispatch-2')) return 'Dispatch 2';
+  if (e.includes('dispatch')) return 'Dispatch 1';
   if (e.includes('accounts') || (e.includes('finance') && e.includes('manager'))) return 'Finance Manager';
   if (e.includes('finance')) return 'Finance Executive';
   if (e.includes('store')) return 'Store Manager';

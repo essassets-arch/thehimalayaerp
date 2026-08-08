@@ -10,118 +10,107 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
   async create(companyId: string, dto: CreateProductDto) {
-    if (dto.productType === 'RAW_MATERIAL') {
-      if (dto.sku) {
-        const existing = await this.prisma.rawMaterial.findFirst({
-          where: { companyId, sku: dto.sku },
-        });
-        if (existing) {
-          throw new ConflictException(
-            `Raw Material with SKU ${dto.sku} already exists.`,
-          );
-        }
-      }
+  const isRawMaterial =
+    (dto.category && dto.category.toLowerCase() === 'raw material') ||
+    (dto.productType && dto.productType.toUpperCase() === 'RAW_MATERIAL') ||
+    (dto.product_type && dto.product_type.toUpperCase() === 'RAW_MATERIAL');
 
-      const randomId = crypto.randomBytes(5).toString('hex');
-      return this.prisma.rawMaterial.create({
-        data: {
-          publicId: `RM-${randomId}`,
-          companyId,
-          name: dto.name,
-          sku: dto.sku,
-          category: dto.category || 'Raw Material',
-          unit: dto.unit,
-          minimumStock: dto.minimumStock || 0,
-          storageLocation: dto.description || null,
-        },
-      });
-    }
+  const name = dto.name || dto.product_name || 'Unnamed Item';
+  const unit = dto.unit || dto.unit_of_measure || 'PCS';
+  const sku = dto.sku || dto.product_code;
+  const category = dto.category || dto.product_family || 'General';
+  const productType = dto.productType || dto.product_type || 'MANUFACTURING';
+  const dispatchCategory = dto.dispatchCategory || dto.dispatch_category;
+  const gstRate = dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
+  const hsnCode = dto.hsnCode || dto.hsn_sac_code;
+  const variantDetails = dto.variantDetails || dto.variant_details;
+  const imageUrl = dto.imageUrl || dto.image_url;
 
-    if (dto.sku) {
-      const existing = await this.prisma.product.findFirst({
-        where: { companyId, sku: dto.sku },
-      });
-      if (existing) {
-        throw new ConflictException(
-          `Product with SKU ${dto.sku} already exists.`,
-        );
-      }
-    }
-
+  if (isRawMaterial) {
     const randomId = crypto.randomBytes(5).toString('hex');
-    return this.prisma.product.create({
+    return this.prisma.rawMaterial.create({
       data: {
-        publicId: `PRD-${randomId}`,
+        publicId: `RM-${randomId}`,
         companyId,
-        name: dto.name,
-        sku: dto.sku,
-        description: dto.description,
-        category: dto.category,
-        productType: dto.productType || 'MANUFACTURING',
-        brand: dto.brand,
-        dispatchCategory: dto.dispatchCategory,
-        gstRate: dto.gstRate,
-        hsnCode: dto.hsnCode,
-        variantDetails: dto.variantDetails,
-        unit: dto.unit,
-        unitPrice: dto.unitPrice || 0,
+        name,
+        sku,
+        category,
+        unit,
         minimumStock: dto.minimumStock || 0,
+        storageLocation: dto.description || null,
       },
     });
   }
 
-  async findAll(companyId: string, search?: string, scope?: string, type?: string) {
-    if (type === 'RAW_MATERIAL') {
-      const where: any = { companyId, isActive: true };
-      if (search) {
-        where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { sku: { contains: search, mode: 'insensitive' } },
-          { category: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-      const rawMaterials = await this.prisma.rawMaterial.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-      });
-      return rawMaterials.map((rm) => ({
-        id: rm.id,
-        publicId: rm.publicId,
-        companyId: rm.companyId,
-        name: rm.name,
-        sku: rm.sku,
-        category: rm.category || 'Raw Material',
-        productType: 'RAW_MATERIAL',
-        unit: rm.unit,
-        minimumStock: rm.minimumStock,
-        unitPrice: 0,
-        description: rm.storageLocation || '',
-      }));
+  if (sku) {
+    const existing = await this.prisma.product.findFirst({
+      where: { companyId, sku },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Product with SKU ${sku} already exists.`,
+      );
     }
+  }
 
-    const where: any = { companyId, isActive: true };
+  const randomId = crypto.randomBytes(5).toString('hex');
+  return this.prisma.product.create({
+    data: {
+      publicId: `PRD-${randomId}`,
+      companyId,
+      name,
+      sku,
+      description: dto.description,
+      category,
+      productType,
+      brand: dto.brand || 'HIMALAYA',
+      dispatchCategory,
+      gstRate,
+      hsnCode,
+      variantDetails,
+      weight: dto.weight,
+      imageUrl,
+      unit,
+      unitPrice: dto.unitPrice || 0,
+      minimumStock: dto.minimumStock || 0,
+    },
+  });
+}
 
-    if (scope === 'sales') {
-      where.AND = [
-        {
-          OR: [
-            { productType: { in: ['MANUFACTURING', 'TRADING'] } },
-            {
-              AND: [
-                { productType: null },
-                { category: { notIn: ['Hardware', 'Raw Material', 'Electric'] } },
-              ],
-            },
-          ],
-        },
-      ];
-    } else if (type) {
-      where.productType = type;
-    }
+  async findAll(companyId: string, scope ?: string, search ?: string, type ?: string) {
+  if (scope === 'store' || scope === 'inventory') {
+    const products = await this.prisma.product.findMany({
+      where: { companyId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
 
+    const rawMaterials = await this.prisma.rawMaterial.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const normalizedRaw = rawMaterials.map((rm) => ({
+      id: rm.id,
+      publicId: rm.publicId,
+      companyId: rm.companyId,
+      name: rm.name,
+      sku: rm.sku,
+      category: rm.category || 'Raw Material',
+      productType: 'RAW_MATERIAL',
+      unit: rm.unit,
+      minimumStock: rm.minimumStock,
+      unitPrice: 0,
+      description: rm.storageLocation || '',
+    }));
+
+    return [...products, ...normalizedRaw];
+  }
+
+  if (type === 'RAW_MATERIAL') {
+    const where: any = { companyId };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -129,67 +118,156 @@ export class ProductsService {
         { category: { contains: search, mode: 'insensitive' } },
       ];
     }
-
-    return this.prisma.product.findMany({
+    const rawMaterials = await this.prisma.rawMaterial.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
+    return rawMaterials.map((rm) => ({
+      id: rm.id,
+      publicId: rm.publicId,
+      companyId: rm.companyId,
+      name: rm.name,
+      sku: rm.sku,
+      category: rm.category || 'Raw Material',
+      productType: 'RAW_MATERIAL',
+      unit: rm.unit,
+      minimumStock: rm.minimumStock,
+      unitPrice: 0,
+      description: rm.storageLocation || '',
+    }));
   }
 
+  const where: any = { companyId, isActive: true };
+
+  if (scope === 'sales') {
+    where.AND = [
+      {
+        OR: [
+          { productType: { in: ['MANUFACTURING', 'TRADING'] } },
+          {
+            AND: [
+              { productType: null },
+              { category: { notIn: ['Hardware', 'Raw Material', 'Electric'] } },
+            ],
+          },
+        ],
+      },
+    ];
+  } else if (type) {
+    where.productType = type;
+  }
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { sku: { contains: search, mode: 'insensitive' } },
+      { category: { contains: search, mode: 'insensitive' } },
+    ];
+  }
+
+  return this.prisma.product.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
   async findOne(companyId: string, id: string) {
-    const rm = await this.prisma.rawMaterial.findFirst({
-      where: { companyId, id },
-    });
-    if (rm) {
-      return {
-        id: rm.id,
-        publicId: rm.publicId,
-        companyId: rm.companyId,
-        name: rm.name,
-        sku: rm.sku,
-        category: rm.category || 'Raw Material',
-        productType: 'RAW_MATERIAL',
-        unit: rm.unit,
-        minimumStock: rm.minimumStock,
-        unitPrice: 0,
-        description: rm.storageLocation || '',
-      };
-    }
+  const rm = await this.prisma.rawMaterial.findFirst({
+    where: { companyId, id },
+  });
+  if (rm) {
+    return {
+      id: rm.id,
+      publicId: rm.publicId,
+      companyId: rm.companyId,
+      name: rm.name,
+      sku: rm.sku,
+      category: rm.category || 'Raw Material',
+      productType: 'RAW_MATERIAL',
+      unit: rm.unit,
+      minimumStock: rm.minimumStock,
+      unitPrice: 0,
+      description: rm.storageLocation || '',
+    };
+  }
 
-    const product = await this.prisma.product.findFirst({
-      where: { companyId, id },
-    });
+  const product = await this.prisma.product.findFirst({
+    where: { companyId, id },
+  });
 
-    if (!product) {
+  if (!product) {
+    throw new NotFoundException(`Product with ID ${id} not found.`);
+  }
+
+  return product;
+}
+
+  async update(companyId: string, id: string, dto: UpdateProductDto) {
+  const rm = await this.prisma.rawMaterial.findFirst({
+    where: { companyId, id },
+  });
+  if (rm) {
+    return this.prisma.rawMaterial.update({
+      where: { id },
+      data: {
+        name: dto.name || dto.product_name,
+        sku: dto.sku || dto.product_code,
+        category: dto.category || dto.product_family,
+        unit: dto.unit || dto.unit_of_measure,
+        minimumStock: dto.minimumStock,
+        storageLocation: dto.description,
+      },
+    });
+  }
+
+  await this.findOne(companyId, id);
+
+  const updateData: any = {};
+  if (dto.name || dto.product_name) updateData.name = dto.name || dto.product_name;
+  if (dto.sku || dto.product_code) updateData.sku = dto.sku || dto.product_code;
+  if (dto.description !== undefined) updateData.description = dto.description;
+  if (dto.category || dto.product_family) updateData.category = dto.category || dto.product_family;
+  if (dto.unit || dto.unit_of_measure) updateData.unit = dto.unit || dto.unit_of_measure;
+  if (dto.unitPrice !== undefined) updateData.unitPrice = dto.unitPrice;
+  if (dto.productType || dto.product_type) updateData.productType = dto.productType || dto.product_type;
+  if (dto.brand !== undefined) updateData.brand = dto.brand;
+  if (dto.dispatchCategory || dto.dispatch_category) updateData.dispatchCategory = dto.dispatchCategory || dto.dispatch_category;
+  if (dto.gstRate !== undefined || dto.gst_rate !== undefined) updateData.gstRate = dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
+  if (dto.hsnCode || dto.hsn_sac_code) updateData.hsnCode = dto.hsnCode || dto.hsn_sac_code;
+  if (dto.variantDetails || dto.variant_details) updateData.variantDetails = dto.variantDetails || dto.variant_details;
+  if (dto.weight !== undefined) updateData.weight = dto.weight;
+  if (dto.imageUrl || dto.image_url) updateData.imageUrl = dto.imageUrl || dto.image_url;
+  if (dto.minimumStock !== undefined) updateData.minimumStock = dto.minimumStock;
+  if (dto.reorderQuantity !== undefined) updateData.reorderQuantity = dto.reorderQuantity;
+  if (dto.reorderUnit !== undefined) updateData.reorderUnit = dto.reorderUnit;
+  if (dto.leadTimeDays !== undefined) updateData.leadTimeDays = dto.leadTimeDays;
+  if (dto.preferredVendorId !== undefined) updateData.preferredVendorId = dto.preferredVendorId;
+  if (dto.isAutoReorderEnabled !== undefined) updateData.isAutoReorderEnabled = dto.isAutoReorderEnabled;
+  if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+
+  return this.prisma.product.update({
+    where: { id },
+    data: updateData,
+  });
+}
+
+  async remove(companyId: string, id: string) {
+    const prod = await this.prisma.product.findFirst({
+      where: { id },
+    });
+    if (!prod) {
       throw new NotFoundException(`Product with ID ${id} not found.`);
     }
 
-    return product;
-  }
-
-  async update(companyId: string, id: string, dto: UpdateProductDto) {
-    const rm = await this.prisma.rawMaterial.findFirst({
-      where: { companyId, id },
-    });
-    if (rm) {
-      return this.prisma.rawMaterial.update({
+    try {
+      return await this.prisma.product.delete({
         where: { id },
-        data: {
-          name: dto.name,
-          sku: dto.sku,
-          category: dto.category,
-          unit: dto.unit,
-          minimumStock: dto.minimumStock,
-          storageLocation: dto.description,
-        },
+      });
+    } catch (e) {
+      return await this.prisma.product.update({
+        where: { id },
+        data: { isActive: false },
       });
     }
-
-    await this.findOne(companyId, id);
-
-    return this.prisma.product.update({
-      where: { id },
-      data: dto,
-    });
   }
 }

@@ -20,12 +20,16 @@ import { PlusCircle, Box, Truck, ClipboardList, FlaskConical, ArrowRight, X, Fil
 import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
 import { backendFetch } from '../../../lib/backendFetch';
+import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
 
-export default function DispatchPortal({ view: propView } = {}) {
+export default function DispatchPortal({ view: propView, overrideBasePath, mode = 'DISPATCH_1' } = {}) {
   const params = useParams();
   const pathname = usePathname();
   const pathSegments = pathname?.split('/').filter(Boolean) || [];
-  const view = propView || params?.slug?.[0] || (pathSegments[0] === 'dispatch' ? pathSegments[1] : undefined);
+  
+  const isDispatch2Portal = overrideBasePath === '/dispatch-2' || pathname?.startsWith('/dispatch-2') || mode === 'DISPATCH_2';
+  const basePath = overrideBasePath ?? (isDispatch2Portal ? '/dispatch-2' : '/dispatch');
+  const view = propView || params?.slug?.[0] || (pathSegments[0] === 'dispatch' || pathSegments[0] === 'dispatch-2' ? pathSegments[1] : undefined);
   const orderId = params?.slug?.[1];
   const currentView = view || (orderId ? 'partial' : 'dashboard');
   const navigate = useRouter();
@@ -419,7 +423,7 @@ export default function DispatchPortal({ view: propView } = {}) {
 
       if (remainingOrdersCount === 0) {
         showToast('All dispatches completed! Redirecting to history...');
-        navigate.push('/dispatch/history');
+        navigate.push(`${basePath}/history`);
       }
     }
   }, [currentView, orders, navigate]);
@@ -692,7 +696,7 @@ export default function DispatchPortal({ view: propView } = {}) {
           setCdRemarks('');
 
           showToast('Successfully booked dispatch consignment!');
-          navigate.push('/dispatch/in-transit');
+          navigate.push(`${basePath}/in-transit`);
         } catch (err) {
           Swal.fire({ icon: 'error', title: 'Dispatch Booking Failed', text: err.message || String(err) });
         }
@@ -733,7 +737,7 @@ export default function DispatchPortal({ view: propView } = {}) {
         }
       });
       showToast('Vehicle departed successfully! Status updated to In Transit.');
-      navigate.push('/dispatch/delivery');
+      navigate.push(`${basePath}/delivery`);
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Departure Failed', text: err.message || String(err) });
     }
@@ -866,7 +870,7 @@ export default function DispatchPortal({ view: propView } = {}) {
           setState({ ...state, dispatches: updatedDispatches, orders: updatedOrders });
           showToast(`Consignment ${dispatchId} marked DELIVERED successfully!`);
           closeDeliveryModal();
-          navigate.push('/dispatch/history');
+          navigate.push(`${basePath}/history`);
         } catch (err) {
           Swal.fire({ icon: 'error', title: 'Delivery Failed', text: err.message || String(err) });
         }
@@ -1434,7 +1438,7 @@ export default function DispatchPortal({ view: propView } = {}) {
               <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Orders inspected by QC and staged for consignment</p>
             </div>
             <button
-              onClick={() => navigate.push('/dispatch/orders')}
+              onClick={() => navigate.push(`${basePath}/orders`)}
               style={{ background: '#f1f5f9', color: '#0284c7', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               View All <ArrowRight size={14} />
@@ -1464,7 +1468,7 @@ export default function DispatchPortal({ view: propView } = {}) {
                       <td style={{ padding: '12px 14px' }}><span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>{row.warehouse}</span></td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <button
-                          onClick={() => navigate.push(row.id ? `/dispatch/create-dispatch?workOrderId=${row.id}` : '/dispatch/create-dispatch')}
+                          onClick={() => navigate.push(row.id ? `${basePath}/create-dispatch?workOrderId=${row.id}` : `${basePath}/create-dispatch`)}
                           style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
                           <PlusCircle size={13} /> Create Dispatch
@@ -1492,7 +1496,7 @@ export default function DispatchPortal({ view: propView } = {}) {
               <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Vehicles and carriers currently on the road</p>
             </div>
             <button
-              onClick={() => navigate.push('/dispatch/in-transit')}
+              onClick={() => navigate.push(`${basePath}/in-transit`)}
               style={{ background: '#f1f5f9', color: '#0284c7', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               View All <ArrowRight size={14} />
@@ -1535,7 +1539,7 @@ export default function DispatchPortal({ view: propView } = {}) {
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <button
-                          onClick={() => navigate.push(row.status === 'Out' ? '/dispatch/delivery' : '/dispatch/in-transit')}
+                          onClick={() => navigate.push(row.status === 'Out' ? `${basePath}/delivery` : `${basePath}/in-transit`)}
                           style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
                           {row.status === 'Out' ? 'Update' : 'Track'}
@@ -1579,7 +1583,7 @@ export default function DispatchPortal({ view: propView } = {}) {
               )}
 
               <button
-                onClick={() => navigate.push('/dispatch/delivery')}
+                onClick={() => navigate.push(`${basePath}/delivery`)}
                 style={{ marginTop: '8px', background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)', color: '#ffffff', border: 'none', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}
               >
                 📸 Upload POD / Confirm Delivery
@@ -1627,7 +1631,7 @@ export default function DispatchPortal({ view: propView } = {}) {
               <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>RMA tickets, quality evaluations, and credit note authorizations</p>
             </div>
             <button
-              onClick={() => navigate.push('/dispatch/returns')}
+              onClick={() => navigate.push(`${basePath}/returns`)}
               style={{ background: '#f1f5f9', color: '#0284c7', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               View All <ArrowRight size={14} />
@@ -1663,42 +1667,42 @@ export default function DispatchPortal({ view: propView } = {}) {
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
             <button
-              onClick={() => navigate.push('/dispatch/create-dispatch')}
+              onClick={() => navigate.push(`${basePath}/create-dispatch`)}
               style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '12px 16px', borderRadius: '10px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.2)' }}
             >
               <PlusCircle size={16} /> + Create Dispatch
             </button>
 
             <button
-              onClick={() => navigate.push('/dispatch/in-transit')}
+              onClick={() => navigate.push(`${basePath}/in-transit`)}
               style={{ background: '#0369a1', color: '#ffffff', border: 'none', padding: '12px 16px', borderRadius: '10px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               <Truck size={16} /> 🚚 Start Delivery
             </button>
 
             <button
-              onClick={() => navigate.push('/dispatch/delivery')}
+              onClick={() => navigate.push(`${basePath}/delivery`)}
               style={{ background: '#059669', color: '#ffffff', border: 'none', padding: '12px 16px', borderRadius: '10px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               <FileCheck size={16} /> ✅ Confirm Delivery
             </button>
 
             <button
-              onClick={() => navigate.push('/dispatch/history')}
+              onClick={() => navigate.push(`${basePath}/history`)}
               style={{ background: '#475569', color: '#ffffff', border: 'none', padding: '12px 16px', borderRadius: '10px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               <ClipboardList size={16} /> 📦 Dispatch History
             </button>
 
             <button
-              onClick={() => navigate.push('/dispatch/returns')}
+              onClick={() => navigate.push(`${basePath}/returns`)}
               style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '12px 16px', borderRadius: '10px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               🔄 Returns
             </button>
 
             <button
-              onClick={() => navigate.push('/dispatch/replacements')}
+              onClick={() => navigate.push(`${basePath}/replacements`)}
               style={{ background: '#7c3aed', color: '#ffffff', border: 'none', padding: '12px 16px', borderRadius: '10px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               ♻ Replacement Dispatch
@@ -1817,7 +1821,7 @@ export default function DispatchPortal({ view: propView } = {}) {
                       alignItems: 'center',
                       gap: '6px'
                     }}
-                    onClick={() => navigate.push('/dispatch/create-dispatch')}
+                    onClick={() => navigate.push(`${basePath}/create-dispatch`)}
                   >
                     <Truck size={14} /> Create Dispatch ({selectedOrderNos.length} Selected)
                   </button>
@@ -1924,7 +1928,7 @@ export default function DispatchPortal({ view: propView } = {}) {
                     onClick={() => {
                       setSelectedOrderForDispatch(row);
                       setSelectedOrderNos([row.orderNo]);
-                      navigate.push('/dispatch/create-dispatch');
+                      navigate.push(`${basePath}/create-dispatch`);
                     }}
                   >
                     <PlusCircle size={14} /> Allocate Vehicle
@@ -1932,7 +1936,7 @@ export default function DispatchPortal({ view: propView } = {}) {
                   <button
                     className="action-btn"
                     style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #D6E2F0', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => navigate.push(`/dispatch/partial/${row.orderNo}`)}
+                    onClick={() => navigate.push(`${basePath}/partial/${row.orderNo}`)}
                   >
                     <ClipboardList size={14} /> Track Partial
                   </button>
@@ -1954,7 +1958,7 @@ export default function DispatchPortal({ view: propView } = {}) {
         <div className="app-card" style={{ textAlign: 'center', padding: '40px' }}>
           <h3>No QC Passed orders ready for logistics.</h3>
           <p style={{ color: 'var(--color-text-secondary)' }}>Logistics booking requires batches that have passed QC inspection first.</p>
-          <button className="form-submit-btn" style={{ maxWidth: '200px', margin: '20px auto 0' }} onClick={() => navigate.push('/dispatch/dashboard')}>
+          <button className="form-submit-btn" style={{ maxWidth: '200px', margin: '20px auto 0' }} onClick={() => navigate.push(`${basePath}/dashboard`)}>
             View Dashboard
           </button>
         </div>
@@ -1989,7 +1993,7 @@ export default function DispatchPortal({ view: propView } = {}) {
             <Truck size={20} color="var(--color-accent-teal)" />
             Dispatch &mdash; {order?.orderNo || 'New Dispatch'}
           </h2>
-          <button type="button" style={{ background: 'transparent', border: 'none', color: '#dc2626', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }} onClick={() => navigate.push('/dispatch/orders')}>Cancel</button>
+          <button type="button" style={{ background: 'transparent', border: 'none', color: '#dc2626', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }} onClick={() => navigate.push(`${basePath}/orders`)}>Cancel</button>
         </div>
 
         {/* Order info card */}
@@ -2913,7 +2917,7 @@ export default function DispatchPortal({ view: propView } = {}) {
                   alignItems: 'center',
                   gap: '6px'
                 }}
-                onClick={() => navigate.push('/dispatch/create-dispatch')}
+                onClick={() => navigate.push(`${basePath}/create-dispatch`)}
               >
                 <Truck size={14} /> Dispatch Selected ({selectedOrderNos.length})
               </button>
@@ -2922,7 +2926,7 @@ export default function DispatchPortal({ view: propView } = {}) {
               type="button"
               className="action-btn"
               style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #D6E2F0', padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
-              onClick={() => navigate.push('/dispatch/history')}
+              onClick={() => navigate.push(`${basePath}/history`)}
             >
               Go to Dispatch History
             </button>
@@ -2966,7 +2970,7 @@ export default function DispatchPortal({ view: propView } = {}) {
               header: 'Order No', accessor: 'orderNo', render: (row) => (
                 <span
                   style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                  onClick={() => navigate.push(`/dispatch/partial/${row.orderNo}`)}
+                  onClick={() => navigate.push(`${basePath}/partial/${row.orderNo}`)}
                 >
                   {row.orderNo}
                 </span>
@@ -3016,7 +3020,7 @@ export default function DispatchPortal({ view: propView } = {}) {
                 style={{ background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                 onClick={() => {
                   setSelectedOrderNos([row.orderNo]);
-                  navigate.push('/dispatch/create-dispatch');
+                  navigate.push(`${basePath}/create-dispatch`);
                 }}
               >
                 <Truck size={14} /> Dispatch Now
@@ -3024,7 +3028,7 @@ export default function DispatchPortal({ view: propView } = {}) {
               <button
                 className="action-btn"
                 style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #D6E2F0', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={() => navigate.push(`/dispatch/partial/${row.orderNo}`)}
+                onClick={() => navigate.push(`${basePath}/partial/${row.orderNo}`)}
               >
                 <ClipboardList size={14} /> Track Partial
               </button>
@@ -3111,7 +3115,7 @@ export default function DispatchPortal({ view: propView } = {}) {
             setSingleTransportCost('0');
 
             showToast("Successfully processed partial dispatch consignment!");
-            navigate.push('/dispatch/in-transit');
+            navigate.push(`${basePath}/in-transit`);
           } else {
             Swal.fire({ icon: 'error', title: 'Dispatch Booking Failed', text: res.error?.message || res.error });
           }
@@ -3129,7 +3133,7 @@ export default function DispatchPortal({ view: propView } = {}) {
         <div className="app-card" style={{ textAlign: 'center', padding: '40px' }}>
           <h3>Order Reference Not Found</h3>
           <p style={{ color: 'var(--color-text-secondary)' }}>No active order matching "{orderId}" was found.</p>
-          <button className="form-submit-btn" style={{ maxWidth: '200px', margin: '20px auto 0' }} onClick={() => navigate.push('/dispatch/orders')}>
+          <button className="form-submit-btn" style={{ maxWidth: '200px', margin: '20px auto 0' }} onClick={() => navigate.push(`${basePath}/orders`)}>
             Back to Orders
           </button>
         </div>
@@ -3178,7 +3182,7 @@ export default function DispatchPortal({ view: propView } = {}) {
             </div>
             <button
               type="button"
-              onClick={() => navigate.push('/dispatch/orders')}
+              onClick={() => navigate.push(`${basePath}/orders`)}
               style={{
                 background: '#ffffff',
                 border: '1.5px solid var(--color-border)',
@@ -3520,7 +3524,7 @@ export default function DispatchPortal({ view: propView } = {}) {
       });
       showToast?.('Replacement delivery started.');
       fetchReplacementDispatches();
-      navigate.push('/dispatch/replacements?status=delivered');
+      navigate.push(`${basePath}/replacements?status=delivered`);
     } catch (err) {
       console.error('Failed to start replacement delivery', err);
       showToast?.(err?.message || 'Failed to start replacement delivery.');
@@ -3598,166 +3602,7 @@ export default function DispatchPortal({ view: propView } = {}) {
   };
 
   const renderFinishedGoods = () => {
-    const allStock = combinedFinishedGoodsStock;
-    const readyStock = allStock.filter(i => (i.availableQuantity > 0) && !['DISPATCHED', 'DELIVERED'].includes(i.status));
-    const dispatchedStock = allStock.filter(i => i.availableQuantity === 0 || ['DISPATCHED', 'DELIVERED'].includes(i.status));
-
-    const displayedStock = fgStockTab === 'ready' ? readyStock : fgStockTab === 'dispatched' ? dispatchedStock : allStock;
-
-    const totalQty = allStock.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-    const availableQty = allStock.reduce((sum, item) => sum + Number(item.availableQuantity ?? item.quantity ?? 0), 0);
-    const totalBatches = allStock.length;
-    const readyBatches = readyStock.length;
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {/* Header Eyebrow */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <span style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', color: '#0284c7', letterSpacing: '0.5px' }}>
-              Logistics &amp; Dispatch Portal
-            </span>
-            <h1 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '2px 0 0 0' }}>
-              Finished Goods Inventory (Read Only)
-            </h1>
-            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
-              Read-only stock ledger of all finished goods in warehouse staging.
-            </p>
-          </div>
-        </div>
-
-        {/* Stock KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
-            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#e0f2fe', color: '#0284c7', display: 'grid', placeItems: 'center' }}>
-              <Box size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalQty.toLocaleString()}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Finished Stock Qty</div>
-            </div>
-          </div>
-
-          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
-            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
-              <Truck size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{availableQty.toLocaleString()}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Dispatchable Stock Qty</div>
-            </div>
-          </div>
-
-          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
-            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#f3e8ff', color: '#7e22ce', display: 'grid', placeItems: 'center' }}>
-              <FileCheck size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalBatches}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Product Batches</div>
-            </div>
-          </div>
-
-          <div className="app-card flex flex-col items-center justify-center text-center p-6 gap-3">
-            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#fef3c7', color: '#d97706', display: 'grid', placeItems: 'center' }}>
-              <ClipboardList size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{readyBatches}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Batches Ready for Dispatch</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Finished Goods Inventory Table (Read Only) */}
-        <div className="app-card">
-          <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-            {/* Filter Tabs */}
-            <div style={{ display: 'flex', gap: '8px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
-              <button
-                type="button"
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: fgStockTab === 'all' ? '#ffffff' : 'transparent',
-                  color: fgStockTab === 'all' ? '#0f172a' : '#64748b',
-                  boxShadow: fgStockTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                }}
-                onClick={() => setFgStockTab('all')}
-              >
-                All Stock ({allStock.length})
-              </button>
-              <button
-                type="button"
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: fgStockTab === 'ready' ? '#ffffff' : 'transparent',
-                  color: fgStockTab === 'ready' ? '#0f172a' : '#64748b',
-                  boxShadow: fgStockTab === 'ready' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                }}
-                onClick={() => setFgStockTab('ready')}
-              >
-                Available for Dispatch ({readyStock.length})
-              </button>
-              <button
-                type="button"
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: fgStockTab === 'dispatched' ? '#ffffff' : 'transparent',
-                  color: fgStockTab === 'dispatched' ? '#0f172a' : '#64748b',
-                  boxShadow: fgStockTab === 'dispatched' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                }}
-                onClick={() => setFgStockTab('dispatched')}
-              >
-                Dispatched / Allocated ({dispatchedStock.length})
-              </button>
-            </div>
-          </div>
-
-          <DataTable
-            columns={[
-              { header: 'Sales Order', accessor: 'salesOrderNumber', render: (row) => <span style={{ color: '#2563eb', fontWeight: '700' }}>{row.salesOrderNumber || '—'}</span> },
-              { header: 'WO Number', accessor: 'jobNo', render: (row) => <strong>{row.jobNo || row.workOrderId || 'WO-STOCK'}</strong> },
-              {
-                header: 'Product', accessor: 'productName', render: (row) => (
-                  <div>
-                    <strong>{row.productName || 'Finished Product'}</strong>
-                    <br />
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>Code: {row.productCode || 'FG-STOCK'}</span>
-                  </div>
-                )
-              },
-              { header: 'Qty', accessor: 'quantity', render: (row) => <span>{row.quantity} {row.unit || 'Pcs'}</span> },
-              {
-                header: 'Available Qty', accessor: 'availableQuantity', render: (row) => (
-                  <strong style={{ color: row.availableQuantity > 0 ? '#10b981' : '#64748b', background: row.availableQuantity > 0 ? '#ecfdf5' : '#f1f5f9', padding: '3px 8px', borderRadius: '999px', border: row.availableQuantity > 0 ? '1px solid #a7f3d0' : '1px solid #cbd5e1' }}>
-                    {row.availableQuantity ?? row.quantity} {row.unit || 'Pcs'}
-                  </strong>
-                )
-              },
-            ]}
-            data={displayedStock}
-            searchQuery={globalSearch}
-            searchField="productName"
-            emptyMessage="No finished goods stock items found for this filter."
-          />
-        </div>
-      </div>
-    );
+    return <FinishedGoodsStockView readOnly={true} role="dispatch" />;
   };
 
   return (

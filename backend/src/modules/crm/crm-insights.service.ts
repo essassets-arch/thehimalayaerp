@@ -124,8 +124,9 @@ export class CrmInsightsService {
 
   async salesDashboard(companyId?: string, userId?: string, role?: string) {
     const companyFilter = companyId ? { companyId } : {};
-    const leadScope = getSalesScope(userId, role, 'assignedToId');
-    const orderScope = getSalesScope(userId, role, 'createdById');
+    const leadScope = getSalesScope(userId, role, 'Lead');
+    const quotationScope = getSalesScope(userId, role, 'Quotation');
+    const orderScope = getSalesScope(userId, role, 'SalesOrder');
 
     const [
       leadStates,
@@ -143,7 +144,7 @@ export class CrmInsightsService {
       }),
       this.prisma.quotation.groupBy({
         by: ['workflowStateId'],
-        where: { deletedAt: null, ...companyFilter, ...orderScope },
+        where: { deletedAt: null, ...companyFilter, ...quotationScope },
         _count: { _all: true },
       }),
       this.prisma.lead.findMany({
@@ -156,7 +157,7 @@ export class CrmInsightsService {
         },
       }),
       this.prisma.quotation.findMany({
-        where: { deletedAt: null, ...companyFilter, ...orderScope },
+        where: { deletedAt: null, ...companyFilter, ...quotationScope },
         select: { id: true, total: true, workflowStateId: true },
       }),
       this.prisma.salesOrder.findMany({
@@ -168,7 +169,10 @@ export class CrmInsightsService {
         select: { totalAmount: true, createdById: true },
       }),
       this.prisma.customerLedger.findMany({
-        where: { customer: { ...companyFilter, ...orderScope } },
+        where: {
+          ...(companyId ? { customer: { companyId } } : {}),
+          ...(Object.keys(orderScope).length > 0 ? { createdById: userId } : {}),
+        },
         select: { debit: true, credit: true },
       }),
       this.prisma.user.findMany({

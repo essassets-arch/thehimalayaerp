@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Printer, Database, CheckCircle, XCircle, AlertCircle, RefreshCw, Filter, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { backendFetch } from '@/lib/backendFetch';
 import styles from './testing.module.css';
 
 export default function PlantHeadTestingPage() {
@@ -10,7 +11,7 @@ export default function PlantHeadTestingPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  
+
   // Review Modal State
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -20,11 +21,9 @@ export default function PlantHeadTestingPage() {
   const fetchRecords = async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
-      const res = await fetch('/api/v1/production/testing');
-      if (res.ok) {
-        const json = await res.json();
-        setRecords(Array.isArray(json) ? json : (json.data ?? []));
-      }
+      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/production/testing');
+      const dataList = Array.isArray(res) ? res : (res?.data || []);
+      setRecords(dataList);
     } catch {
       toast.error('Failed to load testing records');
     } finally {
@@ -34,42 +33,37 @@ export default function PlantHeadTestingPage() {
 
   useEffect(() => {
     fetchRecords();
-    
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       fetchRecords(false);
     }, 30000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
-  const handleReviewSubmit = async (e: any) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewStatus) {
       toast.error('Please select a status');
       return;
     }
     if (!selectedRecord) return;
-    
+
     try {
-      const res = await fetch(`/api/v1/production/testing/${selectedRecord.id}/status`, {
+      await backendFetch(`/api/backend/production/testing/${selectedRecord.id}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           status: reviewStatus,
-          remarks: remarks
-        }),
+          remarks: remarks.trim() || undefined,
+        },
       });
-      
-      if (res.ok) {
-        toast.success('Record reviewed successfully');
-        setReviewModalOpen(false);
-        fetchRecords(false);
-      } else {
-        toast.error('Failed to update review status');
-      }
-    } catch (err) {
-      toast.error('Error submitting review');
+
+      toast.success('Record reviewed successfully');
+      setReviewModalOpen(false);
+      fetchRecords(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Error submitting review');
     }
   };
 
@@ -98,266 +92,231 @@ export default function PlantHeadTestingPage() {
             .status { font-weight: bold; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
             .status.approved { background: #dcfce7; color: #166534; }
             .status.rejected { background: #fee2e2; color: #991b1b; }
-            .status.needs_retest { background: #ffedd5; color: #9a3412; }
-            .status.pending { background: #fef9c3; color: #854d0e; }
-            .footer { margin-top: 30px; padding-top: 15px; border-top: 2px dashed #e2e8f0; font-size: 13px; color: #94a3b8; text-align: center; }
+            .status.retest { background: #fef9c3; color: #854d0e; }
+            .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #8893A7; border-top: 1px solid #f0f4f8; padding-top: 15px; }
           </style>
         </head>
         <body>
           <div class="slip-card">
             <div class="header">
               <h2>Quality Testing Slip</h2>
-              <div style="color: #64748b; font-size: 14px;">${record.referenceNo}</div>
+              <p style="margin:0; color:#5E6B82; font-size:13px;">Plant Head Audit Copy</p>
             </div>
-            <div class="row"><span class="label">Product / Material</span> <span class="value">${record.productName}</span></div>
-            <div class="row"><span class="label">Quantity Tested</span> <span class="value">${record.quantity}</span></div>
-            <div class="row"><span class="label">Current Status</span> 
-              <span class="status ${record.status.toLowerCase().replace(' ', '_')}">${record.status}</span>
-            </div>
-            ${record.remarks ? `<div class="row"><span class="label">Remarks</span> <span class="value" style="text-align:right; max-width:60%;">${record.remarks}</span></div>` : ''}
-            ${record.reviewedBy ? `<div class="row"><span class="label">Reviewed By</span> <span class="value">${record.reviewedBy}</span></div>` : ''}
-            <div class="footer">Generated on ${new Date().toLocaleString()}</div>
+            <div class="row"><span class="label">Reference:</span> <span class="value">${record.referenceNo}</span></div>
+            <div class="row"><span class="label">Product:</span> <span class="value">${record.productName}</span></div>
+            <div class="row"><span class="label">Quantity:</span> <span class="value">${record.quantity} PCS</span></div>
+            <div class="row"><span class="label">Status:</span> <span class="status ${record.status.toLowerCase()}">${record.status}</span></div>
+            ${record.remarks ? `<div class="row"><span class="label">Remarks:</span> <span class="value">${record.remarks}</span></div>` : ''}
+            ${record.reviewedBy ? `<div class="row"><span class="label">Reviewed By:</span> <span class="value">${record.reviewedBy}</span></div>` : ''}
+            <div class="row"><span class="label">Date:</span> <span class="value">${new Date(record.createdAt).toLocaleString()}</span></div>
+            <div class="footer">Himalaya Enterprise ERP System</div>
           </div>
-          <script>
-            window.onload = () => window.print();
-          </script>
+          <script>window.onload = function() { window.print(); }</script>
         </body>
       </html>
     `);
     printWindow.document.close();
   };
 
-  const filteredRecords = records.filter((record: any) => {
-    const matchesSearch = 
-      (record.productName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (record.referenceNo || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || record.status === statusFilter;
+  const filteredRecords = records.filter(r => {
+    const matchesSearch =
+      (r.productName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.referenceNo || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || r.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status: any) => {
-    switch(status) {
+  const getStatusBadge = (status: string) => {
+    switch (status) {
       case 'Approved':
-        return <span className={`${styles.badge} ${styles.badgeApproved}`}><CheckCircle className="w-3 h-3" /> Approved</span>;
+        return <span className={`${styles.badge} ${styles.approved}`}><CheckCircle size={12} /> Approved</span>;
       case 'Rejected':
-        return <span className={`${styles.badge} ${styles.badgeRejected}`}><XCircle className="w-3 h-3" /> Rejected</span>;
+        return <span className={`${styles.badge} ${styles.rejected}`}><XCircle size={12} /> Rejected</span>;
       case 'Needs Retest':
-        return <span className={`${styles.badge} ${styles.badgeRetest}`}><AlertCircle className="w-3 h-3" /> Retest</span>;
+        return <span className={`${styles.badge} ${styles.retest}`}><AlertCircle size={12} /> Retest Needed</span>;
       default:
-        return <span className={`${styles.badge} ${styles.badgePending}`}>Pending</span>;
+        return <span className={`${styles.badge} ${styles.pending}`}><AlertCircle size={12} /> Pending</span>;
     }
   };
 
   return (
-    <div className={styles.page}>
-      
-      {/* ── Page Header ── */}
+    <div className={styles.container}>
+      {/* Header */}
       <div className={styles.header}>
-        <div className={styles.headerText}>
-          <h1 className={styles.title}>Testing Approvals</h1>
-          <p className={styles.subtitle}>Review testing logs submitted by the production floor.</p>
+        <div>
+          <h1 className={styles.title}>Plant Head — Production Quality Audit</h1>
+          <p className={styles.subtitle}>Review and sign off quality testing logs submitted by the production floor.</p>
         </div>
-        <div className={styles.headerActions}>
-          <button onClick={() => fetchRecords(true)} className={`${styles.btn} ${styles.btnPrimary}`}>
-            <RefreshCw className="w-4 h-4" />
-            <span className={styles.btnLabel}>Refresh Data</span>
-          </button>
-        </div>
+        <button className={styles.refreshBtn} onClick={() => fetchRecords(true)} title="Refresh Data">
+          <RefreshCw size={16} className={loading ? styles.spinning : ''} />
+          <span>Refresh</span>
+        </button>
       </div>
 
-      {/* ── Data Table ── */}
-      <div className={styles.tableCard}>
-        <div className={styles.tableToolbar}>
-          <div className={styles.tableTitle}>
-            <Database className="w-5 h-5 text-[#2F4375]" />
-            <span className={styles.tableTitleText}>Pending Approvals & Logs</span>
-            <span className={styles.countBadge}>{filteredRecords.length}</span>
+      {/* Main Card */}
+      <div className={styles.card}>
+        {/* Controls bar */}
+        <div className={styles.controlsBar}>
+          <div className={styles.searchBox}>
+            <Search size={16} className={styles.searchIcon} />
+            <input
+              type="text"
+              placeholder="Search reference or product..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className={styles.searchInput}
+            />
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative">
-              <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className={`${styles.searchInput} !pl-9 !pr-8`}
-                style={{ appearance: 'none', background: 'transparent' }}
-              >
-                <option value="All">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-                <option value="Needs Retest">Needs Retest</option>
-              </select>
-            </div>
-            
-            <div className={styles.searchWrap}>
-              <Search className={styles.searchIcon} />
-              <input
-                type="text"
-                className={styles.searchInput}
-                placeholder="Search ref or product..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+          <div className={styles.filterBox}>
+            <Filter size={14} className={styles.filterIcon} />
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className={styles.selectFilter}
+            >
+              <option value="All">All Statuses</option>
+              <option value="Pending">Pending Review</option>
+              <option value="Approved">Approved</option>
+              <option value="Needs Retest">Needs Retest</option>
+              <option value="Rejected">Rejected</option>
+            </select>
           </div>
         </div>
 
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead className={styles.thead}>
-              <tr>
-                <th>Reference</th>
-                <th>Product / Material</th>
-                <th>Quantity</th>
-                <th>Status</th>
-                <th>Remarks</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className={styles.tbody}>
-              {loading ? (
+        {/* Table / List */}
+        {loading ? (
+          <div className={styles.loadingState}>
+            <RefreshCw size={24} className={styles.spinning} />
+            <p>Loading quality testing logs...</p>
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className={styles.emptyState}>
+            <Database size={40} className={styles.emptyIcon} />
+            <h3>No Testing Records Found</h3>
+            <p>{searchQuery || statusFilter !== 'All' ? 'Try adjusting your filters.' : 'No production testing records available.'}</p>
+          </div>
+        ) : (
+          <div className={styles.tableResponsive}>
+            <table className={styles.table}>
+              <thead>
                 <tr>
-                  <td colSpan={6}>
-                    <div className={styles.stateBox}>
-                      <div className={styles.spinner} />
-                      <h3 className={styles.stateTitle}>Loading Approvals...</h3>
-                    </div>
-                  </td>
+                  <th>Reference</th>
+                  <th>Product / Material</th>
+                  <th>Quantity</th>
+                  <th>UOM</th>
+                  <th>Submitted Date</th>
+                  <th>Status</th>
+                  <th>Reviewed By</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <div className={styles.stateBox}>
-                      <div className={styles.stateIcon}>
-                        <CheckCircle className="w-7 h-7" />
-                      </div>
-                      <h3 className={styles.stateTitle}>No records found</h3>
-                      <p className={styles.stateHint}>
-                        {searchQuery || statusFilter !== 'All' 
-                          ? 'Try adjusting your search or filters.' 
-                          : 'All production testing logs have been reviewed.'}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id}>
-                    <td>
-                      <div className={styles.refNo}>{record.referenceNo}</div>
-                      <div className={styles.refDate}>{new Date(record.createdAt).toLocaleDateString()}</div>
+              </thead>
+              <tbody>
+                {filteredRecords.map((r) => (
+                  <tr key={r.id}>
+                    <td className={styles.refCell}>
+                      <code>{r.referenceNo}</code>
                     </td>
-                    <td>
-                      <div className={styles.productName}>{record.productName}</div>
+                    <td className={styles.productCell}>
+                      <strong>{r.productName}</strong>
                     </td>
-                    <td className={styles.qty}>{record.quantity}</td>
-                    <td>{getStatusBadge(record.status)}</td>
-                    <td>
-                      <div className={styles.remarks} title={record.remarks || ''}>
-                        {record.remarks || '—'}
-                      </div>
-                    </td>
-                    <td>
-                      <div className={styles.actions}>
+                    <td>{Number(r.quantity).toLocaleString()}</td>
+                    <td>PCS</td>
+                    <td>{new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td>{getStatusBadge(r.status)}</td>
+                    <td>{r.reviewedBy || '-'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div className={styles.actionGroup}>
                         <button
-                          onClick={() => openReviewModal(record)}
-                          className={`${styles.actionBtn} ${styles.edit}`}
-                          title="Review Record"
+                          className={styles.iconBtn}
+                          title="Print Slip"
+                          onClick={() => handlePrintSlip(r)}
                         >
-                          <CheckCircle className="w-[18px] h-[18px]" />
+                          <Printer size={14} />
                         </button>
                         <button
-                          onClick={() => handlePrintSlip(record)}
-                          className={`${styles.actionBtn}`}
-                          title="Print Slip"
+                          className={styles.reviewBtn}
+                          onClick={() => openReviewModal(r)}
                         >
-                          <Printer className="w-[18px] h-[18px]" />
+                          <span>Review</span>
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* ── Premium Review Modal ── */}
+      {/* Review Modal */}
       {reviewModalOpen && selectedRecord && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalCard}>
-            {/* Modal Header */}
+          <div className={styles.modalContent}>
             <div className={styles.modalHeader}>
-              <div>
-                <h3 className={styles.modalTitle}>Review Testing Record</h3>
-                <p className={styles.modalSubtitle}>{selectedRecord.referenceNo} • {selectedRecord.productName}</p>
-              </div>
-              <button 
-                onClick={() => setReviewModalOpen(false)}
-                className={styles.modalClose}
-              >
-                <X className="w-5 h-5" />
+              <h3>Review Testing Log</h3>
+              <button className={styles.closeBtn} onClick={() => setReviewModalOpen(false)}>
+                <X size={18} />
               </button>
             </div>
-            
-            <form onSubmit={handleReviewSubmit} className={styles.modalBody}>
-              <div>
-                <label className={styles.modalLabel}>Update Status Decision</label>
-                <div className={styles.statusGrid}>
-                  <div
-                    onClick={() => setReviewStatus('Approved')}
-                    className={`${styles.statusOption} ${reviewStatus === 'Approved' ? styles.approved : ''}`}
-                  >
-                    <CheckCircle className="w-6 h-6" />
-                    <span>Approve</span>
-                  </div>
-                  
-                  <div
-                    onClick={() => setReviewStatus('Rejected')}
-                    className={`${styles.statusOption} ${reviewStatus === 'Rejected' ? styles.rejected : ''}`}
-                  >
-                    <XCircle className="w-6 h-6" />
-                    <span>Reject</span>
-                  </div>
-                  
-                  <div
-                    onClick={() => setReviewStatus('Needs Retest')}
-                    className={`${styles.statusOption} ${reviewStatus === 'Needs Retest' ? styles.retest : ''}`}
-                  >
-                    <AlertCircle className="w-6 h-6" />
-                    <span>Retest</span>
+
+            <form onSubmit={handleReviewSubmit}>
+              <div className={styles.modalBody}>
+                <div className={styles.infoRow}>
+                  <span>Reference:</span>
+                  <strong>{selectedRecord.referenceNo}</strong>
+                </div>
+                <div className={styles.infoRow}>
+                  <span>Product:</span>
+                  <strong>{selectedRecord.productName}</strong>
+                </div>
+                <div className={styles.infoRow}>
+                  <span>Quantity:</span>
+                  <strong>{selectedRecord.quantity} PCS</strong>
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label>Audit Status Decision *</label>
+                  <div className={styles.radioGrid}>
+                    {['Approved', 'Needs Retest', 'Rejected'].map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        className={`${styles.statusOption} ${reviewStatus === st ? styles.activeOption : ''}`}
+                        onClick={() => setReviewStatus(st)}
+                      >
+                        {st === 'Approved' && <Check size={14} />}
+                        {st === 'Rejected' && <X size={14} />}
+                        {st === 'Needs Retest' && <AlertCircle size={14} />}
+                        {st}
+                      </button>
+                    ))}
                   </div>
                 </div>
+
+                <div className={styles.fieldGroup}>
+                  <label>Quality Audit Remarks</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Enter audit notes or instructions for production team..."
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    className={styles.textarea}
+                  />
+                </div>
               </div>
-              
-              <div>
-                <label className={styles.modalLabel}>Remarks / Notes</label>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  className={styles.modalTextarea}
-                  rows={3}
-                  placeholder="Provide details about the decision..."
-                />
-              </div>
-              
-              <div className={styles.modalActions}>
+
+              <div className={styles.modalFooter}>
                 <button
                   type="button"
+                  className={styles.cancelBtn}
                   onClick={() => setReviewModalOpen(false)}
-                  className={`${styles.modalBtn} ${styles.modalBtnCancel}`}
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className={`${styles.modalBtn} ${styles.modalBtnSubmit}`}
-                >
-                  <Check className="w-4 h-4" />
-                  Confirm {reviewStatus ? reviewStatus : 'Decision'}
+                <button type="submit" className={styles.saveBtn}>
+                  Save Audit Status
                 </button>
               </div>
             </form>

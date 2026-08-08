@@ -672,56 +672,139 @@ export class ProductionWorkflowService {
       };
     });
 
-    return [...mappedExisting, ...syntheticRecords];
+    const rawList = [...mappedExisting, ...syntheticRecords];
+
+    // Deduplicate & aggregate by productCode or productId
+    const groupedMap = new Map<string, any>();
+
+    for (const item of rawList) {
+      const key = item.productCode && item.productCode !== '-' ? item.productCode : (item.productId || item.productName);
+
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, {
+          id: item.id || `prod-${key}`,
+          workOrderId: item.workOrderId,
+          jobNo: item.jobNo,
+          productId: item.productId,
+          productName: item.productName,
+          productCode: item.productCode,
+          category: item.product?.category || item.category || 'Hardware',
+          customerName: item.customerName || 'Internal Stock',
+          quantity: 0,
+          availableQuantity: 0,
+          unit: (item.unit || item.product?.unit || 'PCS').toUpperCase(),
+          status: 'AVAILABLE',
+          receivedAt: item.receivedAt || new Date().toISOString(),
+          receivedById: item.receivedById || null,
+          product: item.product,
+          workOrder: item.workOrder,
+        });
+      }
+
+      const existing = groupedMap.get(key);
+      existing.quantity += Number(item.quantity || 0);
+      existing.availableQuantity += Number(item.availableQuantity || 0);
+
+      const minStock = Number(item.product?.minimumStock || 0);
+      if (existing.availableQuantity <= 0) {
+        existing.status = 'OUT_OF_STOCK';
+      } else if (existing.availableQuantity <= minStock) {
+        existing.status = 'LOW_STOCK';
+      } else {
+        existing.status = 'AVAILABLE';
+      }
+    }
+
+    // Also include any Finished Goods products from Product table if not yet present
+    const fgProducts = await this.prisma.product.findMany({
+      where: { productType: 'FINISHED_GOODS' },
+    });
+
+    for (const p of fgProducts) {
+      const key = p.sku || p.publicId;
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, {
+          id: `fg-prod-${p.id}`,
+          workOrderId: `WO-STOCK-${p.sku}`,
+          jobNo: `WO-STOCK-${p.sku}`,
+          productId: p.id,
+          productName: p.name,
+          productCode: p.sku || p.publicId,
+          category: p.category || 'Hardware',
+          customerName: 'Internal Stock',
+          quantity: 0,
+          availableQuantity: 0,
+          unit: (p.unit || 'PCS').toUpperCase(),
+          status: 'OUT_OF_STOCK',
+          receivedAt: p.createdAt.toISOString(),
+          receivedById: null,
+          product: p,
+        });
+      }
+    }
+
+    return Array.from(groupedMap.values());
   }
 
   async createFinishedGoods(dto: any, userId?: string) {
-    let productId = dto.productId;
-    if (!productId && dto.productName) {
-      const prod = await this.prisma.product.findFirst({
-        where: { name: { contains: dto.productName, mode: 'insensitive' } },
-      });
-      productId = prod?.id;
+    if (!dto.productName || !dto.productName.trim()) {
+      throw new BadRequestException('Product Name is required');
     }
 
-    if (!productId) {
+    const qty = Math.max(0, Number(dto.quantity) || 0);
+    const unit = (dto.unit || 'PCS').toUpperCase();
+
+    let productId = dto.productId;
+    let product: any = null;
+
+    if (productId) {
+      product = await this.prisma.product.findUnique({ where: { id: productId } });
+    }
+
+    if (!product && dto.productName) {
+      product = await this.prisma.product.findFirst({
+        where: { name: { contains: dto.productName.trim(), mode: 'insensitive' } },
+      });
+    }
+
+    if (!product) {
       const company = await this.prisma.company.findFirst();
       const companyId = company?.id || 'default-company';
-      const newProd = await this.prisma.product.create({
+      const sku = `FG-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      product = await this.prisma.product.create({
         data: {
           publicId: `PROD-FG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           companyId,
-          name: dto.productName || 'Finished Good Product',
-          sku: `FG-${Date.now().toString().slice(-6)}`,
+          name: dto.productName.trim(),
+          sku,
           productType: 'FINISHED_GOODS',
-          unit: dto.unit || 'Pcs',
+          category: dto.category || 'Hardware',
+          unit,
           unitPrice: 0,
+          minimumStock: 0,
         } as any,
       });
-      productId = newProd.id;
     }
+
+    productId = product.id;
 
     let realWorkOrderId = dto.workOrderId;
     let existingWo: any = null;
+    const jobNoStr = dto.jobNo || dto.workOrderId || `WO-FG-${Date.now().toString().slice(-6)}`;
 
     if (realWorkOrderId) {
       existingWo = await this.prisma.workOrder.findFirst({
         where: {
           OR: [
             { id: realWorkOrderId },
-            { workOrderNumber: dto.jobNo || dto.workOrderId },
+            { workOrderNumber: jobNoStr },
           ],
         },
       });
     }
 
     if (!existingWo) {
-      existingWo = await this.prisma.workOrder.findFirst();
-    }
-
-    if (existingWo) {
-      realWorkOrderId = existingWo.id;
-    } else {
       let plan = await this.prisma.productionPlan.findFirst();
       if (!plan) {
         let salesOrder = await this.prisma.salesOrder.findFirst();
@@ -758,19 +841,17 @@ export class ProductionWorkflowService {
         });
       }
 
-      const jobNoStr = dto.jobNo || dto.workOrderId || `WO-FG-${Date.now().toString().slice(-5)}`;
       existingWo = await this.prisma.workOrder.create({
         data: {
           workOrderNumber: jobNoStr,
           productionPlanId: plan.id,
-          quantity: Number(dto.quantity || 1),
+          quantity: qty > 0 ? qty : 1,
           status: 'READY_FOR_DISPATCH',
         },
       });
-      realWorkOrderId = existingWo.id;
     }
+    realWorkOrderId = existingWo.id;
 
-    const qty = Number(dto.quantity || 1);
     const availQty = Number(dto.availableQuantity ?? qty);
 
     const fg = await this.prisma.finishedGoods.upsert({
@@ -780,15 +861,15 @@ export class ProductionWorkflowService {
         productId,
         quantity: qty,
         availableQuantity: availQty,
-        unit: dto.unit || 'Pcs',
-        status: dto.status || 'AVAILABLE',
+        unit,
+        status: qty <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
         receivedById: userId,
       },
       update: {
-        quantity: qty,
-        availableQuantity: availQty,
-        unit: dto.unit || 'Pcs',
-        status: dto.status || 'AVAILABLE',
+        quantity: { increment: qty },
+        availableQuantity: { increment: availQty },
+        unit,
+        status: 'AVAILABLE',
       },
       include: {
         product: true,
@@ -796,6 +877,361 @@ export class ProductionWorkflowService {
       },
     });
 
+    // Record Inventory Transaction
+    if (qty > 0) {
+      const comp = await this.prisma.company.findFirst();
+      const warehouse = await this.prisma.warehouse.findFirst();
+      if (comp && warehouse) {
+        await this.prisma.inventoryTransaction.create({
+          data: {
+            companyId: comp.id,
+            productId: product.id,
+            warehouseId: warehouse.id,
+            type: 'IN',
+            quantity: qty,
+            referenceType: 'FINISHED_GOODS_CREATE',
+            referenceId: fg.id,
+          },
+        });
+      }
+    }
+
     return fg;
   }
+
+  async stockInFinishedGoods(dto: any, userId?: string) {
+    const qty = Number(dto.quantity);
+    if (!qty || isNaN(qty) || qty <= 0) {
+      throw new BadRequestException('Quantity to add must be greater than 0');
+    }
+
+    let product: any = null;
+    if (dto.productId) {
+      product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+    }
+    if (!product && (dto.productCode || dto.productName)) {
+      product = await this.prisma.product.findFirst({
+        where: {
+          OR: [
+            { sku: dto.productCode },
+            { name: { equals: dto.productName, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    if (!product) {
+      throw new NotFoundException('Finished Good product not found');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      let fg = await tx.finishedGoods.findFirst({
+        where: { productId: product.id },
+      });
+
+      if (!fg) {
+        let plan = await tx.productionPlan.findFirst();
+        if (!plan) {
+          let salesOrder = await tx.salesOrder.findFirst();
+          if (!salesOrder) {
+            let customer = await tx.customer.findFirst();
+            if (!customer) {
+              const comp = await tx.company.findFirst();
+              customer = await tx.customer.create({
+                data: {
+                  companyId: comp?.id || 'default-company',
+                  companyName: 'Internal Stock Customer',
+                  customerCode: `CUST-${Date.now().toString().slice(-4)}`,
+                },
+              });
+            }
+            salesOrder = await tx.salesOrder.create({
+              data: {
+                orderNumber: `SO-STOCK-${Date.now().toString().slice(-5)}`,
+                customerId: customer.id,
+                status: 'CONFIRMED',
+                totalAmount: 0,
+                subtotal: 0,
+                taxableAmount: 0,
+                createdById: userId || 'system',
+              },
+            });
+          }
+          plan = await tx.productionPlan.create({
+            data: {
+              planNumber: `PP-STOCK-${Date.now().toString().slice(-5)}`,
+              salesOrderId: salesOrder.id,
+              status: 'APPROVED',
+            },
+          });
+        }
+
+        const wo = await tx.workOrder.create({
+          data: {
+            workOrderNumber: `WO-STOCK-${Date.now().toString().slice(-5)}`,
+            productionPlanId: plan.id,
+            quantity: qty,
+            status: 'READY_FOR_DISPATCH',
+          },
+        });
+
+        fg = await tx.finishedGoods.create({
+          data: {
+            workOrderId: wo.id,
+            productId: product.id,
+            quantity: qty,
+            availableQuantity: qty,
+            unit: product.unit || 'PCS',
+            status: 'AVAILABLE',
+            receivedById: userId,
+          },
+        });
+      } else {
+        fg = await tx.finishedGoods.update({
+          where: { id: fg.id },
+          data: {
+            quantity: { increment: qty },
+            availableQuantity: { increment: qty },
+            status: 'AVAILABLE',
+          },
+        });
+      }
+
+      // Record Inventory Transaction
+      const comp = await tx.company.findFirst();
+      const warehouse = await tx.warehouse.findFirst();
+      if (comp && warehouse) {
+        await tx.inventoryTransaction.create({
+          data: {
+            companyId: comp.id,
+            productId: product.id,
+            warehouseId: warehouse.id,
+            type: 'IN',
+            quantity: qty,
+            referenceType: 'FINISHED_GOODS_STOCK_IN',
+            referenceId: dto.reference || fg.id,
+          },
+        });
+      }
+
+      return fg;
+    });
+  }
+
+  async stockOutFinishedGoods(dto: any, userId?: string) {
+    const qty = Number(dto.quantity);
+    if (!qty || isNaN(qty) || qty <= 0) {
+      throw new BadRequestException('Quantity to issue must be greater than 0');
+    }
+
+    let product: any = null;
+    if (dto.productId) {
+      product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+    }
+    if (!product && (dto.productCode || dto.productName)) {
+      product = await this.prisma.product.findFirst({
+        where: {
+          OR: [
+            { sku: dto.productCode },
+            { name: { equals: dto.productName, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    if (!product) {
+      throw new NotFoundException('Finished Good product not found');
+    }
+
+    const fgRecords = await this.prisma.finishedGoods.findMany({
+      where: { productId: product.id },
+    });
+
+    const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+
+    // CRITICAL NEGATIVE STOCK PROTECTION
+    if (qty > totalAvail) {
+      throw new BadRequestException(
+        `Insufficient finished goods stock. Available: ${totalAvail} ${product.unit || 'PCS'}. Requested: ${qty} ${product.unit || 'PCS'}.`
+      );
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      let remainingToDeduct = qty;
+      for (const fg of fgRecords) {
+        if (remainingToDeduct <= 0) break;
+        const currentAvail = Number(fg.availableQuantity || 0);
+        const deduct = Math.min(currentAvail, remainingToDeduct);
+        const newAvail = currentAvail - deduct;
+        const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
+
+        await tx.finishedGoods.update({
+          where: { id: fg.id },
+          data: {
+            availableQuantity: newAvail,
+            quantity: newQty,
+            status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+          },
+        });
+        remainingToDeduct -= deduct;
+      }
+
+      // Record Inventory Transaction
+      const comp = await tx.company.findFirst();
+      const warehouse = await tx.warehouse.findFirst();
+      if (comp && warehouse) {
+        await tx.inventoryTransaction.create({
+          data: {
+            companyId: comp.id,
+            productId: product.id,
+            warehouseId: warehouse.id,
+            type: 'OUT',
+            quantity: qty,
+            referenceType: 'FINISHED_GOODS_STOCK_OUT',
+            referenceId: dto.reason || 'MANUAL_STOCK_OUT',
+          },
+        });
+      }
+
+      return { success: true, message: `Successfully issued -${qty} ${product.unit || 'PCS'}` };
+    });
+  }
+
+  async adjustFinishedGoods(dto: any, userId?: string) {
+    const newStock = Number(dto.newPhysicalStock);
+    if (isNaN(newStock) || newStock < 0) {
+      throw new BadRequestException('Physical stock must be a non-negative number');
+    }
+    if (!dto.reason || !dto.reason.trim()) {
+      throw new BadRequestException('Reason is required for stock adjustment');
+    }
+
+    let product: any = null;
+    if (dto.productId) {
+      product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+    }
+    if (!product && (dto.productCode || dto.productName)) {
+      product = await this.prisma.product.findFirst({
+        where: {
+          OR: [
+            { sku: dto.productCode },
+            { name: { equals: dto.productName, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    if (!product) {
+      throw new NotFoundException('Finished Good product not found');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const fgRecords = await tx.finishedGoods.findMany({
+        where: { productId: product.id },
+      });
+
+      const currentTotal = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+      const diff = newStock - currentTotal;
+
+      if (fgRecords.length > 0) {
+        const primary = fgRecords[0];
+        await tx.finishedGoods.update({
+          where: { id: primary.id },
+          data: {
+            quantity: newStock,
+            availableQuantity: newStock,
+            status: newStock <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+          },
+        });
+
+        for (let i = 1; i < fgRecords.length; i++) {
+          await tx.finishedGoods.update({
+            where: { id: fgRecords[i].id },
+            data: {
+              quantity: 0,
+              availableQuantity: 0,
+              status: 'OUT_OF_STOCK',
+            },
+          });
+        }
+      } else {
+        let plan = await tx.productionPlan.findFirst();
+        if (!plan) {
+          let salesOrder = await tx.salesOrder.findFirst();
+          if (!salesOrder) {
+            let customer = await tx.customer.findFirst();
+            if (!customer) {
+              const comp = await tx.company.findFirst();
+              customer = await tx.customer.create({
+                data: {
+                  companyId: comp?.id || 'default-company',
+                  companyName: 'Internal Stock Customer',
+                  customerCode: `CUST-${Date.now().toString().slice(-4)}`,
+                },
+              });
+            }
+            salesOrder = await tx.salesOrder.create({
+              data: {
+                orderNumber: `SO-STOCK-${Date.now().toString().slice(-5)}`,
+                customerId: customer.id,
+                status: 'CONFIRMED',
+                totalAmount: 0,
+                subtotal: 0,
+                taxableAmount: 0,
+                createdById: userId || 'system',
+              },
+            });
+          }
+          plan = await tx.productionPlan.create({
+            data: {
+              planNumber: `PP-STOCK-${Date.now().toString().slice(-5)}`,
+              salesOrderId: salesOrder.id,
+              status: 'APPROVED',
+            },
+          });
+        }
+
+        const wo = await tx.workOrder.create({
+          data: {
+            workOrderNumber: `WO-STOCK-${Date.now().toString().slice(-5)}`,
+            productionPlanId: plan.id,
+            quantity: newStock,
+            status: 'READY_FOR_DISPATCH',
+          },
+        });
+
+        await tx.finishedGoods.create({
+          data: {
+            workOrderId: wo.id,
+            productId: product.id,
+            quantity: newStock,
+            availableQuantity: newStock,
+            unit: product.unit || 'PCS',
+            status: newStock <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+            receivedById: userId,
+          },
+        });
+      }
+
+      // Record Inventory Transaction
+      const comp = await tx.company.findFirst();
+      const warehouse = await tx.warehouse.findFirst();
+      if (comp && warehouse) {
+        await tx.inventoryTransaction.create({
+          data: {
+            companyId: comp.id,
+            productId: product.id,
+            warehouseId: warehouse.id,
+            type: 'ADJUSTMENT',
+            quantity: Math.abs(diff),
+            referenceType: `ADJUSTMENT_${diff >= 0 ? 'IN' : 'OUT'}`,
+            referenceId: dto.reason,
+          },
+        });
+      }
+
+      return { success: true, message: `Adjusted physical stock to ${newStock} ${product.unit || 'PCS'}` };
+    });
+  }
 }
+

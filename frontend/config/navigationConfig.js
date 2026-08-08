@@ -1,5 +1,5 @@
 import {
-  LayoutGrid, Users, FlaskConical, FileText, Box, Wrench, Truck, CreditCard,
+  LayoutGrid, Users, FlaskConical, FileText, Box, Boxes, Wrench, Truck, CreditCard,
   UserCheck, BarChart3, Layers, ShieldAlert, ClipboardList, PackageCheck,
   UserPlus, Clock, Bell, ClipboardCheck, AlertTriangle, RefreshCw, Package, Shield, ShieldCheck,
   Receipt, TrendingUp, Target, DollarSign, Percent, Calendar, Cpu, Activity,
@@ -28,6 +28,22 @@ export const navigationConfig = {
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/sales/profile' }
   ],
 
+  'SuperSales': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/supersales/dashboard' },
+    { id: 'daily-task', label: 'Daily Tasks', icon: ClipboardList, path: '/supersales/daily-task' },
+    { id: 'leads', label: 'Leads Directory', icon: Users, path: '/supersales/leads', group: 'CRM' },
+    { id: 'samples', label: 'Sample Management', icon: FlaskConical, path: '/supersales/samples', group: 'CRM' },
+    { id: 'quotations', label: 'Quotations', icon: FileText, path: '/supersales/quotations', group: 'SuperSales' },
+    { id: 'orders', label: 'Orders', icon: Box, path: '/supersales/orders', group: 'SuperSales' },
+    { id: 'production-status', label: 'Production Status', icon: Wrench, path: '/supersales/production-status', group: 'SuperSales' },
+    { id: 'payment-followup', label: 'Payment Follow-up', icon: CreditCard, path: '/supersales/payment-followup', group: 'SuperSales' },
+    { id: 'payment-history', label: 'Payment History', icon: History, path: '/supersales/payment-history', group: 'SuperSales' },
+    { id: 'customers', label: 'Customers', icon: UserCheck, path: '/supersales/customers', group: 'SuperSales' },
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/supersales/customer-complaints', group: 'SuperSales' },
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/supersales/reports' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/supersales/profile' }
+  ],
+
   'Production': [
     { type: 'badge', label: 'PRODUCTION' },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/production/dashboard' },
@@ -48,6 +64,7 @@ export const navigationConfig = {
     { id: 'completed', label: 'Completed', icon: ClipboardCheck, path: '/production/completed' },
     { id: 'qc-failed', label: 'QC Failed & Reproduction', icon: RefreshCw, path: '/production/qc-failed' },
     { id: 'testing', label: 'Testing', icon: ClipboardCheck, path: '/production/testing' },
+    { id: 'all-stock', label: 'All Stock', icon: Boxes, path: '/production/all-stock' },
     { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' },
     { id: 'machines', label: 'Machine Performance', icon: Cpu, path: '/production/machines' },
@@ -174,6 +191,57 @@ export const navigationConfig = {
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch/profile' }
   ],
 
+  'Dispatch 2': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch-2/dashboard' },
+    { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch-2/finished-goods', group: 'Logistics' },
+    {
+      id: 'Sales-order dispatch',
+      label: 'Create Dispatch',
+      icon: Truck,
+      path: '/dispatch-2/orders',
+      group: 'Logistics',
+      subItems: [
+        { id: 'pending-dispatch', label: 'Pending Dispatch', path: '/dispatch-2/orders' },
+        { id: 'new-dispatch', label: 'Create Dispatch', path: '/dispatch-2/create-dispatch' },
+        { id: 'in-transit', label: 'In Transit', path: '/dispatch-2/in-transit' },
+        { id: 'delivered', label: 'Delivered', path: '/dispatch-2/delivery' },
+      ],
+    },
+    {
+      id: 'sample-dispatch', label: 'Sample Dispatch', icon: FlaskConical, path: '/dispatch-2/sample-dispatch', group: 'Logistics',
+      subItems: [
+        { id: 'sample-pending', label: 'Pending Dispatch', path: '/dispatch-2/sample-dispatch?status=pending' },
+        { id: 'sample-create', label: 'Create Sample Dispatch', path: '/dispatch-2/sample-dispatch/create/new' },
+        { id: 'sample-transit', label: 'In Transit', path: '/dispatch-2/sample-dispatch?status=in-transit' },
+        { id: 'sample-delivered', label: 'Delivered', path: '/dispatch-2/sample-dispatch?status=delivered' },
+        { id: 'sample-all', label: 'All', path: '/dispatch-2/sample-dispatch?status=all' },
+      ],
+    },
+    {
+      id: 'replacements', label: 'Replacement Dispatch', icon: RefreshCw, path: '/dispatch-2/replacements', group: 'Logistics',
+      subItems: [
+        { id: 'replacement-pending', label: 'Pending Dispatch', path: '/dispatch-2/replacements?status=pending' },
+        { id: 'replacement-transit', label: 'In Transit', path: '/dispatch-2/replacements?status=in-transit' },
+        { id: 'replacement-delivered', label: 'Delivered', path: '/dispatch-2/replacements?status=delivered' },
+      ],
+    },
+    {
+      id: 'returns',
+      label: 'Return Dispatch',
+      icon: RotateCcw,
+      path: '/dispatch-2/returns',
+      group: 'Logistics',
+      subItems: [
+        { id: 'return-pending', label: 'Pending Dispatch', path: '/dispatch-2/returns?status=pending' },
+        { id: 'return-transit', label: 'In Transit', path: '/dispatch-2/returns?status=in-transit' },
+        { id: 'return-delivered', label: 'Delivered', path: '/dispatch-2/returns?status=delivered' },
+      ],
+    },
+    { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch-2/remaining' },
+    { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch-2/history' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch-2/profile' }
+  ],
+
   'Finance Executive': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance-executive/dashboard' },
     { id: 'daily-tasks', label: 'Tasks', icon: ClipboardList, path: '/finance-executive/daily-tasks' },
@@ -291,9 +359,7 @@ export const navigationConfig = {
     { type: 'badge', label: 'MASTER DATA' },
     { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
-    { id: 'price-master', label: 'Price Master', icon: DollarSign, path: '/super-admin/price-master' },
-    { id: 'inventory', label: 'Inventory Master', icon: Database, path: '/super-admin/inventory' },
-
+        
     { type: 'badge', label: 'ANALYTICS & REPORTS' },
     { id: 'analytics-business', label: 'Business Analytics', icon: BarChart3, path: '/super-admin/analytics/business' },
     { id: 'analytics-sales', label: 'Sales Analytics', icon: TrendingUp, path: '/super-admin/analytics/sales' },

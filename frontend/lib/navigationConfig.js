@@ -1,5 +1,5 @@
 import {
-  LayoutGrid, Users, FlaskConical, FileText, Box, Wrench, Truck, CreditCard,
+  LayoutGrid, Users, FlaskConical, FileText, Box, Boxes, Wrench, Truck, CreditCard,
   UserCheck, BarChart3, FileCheck, Layers, ShieldAlert, ClipboardList, PackageCheck,
   UserPlus, Clock, Bell, ClipboardCheck, AlertTriangle, RefreshCw, Package, Shield,
   Settings, Receipt, TrendingUp, Target, DollarSign, Percent, Calendar, Cpu, Activity,
@@ -33,6 +33,7 @@ export const navigationConfig = {
     { id: 'completed', label: 'Completed', icon: ClipboardCheck, path: '/production/completed' },
     { id: 'rework', label: 'QC Failed & Reprod.', icon: RefreshCw, path: '/production/rework' },
     { id: 'testing', label: 'Testing', icon: ClipboardCheck, path: '/production/testing' },
+    { id: 'all-stock', label: 'All Stock', icon: Boxes, path: '/production/all-stock' },
     { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' }
   ],
@@ -240,9 +241,7 @@ export const navigationConfig = {
     { id: 'production-target', label: 'Production Targets', icon: Target, path: '/super-admin/production-target' },
     { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
-    { id: 'price-master', label: 'Price Master', icon: DollarSign, path: '/super-admin/price-master' },
-    { id: 'inventory', label: 'Inventory Master', icon: Database, path: '/super-admin/inventory' },
-    { id: 'analytics-business', label: 'Business Analytics', icon: BarChart3, path: '/super-admin/analytics/business' },
+            { id: 'analytics-business', label: 'Business Analytics', icon: BarChart3, path: '/super-admin/analytics/business' },
     { id: 'analytics-sales', label: 'Sales Analytics', icon: TrendingUp, path: '/super-admin/analytics/sales' },
     { id: 'analytics-finance', label: 'Finance Analytics', icon: Landmark, path: '/super-admin/analytics/finance' },
     { id: 'analytics-production', label: 'Production Analytics', icon: Cpu, path: '/super-admin/analytics/production' },

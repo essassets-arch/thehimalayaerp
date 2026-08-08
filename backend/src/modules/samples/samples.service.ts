@@ -113,7 +113,7 @@ export class SamplesService {
   }
 
   async findAll(companyId: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'SampleRequest');
     return this.prisma.sampleRequest.findMany({
       where: { companyId, deletedAt: null, ...scope },
       include: {
@@ -132,7 +132,7 @@ export class SamplesService {
   }
 
   async findOne(id: string, companyId: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'SampleRequest');
     const sample = await this.prisma.sampleRequest.findFirst({
       where: { id, companyId, deletedAt: null, ...scope },
       include: {

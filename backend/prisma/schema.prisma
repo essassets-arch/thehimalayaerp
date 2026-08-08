@@ -986,6 +986,8 @@ model Quotation {
   total    Decimal @default(0) @db.Decimal(18, 2)
   expectedTransportationCost Decimal @default(0) @db.Decimal(18, 2)
   remarks           String?
+  paymentTerms      String?
+  paymentTermDays   Int?
   version           Int     @default(1)
   parentQuotationId String?
 

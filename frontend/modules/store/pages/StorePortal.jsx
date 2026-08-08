@@ -370,13 +370,21 @@ export default function StorePortal() {
         apiClient.get('/products?type=RAW_MATERIAL'),
         apiClient.get('/inventory/stock-levels')
       ]);
-      const products = prodRes?.data || [];
-      const stocks = stockRes?.data || [];
+      const products = Array.isArray(prodRes?.data) ? prodRes.data : (prodRes?.data?.data || []);
+      const stocks = Array.isArray(stockRes?.data) ? stockRes.data : (stockRes?.data?.data || []);
       
       const enriched = products.map(p => {
         const stockItem = stocks.find(s => s.productId === p.id);
         const qty = stockItem ? Number(stockItem.quantity) : 0;
         const min = Number(p.minimumStock) || 0;
+        let status;
+        if (qty <= 0) {
+          status = 'Out of Stock';
+        } else if (min > 0 && qty <= min) {
+          status = 'Low Stock';
+        } else {
+          status = 'In Stock';
+        }
         return {
           id: p.id,
           code: p.sku || p.publicId,
@@ -389,7 +397,7 @@ export default function StorePortal() {
           stock: qty,
           description: p.description || '',
           location: 'Raw Material Store',
-          status: qty >= min ? 'Adequate' : 'Low Stock',
+          status,
           history: [] 
         };
       });
@@ -402,7 +410,7 @@ export default function StorePortal() {
   }, []);
 
   useEffect(() => {
-    if (currentView === 'raw-inventory' || currentView === 'dashboard') {
+    if (currentView === 'raw-inventory' || currentView === 'dashboard' || currentView === 'low-stock-alerts') {
       fetchRawInventory();
     }
   }, [currentView, fetchRawInventory]);
@@ -443,6 +451,11 @@ export default function StorePortal() {
 
   // Local search filter
   const [rawSearchQuery, setRawSearchQuery] = useState('');
+  // Raw inventory status filter: 'All' | 'In Stock' | 'Low Stock' | 'Out of Stock'
+  const [rawInvStatusFilter, setRawInvStatusFilter] = useState('All');
+  // Low stock alerts search filter
+  const [lowStockSearch, setLowStockSearch] = useState('');
+
 
   // Create Material Indent state (for Low Stock Alerts page)
   const [showIndentModal, setShowIndentModal] = useState(false);
@@ -1100,7 +1113,7 @@ export default function StorePortal() {
               referenceId: result.value.remarks
             });
             await fetchRawInventory();
-            showToast(`${result.value.qty} ${item.unit} issued from ${item.material}.`);
+            showToast(`${result.value.qty} ${item.unit} removed from ${item.material}.`);
           } catch (err) {
             console.error('Stock Out failed:', err);
             Swal.fire({ icon: 'error', title: 'Stock Out Failed', text: err.response?.data?.message || err.message });
@@ -1111,31 +1124,31 @@ export default function StorePortal() {
 
     const handleQuickAdjust = (item) => {
       Swal.fire({
-        title: `Adjust Inventory: ${item.material}`,
+        title: `Adjust Stock: ${item.material}`,
         html: `
           <div style="text-align: left; display: flex; flex-direction: column; gap: 12px; padding: 6px 0;">
             <div>
-              <span style="font-size: 12.5px; color: var(--color-text-secondary);">Current system stock: <strong>${item.stock} ${item.unit}</strong></span>
+              <span style="font-size: 12.5px; color: var(--color-text-secondary);">Current stock: <strong>${item.stock} ${item.unit}</strong></span>
             </div>
             <div>
-              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Actual Physical Stock (${item.unit}) *</label>
-              <input id="swal-qty" type="number" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" value="${item.stock}">
+              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">New Physical Stock Count (${item.unit}) *</label>
+              <input id="swal-qty" type="number" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. ${item.stock}" value="${item.stock}">
             </div>
             <div>
               <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Adjustment Reason *</label>
-              <input id="swal-reason" type="text" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. Physical stock correction / Audit count">
+              <input id="swal-reason" type="text" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. Physical Count / Correction">
             </div>
           </div>
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: 'Correct Inventory',
+        confirmButtonText: 'Adjust Stock',
         cancelButtonText: 'Cancel',
         preConfirm: () => {
           const qty = document.getElementById('swal-qty').value;
           const reason = document.getElementById('swal-reason').value;
-          if (qty === '' || Number(qty) < 0) {
-            Swal.showValidationMessage('Please enter a valid non-negative physical stock quantity');
+          if (qty === '' || qty === null || qty === undefined || Number(qty) < 0) {
+            Swal.showValidationMessage('Please enter a valid non-negative stock count');
             return false;
           }
           if (!reason || !reason.trim()) {
@@ -1181,25 +1194,30 @@ export default function StorePortal() {
     const mappedInventory = dbRawInventory || [];
     const filteredItems = mappedInventory.filter(item => {
       const query = (rawSearchQuery || '').toLowerCase();
-      return (
+      const matchesSearch = (
         !query ||
         (item.code || '').toLowerCase().includes(query) ||
         (item.material || '').toLowerCase().includes(query) ||
         (item.category || '').toLowerCase().includes(query)
       );
+      if (!matchesSearch) return false;
+      if (rawInvStatusFilter === 'In Stock') return item.status === 'In Stock';
+      if (rawInvStatusFilter === 'Low Stock') return item.status === 'Low Stock';
+      if (rawInvStatusFilter === 'Out of Stock') return item.status === 'Out of Stock';
+      return true; // 'All'
     });
     const rawInvPageSize = 15;
     const rawInvTotalPages = Math.ceil(filteredItems.length / rawInvPageSize) || 1;
     const paginatedRawInvItems = filteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
     const totalMaterials = mappedInventory.length;
     const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
-    const lowStockItems = mappedInventory.filter(i => (Number(i.stock) || 0) <= (Number(i.reorderLevel ?? i.minStock) || 0) && (Number(i.stock) || 0) > 0).length;
-    const outOfStockItems = mappedInventory.filter(i => (Number(i.stock) || 0) === 0).length;
+    const lowStockItems = mappedInventory.filter(i => i.status === 'Low Stock').length;
+    const outOfStockItems = mappedInventory.filter(i => i.status === 'Out of Stock').length;
+    const inStockItems = mappedInventory.filter(i => i.status === 'In Stock').length;
     const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.rate) || 0)), 0);
 
     const handleExport = () => {
       showToast('Exporting Raw Inventory Registry to Excel...');
-      // Simulated export toast
       Swal.fire({
         icon: 'success',
         title: 'Export Complete',
@@ -1207,6 +1225,31 @@ export default function StorePortal() {
         timer: 1500,
         showConfirmButton: false
       });
+    };
+
+    const handleAddStockSubmit = async (e) => {
+      e.preventDefault();
+      const item = mappedInventory.find(i => i.material === stockMatSelect);
+      if (!item) { showToast('Please select a material.'); return; }
+      if (!stockQty || Number(stockQty) <= 0) { showToast('Please enter a valid quantity.'); return; }
+      try {
+        showToast('Recording Stock In...');
+        await apiClient.post('/inventory/transactions', {
+          productId: item.id,
+          warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
+          type: 'IN',
+          quantity: Number(stockQty),
+          referenceType: 'QUICK_STOCK_IN',
+          referenceId: stockRemarks || 'Bulk Stock In'
+        });
+        await fetchRawInventory();
+        setShowAddStockModal(false);
+        setStockQty('');
+        setStockRemarks('');
+        showToast('Stock added successfully.');
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'Stock In Failed', text: err.response?.data?.message || err.message });
+      }
     };
 
     return (
@@ -1229,10 +1272,7 @@ export default function StorePortal() {
             >
               <Plus size={16} /> Add Material
             </button>
-            <button
-              className="m-theme-btn-secondary"
-              onClick={handleExport}
-            >
+            <button className="m-theme-btn-secondary" onClick={handleExport}>
               <Download size={16} /> Export
             </button>
           </div>
@@ -1272,24 +1312,48 @@ export default function StorePortal() {
             className="m-theme-search-input"
             placeholder="Search raw materials by code, name, or category..."
             value={rawSearchQuery}
-            onChange={(e) => setRawSearchQuery(e.target.value)}
+            onChange={(e) => { setRawSearchQuery(e.target.value); setRawInvPage(1); }}
           />
           {rawSearchQuery && (
-            <button
-              onClick={() => setRawSearchQuery('')}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8893A7', marginLeft: '8px' }}
-            >
+            <button onClick={() => setRawSearchQuery('')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8893A7', marginLeft: '8px' }}>
               <X size={16} />
             </button>
           )}
+          {tabParam === 'Material Rejections' && <MaterialRejections />}
+          {tabParam === 'PO Report' && <POReport />}
+        </div>
 
-          {tabParam === 'Material Rejections' && (
-            <MaterialRejections />
-          )}
-
-          {tabParam === 'PO Report' && (
-            <POReport />
-          )}
+        {/* Status Filter Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0 16px 0', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Filter size={14} color="#2F4375" /> Filter:
+          </span>
+          {[
+            { id: 'All', label: `All (${(dbRawInventory || []).length})`, color: '#2F4375' },
+            { id: 'In Stock', label: `In Stock (${inStockItems})`, color: '#16a34a' },
+            { id: 'Low Stock', label: `Low Stock (${lowStockItems})`, color: '#d97706' },
+            { id: 'Out of Stock', label: `Out of Stock (${outOfStockItems})`, color: '#dc2626' },
+          ].map(f => {
+            const isActive = rawInvStatusFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => { setRawInvStatusFilter(f.id); setRawInvPage(1); }}
+                style={{
+                  padding: '6px 14px', borderRadius: '8px',
+                  border: isActive ? `2px solid ${f.color}` : '1.5px solid #DCE5F0',
+                  background: isActive ? f.color : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : '#475569',
+                  fontSize: '12px', fontWeight: '800', cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none'
+                }}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Raw Inventory Table */}
@@ -1299,6 +1363,7 @@ export default function StorePortal() {
               <tr>
                 <th>Material Code</th>
                 <th>Material Name</th>
+                <th>Category</th>
                 <th>Unit</th>
                 <th>Current Stock</th>
                 <th>Minimum Stock</th>
@@ -1307,68 +1372,32 @@ export default function StorePortal() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>
-                    No materials found matching criteria.
-                  </td>
-                </tr>
+              {loadingRawInventory ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7' }}>Loading inventory...</td></tr>
+              ) : filteredItems.length === 0 ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>No materials found matching criteria.</td></tr>
               ) : (
                 paginatedRawInvItems.map(item => {
-                  const isOutOfStock = item.stock === 0;
-                  const isLowStock = item.stock <= item.reorderLevel && item.stock > 0;
-
+                  const isOutOfStock = (item.stock ?? 0) <= 0;
+                  const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) <= (item.reorderLevel ?? item.minStock ?? 0);
                   let statusText = 'IN STOCK';
                   let badgeColor = 'green';
-                  if (isOutOfStock) {
-                    statusText = 'OUT OF STOCK';
-                    badgeColor = 'red';
-                  } else if (isLowStock) {
-                    statusText = 'LOW STOCK';
-                    badgeColor = 'yellow';
-                  }
-
+                  if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
+                  else if (isLowStock) { statusText = 'LOW STOCK'; badgeColor = 'yellow'; }
                   return (
-                    <tr
-                      key={item.id}
-                      style={{ cursor: 'pointer' }}
-                      onClick={(e) => {
-                        if (e.target.closest('button')) return;
-                        setSelectedInventoryItem(item);
-                        setShowDetailDrawer(true);
-                      }}
-                    >
+                    <tr key={item.id} style={{ cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('button')) return; setSelectedInventoryItem(item); setShowDetailDrawer(true); }}>
                       <td style={{ fontWeight: '800' }}>{item.code}</td>
                       <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
+                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
                       <td>{item.unit}</td>
                       <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
                       <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
-                      <td>
-                        <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
-                      </td>
+                      <td><span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span></td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button
-                            className="m-theme-btn-action-green"
-                            onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
-                            title="Stock In"
-                          >
-                            + In
-                          </button>
-                          <button
-                            className="m-theme-btn-action-gray"
-                            onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
-                            title="Stock Out"
-                          >
-                            - Out
-                          </button>
-                          <button
-                            className="m-theme-btn-action-gray"
-                            onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
-                            title="Adjust Stock"
-                          >
-                            Adj
-                          </button>
+                          <button className="m-theme-btn-action-green" onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }} title="Stock In">+ In</button>
+                          <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }} title="Stock Out">- Out</button>
+                          <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }} title="Adjust Stock">Adj</button>
                         </div>
                       </td>
                     </tr>
@@ -1405,16 +1434,12 @@ export default function StorePortal() {
                     ))}
                   </select>
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Quantity to Add *</label>
                     <input type="number" className="form-input" placeholder="e.g. 200" value={stockQty} onChange={(e) => setStockQty(e.target.value)} required />
                   </div>
                 </div>
-
-                {/* Supplier and Remarks fields removed as requested */}
-
                 <button type="submit" className="form-submit-btn" style={{ padding: '12px', background: 'var(--color-primary)', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}>
                   Record Stock In Receipt
                 </button>
@@ -1425,18 +1450,12 @@ export default function StorePortal() {
 
         {/* SIDE DRAWER: Material Details & Transaction Log */}
         {showDetailDrawer && selectedInventoryItem && (() => {
-          // Re-fetch the current item state to reflect live changes
           const item = mappedInventory.find(mi => mi.id === selectedInventoryItem.id) || selectedInventoryItem;
           const totalVal = item.stock * item.rate;
           return (
             <>
-              <div
-                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.2)', zIndex: 1040, backdropFilter: 'blur(2px)' }}
-                onClick={() => setShowDetailDrawer(false)}
-              ></div>
-              <div
-                style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', maxWidth: '90%', background: '#ffffff', boxShadow: '-10px 0 35px rgba(0,0,0,0.1)', zIndex: 1050, padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}
-              >
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.2)', zIndex: 1040, backdropFilter: 'blur(2px)' }} onClick={() => setShowDetailDrawer(false)}></div>
+              <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', maxWidth: '90%', background: '#ffffff', boxShadow: '-10px 0 35px rgba(0,0,0,0.1)', zIndex: 1050, padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '14px' }}>
                   <div>
                     <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Registry Details</span>
@@ -1445,7 +1464,6 @@ export default function StorePortal() {
                   <button onClick={() => setShowDetailDrawer(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: '6px', borderRadius: '50%' }}><X size={20} /></button>
                 </div>
 
-                {/* Material Info Card */}
                 <div style={{ background: '#F5FAFE', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div>
                     <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Material Code</span>
@@ -1465,7 +1483,6 @@ export default function StorePortal() {
                   </div>
                 </div>
 
-                {/* Stock Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
                     <span style={{ fontSize: '9px', color: '#166534', fontWeight: 'bold', textTransform: 'uppercase' }}>Stock Available</span>
@@ -1477,7 +1494,6 @@ export default function StorePortal() {
                   </div>
                 </div>
 
-                {/* Transaction History Section */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
                   <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <FileText size={14} /> Stock Transactions ledger
@@ -1494,25 +1510,18 @@ export default function StorePortal() {
                       </thead>
                       <tbody>
                         {!item.transactions || item.transactions.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} style={{ textAlign: 'center', padding: '16px', color: 'var(--color-text-muted)' }}>No stock receipts or issuances logged.</td>
-                          </tr>
+                          <tr><td colSpan={4} style={{ textAlign: 'center', padding: '16px', color: 'var(--color-text-muted)' }}>No stock receipts or issuances logged.</td></tr>
                         ) : (
                           [...item.transactions].reverse().map((tx, idx) => {
                             let typeBadge = 'info';
                             if (tx.type === 'Stock In') typeBadge = 'success';
                             else if (tx.type === 'Stock Out') typeBadge = 'danger';
                             else if (tx.type === 'Adjustment') typeBadge = 'warning';
-
                             return (
                               <tr key={tx.id || idx} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                                 <td style={{ padding: '8px 12px' }}>{tx.date}</td>
-                                <td style={{ padding: '8px 12px' }}>
-                                  <span className={`badge badge-${typeBadge}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{tx.type}</span>
-                                </td>
-                                <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700' }}>
-                                  {tx.type === 'Stock Out' ? '-' : tx.type === 'Stock In' ? '+' : ''}{(tx.quantity ?? 0).toLocaleString()}
-                                </td>
+                                <td style={{ padding: '8px 12px' }}><span className={`badge badge-${typeBadge}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{tx.type}</span></td>
+                                <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700' }}>{tx.type === 'Stock Out' ? '-' : tx.type === 'Stock In' ? '+' : ''}{(tx.quantity ?? 0).toLocaleString()}</td>
                                 <td style={{ padding: '8px 12px' }}>
                                   <div style={{ fontWeight: '600' }}>{tx.supplier || tx.reference || 'N/A'}</div>
                                   <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{tx.remarks}</div>
@@ -1527,20 +1536,8 @@ export default function StorePortal() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button
-                    className="action-btn"
-                    style={{ flex: 1, padding: '10px', background: 'var(--color-primary)', border: 'none', borderRadius: '8px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }}
-                    onClick={() => handleQuickStockIn(item)}
-                  >
-                    + Stock In
-                  </button>
-                  <button
-                    className="action-btn btn-outline"
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
-                    onClick={() => handleQuickStockOut(item)}
-                  >
-                    - Issue Out
-                  </button>
+                  <button className="action-btn" style={{ flex: 1, padding: '10px', background: 'var(--color-primary)', border: 'none', borderRadius: '8px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }} onClick={() => handleQuickStockIn(item)}>+ Stock In</button>
+                  <button className="action-btn btn-outline" style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => handleQuickStockOut(item)}>- Issue Out</button>
                 </div>
               </div>
             </>
@@ -1550,8 +1547,6 @@ export default function StorePortal() {
     );
   };
 
-
-  // 3. Finished Inventory Ledger
   const renderFinishedInventory = () => {
     return (
       <div className="m-theme-container">
@@ -1867,9 +1862,21 @@ export default function StorePortal() {
     const materialIndents = allIndentsList;
     const mappedInventory = dbRawInventory;
 
-    const outOfStockItems = mappedInventory.filter(item => Number(item.stock || 0) === 0);
-    const lowStockItemsOnly = mappedInventory.filter(item => Number(item.stock || 0) > 0 && item.stock <= item.reorderLevel);
-    const allAlertItems = [...outOfStockItems, ...lowStockItemsOnly];
+    const outOfStockItemsAll = mappedInventory.filter(item => (Number(item.stock) || 0) <= 0);
+    const lowStockItemsOnlyAll = mappedInventory.filter(item => (Number(item.stock) || 0) > 0 && Number(item.stock) <= Number(item.reorderLevel ?? item.minStock ?? 0));
+    const allAlertItemsAll = [...outOfStockItemsAll, ...lowStockItemsOnlyAll];
+
+    const lsQuery = (lowStockSearch || '').toLowerCase();
+    const filterBySearch = (list) => list.filter(item => (
+      !lsQuery ||
+      (item.code || '').toLowerCase().includes(lsQuery) ||
+      (item.material || '').toLowerCase().includes(lsQuery) ||
+      (item.category || '').toLowerCase().includes(lsQuery)
+    ));
+
+    const outOfStockItems = filterBySearch(outOfStockItemsAll);
+    const lowStockItemsOnly = filterBySearch(lowStockItemsOnlyAll);
+    const allAlertItems = filterBySearch(allAlertItemsAll);
 
     // Filter items based on active lowStockFilter state ('All' | 'Out of Stock' | 'Low Stock')
     const sortedLowStockItems = lowStockFilter === 'Out of Stock'
@@ -1882,9 +1889,9 @@ export default function StorePortal() {
     const lowStockTotalPages = Math.ceil(sortedLowStockItems.length / lowStockPageSize);
     const paginatedLowStockItems = sortedLowStockItems.slice((lowStockPage - 1) * lowStockPageSize, lowStockPage * lowStockPageSize);
 
-    const outOfStockCount = outOfStockItems.length;
-    const lowStockCount = lowStockItemsOnly.length;
-    const totalAlertsCount = allAlertItems.length;
+    const outOfStockCount = outOfStockItemsAll.length;
+    const lowStockCount = lowStockItemsOnlyAll.length;
+    const totalAlertsCount = allAlertItemsAll.length;
 
     const openIndentModal = (item) => {
       setIndentTargetMaterial(item);
@@ -2104,23 +2111,42 @@ export default function StorePortal() {
               })}
             </div>
 
+            {/* Search Bar */}
+            <div className="m-theme-search-container" style={{ marginBottom: '16px' }}>
+              <Search size={18} style={{ color: '#8893A7', marginRight: '8px' }} />
+              <input
+                type="text"
+                className="m-theme-search-input"
+                placeholder="Search low stock alerts by code, name, or category..."
+                value={lowStockSearch}
+                onChange={(e) => { setLowStockSearch(e.target.value); setLowStockPage(1); }}
+              />
+              {lowStockSearch && (
+                <button onClick={() => setLowStockSearch('')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8893A7', marginLeft: '8px' }}>
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
             {/* Table */}
             <div className="m-theme-table-container">
               <table className="m-theme-table">
                 <thead>
                   <tr>
-                    <th>Material</th>
                     <th>Code</th>
+                    <th>Item Name</th>
+                    <th>Category</th>
+                    <th>Unit</th>
                     <th>Current Stock</th>
                     <th>Minimum Stock</th>
-                    <th>Required Qty</th>
+                    <th>Shortage</th>
                     <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedLowStockItems.length === 0 ? (
-                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '28px', color: '#8893A7' }}>✅ All materials are sufficiently stocked.</td></tr>
+                    <tr><td colSpan="9" style={{ textAlign: 'center', padding: '28px', color: '#8893A7' }}>✅ All materials are sufficiently stocked.</td></tr>
                   ) : paginatedLowStockItems.map(item => {
                     const requiredQty = Math.max(0, item.minStock - item.stock);
                     const isOutOfStock = item.stock === 0;
@@ -2131,8 +2157,10 @@ export default function StorePortal() {
 
                     return (
                       <tr key={item.id}>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{item.code}</td>
                         <td style={{ fontWeight: 600, color: '#0f766e' }}>{item.material}</td>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 12 }}>{item.code}</td>
+                        <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
+                        <td style={{ color: '#5E6B82' }}>{item.unit}</td>
                         <td>
                           <span style={{ fontWeight: 600, color: isOutOfStock ? '#ef4444' : '#f59e0b' }}>
                             {item.stock} {item.unit}
@@ -2200,8 +2228,8 @@ export default function StorePortal() {
 
         {/* Create Material Indent Modal */}
         {showIndentModal && indentTargetMaterial && (
-          <div className="modal-overlay active" onClick={() => setShowIndentModal(false)} style={{ zIndex: 10000 }}>
-            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: 'calc(100vw - 32px)' }}>
+          <div className="modal-overlay active" onClick={() => setShowIndentModal(false)} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', margin: 'auto' }}>
               <div className="modal-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 12, marginBottom: 16 }}>
                 <h3 style={{ margin: 0, fontWeight: 900 }}>Create Material Indent</h3>
                 <button className="modal-close-btn" onClick={() => setShowIndentModal(false)}>✕</button>

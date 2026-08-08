@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, Search, Truck, Plus, X, Layers, CheckCircle2, Box, Activity } from "lucide-react";
+import { Package, Search, Truck, Plus, X, Layers, CheckCircle2, Box, Activity, Sliders } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -38,9 +38,18 @@ interface FinishedGoodsRow {
 
 export default function FinishedGoodsPage() {
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"ready" | "history">("ready");
+  const [activeTab, setActiveTab] = useState<"all" | "ready" | "history">("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customUnit, setCustomUnit] = useState("");
+  const [isCustomUnitActive, setIsCustomUnitActive] = useState(false);
+
+  // Stock Adjustment Modal State
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [selectedAdjustRow, setSelectedAdjustRow] = useState<any>(null);
+  const [adjustType, setAdjustType] = useState<"IN" | "OUT">("IN");
+  const [adjustQty, setAdjustQty] = useState("10");
+  const [adjustReason, setAdjustReason] = useState("");
 
   // Modal Form State
   const [formData, setFormData] = useState({
@@ -92,13 +101,48 @@ export default function FinishedGoodsPage() {
   );
 
   const filteredData = useMemo(() => {
-    const base = activeTab === "ready" ? readyItems : historyItems;
+    const base = activeTab === "all" ? allItems : activeTab === "ready" ? readyItems : historyItems;
     if (!search) return base;
     const lower = search.toLowerCase();
     return base.filter((i) =>
       i.jobNo?.toLowerCase().includes(lower) || i.productName?.toLowerCase().includes(lower)
     );
-  }, [readyItems, historyItems, search, activeTab]);
+  }, [allItems, readyItems, historyItems, search, activeTab]);
+
+  
+  const handleOpenAdjustModal = (row: any) => {
+    setSelectedAdjustRow(row);
+    setAdjustType("IN");
+    setAdjustQty("10");
+    setAdjustReason("");
+    setIsAdjustModalOpen(true);
+  };
+
+  const handleAdjustSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAdjustRow) return;
+    const targetId = selectedAdjustRow.id || selectedAdjustRow.workOrderId || selectedAdjustRow.productId;
+    if (!targetId) return;
+
+    setIsSubmitting(true);
+    try {
+      await backendFetch(`/api/backend/production/finished-goods/${targetId}/adjust`, {
+        method: "POST",
+        body: JSON.stringify({
+          type: adjustType,
+          quantity: Number(adjustQty) || 0,
+          reason: adjustReason
+        })
+      });
+      toast.success(`Stock ${adjustType === 'IN' ? 'added (+)' : 'reduced (-)'} successfully!`);
+      queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+      setIsAdjustModalOpen(false);
+    } catch (err) {
+      toast.error("Failed to adjust stock quantity");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSendToDispatch = async (row: any) => {
     try {
@@ -127,8 +171,12 @@ export default function FinishedGoodsPage() {
       customerName: "Internal Stock / Global Logistics",
       remarks: "",
     });
+    setCustomUnit("");
+    setIsCustomUnitActive(false);
     setIsAddModalOpen(true);
   };
+
+
 
   const handleAddFinishingProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,20 +184,17 @@ export default function FinishedGoodsPage() {
       toast.error("Please enter a product name");
       return;
     }
-    if (!formData.jobNo.trim()) {
-      toast.error("Please enter a Work Order / Job No");
-      return;
-    }
+    const autoJobNo = formData.jobNo.trim() || `WO-2026-${Math.floor(100 + Math.random() * 900)}`;
 
     setIsSubmitting(true);
     try {
       const payload = {
         productName: formData.productName.trim(),
-        jobNo: formData.jobNo.trim(),
-        workOrderId: formData.jobNo.trim(),
+        jobNo: autoJobNo,
+        workOrderId: autoJobNo,
         quantity: Number(formData.quantity) || 1,
-        availableQuantity: Number(formData.availableQuantity) || 1,
-        unit: formData.unit,
+        availableQuantity: Number(formData.quantity) || 1,
+        unit: isCustomUnitActive ? (customUnit.trim() || "Pcs") : (formData.unit || "Pcs"),
         status: formData.status,
         customerName: formData.customerName,
         remarks: formData.remarks,
@@ -160,7 +205,7 @@ export default function FinishedGoodsPage() {
         body: JSON.stringify(payload),
       });
 
-      toast.success(`Added ${formData.productName} (${formData.quantity} ${formData.unit}) to Finished Goods Stock!`);
+      toast.success(`Added ${formData.productName} (${formData.quantity} ${isCustomUnitActive ? customUnit : formData.unit}) to Finished Goods Stock!`);
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
       setIsAddModalOpen(false);
     } catch (err) {
@@ -264,6 +309,36 @@ export default function FinishedGoodsPage() {
       },
     },
     {
+      id: "movementType",
+      header: "Stock Movement",
+      size: 145,
+      cell: ({ row }) => {
+        const status = (row.original.status || "AVAILABLE").toUpperCase();
+        const isOut = ["DISPATCHED", "HANDED_OFF", "SENT_TO_DISPATCH", "COMPLETED"].includes(status);
+        const isAdj = status.includes("ADJUST") || status.includes("ADJ");
+        
+        if (isAdj) {
+          return (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>
+              ADJ (Stock Edit)
+            </span>
+          );
+        } else if (isOut) {
+          return (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#B91C1C', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>
+              OUT (Dispatched)
+            </span>
+          );
+        } else {
+          return (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#F0FDF4', border: '1px solid #86EFAC', color: '#15803D', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>
+              IN (Stock Added)
+            </span>
+          );
+        }
+      },
+    },
+    {
       id: "woStatus",
       header: "FG Status",
       size: 130,
@@ -275,15 +350,37 @@ export default function FinishedGoodsPage() {
       id: "actions",
       header: "Actions",
       size: 165,
-      cell: ({ row }) => (
-        <button
-          type="button"
-          className={styles.btnDispatch}
-          onClick={() => handleSendToDispatch(row.original)}
-        >
-          <Truck size={14} />
-          Send to Dispatch
-        </button>
+            cell: ({ row }) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className={styles.btnDispatch}
+            onClick={() => handleSendToDispatch(row.original)}
+          >
+            <Truck size={14} />
+            Send to Dispatch
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpenAdjustModal(row.original)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 10px',
+              borderRadius: '6px',
+              border: '1px solid #CBD5E1',
+              background: '#F8FAFC',
+              color: '#334155',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <Sliders size={13} />
+            In/Out Adj
+          </button>
+        </div>
       ),
     },
   ];
@@ -358,6 +455,15 @@ export default function FinishedGoodsPage() {
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === "all"}
+            className={activeTab === "all" ? styles.activeTab : ""}
+            onClick={() => { setActiveTab("all"); setSearch(""); }}
+          >
+            All Stock <span>{allItems.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === "ready"}
             className={activeTab === "ready" ? styles.activeTab : ""}
             onClick={() => { setActiveTab("ready"); setSearch(""); }}
@@ -371,15 +477,15 @@ export default function FinishedGoodsPage() {
             className={activeTab === "history" ? styles.activeTab : ""}
             onClick={() => { setActiveTab("history"); setSearch(""); }}
           >
-            History <span>{historyCount}</span>
+            Dispatched History <span>{historyCount}</span>
           </button>
         </div>
 
         {/* Toolbar */}
         <div className={styles.toolbar}>
           <div>
-            <h2>{activeTab === "ready" ? "Ready Finished Goods Inventory" : "Dispatch History"}</h2>
-            <p>{activeTab === "ready" ? "Quality approved product stock available for dispatch operations." : "Finished goods handed off to dispatch."}</p>
+            <h2>{activeTab === "all" ? "All Finished Goods Stock Master" : activeTab === "ready" ? "Ready Finished Goods Inventory" : "Dispatch History"}</h2>
+            <p>{activeTab === "all" ? "Complete view of all finished product stock, IN / OUT movements, and stock adjustments." : activeTab === "ready" ? "Quality approved product stock available for dispatch operations." : "Finished goods handed off to dispatch."}</p>
           </div>
 
           <div className={styles.toolbarRight}>
@@ -399,14 +505,6 @@ export default function FinishedGoodsPage() {
               )}
             </label>
 
-            <button
-              type="button"
-              className={styles.btnAddProduct}
-              onClick={handleOpenAddModal}
-            >
-              <Plus size={16} />
-              Add Finishing Product
-            </button>
           </div>
         </div>
 
@@ -430,6 +528,114 @@ export default function FinishedGoodsPage() {
           )}
         </div>
       </section>
+
+
+      {/* ── Stock Adjustment Modal (IN / OUT) ── */}
+      {isAdjustModalOpen && selectedAdjustRow && (
+        <div className={styles.modalOverlay} onClick={() => setIsAdjustModalOpen(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalHeaderTitle}>
+                <div className={styles.modalHeaderIcon} style={{ background: '#E0F2FE', color: '#0284C7' }}>
+                  <Package size={20} />
+                </div>
+                <div>
+                  <h3>Adjust Finished Goods Stock</h3>
+                  <p>{selectedAdjustRow.productName || selectedAdjustRow.product?.name || "Finished Product"}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.modalClose}
+                onClick={() => setIsAdjustModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAdjustSubmit} className={styles.modalBody}>
+              <div className={styles.formGrid}>
+                <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                  <label>Adjustment Action *</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustType("IN")}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: adjustType === "IN" ? '2px solid #16A34A' : '1px solid #CBD5E1',
+                        background: adjustType === "IN" ? '#DCFCE7' : '#F8FAFC',
+                        color: adjustType === "IN" ? '#15803D' : '#64748B',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + Stock IN (Add)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustType("OUT")}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: adjustType === "OUT" ? '2px solid #DC2626' : '1px solid #CBD5E1',
+                        background: adjustType === "OUT" ? '#FEE2E2' : '#F8FAFC',
+                        color: adjustType === "OUT" ? '#B91C1C' : '#64748B',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      - Stock OUT (Reduce)
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                  <label>Adjustment Quantity *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={adjustQty}
+                    onChange={(e) => setAdjustQty(e.target.value)}
+                  />
+                </div>
+
+                <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                  <label>Reason / Audit Note</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Production line completion, audit correction, scrap..."
+                    value={adjustReason}
+                    onChange={(e) => setAdjustReason(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formActions}>
+                <button
+                  type="button"
+                  className={styles.btnCancel}
+                  onClick={() => setIsAdjustModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={styles.btnSubmit}
+                  style={{ background: adjustType === "IN" ? '#16A34A' : '#DC2626' }}
+                >
+                  {isSubmitting ? "Updating..." : adjustType === "IN" ? "Confirm Stock IN (+)" : "Confirm Stock OUT (-)"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Add Finishing Product Modal ── */}
       {isAddModalOpen && (
@@ -468,21 +674,18 @@ export default function FinishedGoodsPage() {
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label>Work Order / Job No *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. WO-2026-104"
-                    value={formData.jobNo}
-                    onChange={(e) => setFormData({ ...formData, jobNo: e.target.value })}
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
                   <label>Unit of Measure</label>
                   <select
-                    value={formData.unit}
-                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                    value={isCustomUnitActive ? "CUSTOM" : formData.unit}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "CUSTOM") {
+                        setIsCustomUnitActive(true);
+                      } else {
+                        setIsCustomUnitActive(false);
+                        setFormData({ ...formData, unit: val });
+                      }
+                    }}
                   >
                     <option value="Pcs">Pcs (Pieces)</option>
                     <option value="Units">Units</option>
@@ -490,7 +693,22 @@ export default function FinishedGoodsPage() {
                     <option value="Boxes">Boxes</option>
                     <option value="Kg">Kg (Kilograms)</option>
                     <option value="Meters">Meters</option>
+                    <option value="MTR">MTR (Meters)</option>
+                    <option value="NOS">NOS (Numbers)</option>
+                    <option value="SQFT">Sq.Ft (Square Feet)</option>
+                    <option value="CUSTOM">Custom / Other Unit...</option>
                   </select>
+
+                  {isCustomUnitActive && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter custom UOM (e.g. Roll, Bundle, Pair...)"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      style={{ marginTop: "8px" }}
+                    />
+                  )}
                 </div>
 
                 <div className={styles.formGroup}>
@@ -507,53 +725,6 @@ export default function FinishedGoodsPage() {
                         availableQuantity: e.target.value,
                       })
                     }
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label>Available Qty *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={formData.availableQuantity}
-                    onChange={(e) => setFormData({ ...formData, availableQuantity: e.target.value })}
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label>Production Line / Stage</label>
-                  <select
-                    value={formData.productionLine}
-                    onChange={(e) => setFormData({ ...formData, productionLine: e.target.value })}
-                  >
-                    <option value="Line A - Finishing & Assembly">Line A - Finishing & Assembly</option>
-                    <option value="Line B - Surface Treatment & Polish">Line B - Polish & Coating</option>
-                    <option value="Line C - Final Packaging">Line C - Final Packaging</option>
-                    <option value="QC Inspection Staging">QC Inspection Staging</option>
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label>Initial FG Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  >
-                    <option value="AVAILABLE">AVAILABLE (Ready for Dispatch)</option>
-                    <option value="QC_APPROVED">QC APPROVED</option>
-                    <option value="PASSED">PASSED</option>
-                    <option value="IN_STAGING">IN STAGING</option>
-                  </select>
-                </div>
-
-                <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
-                  <label>Remarks / Production Notes</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Optional notes on batch number, quality check, or customer order..."
-                    value={formData.remarks}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                   />
                 </div>
               </div>

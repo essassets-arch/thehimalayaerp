@@ -7,7 +7,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Prisma, SalesOrderStatus } from '@prisma/client';
-import { getAdvancedScope } from '../../common/utils/rbac.util';
+import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class PaymentsService {
@@ -18,9 +18,7 @@ export class PaymentsService {
   ) {}
 
   async listPayments(userId?: string, role?: string) {
-    const scope = getAdvancedScope(userId, role, {
-      SALES: { customer: { createdById: userId } },
-    });
+    const scope = getSalesScope(userId, role, 'CustomerPayment');
     return this.prisma.customerPayment.findMany({
       where: scope,
       include: {
@@ -40,9 +38,7 @@ export class PaymentsService {
   }
 
   async listSalesRecordedPayments(userId?: string, role?: string) {
-    const scope = getAdvancedScope(userId, role, {
-      SALES: { customer: { createdById: userId } },
-    });
+    const scope = getSalesScope(userId, role, 'CustomerPayment');
     return this.prisma.customerPayment.findMany({
       where: { salesOrderId: { not: null }, ...scope },
       select: {

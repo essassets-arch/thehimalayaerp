@@ -60,7 +60,7 @@ export class PermissionsGuard implements CanActivate {
 
     // Normalized Role Check from JWT
     const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    if (['SUPER_ADMIN', 'ADMIN'].includes(normalizedRole)) {
+    if (['SUPER_ADMIN', 'ADMIN', 'PLANT_HEAD', 'PLANTHEAD'].includes(normalizedRole)) {
       return true;
     }
 
@@ -111,7 +111,7 @@ export class PermissionsGuard implements CanActivate {
 
       if (dbRole) {
         const dbRoleCode = String(dbRole.code || '').toUpperCase().replace(/[\s-]+/g, '_');
-        if (['SUPER_ADMIN', 'ADMIN'].includes(dbRoleCode)) {
+        if (['SUPER_ADMIN', 'ADMIN', 'PLANT_HEAD', 'PLANTHEAD'].includes(dbRoleCode)) {
           return true;
         }
         for (const rp of dbRole.rolePermissions || []) {
@@ -127,6 +127,10 @@ export class PermissionsGuard implements CanActivate {
     const allUserPerms = Array.from(userPermSet);
 
     const PERMISSION_ALIASES: Record<string, string[]> = {
+      'admin.planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read'],
+      'planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read'],
+      'plant-head.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read'],
+      'planthead.dashboard.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read'],
       'admin.products.read': ['admin.products.read', 'products.read'],
       'products.read': ['admin.products.read', 'products.read'],
       'inventory.warehouses.read': ['inventory.warehouses.read', 'warehouses.read'],

@@ -48,6 +48,13 @@ export class DispatchController {
     return dispatches;
   }
 
+  @Get('finished-goods-history')
+  @RequirePermissions('logistics.dispatches.read')
+  async getFinishedGoodsHistory() {
+    const data = await this.dispatchService.getFinishedGoodsHistory();
+    return { success: true, data };
+  }
+
   @Get(':id')
   @RequirePermissions('logistics.dispatches.read')
   async getDispatch(

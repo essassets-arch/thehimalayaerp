@@ -70,8 +70,39 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/finished-goods')
+  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
   async createFinishedGoods(@Body() dto: any, @Req() req: any) {
     const data = await this.workflowService.createFinishedGoods(
+      dto,
+      req.user?.sub || 'system',
+    );
+    return { success: true, data };
+  }
+
+  @Post('production/finished-goods/stock-in')
+  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
+  async stockInFinishedGoods(@Body() dto: any, @Req() req: any) {
+    const data = await this.workflowService.stockInFinishedGoods(
+      dto,
+      req.user?.sub || 'system',
+    );
+    return { success: true, data };
+  }
+
+  @Post('production/finished-goods/stock-out')
+  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
+  async stockOutFinishedGoods(@Body() dto: any, @Req() req: any) {
+    const data = await this.workflowService.stockOutFinishedGoods(
+      dto,
+      req.user?.sub || 'system',
+    );
+    return { success: true, data };
+  }
+
+  @Post('production/finished-goods/adjust')
+  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
+  async adjustFinishedGoods(@Body() dto: any, @Req() req: any) {
+    const data = await this.workflowService.adjustFinishedGoods(
       dto,
       req.user?.sub || 'system',
     );

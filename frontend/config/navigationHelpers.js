@@ -3,11 +3,13 @@ import { navigationConfig } from "./navigationConfig";
 export function getModuleKeyFromPath(pathname) {
   if (!pathname) return null;
   if (pathname.startsWith('/super-admin')) return 'Super Admin';
+  if (pathname.startsWith('/supersales')) return 'SuperSales';
   if (pathname.startsWith('/sales')) return 'Sales';
   if (pathname.startsWith('/production')) return 'Production';
   if (pathname.startsWith('/plant-head')) return 'Plant Head';
   if (pathname.startsWith('/store')) return 'Store';
   if (pathname.startsWith('/qc')) return 'QC';
+  if (pathname.startsWith('/dispatch-2')) return 'Dispatch 2';
   if (pathname.startsWith('/dispatch')) return 'Dispatch';
   if (pathname.startsWith('/finance-executive')) return 'Finance Executive';
   if (pathname.startsWith('/finance')) return 'Finance';
@@ -56,10 +58,21 @@ export function getNavigationForPath(pathname, role) {
       'QC_MANAGER': 'QC',
       'Dispatch Manager': 'Dispatch',
       'DISPATCH_MANAGER': 'Dispatch',
+      'DISPATCH_EXECUTIVE': 'Dispatch',
+      'DISPATCH_2': 'Dispatch 2',
+      'Dispatch 2': 'Dispatch 2',
+      'dispatch_2': 'Dispatch 2',
+      'dispatch-2': 'Dispatch 2',
+      'Dispatch2': 'Dispatch 2',
       'Super Admin': 'Super Admin',
       'super-admin': 'Super Admin',
       'SUPER_ADMIN': 'Super Admin',
-      'ADMIN': 'Admin'
+      'ADMIN': 'Admin',
+      'SUPER_SALES': 'SuperSales',
+      'SuperSales': 'SuperSales',
+      'super_sales': 'SuperSales',
+      'super-sales': 'SuperSales',
+      'Super Sales': 'SuperSales',
     };
     const roleKey = roleKeyMap[role] || role;
     if (navigationConfig[roleKey]) {
@@ -93,6 +106,10 @@ export function getNavigationForPath(pathname, role) {
           seenPaths.add(item.path);
           return true;
         });
+      } else if (roleStr.includes('supersales') || roleStr.includes('super_sales')) {
+        nav = navigationConfig['SuperSales'] || [];
+      } else if (roleStr.includes('dispatch2') || roleStr.includes('dispatch_2') || roleStr.includes('dispatch-2') || roleStr === 'dispatch 2') {
+        nav = navigationConfig['Dispatch 2'] || [];
       } else if (roleStr.includes('finance')) {
         nav = navigationConfig[roleStr.includes('executive') ? 'Finance Executive' : 'Finance'] || [];
       } else if (roleStr.includes('sales')) {
@@ -126,10 +143,12 @@ export function getNavigationForPath(pathname, role) {
   const activeModuleKey = moduleKey || 'Sales';
   const prefix = {
     'Sales': '/sales',
+    'SuperSales': '/supersales',
     'Production': '/production',
     'Plant Head': '/plant-head',
     'Store': '/store',
     'QC': '/qc',
+    'Dispatch 2': '/dispatch-2',
     'Dispatch': '/dispatch',
     'Finance Executive': '/finance-executive',
     'Finance': '/finance',

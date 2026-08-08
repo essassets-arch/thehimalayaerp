@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Plus, Search, Edit3, Trash2, Download, Upload, RefreshCw, 
   ChevronLeft, ChevronRight, Package, CheckCircle2, Tag, Truck,
-  SlidersHorizontal, Check
+  SlidersHorizontal, Check, Factory, ShoppingBag, Layers
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import axios from 'axios';
@@ -19,6 +19,9 @@ export default function ProductMasterUI({ role }) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Submenu Tab State: 'MANUFACTURING' | 'TRADING' | 'ALL'
+  const [activeSubMenu, setActiveSubMenu] = useState('MANUFACTURING');
+
   // Pagination & Filtering State
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -71,7 +74,8 @@ export default function ProductMasterUI({ role }) {
           brand: p.brand || 'HIMALAYA',
           gst_rate: p.gst_rate ?? p.gstRate ?? 18,
           hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
-          dispatch_category: p.dispatch_category || p.dispatchCategory || 'DISPATCH 1'
+          dispatch_category: p.dispatch_category || p.dispatchCategory || 'DISPATCH 1',
+          image_url: p.image_url || p.imageUrl || ''
         }));
 
         setRawProducts(normalizedList);
@@ -105,10 +109,15 @@ export default function ProductMasterUI({ role }) {
 
       const matchesFamily = filterFamily === 'All' || p.product_family === filterFamily;
       const matchesDispatch = filterDispatch === 'All' || p.dispatch_category === filterDispatch;
+      
+      const pType = String(p.product_type || '').toUpperCase();
+      const matchesSubMenu = activeSubMenu === 'ALL' || 
+        (activeSubMenu === 'MANUFACTURING' && (pType === 'MANUFACTURING' || pType === 'MANUFACTURED')) ||
+        (activeSubMenu === 'TRADING' && pType === 'TRADING');
 
-      return matchesSearch && matchesFamily && matchesDispatch;
+      return matchesSearch && matchesFamily && matchesDispatch && matchesSubMenu;
     });
-  }, [rawProducts, searchQuery, filterFamily, filterDispatch]);
+  }, [rawProducts, searchQuery, filterFamily, filterDispatch, activeSubMenu]);
 
   // Pagination Slice
   const totalItems = filteredProducts.length;
@@ -117,7 +126,7 @@ export default function ProductMasterUI({ role }) {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, filterFamily, filterDispatch, pageSize]);
+  }, [searchQuery, filterFamily, filterDispatch, pageSize, activeSubMenu]);
 
   const currentPageData = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -129,6 +138,18 @@ export default function ProductMasterUI({ role }) {
   const d1Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'DISPATCH 1').length, [rawProducts]);
   const d2Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'DISPATCH 2').length, [rawProducts]);
   const familyCount = Math.max(0, availableFamilies.length - 1);
+
+  const mfgCount = useMemo(() => rawProducts.filter(p => {
+    const t = String(p.product_type || '').toUpperCase();
+    return t === 'MANUFACTURING' || t === 'MANUFACTURED';
+  }).length, [rawProducts]);
+  
+  const tradingCount = useMemo(() => rawProducts.filter(p => {
+    const t = String(p.product_type || '').toUpperCase();
+    return t === 'TRADING';
+  }).length, [rawProducts]);
+  
+  const allCount = rawProducts.length;
 
   const dispatchCats = ['All', 'DISPATCH 1', 'DISPATCH 2'];
   const productTypes = [
@@ -165,7 +186,8 @@ export default function ProductMasterUI({ role }) {
   };
 
   const openCreate = () => {
-    setFormData({ ...initialFormState });
+    const defaultType = activeSubMenu === 'TRADING' ? 'TRADING' : 'MANUFACTURING';
+    setFormData({ ...initialFormState, product_type: defaultType });
     setIsModalOpen(true);
   };
 
@@ -210,21 +232,22 @@ export default function ProductMasterUI({ role }) {
   };
 
   const handleDelete = async (id) => {
-    confirm({
+    const isConfirmed = await confirm({
       title: 'Delete Product',
       message: 'Are you sure you want to delete this product? This action cannot be undone and may affect historical records.',
       confirmText: 'Delete',
-      confirmColor: '#ef4444',
-      onConfirm: async () => {
-        try {
-          await axios.delete(`/api/backend/products/${id}`);
-          showToast('Product deleted successfully.');
-          fetchProducts();
-        } catch (err) {
-          showToast(err.response?.data?.message || 'Failed to delete product');
-        }
-      }
+      type: 'danger'
     });
+
+    if (isConfirmed) {
+      try {
+        await axios.delete(`/api/backend/products/${id}`);
+        showToast('Product deleted successfully.');
+        fetchProducts();
+      } catch (err) {
+        showToast(err.response?.data?.message || 'Failed to delete product');
+      }
+    }
   };
 
   const handleImport = async (e) => {
@@ -356,7 +379,7 @@ export default function ProductMasterUI({ role }) {
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#8B5CF6' }} />
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: '#8B5CF6', letterSpacing: '0.05em' }}>Product Families</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: '#8B5CF6', letterSpacing: '0.05em' }}>Product Categories</div>
             <div style={{ fontSize: '32px', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1 }}>{familyCount}</div>
             <div style={{ fontSize: '12px', color: '#64748B', marginTop: '6px' }}>Distinct item categories</div>
           </div>
@@ -382,58 +405,155 @@ export default function ProductMasterUI({ role }) {
 
       </div>
 
+      {/* Products Submenu Navigation Tabs */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => setActiveSubMenu('MANUFACTURING')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '11px 22px',
+            borderRadius: '10px',
+            border: activeSubMenu === 'MANUFACTURING' ? '2px solid #4F46E5' : '1px solid #CBD5E1',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 800,
+            background: activeSubMenu === 'MANUFACTURING' ? '#4F46E5' : '#FFFFFF',
+            color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#475569',
+            boxShadow: activeSubMenu === 'MANUFACTURING' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Factory size={18} />
+          Manufacturing Products
+          <span style={{
+            background: activeSubMenu === 'MANUFACTURING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+            color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#334155',
+            fontSize: '12px',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontWeight: 700
+          }}>
+            {mfgCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubMenu('TRADING')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '11px 22px',
+            borderRadius: '10px',
+            border: activeSubMenu === 'TRADING' ? '2px solid #059669' : '1px solid #CBD5E1',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 800,
+            background: activeSubMenu === 'TRADING' ? '#059669' : '#FFFFFF',
+            color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#475569',
+            boxShadow: activeSubMenu === 'TRADING' ? '0 4px 12px rgba(5, 150, 105, 0.25)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <ShoppingBag size={18} />
+          Trading Products
+          <span style={{
+            background: activeSubMenu === 'TRADING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+            color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#334155',
+            fontSize: '12px',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontWeight: 700
+          }}>
+            {tradingCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubMenu('ALL')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '11px 22px',
+            borderRadius: '10px',
+            border: activeSubMenu === 'ALL' ? '2px solid #334155' : '1px solid #CBD5E1',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 800,
+            background: activeSubMenu === 'ALL' ? '#334155' : '#FFFFFF',
+            color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#475569',
+            boxShadow: activeSubMenu === 'ALL' ? '0 4px 12px rgba(51, 65, 85, 0.25)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Layers size={18} />
+          All Products
+          <span style={{
+            background: activeSubMenu === 'ALL' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+            color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#334155',
+            fontSize: '12px',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontWeight: 700
+          }}>
+            {allCount}
+          </span>
+        </button>
+      </div>
+
       {/* Toolbar: Search, Filters & Page Size Controls */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
         
-        {/* Search Input */}
-        <div style={{ flex: 1, minWidth: '260px', position: 'relative' }}>
-          <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+        {/* Search Input Container */}
+        <div style={{ flex: '1 1 280px', minWidth: '240px', position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <Search size={18} style={{ position: 'absolute', left: '14px', color: '#94A3B8', pointerEvents: 'none', zIndex: 2 }} />
           <input 
             type="text" 
             placeholder="Search by code, name, category, or brand..." 
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', padding: '10px 14px 10px 42px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', transition: 'border-color 0.15s ease' }}
+            style={{ width: '100%', paddingLeft: '44px', paddingRight: '14px', paddingTop: '10px', paddingBottom: '10px', boxSizing: 'border-box', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', transition: 'all 0.15s ease' }}
           />
         </div>
 
-        {/* Filter Family Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>Family:</span>
-          <select 
-            value={filterFamily} 
-            onChange={e => setFilterFamily(e.target.value)}
-            style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
-          >
-            {availableFamilies.map(f => <option key={f} value={f}>{f === 'All' ? 'All Families' : f}</option>)}
-          </select>
-        </div>
+        {/* Filter Controls Group */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          
 
-        {/* Filter Dispatch Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>Dispatch:</span>
-          <select 
-            value={filterDispatch} 
-            onChange={e => setFilterDispatch(e.target.value)}
-            style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
-          >
-            {dispatchCats.map(d => <option key={d} value={d}>{d === 'All' ? 'All Dispatches' : d}</option>)}
-          </select>
-        </div>
 
-        {/* Page Size Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>Per Page:</span>
-          <select 
-            value={pageSize} 
-            onChange={e => setPageSize(Number(e.target.value))}
-            style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
+          {/* Filter Dispatch Dropdown */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Dispatch:</span>
+            <select 
+              value={filterDispatch} 
+              onChange={e => setFilterDispatch(e.target.value)}
+              style={{ padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
+            >
+              {dispatchCats.map(d => <option key={d} value={d}>{d === 'All' ? 'All Dispatches' : d}</option>)}
+            </select>
+          </div>
+
+          {/* Page Size Selector */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Per Page:</span>
+            <select 
+              value={pageSize} 
+              onChange={e => setPageSize(Number(e.target.value))}
+              style={{ padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+
         </div>
 
       </div>
@@ -444,6 +564,7 @@ export default function ProductMasterUI({ role }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
+                <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', width: '64px' }}>Image</th>
                 <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Code</th>
                 <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name</th>
                 <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type / Family</th>
@@ -457,14 +578,14 @@ export default function ProductMasterUI({ role }) {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                  <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
                     <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#6366F1' }} />
                     Loading catalog items...
                   </td>
                 </tr>
               ) : currentPageData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                  <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
                     No matching products found.
                   </td>
                 </tr>
@@ -474,6 +595,21 @@ export default function ProductMasterUI({ role }) {
                     key={p.id || idx}
                     style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC', transition: 'background-color 0.15s ease' }}
                   >
+                    {/* Image */}
+                    <td style={{ padding: '12px 16px', width: '64px' }}>
+                      {p.image_url ? (
+                        <img 
+                          src={p.image_url} 
+                          alt={p.product_name} 
+                          style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #CBD5E1', background: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }} 
+                        />
+                      ) : (
+                        <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#F1F5F9', border: '1px dashed #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+                          <Package size={20} />
+                        </div>
+                      )}
+                    </td>
+
                     {/* Code */}
                     <td style={{ padding: '16px 20px' }}>
                       <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '13px', fontWeight: 600, color: '#334155', background: '#F1F5F9', border: '1px solid #E2E8F0', padding: '4px 8px', borderRadius: '6px' }}>
@@ -609,17 +745,28 @@ export default function ProductMasterUI({ role }) {
 
       {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
-          <div style={{ background: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '620px', border: '1px solid #E2E8F0', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)', padding: '16px' }}>
+          <div style={{ background: '#FFFFFF', borderRadius: '20px', width: '100%', maxWidth: '650px', border: '1px solid #E2E8F0', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
             
             {/* Modal Header */}
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0F172A' }}>
-                {formData.id ? 'Edit Product' : 'Add New Product'}
-              </h3>
+            <div style={{ padding: '20px 28px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#EEF2FF', border: '1px solid #C7D2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5' }}>
+                  <Package size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+                    {formData.id ? 'Edit Product' : 'Add New Product'}
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748B', fontWeight: 500 }}>
+                    Configure product master details & uploaded image
+                  </p>
+                </div>
+              </div>
               <button 
                 onClick={() => setIsModalOpen(false)} 
-                style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', fontSize: '20px', width: '32px', height: '32px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#64748B', cursor: 'pointer', fontSize: '20px', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
+                title="Close"
               >
                 {"×"}
               </button>
@@ -748,32 +895,65 @@ export default function ProductMasterUI({ role }) {
                       style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }} 
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Image</label>
-                    <div style={{ position: 'relative' }}>
-                      <input 
-                        type="file" 
-                        accept="image/*"
-                        id="product-image-upload"
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => setFormData({ ...formData, image_url: reader.result });
-                          reader.readAsDataURL(file);
-                        }} 
-                        style={{ display: 'none' }} 
-                      />
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Image & Preview</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      id="product-image-upload"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => setFormData(prev => ({ ...prev, image_url: reader.result }));
+                        reader.readAsDataURL(file);
+                      }} 
+                      style={{ display: 'none' }} 
+                    />
+                    
+                    {formData.image_url ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '12px' }}>
+                        <img 
+                          src={formData.image_url} 
+                          alt="Product Preview" 
+                          style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #CBD5E1', background: '#FFFFFF', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }} 
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <CheckCircle2 size={16} /> Image Uploaded Successfully
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>Live preview ready for catalog display</div>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                            <label 
+                              htmlFor="product-image-upload"
+                              style={{ padding: '6px 12px', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '12px', fontWeight: 600, color: '#334155', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <Upload size={14} /> Change Image
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
+                              style={{ padding: '6px 12px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', fontSize: '12px', fontWeight: 600, color: '#EF4444', cursor: 'pointer' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
                       <label 
                         htmlFor="product-image-upload"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '8px', color: '#64748B', fontSize: '14px', cursor: 'pointer', outline: 'none', justifyContent: 'center' }}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '100%', padding: '20px 14px', background: '#F8FAFC', border: '2px dashed #CBD5E1', borderRadius: '12px', color: '#64748B', fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s ease', textAlign: 'center' }}
                       >
-                        <Upload size={16} />
-                        <span style={{ fontWeight: 500, color: formData.image_url ? '#10B981' : '#64748B' }}>
-                          {formData.image_url ? 'Image Selected (Change)' : 'Choose File'}
-                        </span>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#EEF2FF', color: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Upload size={20} />
+                        </div>
+                        <div>
+                          <span style={{ fontWeight: 700, color: '#4F46E5' }}>Click to upload</span> or drag and drop product image
+                          <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>PNG, JPG, WEBP up to 5MB</div>
+                        </div>
                       </label>
-                    </div>
+                    )}
                   </div>
                 </div>
 

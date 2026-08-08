@@ -22,47 +22,57 @@ import { Public } from '../../common/decorators/public.decorator';
 export class ProductionTestingController {
   constructor(private readonly testingService: ProductionTestingService) {}
 
-  @RequirePermissions('production.productiontesting.read')
+  @RequirePermissions('production.productiontesting.read', 'production.testing.read', 'production.floor.read', 'production.qc.read', 'production.productionworkflow.read', 'plant-head.testing.read', 'planthead.read', 'plant-head.read', 'planthead.testing.read')
   @Get()
   async listTestingRecords() {
-    return this.testingService.listTestingRecords();
+    const data = await this.testingService.listTestingRecords();
+    return { success: true, data };
   }
 
-  @RequirePermissions('production.productiontesting.read')
+  @RequirePermissions('production.productiontesting.read', 'production.testing.read', 'production.floor.read', 'production.qc.read', 'production.productionworkflow.read', 'plant-head.testing.read', 'planthead.read', 'plant-head.read', 'planthead.testing.read')
   @Get(':id')
   async getTestingRecord(@Param('id') id: string) {
-    return this.testingService.getTestingRecord(id);
+    const data = await this.testingService.getTestingRecord(id);
+    return { success: true, data };
   }
 
-  @RequirePermissions('production.productiontesting.create')
+  @RequirePermissions('production.productiontesting.create', 'production.testing.create', 'production.floor.create', 'production.floor.read', 'production.qc.approve')
   @Post()
   async createTestingRecord(
-    @Body() dto: { productName: string; quantity: number; status?: string },
+    @Body() dto: { productName: string; quantity: number; status?: string; remarks?: string; testedBy?: string },
+    @Req() req: any,
   ) {
-    return this.testingService.createTestingRecord(dto);
+    const data = await this.testingService.createTestingRecord(
+      dto,
+      req.user?.sub || 'system',
+    );
+    return { success: true, data };
   }
 
-  @RequirePermissions('production.productiontesting.update')
+  @RequirePermissions('production.productiontesting.update', 'production.testing.update', 'production.floor.create', 'plant-head.testing.read', 'planthead.read', 'plant-head.read', 'planthead.testing.read')
   @Put(':id')
   async updateTestingRecord(
     @Param('id') id: string,
-    @Body() dto: { productName?: string; quantity?: number; status?: string },
+    @Body() dto: { productName?: string; quantity?: number; status?: string; remarks?: string },
   ) {
-    return this.testingService.updateTestingRecord(id, dto);
+    const data = await this.testingService.updateTestingRecord(id, dto);
+    return { success: true, data };
   }
 
-  @RequirePermissions('production.productiontesting.update')
+  @RequirePermissions('production.productiontesting.update', 'production.testing.update', 'production.floor.create', 'plant-head.testing.read', 'planthead.read', 'plant-head.read', 'planthead.testing.read')
   @Patch(':id/status')
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: { status: string; remarks?: string; reviewedBy?: string },
   ) {
-    return this.testingService.updateStatus(id, dto);
+    const data = await this.testingService.updateStatus(id, dto);
+    return { success: true, data };
   }
 
-  @RequirePermissions('production.productiontesting.delete')
+  @RequirePermissions('production.productiontesting.delete', 'production.testing.delete', 'production.floor.create')
   @Delete(':id')
   async deleteTestingRecord(@Param('id') id: string) {
-    return this.testingService.deleteTestingRecord(id);
+    const data = await this.testingService.deleteTestingRecord(id);
+    return { success: true, data };
   }
 }

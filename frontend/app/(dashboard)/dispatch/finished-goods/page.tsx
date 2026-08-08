@@ -1,12 +1,8 @@
 'use client';
 
 import React from 'react';
-import DispatchPortal from '../../../../modules/dispatch/pages/DispatchPortal';
+import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
 
 export default function FinishedGoodsDispatchPage() {
-  return (
-    <div className="w-full pb-12 pt-1 px-1 max-w-[1600px] mx-auto">
-      <DispatchPortal view="finished-goods" />
-    </div>
-  );
+  return <FinishedGoodsStockView readOnly={true} role="dispatch" />;
 }

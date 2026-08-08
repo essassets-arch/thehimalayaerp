@@ -18,7 +18,7 @@ export class LeadsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'assignedToId');
+    const scope = getSalesScope(userId, role, 'Lead');
     return this.prisma.lead.findMany({
       where: {
         ...scope,
@@ -52,7 +52,7 @@ export class LeadsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'assignedToId');
+    const scope = getSalesScope(userId, role, 'Lead');
     const lead = await this.prisma.lead.findFirst({
       where: {
         id,

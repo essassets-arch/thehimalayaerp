@@ -35,8 +35,15 @@ export default function QuotationsView({
   prefilledPrice,
   isFromSample,
   onResetTransition,
-  flat = false
+  flat = false,
+  isSuperSales = false,
+  basePath = '/sales'
 }) {
+  const isSuperSalesContext = isSuperSales || (typeof window !== 'undefined' && window.location.pathname.startsWith('/supersales')) || basePath?.startsWith('/supersales');
+  const paymentTermOptions = isSuperSalesContext
+    ? ['7 Days', '15 Days', '20 Days', '30 Days', '90 Days', 'Custom']
+    : ['7 Days', '15 Days', '20 Days', 'Custom'];
+  const predefinedTerms = paymentTermOptions.filter(t => t !== 'Custom');
   const [localSearch, setLocalSearch] = useState('');
   const search = (searchQuery !== undefined && searchQuery !== null) ? searchQuery : localSearch;
   const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
@@ -845,9 +852,9 @@ export default function QuotationsView({
               <div style={{ background: '#f8f9fa', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', marginBottom: 0 }}>Payment Terms *</label>
                 <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
-                  {['7 Days', '15 Days', '20 Days', 'Custom'].map((term) => {
+                  {paymentTermOptions.map((term) => {
                     const isChecked = term === 'Custom'
-                      ? !['7 Days', '15 Days', '20 Days'].includes(editPaymentTerms)
+                      ? !predefinedTerms.includes(editPaymentTerms)
                       : editPaymentTerms === term;
                     return (
                       <label key={term} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13.5px', fontWeight: '500', color: 'var(--color-text-primary)' }}>
@@ -868,7 +875,7 @@ export default function QuotationsView({
                     );
                   })}
                 </div>
-                {!['7 Days', '15 Days', '20 Days'].includes(editPaymentTerms) && (
+                {!predefinedTerms.includes(editPaymentTerms) && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
                     <input
                       type="number"

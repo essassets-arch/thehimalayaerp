@@ -1,0 +1,534 @@
+/* =========================
+   PAGE CONTAINER & HERO
+========================= */
+
+.page {
+  padding: 24px;
+  background: #f8fafc;
+  min-height: 100vh;
+  box-sizing: border-box;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.06);
+  flex-wrap: wrap;
+}
+
+.heroLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.heroIcon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0c4a6e 0%, #0284c7 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+.heroText h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.heroText p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0284c7;
+}
+
+.heroRight {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.summaryBadge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: #ffffff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+}
+
+.summaryBadge strong {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0284c7;
+  line-height: 1;
+}
+
+.summaryBadge span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.btnAddProduct {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+  transition: all 0.2s ease;
+}
+
+.btnAddProduct:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.45);
+}
+
+/* =========================
+   INVENTORY CONTAINER
+========================= */
+
+.inventoryWrapper {
+  width: 100%;
+  max-width: 100%;
+  background: #fff;
+  border: 1px solid #e3eaf1;
+  border-radius: 18px;
+  padding: 0;
+  overflow: hidden;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1f2937;
+  box-sizing: border-box;
+}
+
+.inventoryWrapper *,
+.inventoryWrapper *::before,
+.inventoryWrapper *::after {
+  box-sizing: border-box;
+}
+
+/* =========================
+   TOP AREA
+========================= */
+
+.inventoryTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 18px;
+  background: #fff;
+}
+
+.stockTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stockBadgeCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0284c7;
+  background: #e0f2fe;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* =========================
+   SEARCH
+========================= */
+
+.searchBox {
+  width: 340px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #d6dee8;
+  border-radius: 9px;
+  padding: 0 12px;
+  background: #fff;
+}
+
+.searchIconSpan {
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+}
+
+.searchBox input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 13px;
+  color: #334155;
+}
+
+.searchBox input::placeholder {
+  color: #94a3b8;
+}
+
+/* =========================
+   TABLE
+========================= */
+
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+  border-top: 1px solid #e5eaf0;
+}
+
+.inventoryTable {
+  width: 100%;
+  min-width: 1000px;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.inventoryTable th {
+  height: 40px;
+  padding: 0 14px;
+  text-align: left;
+  background: #fff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid #dfe5eb;
+}
+
+.inventoryTable td {
+  height: 31px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #64748b;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.inventoryTable tbody tr:hover {
+  background: #f8fbfd;
+}
+
+.inventoryTable td:first-child {
+  color: #172033;
+}
+
+.productName {
+  color: #009c91 !important;
+  font-weight: 600;
+}
+
+.actionsHeader {
+  text-align: right !important;
+}
+
+.inventoryTable td:last-child {
+  text-align: right;
+}
+
+/* =========================
+   STOCK STATUS
+========================= */
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 87px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.inStock {
+  color: #16a05d;
+  background: #dcfce9;
+}
+
+.outOfStock {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+/* =========================
+   ACTION BUTTONS
+========================= */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 7px;
+}
+
+.btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btnIn {
+  color: #0784d1;
+  background: #e8f6ff;
+  border: 1px solid #9edcff;
+}
+
+.btnIn:hover {
+  background: #d7efff;
+}
+
+.btnOut {
+  color: #475569;
+  background: #f7f8fa;
+  border: 1px solid #dce2e8;
+}
+
+.btnOut:hover {
+  background: #edf0f3;
+}
+
+.btnAdjust {
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #dce2e8;
+}
+
+.btnAdjust:hover {
+  background: #eef2f6;
+}
+
+/* =========================
+   FOOTER / PAGINATION
+========================= */
+
+.tableFooter {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: #fff;
+}
+
+.rowsPerPage,
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.rowsPerPage select {
+  min-width: 70px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid #dce3ea;
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  outline: none;
+}
+
+.pagination button {
+  width: 31px;
+  height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e0e6ed;
+  background: #fff;
+  border-radius: 7px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.pagination button:hover {
+  background: #f4f7fa;
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================
+   TABLET
+========================= */
+
+@media (max-width: 900px) {
+  .inventoryTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchBox {
+    width: 100%;
+  }
+
+  .tableContainer {
+    overflow-x: auto;
+  }
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 600px) {
+  .inventoryWrapper {
+    border-radius: 12px;
+  }
+
+  .inventoryTop {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .tableContainer {
+    overflow: visible;
+    border-top: 1px solid #e5eaf0;
+    padding: 10px;
+    background: #f8fafc;
+  }
+
+  .inventoryTable {
+    min-width: 0;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+  }
+
+  .inventoryTable thead {
+    display: none;
+  }
+
+  .inventoryTable tbody,
+  .inventoryTable tr,
+  .inventoryTable td {
+    display: block;
+    width: 100%;
+  }
+
+  .inventoryTable tr {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+
+  .inventoryTable td {
+    height: auto;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 7px 0;
+    border-bottom: 1px solid #f1f5f9;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .inventoryTable td:last-child {
+    border-bottom: 0;
+  }
+
+  .inventoryTable td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .inventoryTable td:first-child {
+    font-size: 14px;
+    padding-top: 2px;
+  }
+
+  .productName {
+    display: block !important;
+    text-align: left !important;
+    font-size: 14px;
+    padding: 8px 0 !important;
+  }
+
+  .productName::before {
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    height: 32px;
+  }
+
+  .tableFooter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .rowsPerPage,
+  .pagination {
+    justify-content: space-between;
+  }
+
+  .pagination {
+    justify-content: flex-end;
+  }
+}

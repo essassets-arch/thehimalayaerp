@@ -623,6 +623,214 @@ const allProducts: ProductSeedData[] = [
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+// ─── 136 Authoritative Raw Inventory Items Master Seed ───────────────────────
+
+const rawInventoryItemsSeed = [
+  { srNo: 1, name: "WATER PAPER 60", code: "HCPPL001", unit: "ROLL", balance: 1, category: "Hardware", minStock: 20 },
+  { srNo: 2, name: "WATER PAPER 80", code: "HCPPL002", unit: "PCS", balance: 1890, category: "Hardware", minStock: 20 },
+  { srNo: 3, name: "WATER PAPER 120", code: "HCPPL003", unit: "PCS", balance: 32, category: "Hardware", minStock: 20 },
+  { srNo: 4, name: "WATER PAPER 150", code: "HCPPL004", unit: "PCS", balance: 850, category: "Hardware", minStock: 20 },
+  { srNo: 5, name: "WATER PAPER 220", code: "HCPPL005", unit: "PCS", balance: 145, category: "Hardware", minStock: 20 },
+  { srNo: 6, name: "WATER PAPER 320", code: "HCPPL006", unit: "PCS", balance: 450, category: "Hardware", minStock: 20 },
+  { srNo: 7, name: "WATER PAPER 400", code: "HCPPL007", unit: "PCS", balance: 1572, category: "Hardware", minStock: 20 },
+  { srNo: 8, name: "WATER PAPER 600", code: "HCPPL008", unit: "PCS", balance: 114, category: "Hardware", minStock: 20 },
+  { srNo: 9, name: "WATER PAPER 800", code: "HCPPL009", unit: "PCS", balance: 200, category: "Hardware", minStock: 20 },
+  { srNo: 10, name: "WATER PAPER 1000", code: "HCPPL010", unit: "PCS", balance: 707, category: "Hardware", minStock: 20 },
+  { srNo: 11, name: "WATER PAPER 1200", code: "HCPPL011", unit: "PCS", balance: 0, category: "Hardware", minStock: 20 },
+  { srNo: 12, name: "WATER PAPER 1500", code: "HCPPL012", unit: "PCS", balance: 100, category: "Hardware", minStock: 20 },
+  { srNo: 13, name: "BLUE PIGMENT", code: "HCPPL013", unit: "KG", balance: 52, category: "Raw Material", minStock: 2 },
+  { srNo: 14, name: "LIGHT GREY PIGMENT", code: "HCPPL014", unit: "KG", balance: 123, category: "Raw Material", minStock: 10 },
+  { srNo: 15, name: "RED PIGMENT", code: "HCPPL015", unit: "KG", balance: 59, category: "Raw Material", minStock: 10 },
+  { srNo: 16, name: "BLACK PIGMENT", code: "HCPPL016", unit: "KG", balance: 200, category: "Raw Material", minStock: 25 },
+  { srNo: 17, name: "WHITE PIGMENT", code: "HCPPL017", unit: "KG", balance: 18, category: "Raw Material", minStock: 2 },
+  { srNo: 18, name: "BENJO WAX POLISH", code: "HCPPL018", unit: "KG", balance: 20, category: "Raw Material", minStock: 5 },
+  { srNo: 19, name: "WHITE WAX POLISH", code: "HCPPL019", unit: "KG", balance: 45, category: "Raw Material", minStock: 40 },
+  { srNo: 20, name: "BRUSH 25 MM", code: "HCPPL020", unit: "PCS", balance: 20, category: "Hardware", minStock: 5 },
+  { srNo: 21, name: "BRUSH 38 MM", code: "HCPPL021", unit: "PCS", balance: 78, category: "Hardware", minStock: 5 },
+  { srNo: 22, name: "BRUSH 50 MM", code: "HCPPL022", unit: "PCS", balance: 227, category: "Hardware", minStock: 5 },
+  { srNo: 23, name: "BRUSH 75 MM", code: "HCPPL023", unit: "PCS", balance: 9, category: "Hardware", minStock: 5 },
+  { srNo: 24, name: "BRUSH 100 MM", code: "HCPPL024", unit: "PCS", balance: 20, category: "Hardware", minStock: 5 },
+  { srNo: 25, name: "FIBER CUTTING DISH (DIAMOND CUTTER)", code: "HCPPL025", unit: "PCS", balance: 0, category: "Hardware", minStock: 20 },
+  { srNo: 26, name: "GC WHEEL", code: "HCPPL026", unit: "PCS", balance: 0, category: "Hardware", minStock: 20 },
+  { srNo: 27, name: "BEAR DIS 36", code: "HCPPL027", unit: "PCS", balance: 20, category: "Hardware", minStock: 10 },
+  { srNo: 28, name: "BEAR DIS 60", code: "HCPPL028", unit: "PCS", balance: 200, category: "Hardware", minStock: 10 },
+  { srNo: 29, name: "BEAR DIS 80", code: "HCPPL029", unit: "PCS", balance: 100, category: "Hardware", minStock: 10 },
+  { srNo: 30, name: "BEAR DIS 120", code: "HCPPL030", unit: "PCS", balance: 50, category: "Hardware", minStock: 10 },
+  { srNo: 31, name: "WELCOR PAPER 80", code: "HCPPL031", unit: "PCS", balance: 0, category: "Hardware", minStock: 5 },
+  { srNo: 32, name: "WELCOR PAPER 120", code: "HCPPL032", unit: "PCS", balance: 27, category: "Hardware", minStock: 5 },
+  { srNo: 33, name: "WELCOR PAPER 180", code: "HCPPL033", unit: "PCS", balance: 0, category: "Hardware", minStock: 5 },
+  { srNo: 34, name: "WELCOR PAPER 220", code: "HCPPL034", unit: "PCS", balance: 51, category: "Hardware", minStock: 5 },
+  { srNo: 35, name: "WELCOR PAPER 320", code: "HCPPL035", unit: "PCS", balance: 9, category: "Hardware", minStock: 5 },
+  { srNo: 36, name: "WELCOR PAPER 400", code: "HCPPL036", unit: "PCS", balance: 38, category: "Hardware", minStock: 5 },
+  { srNo: 37, name: "WELCOR PAPER 600", code: "HCPPL037", unit: "PCS", balance: 0, category: "Hardware", minStock: 5 },
+  { srNo: 38, name: "IRON CUTTING DISK", code: "HCPPL038", unit: "PCS", balance: 271, category: "Hardware", minStock: 10 },
+  { srNo: 39, name: "SANDING MACHINE", code: "HCPPL039", unit: "PCS", balance: 0, category: "Electric", minStock: 1 },
+  { srNo: 40, name: "FEVICKIK", code: "HCPPL040", unit: "PCS", balance: 38, category: "Hardware", minStock: 10 },
+  { srNo: 41, name: "GRIDER WASHER (LOOK NUT)", code: "HCPPL041", unit: "PCS", balance: 58, category: "Hardware", minStock: 10 },
+  { srNo: 42, name: "C CLAMP 4 INCH", code: "HCPPL042", unit: "PCS", balance: 2, category: "Hardware", minStock: 2 },
+  { srNo: 43, name: "C CLAMP 6 INCH", code: "HCPPL043", unit: "PCS", balance: 6, category: "Hardware", minStock: 2 },
+  { srNo: 44, name: "HAKSAW BLADE", code: "HCPPL044", unit: "PCS", balance: 461, category: "Hardware", minStock: 20 },
+  { srNo: 45, name: "GEAR OIL", code: "HCPPL045", unit: "LTR", balance: 2, category: "Raw Material", minStock: 1 },
+  { srNo: 46, name: "PLASTIC HAMMER", code: "HCPPL046", unit: "PCS", balance: 3, category: "Hardware", minStock: 1 },
+  { srNo: 47, name: "HAMMER 1.5", code: "HCPPL047", unit: "PCS", balance: 2, category: "Hardware", minStock: 1 },
+  { srNo: 48, name: "DRILL BIT 3MM", code: "HCPPL048", unit: "PCS", balance: 24, category: "Hardware", minStock: 5 },
+  { srNo: 49, name: "DRILL BIT 4MM", code: "HCPPL049", unit: "PCS", balance: 10, category: "Hardware", minStock: 5 },
+  { srNo: 50, name: "DRILL BIT 6MM", code: "HCPPL050", unit: "PCS", balance: 6, category: "Hardware", minStock: 5 },
+  { srNo: 51, name: "DRILL BIT 210*6MM", code: "HCPPL051", unit: "PCS", balance: 28, category: "Hardware", minStock: 5 },
+  { srNo: 52, name: "DRILL BIT 8MM", code: "HCPPL052", unit: "PCS", balance: 27, category: "Hardware", minStock: 5 },
+  { srNo: 53, name: "DRILL BIT 10MM", code: "HCPPL053", unit: "PCS", balance: 12, category: "Hardware", minStock: 5 },
+  { srNo: 54, name: "DRILL BIT 12MM", code: "HCPPL054", unit: "PCS", balance: 26, category: "Hardware", minStock: 5 },
+  { srNo: 55, name: "THAPPI 6MM", code: "HCPPL055", unit: "PCS", balance: 17, category: "Hardware", minStock: 5 },
+  { srNo: 56, name: "THAPPI 8MM", code: "HCPPL056", unit: "PCS", balance: 59, category: "Hardware", minStock: 5 },
+  { srNo: 57, name: "THAPPI 10MM", code: "HCPPL057", unit: "PCS", balance: 45, category: "Hardware", minStock: 5 },
+  { srNo: 58, name: "THAPPI 12MM", code: "HCPPL058", unit: "PCS", balance: 41, category: "Hardware", minStock: 5 },
+  { srNo: 59, name: "THAPPI SMALL", code: "HCPPL059", unit: "PCS", balance: 89, category: "Hardware", minStock: 5 },
+  { srNo: 60, name: "FLAT CHISEL 25", code: "HCPPL060", unit: "PCS", balance: 37, category: "Hardware", minStock: 5 },
+  { srNo: 61, name: "FLAT CHISEL 32", code: "HCPPL061", unit: "PCS", balance: 39, category: "Hardware", minStock: 5 },
+  { srNo: 62, name: "FLAT CHISEL 40", code: "HCPPL062", unit: "PCS", balance: 48, category: "Hardware", minStock: 5 },
+  { srNo: 63, name: "FLAT CHISEL 50", code: "HCPPL063", unit: "PCS", balance: 57, category: "Hardware", minStock: 5 },
+  { srNo: 64, name: "PVC FLAT CHISEL HANDLE", code: "HCPPL064", unit: "PCS", balance: 27, category: "Hardware", minStock: 5 },
+  { srNo: 65, name: "SCREW DRIVER 18 INCH", code: "HCPPL065", unit: "PCS", balance: 17, category: "Hardware", minStock: 2 },
+  { srNo: 66, name: "SCREW DRIVER SMALL REGULAR", code: "HCPPL066", unit: "PCS", balance: 3, category: "Hardware", minStock: 2 },
+  { srNo: 67, name: "A-11 MOUNTAIN WHEEL (STONE BIT)", code: "HCPPL067", unit: "PKT", balance: 5, category: "Hardware", minStock: 1 },
+  { srNo: 68, name: "STERER 8MM", code: "HCPPL068", unit: "PCS", balance: 1, category: "Hardware", minStock: 2 },
+  { srNo: 69, name: "STERER 12MM", code: "HCPPL069", unit: "PCS", balance: 12, category: "Hardware", minStock: 2 },
+  { srNo: 70, name: "PILERS (PAKKD)", code: "HCPPL070", unit: "PCS", balance: 2, category: "Hardware", minStock: 1 },
+  { srNo: 71, name: "FILE (ROUND, FLAT, THANDER)", code: "HCPPL071", unit: "PCS", balance: 1, category: "Hardware", minStock: 1 },
+  { srNo: 72, name: "PERMENENT MARKER", code: "HCPPL072", unit: "PCS", balance: 59, category: "Hardware", minStock: 10 },
+  { srNo: 73, name: "BOARD MARKER", code: "HCPPL073", unit: "PCS", balance: 20, category: "Hardware", minStock: 9 },
+  { srNo: 74, name: "PENCIL", code: "HCPPL074", unit: "PCS", balance: 9, category: "Hardware", minStock: 1 },
+  { srNo: 75, name: "PEN", code: "HCPPL075", unit: "PCS", balance: 0, category: "Hardware", minStock: 1 },
+  { srNo: 76, name: "MASKING TAPE", code: "HCPPL076", unit: "PKT", balance: 48, category: "Hardware", minStock: 1 },
+  { srNo: 77, name: "STICH FLIM (RAPING ROLL)", code: "HCPPL077", unit: "ROLL", balance: 36, category: "Hardware", minStock: 1 },
+  { srNo: 78, name: "AUTO FINCH GREY COLOUR", code: "HCPPL078", unit: "CAN", balance: 12, category: "Hardware", minStock: 1 },
+  { srNo: 79, name: "AUTO FINCH BLACK COLOUR", code: "HCPPL079", unit: "CAN", balance: 7, category: "Hardware", minStock: 1 },
+  { srNo: 80, name: "AUTO FINCH BLUE COLOUR", code: "HCPPL080", unit: "CAN", balance: 2, category: "Hardware", minStock: 1 },
+  { srNo: 81, name: "SCALE 18 INCH", code: "HCPPL081", unit: "PCS", balance: 3, category: "Hardware", minStock: 1 },
+  { srNo: 82, name: "SCALE 24 INCH", code: "HCPPL082", unit: "PCS", balance: 4, category: "Hardware", minStock: 1 },
+  { srNo: 83, name: "SCALE 40 INCH", code: "HCPPL083", unit: "PCS", balance: 2, category: "Hardware", minStock: 1 },
+  { srNo: 84, name: "MEASURING TAPE 3M", code: "HCPPL084", unit: "PCS", balance: 3, category: "Hardware", minStock: 2 },
+  { srNo: 85, name: "MEASURING TAPE 5M", code: "HCPPL085", unit: "PCS", balance: 1, category: "Hardware", minStock: 1 },
+  { srNo: 86, name: "BUCKET 5", code: "HCPPL086", unit: "PCS", balance: 24, category: "Hardware", minStock: 5 },
+  { srNo: 87, name: "BUCKET 10", code: "HCPPL087", unit: "PCS", balance: 59, category: "Hardware", minStock: 5 },
+  { srNo: 88, name: "BUCKET 13", code: "HCPPL088", unit: "PCS", balance: 23, category: "Hardware", minStock: 5 },
+  { srNo: 89, name: "BUCKET 20", code: "HCPPL089", unit: "PCS", balance: 6, category: "Hardware", minStock: 5 },
+  { srNo: 90, name: "GHAMELA 8", code: "HCPPL090", unit: "PCS", balance: 27, category: "Hardware", minStock: 3 },
+  { srNo: 91, name: "GHAMELA 10", code: "HCPPL091", unit: "PCS", balance: 23, category: "Hardware", minStock: 3 },
+  { srNo: 92, name: "GHAMELA 12", code: "HCPPL092", unit: "PCS", balance: 0, category: "Hardware", minStock: 3 },
+  { srNo: 93, name: "GHAMELA 14", code: "HCPPL093", unit: "PCS", balance: 61, category: "Hardware", minStock: 3 },
+  { srNo: 94, name: "GHAMELA 19", code: "HCPPL094", unit: "PCS", balance: 51, category: "Hardware", minStock: 3 },
+  { srNo: 95, name: "MUGGA", code: "HCPPL095", unit: "PCS", balance: 56, category: "Hardware", minStock: 5 },
+  { srNo: 96, name: "WIRE TAPE", code: "HCPPL096", unit: "PCS", balance: 60, category: "Hardware", minStock: 10 },
+  { srNo: 97, name: "GRINDER CORBON (6-100)", code: "HCPPL097", unit: "PCS", balance: 0, category: "Hardware", minStock: 10 },
+  { srNo: 98, name: "MIXURE CORBON", code: "HCPPL098", unit: "PCS", balance: 60, category: "Hardware", minStock: 10 },
+  { srNo: 99, name: "PVA", code: "HCPPL099", unit: "LTR", balance: 0, category: "Raw Material", minStock: 2 },
+  { srNo: 100, name: "CLEAR RESIN", code: "HCPPL100", unit: "BARREL", balance: 59, category: "Raw Material", minStock: 5 },
+  { srNo: 101, name: "ISO RESIN", code: "HCPPL101", unit: "BARREL", balance: 46, category: "Raw Material", minStock: 2 },
+  { srNo: 102, name: "ISO GEL-COAT", code: "HCPPL102", unit: "BARREL", balance: 0, category: "Raw Material", minStock: 0 },
+  { srNo: 103, name: "SURFACE TISSUE MAT (30GSM)", code: "HCPPL103", unit: "ROLL", balance: 0, category: "Raw Material", minStock: 1 },
+  { srNo: 104, name: "FGM MAT 225 GSM", code: "HCPPL104", unit: "ROLL", balance: 37, category: "Raw Material", minStock: 1 },
+  { srNo: 105, name: "FGM MAT 450 GSM", code: "HCPPL105", unit: "ROLL", balance: 0, category: "Raw Material", minStock: 5 },
+  { srNo: 106, name: "FGM MATT 1230 GSM", code: "HCPPL106", unit: "ROLL", balance: 30, category: "Raw Material", minStock: 5 },
+  { srNo: 107, name: "WOVEN ROVING 610 GSM", code: "HCPPL107", unit: "ROLL", balance: 57, category: "Raw Material", minStock: 5 },
+  { srNo: 108, name: "MEKP (CATALYST)", code: "HCPPL108", unit: "CAN", balance: 28, category: "Raw Material", minStock: 1 },
+  { srNo: 109, name: "COBALT OCTOATE", code: "HCPPL109", unit: "CAN", balance: 29, category: "Raw Material", minStock: 1 },
+  { srNo: 110, name: "THINNER", code: "HCPPL110", unit: "LTR", balance: 0, category: "Raw Material", minStock: 50 },
+  { srNo: 111, name: "QUARTZ BIG", code: "HCPPL111", unit: "BAG", balance: 0, category: "Raw Material", minStock: 10 },
+  { srNo: 112, name: "QUARTZ MEDIUM", code: "HCPPL112", unit: "BAG", balance: 0, category: "Raw Material", minStock: 10 },
+  { srNo: 113, name: "QUARTZ SMALL", code: "HCPPL113", unit: "BAG", balance: 0, category: "Raw Material", minStock: 10 },
+  { srNo: 114, name: "DOLOMITE POWDER", code: "HCPPL114", unit: "BAG", balance: 420, category: "Raw Material", minStock: 10 },
+  { srNo: 115, name: "GEL COAT POWDER", code: "HCPPL115", unit: "BAG", balance: 0, category: "Raw Material", minStock: 0 },
+  { srNo: 116, name: "ELECTRIC ZIGSAW MACHINE", code: "HCPPL116", unit: "PCS", balance: 0, category: "Electric", minStock: 1 },
+  { srNo: 117, name: "HAND MIXTURE MACHINE", code: "HCPPL117", unit: "PCS", balance: 0, category: "Electric", minStock: 1 },
+  { srNo: 118, name: "ANGLE GRINDER", code: "HCPPL118", unit: "PCS", balance: 0, category: "Electric", minStock: 2 },
+  { srNo: 119, name: "DRILL MACHINE", code: "HCPPL119", unit: "PCS", balance: 0, category: "Electric", minStock: 2 },
+  { srNo: 120, name: "BUFING MACHINE", code: "HCPPL120", unit: "PCS", balance: 0, category: "Electric", minStock: 1 },
+  { srNo: 121, name: "SANDING MACHINE", code: "HCPPL121", unit: "PCS", balance: 0, category: "Electric", minStock: 1 },
+  { srNo: 122, name: "POP (PLASTER OF PARIS)", code: "HCPPL122", unit: "BAG", balance: 0, category: "Hardware", minStock: 2 },
+  { srNo: 123, name: "PLY WOOD 4MM", code: "HCPPL123", unit: "PCS", balance: 0, category: "Hardware", minStock: 2 },
+  { srNo: 124, name: "PLY WOOD 6MM", code: "HCPPL124", unit: "PCS", balance: 0, category: "Hardware", minStock: 2 },
+  { srNo: 125, name: "PLY WOOD 12MM", code: "HCPPL125", unit: "PCS", balance: 0, category: "Hardware", minStock: 2 },
+  { srNo: 126, name: "PLY WOOD 18MM", code: "HCPPL126", unit: "PCS", balance: 0, category: "Hardware", minStock: 2 },
+  { srNo: 127, name: "ZIGSAW BLADE", code: "HCPPL127", unit: "PCS", balance: 98, category: "Hardware", minStock: 5 },
+  { srNo: 128, name: "WASTE CLOTH", code: "HCPPL128", unit: "KG", balance: 0, category: "Hardware", minStock: 5 },
+  { srNo: 129, name: "BELCHA (SEWAL)", code: "HCPPL129", unit: "PCS", balance: 2, category: "Hardware", minStock: 1 },
+  { srNo: 130, name: "SHARPNER", code: "HCPPL130", unit: "PCS", balance: 0, category: "Hardware", minStock: 2 },
+  { srNo: 131, name: "ERASER", code: "HCPPL131", unit: "PCS", balance: 0, category: "Hardware", minStock: 2 },
+  { srNo: 132, name: "HYDROLIC OIL", code: "HCPPL132", unit: "LTR", balance: 0, category: "Hardware", minStock: 20 },
+  { srNo: 133, name: "GRISH", code: "HCPPL133", unit: "KG", balance: 0, category: "Hardware", minStock: 20 },
+  { srNo: 134, name: "WELDING RODE", code: "HCPPL134", unit: "PCS", balance: 0, category: "Hardware", minStock: 1 },
+  { srNo: 135, name: "NYLON BLACK PATTY", code: "HCPPL135", unit: "PCS", balance: 0, category: "Hardware", minStock: 1 },
+  { srNo: 136, name: "GREY GLOVES", code: "HCPPL136", unit: "PCS", balance: 0, category: "Hardware", minStock: 10 },
+];
+
+async function seed136RawMaterials(prisma: PrismaClient, companyId: string) {
+  console.log('📦 Seeding 136 Authoritative Raw Inventory Items into "RawMaterial" table...');
+  let warehouse = await prisma.warehouse.findFirst({ where: { companyId } });
+  if (!warehouse) {
+    warehouse = await prisma.warehouse.create({
+      data: {
+        id: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
+        name: 'Main Store Warehouse',
+        companyId,
+      },
+    });
+  }
+  const warehouseId = warehouse.id;
+  let seededCount = 0;
+  let txCount = 0;
+
+  for (const item of rawInventoryItemsSeed) {
+    const rm = await prisma.rawMaterial.upsert({
+      where: { sku: item.code },
+      update: {
+        name: item.name,
+        category: item.category,
+        unit: item.unit,
+        minimumStock: item.minStock,
+      },
+      create: {
+        publicId: `RM-${item.code}`,
+        companyId: companyId,
+        sku: item.code,
+        name: item.name,
+        category: item.category,
+        unit: item.unit,
+        minimumStock: item.minStock,
+      },
+    });
+    seededCount++;
+
+    if (item.balance > 0) {
+      const existingTx = await prisma.inventoryTransaction.findFirst({
+        where: {
+          companyId,
+          rawMaterialId: rm.id,
+          referenceType: 'OPENING_STOCK',
+          referenceId: `OPENING-${item.code}`,
+        },
+      });
+
+      if (!existingTx) {
+        await prisma.inventoryTransaction.create({
+          data: {
+            companyId,
+            rawMaterialId: rm.id,
+            warehouseId,
+            type: 'IN',
+            quantity: item.balance,
+            referenceType: 'OPENING_STOCK',
+            referenceId: `OPENING-${item.code}`,
+          },
+        });
+        txCount++;
+      }
+    }
+  }
+
+  console.log(`✅ Successfully seeded ${seededCount} RawMaterial records with ${txCount} opening transactions!`);
+}
+
 async function main() {
   console.log('🌱 Starting ERP seed...\n');
 
@@ -631,6 +839,7 @@ async function main() {
   const roleDefinitions = [
     { code: 'SUPER_ADMIN',          name: 'Super Admin' },
     { code: 'ADMIN',                name: 'Admin' },
+    { code: 'SUPER_SALES',          name: 'SuperSales' },
     { code: 'SALES_EXECUTIVE',      name: 'Sales Executive' },
     { code: 'SALES_MANAGER',        name: 'Sales Manager' },
     { code: 'PLANT_HEAD',           name: 'Plant Head' },
@@ -638,6 +847,7 @@ async function main() {
     { code: 'PRODUCTION_OPERATOR',  name: 'Production Operator' },
     { code: 'QC_INSPECTOR',         name: 'QC Inspector' },
     { code: 'DISPATCH_EXECUTIVE',   name: 'Dispatch Executive' },
+    { code: 'DISPATCH_2',           name: 'Dispatch 2' },
     { code: 'FINANCE_EXECUTIVE',    name: 'Finance Executive' },
     { code: 'FINANCE_MANAGER',      name: 'Finance Manager' },
     { code: 'STORE_MANAGER',        name: 'Store Manager' },
@@ -800,10 +1010,12 @@ async function main() {
     create: { publicId: 'COMP-000001', name: 'Himalaya Wellness Pvt. Ltd.' },
   });
 
+  await seed136RawMaterials(prisma, company.id);
+
   // ── 4. Assign all permissions to SUPER_ADMIN and ADMIN ─────────────────────
   console.log('🔗 Assigning permissions to admin roles...');
   const adminRoles = await prisma.role.findMany({
-    where: { code: { in: ['SUPER_ADMIN', 'ADMIN'] } },
+    where: { code: { in: ['SUPER_ADMIN', 'ADMIN', 'SUPER_SALES'] } },
   });
   const allPerms = await prisma.permission.findMany();
 
@@ -872,6 +1084,23 @@ async function main() {
     }
   }
 
+  // ── Dispatch Executive and Dispatch 2 Roles ───────────────────────────────
+  const dispatchExecRole = await prisma.role.findFirst({ where: { code: 'DISPATCH_EXECUTIVE' } });
+  const dispatch2Role = await prisma.role.findFirst({ where: { code: 'DISPATCH_2' } });
+
+  if (dispatchExecRole && dispatch2Role) {
+    const dispatchExecPerms = await prisma.rolePermission.findMany({
+      where: { roleId: dispatchExecRole.id },
+    });
+    for (const rp of dispatchExecPerms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: dispatch2Role.id, permissionId: rp.permissionId } },
+        update: {},
+        create: { roleId: dispatch2Role.id, permissionId: rp.permissionId },
+      });
+    }
+  }
+
   // ── 5. Users (one per role) ─────────────────────────────────────────────────
   console.log('👤 Seeding users...');
   const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
@@ -880,13 +1109,18 @@ async function main() {
 
   for (const role of allRoles) {
     const emailSlug = role.code.toLowerCase().replace(/_/g, '.');
-    const email = (role.code === 'SUPER_ADMIN' && process.env.INITIAL_ADMIN_EMAIL)
+    let email = (role.code === 'SUPER_ADMIN' && process.env.INITIAL_ADMIN_EMAIL)
       ? process.env.INITIAL_ADMIN_EMAIL
       : `${emailSlug}@himalayaerp.com`;
+    if (role.code === 'DISPATCH_2') email = 'dispatch2@himalayaerp.com';
 
     await prisma.user.upsert({
       where: { email },
-      update: {},
+      update: {
+        password: hashedPassword,
+        roleId: role.id,
+        name: role.name,
+      },
       create: {
         publicId: uid('USR'),
         email,
@@ -915,6 +1149,27 @@ async function main() {
         password: sahadPassword,
         name: 'Sahad Accounts',
         roleId: finManagerRole.id,
+        companyId: company.id,
+        isActive: true,
+      },
+    });
+  }
+
+  const dispatch2RoleAlias = allRoles.find((r) => r.code === 'DISPATCH_2');
+  if (dispatch2RoleAlias) {
+    await prisma.user.upsert({
+      where: { email: 'dispatch.2@himalayaerp.com' },
+      update: {
+        password: hashedPassword,
+        roleId: dispatch2RoleAlias.id,
+        isActive: true,
+      },
+      create: {
+        publicId: uid('USR'),
+        email: 'dispatch.2@himalayaerp.com',
+        password: hashedPassword,
+        name: 'Dispatch 2',
+        roleId: dispatch2RoleAlias.id,
         companyId: company.id,
         isActive: true,
       },

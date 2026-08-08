@@ -53,12 +53,21 @@ export default function CreateQuotation({
   onAddQuotation, 
   onCancel,
   onCreateLead,
-  isFromSample = false
+  isFromSample = false,
+  isSuperSales = false,
+  basePath = '/sales',
+  mode,
+  maxPaymentTermDays
 }) {
   const { user } = useAuth();
   const userRole = user?.role?.trim();
-  const isSpecialRole = userRole === 'Super Admin' || userRole === 'Admin';
-  const maxDays = isSpecialRole ? 90 : 20;
+  const isSuperSalesUser = isSuperSales || mode === 'SUPER_SALES' || userRole === 'SUPER_SALES' || userRole === 'SuperSales' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/supersales')) || basePath?.startsWith('/supersales');
+  const isSpecialRole = isSuperSalesUser || userRole === 'Super Admin' || userRole === 'Admin';
+  const maxDays = maxPaymentTermDays || (isSpecialRole ? 90 : 20);
+  const paymentTermOptions = isSuperSalesUser
+    ? ['7 Days', '15 Days', '20 Days', '30 Days', '90 Days', 'Custom']
+    : ['7 Days', '15 Days', '20 Days', 'Custom'];
+  const predefinedTerms = paymentTermOptions.filter(t => t !== 'Custom');
   const salespersonName = user?.name || user?.fullName || user?.email || 'Sales Executive';
   
   const searchParams = useSearchParams();
@@ -464,7 +473,13 @@ export default function CreateQuotation({
     if (daysMatch) {
       const days = parseInt(daysMatch[1], 10);
       if (days > maxDays) {
-        alert(`Payment Terms cannot exceed ${maxDays} days.`);
+        alert(`Payment terms cannot exceed ${maxDays} days.`);
+        return;
+      }
+    } else if (paymentTerms && paymentTerms.trim() !== '') {
+      const parsed = parseInt(paymentTerms, 10);
+      if (!isNaN(parsed) && parsed > maxDays) {
+        alert(`Payment terms cannot exceed ${maxDays} days.`);
         return;
       }
     }
@@ -952,8 +967,8 @@ export default function CreateQuotation({
             <div style={{ background: '#f8f9fa', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label className="form-label" style={{ fontWeight: '700', marginBottom: 0 }}>Payment Terms *</label>
               <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
-                {['7 Days', '15 Days', '20 Days', 'Custom'].map((term) => {
-                  const isChecked = term === 'Custom' ? !['7 Days', '15 Days', '20 Days'].includes(paymentTerms) : paymentTerms === term;
+                {paymentTermOptions.map((term) => {
+                  const isChecked = term === 'Custom' ? !predefinedTerms.includes(paymentTerms) : paymentTerms === term;
                   return (
                     <label key={term} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13.5px', fontWeight: '500', color: 'var(--color-text-primary)' }}>
                       <input
@@ -973,7 +988,7 @@ export default function CreateQuotation({
                   );
                 })}
               </div>
-              {!['7 Days', '15 Days', '20 Days'].includes(paymentTerms) && (
+              {!predefinedTerms.includes(paymentTerms) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
                   <input
                     type="number"

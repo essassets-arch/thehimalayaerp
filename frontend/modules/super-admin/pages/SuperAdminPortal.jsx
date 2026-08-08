@@ -7392,11 +7392,7 @@ export default function SuperAdminPortal() {
         return renderEmployees();
       case 'categories':
         return renderCategories();
-      case 'price-master':
-        return renderPriceMaster();
-      case 'inventory':
-        return renderInventory();
-      case 'modules':
+                  case 'modules':
         return renderModules();
       case 'products':
         return renderProducts();

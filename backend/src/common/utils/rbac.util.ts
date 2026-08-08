@@ -29,7 +29,7 @@ export function getAdvancedScope(
     SALES: ['SALES_EXECUTIVE', 'SALES_INTERN'],
     FINANCE: ['FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
     PRODUCTION: ['PLANT_HEAD', 'PRODUCTION_OPERATOR'],
-    DISPATCH: ['DISPATCH_EXECUTIVE'],
+    DISPATCH: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH'],
     STORE: ['STORE_MANAGER'],
   };
 
@@ -56,14 +56,82 @@ export function getAdvancedScope(
   return {};
 }
 
-// Backward compatibility for existing files to not break everything at once
 export function getSalesScope(
   userId?: string,
   role?: string,
-  ownershipField: string = 'createdById',
+  targetModel: 'Lead' | 'Quotation' | 'SalesOrder' | 'SampleRequest' | 'CustomerPayment' | string = 'createdById',
 ): Record<string, any> {
-  // Sales team members need visibility across team sales orders
-  return {};
+  if (!userId || !role) return {};
+
+  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
+
+  // Management / Department Head roles that have unrestricted cross-team visibility
+  const unrestrictedRoles = [
+    'SUPER_ADMIN',
+    'ADMIN',
+    'SUPER_USER',
+    'PLANT_HEAD',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'SALES_MANAGER',
+    'STORE_MANAGER',
+    'DISPATCH_EXECUTIVE',
+    'QC_EXECUTIVE',
+  ];
+
+  if (unrestrictedRoles.includes(normalizedRole)) {
+    return {};
+  }
+
+  // Individual Salesperson Roles (SUPER_SALES, SALES_EXECUTIVE, SALES_INTERN, etc.)
+  const leadOwnership = { OR: [{ createdById: userId }, { assignedToId: userId }] };
+
+  if (targetModel === 'Lead' || targetModel === 'assignedToId') {
+    return leadOwnership;
+  }
+
+  if (targetModel === 'Quotation') {
+    return {
+      OR: [
+        { createdById: userId },
+        { lead: leadOwnership },
+      ],
+    };
+  }
+
+  if (targetModel === 'SalesOrder') {
+    return {
+      OR: [
+        { createdById: userId },
+        { quotation: { OR: [{ createdById: userId }, { lead: leadOwnership }] } },
+      ],
+    };
+  }
+
+  if (targetModel === 'SampleRequest') {
+    return {
+      OR: [
+        { createdById: userId },
+        { lead: leadOwnership },
+      ],
+    };
+  }
+
+  if (targetModel === 'CustomerPayment') {
+    return {
+      OR: [
+        { createdById: userId },
+        { salesOrder: { OR: [{ createdById: userId }, { quotation: { OR: [{ createdById: userId }, { lead: leadOwnership }] } }] } },
+      ],
+    };
+  }
+
+  // Generic fallback if passed a field name like 'createdById' or 'assignedToId'
+  if (targetModel === 'createdById') {
+    return { createdById: userId };
+  }
+
+  return { [targetModel]: userId };
 }
 
 export function getProcurementScope(

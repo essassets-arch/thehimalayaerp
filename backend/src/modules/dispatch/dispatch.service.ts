@@ -146,37 +146,106 @@ export class DispatchService {
           );
         }
 
-        const stockRows = await tx.inventoryTransaction.findMany({
-          where: {
-            productId: soItem.productId,
-            companyId: so.customer.companyId,
-          },
-          select: { type: true, quantity: true },
+        const requestedQty = Number(item.quantity);
+        if (requestedQty <= 0) {
+          throw new BadRequestException('Dispatch quantity must be greater than zero');
+        }
+
+        const remainingOrderQty = Math.max(
+          0,
+          Number(soItem.orderedQuantity || 0) - alreadyDispatched,
+        );
+        if (requestedQty > remainingOrderQty) {
+          throw new BadRequestException(
+            `Dispatch quantity (${requestedQty}) exceeds remaining order quantity (${remainingOrderQty}) for product ${soItem.productNameSnapshot || 'item'}`,
+          );
+        }
+
+        // Validate Finished Goods Stock in Database
+        let fgRecords = await tx.finishedGoods.findMany({
+          where: { productId: soItem.productId },
         });
-        const onHand = stockRows.reduce(
-          (sum, row) =>
-            sum +
-            (row.type === 'IN' ? Number(row.quantity) : -Number(row.quantity)),
+
+        if (!fgRecords.length) {
+          const prod = await tx.product.findUnique({ where: { id: soItem.productId } });
+          if (prod) {
+            fgRecords = await tx.finishedGoods.findMany({
+              where: {
+                OR: [
+                  { productId: prod.id },
+                  { product: { sku: prod.sku } },
+                  { product: { name: { equals: prod.name, mode: 'insensitive' } } },
+                ],
+              },
+            });
+          }
+        }
+
+        const totalFgAvailable = fgRecords.reduce(
+          (sum, r) => sum + Number(r.availableQuantity || 0),
           0,
         );
-        const productOrderItems = await tx.salesOrderItem.findMany({
-          where: { productId: soItem.productId },
-          select: { id: true },
-        });
-        const reservations = await tx.salesOrderAllocation.aggregate({
-          where: {
-            salesOrderItemId: { in: productOrderItems.map((i) => i.id) },
-            allocationType: 'FINISHED_GOODS_RESERVATION',
-          },
-          _sum: { reservedQuantity: true },
-        });
-        const reserved = Number(reservations._sum.reservedQuantity || 0);
 
-        if (onHand - reserved < Number(item.quantity)) {
-          // Bypassing stock check as physical stock might be handled manually
-          console.warn(
-            `Insufficient finished goods for ${soItem.productNameSnapshot}.Available: ${onHand - reserved}, Requested: ${item.quantity}. Allowing dispatch to proceed.`,
+        if (requestedQty > totalFgAvailable) {
+          throw new BadRequestException(
+            `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}. Available: ${totalFgAvailable} ${(soItem as any).product?.unit || 'PCS'}, Requested: ${requestedQty} ${(soItem as any).product?.unit || 'PCS'}.`,
           );
+        }
+
+        // Atomically Deduct stock from FinishedGoods using atomic conditional updates
+        let remainingToDeduct = requestedQty;
+        for (const fg of fgRecords) {
+          if (remainingToDeduct <= 0) break;
+          const currentAvail = Number(fg.availableQuantity || 0);
+          if (currentAvail <= 0) continue;
+
+          const deduct = Math.min(currentAvail, remainingToDeduct);
+
+          const updated = await tx.finishedGoods.updateMany({
+            where: {
+              id: fg.id,
+              availableQuantity: { gte: deduct },
+            },
+            data: {
+              availableQuantity: { decrement: deduct },
+              quantity: { decrement: deduct },
+            },
+          });
+
+          if (updated.count === 0) {
+            throw new BadRequestException(
+              `Insufficient finished goods stock due to concurrent allocation. Please retry.`,
+            );
+          }
+
+          remainingToDeduct -= deduct;
+        }
+
+        if (remainingToDeduct > 0) {
+          throw new BadRequestException(
+            `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}.`,
+          );
+        }
+
+        // Record Inventory Transaction for Audit Trail
+        let warehouse = await tx.warehouse.findFirst({
+          where: { companyId: so.customer.companyId, name: 'Finished Goods' },
+        }) || await tx.warehouse.findFirst({
+          where: { companyId: so.customer.companyId },
+        });
+
+        if (warehouse) {
+          await tx.inventoryTransaction.create({
+            data: {
+              companyId: so.customer.companyId,
+              productId: soItem.productId,
+              warehouseId: warehouse.id,
+              type: 'OUT',
+              quantity: requestedQty,
+              referenceType: 'FINISHED_GOODS_DISPATCH',
+              referenceId: dispatchNo,
+            },
+          });
         }
 
         const qty = new Decimal(item.quantity);
@@ -480,5 +549,63 @@ export class DispatchService {
 
       return updatedDispatch;
     });
+  }
+
+  async getFinishedGoodsHistory() {
+    const dispatches = await this.prisma.dispatch.findMany({
+      include: {
+        salesOrder: { include: { customer: true } },
+        items: {
+          include: {
+            salesOrderItem: {
+              include: { product: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const history: any[] = [];
+
+    for (const d of dispatches) {
+      for (const item of d.items) {
+        const prod = item.salesOrderItem?.product;
+        const dispatchedQty = Number(item.quantity || 0);
+
+        const fg = await this.prisma.finishedGoods.findFirst({
+          where: {
+            OR: [
+              ...(prod?.id ? [{ productId: prod.id }] : []),
+              ...(prod?.sku ? [{ product: { sku: prod.sku } }] : []),
+            ],
+          },
+        });
+
+        const currentRemaining = Number(fg?.availableQuantity ?? 0);
+        const qtyBefore = currentRemaining + dispatchedQty;
+
+        history.push({
+          id: `hist-${d.id}-${item.id}`,
+          dispatchId: d.id,
+          dispatchNo: d.dispatchNo,
+          salesOrderId: d.salesOrderId,
+          orderNumber: d.salesOrder?.orderNumber || 'SO-STOCK',
+          productCode: prod?.sku || prod?.publicId || 'FG-ITEM',
+          productName: prod?.name || item.salesOrderItem?.productNameSnapshot || 'Finished Good Item',
+          category: prod?.category || 'Hardware',
+          unit: (prod?.unit || 'PCS').toUpperCase(),
+          quantityBefore: qtyBefore,
+          dispatchedQuantity: dispatchedQty,
+          quantityAfter: currentRemaining,
+          vehicleNumber: d.vehicleNumber || 'UK-07-CB-1234',
+          customerName: d.salesOrder?.customer?.companyName || 'Factory Staging Area',
+          dispatchedAt: d.dispatchedAt || d.createdAt,
+          createdBy: d.createdById || 'Dispatch Executive',
+        });
+      }
+    }
+
+    return history;
   }
 }

@@ -10,12 +10,21 @@ import { Type } from 'class-transformer';
 
 export class CreateProductDto {
   @IsString()
-  name: string;
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  product_name?: string;
 
   @IsString()
   @IsOptional()
   @MaxLength(50)
   sku?: string;
+
+  @IsString()
+  @IsOptional()
+  product_code?: string;
 
   @IsString()
   @IsOptional()
@@ -26,7 +35,16 @@ export class CreateProductDto {
   category?: string;
 
   @IsString()
-  unit: string;
+  @IsOptional()
+  product_family?: string;
+
+  @IsString()
+  @IsOptional()
+  unit?: string;
+
+  @IsString()
+  @IsOptional()
+  unit_of_measure?: string;
 
   @IsNumber()
   @IsOptional()
@@ -40,16 +58,29 @@ export class CreateProductDto {
 
   @IsString()
   @IsOptional()
+  product_type?: string;
+
+  @IsString()
+  @IsOptional()
   brand?: string;
 
   @IsString()
   @IsOptional()
   dispatchCategory?: string;
 
+  @IsString()
+  @IsOptional()
+  dispatch_category?: string;
+
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
   gstRate?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  gst_rate?: number;
 
   @IsString()
   @IsOptional()
@@ -57,7 +88,29 @@ export class CreateProductDto {
 
   @IsString()
   @IsOptional()
+  hsn_sac_code?: string;
+
+  @IsString()
+  @IsOptional()
   variantDetails?: string;
+
+  @IsString()
+  @IsOptional()
+  variant_details?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  weight?: number;
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  image_url?: string;
 
   @IsNumber()
   @IsOptional()

@@ -23,7 +23,7 @@ export class QuotationsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'Quotation');
     return this.prisma.quotation.findMany({
       where: {
         ...scope,
@@ -48,7 +48,7 @@ export class QuotationsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'Quotation');
     const quotation = await this.prisma.quotation.findFirst({
       where: {
         id,
@@ -97,6 +97,49 @@ export class QuotationsService {
     };
   }
 
+  private validateAndExtractPaymentTerms(
+    dto: any,
+    userRole?: string,
+  ): { paymentTerms?: string; paymentTermDays?: number } {
+    let days: number | undefined = undefined;
+    if (
+      dto.paymentTermDays !== undefined &&
+      dto.paymentTermDays !== null &&
+      dto.paymentTermDays !== ''
+    ) {
+      days = Number(dto.paymentTermDays);
+    } else if (dto.paymentTerms) {
+      const match = String(dto.paymentTerms).match(/^(\d+)\s*Days?$/i);
+      if (match) {
+        days = parseInt(match[1], 10);
+      }
+    }
+
+    const normalizedRole = String(userRole || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSpecialRole = [
+      'SUPER_SALES',
+      'SUPER_ADMIN',
+      'ADMIN',
+    ].includes(normalizedRole);
+    const maxPaymentTermDays = isSpecialRole ? 90 : 20;
+
+    if (days !== undefined && !isNaN(days)) {
+      if (days > maxPaymentTermDays) {
+        throw new BadRequestException(
+          `Payment terms cannot exceed ${maxPaymentTermDays} days.`,
+        );
+      }
+      const paymentTerms = dto.paymentTerms || `${days} Days`;
+      return { paymentTerms, paymentTermDays: days };
+    } else if (dto.paymentTerms) {
+      return { paymentTerms: String(dto.paymentTerms) };
+    }
+
+    return {};
+  }
+
   async createQuotation(
     dto: any,
     userId: string,
@@ -113,6 +156,8 @@ export class QuotationsService {
       throw new BadRequestException('Company is required');
     if (!dto.leadId && !dto.customerId)
       throw new BadRequestException('Lead or customer is required');
+
+    const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
     if (dto.leadId) {
       const samples = await this.prisma.sampleRequest.findMany({
         where: { leadId: dto.leadId, deletedAt: null },
@@ -187,6 +232,8 @@ export class QuotationsService {
         total: totals.total,
         expectedTransportationCost: Number(dto.expectedTransportationCost || dto.transportCharge || 0),
         remarks: dto.remarks,
+        paymentTerms: paymentTermInfo.paymentTerms,
+        paymentTermDays: paymentTermInfo.paymentTermDays,
         workflowStateId: initialState.id,
         createdById: userId,
         items: {
@@ -231,6 +278,7 @@ export class QuotationsService {
       if (!['DRAFT', 'NEW'].includes(quotation.workflowState?.code || '')) {
         throw new BadRequestException('Only DRAFT or NEW quotations can be edited');
       }
+      const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
       const totals = dto.items ? this.calculate(dto.items) : null;
       if (dto.items && !totals?.processedItems.length)
         throw new BadRequestException(
@@ -243,6 +291,8 @@ export class QuotationsService {
         data: {
           validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
           remarks: dto.remarks,
+          paymentTerms: paymentTermInfo.paymentTerms !== undefined ? paymentTermInfo.paymentTerms : undefined,
+          paymentTermDays: paymentTermInfo.paymentTermDays !== undefined ? paymentTermInfo.paymentTermDays : undefined,
           updatedById: userId,
           expectedTransportationCost: dto.expectedTransportationCost !== undefined || dto.transportCharge !== undefined ? Number(dto.expectedTransportationCost || dto.transportCharge || 0) : undefined,
           ...(totals
@@ -556,6 +606,7 @@ export class QuotationsService {
           sourceQuotationId: id,
           workflowStateId: soInitialState?.id,
           createdById: userId,
+          paymentTermsDays: quotation.paymentTermDays || (quotation.paymentTerms ? parseInt(String(quotation.paymentTerms).match(/\d+/)?.[0] || '0', 10) : undefined) || undefined,
           subtotal: quotation.subtotal,
           discountAmount: quotation.discount,
           taxAmount: quotation.tax,
