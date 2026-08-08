@@ -852,7 +852,7 @@ export default function StorePortal() {
       return;
     }
 
-    const list = dbRawInventory;
+    const list = dbRawInventory || [];
     const exists = list.some(i => i.material.toLowerCase() === matName.toLowerCase() || i.code.toLowerCase() === matCode.toLowerCase());
     if (exists) {
       Swal.fire({ icon: 'error', title: 'Duplicate Registry', text: `A material with name "${matName}" or code "${matCode}" already exists.` });
@@ -861,65 +861,41 @@ export default function StorePortal() {
 
     try {
       showToast('Registering material...');
-      await apiClient.post('/store/raw-materials', {
-        code: matCode,
-        material: matName,
+      const prodRes = await apiClient.post('/products', {
+        sku: matCode,
+        name: matName,
         category: matCategory || 'Raw Material',
         unit: matUnit,
-        reorderLevel: Number(matMinStock) || 0,
-        rate: Number(matRate) || 0,
+        minimumStock: Number(matMinStock) || 0,
+        unitPrice: Number(matRate) || 0,
         description: [
           matDescription,
           matStorageLocation ? `Storage Location: ${matStorageLocation}` : ''
-        ].filter(Boolean).join('\n')
+        ].filter(Boolean).join('\n'),
+        productType: 'RAW_MATERIAL'
       });
-      if (Number(matOpeningStock) > 0) {
-        await apiClient.post('/store/stock-transaction', {
-          material_name: matName,
-          type: 'Stock In',
+      
+      const newProdId = prodRes?.data?.id || prodRes?.id;
+
+      if (Number(matOpeningStock) > 0 && newProdId) {
+        await apiClient.post('/inventory/transactions', {
+          productId: newProdId,
+          warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
+          type: 'IN',
           quantity: Number(matOpeningStock),
-          rate: Number(matRate) || 0,
-          remarks: matDescription || 'Opening stock',
-          reference: 'OPENING_STOCK'
+          referenceType: 'OPENING_STOCK',
+          referenceId: matCode
         });
       }
-      await syncData();
+      
+      await fetchRawInventory();
+      setShowAddMaterialModal(false);
+      resetAddMaterialForm();
       showToast(`Material "${matName}" added to registry.`);
     } catch (err) {
-      // Fallback to local dispatch
-      dispatch({
-        type: 'ADD_RAW_MATERIAL',
-        payload: {
-          code: matCode,
-          material: matName,
-          category: matCategory || 'Raw Material',
-          unit: matUnit,
-          reorderLevel: Number(matMinStock) || 0,
-          rate: Number(matRate) || 0,
-          description: matDescription,
-          storageLocation: matStorageLocation
-        }
-      });
-      if (Number(matOpeningStock) > 0) {
-        dispatch({
-          type: 'RECORD_STOCK_TRANSACTION',
-          payload: {
-            material: matName,
-            type: 'Stock In',
-            quantity: Number(matOpeningStock),
-            rate: Number(matRate) || 0,
-            date: new Date().toISOString().split('T')[0],
-            remarks: matDescription || 'Opening stock',
-            reference: 'OPENING_STOCK'
-          }
-        });
-      }
-      showToast(`Material "${matName}" added (local). Note: ${err.message}`);
+      console.error('Add material failed:', err);
+      Swal.fire({ icon: 'error', title: 'Error Adding Material', text: err.response?.data?.message || err.message });
     }
-
-    resetAddMaterialForm();
-
-    navigate.push('/store/raw-inventory');
   };
 
   const handleEditMaterialSubmit = async (e) => {
@@ -931,342 +907,36 @@ export default function StorePortal() {
 
     try {
       showToast('Updating material...');
-      await apiClient.put(`/store/raw-materials/${editMatId}`, {
-        code: editMatCode,
-        material: editMatName,
+      await apiClient.patch(`/products/${editMatId}`, {
+        sku: editMatCode,
+        name: editMatName,
         category: editMatCategory,
         unit: editMatUnit,
-        reorderLevel: Number(editMatMinStock) || 0,
-        rate: Number(editMatRate) || 0,
+        minimumStock: Number(editMatMinStock) || 0,
+        unitPrice: Number(editMatRate) || 0,
         description: editMatDescription
       });
-      await syncData();
+      await fetchRawInventory();
+      setShowEditMaterialModal(false);
       showToast(`Material registry "${editMatName}" updated.`);
     } catch (err) {
-      // Fallback to local dispatch
-      dispatch({
-        type: 'EDIT_RAW_MATERIAL',
-        payload: { id: editMatId, code: editMatCode, material: editMatName, category: editMatCategory, unit: editMatUnit, reorderLevel: Number(editMatMinStock) || 0, rate: Number(editMatRate) || 0, description: editMatDescription, oldMaterial: editMatOldName }
-      });
-      showToast(`Material "${editMatName}" updated (local). Note: ${err.message}`);
+      console.error('Update material failed:', err);
+      Swal.fire({ icon: 'error', title: 'Error Updating Material', text: err.response?.data?.message || err.message });
     }
-
-    if (selectedInventoryItem && selectedInventoryItem.id === editMatId) {
-      setSelectedInventoryItem({
-        ...selectedInventoryItem,
-        code: editMatCode,
-        material: editMatName,
-        category: editMatCategory,
-        unit: editMatUnit,
-        reorderLevel: Number(editMatMinStock) || 0,
-        rate: Number(editMatRate) || 0,
-        description: editMatDescription
-      });
-    }
-
-    navigate.push('/store/raw-inventory');
   };
 
-  const renderAddMaterialPage = () => {
-    const unitOptions = ['Kg', 'Nos', 'Box', 'Meter', 'Liter', 'Piece', 'Roll', 'Set', 'Bag', 'Tons'];
-    const locationOptions = ['Warehouse', 'Rack', 'Bin'];
-
-    return (
-      <div className="m-theme-container" style={{ width: '100%', maxWidth: '760px', margin: '0 auto', padding: '0 12px' }}>
-        <div className="m-theme-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h2 className="m-theme-title">Add New Material</h2>
-            <p className="m-theme-subtitle">
-              Create a raw material master with opening stock.
-            </p>
-          </div>
-          <button
-            onClick={() => navigate.push('/store/raw-inventory')}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '40px', height: '40px', background: 'transparent',
-              border: 'none', cursor: 'pointer', color: '#5E6B82'
-            }}
-            title="Back to Inventory"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="m-theme-table-container" style={{ padding: '16px 20px' }}>
-          <form onSubmit={handleAddMaterialSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Material Name *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Bolts M12"
-                  value={matName}
-                  onChange={(e) => setMatName(e.target.value)}
-                  required
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Material Code *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. RM-1752"
-                  value={matCode}
-                  onChange={(e) => setMatCode(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Unit *</label>
-                <select
-                  className="form-select"
-                  value={matUnit}
-                  onChange={(e) => setMatUnit(e.target.value)}
-                  required
-                >
-                  <option value="">Select Unit</option>
-                  {unitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Minimum Stock Level *</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="e.g. 100"
-                  value={matMinStock}
-                  onChange={(e) => setMatMinStock(e.target.value)}
-                  min="0"
-                  required
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Category *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Raw Material, Hardware"
-                  value={matCategory}
-                  onChange={(e) => setMatCategory(e.target.value)}
-                  required
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Opening Balance (Stock) *</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="e.g. 50"
-                  value={matOpeningStock}
-                  onChange={(e) => setMatOpeningStock(e.target.value)}
-                  min="0"
-                  required
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Description</label>
-              <textarea
-                className="form-textarea"
-                rows={4}
-                placeholder="Detailed material specification and remarks..."
-                value={matDescription}
-                onChange={(e) => setMatDescription(e.target.value)}
-                style={{ resize: 'vertical' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => navigate.push('/store/raw-inventory')}
-                className="m-theme-btn-secondary"
-                style={{ flex: '1 1 120px', justifyContent: 'center' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="m-theme-btn-primary"
-                style={{ flex: '1 1 120px', justifyContent: 'center' }}
-              >
-                Create Registry
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  const renderEditMaterialPage = () => {
-    return (
-      <div className="m-theme-container" style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 12px' }}>
-        <div className="m-theme-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h2 className="m-theme-title">Edit Material Details</h2>
-            <p className="m-theme-subtitle">
-              Modify registry metadata for raw material: <strong style={{ color: '#0f766e' }}>{editMatOldName}</strong>
-            </p>
-          </div>
-          <button
-            onClick={() => navigate.push('/store/raw-inventory')}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '40px', height: '40px', background: 'transparent',
-              border: 'none', cursor: 'pointer', color: '#5E6B82'
-            }}
-            title="Back to Inventory"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="m-theme-table-container" style={{ padding: '16px 20px' }}>
-          <form onSubmit={handleEditMaterialSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Material Code *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editMatCode}
-                  onChange={(e) => setEditMatCode(e.target.value)}
-                  required
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Material Name *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editMatName}
-                  onChange={(e) => setEditMatName(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Category *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editMatCategory}
-                  onChange={(e) => setEditMatCategory(e.target.value)}
-                  required
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Unit *</label>
-                <select
-                  className="form-select"
-                  value={editMatUnit}
-                  onChange={(e) => setEditMatUnit(e.target.value)}
-                >
-                  <option value="Kg">Kg</option>
-                  <option value="Tons">Tons</option>
-                  <option value="Bags">Bags</option>
-                  <option value="Litres">Litres</option>
-                  <option value="Units">Units</option>
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Minimum Stock Level *</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={editMatMinStock}
-                  onChange={(e) => setEditMatMinStock(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: '700', fontSize: '13px', color: '#24345C' }}>Description</label>
-              <textarea
-                className="form-textarea"
-                rows={4}
-                value={editMatDescription}
-                onChange={(e) => setEditMatDescription(e.target.value)}
-                style={{ resize: 'vertical' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => navigate.push('/store/raw-inventory')}
-                className="m-theme-btn-secondary"
-                style={{ flex: '1 1 120px', justifyContent: 'center' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="m-theme-btn-primary"
-                style={{ flex: '1 1 120px', justifyContent: 'center' }}
-              >
-                Update Details
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  // 1. Dashboard View
-  const renderDashboard = () => {
-    return <StoreDashboard />;
-  };
-
-  // 2. Raw Inventory Ledger
-  const renderRawInventory = () => {
-    const mappedInventory = dbRawInventory;
-
-    const filteredItems = mappedInventory.filter(item => {
-      const q = rawSearchQuery.toLowerCase();
-      return (
-        (item.material || '').toLowerCase().includes(q) ||
-        (item.code || '').toLowerCase().includes(q) ||
-        (item.category || '').toLowerCase().includes(q)
-      );
-    });
-
-    const rawInvPageSize = 30;
-    const rawInvTotalPages = Math.ceil(filteredItems.length / rawInvPageSize);
-    const paginatedRawInvItems = filteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
-
-    const totalMaterials = mappedInventory.length;
-    const totalStockQty = mappedInventory.reduce((sum, i) => sum + i.stock, 0);
-    const lowStockItems = mappedInventory.filter(i => i.stock <= i.reorderLevel && i.stock > 0).length;
-    const outOfStockItems = mappedInventory.filter(i => i.stock === 0).length;
-    const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + (i.stock * i.rate), 0);
-
-    const handleAddStockSubmit = async (e) => {
+  const handleAddStockSubmit = async (e) => {
       e.preventDefault();
       if (!stockMatSelect || !stockQty) {
         showToast('Please select a material and enter quantity.');
         return;
       }
 
-      const selectedItem = mappedInventory.find(i => i.material === stockMatSelect);
-      if (!selectedItem) return;
+      const selectedItem = (dbRawInventory || []).find(i => i.material === stockMatSelect);
+      if (!selectedItem) {
+        showToast('Selected material not found.');
+        return;
+      }
 
       try {
         await apiClient.post('/inventory/transactions', {
@@ -1280,6 +950,7 @@ export default function StorePortal() {
         await fetchRawInventory();
         showToast(`Stock receipt processed: +${stockQty} units for ${stockMatSelect}`);
       } catch (err) {
+        console.error('Stock receipt failed:', err);
         showToast(`Error processing stock receipt: ${err.response?.data?.message || err.message}`);
       }
 
@@ -1291,7 +962,9 @@ export default function StorePortal() {
       setStockRemarks('');
     };
 
-    const handleDeleteMaterial = async (item) => {
+    // 2. Raw Inventory Ledger View
+  const renderRawInventory = () => {
+  const handleDeleteMaterial = async (item) => {
       if (item.transactions && item.transactions.length > 0) {
         Swal.fire({ icon: 'error', title: 'Deletion Blocked', text: `Cannot delete material "${item.material}" because it has active stock transaction history.`, customClass: { popup: 'swal-premium-popup', title: 'swal-premium-title', htmlContainer: 'swal-premium-text', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
         return;
