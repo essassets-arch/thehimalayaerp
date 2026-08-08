@@ -3352,6 +3352,142 @@ export default function StorePortal() {
     );
   };
 
+  const renderAddMaterialPage = () => {
+    return (
+      <div className="m-theme-container">
+        <div className="m-theme-header">
+          <div>
+            <h2 className="m-theme-title">Register New Raw Material</h2>
+            <p className="m-theme-subtitle">Add a new raw material item into the inventory master catalog</p>
+          </div>
+          <button className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>
+            <ChevronLeft size={16} /> Back to Registry
+          </button>
+        </div>
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-border)', padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
+          <form onSubmit={handleAddMaterialSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Material Name *</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. High Tensile Steel Sheet" value={matName} onChange={e => setMatName(e.target.value)} required />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Material Code / SKU *</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={matCode} onChange={e => setMatCode(e.target.value)} required />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Category</label>
+                <select className="form-select" style={{ width: '100%', marginTop: '6px' }} value={matCategory} onChange={e => setMatCategory(e.target.value)}>
+                  <option value="Raw Material">Raw Material</option>
+                  <option value="Packaging">Packaging</option>
+                  <option value="Consumable">Consumable</option>
+                  <option value="Chemical">Chemical</option>
+                  <option value="Hardware">Hardware</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Unit of Measure *</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Kg, Ltr, Pcs, Roll" value={matUnit} onChange={e => setMatUnit(e.target.value)} required />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Minimum Stock Alert Level *</label>
+                <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. 50" value={matMinStock} onChange={e => setMatMinStock(e.target.value)} required />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Initial Opening Stock</label>
+                <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="0" value={matOpeningStock} onChange={e => setMatOpeningStock(e.target.value)} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Unit Price / Estimated Rate (₹)</label>
+                <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="0" value={matRate} onChange={e => setMatRate(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Storage Location</label>
+              <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Bay-A / Rack-04" value={matStorageLocation} onChange={e => setMatStorageLocation(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Description & Notes</label>
+              <textarea className="form-input" style={{ width: '100%', marginTop: '6px', height: '80px' }} placeholder="Additional notes or specifications..." value={matDescription} onChange={e => setMatDescription(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+              <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
+              <button type="submit" className="m-theme-btn-primary"><Plus size={16} /> Save Product Material</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const renderEditMaterialPage = () => {
+    return (
+      <div className="m-theme-container">
+        <div className="m-theme-header">
+          <div>
+            <h2 className="m-theme-title">Edit Raw Material Registry</h2>
+            <p className="m-theme-subtitle">Update material specifications and alert levels</p>
+          </div>
+          <button className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>
+            <ChevronLeft size={16} /> Back to Registry
+          </button>
+        </div>
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-border)', padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
+          <form onSubmit={handleEditMaterialSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Material Name *</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatName} onChange={e => setEditMatName(e.target.value)} required />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Material Code / SKU *</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatCode} onChange={e => setEditMatCode(e.target.value)} required />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Category</label>
+                <select className="form-select" style={{ width: '100%', marginTop: '6px' }} value={editMatCategory} onChange={e => setEditMatCategory(e.target.value)}>
+                  <option value="Raw Material">Raw Material</option>
+                  <option value="Packaging">Packaging</option>
+                  <option value="Consumable">Consumable</option>
+                  <option value="Chemical">Chemical</option>
+                  <option value="Hardware">Hardware</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Unit of Measure *</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatUnit} onChange={e => setEditMatUnit(e.target.value)} required />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Minimum Stock Alert Level *</label>
+                <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatMinStock} onChange={e => setEditMatMinStock(e.target.value)} required />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Unit Price / Estimated Rate (₹)</label>
+                <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatRate} onChange={e => setEditMatRate(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Description & Notes</label>
+              <textarea className="form-input" style={{ width: '100%', marginTop: '6px', height: '80px' }} value={editMatDescription} onChange={e => setEditMatDescription(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+              <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
+              <button type="submit" className="m-theme-btn-primary">Update Material Registry</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       {currentView === 'dashboard' && <StoreDashboard />}
