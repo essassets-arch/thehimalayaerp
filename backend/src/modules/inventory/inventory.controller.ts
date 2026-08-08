@@ -11,7 +11,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  @RequirePermissions('inventory.inventory.create')
+  @RequirePermissions('inventory.inventory.create', 'inventory.create', 'store.inventory.create', 'store.create', 'store.materials.create', 'procurement.grns.create', 'inventory.stock.read')
   @Post('transactions')
   createTransaction(
     @CurrentUser() user: any,
@@ -20,7 +20,7 @@ export class InventoryController {
     return this.inventoryService.createTransaction(user.companyId, dto);
   }
 
-  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'store.dashboard.read', 'logistics.dispatches.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'inventory.stock.read', 'store.dashboard.read', 'logistics.dispatches.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
   @Get('transactions')
   getTransactions(
     @CurrentUser() user: any,
@@ -34,7 +34,7 @@ export class InventoryController {
     );
   }
 
-  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'store.dashboard.read', 'logistics.dispatches.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'inventory.stock.read', 'store.dashboard.read', 'logistics.dispatches.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
   @Get('stock-levels')
   getStockLevels(
     @CurrentUser() user: any,

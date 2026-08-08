@@ -52,6 +52,7 @@ model Company {
   leads                          Lead[]
   materialRequests               MaterialRequest[]
   products                       Product[]
+  rawMaterials                   RawMaterial[]
   purchaseIndents                PurchaseIndent[]
   suppliers                      Supplier[]
   users                          User[]
@@ -372,18 +373,20 @@ model Warehouse {
 }
 
 model InventoryTransaction {
-  id            String    @id @default(uuid())
+  id            String       @id @default(uuid())
   companyId     String
-  productId     String
+  productId     String?
+  rawMaterialId String?
   warehouseId   String
   type          String
-  quantity      Decimal   @db.Decimal(14, 2)
+  quantity      Decimal      @db.Decimal(14, 2)
   referenceId   String?
   referenceType String?
-  createdAt     DateTime  @default(now())
-  company       Company   @relation(fields: [companyId], references: [id])
-  product       Product   @relation(fields: [productId], references: [id])
-  warehouse     Warehouse @relation(fields: [warehouseId], references: [id])
+  createdAt     DateTime     @default(now())
+  company       Company      @relation(fields: [companyId], references: [id])
+  product       Product?     @relation(fields: [productId], references: [id])
+  rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id])
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
 }
 
 model Supplier {
@@ -3220,3 +3223,26 @@ model ManualAttendanceRequest {
   @@index([employeeId])
 }
 
+
+
+model RawMaterial {
+  id                    String                 @id @default(uuid())
+  publicId              String                 @unique
+  companyId             String
+  name                  String
+  sku                   String?                @unique
+  category              String?                @default("Raw Material")
+  unit                  String
+  minimumStock          Decimal                @default(0) @db.Decimal(14, 2)
+  storageLocation       String?
+  isActive              Boolean                @default(true)
+  version               Int                    @default(1)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  company               Company                @relation(fields: [companyId], references: [id])
+  inventoryTransactions InventoryTransaction[]
+
+  @@index([companyId])
+  @@index([sku])
+}

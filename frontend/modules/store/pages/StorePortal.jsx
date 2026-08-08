@@ -892,6 +892,7 @@ export default function StorePortal() {
       setShowAddMaterialModal(false);
       resetAddMaterialForm();
       showToast(`Material "${matName}" added to registry.`);
+      navigate.push('/store/raw-inventory');
     } catch (err) {
       console.error('Add material failed:', err);
       Swal.fire({ icon: 'error', title: 'Error Adding Material', text: err.response?.data?.message || err.message });
@@ -1000,47 +1001,49 @@ export default function StorePortal() {
         html: `
           <div style="text-align: left; display: flex; flex-direction: column; gap: 12px; padding: 6px 0;">
             <div>
-              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Quantity (${item.unit}) *</label>
-              <input id="swal-qty" type="number" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. 500">
+              <span style="font-size: 12.5px; color: var(--color-text-secondary);">Current stock: <strong>${item.stock} ${item.unit}</strong></span>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Quantity to Add (${item.unit}) *</label>
+              <input id="swal-qty" type="number" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. 10">
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Remarks / Reference</label>
+              <input id="swal-remarks" type="text" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="Quick Stock Receipt">
             </div>
           </div>
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: 'Submit Stock In',
+        confirmButtonText: 'Add Stock',
         cancelButtonText: 'Cancel',
-        customClass: {
-          popup: 'swal-premium-popup',
-          title: 'swal-premium-title',
-          htmlContainer: 'swal-premium-text',
-          confirmButton: 'swal-premium-confirm-btn',
-          cancelButton: 'swal-premium-cancel-btn'
-        },
-        buttonsStyling: false,
         preConfirm: () => {
           const qty = document.getElementById('swal-qty').value;
+          const remarks = document.getElementById('swal-remarks').value;
           if (!qty || Number(qty) <= 0) {
             Swal.showValidationMessage('Please enter a valid positive quantity');
             return false;
           }
-          return { qty: Number(qty), rate: item.rate || 0 };
+          return { qty: Number(qty), remarks: remarks || 'Quick Stock Receipt' };
         }
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
-            await apiClient.post('/store/stock-transaction', {
-              material_name: item.material,
-              type: 'Stock In',
-              quantity: result.value.qty,
-              rate: result.value.rate,
-              remarks: 'Quick stock receipt',
-              reference: 'QUICK_STOCK_IN'
+            showToast('Processing Stock In...');
+            await apiClient.post('/inventory/transactions', {
+              productId: item.id,
+              warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
+              type: 'IN',
+              quantity: Number(result.value.qty),
+              referenceType: 'QUICK_STOCK_IN',
+              referenceId: result.value.remarks
             });
-            await syncData();
+            await fetchRawInventory();
+            showToast(`${result.value.qty} ${item.unit} added to ${item.material}.`);
           } catch (err) {
-            dispatch({ type: 'RECORD_STOCK_TRANSACTION', payload: { material: item.material, type: 'Stock In', quantity: result.value.qty, rate: result.value.rate, date: new Date().toISOString().split('T')[0], supplier: '', remarks: 'Quick stock receipt', reference: 'QUICK_STOCK_IN' } });
+            console.error('Stock In failed:', err);
+            Swal.fire({ icon: 'error', title: 'Stock In Failed', text: err.response?.data?.message || err.message });
           }
-          showToast(`Stock In recorded: +${result.value.qty} ${item.unit} for ${item.material}`);
         }
       });
     };
@@ -1051,71 +1054,76 @@ export default function StorePortal() {
         html: `
           <div style="text-align: left; display: flex; flex-direction: column; gap: 12px; padding: 6px 0;">
             <div>
-              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Quantity to Issue (${item.unit}) *</label>
-              <input id="swal-qty" type="number" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. 100">
+              <span style="font-size: 12.5px; color: var(--color-text-secondary);">Available stock: <strong>${item.stock} ${item.unit}</strong></span>
             </div>
             <div>
-              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Reference (e.g. Work Order No)</label>
-              <input id="swal-ref" type="text" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. WO-0801">
+              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Quantity to Remove (${item.unit}) *</label>
+              <input id="swal-qty" type="number" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. 5">
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Reason / Remarks *</label>
+              <input id="swal-remarks" type="text" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. Production Issue / WO-101">
             </div>
           </div>
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: 'Issue Stock',
+        confirmButtonText: 'Remove Stock',
         cancelButtonText: 'Cancel',
-        customClass: {
-          popup: 'swal-premium-popup',
-          title: 'swal-premium-title',
-          htmlContainer: 'swal-premium-text',
-          confirmButton: 'swal-premium-confirm-btn',
-          cancelButton: 'swal-premium-cancel-btn'
-        },
-        buttonsStyling: false,
         preConfirm: () => {
           const qty = document.getElementById('swal-qty').value;
-          const ref = document.getElementById('swal-ref').value;
+          const remarks = document.getElementById('swal-remarks').value;
           if (!qty || Number(qty) <= 0) {
             Swal.showValidationMessage('Please enter a valid positive quantity');
             return false;
           }
           if (Number(qty) > item.stock) {
-            Swal.showValidationMessage(`Insufficient Stock. Available: ${item.stock} ${item.unit}`);
+            Swal.showValidationMessage(`Insufficient stock. Available: ${item.stock} ${item.unit}`);
             return false;
           }
-          return { qty: Number(qty), ref };
+          if (!remarks || !remarks.trim()) {
+            Swal.showValidationMessage('Please enter a reason or remarks');
+            return false;
+          }
+          return { qty: Number(qty), remarks: remarks.trim() };
         }
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
-            await apiClient.post('/store/stock-transaction', {
-              material_name: item.material,
-              type: 'Stock Out',
-              quantity: result.value.qty,
-              rate: item.rate,
-              remarks: 'Stock issued',
-              reference: result.value.ref || 'QUICK_STOCK_OUT'
+            showToast('Processing Stock Out...');
+            await apiClient.post('/inventory/transactions', {
+              productId: item.id,
+              warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
+              type: 'OUT',
+              quantity: Number(result.value.qty),
+              referenceType: 'QUICK_STOCK_OUT',
+              referenceId: result.value.remarks
             });
-            await syncData();
+            await fetchRawInventory();
+            showToast(`${result.value.qty} ${item.unit} issued from ${item.material}.`);
           } catch (err) {
-            dispatch({ type: 'RECORD_STOCK_TRANSACTION', payload: { material: item.material, type: 'Stock Out', quantity: result.value.qty, rate: item.rate, date: new Date().toISOString().split('T')[0], remarks: 'Stock issued', reference: result.value.ref || 'QUICK_STOCK_OUT' } });
+            console.error('Stock Out failed:', err);
+            Swal.fire({ icon: 'error', title: 'Stock Out Failed', text: err.response?.data?.message || err.message });
           }
-          showToast(`Stock Out recorded: -${result.value.qty} ${item.unit} for ${item.material}`);
         }
       });
     };
 
     const handleQuickAdjust = (item) => {
       Swal.fire({
-        title: `Adjust Stock: ${item.material}`,
+        title: `Adjust Inventory: ${item.material}`,
         html: `
           <div style="text-align: left; display: flex; flex-direction: column; gap: 12px; padding: 6px 0;">
             <div>
-              <span style="font-size: 12.5px; color: var(--color-text-secondary);">Current stock: <strong>${item.stock} ${item.unit}</strong></span>
+              <span style="font-size: 12.5px; color: var(--color-text-secondary);">Current system stock: <strong>${item.stock} ${item.unit}</strong></span>
             </div>
             <div>
-              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Corrected Quantity (${item.unit}) *</label>
+              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Actual Physical Stock (${item.unit}) *</label>
               <input id="swal-qty" type="number" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" value="${item.stock}">
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase;">Adjustment Reason *</label>
+              <input id="swal-reason" type="text" class="form-input" style="margin-top: 6px; width: 100%; box-sizing: border-box;" placeholder="e.g. Physical stock correction / Audit count">
             </div>
           </div>
         `,
@@ -1123,38 +1131,49 @@ export default function StorePortal() {
         showCancelButton: true,
         confirmButtonText: 'Correct Inventory',
         cancelButtonText: 'Cancel',
-        customClass: {
-          popup: 'swal-premium-popup',
-          title: 'swal-premium-title',
-          htmlContainer: 'swal-premium-text',
-          confirmButton: 'swal-premium-confirm-btn',
-          cancelButton: 'swal-premium-cancel-btn'
-        },
-        buttonsStyling: false,
         preConfirm: () => {
           const qty = document.getElementById('swal-qty').value;
+          const reason = document.getElementById('swal-reason').value;
           if (qty === '' || Number(qty) < 0) {
-            Swal.showValidationMessage('Please enter a non-negative quantity');
+            Swal.showValidationMessage('Please enter a valid non-negative physical stock quantity');
             return false;
           }
-          return { qty: Number(qty) };
+          if (!reason || !reason.trim()) {
+            Swal.showValidationMessage('Adjustment reason is required');
+            return false;
+          }
+          return { qty: Number(qty), reason: reason.trim() };
         }
       }).then(async (result) => {
         if (result.isConfirmed) {
-          try {
-            await apiClient.post('/store/stock-transaction', {
-              material_name: item.material,
-              type: 'Adjustment',
-              quantity: result.value.qty,
-              rate: item.rate,
-              remarks: 'Audit stock correction',
-              reference: 'STOCK_ADJUSTMENT'
-            });
-            await syncData();
-          } catch (err) {
-            dispatch({ type: 'RECORD_STOCK_TRANSACTION', payload: { material: item.material, type: 'Adjustment', quantity: result.value.qty, rate: item.rate, date: new Date().toISOString().split('T')[0], remarks: 'Audit stock correction', reference: 'STOCK_ADJUSTMENT' } });
+          const newQty = Number(result.value.qty);
+          const currentQty = Number(item.stock || 0);
+          const diff = newQty - currentQty;
+
+          if (diff === 0) {
+            showToast('Physical stock matches system stock. No change made.');
+            return;
           }
-          showToast(`Stock adjusted to ${result.value.qty} ${item.unit} for ${item.material}`);
+
+          try {
+            showToast('Processing Stock Adjustment...');
+            const type = diff > 0 ? 'IN' : 'OUT';
+            const changeQty = Math.abs(diff);
+
+            await apiClient.post('/inventory/transactions', {
+              productId: item.id,
+              warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
+              type: type,
+              quantity: changeQty,
+              referenceType: 'STOCK_ADJUSTMENT',
+              referenceId: result.value.reason
+            });
+            await fetchRawInventory();
+            showToast(`Stock adjusted from ${currentQty} to ${newQty} ${item.unit} for ${item.material}.`);
+          } catch (err) {
+            console.error('Stock Adjustment failed:', err);
+            Swal.fire({ icon: 'error', title: 'Adjustment Failed', text: err.response?.data?.message || err.message });
+          }
         }
       });
     };
@@ -1331,21 +1350,21 @@ export default function StorePortal() {
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button
                             className="m-theme-btn-action-green"
-                            onClick={() => handleQuickStockIn(item)}
+                            onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
                             title="Stock In"
                           >
                             + In
                           </button>
                           <button
                             className="m-theme-btn-action-gray"
-                            onClick={() => handleQuickStockOut(item)}
+                            onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
                             title="Stock Out"
                           >
                             - Out
                           </button>
                           <button
                             className="m-theme-btn-action-gray"
-                            onClick={() => handleQuickAdjust(item)}
+                            onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
                             title="Adjust Stock"
                           >
                             Adj
@@ -3402,17 +3421,9 @@ export default function StorePortal() {
                 <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="0" value={matOpeningStock} onChange={e => setMatOpeningStock(e.target.value)} />
               </div>
               <div>
-                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Unit Price / Estimated Rate (₹)</label>
-                <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="0" value={matRate} onChange={e => setMatRate(e.target.value)} />
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Storage Location</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Bay-A / Rack-04" value={matStorageLocation} onChange={e => setMatStorageLocation(e.target.value)} />
               </div>
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Storage Location</label>
-              <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Bay-A / Rack-04" value={matStorageLocation} onChange={e => setMatStorageLocation(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Description & Notes</label>
-              <textarea className="form-input" style={{ width: '100%', marginTop: '6px', height: '80px' }} placeholder="Additional notes or specifications..." value={matDescription} onChange={e => setMatDescription(e.target.value)} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
               <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
@@ -3467,16 +3478,6 @@ export default function StorePortal() {
                 <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Minimum Stock Alert Level *</label>
                 <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatMinStock} onChange={e => setEditMatMinStock(e.target.value)} required />
               </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Unit Price / Estimated Rate (₹)</label>
-                <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatRate} onChange={e => setEditMatRate(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Description & Notes</label>
-              <textarea className="form-input" style={{ width: '100%', marginTop: '6px', height: '80px' }} value={editMatDescription} onChange={e => setEditMatDescription(e.target.value)} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
               <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>

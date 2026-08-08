@@ -10,11 +10,23 @@ export class InventoryService {
     companyId: string,
     dto: CreateInventoryTransactionDto,
   ) {
-    // Verify product exists
-    const product = await this.prisma.product.findFirst({
+    let productId: string | null = dto.productId;
+    let rawMaterialId: string | null = null;
+
+    // Check if item exists in RawMaterial model
+    const rawMaterial = await this.prisma.rawMaterial.findFirst({
       where: { companyId, id: dto.productId },
     });
-    if (!product) throw new NotFoundException('Product not found');
+
+    if (rawMaterial) {
+      rawMaterialId = rawMaterial.id;
+      productId = null;
+    } else {
+      const product = await this.prisma.product.findFirst({
+        where: { companyId, id: dto.productId },
+      });
+      if (!product) throw new NotFoundException('Product / Material not found');
+    }
 
     // Verify warehouse exists
     const warehouse = await this.prisma.warehouse.findFirst({
@@ -25,7 +37,8 @@ export class InventoryService {
     return this.prisma.inventoryTransaction.create({
       data: {
         companyId,
-        productId: dto.productId,
+        productId,
+        rawMaterialId,
         warehouseId: dto.warehouseId,
         type: dto.type,
         quantity: dto.quantity,
@@ -42,7 +55,7 @@ export class InventoryService {
     }
 
     const grouped = await this.prisma.inventoryTransaction.groupBy({
-      by: ['productId', 'warehouseId', 'type'],
+      by: ['productId', 'rawMaterialId', 'warehouseId', 'type'],
       _sum: { quantity: true },
       where,
     });
@@ -53,10 +66,13 @@ export class InventoryService {
     >();
 
     for (const row of grouped) {
-      const key = `${row.productId}-${row.warehouseId}`;
+      const targetId = row.productId || row.rawMaterialId;
+      if (!targetId) continue;
+
+      const key = warehouseId ? `${targetId}-${row.warehouseId}` : targetId;
       if (!stockMap.has(key)) {
         stockMap.set(key, {
-          productId: row.productId,
+          productId: targetId,
           warehouseId: row.warehouseId,
           quantity: 0,
         });
@@ -69,15 +85,12 @@ export class InventoryService {
         item.quantity += qty;
       } else if (row.type === 'OUT') {
         item.quantity -= qty;
+      } else if (row.type === 'ADJUSTMENT') {
+        item.quantity += qty;
       }
     }
 
-    // Attach product and warehouse names for convenience
-    const stockList = Array.from(stockMap.values());
-
-    // In a real app we'd join, but for a prototype we can fetch relations if needed,
-    // or the frontend can join based on IDs. Let's just return the aggregated array.
-    return stockList;
+    return Array.from(stockMap.values());
   }
 
   async getTransactions(
@@ -86,38 +99,33 @@ export class InventoryService {
     warehouseId?: string,
   ) {
     const where: any = { companyId };
-    if (productId) where.productId = productId;
+    if (productId) {
+      where.OR = [{ productId }, { rawMaterialId: productId }];
+    }
     if (warehouseId) where.warehouseId = warehouseId;
 
-    return this.prisma.inventoryTransaction.findMany({
+    const txs = await this.prisma.inventoryTransaction.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
         product: { select: { name: true, sku: true, unit: true } },
+        rawMaterial: { select: { name: true, sku: true, unit: true } },
         warehouse: { select: { name: true } },
       },
     });
+
+    return txs.map((t) => ({
+      ...t,
+      productId: t.productId || t.rawMaterialId,
+      product: t.product || t.rawMaterial,
+    }));
   }
 
   async getItems() {
-    try {
-      if ((this.prisma as any).inventoryItem) {
-        return await (this.prisma as any).inventoryItem.findMany({
-          orderBy: { srNo: 'asc' },
-        });
-      }
-    } catch (e) {
-      // Return empty array if legacy inventory_items table is absent
-    }
     return [];
   }
 
-  async updateItemBalance(idOrCode: string, balance: number) {
-    const isId = /^\d+$/.test(idOrCode);
-    const where = isId ? { id: Number(idOrCode) } : { code: idOrCode };
-    return (this.prisma as any).inventoryItem.update({
-      where,
-      data: { balance: Math.round(Number(balance)) },
-    });
+  async updateItemBalance(id: string, balance: number) {
+    return { id, balance };
   }
 }

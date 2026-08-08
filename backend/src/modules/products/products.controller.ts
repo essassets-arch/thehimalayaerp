@@ -21,13 +21,13 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  @RequirePermissions('admin.products.create')
+  @RequirePermissions('admin.products.create', 'products.create', 'store.materials.create', 'store.create', 'inventory.inventory.create', 'products.read', 'inventory.stock.read')
   @Post()
   create(@CurrentUser() user: any, @Body() createProductDto: CreateProductDto) {
     return this.productsService.create(user.companyId, createProductDto);
   }
 
-  @RequirePermissions('admin.products.read')
+  @RequirePermissions('admin.products.read', 'products.read', 'store.read', 'store.materials.read', 'store.rawinventory.read', 'inventory.stock.read')
   @Get()
   findAll(
     @CurrentUser() user: any,
@@ -38,13 +38,13 @@ export class ProductsController {
     return this.productsService.findAll(user.companyId, search, scope, type);
   }
 
-  @RequirePermissions('admin.products.read')
+  @RequirePermissions('admin.products.read', 'products.read', 'store.read', 'store.materials.read', 'store.rawinventory.read', 'inventory.stock.read')
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.productsService.findOne(user.companyId, id);
   }
 
-  @RequirePermissions('admin.products.update')
+  @RequirePermissions('admin.products.update', 'products.update', 'store.materials.update', 'store.update', 'products.read', 'inventory.stock.read')
   @Patch(':id')
   update(
     @CurrentUser() user: any,

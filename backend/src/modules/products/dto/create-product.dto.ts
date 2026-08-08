@@ -29,9 +29,10 @@ export class CreateProductDto {
   unit: string;
 
   @IsNumber()
+  @IsOptional()
   @Min(0)
   @Type(() => Number)
-  unitPrice: number;
+  unitPrice?: number;
 
   @IsString()
   @IsOptional()
@@ -60,15 +61,30 @@ export class CreateProductDto {
 
   @IsNumber()
   @IsOptional()
+  @Min(0)
   @Type(() => Number)
-  weight?: number;
+  minimumStock?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  reorderQuantity?: number;
 
   @IsString()
   @IsOptional()
-  imageUrl?: string;
+  reorderUnit?: string;
 
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
-  minimumStock?: number;
+  leadTimeDays?: number;
+
+  @IsString()
+  @IsOptional()
+  preferredVendorId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isAutoReorderEnabled?: boolean;
 }

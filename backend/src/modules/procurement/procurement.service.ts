@@ -242,6 +242,7 @@ export class ProcurementService {
     });
     const totals = new Map<string, Prisma.Decimal>();
     for (const row of stock) {
+      if (!row.productId) continue;
       const current = totals.get(row.productId) || MONEY(0);
       totals.set(
         row.productId,
