@@ -448,7 +448,7 @@ export default function StorePortal() {
   useEffect(() => {
     if (currentView === 'edit-material' && materialName) {
       const decodedName = decodeURIComponent(materialName);
-      const list = getMappedInventory(state.rawInventory || []);
+      const list = dbRawInventory;
       const item = list.find(i => i.material.toLowerCase() === decodedName.toLowerCase());
       if (item) {
         setEditMatId(item.id);
@@ -462,14 +462,14 @@ export default function StorePortal() {
         setEditMatOldName(item.material);
       }
     }
-  }, [currentView, materialName, state.rawInventory]);
+  }, [currentView, materialName, dbRawInventory]);
 
   useEffect(() => {
     if (currentView === 'add-material' && !matCode) {
       setMatCode(generateNextMaterialCode());
       setMatCategory('Raw Material');
     }
-  }, [currentView, matCode, state.rawInventory]);
+  }, [currentView, matCode, dbRawInventory]);
 
 
 
@@ -556,7 +556,7 @@ export default function StorePortal() {
     navigate.push(`/store/${currentView === 'purchase' ? 'purchase' : 'po'}?tab=${encodeURIComponent(tab)}`);
   };
 
-  const rawInventory = state.rawInventory || [];
+  const rawInventory = dbRawInventory;
   const finishedInventory = state.finishedInventory || [];
   const { data: mRequests = [] } = useMaterialRequests();
   const orders = state.sales?.orders || [];
@@ -779,7 +779,7 @@ export default function StorePortal() {
   };
 
   const generateNextMaterialCode = () => {
-    const list = getMappedInventory(state.rawInventory || []);
+    const list = dbRawInventory;
     const maxCode = list.reduce((max, item) => {
       const match = String(item.code || '').match(/RM-?(\d+)/i);
       return match ? Math.max(max, Number(match[1])) : max;
@@ -806,7 +806,7 @@ export default function StorePortal() {
       return;
     }
 
-    const list = getMappedInventory(state.rawInventory || []);
+    const list = dbRawInventory;
     const exists = list.some(i => i.material.toLowerCase() === matName.toLowerCase() || i.code.toLowerCase() === matCode.toLowerCase());
     if (exists) {
       Swal.fire({ icon: 'error', title: 'Duplicate Registry', text: `A material with name "${matName}" or code "${matCode}" already exists.` });
@@ -1191,7 +1191,7 @@ export default function StorePortal() {
 
   // 2. Raw Inventory Ledger
   const renderRawInventory = () => {
-    const mappedInventory = getMappedInventory(state.rawInventory || []);
+    const mappedInventory = dbRawInventory;
 
     const filteredItems = mappedInventory.filter(item => {
       const q = rawSearchQuery.toLowerCase();
@@ -1219,20 +1219,22 @@ export default function StorePortal() {
         return;
       }
 
+      const selectedItem = mappedInventory.find(i => i.material === stockMatSelect);
+      if (!selectedItem) return;
+
       try {
-        await apiClient.post('/store/stock-transaction', {
-          material_name: stockMatSelect,
-          type: 'Stock In',
+        await apiClient.post('/backend/inventory/transactions', {
+          productId: selectedItem.id,
+          warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
+          type: 'IN',
           quantity: Number(stockQty),
-          rate: Number(stockRate) || 0,
-          remarks: stockRemarks || 'Manual stock receipt',
-          reference: 'MANUAL_RECEIPT'
+          referenceType: 'MANUAL_RECEIPT',
+          referenceId: 'MANUAL'
         });
-        await syncData();
+        await fetchRawInventory();
         showToast(`Stock receipt processed: +${stockQty} units for ${stockMatSelect}`);
       } catch (err) {
-        dispatch({ type: 'RECORD_STOCK_TRANSACTION', payload: { material: stockMatSelect, type: 'Stock In', quantity: Number(stockQty), rate: Number(stockRate) || 0, date: new Date().toISOString().split('T')[0], supplier: '', remarks: 'Manual stock receipt', reference: 'MANUAL_RECEIPT' } });
-        showToast(`Stock receipt processed (local). Note: ${err.message}`);
+        showToast(`Error processing stock receipt: ${err.response?.data?.message || err.message}`);
       }
 
       setShowAddStockModal(false);
@@ -2106,7 +2108,7 @@ export default function StorePortal() {
 
     const pendingIndentsCount = allIndentsList.filter(ind => isPendingStatus(ind.status)).length;
     const materialIndents = allIndentsList;
-    const mappedInventory = getMappedInventory(state.rawInventory || []);
+    const mappedInventory = dbRawInventory;
 
     const outOfStockItems = mappedInventory.filter(item => Number(item.stock || 0) === 0);
     const lowStockItemsOnly = mappedInventory.filter(item => Number(item.stock || 0) > 0 && item.stock <= item.reorderLevel);

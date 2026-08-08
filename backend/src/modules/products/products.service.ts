@@ -41,6 +41,7 @@ export class ProductsService {
         variantDetails: dto.variantDetails,
         unit: dto.unit,
         unitPrice: dto.unitPrice || 0,
+        minimumStock: dto.minimumStock || 0,
       },
     });
   }

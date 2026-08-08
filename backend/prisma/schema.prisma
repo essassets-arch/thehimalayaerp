@@ -364,6 +364,7 @@ model Warehouse {
   name                  String
   location              String?
   inventoryTransactions InventoryTransaction[]
+  
   branch                Branch?                @relation(fields: [branchId], references: [id])
   company               Company                @relation(fields: [companyId], references: [id])
   GoodsReceiptNote      GoodsReceiptNote[]

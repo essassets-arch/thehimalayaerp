@@ -66,4 +66,9 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   imageUrl?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  minimumStock?: number;
 }

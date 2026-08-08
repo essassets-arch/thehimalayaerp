@@ -67,7 +67,7 @@ export default function ProductMasterUI({ role }) {
           product_code: p.product_code || p.sku || '',
           product_family: p.product_family || p.category || '',
           unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
-          product_type: p.product_type || 'Manufactured',
+          product_type: normalizeProductType(p.product_type || p.productType),
           brand: p.brand || 'HIMALAYA',
           gst_rate: p.gst_rate ?? p.gstRate ?? 18,
           hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
@@ -131,14 +131,26 @@ export default function ProductMasterUI({ role }) {
   const familyCount = Math.max(0, availableFamilies.length - 1);
 
   const dispatchCats = ['All', 'DISPATCH 1', 'DISPATCH 2'];
-  const productTypes = ['Manufactured', 'Trading', 'Service'];
+  const productTypes = [
+    { value: 'MANUFACTURING', label: 'Manufactured' },
+    { value: 'TRADING', label: 'Trading' },
+    { value: 'SERVICE', label: 'Service' },
+  ];
+
+  const normalizeProductType = (type) => {
+    const normalized = String(type || '').trim().toUpperCase();
+    return normalized === 'MANUFACTURED' ? 'MANUFACTURING' :
+      ['MANUFACTURING', 'TRADING', 'SERVICE'].includes(normalized)
+        ? normalized
+        : 'MANUFACTURING';
+  };
 
   const openEdit = (p) => {
     setFormData({
       id: p.id,
       product_name: p.product_name || p.name || '',
       product_code: p.product_code || p.sku || '',
-      product_type: p.product_type || 'Manufactured',
+      product_type: normalizeProductType(p.product_type || p.productType),
       product_family: p.product_family || p.category || '',
       variant_details: p.variant_details || '',
       unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
@@ -170,7 +182,7 @@ export default function ProductMasterUI({ role }) {
       category: formData.product_family,
       unit: formData.unit_of_measure,
       unitPrice: Number(formData.unitPrice || 0),
-      productType: formData.product_type || 'MANUFACTURING',
+      productType: normalizeProductType(formData.product_type),
       brand: formData.brand || 'HIMALAYA',
       dispatchCategory: formData.dispatch_category || 'DISPATCH 1',
       gstRate: Number(formData.gst_rate || 18),
@@ -646,7 +658,7 @@ export default function ProductMasterUI({ role }) {
                     onChange={e => setFormData({ ...formData, product_type: e.target.value })} 
                     style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }}
                   >
-                    {productTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    {productTypes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </div>
 
