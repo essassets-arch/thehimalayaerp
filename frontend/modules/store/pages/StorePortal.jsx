@@ -360,6 +360,51 @@ export default function StorePortal() {
   const [lowStockPage, setLowStockPage] = useState(1);
 
   // Unified Raw Inventory UI states
+  const [dbRawInventory, setDbRawInventory] = useState([]);
+  const [loadingRawInventory, setLoadingRawInventory] = useState(false);
+
+  const fetchRawInventory = useCallback(async () => {
+    try {
+      setLoadingRawInventory(true);
+      const [prodRes, stockRes] = await Promise.all([
+        apiClient.get('/backend/products?type=RAW_MATERIAL'),
+        apiClient.get('/backend/inventory/stock-levels')
+      ]);
+      const products = prodRes?.data || [];
+      const stocks = stockRes?.data || [];
+      
+      const enriched = products.map(p => {
+        const stockItem = stocks.find(s => s.productId === p.id);
+        const qty = stockItem ? Number(stockItem.quantity) : 0;
+        const min = Number(p.minimumStock) || 0;
+        return {
+          id: p.id,
+          code: p.sku || p.publicId,
+          material: p.name,
+          category: p.category || 'Raw Material',
+          unit: p.unit || 'Kg',
+          minStock: min,
+          rate: Number(p.unitPrice) || 0,
+          stock: qty,
+          description: p.description || '',
+          location: 'Raw Material Store',
+          status: qty >= min ? 'Adequate' : 'Low Stock',
+          history: [] 
+        };
+      });
+      setDbRawInventory(enriched);
+    } catch (error) {
+      console.error('Failed to fetch raw inventory:', error);
+    } finally {
+      setLoadingRawInventory(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentView === 'raw-inventory' || currentView === 'dashboard') {
+      fetchRawInventory();
+    }
+  }, [currentView, fetchRawInventory]);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
   const [showAddStockModal, setShowAddStockModal] = useState(false);
   const [showEditMaterialModal, setShowEditMaterialModal] = useState(false);
