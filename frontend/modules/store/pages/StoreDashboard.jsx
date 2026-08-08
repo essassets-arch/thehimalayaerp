@@ -443,7 +443,7 @@ export const StoreDashboard = () => {
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #10b981' }}>
           <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>✅ Available Stock</div>
           <div style={{ fontSize: '20px', fontWeight: '900', color: '#10b981', margin: '4px 0' }}>
-            {kpiData.totalAvailableQty.toLocaleString()} Pcs
+            {(kpiData.totalAvailableQty ?? 0).toLocaleString()} Pcs
           </div>
           <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Ready for release</div>
         </div>
@@ -597,16 +597,16 @@ export const StoreDashboard = () => {
                         {row.category}
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: row.available < row.min ? '#dc2626' : '#0f172a' }}>
-                        {row.available.toLocaleString()}
+                        {(row.available ?? 0).toLocaleString()}
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'right', color: '#64748b' }}>
-                        {row.reserved.toLocaleString()}
+                        {(row.reserved ?? 0).toLocaleString()}
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'right', color: '#64748b' }}>
-                        {row.min.toLocaleString()}
+                        {(row.min ?? 0).toLocaleString()}
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'right', color: '#64748b' }}>
-                        {row.max.toLocaleString()}
+                        {(row.max ?? 0).toLocaleString()}
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                         <span style={{ background: badgeBg, color: badgeFg, padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', display: 'inline-block' }}>
@@ -617,7 +617,7 @@ export const StoreDashboard = () => {
                         {row.aging} Days
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '900', color: '#0f172a' }}>
-                        ₹{rowVal.toLocaleString('en-IN')}
+                        ₹{(rowVal ?? 0).toLocaleString('en-IN')}
                       </td>
                     </tr>
                   );

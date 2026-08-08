@@ -384,6 +384,7 @@ export default function StorePortal() {
           category: p.category || 'Raw Material',
           unit: p.unit || 'Kg',
           minStock: min,
+          reorderLevel: min,
           rate: Number(p.unitPrice) || 0,
           stock: qty,
           description: p.description || '',
@@ -1534,7 +1535,7 @@ export default function StorePortal() {
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#10b981' }}>
             <span className="m-theme-kpi-label">Total Stock Quantity</span>
-            <span className="m-theme-kpi-value">{totalStockQty.toLocaleString()} Units</span>
+            <span className="m-theme-kpi-value">{(totalStockQty ?? 0).toLocaleString()} Units</span>
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b' }}>
             <span className="m-theme-kpi-label">Low Stock Items</span>
@@ -1548,7 +1549,7 @@ export default function StorePortal() {
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#8b5cf6' }}>
             <span className="m-theme-kpi-label">Total Inventory Value</span>
-            <span className="m-theme-kpi-value">₹{totalInventoryValue.toLocaleString()}</span>
+            <span className="m-theme-kpi-value">₹{(totalInventoryValue ?? 0).toLocaleString()}</span>
           </div>
         </div>
 
@@ -1629,8 +1630,8 @@ export default function StorePortal() {
                       <td style={{ fontWeight: '800' }}>{item.code}</td>
                       <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
                       <td>{item.unit}</td>
-                      <td style={{ fontWeight: '800' }}>{item.stock.toLocaleString()}</td>
-                      <td>{item.reorderLevel.toLocaleString()}</td>
+                      <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
+                      <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
                       <td>
                         <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
                       </td>
@@ -1757,11 +1758,11 @@ export default function StorePortal() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
                     <span style={{ fontSize: '9px', color: '#166534', fontWeight: 'bold', textTransform: 'uppercase' }}>Stock Available</span>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#14532d', marginTop: '4px' }}>{item.stock.toLocaleString()}</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#14532d', marginTop: '4px' }}>{(item.stock ?? 0).toLocaleString()}</div>
                   </div>
                   <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
                     <span style={{ fontSize: '9px', color: '#78350f', fontWeight: 'bold', textTransform: 'uppercase' }}>Min Stock Alert</span>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#451a03', marginTop: '4px' }}>{item.reorderLevel.toLocaleString()}</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#451a03', marginTop: '4px' }}>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</div>
                   </div>
                 </div>
 
@@ -1799,7 +1800,7 @@ export default function StorePortal() {
                                   <span className={`badge badge-${typeBadge}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{tx.type}</span>
                                 </td>
                                 <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700' }}>
-                                  {tx.type === 'Stock Out' ? '-' : tx.type === 'Stock In' ? '+' : ''}{tx.quantity.toLocaleString()}
+                                  {tx.type === 'Stock Out' ? '-' : tx.type === 'Stock In' ? '+' : ''}{(tx.quantity ?? 0).toLocaleString()}
                                 </td>
                                 <td style={{ padding: '8px 12px' }}>
                                   <div style={{ fontWeight: '600' }}>{tx.supplier || tx.reference || 'N/A'}</div>

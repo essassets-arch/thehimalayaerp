@@ -69,15 +69,15 @@ export default function POReport() {
         </div>
         <div className="m-theme-kpi-card" style={{ '--card-border-color': '#6366f1' }}>
           <span className="m-theme-kpi-label">Total Pending Items</span>
-          <span className="m-theme-kpi-value">{totalPendingDeliveries.toLocaleString()} Units</span>
+          <span className="m-theme-kpi-value">{(totalPendingDeliveries ?? 0).toLocaleString()} Units</span>
         </div>
         <div className="m-theme-kpi-card" style={{ '--card-border-color': '#ef4444' }}>
           <span className="m-theme-kpi-label">Total Rejections</span>
-          <span className="m-theme-kpi-value">{totalRejections.toLocaleString()} Units</span>
+          <span className="m-theme-kpi-value">{(totalRejections ?? 0).toLocaleString()} Units</span>
         </div>
         <div className="m-theme-kpi-card" style={{ '--card-border-color': '#8b5cf6' }}>
           <span className="m-theme-kpi-label">Total Purchase Value</span>
-          <span className="m-theme-kpi-value">₹{totalValue.toLocaleString('en-IN')}</span>
+          <span className="m-theme-kpi-value">₹{(totalValue ?? 0).toLocaleString('en-IN')}</span>
         </div>
       </div>
 

@@ -210,9 +210,9 @@ export const StoreSummaryReport = () => {
     lines.push('EXECUTIVE INVENTORY SUMMARY METRICS');
     lines.push('Metric,Value');
     lines.push(`Total Raw Materials,${summaryMetrics.totalRawCount} SKUs`);
-    lines.push(`Current Inventory Value,₹ ${summaryMetrics.totalVal.toLocaleString('en-IN')}`);
+    lines.push(`Current Inventory Value,₹ ${(summaryMetrics.totalVal ?? 0).toLocaleString('en-IN')}`);
     lines.push(`Total Purchase Indents,${summaryMetrics.totalIndentsCount} Indents (${summaryMetrics.pendingIndents} Pending)`);
-    lines.push(`Production Material Consumed,${summaryMetrics.totalMaterialConsumed.toLocaleString()} Units`);
+    lines.push(`Production Material Consumed,${(summaryMetrics.totalMaterialConsumed ?? 0).toLocaleString()} Units`);
     lines.push(`Total Store Issues,${summaryMetrics.totalIssuesCount} Requisitions`);
     lines.push(`Low Stock Items Alert,${summaryMetrics.lowStockCount} Items`);
     lines.push('');
@@ -432,7 +432,7 @@ export const StoreSummaryReport = () => {
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #8b5cf6' }}>
           <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🏭 Production Consumed</div>
           <div style={{ fontSize: '22px', fontWeight: '900', color: '#7c3aed', margin: '4px 0' }}>
-            {summaryMetrics.totalMaterialConsumed.toLocaleString()} Units
+            {(summaryMetrics.totalMaterialConsumed ?? 0).toLocaleString()} Units
           </div>
           <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Across {summaryMetrics.totalProdBatches} batches</div>
         </div>
@@ -443,7 +443,7 @@ export const StoreSummaryReport = () => {
           <div style={{ fontSize: '22px', fontWeight: '900', color: '#0891b2', margin: '4px 0' }}>
             {summaryMetrics.totalIssuesCount} Requisitions
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>{summaryMetrics.totalQtyIssued.toLocaleString()} Qty issued</div>
+          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>{(summaryMetrics.totalQtyIssued ?? 0).toLocaleString()} Qty issued</div>
         </div>
 
         {/* Card 6: Low Stock Items */}
@@ -485,14 +485,14 @@ export const StoreSummaryReport = () => {
                   <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{item.name}</td>
                   <td style={{ padding: '10px 12px', color: '#64748b' }}>{item.category}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#334155' }}>{item.unit}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{item.openingStock.toLocaleString()}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#10b981', fontWeight: '700' }}>+{item.receivedQty.toLocaleString()}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ef4444', fontWeight: '700' }}>-{item.issuedQty.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{(item.openingStock ?? 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#10b981', fontWeight: '700' }}>+{(item.receivedQty ?? 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ef4444', fontWeight: '700' }}>-{(item.issuedQty ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: item.currentStock <= item.minStockLevel ? '#dc2626' : '#0f172a' }}>
-                    {item.currentStock.toLocaleString()}
+                    {(item.currentStock ?? 0).toLocaleString()}
                   </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>₹{item.stockValue.toLocaleString('en-IN')}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{item.minStockLevel.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>₹{(item.stockValue ?? 0).toLocaleString('en-IN')}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{(item.minStockLevel ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span style={{
                       background: item.currentStock <= item.minStockLevel ? '#fee2e2' : '#dcfce7',
@@ -546,7 +546,7 @@ export const StoreSummaryReport = () => {
                   <td style={{ padding: '10px 12px', fontWeight: '700', color: '#334155' }}>{indent.department}</td>
                   <td style={{ padding: '10px 12px', color: '#475569' }}>{indent.requestedBy}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700' }}>{indent.itemCount}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>{indent.totalQty.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>{(indent.totalQty ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span style={{
                       background: indent.status === 'Approved' ? '#dcfce7' : indent.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
@@ -576,7 +576,7 @@ export const StoreSummaryReport = () => {
               Batches: {summaryMetrics.totalProdBatches}
             </span>
             <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#3730a3' }}>
-              Consumed Qty: {summaryMetrics.totalMaterialConsumed.toLocaleString()}
+              Consumed Qty: {(summaryMetrics.totalMaterialConsumed ?? 0).toLocaleString()}
             </span>
           </div>
         </div>
@@ -601,7 +601,7 @@ export const StoreSummaryReport = () => {
                   <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#7c3aed' }}>{item.batchNo}</td>
                   <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{item.productName}</td>
                   <td style={{ padding: '10px 12px', color: '#475569' }}>{item.rawMaterial}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#dc2626' }}>{item.consumedQty.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#dc2626' }}>{(item.consumedQty ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#475569' }}>{item.unit}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#10b981' }}>{item.prodQty}</td>
                 </tr>
@@ -623,7 +623,7 @@ export const StoreSummaryReport = () => {
               Total Requisitions: {summaryMetrics.totalIssuesCount}
             </span>
             <span style={{ background: '#e0f2fe', padding: '4px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#0369a1' }}>
-              Total Issued: {summaryMetrics.totalQtyIssued.toLocaleString()}
+              Total Issued: {(summaryMetrics.totalQtyIssued ?? 0).toLocaleString()}
             </span>
           </div>
         </div>
@@ -649,7 +649,7 @@ export const StoreSummaryReport = () => {
                   <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#0891b2' }}>{item.issueNo}</td>
                   <td style={{ padding: '10px 12px', fontWeight: '700', color: '#334155' }}>{item.department}</td>
                   <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{item.itemName}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{item.qty.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{(item.qty ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#475569' }}>{item.unit}</td>
                   <td style={{ padding: '10px 12px', color: '#64748b' }}>{item.issuedBy}</td>
                   <td style={{ padding: '10px 12px', color: '#64748b' }}>{item.receivedBy}</td>
@@ -679,14 +679,14 @@ export const StoreSummaryReport = () => {
               {departmentConsumption.rows.map((row, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px 14px', fontWeight: '800', color: '#0f172a' }}>{row.dept}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#0284c7' }}>{row.qty.toLocaleString()} Pcs</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#10b981' }}>₹{row.val.toLocaleString('en-IN')}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#0284c7' }}>{(row.qty ?? 0).toLocaleString()} Pcs</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#10b981' }}>₹{(row.val ?? 0).toLocaleString('en-IN')}</td>
                 </tr>
               ))}
               <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #e2e8f0' }}>
                 <td style={{ padding: '12px 14px', color: '#0f172a' }}>Total Department Consumption</td>
-                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0284c7' }}>{departmentConsumption.totalQty.toLocaleString()} Pcs</td>
-                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#10b981' }}>₹{departmentConsumption.totalVal.toLocaleString('en-IN')}</td>
+                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0284c7' }}>{(departmentConsumption.totalQty ?? 0).toLocaleString()} Pcs</td>
+                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#10b981' }}>₹{(departmentConsumption.totalVal ?? 0).toLocaleString('en-IN')}</td>
               </tr>
             </tbody>
           </table>
@@ -716,9 +716,9 @@ export const StoreSummaryReport = () => {
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid #fee2e2' }}>
                       <td style={{ padding: '10px 14px', fontWeight: '800', color: '#0f172a' }}>{item.name}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: '#dc2626' }}>{item.currentStock.toLocaleString()} {item.unit}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', color: '#64748b' }}>{item.minStockLevel.toLocaleString()} {item.unit}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#b91c1c' }}>+{requiredQty.toLocaleString()} {item.unit}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: '#dc2626' }}>{(item.currentStock ?? 0).toLocaleString()} {item.unit}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', color: '#64748b' }}>{(item.minStockLevel ?? 0).toLocaleString()} {item.unit}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#b91c1c' }}>+{(requiredQty ?? 0).toLocaleString()} {item.unit}</td>
                     </tr>
                   );
                 })
