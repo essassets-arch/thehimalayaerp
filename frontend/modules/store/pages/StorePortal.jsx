@@ -46,6 +46,39 @@ const findInventoryItem = (inventory, name) => {
   return (inventory || []).find(inv => isMaterialMatch(inv.material, name));
 };
 
+const PaginationControl = ({ currentPage, totalPages, totalItems, pageSize, onPageChange, themeColor = '#0f766e' }) => {
+  if (totalPages <= 1) return null;
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderTop: '1px solid var(--color-border)', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+      <div>
+        Showing <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{startItem}</span> to <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{endItem}</span> of <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{totalItems}</span> entries
+      </div>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <button
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          style={{ padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: '6px', background: '#fff', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <ChevronLeft size={14} /> Prev
+        </button>
+        <span style={{ padding: '6px 12px', fontWeight: '700', color: themeColor }}>
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          style={{ padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: '6px', background: '#fff', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          Next <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
   if (!po) return null;
   const isClosed = po.status === 'CLOSED' || po.status === 'PO_CLOSED' || po.status === 'COMPLETED';
@@ -1160,6 +1193,18 @@ export default function StorePortal() {
     };
 
     const mappedInventory = dbRawInventory || [];
+    const filteredItems = mappedInventory.filter(item => {
+      const query = (rawSearchQuery || '').toLowerCase();
+      return (
+        !query ||
+        (item.code || '').toLowerCase().includes(query) ||
+        (item.material || '').toLowerCase().includes(query) ||
+        (item.category || '').toLowerCase().includes(query)
+      );
+    });
+    const rawInvPageSize = 15;
+    const rawInvTotalPages = Math.ceil(filteredItems.length / rawInvPageSize) || 1;
+    const paginatedRawInvItems = filteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
     const totalMaterials = mappedInventory.length;
     const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
     const lowStockItems = mappedInventory.filter(i => (Number(i.stock) || 0) <= (Number(i.reorderLevel ?? i.minStock) || 0) && (Number(i.stock) || 0) > 0).length;
