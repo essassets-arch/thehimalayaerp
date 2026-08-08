@@ -367,8 +367,8 @@ export default function StorePortal() {
     try {
       setLoadingRawInventory(true);
       const [prodRes, stockRes] = await Promise.all([
-        apiClient.get('/backend/products?type=RAW_MATERIAL'),
-        apiClient.get('/backend/inventory/stock-levels')
+        apiClient.get('/products?type=RAW_MATERIAL'),
+        apiClient.get('/inventory/stock-levels')
       ]);
       const products = prodRes?.data || [];
       const stocks = stockRes?.data || [];
@@ -1268,7 +1268,7 @@ export default function StorePortal() {
       if (!selectedItem) return;
 
       try {
-        await apiClient.post('/backend/inventory/transactions', {
+        await apiClient.post('/inventory/transactions', {
           productId: selectedItem.id,
           warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
           type: 'IN',
