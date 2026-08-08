@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "weight" DECIMAL(10,3);
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;

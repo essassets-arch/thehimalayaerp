@@ -1159,6 +1159,13 @@ export default function StorePortal() {
       });
     };
 
+    const mappedInventory = dbRawInventory || [];
+    const totalMaterials = mappedInventory.length;
+    const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
+    const lowStockItems = mappedInventory.filter(i => (Number(i.stock) || 0) <= (Number(i.reorderLevel ?? i.minStock) || 0) && (Number(i.stock) || 0) > 0).length;
+    const outOfStockItems = mappedInventory.filter(i => (Number(i.stock) || 0) === 0).length;
+    const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.rate) || 0)), 0);
+
     const handleExport = () => {
       showToast('Exporting Raw Inventory Registry to Excel...');
       // Simulated export toast
