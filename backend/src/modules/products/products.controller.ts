@@ -8,6 +8,7 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Delete,
   Param,
   Query,
@@ -47,6 +48,7 @@ export class ProductsController {
 
   @RequirePermissions('admin.products.update', 'products.update', 'store.materials.update', 'store.update', 'products.read', 'inventory.stock.read')
   @Patch(':id')
+  @Put(':id')
   update(
     @CurrentUser() user: any,
     @Param('id') id: string,
