@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get('Authorization');
+  const token = authHeader ? authHeader.split(' ')[1] : undefined;
   const policy = bridgePolicies.createLead;
   const idempotencyKey = request.headers.get('idempotency-key');
 
@@ -44,6 +46,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   return forwardBackendRequest({
+    token,
     path: '/leads',
     method: 'POST',
     body,

@@ -22,6 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const safeId = encodeURIComponent(id);
 
   return forwardBackendRequest({
+    token: extractToken(request),
     path: `/leads/${safeId}`,
     method: 'GET',
     requestId: request.headers.get('x-request-id') ?? undefined,
@@ -76,6 +77,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   }
 
   return forwardBackendRequest({
+    token: extractToken(request),
     path: `/leads/${safeId}`,
     method: 'DELETE',
     idempotencyKey: idempotencyKey!,
