@@ -2932,6 +2932,7 @@ export default function PlantHeadPortal() {
           plan.id === order.productionPlanId || plan.salesOrderId === order.id
         );
         const items = Array.isArray(order.items) ? order.items : [];
+        const product = items[0] || {};
         const prodTargetDate = order.productionTargetDate || backendPlan?.plannedEndDate || order.planTargetDate || '';
         return {
           ...order,
@@ -2939,7 +2940,7 @@ export default function PlantHeadPortal() {
           productionPlan: backendPlan,
           targetDate: prodTargetDate || order.targetDate || '',
           workOrderNo: workOrder?.workOrderNo || workOrder?.id || '—',
-          products: order.products || order.productItem || product.productName || product.name || '—',
+          products: order.products || order.productItem || product.productName || product.name || product.product?.name || '—',
           orderedQuantity: items.reduce((sum, item) => sum + Number(item.quantity ?? item.qty ?? 0), 0),
           plannedQuantity: Number(workOrder?.plannedQty ?? workOrder?.quantity ?? order.plannedQuantity ?? 0),
           completedQuantity: Number(workOrder?.producedQty ?? workOrder?.completedQty ?? order.producedQty ?? 0),
