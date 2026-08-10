@@ -1200,67 +1200,70 @@ async function main() {
     console.log(`  ✓ Deactivated ${deactivated.count} legacy demo products with linked transactions.`);
   }
 
-  console.log(`📦 Seeding ${allProducts.length} products with productType...`);
+  console.log(`📦 Seeding ${allProducts.length} products with productType across all companies...`);
   
   let createdCount = 0;
   let skippedCount = 0;
 
-  for (const productData of allProducts) {
-    try {
-      const sku = productData.sku || generateSku(productData.name);
-      const pType = productData.productType || (
-        ['FRP COVERS', 'FRP GRATINGS'].includes(productData.category) ? 'MANUFACTURING' :
-        ['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(productData.category) ? 'TRADING' :
-        productData.category === 'Raw Material' ? 'RAW_MATERIAL' : 'HARDWARE'
-      );
-      
-      const existing = await prisma.product.findFirst({
-        where: {
-          companyId: company.id,
-          OR: [
-            { sku: sku },
-            { name: productData.name },
-          ],
-        },
-      });
+  const targetCompanies = await prisma.company.findMany();
 
-      if (!existing) {
-        await prisma.product.create({
-          data: {
-            companyId: company.id,
-            publicId: uid('PROD'),
-            name: productData.name,
-            sku: sku,
-            description: productData.description,
-            category: productData.category,
-            productType: pType,
-            unit: productData.unit,
-            unitPrice: productData.unitPrice,
-            minimumStock: productData.minimumStock ?? 0,
-            isActive: true,
-          },
-        });
-        createdCount++;
+  for (const targetCompany of targetCompanies) {
+    for (const productData of allProducts) {
+      try {
+        const sku = productData.sku || generateSku(productData.name);
+        const pType = productData.productType || (
+          ['FRP COVERS', 'FRP GRATINGS'].includes(productData.category) ? 'MANUFACTURING' :
+          ['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(productData.category) ? 'TRADING' :
+          productData.category === 'Raw Material' ? 'RAW_MATERIAL' : 'HARDWARE'
+        );
         
-        if (createdCount % 50 === 0) {
-          console.log(`  ✓ ${createdCount} products created...`);
-        }
-      } else {
-        await prisma.product.update({
-          where: { id: existing.id },
-          data: {
-            category: productData.category,
-            productType: pType,
+        const existing = await prisma.product.findFirst({
+          where: {
+            companyId: targetCompany.id,
+            OR: [
+              { sku: sku },
+              { name: productData.name },
+            ],
           },
         });
-        skippedCount++;
+
+        if (!existing) {
+          await prisma.product.create({
+            data: {
+              companyId: targetCompany.id,
+              publicId: uid('PROD'),
+              name: productData.name,
+              sku: sku,
+              description: productData.description,
+              category: productData.category,
+              productType: pType,
+              brand: productData.brand || 'HIMALAYA',
+              unit: productData.unit,
+              unitPrice: productData.unitPrice,
+              minimumStock: productData.minimumStock ?? 0,
+              isActive: true,
+            },
+          });
+          createdCount++;
+        } else {
+          await prisma.product.update({
+            where: { id: existing.id },
+            data: {
+              category: productData.category,
+              productType: pType,
+              brand: productData.brand || existing.brand || 'HIMALAYA',
+              isActive: true,
+            },
+          });
+          skippedCount++;
+        }
+      } catch (error) {
+        console.error(`  ✗ Failed to create product for company ${targetCompany.name}: ${productData.name}`, error);
       }
-    } catch (error) {
-      console.error(`  ✗ Failed to create product: ${productData.name}`, error);
     }
   }
 
-  console.log(`  ✅ ${createdCount} products created, ${skippedCount} skipped (already exist)`);
+  console.log(`  ✅ ${createdCount} products created, ${skippedCount} skipped/updated across all companies`);
 
   // ── 8. Workflow Definitions ─────────────────────────────────────────────────
   console.log('⚙️  Seeding workflow definitions...');
