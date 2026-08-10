@@ -96,8 +96,9 @@ export class CustomerComplaintsService {
     id: string,
     dto: CreateCustomerComplaintDto,
     userId: string,
+    role?: string,
   ) {
-    const existing = await this.findSales(id, userId);
+    const existing = await this.findSales(id, userId, role);
     if (
       existing.status !== ComplaintStatus.DRAFT &&
       existing.status !== ComplaintStatus.REJECTED
@@ -119,15 +120,15 @@ export class CustomerComplaintsService {
       include: includeRelations,
     });
   }
-  async removeSales(id: string, userId: string) {
-    const c = await this.findSales(id, userId);
+  async removeSales(id: string, userId: string, role?: string) {
+    const c = await this.findSales(id, userId, role);
     if (c.status !== ComplaintStatus.DRAFT)
       throw new BadRequestException('Only drafts can be deleted');
     await this.prisma.customerComplaint.delete({ where: { id } });
     return { id };
   }
-  async resubmit(id: string, userId: string) {
-    const c = await this.findSales(id, userId);
+  async resubmit(id: string, userId: string, role?: string) {
+    const c = await this.findSales(id, userId, role);
     if (c.status !== ComplaintStatus.REJECTED)
       throw new BadRequestException(
         'Only rejected complaints can be resubmitted',

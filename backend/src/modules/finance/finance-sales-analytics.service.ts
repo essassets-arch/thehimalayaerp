@@ -8,6 +8,7 @@ import {
   FinanceSalesAnalyticsMetricService,
   SalespersonAttribution,
 } from './finance-sales-analytics-metric.service';
+import { getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class FinanceSalesAnalyticsService {
@@ -913,11 +914,12 @@ export class FinanceSalesAnalyticsService {
     };
   }
 
-  async getLeads(query: FinanceSalesAnalyticsQueryDto) {
+  async getLeads(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const where: any = { deletedAt: null };
-    if (query.salespersonId) where.assignedToId = query.salespersonId;
+    const scope = getSalesScope(userId, role, 'Lead');
+    const where: any = { deletedAt: null, ...scope };
+    if (query.salespersonId) where.salesExecutiveId = query.salespersonId;
     if (query.leadSource) where.source = query.leadSource;
     if (query.search) {
       where.OR = [
@@ -957,11 +959,12 @@ export class FinanceSalesAnalyticsService {
     }
   }
 
-  async getSamples(query: FinanceSalesAnalyticsQueryDto) {
+  async getSamples(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const where: any = {};
-    if (query.salespersonId) where.createdById = query.salespersonId;
+    const scope = getSalesScope(userId, role, 'SampleRequest');
+    const where: any = { ...scope };
+    if (query.salespersonId) where.salesExecutiveId = query.salespersonId;
 
     try {
       const [total, samples] = await Promise.all([
@@ -991,11 +994,12 @@ export class FinanceSalesAnalyticsService {
     }
   }
 
-  async getQuotations(query: FinanceSalesAnalyticsQueryDto) {
+  async getQuotations(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const where: any = { deletedAt: null };
-    if (query.salespersonId) where.createdById = query.salespersonId;
+    const scope = getSalesScope(userId, role, 'Quotation');
+    const where: any = { deletedAt: null, ...scope };
+    if (query.salespersonId) where.salesExecutiveId = query.salespersonId;
     if (query.search) {
       where.OR = [
         { quotationNumber: { contains: query.search, mode: 'insensitive' } },
@@ -1035,11 +1039,12 @@ export class FinanceSalesAnalyticsService {
     }
   }
 
-  async getOrders(query: FinanceSalesAnalyticsQueryDto) {
+  async getOrders(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const where: any = { deletedAt: null };
-    if (query.salespersonId) where.createdById = query.salespersonId;
+    const scope = getSalesScope(userId, role, 'SalesOrder');
+    const where: any = { deletedAt: null, ...scope };
+    if (query.salespersonId) where.salesExecutiveId = query.salespersonId;
     if (query.search) {
       where.OR = [
         { orderNumber: { contains: query.search, mode: 'insensitive' } },
@@ -1079,10 +1084,11 @@ export class FinanceSalesAnalyticsService {
     }
   }
 
-  async getCollections(query: FinanceSalesAnalyticsQueryDto) {
+  async getCollections(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const where: any = {};
+    const scope = getSalesScope(userId, role, 'CustomerPayment');
+    const where: any = { ...scope };
 
     try {
       const [total, payments] = await Promise.all([
@@ -1115,10 +1121,11 @@ export class FinanceSalesAnalyticsService {
     }
   }
 
-  async getCustomers(query: FinanceSalesAnalyticsQueryDto) {
+  async getCustomers(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const where: any = { deletedAt: null };
+    const scope = getSalesScope(userId, role, 'Customer');
+    const where: any = { deletedAt: null, ...scope };
     if (query.search) {
       where.OR = [
         { companyName: { contains: query.search, mode: 'insensitive' } },
@@ -1156,10 +1163,11 @@ export class FinanceSalesAnalyticsService {
     }
   }
 
-  async getActivities(query: FinanceSalesAnalyticsQueryDto) {
+  async getActivities(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const where: any = {};
+    const scope = getSalesScope(userId, role, 'Lead');
+    const where: any = { lead: scope };
     if (query.salespersonId) where.createdById = query.salespersonId;
 
     try {
@@ -1190,13 +1198,16 @@ export class FinanceSalesAnalyticsService {
     }
   }
 
-  async getComplaints(query: FinanceSalesAnalyticsQueryDto) {
+  async getComplaints(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
+    const scope = getSalesScope(userId, role, 'CustomerComplaint');
+    const where: any = { ...scope };
     try {
       const [total, complaints] = await Promise.all([
-        this.prisma.customerComplaint.count(),
+        this.prisma.customerComplaint.count({ where }),
         this.prisma.customerComplaint.findMany({
+          where,
           orderBy: { createdAt: 'desc' },
           skip: (page - 1) * limit,
           take: limit,

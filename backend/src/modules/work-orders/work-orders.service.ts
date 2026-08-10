@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
+import { getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class WorkOrdersService {
@@ -13,8 +14,9 @@ export class WorkOrdersService {
     private readonly workflowService: WorkflowService,
   ) {}
 
-  async listWorkOrders(statuses?: string[]) {
-    const where: any = {};
+  async listWorkOrders(statuses?: string[], userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'WorkOrder');
+    const where: any = { ...scope };
     if (statuses && statuses.length > 0) {
       where.status = { in: statuses };
     }
@@ -37,9 +39,10 @@ export class WorkOrdersService {
     });
   }
 
-  async getWorkOrder(id: string) {
-    const wo = await this.prisma.workOrder.findUnique({
-      where: { id },
+  async getWorkOrder(id: string, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'WorkOrder');
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id, ...scope },
       include: {
         productionPlan: {
           include: {

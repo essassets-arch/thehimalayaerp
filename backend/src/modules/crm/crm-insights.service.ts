@@ -166,7 +166,7 @@ export class CrmInsightsService {
           ...(companyId ? { customer: { companyId } } : {}),
           ...orderScope,
         },
-        select: { totalAmount: true, createdById: true },
+        select: { totalAmount: true, createdById: true, salesExecutiveId: true },
       }),
       this.prisma.customerLedger.findMany({
         where: {
@@ -176,7 +176,10 @@ export class CrmInsightsService {
         select: { debit: true, credit: true },
       }),
       this.prisma.user.findMany({
-        where: companyId ? { companyId } : {},
+        where: {
+          ...(companyId ? { companyId } : {}),
+          ...(Object.keys(orderScope).length > 0 ? { id: userId } : {}),
+        },
         select: { id: true, name: true },
       }),
     ]);
@@ -208,7 +211,7 @@ export class CrmInsightsService {
         (lead) => lead.assignedToId === user.id && lead.convertedAt,
       ).length,
       revenue: orders
-        .filter((order) => order.createdById === user.id)
+        .filter((order) => (order.salesExecutiveId || order.createdById) === user.id)
         .reduce((sum, order) => sum + Number(order.totalAmount), 0),
     }));
 

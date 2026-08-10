@@ -89,21 +89,28 @@ export class CustomersService {
     userId?: string,
     role?: string,
   ) {
+    const scope = getSalesScope(userId, role, 'Customer');
+    const searchConditions: Prisma.CustomerWhereInput[] = search
+      ? [
+          { companyName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { customerCode: { contains: search, mode: 'insensitive' } },
+        ]
+      : [];
+
     const where: Prisma.CustomerWhereInput = {
       companyId,
       deletedAt: null,
-      ...(search
-        ? {
-            OR: [
-              { companyName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search, mode: 'insensitive' } },
-              { customerCode: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-      ...getSalesScope(userId, role, 'Customer'),
     };
+
+    if (searchConditions.length > 0 && scope.OR) {
+      where.AND = [{ OR: searchConditions }, { OR: scope.OR }];
+    } else if (searchConditions.length > 0) {
+      where.OR = searchConditions;
+    } else if (scope.OR) {
+      where.OR = scope.OR;
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.customer.findMany({

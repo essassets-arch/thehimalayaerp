@@ -35,7 +35,7 @@ export function getAdvancedScope(
   }
 
   const domainMap: Record<string, string[]> = {
-    SALES: ['SALES_EXECUTIVE', 'SALES_INTERN'],
+    SALES: ['SALES_EXECUTIVE', 'SALES_INTERN', 'SUPER_SALES'],
     FINANCE: ['FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
     PRODUCTION: ['PLANT_HEAD', 'PRODUCTION_OPERATOR'],
     DISPATCH: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH'],
@@ -68,7 +68,7 @@ export function getAdvancedScope(
 export function getSalesScope(
   userId?: string,
   role?: string,
-  targetModel: 'Lead' | 'Quotation' | 'SalesOrder' | 'SampleRequest' | 'CustomerPayment' | string = 'createdById',
+  targetModel: 'Lead' | 'Quotation' | 'SalesOrder' | 'SampleRequest' | 'CustomerPayment' | 'ProductionPlan' | 'Dispatch' | 'WorkOrder' | string = 'createdById',
 ): Record<string, any> {
   if (!userId || !role) return {};
 
@@ -115,6 +115,18 @@ export function getSalesScope(
 
   if (targetModel === 'CustomerPayment') {
     return { salesOrder: { salesExecutiveId: userId } };
+  }
+
+  if (targetModel === 'ProductionPlan') {
+    return { salesOrder: { salesExecutiveId: userId } };
+  }
+
+  if (targetModel === 'Dispatch') {
+    return { salesOrder: { salesExecutiveId: userId } };
+  }
+
+  if (targetModel === 'WorkOrder') {
+    return { productionPlan: { salesOrder: { salesExecutiveId: userId } } };
   }
 
   if (targetModel === 'Customer') {

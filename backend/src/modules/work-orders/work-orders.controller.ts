@@ -20,15 +20,23 @@ export class WorkOrdersController {
 
   @Get()
   @RequirePermissions('production.workorder.read')
-  async listWorkOrders(@Query('status') status?: string) {
+  async listWorkOrders(@Query('status') status?: string, @Req() req?: any) {
     const statuses = status ? status.split(',') : [];
-    return this.workOrdersService.listWorkOrders(statuses);
+    return this.workOrdersService.listWorkOrders(
+      statuses,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get(':id')
   @RequirePermissions('production.workorder.read')
-  async getWorkOrder(@Param('id') id: string) {
-    return this.workOrdersService.getWorkOrder(id);
+  async getWorkOrder(@Param('id') id: string, @Req() req?: any) {
+    return this.workOrdersService.getWorkOrder(
+      id,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Post(':id/action')

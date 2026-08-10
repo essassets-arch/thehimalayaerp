@@ -8,7 +8,7 @@ import { WorkflowService } from '../workflow/workflow.service';
 import { CreditService } from '../finance/credit.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Decimal } from '@prisma/client/runtime/library';
-import { getAdvancedScope } from '../../common/utils/rbac.util';
+import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
 import { CreateDispatchDto } from './dto/create-dispatch.dto';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 
@@ -22,12 +22,7 @@ export class DispatchService {
   ) {}
 
   async listDispatches(userId?: string, role?: string, status?: string) {
-    const scope = getAdvancedScope(userId, role, {
-      DISPATCH: {}, // Let all dispatch executives see all dispatches
-      SALES: {
-        OR: [{ salesOrder: { createdById: userId } }, { createdById: userId }],
-      },
-    });
+    const scope = getSalesScope(userId, role, 'Dispatch');
 
     const where: any = { ...scope };
     if (status) {
@@ -46,13 +41,8 @@ export class DispatchService {
   }
 
   async getDispatch(id: string, userId?: string, role?: string) {
-    const scope = getAdvancedScope(userId, role, {
-      DISPATCH: {}, // Let all dispatch executives see all dispatches
-      SALES: {
-        OR: [{ salesOrder: { createdById: userId } }, { createdById: userId }],
-      },
-    });
-    const dispatch = await this.prisma.dispatch.findUnique({
+    const scope = getSalesScope(userId, role, 'Dispatch');
+    const dispatch = await this.prisma.dispatch.findFirst({
       where: { id, ...scope },
       include: {
         salesOrder: { include: { customer: true } },

@@ -53,10 +53,9 @@ export class LeadsController {
   async createLead(@Body() dto: any, @Req() req: any) {
     return this.leadsService.createLead(
       dto,
-      req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
-      req.headers['x-company-id'] ||
-        req.user?.companyId ||
-        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
+      req.user?.id || req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
+      req.headers['x-company-id'] || req.user?.companyId,
+      req.user?.role,
     );
   }
 

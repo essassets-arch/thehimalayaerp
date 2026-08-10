@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
-import { getAdvancedScope } from '../../common/utils/rbac.util';
+import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class ProductionService {
@@ -17,10 +17,7 @@ export class ProductionService {
   ) {}
 
   async listPlans(userId?: string, role?: string) {
-    const scope = getAdvancedScope(userId, role, {
-      PRODUCTION: { assignedToId: userId },
-      SALES: { salesOrder: { createdById: userId } },
-    });
+    const scope = getSalesScope(userId, role, 'ProductionPlan');
     return this.prisma.productionPlan.findMany({
       where: scope,
       include: {
@@ -35,10 +32,7 @@ export class ProductionService {
   }
 
   async getPlan(id: string, userId?: string, role?: string) {
-    const scope = getAdvancedScope(userId, role, {
-      PRODUCTION: { assignedToId: userId },
-      SALES: { salesOrder: { createdById: userId } },
-    });
+    const scope = getSalesScope(userId, role, 'ProductionPlan');
     const plan = await this.prisma.productionPlan.findFirst({
       where: { id, ...scope },
       include: {

@@ -49,19 +49,22 @@ export class CustomerComplaintsController {
     @Req() req: any,
   ) {
     const userId = req.user?.id || req.user?.sub || 'system';
-    return this.service.updateSales(id, dto, userId);
+    const role = req.user?.role?.code || req.user?.role;
+    return this.service.updateSales(id, dto, userId, role);
   }
   @RequirePermissions('sales.customercomplaints.delete')
   @Delete('sales/complaints/:id')
   remove(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.id || req.user?.sub || 'system';
-    return this.service.removeSales(id, userId);
+    const role = req.user?.role?.code || req.user?.role;
+    return this.service.removeSales(id, userId, role);
   }
   @RequirePermissions('sales.customercomplaints.submit')
   @Post('sales/complaints/:id/resubmit')
   resubmit(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.id || req.user?.sub || 'system';
-    return this.service.resubmit(id, userId);
+    const role = req.user?.role?.code || req.user?.role;
+    return this.service.resubmit(id, userId, role);
   }
   @RequirePermissions('sales.customercomplaints.read')
   @Get('admin/complaints')
