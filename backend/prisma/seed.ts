@@ -226,6 +226,17 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'FRP MOULDED GRATING 30MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 30mm thickness' },
   { name: 'FRP MOULDED GRATING 38MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 38mm thickness' },
   { name: 'FRP MOULDED FRATINGS 50MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 50mm thickness' },
+  // FRP Covers Basic (FRPMHCLD)
+  { name: 'FRPMHCLD 10X10', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 10x10' },
+  { name: 'FRPMHCLD 12X12', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 12x12' },
+  { name: 'FRPMHCLD 15X15', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 15x15' },
+  { name: 'FRPMHCLD 18X18', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 18x18' },
+  { name: 'FRPMHCLD 18X24', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 18x24' },
+  { name: 'FRPMHCLD 21X21', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 21x21' },
+  { name: 'FRPMHCLD 24X24', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 24x24' },
+  { name: 'FRPMHCLD 28X28', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 28x28' },
+  { name: 'FRPMHCLD 30X30', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 30x30' },
+  { name: 'FRPMHCLD 36X36', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 36x36' },
 ];
 
 // Trading Products - Coverblocks
@@ -239,6 +250,10 @@ const coverblockProducts: ProductSeedData[] = [
   { name: 'WCB MULTIPLE', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'SET', unitPrice: 0, description: 'COVERBLOCK WIRE 20X25X40X50' },
   
   // Pilling Coverblocks (PCB)
+  { name: 'PCB 20MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 20 MM' },
+  { name: 'PCB 25MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 25 MM' },
+  { name: 'PCB 30MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 30 MM' },
+  { name: 'PCB 40 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 40 MM' },
   { name: 'PileCB 40 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 40 MM' },
   { name: 'PCB 50 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 50 MM' },
   { name: 'PCB 75MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK PILLING 75 MM' },
@@ -248,7 +263,9 @@ const coverblockProducts: ProductSeedData[] = [
   { name: 'HTCB 50 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Tower Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK TOWER 50 MM' },
   { name: 'HTCB 75 MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Tower Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK TOWER 75 MM' },
   
-  // DT Coverblocks (DTCB)
+  // DT / BTCB Coverblocks (DTCB / BTCB)
+  { name: 'BTCB 20-25MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK BTCB 20-25MM' },
+  { name: 'BTCB 40-50MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK BTCB 40-50MM' },
   { name: 'DTCB 20MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 20 MM' },
   { name: 'DTCB 25MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 25 MM' },
   { name: 'DTCB 30MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 30 MM' },
@@ -256,6 +273,12 @@ const coverblockProducts: ProductSeedData[] = [
   { name: 'DTCB 50MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 50 MM' },
   { name: 'DTCB 60MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 60 MM' },
   { name: 'DTCB 75MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 75 MM' },
+  { name: 'DTCB 100MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'DT Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK DT 100 MM' },
+
+  // MCB Coverblocks
+  { name: 'MCB 30X40MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'MCB Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK MCB 30X40MM' },
+  { name: 'MCB 35X40X45MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'MCB Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK MCB 35X40X45MM' },
+  { name: 'MCB 20X25X40X50MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'MCB Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK MCB 20X25X40X50MM' },
 ];
 
 // Trading Products - RCC Pipes
