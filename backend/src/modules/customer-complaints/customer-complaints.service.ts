@@ -7,6 +7,7 @@ import {
 import { ComplaintStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCustomerComplaintDto } from './dto/create-customer-complaint.dto';
+import { getSalesScope, isRestrictedRole } from '../../common/utils/rbac.util';
 
 const includeRelations = {
   customer: { select: { id: true, companyName: true, customerCode: true } },
@@ -64,6 +65,7 @@ export class CustomerComplaintsService {
         salesRemarks: dto.salesRemarks,
         attachment: dto.attachment,
         status,
+        salesExecutiveId: userId,
         createdBy: userId,
         updatedBy: userId,
         ...(status === ComplaintStatus.PENDING_SUPER_ADMIN
@@ -74,16 +76,19 @@ export class CustomerComplaintsService {
     });
   }
 
-  async listSales(userId: string) {
+  async listSales(userId: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'CustomerComplaint');
     return this.prisma.customerComplaint.findMany({
-      where: { createdBy: userId },
+      where: scope,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
     });
   }
-  async findSales(id: string, userId: string) {
+  async findSales(id: string, userId: string, role?: string) {
     const c = await this.get(id);
-    if (c.createdBy !== userId) throw new ForbiddenException();
+    if (isRestrictedRole(role) && c.salesExecutiveId !== userId && c.createdBy !== userId) {
+      throw new ForbiddenException('Access denied to this complaint');
+    }
     return c;
   }
 

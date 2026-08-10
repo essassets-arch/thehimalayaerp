@@ -31,13 +31,15 @@ export class CustomerComplaintsController {
   @Get('sales/complaints')
   listSales(@Req() req: any) {
     const userId = req.user?.id || req.user?.sub || 'system';
-    return this.service.listSales(userId);
+    const role = req.user?.role?.code || req.user?.role;
+    return this.service.listSales(userId, role);
   }
   @RequirePermissions('sales.customercomplaints.read')
   @Get('sales/complaints/:id')
   salesOne(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.id || req.user?.sub || 'system';
-    return this.service.findSales(id, userId);
+    const role = req.user?.role?.code || req.user?.role;
+    return this.service.findSales(id, userId, role);
   }
   @RequirePermissions('sales.customercomplaints.update')
   @Put('sales/complaints/:id')

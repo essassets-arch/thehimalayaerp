@@ -163,6 +163,7 @@ model User {
   machineStatusUpdates          MachineDailyStatus[]   @relation("UserMachineStatusUpdates")
   salesExecutiveLeads           Lead[]                 @relation("SalesExecutiveLeads")
   salesExecutiveQuotations      Quotation[]            @relation("SalesExecutiveQuotations")
+  customerComplaints            CustomerComplaint[]    @relation("CustomerComplaintSalesExecutive")
   salesExecutiveOrders          SalesOrder[]           @relation("SalesExecutiveOrders")
   salesExecutiveSamples         SampleRequest[]        @relation("SalesExecutiveSamples")
 }
@@ -1193,12 +1194,15 @@ model CustomerComplaint {
   version       Int      @default(1)
   createdAt     DateTime @default(now())
   updatedAt     DateTime        @updatedAt
-  customer      Customer        @relation(fields: [customerId], references: [id])
-  product       Product         @relation(fields: [productId], references: [id])
+  salesExecutiveId String?
+  salesExecutive   User?           @relation("CustomerComplaintSalesExecutive", fields: [salesExecutiveId], references: [id])
+  customer         Customer        @relation(fields: [customerId], references: [id])
+  product          Product         @relation(fields: [productId], references: [id])
 
   @@index([customerId])
   @@index([productId])
   @@index([status])
+  @@index([salesExecutiveId])
 }
 
 model SalesReturn {

@@ -1,8 +1,10 @@
 export function isRestrictedRole(role?: string): boolean {
   if (!role) return true;
+  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
   const restrictedRoles = [
     'SALES_EXECUTIVE',
     'SALES_INTERN',
+    'SUPER_SALES',
     'PLANT_HEAD',
     'PRODUCTION_OPERATOR',
     'DISPATCH_EXECUTIVE',
@@ -10,7 +12,7 @@ export function isRestrictedRole(role?: string): boolean {
     'FINANCE_MANAGER',
     'STORE_MANAGER',
   ];
-  return restrictedRoles.includes(role);
+  return restrictedRoles.includes(normalizedRole);
 }
 
 export function canAssignSalesOwner(role?: string): boolean {
@@ -91,54 +93,44 @@ export function getSalesScope(
   }
 
   // Individual Salesperson Roles (SUPER_SALES, SALES_EXECUTIVE, SALES_INTERN, etc.)
-  const leadOwnership = { OR: [{ createdById: userId }, { assignedToId: userId }, { salesExecutiveId: userId }] };
-
   if (targetModel === 'Lead' || targetModel === 'assignedToId') {
-    return leadOwnership;
+    return { salesExecutiveId: userId };
   }
 
   if (targetModel === 'Quotation') {
-    return {
-      OR: [
-        { createdById: userId },
-        { salesExecutiveId: userId },
-        { lead: leadOwnership },
-      ],
-    };
+    return { salesExecutiveId: userId };
   }
 
   if (targetModel === 'SalesOrder') {
-    return {
-      OR: [
-        { createdById: userId },
-        { salesExecutiveId: userId },
-        { quotation: { OR: [{ createdById: userId }, { salesExecutiveId: userId }, { lead: leadOwnership }] } },
-      ],
-    };
+    return { salesExecutiveId: userId };
   }
 
   if (targetModel === 'SampleRequest') {
-    return {
-      OR: [
-        { createdById: userId },
-        { salesExecutiveId: userId },
-        { lead: leadOwnership },
-      ],
-    };
+    return { salesExecutiveId: userId };
+  }
+
+  if (targetModel === 'CustomerComplaint') {
+    return { salesExecutiveId: userId };
   }
 
   if (targetModel === 'CustomerPayment') {
+    return { salesOrder: { salesExecutiveId: userId } };
+  }
+
+  if (targetModel === 'Customer') {
     return {
       OR: [
-        { createdById: userId },
-        { salesOrder: { OR: [{ createdById: userId }, { salesExecutiveId: userId }, { quotation: { OR: [{ createdById: userId }, { salesExecutiveId: userId }, { lead: leadOwnership }] } }] } },
+        { salesOrders: { some: { salesExecutiveId: userId } } },
+        { sampleRequests: { some: { salesExecutiveId: userId } } },
+        { leads: { some: { salesExecutiveId: userId } } },
+        { salesExecutiveId: userId },
       ],
     };
   }
 
   // Generic fallback if passed a field name like 'createdById' or 'assignedToId'
   if (targetModel === 'createdById') {
-    return { OR: [{ createdById: userId }, { salesExecutiveId: userId }] };
+    return { salesExecutiveId: userId };
   }
 
   return { [targetModel]: userId };

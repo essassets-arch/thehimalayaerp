@@ -102,7 +102,7 @@ export class CustomersService {
             ],
           }
         : {}),
-      ...getSalesScope(userId, role, 'createdById'),
+      ...getSalesScope(userId, role, 'Customer'),
     };
 
     const [items, total] = await Promise.all([
@@ -119,7 +119,7 @@ export class CustomersService {
   }
 
   async getById(id: string, companyId: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'Customer');
     const customer = await this.prisma.customer.findFirst({
       where: { id, companyId, ...scope, deletedAt: null },
     });
