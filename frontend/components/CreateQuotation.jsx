@@ -730,6 +730,17 @@ export default function CreateQuotation({
             />
           </div>
           <div className="form-group">
+            <label className="form-label">GST Name *</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Legal name as per GST registration" 
+              value={gstName} 
+              onChange={e => setGstName(e.target.value)} 
+              required
+            />
+          </div>
+          <div className="form-group">
             <label className="form-label">GST Registered? *</label>
             <select
               className="form-select"
@@ -746,17 +757,6 @@ export default function CreateQuotation({
               <option value="YES">Yes (GST Registered)</option>
               <option value="NO">No (Unregistered / Non-GST)</option>
             </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">GST Name *</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="Legal name as per GST registration" 
-              value={gstName} 
-              onChange={e => setGstName(e.target.value)} 
-              required
-            />
           </div>
           {(isGstRegistered || 'YES') === 'YES' && (
             <div className="form-group">
