@@ -23,6 +23,7 @@ RUN npx prisma generate
 # Copy application source code
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
+COPY scripts ./scripts
 
 # Build NestJS production bundle to dist/
 RUN npm run build
@@ -48,11 +49,12 @@ RUN addgroup -S nestjs && adduser -S nestjs -G nestjs
 # Create uploads directory and assign permissions
 RUN mkdir -p /app/uploads && chown -R nestjs:nestjs /app/uploads
 
-# Copy node_modules, generated Prisma client, and built dist from builder
+# Copy node_modules, generated Prisma client, built dist, and scripts from builder
 COPY --from=builder --chown=nestjs:nestjs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nestjs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nestjs /app/dist-seed ./dist-seed
 COPY --from=builder --chown=nestjs:nestjs /app/prisma ./prisma
+COPY --from=builder --chown=nestjs:nestjs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nestjs /app/package.json ./package.json
 
 USER nestjs
