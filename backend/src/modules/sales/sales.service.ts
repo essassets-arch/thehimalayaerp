@@ -299,7 +299,7 @@ export class SalesService {
     userId: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'SalesOrder');
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, ...scope },
@@ -461,7 +461,7 @@ export class SalesService {
     userId: string,
     role?: string,
   ): Promise<SalesOrderResponseDto> {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getSalesScope(userId, role, 'Quotation');
     const quotation = await this.prisma.quotation.findFirst({
       where: { id: dto.quotationId, ...scope },
     });

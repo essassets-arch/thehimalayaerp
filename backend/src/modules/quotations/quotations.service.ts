@@ -289,7 +289,7 @@ export class QuotationsService {
     role?: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const scope = getSalesScope(userId, role, 'createdById');
+      const scope = getSalesScope(userId, role, 'Quotation');
       const quotation = await tx.quotation.findFirst({
         where: {
           id,
@@ -387,7 +387,7 @@ export class QuotationsService {
 
   async duplicateVersion(id: string, userId: string, role?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const scope = getSalesScope(userId, role, 'createdById');
+      const scope = getSalesScope(userId, role, 'Quotation');
       const original = await tx.quotation.findFirst({
         where: { id, ...scope },
         include: { items: true, workflowState: true },
