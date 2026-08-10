@@ -169,6 +169,7 @@ export default function CreateQuotation({
   const emptyQuotationForm = {
     customerName: quotationDraft ? (quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
     groupName: quotationDraft ? (quotationDraft.groupName || quotationDraft.group_name || '') : '',
+    isGstRegistered: quotationDraft && quotationDraft.gstNumber === '' ? 'NO' : 'YES',
     gstNumber: quotationDraft ? (quotationDraft.gstNumber || '') : '',
     gstName: quotationDraft ? (quotationDraft.gstName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
     validTill: defaultValidTill(),
@@ -187,7 +188,7 @@ export default function CreateQuotation({
   });
 
   const {
-    customerName, groupName, gstNumber, gstName, validTill, paymentTerms,
+    customerName, groupName, isGstRegistered, gstNumber, gstName, validTill, paymentTerms,
     items: storedItems, transportCharge, notes
   } = formData;
   const items = useMemo(
@@ -204,6 +205,7 @@ export default function CreateQuotation({
 
   const setCustomerName = (val) => updateField('customerName', val);
   const setGroupName = (val) => updateField('groupName', val);
+  const setIsGstRegistered = (val) => updateField('isGstRegistered', val);
   const setGstNumber = (val) => updateField('gstNumber', val);
   const setGstName = (val) => updateField('gstName', val);
   const setValidTill = (val) => updateField('validTill', val);
@@ -275,7 +277,13 @@ export default function CreateQuotation({
     setCustomerName(option.name);
     setGroupName(option.groupName || '');
     setGstName(option.gstName || option.name);
-    if (option.gstNumber) setGstNumber(option.gstNumber);
+    if (option.gstNumber) {
+      setGstNumber(option.gstNumber);
+      setIsGstRegistered('YES');
+    } else {
+      setGstNumber('');
+      setIsGstRegistered('NO');
+    }
     setCustomerSearchOpen(false);
   };
 
@@ -446,8 +454,9 @@ export default function CreateQuotation({
       alert('Please create this lead first, then generate the quotation from the saved lead/customer.');
       return;
     }
-    if (!customerName.trim() || !groupName.trim() || !gstName.trim() || !gstNumber.trim()) {
-      alert('Please fill out Customer Name, Group Name, GST Name, and GST Number.');
+    const isGstYes = (isGstRegistered || 'YES') === 'YES';
+    if (!customerName.trim() || !groupName.trim() || !gstName.trim() || (isGstYes && !gstNumber.trim())) {
+      alert(`Please fill out Customer Name, Group Name, GST Name${isGstYes ? ', and GST Number' : ''}.`);
       return;
     }
     
@@ -498,8 +507,9 @@ export default function CreateQuotation({
     const payload = {
       customerName: selectedCustomerRecord?.name || (customerName || '').trim(),
       groupName: selectedCustomerRecord?.groupName || (groupName || '').trim(),
+      isGstRegistered: (isGstRegistered || 'YES') === 'YES',
       gstName: selectedCustomerRecord?.gstName || (gstName || '').trim() || selectedCustomerRecord?.name || (customerName || '').trim(),
-      gstNumber: selectedCustomerRecord?.gstNumber || (gstNumber || '').trim(),
+      gstNumber: (isGstRegistered || 'YES') === 'YES' ? (selectedCustomerRecord?.gstNumber || (gstNumber || '').trim()) : '',
       salesperson: salespersonName,
       items: items.map((item) => {
         const itemQty = Number(item.quantity) || 0;
@@ -720,6 +730,24 @@ export default function CreateQuotation({
             />
           </div>
           <div className="form-group">
+            <label className="form-label">GST Registered? *</label>
+            <select
+              className="form-select"
+              value={isGstRegistered || 'YES'}
+              onChange={e => {
+                const val = e.target.value;
+                setIsGstRegistered(val);
+                if (val === 'NO') {
+                  setGstNumber('');
+                }
+              }}
+              required
+            >
+              <option value="YES">Yes (GST Registered)</option>
+              <option value="NO">No (Unregistered / Non-GST)</option>
+            </select>
+          </div>
+          <div className="form-group">
             <label className="form-label">GST Name *</label>
             <input 
               type="text" 
@@ -730,18 +758,20 @@ export default function CreateQuotation({
               required
             />
           </div>
-          <div className="form-group">
-            <label className="form-label">GST Number *</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="e.g. 09ABCDE1234F1Z5" 
-              value={gstNumber} 
-              onChange={e => setGstNumber(e.target.value.toUpperCase())} 
-              maxLength={15}
-              required
-            />
-          </div>
+          {(isGstRegistered || 'YES') === 'YES' && (
+            <div className="form-group">
+              <label className="form-label">GST Number *</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. 09ABCDE1234F1Z5" 
+                value={gstNumber} 
+                onChange={e => setGstNumber(e.target.value.toUpperCase())} 
+                maxLength={15}
+                required
+              />
+            </div>
+          )}
         </div>
 
         <div className="form-row">
