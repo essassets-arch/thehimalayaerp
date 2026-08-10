@@ -7,7 +7,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Decimal } from '@prisma/client/runtime/library';
-import { getSalesScope, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import { getQuotationSalesScope, getLeadSalesScope, getSalesScope, canAssignSalesOwner } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class QuotationsService {
@@ -23,7 +23,7 @@ export class QuotationsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'Quotation');
+    const scope = getQuotationSalesScope(userId, role);
     return this.prisma.quotation.findMany({
       where: {
         ...scope,
@@ -49,7 +49,7 @@ export class QuotationsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'Quotation');
+    const scope = getQuotationSalesScope(userId, role);
     const quotation = await this.prisma.quotation.findFirst({
       where: {
         id,
@@ -159,6 +159,22 @@ export class QuotationsService {
     if (!dto.leadId && !dto.customerId)
       throw new BadRequestException('Lead or customer is required');
 
+    let leadSalesExecutiveId: string | null = null;
+    if (dto.leadId) {
+      const leadObj = await this.prisma.lead.findFirst({
+        where: {
+          id: dto.leadId,
+          ...(resolvedCompanyId ? { companyId: resolvedCompanyId } : {}),
+          ...getLeadSalesScope(userId, role),
+        },
+        select: { salesExecutiveId: true, assignedToId: true, createdById: true },
+      });
+      if (!leadObj) {
+        throw new NotFoundException('Lead not found');
+      }
+      leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+    }
+
     const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
     if (dto.leadId) {
       const samples = await this.prisma.sampleRequest.findMany({
@@ -221,16 +237,6 @@ export class QuotationsService {
       `QT-${new Date().getFullYear()}-`,
     );
 
-    let leadSalesExecutiveId: string | null = null;
-    if (dto.leadId) {
-      const leadObj = await this.prisma.lead.findUnique({
-        where: { id: dto.leadId },
-        select: { salesExecutiveId: true, assignedToId: true, createdById: true },
-      });
-      if (leadObj) {
-        leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
-      }
-    }
     const isManager = canAssignSalesOwner(role);
     const resolvedSalesExecutiveId = isManager
       ? (dto.salesExecutiveId || leadSalesExecutiveId || userId)

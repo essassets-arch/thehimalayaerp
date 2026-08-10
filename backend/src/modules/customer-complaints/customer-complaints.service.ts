@@ -7,7 +7,7 @@ import {
 import { ComplaintStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCustomerComplaintDto } from './dto/create-customer-complaint.dto';
-import { getSalesScope, isRestrictedRole } from '../../common/utils/rbac.util';
+import { getComplaintSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
 
 const includeRelations = {
   customer: { select: { id: true, companyName: true, customerCode: true } },
@@ -18,7 +18,7 @@ const includeRelations = {
 export class CustomerComplaintsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async get(id: string) {
+  async get(id: string) {
     const complaint = await this.prisma.customerComplaint.findUnique({
       where: { id },
       include: includeRelations,
@@ -29,47 +29,40 @@ export class CustomerComplaintsService {
 
   private async number() {
     const count = await this.prisma.customerComplaint.count();
-    const year = new Date().getFullYear();
-    let num = `CMP-${year}-${String(count + 1).padStart(4, '0')}`;
+    let num = `CMP-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
     const existing = await this.prisma.customerComplaint.findUnique({
       where: { complaintNo: num },
     });
     if (existing) {
-      num = `CMP-${year}-${String(count + 1).padStart(4, '0')}-${Date.now().toString().slice(-4)}`;
+      num = `CMP-${new Date().getFullYear()}-${String(count + 2).padStart(4, '0')}`;
     }
     return num;
   }
 
   async create(dto: CreateCustomerComplaintDto, userId: string) {
-    const [customer, product] = await Promise.all([
-      this.prisma.customer.findUnique({ where: { id: dto.customerId } }),
-      this.prisma.product.findUnique({ where: { id: dto.productId } }),
-    ]);
-    if (!customer) throw new NotFoundException('Customer not found');
-    if (!product) throw new NotFoundException('Product not found');
     const status =
       dto.status === 'DRAFT'
         ? ComplaintStatus.DRAFT
         : ComplaintStatus.PENDING_SUPER_ADMIN;
-    const now = new Date();
+
     return this.prisma.customerComplaint.create({
       data: {
         complaintNo: await this.number(),
         customerId: dto.customerId,
         productId: dto.productId,
         complaintType: dto.complaintType,
-        priority: dto.priority,
+        priority: (dto.priority as any) || 'MEDIUM',
         complaintDate: new Date(dto.complaintDate),
         subject: dto.subject,
         description: dto.description,
         salesRemarks: dto.salesRemarks,
         attachment: dto.attachment,
         status,
-        salesExecutiveId: userId,
+        submittedBy: userId,
         createdBy: userId,
-        updatedBy: userId,
+        salesExecutiveId: userId,
         ...(status === ComplaintStatus.PENDING_SUPER_ADMIN
-          ? { submittedBy: userId, submittedAt: now }
+          ? { submittedAt: new Date() }
           : {}),
       },
       include: includeRelations,
@@ -77,17 +70,22 @@ export class CustomerComplaintsService {
   }
 
   async listSales(userId: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'CustomerComplaint');
+    const scope = getComplaintSalesScope(userId, role);
     return this.prisma.customerComplaint.findMany({
       where: scope,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
     });
   }
+
   async findSales(id: string, userId: string, role?: string) {
-    const c = await this.get(id);
-    if (isRestrictedRole(role) && c.salesExecutiveId !== userId && c.createdBy !== userId) {
-      throw new ForbiddenException('Access denied to this complaint');
+    const scope = getComplaintSalesScope(userId, role);
+    const c = await this.prisma.customerComplaint.findFirst({
+      where: { id, ...scope },
+      include: includeRelations,
+    });
+    if (!c) {
+      throw new NotFoundException('Complaint not found');
     }
     return c;
   }

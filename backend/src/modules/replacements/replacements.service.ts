@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestReplacementDto } from './dto/request-replacement.dto';
+import { getReplacementSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class ReplacementsService {
@@ -98,25 +99,29 @@ export class ReplacementsService {
           items: {
             create: dto.items.map((i) => ({
               salesOrderItemId: i.salesOrderItemId,
-              productId: order.items.find((oi) => oi.id === i.salesOrderItemId)!
-                .productId,
+              productId: order.items.find((oi) => oi.id === i.salesOrderItemId)!.productId,
               requestedQuantity: i.requestedQuantity,
               reason: i.reason,
             })),
           },
         },
-        include: { items: true },
+        include: {
+          salesOrder: { include: { customer: true } },
+          items: { include: { product: true, salesOrderItem: true } },
+        },
       });
 
       return replacementReq;
     });
   }
 
-  async findAll(companyId: string) {
+  async findAll(companyId?: string, userId?: string, role?: string) {
+    const isScoped = isSalespersonScopedRole(role);
     return this.prisma.replacementRequest.findMany({
       where: {
         salesOrder: {
-          customer: { companyId },
+          ...(companyId ? { customer: { companyId } } : {}),
+          ...(isScoped ? { salesExecutiveId: userId } : {}),
         },
       },
       orderBy: { requestedAt: 'desc' },

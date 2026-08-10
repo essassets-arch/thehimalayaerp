@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestSalesReturnDto } from './dto/request-sales-return.dto';
+import { getReturnSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SalesReturnsService {
@@ -129,11 +130,13 @@ export class SalesReturnsService {
     });
   }
 
-  async findAll(companyId: string) {
+  async findAll(companyId?: string, userId?: string, role?: string) {
+    const isScoped = isSalespersonScopedRole(role);
     return this.prisma.salesReturn.findMany({
       where: {
         salesOrder: {
-          customer: { companyId },
+          ...(companyId ? { customer: { companyId } } : {}),
+          ...(isScoped ? { salesExecutiveId: userId } : {}),
         },
       },
       orderBy: { requestedAt: 'desc' },

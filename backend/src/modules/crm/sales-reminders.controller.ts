@@ -4,7 +4,7 @@ import { UseGuards, Controller, Get, Query, Req } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
-import { getSalesScope } from '../../common/utils/rbac.util';
+import { getFollowUpSalesScope } from '../../common/utils/rbac.util';
 
 /** Read-only reminder feed used by the Sales workspace. */
 @Controller('sales/reminders')
@@ -15,7 +15,8 @@ export class SalesRemindersController {
   @Get()
   @RequirePermissions('sales.leads.read')
   async list(@Req() req: any, @Query('status') status?: string) {
-    const scope = getSalesScope(req.user?.sub, req.user?.role, 'createdById');
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    const scope = getFollowUpSalesScope(userId, req.user?.role);
     const reminders = await this.prisma.followUp.findMany({
       where: {
         ...(status === 'completed' ? { reminderAt: { lt: new Date() } } : {}),

@@ -13,7 +13,7 @@ import {
 } from '../../common/utils/database.util';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { SampleStatus } from '@prisma/client';
-import { getSalesScope, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import { getSampleSalesScope, getLeadSalesScope, isSalespersonScopedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SamplesService {
@@ -61,10 +61,17 @@ export class SamplesService {
 
       let leadSalesExecutiveId: string | null = null;
       if (createSampleDto.leadId) {
-        const leadObj = await tx.lead.findUnique({
-          where: { id: createSampleDto.leadId },
+        const leadObj = await tx.lead.findFirst({
+          where: {
+            id: createSampleDto.leadId,
+            ...(createSampleDto.companyId ? { companyId: createSampleDto.companyId } : {}),
+            ...getLeadSalesScope(userId, role),
+          },
           select: { salesExecutiveId: true, assignedToId: true, createdById: true },
         });
+        if (!leadObj && isSalespersonScopedRole(role)) {
+          throw new NotFoundException('Lead not found');
+        }
         if (leadObj) {
           leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
         }
@@ -131,7 +138,7 @@ export class SamplesService {
   }
 
   async findAll(companyId: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'SampleRequest');
+    const scope = getSampleSalesScope(userId, role);
     return this.prisma.sampleRequest.findMany({
       where: { companyId, deletedAt: null, ...scope },
       include: {
@@ -151,7 +158,7 @@ export class SamplesService {
   }
 
   async findOne(id: string, companyId: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'SampleRequest');
+    const scope = getSampleSalesScope(userId, role);
     const sample = await this.prisma.sampleRequest.findFirst({
       where: { id, companyId, deletedAt: null, ...scope },
       include: {

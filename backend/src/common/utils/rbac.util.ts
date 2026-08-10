@@ -1,3 +1,5 @@
+import { UnauthorizedException } from '@nestjs/common';
+
 export function isRestrictedRole(role?: string): boolean {
   if (!role) return true;
   const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
@@ -15,11 +17,71 @@ export function isRestrictedRole(role?: string): boolean {
   return restrictedRoles.includes(normalizedRole);
 }
 
+export function isSalespersonScopedRole(role?: string): boolean {
+  if (!role) return false;
+  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
+  return ['SUPER_SALES', 'SALES_EXECUTIVE', 'SALES_INTERN'].includes(normalizedRole);
+}
+
 export function canAssignSalesOwner(role?: string): boolean {
   if (!role) return false;
   const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
   const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'SUPER_USER', 'SALES_MANAGER'];
   return allowedRoles.includes(normalizedRole);
+}
+
+export function getLeadSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { salesExecutiveId: userId };
+}
+
+export function getQuotationSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { salesExecutiveId: userId };
+}
+
+export function getOrderSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { salesExecutiveId: userId };
+}
+
+export function getSampleSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { salesExecutiveId: userId };
+}
+
+export function getComplaintSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { salesExecutiveId: userId };
+}
+
+export function getReturnSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { salesOrder: { salesExecutiveId: userId } };
+}
+
+export function getReplacementSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { salesOrder: { salesExecutiveId: userId } };
+}
+
+export function getPaymentSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { createdById: userId };
+}
+
+export function getFollowUpSalesScope(userId?: string, role?: string): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  return { createdById: userId };
 }
 
 export function getAdvancedScope(
@@ -28,8 +90,6 @@ export function getAdvancedScope(
   rules: Record<string, any> = {},
 ): Record<string, any> {
   if (!userId || !role) {
-    // If no role/userId is provided but the function is called, return the first rule to fail safe?
-    // Actually, if no role, assume unrestricted? No, if no role, they shouldn't see anything.
     if (!role) return { id: 'UNAUTHORIZED_NO_ROLE' };
     return {};
   }
@@ -50,18 +110,14 @@ export function getAdvancedScope(
     }
   }
 
-  // Admin/Super Admin are 'OTHER', they get {} (unrestricted).
   if (userDomain === 'OTHER') {
     return {};
   }
 
-  // If a rule exists for their domain, apply it.
   if (rules[userDomain]) {
     return rules[userDomain];
   }
 
-  // If they are in a restricted domain but no explicit rule allows them,
-  // they can still see it by default (e.g. Finance seeing Sales Orders)
   return {};
 }
 
@@ -70,82 +126,38 @@ export function getSalesScope(
   role?: string,
   targetModel: 'Lead' | 'Quotation' | 'SalesOrder' | 'SampleRequest' | 'CustomerPayment' | 'ProductionPlan' | 'Dispatch' | 'WorkOrder' | string = 'createdById',
 ): Record<string, any> {
-  if (!userId || !role) return {};
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
 
-  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
-
-  // Management / Department Head roles that have unrestricted cross-team visibility
-  const unrestrictedRoles = [
-    'SUPER_ADMIN',
-    'ADMIN',
-    'SUPER_USER',
-    'PLANT_HEAD',
-    'FINANCE_MANAGER',
-    'FINANCE_EXECUTIVE',
-    'SALES_MANAGER',
-    'STORE_MANAGER',
-    'DISPATCH_EXECUTIVE',
-    'QC_EXECUTIVE',
-  ];
-
-  if (unrestrictedRoles.includes(normalizedRole)) {
-    return {};
-  }
-
-  // Individual Salesperson Roles (SUPER_SALES, SALES_EXECUTIVE, SALES_INTERN, etc.)
   if (targetModel === 'Lead' || targetModel === 'assignedToId') {
-    return { salesExecutiveId: userId };
+    return getLeadSalesScope(userId, role);
   }
-
   if (targetModel === 'Quotation') {
-    return { salesExecutiveId: userId };
+    return getQuotationSalesScope(userId, role);
   }
-
   if (targetModel === 'SalesOrder') {
-    return { salesExecutiveId: userId };
+    return getOrderSalesScope(userId, role);
   }
-
   if (targetModel === 'SampleRequest') {
-    return { salesExecutiveId: userId };
+    return getSampleSalesScope(userId, role);
   }
-
   if (targetModel === 'CustomerComplaint') {
-    return { salesExecutiveId: userId };
+    return getComplaintSalesScope(userId, role);
   }
-
   if (targetModel === 'CustomerPayment') {
-    return { salesOrder: { salesExecutiveId: userId } };
+    return getPaymentSalesScope(userId, role);
+  }
+  if (targetModel === 'FollowUp' || targetModel === 'createdById') {
+    return getFollowUpSalesScope(userId, role);
+  }
+  if (targetModel === 'SalesReturn') {
+    return getReturnSalesScope(userId, role);
+  }
+  if (targetModel === 'ReplacementRequest') {
+    return getReplacementSalesScope(userId, role);
   }
 
-  if (targetModel === 'ProductionPlan') {
-    return { salesOrder: { salesExecutiveId: userId } };
-  }
-
-  if (targetModel === 'Dispatch') {
-    return { salesOrder: { salesExecutiveId: userId } };
-  }
-
-  if (targetModel === 'WorkOrder') {
-    return { productionPlan: { salesOrder: { salesExecutiveId: userId } } };
-  }
-
-  if (targetModel === 'Customer') {
-    return {
-      OR: [
-        { salesOrders: { some: { salesExecutiveId: userId } } },
-        { sampleRequests: { some: { salesExecutiveId: userId } } },
-        { leads: { some: { salesExecutiveId: userId } } },
-        { salesExecutiveId: userId },
-      ],
-    };
-  }
-
-  // Generic fallback if passed a field name like 'createdById' or 'assignedToId'
-  if (targetModel === 'createdById') {
-    return { salesExecutiveId: userId };
-  }
-
-  return { [targetModel]: userId };
+  return { salesExecutiveId: userId };
 }
 
 export function getProcurementScope(
@@ -153,9 +165,7 @@ export function getProcurementScope(
   role?: string,
   companyId?: string,
 ): Record<string, any> {
-  // Procurement gets access to their company's data.
-  // Further filtering by branch or specific rules could apply if they are store managers.
-  if (!companyId) return {}; // Global read if not company specific
+  if (!companyId) return {};
   return getAdvancedScope(userId, role, {
     STORE: { companyId },
   });
@@ -166,15 +176,13 @@ export function getHrScope(
   role?: string,
   employeeId?: string,
 ): Record<string, any> {
-  // Regular employees should only see their own HR data
   const rules: Record<string, any> = {};
   if (employeeId) {
-    rules['OTHER'] = { id: employeeId }; // General non-HR users can only see their own record
+    rules['OTHER'] = { id: employeeId };
     rules['SALES'] = { id: employeeId };
     rules['PRODUCTION'] = { id: employeeId };
     rules['DISPATCH'] = { id: employeeId };
     rules['STORE'] = { id: employeeId };
-    // FINANCE can see payroll broadly, HR can see everyone.
   }
   return getAdvancedScope(userId, role, rules);
 }
@@ -208,3 +216,4 @@ export function getDispatchScope(
     DISPATCH: companyId ? { companyId } : {},
   });
 }
+

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { getSalesScope } from '../../common/utils/rbac.util';
+import { getLeadSalesScope, getQuotationSalesScope, getOrderSalesScope } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class CrmInsightsService {
@@ -12,12 +12,11 @@ export class CrmInsightsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'createdById');
+    const scope = getLeadSalesScope(userId, role);
     const customer = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
         deletedAt: null,
-        ...scope,
         ...(companyId ? { companyId } : {}),
       },
     });
@@ -26,7 +25,7 @@ export class CrmInsightsService {
     const [leads, quotations, orders, invoices, payments, ledger] =
       await Promise.all([
         this.prisma.lead.findMany({
-          where: { OR: [{ customerId }, { convertedCustomerId: customerId }] },
+          where: { OR: [{ customerId }, { convertedCustomerId: customerId }], ...scope },
           include: { workflowState: true, activities: true },
           orderBy: { createdAt: 'desc' },
         }),
@@ -40,17 +39,18 @@ export class CrmInsightsService {
                 },
               },
             ],
+            ...getQuotationSalesScope(userId, role),
           },
           include: { workflowState: true, items: true },
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.salesOrder.findMany({
-          where: { customerId, deletedAt: null },
+          where: { customerId, deletedAt: null, ...getOrderSalesScope(userId, role) },
           include: { workflowState: true, items: true, dispatches: true },
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.salesInvoice.findMany({
-          where: { salesOrder: { customerId } },
+          where: { salesOrder: { customerId, ...getOrderSalesScope(userId, role) } },
           include: {
             workflowState: true,
             items: true,
@@ -59,7 +59,7 @@ export class CrmInsightsService {
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.customerPayment.findMany({
-          where: { customerId },
+          where: { customerId, ...(userId ? { createdById: userId } : {}) },
           include: { workflowState: true, allocations: true },
           orderBy: { createdAt: 'desc' },
         }),
@@ -124,9 +124,9 @@ export class CrmInsightsService {
 
   async salesDashboard(companyId?: string, userId?: string, role?: string) {
     const companyFilter = companyId ? { companyId } : {};
-    const leadScope = getSalesScope(userId, role, 'Lead');
-    const quotationScope = getSalesScope(userId, role, 'Quotation');
-    const orderScope = getSalesScope(userId, role, 'SalesOrder');
+    const leadScope = getLeadSalesScope(userId, role);
+    const quotationScope = getQuotationSalesScope(userId, role);
+    const orderScope = getOrderSalesScope(userId, role);
 
     const [
       leadStates,

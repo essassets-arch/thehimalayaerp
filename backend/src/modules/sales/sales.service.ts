@@ -17,7 +17,7 @@ import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto
 import { Decimal } from '@prisma/client/runtime/library';
 import { WorkflowService } from '../workflow/workflow.service';
 import { CreditService } from '../finance/credit.service';
-import { getSalesScope, isRestrictedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import { getOrderSalesScope, getQuotationSalesScope, getSalesScope, isSalespersonScopedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SalesService {
@@ -36,9 +36,9 @@ export class SalesService {
     const { page = 1, pageSize = 100, search, status } = query;
     const skip = (page - 1) * pageSize;
     const take = pageSize;
-    const isDispatchScope = status === ('READY_FOR_DISPATCH' as any) || role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN';
-    const scope = isDispatchScope ? {} : getSalesScope(userId, role, 'SalesOrder');
-    const where: Prisma.SalesOrderWhereInput = { ...scope };
+    const isOperationalScope = role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'PLANT_HEAD' || role === 'FINANCE_MANAGER' || role === 'FINANCE_EXECUTIVE';
+    const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
+    const where: Prisma.SalesOrderWhereInput = { ...scope, deletedAt: null };
 
     if (status) {
       where.OR = [
@@ -104,16 +104,22 @@ export class SalesService {
   }
 
   async getOrder(id: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'SalesOrder');
+    const isOperationalScope = role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'PLANT_HEAD' || role === 'FINANCE_MANAGER' || role === 'FINANCE_EXECUTIVE';
+    const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
     const order = await this.prisma.salesOrder.findFirst({
       where: {
-        OR: [
-          { id },
-          { orderNumber: id },
-          { orderNumber: `ORD-${id}` },
-          { orderNumber: id.replace(/^#/, '') },
+        AND: [
+          {
+            OR: [
+              { id },
+              { orderNumber: id },
+              { orderNumber: `ORD-${id}` },
+              { orderNumber: id.replace(/^#/, '') },
+            ],
+          },
+          scope,
+          { deletedAt: null },
         ],
-        ...scope
       },
       include: {
         customer: true,
@@ -216,10 +222,13 @@ export class SalesService {
       );
       let quotationSalesExecutiveId: string | null = null;
       if (dto.quotationId) {
-        const quoteObj = await tx.quotation.findUnique({
-          where: { id: dto.quotationId },
+        const quoteObj = await tx.quotation.findFirst({
+          where: { id: dto.quotationId, ...getQuotationSalesScope(userId, role) },
           select: { salesExecutiveId: true, createdById: true },
         });
+        if (!quoteObj && isSalespersonScopedRole(role)) {
+          throw new NotFoundException('Quotation not found');
+        }
         if (quoteObj) {
           quotationSalesExecutiveId = quoteObj.salesExecutiveId || quoteObj.createdById;
         }
