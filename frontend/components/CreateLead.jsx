@@ -159,6 +159,21 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         additionalCharges: item.additionalCharges != null ? Number(item.additionalCharges) : 0
       }));
     }
+    if (editingLead?.quotations?.[0]?.items?.length > 0) {
+      return editingLead.quotations[0].items.map((item, idx) => ({
+        id: item.id || idx + 1,
+        productId: item.productId || item.product?.id || '',
+        productName: item.productName || item.product?.name || item.name || '',
+        productCode: item.productCode || item.product?.code || item.code || '',
+        specification: item.specification ?? '',
+        color: item.color ?? '',
+        quantity: item.quantity != null ? Number(item.quantity) : 1,
+        unitPrice: item.unitPrice != null ? Number(item.unitPrice) : (Number(item.rate) || 100),
+        discount: item.discount != null ? Number(item.discount) : 0,
+        tax: item.tax ?? item.gstRate ?? 18,
+        additionalCharges: item.additionalCharges != null ? Number(item.additionalCharges) : 0
+      }));
+    }
     if (editingLead && (editingLead.productInterest || editingLead.productInterested || editingLead.requirements)) {
       return [{
         id: 1,
