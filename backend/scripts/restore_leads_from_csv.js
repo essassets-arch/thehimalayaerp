@@ -111,7 +111,7 @@ async function main() {
       const getOwnerByCode = (contactCode) => {
         const code = (contactCode || '').trim().toUpperCase();
         if (code === 'JP') return userMap['sales1@himalayaerp.com'];
-        if (code === 'MTH') return userMap['sales2@himalayaerp.com'];
+        if (code === 'MTH') return userMap['supersales2@himalayaerp.com'];
         if (code === 'RT') return userMap['sales3@himalayaerp.com'];
         if (code === 'DEOM') return userMap['sales4@himalayaerp.com'];
         if (code === 'HUSSAIN BHAI') return userMap['sales5@himalayaerp.com'];

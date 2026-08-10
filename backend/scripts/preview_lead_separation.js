@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 const MAPPING_RULES = [
   { initials: 'TG', email: 'trushna.gajjar@himalayaerp.com', label: 'Trushna Gajjar' },
   { initials: 'JP', email: 'sales1@himalayaerp.com', label: 'Sales Executive 1 (JP)' },
-  { initials: 'MTH', email: 'sales2@himalayaerp.com', label: 'Sales Executive 2 (MTH)' },
+  { initials: 'MTH', email: 'supersales2@himalayaerp.com', label: 'Super Sales 2 (MTH)' },
   { initials: 'RT', email: 'sales3@himalayaerp.com', label: 'Sales Executive 3 (RT)' },
   { initials: 'HUSSAIN BHAI', email: 'sales5@himalayaerp.com', label: 'Sales Executive 5 (Hussain)' },
   { initials: 'ROOSHIL BHAI', email: 'sales6@himalayaerp.com', label: 'Sales Executive 6 (Rooshil)' },
