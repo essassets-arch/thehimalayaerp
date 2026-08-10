@@ -357,32 +357,54 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const dispatches = state.dispatches || [];
 
   // ΓöÇΓöÇ Dispatch Category RBAC Filtering ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-  // Determine which dispatch category this user can see based on their role.
-  // Dispatch Manager and legacy 'Dispatch' role: sees ALL orders.
-  // Dispatch 1 Operator: sees only orders with DISPATCH 1 items.
-  // Dispatch 2 Operator: sees only orders with DISPATCH 2 items.
-  const DISPATCH_ROLE_MAP = {
-    'Dispatch 1 Operator': 'DISPATCH 1',
-    'Dispatch 2 Operator': 'DISPATCH 2',
-  };
-  const userDispatchCategory = DISPATCH_ROLE_MAP[user?.role] || null; // null = sees all
+  // Determine user's dispatch category: 'D1' vs 'D2'
+  const userDispatchCat = (
+    user?.dispatchCategory ||
+    (isDispatch2Portal ? 'D2' : (user?.role?.includes('2') || mode === 'DISPATCH_2' ? 'D2' : null))
+  )?.toUpperCase();
 
-  // Filter orders by dispatch category if the user has a restricted role.
-  // An order is visible if ANY of its items belong to the user's dispatch category,
-  // or if no category restriction applies.
+  const isMatchingDispatchCategory = (cat1, cat2) => {
+    if (!cat1 || !cat2) return false;
+    const c1 = String(cat1).trim().toUpperCase();
+    const c2 = String(cat2).trim().toUpperCase();
+    if (c1 === c2) return true;
+    if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) return true;
+    if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) return true;
+    return false;
+  };
+
   const filterOrdersByDispatch = (orderList) => {
-    if (!userDispatchCategory) return orderList; // Dispatch Manager / legacy role ΓÇö sees all
-    return orderList.filter(o => {
-      // Check if order has items tagged with the user's dispatch category
+    if (!userDispatchCat) return orderList || [];
+    if (!Array.isArray(orderList)) return [];
+
+    return orderList.filter((o) => {
+      if (!o) return false;
+
+      // 1. Direct record dispatchCategory
+      if (o.dispatchCategory && isMatchingDispatchCategory(o.dispatchCategory, userDispatchCat)) return true;
+      if (o.dispatch_category && isMatchingDispatchCategory(o.dispatch_category, userDispatchCat)) return true;
+
+      // 2. Product on work order or sales order item
+      const prodCat =
+        o.product?.dispatchCategory ||
+        o.salesOrderItem?.product?.dispatchCategory ||
+        o.productionPlan?.salesOrder?.items?.[0]?.product?.dispatchCategory;
+      if (prodCat && isMatchingDispatchCategory(prodCat, userDispatchCat)) return true;
+
+      // 3. Items array
       const items = o.items || o.order_items || [];
       if (items.length > 0) {
-        return items.some(item =>
-          (item.dispatch_category || item.product_dispatch_category) === userDispatchCategory
-        );
+        return items.some((item) => {
+          const itemCat =
+            item.dispatchCategory ||
+            item.dispatch_category ||
+            item.product_dispatch_category ||
+            item.product?.dispatchCategory ||
+            item.salesOrderItem?.product?.dispatchCategory;
+          return isMatchingDispatchCategory(itemCat, userDispatchCat);
+        });
       }
-      // Fallback: check order-level dispatch_category field if present
-      if (o.dispatch_category) return o.dispatch_category === userDispatchCategory;
-      // If no category info available, show to all (data not yet migrated)
+
       return true;
     });
   };
@@ -1164,16 +1186,20 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   // 1. Enterprise Dynamic Dispatch Dashboard View
   const renderDashboard = () => {
+    const scopedReadyWorkOrders = filterOrdersByDispatch(backendReadyWorkOrders);
+    const scopedDispatches = filterOrdersByDispatch(backendDispatches);
+    const scopedQueueOrders = filterOrdersByDispatch(dispatchQueueOrders);
+
     // Pure Dynamic KPI Calculations from live backend & ERP state
-    const readyCount = backendReadyWorkOrders.length || dispatchQueueOrders.length || qcPassed.length || 0;
+    const readyCount = scopedReadyWorkOrders.length || scopedQueueOrders.length || qcPassed.length || 0;
     
-    const inTransitDispatches = backendDispatches.filter(d => ['IN_TRANSIT', 'In Transit'].includes(d.status || d.dispatchStatus));
+    const inTransitDispatches = scopedDispatches.filter(d => ['IN_TRANSIT', 'In Transit'].includes(d.status || d.dispatchStatus));
     const inTransitCount = inTransitDispatches.length || filteredOrders.filter(o => ['IN_TRANSIT', 'In Transit'].includes(o.status || o.workflowStatus)).length || 0;
     
-    const outDeliveryDispatches = backendDispatches.filter(d => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(d.status || d.dispatchStatus));
+    const outDeliveryDispatches = scopedDispatches.filter(d => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(d.status || d.dispatchStatus));
     const outDeliveryCount = outDeliveryDispatches.length || filteredOrders.filter(o => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(o.status || o.workflowStatus)).length || 0;
     
-    const deliveredDispatches = backendDispatches.filter(d => ['DELIVERED', 'Delivered'].includes(d.status || d.dispatchStatus));
+    const deliveredDispatches = scopedDispatches.filter(d => ['DELIVERED', 'Delivered'].includes(d.status || d.dispatchStatus));
     const deliveredCount = deliveredDispatches.length || filteredOrders.filter(o => ['DELIVERED', 'Delivered'].includes(o.status || o.workflowStatus)).length || 0;
     
     const returnsCount = backendReturns.length || replacementDispatches.length || 0;
@@ -1197,8 +1223,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const pctReturns = totalStatusCount > 0 ? Math.round((returnsCount / totalStatusCount) * 100) : 0;
 
     // Dynamic Ready Queue Data
-    const readyQueueData = backendReadyWorkOrders.length > 0
-      ? backendReadyWorkOrders.slice(0, 5).map(wo => ({
+    const readyQueueData = scopedReadyWorkOrders.length > 0
+      ? scopedReadyWorkOrders.slice(0, 5).map(wo => ({
           dispatchNo: `DISP-${wo.id.slice(-4).toUpperCase()}`,
           customer: wo.productionPlan?.salesOrder?.customer?.companyName || wo.productionPlan?.salesOrder?.customer?.name || 'Customer',
           salesOrder: wo.productionPlan?.salesOrder?.orderNumber || `SO-${wo.salesOrderItemId?.slice(-5) || '10001'}`,
@@ -1206,7 +1232,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           warehouse: 'FG-01',
           id: wo.id,
         }))
-      : dispatchQueueOrders.slice(0, 5).map(d => ({
+      : scopedQueueOrders.slice(0, 5).map(d => ({
           dispatchNo: d.id,
           customer: d.customerName || 'Customer',
           salesOrder: d.orderId || 'SO-10001',
