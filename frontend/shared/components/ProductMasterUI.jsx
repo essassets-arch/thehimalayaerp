@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import axios from 'axios';
+import { backendFetch } from '../../lib/backendFetch';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 
@@ -59,34 +60,32 @@ export default function ProductMasterUI({ role }) {
     setLoading(true);
     try {
       // Fetch full set to enable responsive client-side filtering, KPI calculations, and instant search
-      const { data } = await axios.get('/api/backend/products?limit=1000');
-      if (data.success || Array.isArray(data.data)) {
-        const list = data.data || [];
-        
-        // Normalize fields for backend compatibility
-        const normalizedList = list.map(p => {
-          let cat = p.dispatchCategory || p.dispatch_category;
-          if (cat === 'D1' || cat === 'DISPATCH 1') cat = 'D1';
-          else if (cat === 'D2' || cat === 'DISPATCH 2') cat = 'D2';
-          else cat = 'Unassigned';
+      const data = await backendFetch('/api/backend/products?limit=1000');
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      
+      // Normalize fields for backend compatibility
+      const normalizedList = list.map(p => {
+        let cat = p.dispatchCategory || p.dispatch_category;
+        if (cat === 'D1' || cat === 'DISPATCH 1') cat = 'D1';
+        else if (cat === 'D2' || cat === 'DISPATCH 2') cat = 'D2';
+        else cat = 'Unassigned';
 
-          return {
-            ...p,
-            product_name: p.product_name || p.name || '',
-            product_code: p.product_code || p.sku || '',
-            product_family: p.product_family || p.category || '',
-            unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
-            product_type: normalizeProductType(p.product_type || p.productType),
-            brand: p.brand || 'HIMALAYA',
-            gst_rate: p.gst_rate ?? p.gstRate ?? 18,
-            hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
-            dispatch_category: cat,
-            image_url: p.image_url || p.imageUrl || ''
-          };
-        });
+        return {
+          ...p,
+          product_name: p.product_name || p.name || '',
+          product_code: p.product_code || p.sku || '',
+          product_family: p.product_family || p.category || '',
+          unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
+          product_type: normalizeProductType(p.product_type || p.productType),
+          brand: p.brand || 'HIMALAYA',
+          gst_rate: p.gst_rate ?? p.gstRate ?? 18,
+          hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
+          dispatch_category: cat,
+          image_url: p.image_url || p.imageUrl || ''
+        };
+      });
 
-        setRawProducts(normalizedList);
-      }
+      setRawProducts(normalizedList);
     } catch (err) {
       showToast('Failed to fetch products catalog.');
     } finally {
@@ -228,16 +227,16 @@ export default function ProductMasterUI({ role }) {
 
     try {
       if (formData.id) {
-        await axios.patch(`/api/backend/products/${formData.id}`, payload);
+        await backendFetch(`/api/backend/products/${formData.id}`, { method: 'PATCH', body: payload });
         showToast('Product updated successfully.');
       } else {
-        await axios.post('/api/backend/products', payload);
+        await backendFetch('/api/backend/products', { method: 'POST', body: payload });
         showToast('Product saved successfully.');
       }
       setIsModalOpen(false);
       fetchProducts();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to save product');
+      showToast(err.message || 'Failed to save product');
     } finally {
       setIsSubmitting(false);
     }
@@ -253,11 +252,11 @@ export default function ProductMasterUI({ role }) {
 
     if (isConfirmed) {
       try {
-        await axios.delete(`/api/backend/products/${id}`);
+        await backendFetch(`/api/backend/products/${id}`, { method: 'DELETE' });
         showToast('Product deleted successfully.');
         fetchProducts();
       } catch (err) {
-        showToast(err.response?.data?.message || 'Failed to delete product');
+        showToast(err.message || 'Failed to delete product');
       }
     }
   };
@@ -270,11 +269,11 @@ export default function ProductMasterUI({ role }) {
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const res = await axios.post('/api/backend/products/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      showToast(`Imported successfully. ${res.data.inserted} added, ${res.data.updated} updated.`);
+      const res = await backendFetch('/api/backend/products/import', { method: 'POST', body: fd });
+      showToast(`Imported successfully. ${res?.inserted || 0} added, ${res?.updated || 0} updated.`);
       fetchProducts();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to import products');
+      showToast(err.message || 'Failed to import products');
     } finally {
       setImporting(false);
       e.target.value = '';
@@ -675,15 +674,15 @@ export default function ProductMasterUI({ role }) {
                           const newCat = e.target.value;
                           const updatedCat = newCat === 'Unassigned' ? null : newCat;
                           try {
-                            try {
-                              await axios.patch(`/api/backend/products/${p.id}`, { dispatchCategory: updatedCat });
-                            } catch (e1) {
-                              await axios.put(`/api/backend/products/${p.id}`, { dispatchCategory: updatedCat });
-                            }
+                            await backendFetch(`/api/backend/products/${p.id}`, {
+                              method: 'PATCH',
+                              body: { dispatchCategory: updatedCat },
+                            });
                             setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
                             showToast(`Product ${p.product_code} category updated to ${newCat}!`);
                           } catch (err) {
-                            showToast('Failed to update dispatch category.');
+                            console.error('Failed to update dispatch category:', err);
+                            showToast(`Failed to update category: ${err.message || 'Server error'}`);
                           }
                         }}
                         style={{
