@@ -763,7 +763,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     <th>Order ID</th>
                     <th>Invoice No</th>
                     <th>Customer</th>
-                    <th>Salesperson</th>
                     <th>Delivery Date</th>
                     <th>Invoice Date</th>
                     <th>Payment Terms</th>
@@ -779,7 +778,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 </thead>
                 <tbody>
                   {pendingRows.length === 0 ? (
-                    <tr><td colSpan="15" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
+                    <tr><td colSpan="14" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
                   ) : (
                     pendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
@@ -802,7 +801,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                           <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.order_number}</td>
                           <td data-label="Invoice No" style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.invoice_number}</td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
-                          <td data-label="Salesperson">{o.salesperson}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
                           <td data-label="Invoice Date">{isoDate(o.invoice_date) || '—'}</td>
                           <td data-label="Payment Terms">{o.payment_terms}</td>

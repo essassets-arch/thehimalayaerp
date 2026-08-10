@@ -1056,7 +1056,6 @@ export default function QuotationsView({
               <tr>
                 <th>Quotation ID</th>
                 <th>Customer Name</th>
-                <th>Sales User</th>
                 <th>Product / Items</th>
                 <th>Total Value</th>
                 <th>Status</th>
@@ -1067,7 +1066,7 @@ export default function QuotationsView({
             <tbody>
               {filteredQuotations.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                     No quotations cataloged.
                   </td>
                 </tr>
@@ -1076,13 +1075,6 @@ export default function QuotationsView({
                   <tr key={q.id}>
                     <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`}</td>
                     <td data-label="Customer Name" style={{ fontWeight: '600' }}>{q.customerName}</td>
-                    <td data-label="Sales User">
-                      <SalesOwnerBadge
-                        user={q.salesExecutive}
-                        fallbackName={q.createdByName}
-                        fallbackEmail={q.createdByEmail}
-                      />
-                    </td>
                     <td data-label="Product / Items">{quotationItemsText(q)}</td>
                     <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
                     <td data-label="Status">

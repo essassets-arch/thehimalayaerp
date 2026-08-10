@@ -1411,7 +1411,6 @@ export default function SamplesView({
             <tr>
               <th>ID</th>
               <th>Customer</th>
-              <th>Sales User</th>
               <th>Product</th>
               <th>Days Left</th>
               <th>Status</th>
@@ -1422,7 +1421,7 @@ export default function SamplesView({
           <tbody>
             {filteredSamples.length === 0 ? (
               <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                   No matching sample requests logged.
                 </td>
               </tr>
@@ -1442,13 +1441,6 @@ export default function SamplesView({
                         <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{sample.leadName}</span>
                         <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Lead: {formatLeadId(sample.leadId)}</span>
                       </div>
-                    </td>
-                    <td data-label="Sales User">
-                      <SalesOwnerBadge
-                        user={sample.salesExecutive || sample.lead?.salesExecutive}
-                        fallbackName={sample.createdByName}
-                        fallbackEmail={sample.createdByEmail}
-                      />
                     </td>
                     <td data-label="Product">
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>

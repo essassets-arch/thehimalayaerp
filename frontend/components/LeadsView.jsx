@@ -469,7 +469,6 @@ export default function LeadsView({
                 <th>Lead ID</th>
                 <th>Company Name</th>
                 <th>Phone / Email</th>
-                <th>Sales User</th>
                 <th>Status</th>
                 <th>Next Reminder</th>
                 <th>Actions</th>
@@ -478,7 +477,7 @@ export default function LeadsView({
             <tbody>
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                     <strong>No leads found.</strong>
                     <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
                       Create your first lead to begin the sales workflow.
@@ -498,13 +497,6 @@ export default function LeadsView({
                           <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</span>
                           <span style={{ fontSize: '11px', color: '#5E6B82', whiteSpace: 'nowrap' }}>{lead.email || 'N/A'}</span>
                         </div>
-                      </td>
-                      <td data-label="Sales User">
-                        <SalesOwnerBadge
-                          user={lead.salesExecutive}
-                          fallbackName={lead.assignedToName || lead.createdByName}
-                          fallbackEmail={lead.assignedToEmail || lead.createdByEmail}
-                        />
                       </td>
                       <td data-label="Status">
                         <span style={{

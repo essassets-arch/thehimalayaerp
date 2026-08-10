@@ -521,7 +521,6 @@ export default function OrdersView({
                 <>
                   <th>Order ID</th>
                   <th>Customer</th>
-                  <th>Sales User</th>
                   <th>Products / Items</th>
                   {!isProductionUser && <th>Total Value</th>}
                   <th>Order Status</th>
@@ -533,7 +532,7 @@ export default function OrdersView({
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={isProductionUser ? "6" : "7"} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                <td colSpan={isProductionUser ? "5" : "6"} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                   No orders generated.
                 </td>
               </tr>
@@ -658,13 +657,6 @@ export default function OrdersView({
                     </td>
                     <td data-label="Customer" style={{ fontWeight: '600' }}>
                       {o.customerName || o.customer?.name || '—'}
-                    </td>
-                    <td data-label="Sales User">
-                      <SalesOwnerBadge
-                        user={o.salesExecutive}
-                        fallbackName={o.salesExecutiveName || o.createdByName}
-                        fallbackEmail={o.salesExecutiveEmail || o.createdByEmail}
-                      />
                     </td>
                     <td data-label="Products / Items">
                       {o.products || (Array.isArray(o.items) && o.items.length > 0 ? o.items.map(i => `${i.productName || i.name || i.product?.name || i.productNameSnapshot || 'Item'} (${i.quantity ?? i.orderedQuantity ?? 1} Qty)`).join(', ') : '') || (Array.isArray(o.detailedItems) && o.detailedItems.length > 0 ? o.detailedItems.map(i => `${i.productName || i.name || 'Item'} (${i.quantity || 1} Qty)`).join(', ') : '') || '—'}
