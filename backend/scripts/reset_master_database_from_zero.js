@@ -12,6 +12,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
@@ -23,44 +24,27 @@ async function run() {
   console.log('⚠️  1. Purging all transactional data from database...');
 
   // Order of deletion to respect FK constraints
-  if (prisma.followUp) await prisma.followUp.deleteMany({});
-  if (prisma.leadActivity) await prisma.leadActivity.deleteMany({});
-  if (prisma.quotationItem) await prisma.quotationItem.deleteMany({});
-  if (prisma.quotation) await prisma.quotation.deleteMany({});
-  
-  // Production & Dispatch & Invoices
-  if (prisma.dispatchItem) await prisma.dispatchItem.deleteMany({});
-  if (prisma.dispatch) await prisma.dispatch.deleteMany({});
-  if (prisma.invoiceItem) await prisma.invoiceItem.deleteMany({});
-  if (prisma.salesInvoice) await prisma.salesInvoice.deleteMany({});
-  if (prisma.paymentAllocation) await prisma.paymentAllocation.deleteMany({});
-  if (prisma.customerPayment) await prisma.customerPayment.deleteMany({});
+  await prisma.followUp.deleteMany({});
+  await prisma.activity.deleteMany({});
+  await prisma.quotationItem.deleteMany({});
+  await prisma.quotation.deleteMany({});
+  await prisma.salesOrderItem.deleteMany({});
+  await prisma.salesOrderAllocation.deleteMany({});
+  await prisma.salesOrderCreditReview.deleteMany({});
+  await prisma.salesOrder.deleteMany({});
+  await prisma.salesReturnItem.deleteMany({});
+  await prisma.salesReturn.deleteMany({});
+  await prisma.replacementRequestItem.deleteMany({});
+  await prisma.replacementRequest.deleteMany({});
+  await prisma.sampleItem.deleteMany({});
+  await prisma.sampleRequest.deleteMany({});
+  await prisma.customerComplaint.deleteMany({});
+  await prisma.lead.deleteMany({});
+  await prisma.customer.deleteMany({});
+  await prisma.salesTarget.deleteMany({});
+  await prisma.inventoryTransaction.deleteMany({});
 
-  if (prisma.finishedGoods) await prisma.finishedGoods.deleteMany({});
-  if (prisma.qCInspection) await prisma.qCInspection.deleteMany({});
-  if (prisma.productionBatch) await prisma.productionBatch.deleteMany({});
-  if (prisma.workOrder) await prisma.workOrder.deleteMany({});
-  if (prisma.productionPlan) await prisma.productionPlan.deleteMany({});
-
-  if (prisma.salesOrderItem) await prisma.salesOrderItem.deleteMany({});
-  if (prisma.salesOrderAllocation) await prisma.salesOrderAllocation.deleteMany({});
-  if (prisma.salesOrderCreditReview) await prisma.salesOrderCreditReview.deleteMany({});
-  if (prisma.salesOrderHistory) await prisma.salesOrderHistory.deleteMany({});
-  if (prisma.salesOrder) await prisma.salesOrder.deleteMany({});
-
-  if (prisma.salesReturnItem) await prisma.salesReturnItem.deleteMany({});
-  if (prisma.salesReturn) await prisma.salesReturn.deleteMany({});
-  if (prisma.replacementRequestItem) await prisma.replacementRequestItem.deleteMany({});
-  if (prisma.replacementRequest) await prisma.replacementRequest.deleteMany({});
-  if (prisma.sampleItem) await prisma.sampleItem.deleteMany({});
-  if (prisma.sampleRequest) await prisma.sampleRequest.deleteMany({});
-  if (prisma.customerComplaint) await prisma.customerComplaint.deleteMany({});
-  if (prisma.lead) await prisma.lead.deleteMany({});
-  if (prisma.customer) await prisma.customer.deleteMany({});
-  if (prisma.salesTarget) await prisma.salesTarget.deleteMany({});
-  if (prisma.inventoryTransaction) await prisma.inventoryTransaction.deleteMany({});
-
-  console.log('   ✓ All Leads, Quotations, Orders, Customers, Dispatches, and Transactions purged.');
+  console.log('   ✓ All Leads, Quotations, Orders, Customers, and Transactions purged.');
 
   // 2. Reset All ID Sequences to 1
   console.log('\n🔢 2. Resetting all ID Sequences to start from 1...');
