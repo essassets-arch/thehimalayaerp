@@ -25,8 +25,11 @@ async function previewLeadSeparation() {
     path.join(__dirname, 'leads.csv'),
     path.join(__dirname, '../leads.csv'),
     path.join(__dirname, '../../leads.csv'),
+    '/app/scripts/leads.csv',
+    '/app/backend/leads.csv',
     '/app/leads.csv',
     './leads.csv',
+    './scripts/leads.csv',
   ].filter(Boolean);
 
   let csvPath = candidatePaths.find((p) => fs.existsSync(p));
