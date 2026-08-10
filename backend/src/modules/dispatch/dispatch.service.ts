@@ -25,9 +25,8 @@ export class DispatchService {
     let scope = getSalesScope(userId, role, 'Dispatch');
 
     if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
-      const user = await this.prisma.user.findUnique({
+      const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { dispatchCategory: true },
       });
       if (user?.dispatchCategory) {
         scope = { ...scope, dispatchCategory: user.dispatchCategory };
@@ -54,9 +53,8 @@ export class DispatchService {
     let scope = getSalesScope(userId, role, 'Dispatch');
 
     if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
-      const user = await this.prisma.user.findUnique({
+      const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { dispatchCategory: true },
       });
       if (user?.dispatchCategory) {
         scope = { ...scope, dispatchCategory: user.dispatchCategory };
