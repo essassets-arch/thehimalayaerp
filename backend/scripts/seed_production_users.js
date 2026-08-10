@@ -33,51 +33,69 @@ function uid(prefix) {
 }
 
 async function main() {
-  console.log('🚀 Seeding 21 requested user accounts with custom credentials...');
+  const dbs = [
+    { name: 'Docker DB (Port 5433)', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public' },
+    { name: 'Standalone DB (Port 5432)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+  ];
 
-  const company = await prisma.company.findFirst();
-  if (!company) {
-    throw new Error('No company found in database. Please run primary seed first.');
-  }
+  for (const db of dbs) {
+    console.log(`\n======================================================================`);
+    console.log(` 🚀 Seeding 21 user accounts on: ${db.name}`);
+    console.log(`======================================================================`);
 
-  const allRoles = await prisma.role.findMany();
-  const roleMap = Object.fromEntries(allRoles.map((r) => [r.code, r.id]));
+    const prisma = new PrismaClient({ datasources: { db: { url: db.url } } });
 
-  for (const u of targetUsers) {
-    const roleId = roleMap[u.roleCode];
-    if (!roleId) {
-      console.warn(`⚠️ Role code ${u.roleCode} not found for ${u.email}`);
-      continue;
+    try {
+      const company = await prisma.company.findFirst();
+      if (!company) {
+        console.warn(`⚠️ No company found in DB target ${db.name}, skipping...`);
+        continue;
+      }
+
+      const allRoles = await prisma.role.findMany();
+      const roleMap = Object.fromEntries(allRoles.map((r) => [r.code, r.id]));
+
+      for (const u of targetUsers) {
+        const roleId = roleMap[u.roleCode];
+        if (!roleId) {
+          console.warn(`⚠️ Role code ${u.roleCode} not found for ${u.email}`);
+          continue;
+        }
+
+        const hashedPassword = await bcrypt.hash(u.password, 12);
+
+        await prisma.user.upsert({
+          where: { email: u.email },
+          update: {
+            password: hashedPassword,
+            roleId,
+            name: u.name,
+            isActive: true,
+            failedLoginAttempts: 0,
+            lockedUntil: null,
+            deletedAt: null,
+          },
+          create: {
+            publicId: uid('USR'),
+            email: u.email,
+            password: hashedPassword,
+            name: u.name,
+            roleId,
+            companyId: company.id,
+            isActive: true,
+          },
+        });
+
+        console.log(`  ✅ Provisioned: ${u.email} (${u.roleName})`);
+      }
+    } catch (err) {
+      console.error(`  ❌ Error seeding DB target ${db.name}:`, err.message);
+    } finally {
+      await prisma.$disconnect();
     }
-
-    const hashedPassword = await bcrypt.hash(u.password, 12);
-
-    await prisma.user.upsert({
-      where: { email: u.email },
-      update: {
-        password: hashedPassword,
-        roleId,
-        name: u.name,
-        isActive: true,
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        deletedAt: null,
-      },
-      create: {
-        publicId: uid('USR'),
-        email: u.email,
-        password: hashedPassword,
-        name: u.name,
-        roleId,
-        companyId: company.id,
-        isActive: true,
-      },
-    });
-
-    console.log(`✅ Provisioned: ${u.email} (${u.roleName})`);
   }
 
-  console.log('🎉 Successfully seeded all 21 user accounts!');
+  console.log('\n🎉 Successfully seeded all user accounts across database targets!');
 }
 
 main()
