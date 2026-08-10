@@ -84,7 +84,8 @@ export default function FinishedGoodsTable({ records = [], readOnly = false, sho
     columns.push({
       header: 'Actions', accessor: 'id', render: (row) => {
         const availableQuantity = getRecordAvailableQty(row);
-        const canSendToDispatch = availableQuantity > 0 && row.status !== 'SENT_TO_DISPATCH' && row.status !== 'DISPATCHED';
+        const isDispatched = row.status === 'SENT_TO_DISPATCH' || row.status === 'DISPATCHED' || Boolean(row.sentToDispatchAt) || Boolean(row.dispatchedAt);
+        const canSendToDispatch = availableQuantity > 0 && !isDispatched;
         return canSendToDispatch ? (
           <button
             type="button"
@@ -94,9 +95,13 @@ export default function FinishedGoodsTable({ records = [], readOnly = false, sho
             Send to Dispatch
           </button>
         ) : (
-          <span style={{ fontSize: '12px', color: '#5E6B82', fontWeight: 'bold' }}>
-            {row.status === 'SENT_TO_DISPATCH' || row.status === 'DISPATCHED' ? 'Sent to Dispatch' : 'No Available Stock'}
-          </span>
+          <button
+            type="button"
+            disabled
+            style={{ background: '#64748B', color: '#fff', border: 'none', borderRadius: '7px', padding: '7px 12px', fontSize: '12px', fontWeight: '800', cursor: 'not-allowed', opacity: 0.8 }}
+          >
+            {isDispatched ? '✓ Sent to Dispatch' : 'No Stock Available'}
+          </button>
         );
       }
     });

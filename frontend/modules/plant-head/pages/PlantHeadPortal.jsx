@@ -3283,15 +3283,42 @@ export default function PlantHeadPortal() {
             data={directFinishedGoods}
             searchQuery={globalSearch}
             searchField="productName"
-            actions={(row) => (
-              <button
-                className="action-btn"
-                style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={() => handleSendToDispatch(row)}
-              >
-                <Truck size={14} /> Send to Dispatch
-              </button>
-            )}
+            actions={(row) => {
+              const statusUpper = String(row.status || row.productionStatus || '').toUpperCase();
+              const isAlreadySent =
+                statusUpper === 'SENT_TO_DISPATCH' ||
+                statusUpper === 'DISPATCHED' ||
+                statusUpper === 'IN_TRANSIT' ||
+                Boolean(row.dispatchedAt) ||
+                Boolean(row.sentToDispatchAt) ||
+                Boolean(row.sentToDispatchById) ||
+                Boolean(row.isSentToDispatch);
+              const key = String(row.id || row.jobNo || row.workOrderId || '');
+              const isSending = Boolean(sendingDispatchIds[key]);
+
+              if (isAlreadySent) {
+                return (
+                  <button
+                    className="action-btn"
+                    disabled
+                    style={{ background: '#64748b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'not-allowed', opacity: 0.8, display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Truck size={14} /> Sent to Dispatch
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  className="action-btn"
+                  disabled={isSending}
+                  style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: isSending ? 'not-allowed' : 'pointer', opacity: isSending ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '4px' }}
+                  onClick={() => handleSendToDispatch(row)}
+                >
+                  <Truck size={14} /> {isSending ? 'Sending...' : 'Send to Dispatch'}
+                </button>
+              );
+            }}
             emptyMessage="No finished goods records currently in stock."
           />
         </div>

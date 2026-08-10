@@ -144,9 +144,15 @@ export default function FinishedGoodsPage() {
     }
   };
 
+  const [dispatchSendingMap, setDispatchSendingMap] = useState<Record<string, boolean>>({});
+
   const handleSendToDispatch = async (row: any) => {
+    const rowKey = String(row.id || row.jobNo || row.workOrderId || row.productId || '');
+    if (!rowKey || dispatchSendingMap[rowKey]) return;
+
+    setDispatchSendingMap((prev) => ({ ...prev, [rowKey]: true }));
     try {
-      const woId = row.workOrder?.id || row.workOrderId;
+      const woId = row.workOrder?.id || row.workOrderId || row.id;
       if (!woId) throw new Error("Work Order ID missing");
       await backendFetch(`/api/backend/production/work-orders/${woId}/send-to-dispatch`, {
         method: "POST",
@@ -156,6 +162,8 @@ export default function FinishedGoodsPage() {
       queryClient.invalidateQueries({ queryKey: ["dispatch-orders"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send to dispatch");
+    } finally {
+      setDispatchSendingMap((prev) => ({ ...prev, [rowKey]: false }));
     }
   };
 
@@ -350,38 +358,81 @@ export default function FinishedGoodsPage() {
       id: "actions",
       header: "Actions",
       size: 165,
-            cell: ({ row }) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={styles.btnDispatch}
-            onClick={() => handleSendToDispatch(row.original)}
-          >
-            <Truck size={14} />
-            Send to Dispatch
-          </button>
-          <button
-            type="button"
-            onClick={() => handleOpenAdjustModal(row.original)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: '1px solid #CBD5E1',
-              background: '#F8FAFC',
-              color: '#334155',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            <Sliders size={13} />
-            In/Out Adj
-          </button>
-        </div>
-      ),
+            cell: ({ row }) => {
+        const item = row.original as any;
+        const rowKey = String(item.id || item.jobNo || item.workOrderId || item.productId || '');
+        const isSending = Boolean(dispatchSendingMap[rowKey]);
+        const statusUpper = String(item.status || item.productionStatus || item.workOrder?.status || '').toUpperCase();
+        const isAlreadySent =
+          statusUpper === 'SENT_TO_DISPATCH' ||
+          statusUpper === 'DISPATCHED' ||
+          statusUpper === 'IN_TRANSIT' ||
+          Boolean(item.dispatchedAt) ||
+          Boolean(item.sentToDispatchAt) ||
+          Boolean(item.sentToDispatchById) ||
+          Boolean(item.isSentToDispatch) ||
+          Boolean(item.workOrder?.sentToDispatchAt) ||
+          Boolean(item.workOrder?.dispatchedAt);
+
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            {isAlreadySent ? (
+              <button
+                type="button"
+                disabled
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  background: '#64748B',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'not-allowed',
+                  opacity: 0.85
+                }}
+              >
+                <Truck size={14} />
+                Sent to Dispatch
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.btnDispatch}
+                disabled={isSending}
+                onClick={() => handleSendToDispatch(item)}
+                style={isSending ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+              >
+                <Truck size={14} />
+                {isSending ? "Sending..." : "Send to Dispatch"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleOpenAdjustModal(item)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid #CBD5E1',
+                background: '#F8FAFC',
+                color: '#334155',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <Sliders size={13} />
+              In/Out Adj
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
