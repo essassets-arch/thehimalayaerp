@@ -786,12 +786,6 @@ const hardwareProducts: ProductSeedData[] = hardwareItemsRaw.map(item => ({
 // Combine all products (230 seedbackup + 136 hardware = 366 items total)
 let allProducts: ProductSeedData[] = [
   ...manufacturingProducts,
-  ...coverblockProducts,
-  ...rccPipeProducts,
-  ...frcSquareRoundProducts,
-  ...frcRectangularProducts,
-  ...frcSquareFrameProducts,
-  ...frcRoundFrameProducts,
   ...frcCatchpitProducts,
   ...otherProducts,
   ...hardwareProducts,

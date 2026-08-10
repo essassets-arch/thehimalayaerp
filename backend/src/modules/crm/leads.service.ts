@@ -133,7 +133,9 @@ export class LeadsService {
     companyId?: string,
     role?: string,
   ) {
+    // 1. Verify existence and authorization
     await this.getLead(id, companyId, userId, role);
+
     const allowed = [
       'companyName',
       'groupName',
@@ -141,6 +143,7 @@ export class LeadsService {
       'contactPerson',
       'email',
       'phone',
+      'officeContact',
       'gstName',
       'gstNumber',
       'address',
@@ -154,18 +157,34 @@ export class LeadsService {
       'lostReason',
       'remarks',
     ];
-    const data = Object.fromEntries(
-      Object.entries(dto).filter(([key]) => allowed.includes(key)),
-    ) as any;
-    if (data.nextReminderAt)
-      data.nextReminderAt = new Date(data.nextReminderAt);
-    if (isRestrictedRole(role)) delete data.assignedToId; // Prevent unauthorized reassignment
 
-    return this.prisma.lead.update({
+    // Filter only explicitly provided (non-undefined) values
+    const data = Object.fromEntries(
+      Object.entries(dto).filter(([key, val]) => allowed.includes(key) && val !== undefined),
+    ) as any;
+
+    if (data.nextReminderAt) {
+      data.nextReminderAt = new Date(data.nextReminderAt);
+    }
+    
+    // Prevent unauthorized reassignment for salesperson roles
+    if (isRestrictedRole(role)) {
+      delete data.assignedToId;
+      delete data.salesExecutiveId;
+    }
+
+    // Safeguard: Protect detailedItems from accidental empty array deletion unless explicitly allowed
+    if (Array.isArray(dto.detailedItems) && dto.detailedItems.length === 0 && dto.allowClearItems !== true) {
+      delete data.detailedItems;
+    }
+
+    await this.prisma.lead.update({
       where: { id },
       data: { ...data, updatedById: userId, version: { increment: 1 } },
-      include: { workflowState: true, activities: true, quotations: true },
     });
+
+    // 2. Refetch complete lead from PostgreSQL after update
+    return this.getLead(id, companyId, userId, role);
   }
 
   async getTimeline(id: string, userId?: string, role?: string) {

@@ -67,6 +67,126 @@ async function uploadAfterSalesEvidence(files = []) {
   return urls;
 }
 
+function EditLeadContainer({
+  leadId,
+  leads,
+  updateLead,
+  deleteLead,
+  onCancel,
+  basePath,
+  navigate,
+}) {
+  const [fetchedLead, setFetchedLead] = useState(null);
+  const [loading, setLoading] = useState(Boolean(leadId));
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!leadId) {
+      setLoading(false);
+      return;
+    }
+
+    async function fetchFullLead() {
+      setLoading(true);
+      setError(null);
+      try {
+        const { LeadRepositoryFactory } = await import('../../../services/leads/leadRepositoryFactory');
+        const repo = LeadRepositoryFactory.getReadRepository();
+        const res = await repo.getLead(leadId);
+        const detail = res?.data || res;
+        if (!cancelled) {
+          if (detail && (detail.id || detail.leadNumber)) {
+            setFetchedLead(detail);
+          } else {
+            throw new Error('Lead record not found');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch full lead details by UUID:', err);
+        if (!cancelled) {
+          setError(err?.message || 'Unable to load lead details from PostgreSQL database');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchFullLead();
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId]);
+
+  const fallbackFromList = leadId ? leads.find((l) => String(l.id ?? l.leadId) === String(leadId)) : null;
+  const leadToEdit = fetchedLead || fallbackFromList;
+
+  const handleUpdate = async (updatedData) => {
+    const targetId = leadId || leadToEdit?.id;
+    const res = await updateLead(targetId, updatedData);
+    // Refetch updated lead directly from PostgreSQL post-save to ensure verified persistence
+    if (targetId) {
+      try {
+        const { LeadRepositoryFactory } = await import('../../../services/leads/leadRepositoryFactory');
+        const repo = LeadRepositoryFactory.getReadRepository();
+        const refetched = await repo.getLead(targetId);
+        if (refetched) {
+          setFetchedLead(refetched?.data || refetched);
+        }
+      } catch (e) {
+        console.warn('Post-save refetch failed:', e);
+      }
+    }
+    return res;
+  };
+
+  if (loading && !leadToEdit) {
+    return (
+      <div style={{ padding: '48px', textAlign: 'center', color: 'var(--color-text-secondary, #64748b)' }}>
+        <p style={{ fontSize: '1.1rem', fontWeight: '600' }}>Loading lead details from database...</p>
+      </div>
+    );
+  }
+
+  if (error && !leadToEdit) {
+    return (
+      <div style={{ padding: '48px', textAlign: 'center', color: '#ef4444' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '8px' }}>Unable to load lead</h3>
+        <p style={{ marginBottom: '16px' }}>{error}</p>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '8px 20px',
+            borderRadius: '8px',
+            background: '#0ea5e9',
+            color: '#ffffff',
+            border: 'none',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}
+        >
+          Back to Leads List
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="sales-create-lead-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CreateLead
+        key={leadToEdit ? `edit-${leadToEdit.id}` : 'new'}
+        leads={leads}
+        onAddLead={handleUpdate}
+        onDeleteLead={deleteLead}
+        onCancel={onCancel}
+        editingLead={leadToEdit}
+      />
+    </div>
+  );
+}
+
 export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   const pathname = usePathname();
   const params = useParams();
@@ -857,29 +977,32 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
         </div>
       );
 
-    case 'create-lead':
-    case 'edit-lead': {
-      // Prisma lead IDs are UUID strings. Converting them with Number(...)
-      // produces NaN and makes every existing lead look missing.
-      const leadToEdit = leadId
-        ? leads.find((lead) => String(lead.id ?? lead.leadId) === String(leadId))
-        : null;
+    case 'create-lead': {
       return (
         <div data-testid="sales-create-lead-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <CreateLead
-          key={leadToEdit ? `edit-${leadToEdit.id}` : 'new'}
-          leads={leads}
-          onAddLead={
-            leadToEdit
-              ? (updatedData) => updateLead(leadToEdit.id, updatedData)
-              : addLead
-          }
-          onGenerateQuotation={!leadToEdit ? generateQuotationFromLead : undefined}
-          onDeleteLead={deleteLead}
-          onCancel={() => navigate.push(`${basePath}/leads`)}
-          editingLead={leadToEdit}
-        />
+            key="new"
+            leads={leads}
+            onAddLead={addLead}
+            onGenerateQuotation={generateQuotationFromLead}
+            onDeleteLead={deleteLead}
+            onCancel={() => navigate.push(`${basePath}/leads`)}
+          />
         </div>
+      );
+    }
+
+    case 'edit-lead': {
+      return (
+        <EditLeadContainer
+          leadId={leadId}
+          leads={leads}
+          updateLead={updateLead}
+          deleteLead={deleteLead}
+          onCancel={() => navigate.push(`${basePath}/leads`)}
+          basePath={basePath}
+          navigate={navigate}
+        />
       );
     }
 

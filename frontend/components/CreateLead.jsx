@@ -146,24 +146,27 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   const getInitialItems = () => {
     if (editingLead?.detailedItems?.length > 0) {
       return editingLead.detailedItems.map((item, idx) => ({
-        id: idx + 1,
-        productName: item.productName || '',
-        productCode: item.productCode || item.code || '',
-        specification: item.specification || '',
-        quantity: item.quantity || 1,
-        unitPrice: item.unitPrice || 100,
-        discount: item.discount || 0,
-        tax: item.tax || 18,
-        additionalCharges: item.additionalCharges || 0
+        id: item.id || idx + 1,
+        productId: item.productId || item.product?.id || '',
+        productName: item.productName || item.product?.name || '',
+        productCode: item.productCode || item.product?.code || item.code || '',
+        specification: item.specification ?? '',
+        color: item.color ?? '',
+        quantity: item.quantity != null ? Number(item.quantity) : 1,
+        unitPrice: item.unitPrice != null ? Number(item.unitPrice) : 100,
+        discount: item.discount != null ? Number(item.discount) : 0,
+        tax: item.tax ?? item.gstRate ?? 18,
+        additionalCharges: item.additionalCharges != null ? Number(item.additionalCharges) : 0
       }));
     }
     if (editingLead && (editingLead.productInterest || editingLead.productInterested || editingLead.requirements)) {
       return [{
         id: 1,
+        productId: editingLead.productId || '',
         productName: editingLead.productInterest || editingLead.productInterested || editingLead.requirements,
-        productCode: '',
+        productCode: editingLead.productCode || '',
         specification: '',
-        quantity: editingLead.estimatedQuantity || 1,
+        quantity: Number(editingLead.estimatedQuantity || 1),
         unitPrice: 100,
         discount: 0,
         tax: 18,
@@ -177,7 +180,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     const existingMap = {};
     (editingLead?.sampleItems || []).forEach(si => { existingMap[si.id] = si; });
     const itms = editingLead?.detailedItems?.length > 0
-      ? editingLead.detailedItems.map((it, idx) => ({ id: idx + 1, productName: it.productName || '' }))
+      ? editingLead.detailedItems.map((it, idx) => ({ id: it.id || idx + 1, productName: it.productName || '' }))
       : [{ id: 1, productName: editingLead?.productInterest || editingLead?.productInterested || 'Uni Paver 60mm' }];
     return itms.map(it => existingMap[it.id] || {
       id: it.id,
@@ -188,23 +191,37 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     });
   };
 
+  const parseAddress = (addr) => {
+    if (!addr) return { addressLine1: '', city: '', stateName: 'Gujarat', pincode: '' };
+    if (typeof addr === 'string') return { addressLine1: addr, city: '', stateName: 'Gujarat', pincode: '' };
+    return {
+      addressLine1: addr.addressLine1 ?? addr.line1 ?? addr.address ?? '',
+      city: addr.city ?? '',
+      stateName: addr.stateName ?? addr.state ?? 'Gujarat',
+      pincode: addr.pincode ?? addr.zip ?? '',
+    };
+  };
+
   const initialItems = getInitialItems();
+  const parsedAddr = parseAddress(editingLead?.address);
+
   const emptyLeadForm = {
-    projectName: editingLead?.projectName || '',
-    groupName: editingLead?.groupName || '',
-    companyName: editingLead?.companyName || '',
-    gstNumber: editingLead?.gstNumber || '',
-    siteInchargeName: editingLead?.siteInchargeName || editingLead?.contactPerson || '',
-    siteInchargeMobile: editingLead?.siteInchargeMobile || editingLead?.phone || '',
-    officeContact: editingLead?.officeContact || '',
-    email: editingLead?.email || '',
-    remarks: editingLead?.notes || editingLead?.requirements || '',
-    addressLine1: editingLead?.address?.line1 || '',
-    city: editingLead?.address?.city || '',
-    stateName: editingLead?.address?.state || 'Uttar Pradesh',
-    pincode: editingLead?.address?.pincode || '',
-    sampleRequired: editingLead?.sampleRequired || false,
-    expectedTransportationCost: Number(editingLead?.expectedTransportationCost || 0),
+    projectName: editingLead?.projectName ?? '',
+    groupName: editingLead?.groupName ?? '',
+    companyName: editingLead?.companyName ?? '',
+    gstName: editingLead?.gstName ?? editingLead?.companyName ?? '',
+    gstNumber: editingLead?.gstNumber ?? '',
+    siteInchargeName: editingLead?.siteInchargeName ?? editingLead?.contactPerson ?? '',
+    siteInchargeMobile: editingLead?.siteInchargeMobile ?? editingLead?.phone ?? '',
+    officeContact: editingLead?.officeContact ?? '',
+    email: editingLead?.email ?? '',
+    remarks: editingLead?.remarks ?? editingLead?.notes ?? editingLead?.requirements ?? '',
+    addressLine1: parsedAddr.addressLine1,
+    city: parsedAddr.city,
+    stateName: parsedAddr.stateName,
+    pincode: parsedAddr.pincode,
+    sampleRequired: editingLead?.sampleRequired ?? false,
+    expectedTransportationCost: Number(editingLead?.expectedTransportationCost ?? 0),
     items: initialItems,
     sampleItems: getInitialSampleItems(initialItems),
     submitAction: 'lead'
@@ -212,8 +229,16 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
   const { formData, setFormData, clearDraft } = useFormDraft({
     draftKey: editingLead ? `erp_draft_edit_lead_${editingLead.id}` : 'erp_draft_create_lead_new',
-    initialData: emptyLeadForm
+    initialData: emptyLeadForm,
+    enabled: !editingLead // Disable LocalStorage draft restore in edit mode to force database source of truth
   });
+
+  // Re-sync form state whenever editingLead object changes
+  useEffect(() => {
+    if (editingLead) {
+      setFormData(emptyLeadForm);
+    }
+  }, [editingLead]);
 
   const {
     projectName, groupName, companyName, gstNumber, siteInchargeName, siteInchargeMobile, officeContact,
