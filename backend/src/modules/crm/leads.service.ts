@@ -143,7 +143,6 @@ export class LeadsService {
       'contactPerson',
       'email',
       'phone',
-      'officeContact',
       'gstName',
       'gstNumber',
       'address',
