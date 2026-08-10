@@ -71,9 +71,18 @@ async function main() {
     { name: 'Standalone DB (Port 5432)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
   ];
 
-  const csvPath = path.join(__dirname, '../../leads.csv');
-  if (!fs.existsSync(csvPath)) {
-    console.error('leads.csv not found at:', csvPath);
+  const candidatePaths = [
+    process.argv[2],
+    path.join(__dirname, 'leads.csv'),
+    path.join(__dirname, '../leads.csv'),
+    path.join(__dirname, '../../leads.csv'),
+    '/app/leads.csv',
+    './leads.csv',
+  ].filter(Boolean);
+
+  const csvPath = candidatePaths.find(p => fs.existsSync(p));
+  if (!csvPath) {
+    console.error('leads.csv not found in candidate paths:', candidatePaths);
     return;
   }
 
