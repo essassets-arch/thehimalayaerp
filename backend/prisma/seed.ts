@@ -765,70 +765,8 @@ const rawInventoryItemsSeed = [
 ];
 
 async function seed136RawMaterials(prisma: PrismaClient, companyId: string) {
-  console.log('📦 Seeding 136 Authoritative Raw Inventory Items into "RawMaterial" table...');
-  let warehouse = await prisma.warehouse.findFirst({ where: { companyId } });
-  if (!warehouse) {
-    warehouse = await prisma.warehouse.create({
-      data: {
-        id: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
-        name: 'Main Store Warehouse',
-        companyId,
-      },
-    });
-  }
-  const warehouseId = warehouse.id;
-  let seededCount = 0;
-  let txCount = 0;
-
-  for (const item of rawInventoryItemsSeed) {
-    const rm = await prisma.rawMaterial.upsert({
-      where: { sku: item.code },
-      update: {
-        name: item.name,
-        category: item.category,
-        unit: item.unit,
-        minimumStock: item.minStock,
-      },
-      create: {
-        publicId: `RM-${item.code}`,
-        companyId: companyId,
-        sku: item.code,
-        name: item.name,
-        category: item.category,
-        unit: item.unit,
-        minimumStock: item.minStock,
-      },
-    });
-    seededCount++;
-
-    if (item.balance > 0) {
-      const existingTx = await prisma.inventoryTransaction.findFirst({
-        where: {
-          companyId,
-          rawMaterialId: rm.id,
-          referenceType: 'OPENING_STOCK',
-          referenceId: `OPENING-${item.code}`,
-        },
-      });
-
-      if (!existingTx) {
-        await prisma.inventoryTransaction.create({
-          data: {
-            companyId,
-            rawMaterialId: rm.id,
-            warehouseId,
-            type: 'IN',
-            quantity: item.balance,
-            referenceType: 'OPENING_STOCK',
-            referenceId: `OPENING-${item.code}`,
-          },
-        });
-        txCount++;
-      }
-    }
-  }
-
-  console.log(`✅ Successfully seeded ${seededCount} RawMaterial records with ${txCount} opening transactions!`);
+  // Empty NO-OP: RawMaterial table is kept 100% clean for manual user data entry
+  return;
 }
 
 async function main() {
