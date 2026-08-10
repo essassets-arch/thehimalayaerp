@@ -161,6 +161,10 @@ model User {
   brandAnalysisHistoryPerformed BrandAnalysisHistory[] @relation("BrandAnalysisHistoryPerformedBy")
   salesTargets                  SalesTarget[]
   machineStatusUpdates          MachineDailyStatus[]   @relation("UserMachineStatusUpdates")
+  salesExecutiveLeads           Lead[]                 @relation("SalesExecutiveLeads")
+  salesExecutiveQuotations      Quotation[]            @relation("SalesExecutiveQuotations")
+  salesExecutiveOrders          SalesOrder[]           @relation("SalesExecutiveOrders")
+  salesExecutiveSamples         SampleRequest[]        @relation("SalesExecutiveSamples")
 }
 
 model RefreshSession {
@@ -266,8 +270,12 @@ model Lead {
   activities     LeadActivity[]
   followUps      FollowUp[]
 
+  salesExecutiveId String?
+  salesExecutive   User?   @relation("SalesExecutiveLeads", fields: [salesExecutiveId], references: [id])
+
   @@index([workflowStateId])
   @@index([assignedToId])
+  @@index([salesExecutiveId])
   @@index([companyName])
   @@index([email])
   @@index([phone])
@@ -1007,7 +1015,11 @@ model Quotation {
   sourceSalesOrders SalesOrder[]    @relation("SalesOrderSourceQuotation")
   items             QuotationItem[]
 
+  salesExecutiveId String?
+  salesExecutive   User?   @relation("SalesExecutiveQuotations", fields: [salesExecutiveId], references: [id])
+
   @@index([workflowStateId])
+  @@index([salesExecutiveId])
   @@index([leadId])
   @@index([customerId])
   @@index([parentQuotationId])
@@ -1082,8 +1094,12 @@ model SalesOrder {
   paymentAllocations  CustomerPaymentAllocation[]
   FinishedGoods       FinishedGoods[]
 
+  salesExecutiveId String?
+  salesExecutive   User?   @relation("SalesExecutiveOrders", fields: [salesExecutiveId], references: [id])
+
   @@index([customerId])
   @@index([status])
+  @@index([salesExecutiveId])
   @@index([workflowStateId])
   @@index([createdAt])
 }
@@ -1632,8 +1648,13 @@ model SampleRequest {
   lead     Lead?     @relation(fields: [leadId], references: [id])
   customer Customer? @relation(fields: [customerId], references: [id])
 
+  salesExecutiveId String?
+  salesExecutive   User?   @relation("SalesExecutiveSamples", fields: [salesExecutiveId], references: [id])
+
   items     SampleItem[]
   histories SampleHistory[]
+
+  @@index([companyId, salesExecutiveId])
 }
 
 model SampleItem {

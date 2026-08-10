@@ -9,6 +9,7 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
     productionPlans: true;
   };
 }> & {
+  salesExecutive?: { id: string; name?: string; email?: string } | any;
   dispatches?: Prisma.DispatchGetPayload<{ include: { items: true } }>[];
   returns?: Prisma.SalesReturnGetPayload<{ include: { items: true } }>[];
   replacementRequests?: Prisma.ReplacementRequestGetPayload<{
@@ -93,9 +94,14 @@ export function mapSalesOrder(
     customerId: order.customerId,
     customerName: order.customer.companyName,
     customerCode: order.customer.customerCode,
-    customer: order.customer,
-    shippingAddress: order.shippingAddress,
-    billingAddress: order.billingAddress,
+    salesExecutiveId: (order as any).salesExecutiveId,
+    salesExecutive: (order as any).salesExecutive
+      ? {
+          id: (order as any).salesExecutive.id,
+          name: (order as any).salesExecutive.name,
+          email: (order as any).salesExecutive.email,
+        }
+      : null,
     remarks: order.remarks ?? undefined,
 
     items: order.items.map((item) => {

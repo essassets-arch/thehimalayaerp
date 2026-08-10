@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { getSalesScope, isRestrictedRole } from '../../common/utils/rbac.util';
+import { getSalesScope, isRestrictedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 
@@ -36,6 +36,7 @@ export class LeadsService {
       },
       include: {
         workflowState: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
         activities: { orderBy: { createdAt: 'desc' } },
         quotations: {
           include: { workflowState: true },
@@ -62,6 +63,7 @@ export class LeadsService {
       },
       include: {
         workflowState: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
         activities: { orderBy: { createdAt: 'desc' } },
         quotations: {
           include: { workflowState: true, items: true },
@@ -90,6 +92,10 @@ export class LeadsService {
       `LEAD-${new Date().getFullYear()}-`,
     );
 
+    const isManager = canAssignSalesOwner(role);
+    const assignedId = isManager ? (dto.assignedToId || userId) : userId;
+    const salesExecutiveId = isManager ? (dto.salesExecutiveId || assignedId) : userId;
+
     return this.prisma.lead.create({
       data: {
         leadNumber,
@@ -109,15 +115,14 @@ export class LeadsService {
           : undefined,
         estimatedQuantity: dto.estimatedQuantity,
         unit: dto.unit,
-        assignedToId: isRestrictedRole(role)
-          ? userId
-          : dto.assignedToId || userId,
+        assignedToId: assignedId,
+        salesExecutiveId: salesExecutiveId,
         remarks: dto.remarks || dto.notes,
         companyId: resolvedCompanyId,
         workflowStateId: initialState.id,
         createdById: userId,
       },
-      include: { workflowState: true },
+      include: { workflowState: true, salesExecutive: { select: { id: true, name: true, email: true } } },
     });
   }
 

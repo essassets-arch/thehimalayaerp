@@ -13,6 +13,13 @@ export function isRestrictedRole(role?: string): boolean {
   return restrictedRoles.includes(role);
 }
 
+export function canAssignSalesOwner(role?: string): boolean {
+  if (!role) return false;
+  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
+  const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'SUPER_USER', 'SALES_MANAGER'];
+  return allowedRoles.includes(normalizedRole);
+}
+
 export function getAdvancedScope(
   userId?: string,
   role?: string,
@@ -84,7 +91,7 @@ export function getSalesScope(
   }
 
   // Individual Salesperson Roles (SUPER_SALES, SALES_EXECUTIVE, SALES_INTERN, etc.)
-  const leadOwnership = { OR: [{ createdById: userId }, { assignedToId: userId }] };
+  const leadOwnership = { OR: [{ createdById: userId }, { assignedToId: userId }, { salesExecutiveId: userId }] };
 
   if (targetModel === 'Lead' || targetModel === 'assignedToId') {
     return leadOwnership;
@@ -94,6 +101,7 @@ export function getSalesScope(
     return {
       OR: [
         { createdById: userId },
+        { salesExecutiveId: userId },
         { lead: leadOwnership },
       ],
     };
@@ -103,7 +111,8 @@ export function getSalesScope(
     return {
       OR: [
         { createdById: userId },
-        { quotation: { OR: [{ createdById: userId }, { lead: leadOwnership }] } },
+        { salesExecutiveId: userId },
+        { quotation: { OR: [{ createdById: userId }, { salesExecutiveId: userId }, { lead: leadOwnership }] } },
       ],
     };
   }
@@ -112,6 +121,7 @@ export function getSalesScope(
     return {
       OR: [
         { createdById: userId },
+        { salesExecutiveId: userId },
         { lead: leadOwnership },
       ],
     };
@@ -121,14 +131,14 @@ export function getSalesScope(
     return {
       OR: [
         { createdById: userId },
-        { salesOrder: { OR: [{ createdById: userId }, { quotation: { OR: [{ createdById: userId }, { lead: leadOwnership }] } }] } },
+        { salesOrder: { OR: [{ createdById: userId }, { salesExecutiveId: userId }, { quotation: { OR: [{ createdById: userId }, { salesExecutiveId: userId }, { lead: leadOwnership }] } }] } },
       ],
     };
   }
 
   // Generic fallback if passed a field name like 'createdById' or 'assignedToId'
   if (targetModel === 'createdById') {
-    return { createdById: userId };
+    return { OR: [{ createdById: userId }, { salesExecutiveId: userId }] };
   }
 
   return { [targetModel]: userId };

@@ -7,7 +7,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Decimal } from '@prisma/client/runtime/library';
-import { getSalesScope } from '../../common/utils/rbac.util';
+import { getSalesScope, canAssignSalesOwner } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class QuotationsService {
@@ -35,7 +35,8 @@ export class QuotationsService {
       },
       include: {
         workflowState: true,
-        lead: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
+        lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
         items: { include: { product: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -58,8 +59,9 @@ export class QuotationsService {
       },
       include: {
         workflowState: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
         items: true,
-        lead: true,
+        lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
         parentQuotation: true,
         childQuotations: {
           include: { workflowState: true },
@@ -219,12 +221,28 @@ export class QuotationsService {
       `QT-${new Date().getFullYear()}-`,
     );
 
+    let leadSalesExecutiveId: string | null = null;
+    if (dto.leadId) {
+      const leadObj = await this.prisma.lead.findUnique({
+        where: { id: dto.leadId },
+        select: { salesExecutiveId: true, assignedToId: true, createdById: true },
+      });
+      if (leadObj) {
+        leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+      }
+    }
+    const isManager = canAssignSalesOwner(role);
+    const resolvedSalesExecutiveId = isManager
+      ? (dto.salesExecutiveId || leadSalesExecutiveId || userId)
+      : (leadSalesExecutiveId || userId);
+
     return this.prisma.quotation.create({
       data: {
         quotationNumber,
         companyId: resolvedCompanyId,
         leadId: dto.leadId,
         customerId: dto.customerId,
+        salesExecutiveId: resolvedSalesExecutiveId,
         validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
         subtotal: totals.subtotal,
         discount: totals.discount,
@@ -250,6 +268,7 @@ export class QuotationsService {
       },
       include: {
         workflowState: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
         items: { include: { product: true } },
         lead: true,
       },

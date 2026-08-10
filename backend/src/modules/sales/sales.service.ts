@@ -17,7 +17,7 @@ import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto
 import { Decimal } from '@prisma/client/runtime/library';
 import { WorkflowService } from '../workflow/workflow.service';
 import { CreditService } from '../finance/credit.service';
-import { getSalesScope, isRestrictedRole } from '../../common/utils/rbac.util';
+import { getSalesScope, isRestrictedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SalesService {
@@ -69,6 +69,7 @@ export class SalesService {
         where,
         include: {
           customer: true,
+          salesExecutive: { select: { id: true, name: true, email: true } },
           items: true,
           workflowState: true,
           productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -116,6 +117,7 @@ export class SalesService {
       },
       include: {
         customer: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
         items: true,
         workflowState: true,
         productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -212,11 +214,27 @@ export class SalesService {
       const productById = new Map(
         products.map((product) => [product.id, product]),
       );
+      let quotationSalesExecutiveId: string | null = null;
+      if (dto.quotationId) {
+        const quoteObj = await tx.quotation.findUnique({
+          where: { id: dto.quotationId },
+          select: { salesExecutiveId: true, createdById: true },
+        });
+        if (quoteObj) {
+          quotationSalesExecutiveId = quoteObj.salesExecutiveId || quoteObj.createdById;
+        }
+      }
+      const isManager = canAssignSalesOwner(role);
+      const resolvedSalesExecutiveId = isManager
+        ? ((dto as any).salesExecutiveId || quotationSalesExecutiveId || userId)
+        : (quotationSalesExecutiveId || userId);
+
       const order = await tx.salesOrder.create({
         data: {
           orderNumber,
           customerId: dto.customerId,
           quotationId: dto.quotationId,
+          salesExecutiveId: resolvedSalesExecutiveId,
           orderDate: dto.orderDate ? new Date(dto.orderDate) : new Date(),
           customerPurchaseOrderNo: dto.customerPurchaseOrderNo,
           workflowStateId: initialState.id,
@@ -246,6 +264,7 @@ export class SalesService {
         },
         include: {
           customer: true,
+          salesExecutive: { select: { id: true, name: true, email: true } },
           items: true,
           workflowState: true,
           productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -413,6 +432,7 @@ export class SalesService {
         where: { id },
         include: {
           customer: true,
+          salesExecutive: { select: { id: true, name: true, email: true } },
           items: true,
           workflowState: true,
           productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },

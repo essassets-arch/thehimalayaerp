@@ -13,7 +13,7 @@ import {
 } from '../../common/utils/database.util';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { SampleStatus } from '@prisma/client';
-import { getSalesScope } from '../../common/utils/rbac.util';
+import { getSalesScope, canAssignSalesOwner } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SamplesService {
@@ -22,7 +22,7 @@ export class SamplesService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async create(createSampleDto: CreateSampleDto, userId: string = 'system') {
+  async create(createSampleDto: CreateSampleDto, userId: string = 'system', role?: string) {
     return this.prisma.$transaction(async (tx) => {
       if (!createSampleDto.leadId && !createSampleDto.customerId) {
         throw new BadRequestException(
@@ -59,12 +59,29 @@ export class SamplesService {
         `SMP-${new Date().getFullYear()}-`,
       );
 
+      let leadSalesExecutiveId: string | null = null;
+      if (createSampleDto.leadId) {
+        const leadObj = await tx.lead.findUnique({
+          where: { id: createSampleDto.leadId },
+          select: { salesExecutiveId: true, assignedToId: true, createdById: true },
+        });
+        if (leadObj) {
+          leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+        }
+      }
+
+      const isManager = canAssignSalesOwner(role);
+      const salesExecutiveId = isManager
+        ? ((createSampleDto as any).salesExecutiveId || leadSalesExecutiveId || userId)
+        : (leadSalesExecutiveId || userId);
+
       const sample = await tx.sampleRequest.create({
         data: {
           sampleNumber,
           companyId: createSampleDto.companyId,
           leadId: createSampleDto.leadId,
           customerId: createSampleDto.customerId,
+          salesExecutiveId,
           expectedDeliveryDate: createSampleDto.expectedDeliveryDate
             ? new Date(createSampleDto.expectedDeliveryDate)
             : null,
@@ -86,6 +103,7 @@ export class SamplesService {
         },
         include: {
           items: true,
+          salesExecutive: { select: { id: true, name: true, email: true } },
         },
       });
 
@@ -117,12 +135,13 @@ export class SamplesService {
     return this.prisma.sampleRequest.findMany({
       where: { companyId, deletedAt: null, ...scope },
       include: {
+        salesExecutive: { select: { id: true, name: true, email: true } },
         items: {
           include: {
             product: { select: { id: true, name: true, sku: true } },
           },
         },
-        lead: { select: { id: true, companyName: true, leadNumber: true } },
+        lead: { select: { id: true, companyName: true, leadNumber: true, salesExecutive: { select: { id: true, name: true, email: true } } } },
         customer: {
           select: { id: true, companyName: true, customerCode: true },
         },
@@ -136,12 +155,13 @@ export class SamplesService {
     const sample = await this.prisma.sampleRequest.findFirst({
       where: { id, companyId, deletedAt: null, ...scope },
       include: {
+        salesExecutive: { select: { id: true, name: true, email: true } },
         items: {
           include: {
             product: { select: { id: true, name: true, sku: true } },
           },
         },
-        lead: { select: { id: true, companyName: true, leadNumber: true } },
+        lead: { select: { id: true, companyName: true, leadNumber: true, salesExecutive: { select: { id: true, name: true, email: true } } } },
         customer: {
           select: { id: true, companyName: true, customerCode: true },
         },
