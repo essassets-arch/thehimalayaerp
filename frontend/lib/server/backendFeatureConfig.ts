@@ -1,7 +1,7 @@
 import 'server-only';
 
 function envFlag(name: string): boolean {
-  return process.env[name] === 'true';
+  return process.env[name] !== 'false';
 }
 
 export const backendFeatureConfig = {

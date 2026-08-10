@@ -58,7 +58,7 @@ function memoize<T>(fn: (store: any) => T): (store: any) => T {
 
 const getSales = (erpStoreState: ERPStoreState): SalesDomainState => {
   const sales = erpStoreState?.sales || erpStoreState?.state?.sales;
-  const leadsReadEnabled = process.env.NEXT_PUBLIC_BACKEND_LEADS_READ === 'true';
+  const leadsReadEnabled = process.env.NEXT_PUBLIC_BACKEND_LEADS_READ !== 'false';
   const leads = leadsReadEnabled
     ? (erpStoreState?.state?.serverCache?.leads || erpStoreState?.serverCache?.leads || [])
     : (Array.isArray(sales?.leads) ? sales.leads : []);

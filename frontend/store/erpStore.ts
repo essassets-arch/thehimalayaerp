@@ -278,7 +278,7 @@ const persistToStorage = (state: any) => {
 
       // Check feature flags to strip data if backend write mode is enabled
       const salesToPersist = { ...state.sales };
-      if (process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE === 'true') {
+      if (process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE !== 'false') {
         salesToPersist.leads = [];
       }
 
@@ -1584,7 +1584,7 @@ export const useERPStore = create((set: any, get: any) => ({
   // Usage: const createLead = useERPStore(s => s.salesActions.createLead);
   salesActions: {
     createLead: (payload: any, actorName = 'Sales User') => {
-      if (process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE === 'true') {
+      if (process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE !== 'false') {
         throw new Error('Legacy Lead mutation (createLead) was called while backend writes are enabled.');
       }
       const actor = { id: actorName, name: actorName };
