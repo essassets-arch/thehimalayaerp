@@ -2,7 +2,7 @@ import { legacyLeadsWriteRepository } from './legacyLeadsWriteRepository';
 import { backendLeadsWriteRepository } from './backendLeadsWriteRepository';
 import { FrontendLead } from './leadMapper';
 
-const useBackend = process.env.NEXT_PUBLIC_BACKEND_LEADS_WRITE === 'true';
+const useBackend = true;
 
 export const leadsWriteRepository = {
   create: async (input: any, context: { idempotencyKey: string; requestId?: string }): Promise<FrontendLead> => {

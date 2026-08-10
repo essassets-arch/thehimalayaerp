@@ -1,21 +1,13 @@
-import { legacyLeadsReadRepository } from './legacyLeadsReadRepository';
-import { backendLeadsReadRepository } from './backendLeadsReadRepository';
+import { LeadRepositoryFactory } from './leadRepositoryFactory';
 
 export const leadsReadRepository = {
   list: async (query: { page?: number; pageSize?: number; search?: string } = {}) => {
-    const useBackend = false; // Phase 4 strictly disables backend leads
-    if (useBackend) {
-      return backendLeadsReadRepository.list(query);
-    }
-    return legacyLeadsReadRepository.list(query);
+    return LeadRepositoryFactory.getReadRepository().listLeads(query);
   },
 
   getById: async (id: string) => {
-    const useBackend = false; // Phase 4 strictly disables backend leads
-    if (useBackend) {
-      return backendLeadsReadRepository.getById(id);
-    }
-    return legacyLeadsReadRepository.getById(id);
+    const data = await LeadRepositoryFactory.getReadRepository().getLeadById(id);
+    return { success: true, data };
   },
 };
 export type { FrontendLead } from './leadMapper';
