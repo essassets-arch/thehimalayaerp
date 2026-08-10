@@ -40,7 +40,7 @@ export class ProductsService {
         category,
         unit,
         minimumStock: dto.minimumStock || 0,
-        storageLocation: dto.description || null,
+        storageLocation: dto.storageLocation || dto.storage_location || dto.description || null,
       },
     });
   }
@@ -80,7 +80,7 @@ export class ProductsService {
   });
 }
 
-  async findAll(companyId: string, scope ?: string, search ?: string, type ?: string) {
+  async findAll(companyId: string, search?: string, scope?: string, type?: string) {
   if (scope === 'store' || scope === 'inventory') {
     const products = await this.prisma.product.findMany({
       where: { companyId, isActive: true },
@@ -103,7 +103,10 @@ export class ProductsService {
       unit: rm.unit,
       minimumStock: rm.minimumStock,
       unitPrice: 0,
-      description: rm.storageLocation || '',
+      // Raw materials store their physical location separately.  Keep that
+      // field explicit so inventory clients do not present it as a description.
+      description: '',
+      storageLocation: rm.storageLocation || '',
     }));
 
     return [...products, ...normalizedRaw];
@@ -133,7 +136,8 @@ export class ProductsService {
       unit: rm.unit,
       minimumStock: rm.minimumStock,
       unitPrice: 0,
-      description: rm.storageLocation || '',
+      description: '',
+      storageLocation: rm.storageLocation || '',
     }));
   }
 
@@ -215,7 +219,7 @@ export class ProductsService {
         category: dto.category || dto.product_family,
         unit: dto.unit || dto.unit_of_measure,
         minimumStock: dto.minimumStock,
-        storageLocation: dto.description,
+        storageLocation: dto.storageLocation || dto.storage_location || dto.description,
       },
     });
   }

@@ -12,93 +12,81 @@ import {
   Package, TrendingUp, AlertTriangle, CheckCircle, Clock,
   DollarSign, Layers, RefreshCw, Download, Search,
   ShieldCheck, Truck, Activity, PieChart as PieIcon, BarChart3,
-  Database, ArrowUpRight, ArrowDownRight, Award, Zap, XCircle
+  Database, ArrowDownRight, Award, Zap, XCircle
 } from 'lucide-react';
 import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
 import { backendFetch } from '../../../lib/backendFetch';
-import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
 
 export const StoreDashboard = () => {
   // ── Dynamic Backend & Live Inventory State ──
   const [liveInventory, setLiveInventory] = useState([]);
   const [stockTransactions, setStockTransactions] = useState([]);
-  const [grnRecords, setGrnRecords] = useState([]);
-  const [materialRequests, setMaterialRequests] = useState([]);
+  const [rawMaterialCount, setRawMaterialCount] = useState(0);
+  const [summaryData, setSummaryData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorState, setErrorState] = useState(false);
 
   // ── Fetch Pure Dynamic Data from Backend API ──
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
+    setErrorState(false);
     try {
-      const [stockRes, itemsRes, productsRes, transactionsRes, grnsRes, requestsRes] = await Promise.allSettled([
-        backendFetch('/api/backend/inventory/stock-levels'),
-        backendFetch('/api/backend/inventory/items'),
-        backendFetch('/api/backend/products'),
+      const [dashRes, transactionsRes, rawMaterialsRes] = await Promise.allSettled([
+        backendFetch('/api/backend/inventory/dashboard'),
         backendFetch('/api/backend/inventory/transactions'),
-        backendFetch('/api/backend/procurement/grns'),
-        backendFetch('/api/backend/production/material-requests')
+        backendFetch('/api/backend/products?type=RAW_MATERIAL')
       ]);
 
-      let itemsList = [];
-      if (itemsRes.status === 'fulfilled' && Array.isArray(itemsRes.value) && itemsRes.value.length > 0) {
-        itemsList = itemsRes.value.map((item, idx) => ({
-          code: item.code || item.item_code || `HCPPL00${idx + 1}`,
-          name: item.name || item.itemName || item.product_name || 'Inventory Item',
-          warehouse: item.warehouse || (idx % 4 === 0 ? 'FG-01 Main FG' : idx % 4 === 1 ? 'FG-02 Raw Material Yard' : idx % 4 === 2 ? 'FG-03 Chemical Store' : 'FG-04 Spares'),
-          category: item.category || (idx % 3 === 0 ? 'Hardware' : idx % 3 === 1 ? 'Raw Material' : 'Chemical & Pigment'),
-          group: item.group || item.materialGroup || (item.category === 'Hardware' ? 'Abrasives' : item.category === 'Raw Material' ? 'Metals & Sheets' : 'Solvents'),
-          supplier: item.supplier || item.vendorName || (idx % 3 === 0 ? 'Apex Industrial Supplies' : idx % 3 === 1 ? 'Gujarat Chemical Corp' : 'Tata Steel Ltd'),
-          available: Number(item.balance ?? item.availableQuantity ?? item.quantity ?? 100),
-          reserved: Number(item.reservedQuantity ?? Math.round((item.balance || 100) * 0.1)),
-          min: Number(item.minStock ?? item.min_stock_level ?? 20),
-          max: Number(item.maxStock ?? item.max_stock_level ?? 500),
-          price: Number(item.price ?? item.unitPrice ?? item.unit_cost ?? 250),
-          aging: Number(item.agingDays ?? item.aging ?? ((idx * 17) % 210)),
-          rejections: Number(item.rejectionCount ?? (idx % 5 === 0 ? idx + 2 : 0))
-        }));
+      if (dashRes.status === 'fulfilled' && dashRes.value) {
+        const payload = dashRes.value;
+        const invList = Array.isArray(payload.inventory) ? payload.inventory.map(item => {
+          const itemVal = (Number(item.available || 0) + Number(item.reserved || 0)) * Number(item.price || 0);
+          const abc = itemVal > 50000 ? 'Class A' : itemVal > 10000 ? 'Class B' : 'Class C';
+          const fsn = item.aging <= 30 ? 'Fast Moving' : item.aging <= 180 ? 'Slow Moving' : 'Non-Moving';
+          return {
+            id: item.id,
+            code: item.code || 'N/A',
+            name: item.name || 'Material Item',
+            warehouse: item.warehouse || 'Main Store',
+            category: item.category || 'Raw Material',
+            available: Number(item.available || 0),
+            reserved: Number(item.reserved || 0),
+            min: Number(item.min || 0),
+            max: Number(item.max || 0),
+            price: Number(item.price || 0),
+            aging: Number(item.aging || 0),
+            rejections: Number(item.rejections || 0),
+            abc,
+            fsn
+          };
+        }) : [];
+
+        setLiveInventory(invList);
+        setSummaryData(payload.summary || null);
+      } else {
+        setLiveInventory([]);
+        setSummaryData(null);
       }
-
-      // If backend inventory tables return empty array, seed dynamically from master items
-      if (itemsList.length === 0) {
-        itemsList = SEEDED_INVENTORY_ITEMS.map((item, idx) => ({
-          code: item.code || `HCPPL00${idx + 1}`,
-          name: item.itemName,
-          warehouse: idx % 4 === 0 ? 'FG-01 Main FG' : idx % 4 === 1 ? 'FG-02 Raw Material Yard' : idx % 4 === 2 ? 'FG-03 Chemical Store' : 'FG-04 Spares',
-          category: item.category || 'Hardware',
-          group: item.category === 'Hardware' ? 'Abrasives' : item.category === 'Raw Material' ? 'Metals & Sheets' : 'Solvents',
-          supplier: idx % 3 === 0 ? 'Apex Industrial Supplies' : idx % 3 === 1 ? 'Gujarat Chemical Corp' : 'Tata Steel Ltd',
-          available: Number(item.balance || 0),
-          reserved: Math.round(Number(item.balance || 0) * 0.1),
-          min: Number(item.minStock || 20),
-          max: Number((item.minStock || 20) * 8),
-          price: item.category === 'Raw Material' ? 1450 : item.category === 'Chemical & Pigment' ? 3200 : 150,
-          aging: (idx * 17) % 210,
-          rejections: idx % 5 === 0 ? idx + 2 : 0
-        }));
-      }
-
-      // Dynamically attach ABC & FSN classification based on values & velocities
-      const enrichedDataset = itemsList.map((item) => {
-        const itemVal = (item.available + item.reserved) * item.price;
-        const abc = itemVal > 50000 ? 'Class A' : itemVal > 10000 ? 'Class B' : 'Class C';
-        const fsn = item.available > 200 ? 'Fast Moving' : item.available > 20 ? 'Slow Moving' : 'Non-Moving';
-        return { ...item, abc, fsn };
-      });
-
-      setLiveInventory(enrichedDataset);
 
       if (transactionsRes.status === 'fulfilled' && Array.isArray(transactionsRes.value)) {
         setStockTransactions(transactionsRes.value);
-      }
-      if (grnsRes.status === 'fulfilled' && Array.isArray(grnsRes.value)) {
-        setGrnRecords(grnsRes.value);
-      }
-      if (requestsRes.status === 'fulfilled' && Array.isArray(requestsRes.value)) {
-        setMaterialRequests(requestsRes.value);
+      } else {
+        setStockTransactions([]);
       }
 
+      // This is deliberately separate from the full product catalog used by
+      // dashboard analytics. It matches the records visible in Raw Inventory.
+      setRawMaterialCount(
+        rawMaterialsRes.status === 'fulfilled' && Array.isArray(rawMaterialsRes.value)
+          ? rawMaterialsRes.value.length
+          : 0,
+      );
     } catch (err) {
       console.warn('[StoreDashboard] Backend fetch error:', err);
+      setErrorState(true);
+      setLiveInventory([]);
+      setSummaryData(null);
+      setRawMaterialCount(0);
     } finally {
       setLoading(false);
     }
@@ -111,8 +99,8 @@ export const StoreDashboard = () => {
   // ── Helper to evaluate stock status ──
   const getStockStatus = (item) => {
     if (item.available === 0) return 'Out of Stock';
-    if (item.available < item.min) return 'Below Min Stock';
-    if (item.available > item.max) return 'Above Max Stock';
+    if (item.min > 0 && item.available < item.min) return 'Below Min Stock';
+    if (item.max > 0 && item.available > item.max) return 'Above Max Stock';
     if (item.aging > 180 || item.fsn === 'Non-Moving') return 'Dead Stock';
     return 'Available';
   };
@@ -133,23 +121,26 @@ export const StoreDashboard = () => {
       totalVal += itemVal;
       totalAvailableQty += item.available;
 
-      if (item.available < item.min) belowMinCount++;
-      if (item.available > item.max) aboveMaxCount++;
+      if (item.available < item.min && item.available > 0) belowMinCount++;
+      if (item.max > 0 && item.available > item.max) aboveMaxCount++;
       if (item.aging > 180 || item.fsn === 'Non-Moving') deadStockVal += itemVal;
       if (item.fsn === 'Slow Moving') slowCount++;
       if (item.fsn === 'Fast Moving') fastCount++;
       totalRejections += item.rejections;
     });
 
-    const skusCount = liveInventory.length;
-    const rejectionRate = skusCount > 0 ? (totalRejections / (totalAvailableQty || 1) * 100).toFixed(1) : '0.0';
-    const accuracy = '98.6%';
-    const turnover = totalVal > 0 ? (totalVal / (totalVal * 0.15)).toFixed(1) + 'x' : '6.4x';
-    const utilization = '84.2%';
+    const catalogItemCount = liveInventory.length;
+    const rejectionRate = summaryData?.rejectionRate !== undefined 
+      ? Number(summaryData.rejectionRate).toFixed(1)
+      : (catalogItemCount > 0 && totalAvailableQty > 0 ? ((totalRejections / totalAvailableQty) * 100).toFixed(1) : '0.0');
+
+    const accuracy = summaryData?.auditAccuracy ? `${summaryData.auditAccuracy}%` : '0%';
+    const turnover = summaryData?.turnoverRatio ? `${summaryData.turnoverRatio}x` : '0x';
+    const utilization = summaryData?.warehouseUtilization ? `${summaryData.warehouseUtilization}%` : '0%';
 
     return {
       totalVal,
-      skusCount,
+      rawMaterialCount,
       totalAvailableQty,
       belowMinCount,
       aboveMaxCount,
@@ -161,20 +152,14 @@ export const StoreDashboard = () => {
       turnover,
       utilization
     };
-  }, [liveInventory]);
+  }, [liveInventory, rawMaterialCount, summaryData]);
 
   // ── Chart 1: Inventory Value Trend (Monthly) ──
   const trendChartData = useMemo(() => {
-    const currentLakhs = Number((kpiData.totalVal / 100000).toFixed(2)) || 66.48;
+    if (kpiData.totalVal === 0) return [];
+    const currentLakhs = Number((kpiData.totalVal / 100000).toFixed(2));
     return [
-      { month: 'Jan', value: Number((currentLakhs * 0.82).toFixed(2)), target: Number((currentLakhs * 0.9).toFixed(2)) },
-      { month: 'Feb', value: Number((currentLakhs * 0.88).toFixed(2)), target: Number((currentLakhs * 0.9).toFixed(2)) },
-      { month: 'Mar', value: Number((currentLakhs * 0.85).toFixed(2)), target: Number((currentLakhs * 0.9).toFixed(2)) },
-      { month: 'Apr', value: Number((currentLakhs * 0.92).toFixed(2)), target: Number((currentLakhs * 0.9).toFixed(2)) },
-      { month: 'May', value: Number((currentLakhs * 0.96).toFixed(2)), target: Number((currentLakhs * 0.9).toFixed(2)) },
-      { month: 'Jun', value: Number((currentLakhs * 0.94).toFixed(2)), target: Number((currentLakhs * 0.9).toFixed(2)) },
-      { month: 'Jul', value: Number((currentLakhs * 0.98).toFixed(2)), target: Number((currentLakhs * 0.9).toFixed(2)) },
-      { month: 'Aug', value: currentLakhs, target: Number((currentLakhs * 0.9).toFixed(2)) },
+      { month: 'Current', value: currentLakhs, target: currentLakhs }
     ];
   }, [kpiData.totalVal]);
 
@@ -182,21 +167,14 @@ export const StoreDashboard = () => {
   const warehouseDistData = useMemo(() => {
     const map = {};
     liveInventory.forEach((item) => {
-      const wh = item.warehouse;
+      const wh = item.warehouse || 'Main Store';
       const val = (item.available * item.price) / 100000;
       map[wh] = (map[wh] || 0) + val;
     });
     const keys = Object.keys(map);
-    if (keys.length === 0) {
-      return [
-        { warehouse: 'WH-01 Main FG', valueLakhs: 24.5 },
-        { warehouse: 'WH-02 Raw Yard', valueLakhs: 18.2 },
-        { warehouse: 'WH-03 Chemical', valueLakhs: 14.8 },
-        { warehouse: 'WH-04 Spares', valueLakhs: 8.98 },
-      ];
-    }
+    if (keys.length === 0) return [];
     return keys.map((wh) => ({
-      warehouse: wh.replace('FG-', 'WH-'),
+      warehouse: wh,
       valueLakhs: Number(map[wh].toFixed(2))
     }));
   }, [liveInventory]);
@@ -205,20 +183,13 @@ export const StoreDashboard = () => {
   const categoryPieData = useMemo(() => {
     const map = {};
     liveInventory.forEach((item) => {
-      const cat = item.category;
+      const cat = item.category || 'Raw Material';
       const val = (item.available * item.price) / 100000;
       map[cat] = (map[cat] || 0) + val;
     });
     const COLORS = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
     const keys = Object.keys(map);
-    if (keys.length === 0) {
-      return [
-        { name: 'Hardware', value: 12.5, color: '#0284c7' },
-        { name: 'Raw Material', value: 34.2, color: '#10b981' },
-        { name: 'Chemical & Pigment', value: 15.8, color: '#f59e0b' },
-        { name: 'Packaging', value: 3.98, color: '#8b5cf6' },
-      ];
-    }
+    if (keys.length === 0) return [];
     return keys.map((cat, idx) => ({
       name: cat,
       value: Number(map[cat].toFixed(2)),
@@ -228,27 +199,21 @@ export const StoreDashboard = () => {
 
   // ── Chart 4: Daily Material Inward vs Outward ──
   const dailyMovementData = useMemo(() => {
-    return [
-      { day: '01 Aug', inward: 140, outward: 110 },
-      { day: '02 Aug', inward: 180, outward: 165 },
-      { day: '03 Aug', inward: 95, outward: 140 },
-      { day: '04 Aug', inward: 220, outward: 190 },
-      { day: '05 Aug', inward: 310, outward: 280 },
-      { day: '06 Aug', inward: 160, outward: 175 },
-      { day: '07 Aug', inward: 240, outward: 210 },
-    ];
-  }, []);
+    if (!Array.isArray(stockTransactions) || stockTransactions.length === 0) return [];
+    const dailyMap = {};
+    stockTransactions.forEach(tx => {
+      const day = new Date(tx.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      if (!dailyMap[day]) dailyMap[day] = { day, inward: 0, outward: 0 };
+      const qty = Number(tx.quantity) || 0;
+      if (tx.type === 'IN' || tx.type === 'PURCHASE_RECEIPT') dailyMap[day].inward += qty;
+      else if (tx.type === 'OUT') dailyMap[day].outward += qty;
+    });
+    return Object.values(dailyMap).slice(-7);
+  }, [stockTransactions]);
 
   // ── Chart 5: Minimum Stock vs Current Stock ──
   const minVsCurrentData = useMemo(() => {
-    if (liveInventory.length === 0) {
-      return [
-        { name: 'WATER PAPER 60', Current: 15, Minimum: 20 },
-        { name: 'BLUE PIGMENT', Current: 52, Minimum: 100 },
-        { name: 'BENJO WAX POLISH', Current: 20, Minimum: 40 },
-        { name: 'DRILL BIT 12MM', Current: 26, Minimum: 30 },
-      ];
-    }
+    if (liveInventory.length === 0) return [];
     return liveInventory
       .slice(0, 7)
       .map((item) => ({
@@ -266,9 +231,7 @@ export const StoreDashboard = () => {
       else if (item.fsn === 'Slow Moving') slow++;
       else dead++;
     });
-    if (fast + slow + dead === 0) {
-      fast = 10; slow = 8; dead = 2;
-    }
+    if (fast + slow + dead === 0) return [];
     return [
       { name: 'Fast Moving', value: fast, color: '#10b981' },
       { name: 'Slow Moving', value: slow, color: '#f59e0b' },
@@ -286,9 +249,7 @@ export const StoreDashboard = () => {
       else if (item.aging <= 180) b91_180++;
       else b180Plus++;
     });
-    if (b0_30 + b31_60 + b61_90 + b91_180 + b180Plus === 0) {
-      b0_30 = 8; b31_60 = 5; b61_90 = 3; b91_180 = 2; b180Plus = 2;
-    }
+    if (b0_30 + b31_60 + b61_90 + b91_180 + b180Plus === 0) return [];
     return [
       { bucket: '0-30 Days', count: b0_30, color: '#10b981' },
       { bucket: '31-60 Days', count: b31_60, color: '#0284c7' },
@@ -300,11 +261,12 @@ export const StoreDashboard = () => {
 
   // ── Chart 8: Top Rejected Materials (Pareto) ──
   const paretoChartData = useMemo(() => {
-    const sorted = [...liveInventory].sort((a, b) => b.rejections - a.rejections).slice(0, 5);
+    const sorted = [...liveInventory].filter(i => i.rejections > 0).sort((a, b) => b.rejections - a.rejections).slice(0, 5);
+    if (sorted.length === 0) return [];
     let totalRej = sorted.reduce((sum, i) => sum + i.rejections, 0) || 1;
     let runningSum = 0;
 
-    const list = sorted.map((item) => {
+    return sorted.map((item) => {
       runningSum += item.rejections;
       return {
         name: item.name.length > 12 ? item.name.slice(0, 12) + '...' : item.name,
@@ -312,18 +274,6 @@ export const StoreDashboard = () => {
         cumPct: Math.round((runningSum / totalRej) * 100),
       };
     });
-
-    if (list.length === 0 || list.every(i => i.rejections === 0)) {
-      return [
-        { name: 'STEEL SHEET 3MM', rejections: 25, cumPct: 40 },
-        { name: 'BLUE PIGMENT', rejections: 18, cumPct: 65 },
-        { name: 'CORRUGATED BOX', rejections: 15, cumPct: 82 },
-        { name: 'WATER PAPER 80', rejections: 12, cumPct: 92 },
-        { name: 'ALUMINUM COIL', rejections: 10, cumPct: 100 },
-      ];
-    }
-
-    return list;
   }, [liveInventory]);
 
   // ── Chart 9: ABC Analysis ──
@@ -335,9 +285,7 @@ export const StoreDashboard = () => {
       else if (item.abc === 'Class B') classB += val;
       else classC += val;
     });
-    if (classA + classB + classC === 0) {
-      classA = 46.5; classB = 14.2; classC = 5.78;
-    }
+    if (classA + classB + classC === 0) return [];
     return [
       { class: 'Class A (High Value)', value: Number(classA.toFixed(2)), color: '#0284c7' },
       { class: 'Class B (Med Value)', value: Number(classB.toFixed(2)), color: '#f59e0b' },
@@ -354,9 +302,7 @@ export const StoreDashboard = () => {
       else if (item.fsn === 'Slow Moving') slowVal += val;
       else deadVal += val;
     });
-    if (fastVal + slowVal + deadVal === 0) {
-      fastVal = 48.2; slowVal = 15.5; deadVal = 2.78;
-    }
+    if (fastVal + slowVal + deadVal === 0) return [];
     return [
       { name: 'Fast (F)', value: Number(fastVal.toFixed(2)), color: '#10b981' },
       { name: 'Slow (S)', value: Number(slowVal.toFixed(2)), color: '#f59e0b' },
@@ -418,25 +364,22 @@ export const StoreDashboard = () => {
         </div>
       </div>
 
+      {errorState && (
+        <div style={{ padding: '14px 18px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#991b1b', fontSize: '13px', fontWeight: '700', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertCircle size={18} color="#dc2626" /> Unable to load inventory data from backend API. Displaying safe empty state.
+        </div>
+      )}
+
       {/* ── 12 Executive KPI Cards Grid ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         
-        {/* 1. Total Inventory Value */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>💰 Inventory Value</div>
-          <div style={{ fontSize: '20px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>
-            ₹{(kpiData.totalVal / 100000).toFixed(2)} L
-          </div>
-          <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <ArrowUpRight size={13} /> Live dynamic valuation
-          </div>
-        </div>
+        {/* Total Raw Materials */}
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #3b82f6' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>📦 Total SKUs</div>
+          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>📦 Total Raw Materials</div>
           <div style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', margin: '4px 0' }}>
-            {kpiData.skusCount} SKUs
+            {kpiData.rawMaterialCount} Materials
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Active catalog items</div>
+          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Items shown in Raw Inventory</div>
         </div>
 
         {/* 3. Available Stock */}
@@ -502,37 +445,10 @@ export const StoreDashboard = () => {
           <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>QC intake rejections</div>
         </div>
 
-        {/* 10. Physical Stock Accuracy % */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>✔ Audit Accuracy %</div>
-          <div style={{ fontSize: '20px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>
-            {kpiData.accuracy}
-          </div>
-          <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '700' }}>Physical verification</div>
-        </div>
-
-        {/* 11. Inventory Turnover Ratio */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #8b5cf6' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🔄 Turnover Ratio</div>
-          <div style={{ fontSize: '20px', fontWeight: '900', color: '#7c3aed', margin: '4px 0' }}>
-            {kpiData.turnover}
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Annualized velocity</div>
-        </div>
-
-        {/* 12. Warehouse Utilization % */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #06b6d4' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🚚 WH Utilization</div>
-          <div style={{ fontSize: '20px', fontWeight: '900', color: '#0891b2', margin: '4px 0' }}>
-            {kpiData.utilization}
-          </div>
-          <div style={{ fontSize: '11px', color: '#0891b2', fontWeight: '700' }}>Storage capacity used</div>
-        </div>
-
       </div>
 
       {/* ── Bottom Detail Table ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+      {false && <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
@@ -632,7 +548,7 @@ export const StoreDashboard = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
     </div>
   );

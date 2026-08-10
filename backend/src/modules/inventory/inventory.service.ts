@@ -178,4 +178,175 @@ export class InventoryService {
   async updateItemBalance(id: string, balance: number) {
     return { id, balance };
   }
+
+  async getDashboardData(companyId: string) {
+    const [rawMaterials, products, transactions, warehouses, qcInspections] = await Promise.all([
+      this.prisma.rawMaterial.findMany({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.product.findMany({
+        where: { companyId, isActive: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.inventoryTransaction.findMany({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+        include: { warehouse: { select: { name: true } } },
+      }),
+      this.prisma.warehouse.findMany({
+        where: { companyId },
+      }),
+      (this.prisma as any).qCInspection?.findMany({
+        where: { companyId },
+      }).catch(() => []) ?? Promise.resolve([]),
+    ]);
+
+    const stockLevels = await this.getStockLevels(companyId);
+    const stockMap = new Map<string, number>(
+      stockLevels.map((s) => [s.productId, s.quantity]),
+    );
+
+    const latestTxMap = new Map<string, { date: Date; warehouseName: string }>();
+    for (const tx of transactions) {
+      const itemId = tx.productId || tx.rawMaterialId;
+      if (!itemId) continue;
+      if (!latestTxMap.has(itemId)) {
+        latestTxMap.set(itemId, {
+          date: tx.createdAt,
+          warehouseName: tx.warehouse?.name || 'Main Store',
+        });
+      }
+    }
+
+    const now = new Date();
+
+    const catalogItems: Array<{
+      id: string;
+      code: string;
+      name: string;
+      category: string;
+      warehouse: string;
+      available: number;
+      reserved: number;
+      min: number;
+      max: number;
+      price: number;
+      aging: number;
+      rejections: number;
+    }> = [];
+
+    const calcAging = (itemId: string, itemCreatedAt: Date): number => {
+      const latestTx = latestTxMap.get(itemId);
+      const refDate = latestTx ? latestTx.date : itemCreatedAt;
+      if (!refDate) return 0;
+      const diffMs = now.getTime() - new Date(refDate).getTime();
+      return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    };
+
+    for (const rm of rawMaterials) {
+      const available = Math.max(0, stockMap.get(rm.id) ?? 0);
+      const min = Number(rm.minimumStock) || 0;
+      const max = min > 0 ? min * 8 : 0;
+      const price = 0;
+      const aging = calcAging(rm.id, rm.createdAt);
+      const whName = latestTxMap.get(rm.id)?.warehouseName || 'Main Store';
+
+      catalogItems.push({
+        id: rm.id,
+        code: rm.sku || rm.publicId || 'N/A',
+        name: rm.name,
+        category: rm.category || 'Raw Material',
+        warehouse: whName,
+        available,
+        reserved: 0,
+        min,
+        max,
+        price,
+        aging,
+        rejections: 0,
+      });
+    }
+
+    for (const p of products) {
+      const available = Math.max(0, stockMap.get(p.id) ?? 0);
+      const min = Number(p.minimumStock) || 0;
+      const max = Number(p.reorderQuantity) || (min > 0 ? min * 8 : 0);
+      const price = Number(p.unitPrice) || 0;
+      const aging = calcAging(p.id, p.createdAt);
+      const whName = latestTxMap.get(p.id)?.warehouseName || 'Main Store';
+
+      catalogItems.push({
+        id: p.id,
+        code: p.sku || p.publicId || 'N/A',
+        name: p.name,
+        category: p.category || 'Product',
+        warehouse: whName,
+        available,
+        reserved: 0,
+        min,
+        max,
+        price,
+        aging,
+        rejections: 0,
+      });
+    }
+
+    let inventoryValue = 0;
+    let totalAvailableStock = 0;
+    let belowMinStock = 0;
+    let aboveMaxStock = 0;
+    let deadStockValue = 0;
+    let slowMovingSkus = 0;
+    let fastMovingSkus = 0;
+
+    for (const item of catalogItems) {
+      const val = item.available * item.price;
+      inventoryValue += val;
+      totalAvailableStock += item.available;
+
+      if (item.available > 0 && item.min > 0 && item.available < item.min) {
+        belowMinStock++;
+      }
+      if (item.max > 0 && item.available > item.max) {
+        aboveMaxStock++;
+      }
+      if (item.aging > 180 && item.available > 0) {
+        deadStockValue += val;
+      }
+      if (item.aging <= 30) {
+        fastMovingSkus++;
+      } else if (item.aging <= 180) {
+        slowMovingSkus++;
+      }
+    }
+
+    let rejectionRate = 0;
+    if (Array.isArray(qcInspections) && qcInspections.length > 0) {
+      const totalInspected = qcInspections.reduce((sum, q) => sum + (Number(q.quantityInspected || q.inspectedQty) || 0), 0);
+      const totalRejected = qcInspections.reduce((sum, q) => sum + (Number(q.quantityRejected || q.rejectedQty) || 0), 0);
+      if (totalInspected > 0) {
+        rejectionRate = Number(((totalRejected / totalInspected) * 100).toFixed(1));
+      }
+    }
+
+    return {
+      summary: {
+        inventoryValue: Number(inventoryValue.toFixed(2)),
+        totalSkus: catalogItems.length,
+        availableStock: totalAvailableStock,
+        belowMinStock,
+        aboveMaxStock,
+        deadStockValue: Number(deadStockValue.toFixed(2)),
+        slowMovingSkus,
+        fastMovingSkus,
+        rejectionRate,
+        auditAccuracy: 0,
+        turnoverRatio: 0,
+        warehouseUtilization: 0,
+      },
+      inventory: catalogItems,
+      transactions: transactions.slice(0, 50),
+    };
+  }
 }

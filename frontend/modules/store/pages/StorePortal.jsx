@@ -30,7 +30,6 @@ import IndentHistory from '../components/IndentHistory';
 import POReport from '../components/POReport';
 import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
 import BrandAnalysisRequests from '../components/BrandAnalysisRequests';
-import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
   const req = (reqName || '').toLowerCase();
@@ -475,21 +474,7 @@ export default function StorePortal() {
 
 
   const getMappedInventory = (rawInventoryList) => {
-    // Raw Inventory is the single source of truth for both the ledger and
-    // low-stock worklist. Do not hide any inventory row here: every material
-    // at or below its reorder level must be actionable from the alerts page.
-    const sourceList = rawInventoryList?.length > 0
-      ? rawInventoryList
-      : SEEDED_INVENTORY_ITEMS.map(item => ({
-          id: item.code,
-          code: item.code,
-          material: item.itemName,
-          category: item.category,
-          unit: item.unit,
-          stock: item.balance,
-          reorderLevel: item.minStock,
-          rate: 0,
-        }));
+    const sourceList = rawInventoryList?.length > 0 ? rawInventoryList : [];
 
     return sourceList.map((item, idx) => {
       return {

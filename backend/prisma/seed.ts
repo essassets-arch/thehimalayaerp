@@ -1010,8 +1010,9 @@ async function main() {
     create: { publicId: 'COMP-000001', name: 'Himalaya Wellness Pvt. Ltd.' },
   });
 
-  // Disable raw materials seeding to keep Store Dashboard empty
-  // await seed136RawMaterials(prisma, company.id);
+  // Keep RawMaterial and InventoryTransaction completely clear for user manual data entry
+  await prisma.inventoryTransaction.deleteMany({});
+  await prisma.rawMaterial.deleteMany({});
 
   // ── 4. Assign all permissions to SUPER_ADMIN and ADMIN ─────────────────────
   console.log('🔗 Assigning permissions to admin roles...');

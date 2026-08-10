@@ -7,7 +7,6 @@ import {
   RefreshCw, Search, Layers, ArrowUpRight, ShieldAlert, FileSpreadsheet, Building
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
-import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
 
 export const StoreSummaryReport = () => {
   // ── State Management ──
@@ -50,27 +49,6 @@ export const StoreSummaryReport = () => {
             issuedQty: Math.round(currentStock * 0.6),
             currentStock: currentStock,
             stockValue: currentStock * unitPrice,
-            minStockLevel: minStock,
-            status: currentStock <= minStock ? 'Low Stock' : 'Normal'
-          };
-        });
-      }
-
-      if (rawItems.length === 0) {
-        rawItems = SEEDED_INVENTORY_ITEMS.map((item, idx) => {
-          const currentStock = Number(item.balance || 45);
-          const minStock = Number(item.minStock || 30);
-          const price = item.category === 'Raw Material' ? 1450 : item.category === 'Chemical & Pigment' ? 3200 : 180;
-          return {
-            id: `RM-100${idx + 1}`,
-            name: item.itemName,
-            category: item.category || 'Raw Material',
-            unit: item.category === 'Chemical & Pigment' ? 'Ltr' : 'Kg',
-            openingStock: Math.round(currentStock * 1.3),
-            receivedQty: Math.round(currentStock * 0.5),
-            issuedQty: Math.round(currentStock * 0.8),
-            currentStock: currentStock,
-            stockValue: currentStock * price,
             minStockLevel: minStock,
             status: currentStock <= minStock ? 'Low Stock' : 'Normal'
           };
