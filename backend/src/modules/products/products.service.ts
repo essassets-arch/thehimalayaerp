@@ -212,7 +212,12 @@ export class ProductsService {
 
   async findOne(companyId: string, id: string) {
     const rm = await this.prisma.rawMaterial.findFirst({
-      where: { companyId, id },
+      where: {
+        OR: [
+          { id },
+          { publicId: id },
+        ],
+      },
     });
     if (rm) {
       return {
@@ -231,7 +236,12 @@ export class ProductsService {
     }
 
     const product = await this.prisma.product.findFirst({
-      where: { companyId, id },
+      where: {
+        OR: [
+          { id },
+          { publicId: id },
+        ],
+      },
     });
 
     if (!product) {
@@ -242,12 +252,11 @@ export class ProductsService {
   }
 
   async update(companyId: string, id: string, dto: UpdateProductDto) {
-    const rm = await this.prisma.rawMaterial.findFirst({
-      where: { companyId, id },
-    });
-    if (rm) {
+    const existing = await this.findOne(companyId, id);
+
+    if (existing.productType === 'RAW_MATERIAL') {
       return this.prisma.rawMaterial.update({
-        where: { id },
+        where: { id: existing.id },
         data: {
           name: dto.name || dto.product_name,
           sku: dto.sku || dto.product_code,
@@ -258,8 +267,6 @@ export class ProductsService {
         },
       });
     }
-
-    await this.findOne(companyId, id);
 
     const updateData: any = {};
     if (dto.name || dto.product_name) updateData.name = dto.name || dto.product_name;
@@ -292,7 +299,7 @@ export class ProductsService {
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
     return this.prisma.product.update({
-      where: { id },
+      where: { id: existing.id },
       data: updateData,
     });
   }

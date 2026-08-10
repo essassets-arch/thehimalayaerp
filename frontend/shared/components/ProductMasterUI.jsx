@@ -675,7 +675,11 @@ export default function ProductMasterUI({ role }) {
                           const newCat = e.target.value;
                           const updatedCat = newCat === 'Unassigned' ? null : newCat;
                           try {
-                            await axios.put(`/api/backend/products/${p.id}`, { dispatchCategory: updatedCat });
+                            try {
+                              await axios.patch(`/api/backend/products/${p.id}`, { dispatchCategory: updatedCat });
+                            } catch (e1) {
+                              await axios.put(`/api/backend/products/${p.id}`, { dispatchCategory: updatedCat });
+                            }
                             setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
                             showToast(`Product ${p.product_code} category updated to ${newCat}!`);
                           } catch (err) {
