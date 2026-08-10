@@ -571,9 +571,21 @@ export default function SuperAdminPortal() {
     });
   }, [selectedTraceId, liveEvents, notifications]);
 
-  useEffect(() => {
-    // Live events and system health fetching removed for static prototype.
+  const [backendUsers, setBackendUsers] = useState([]);
+
+  const loadLiveUsers = useCallback(async () => {
+    try {
+      const res = await backendFetch('/api/backend/users');
+      if (Array.isArray(res)) setBackendUsers(res);
+      else if (Array.isArray(res?.data)) setBackendUsers(res.data);
+    } catch (e) {
+      console.error('Failed to load live backend users:', e);
+    }
   }, []);
+
+  useEffect(() => {
+    loadLiveUsers();
+  }, [loadLiveUsers]);
 
   const isAdminPortal = window.location.pathname.startsWith('/admin');
   const orders = isAdminPortal ? (state.adminDirectOrders || []) : (state.sales?.orders || []);
@@ -3407,9 +3419,34 @@ export default function SuperAdminPortal() {
   };
 
   // 3. USER MANAGEMENT
+  // 3. USER MANAGEMENT
   const renderUsers = () => {
-    const filteredUsers = usersList.filter(user => {
-      if (userRoleFilter !== 'All' && user.role !== userRoleFilter) return false;
+    const allDynamicUsers = (backendUsers.length > 0 ? backendUsers : usersList).map((u) => {
+      const roleName = u.role?.name || u.role?.code || u.role || 'Staff';
+      const cat = u.dispatchCategory || u.dispatch_category;
+      return {
+        id: u.id,
+        publicId: u.publicId || (u.id ? `USR-${u.id.slice(0, 8)}` : 'USR-SEED'),
+        name: u.name || u.email?.split('@')[0],
+        email: u.email,
+        role: roleName,
+        roleCode: u.role?.code || roleName,
+        dispatchCategory: cat,
+        department: u.department || (typeof u.role === 'object' ? u.role?.name : u.role) || 'Executive',
+        status: u.isActive !== false ? 'Active' : 'Disabled',
+        isActive: u.isActive !== false,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt,
+        createdById: u.createdById,
+      };
+    });
+
+    const filteredUsers = allDynamicUsers.filter((user) => {
+      if (userRoleFilter !== 'All') {
+        const r = (user.role || '').toLowerCase();
+        const f = userRoleFilter.toLowerCase();
+        if (!r.includes(f) && !user.department?.toLowerCase().includes(f)) return false;
+      }
       return true;
     });
 
@@ -3442,7 +3479,7 @@ export default function SuperAdminPortal() {
                 className="action-btn"
                 style={{ background: 'var(--color-primary)', border: 'none', padding: '8px 16px', borderRadius: '6px', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                 onClick={() => {
-                  setUserForm({ id: '', name: '', email: '', password: '', role: 'Sales', phone: '', department: 'Sales', permissions: [] });
+                  setUserForm({ id: '', name: '', email: '', password: '', role: 'Dispatch', subRole: 'DISPATCH_EXECUTIVE', dispatchCategory: 'D1', phone: '', department: 'Dispatch', permissions: [] });
                   setUserModalMode('create');
                   setShowUserModal(true);
                 }}
@@ -3454,20 +3491,45 @@ export default function SuperAdminPortal() {
 
           <DataTable
             columns={[
-              { header: 'Employee ID', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace' }}>{row.id}</span> },
+              { header: 'Employee ID', accessor: 'publicId', render: (row) => <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0284c7' }}>{row.publicId}</span> },
               { header: 'Employee Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
-              { header: 'Login Email', accessor: 'email' },
+              { header: 'Login Email', accessor: 'email', render: (row) => <span style={{ color: '#475569' }}>{row.email}</span> },
               { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || row.department?.code || 'Executive') : (row.department || 'Executive')) },
               { header: 'Role Level', accessor: 'role', render: (row) => {
-                const roleName = typeof row.role === 'object' ? (row.role?.name || row.role?.code || 'Staff') : (row.role || 'Staff');
-                return <span style={{ color: roleName === 'Super Admin' ? '#84cc16' : '#0ea5e9', fontWeight: 'bold' }}>{roleName}</span>;
+                const roleName = row.role || 'Staff';
+                const cat = row.dispatchCategory;
+                return (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: roleName.includes('Super Admin') ? '#84cc16' : '#0ea5e9', fontWeight: 'bold' }}>{roleName}</span>
+                    {cat && <span style={{ background: cat === 'D1' ? '#0284c7' : '#8b5cf6', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '800' }}>{cat}</span>}
+                  </span>
+                );
               } },
-              { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> },
-              { header: 'Created By', accessor: 'createdBy', render: () => 'System Seed' },
-              { header: 'Last Login', accessor: 'lastLogin', render: () => '10 Mins Ago' },
+              { header: 'Status', accessor: 'status', render: (row) => (
+                <button
+                  onClick={() => toggleUserStatus(row)}
+                  style={{
+                    background: row.isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                    color: row.isActive ? '#10b981' : '#f59e0b',
+                    border: `1px solid ${row.isActive ? '#10b981' : '#f59e0b'}`,
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {row.isActive ? '● Active' : '○ Disabled'}
+                </button>
+              ) },
+              { header: 'Created By', accessor: 'createdById', render: (row) => (row.createdById ? 'Admin' : 'System Seed') },
+              { header: 'Last Login', accessor: 'updatedAt', render: (row) => (row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active Session') },
               { header: 'Access Level', accessor: 'role', render: (row) => {
-                const roleName = typeof row.role === 'object' ? (row.role?.name || row.role?.code || 'Staff') : (row.role || 'Staff');
-                return roleName === 'Super Admin' ? 'Root Override' : 'Role Restricted';
+                if (row.role?.includes('Super Admin') || row.roleCode === 'SUPER_ADMIN') return 'Root Override';
+                if (row.dispatchCategory === 'D1') return 'Dispatch 1 Scoped';
+                if (row.dispatchCategory === 'D2') return 'Dispatch 2 Scoped';
+                if (row.role?.includes('Sales')) return 'Salesperson Scoped';
+                return 'Role Restricted';
               } }
             ]}
             data={filteredUsers}
@@ -3480,7 +3542,12 @@ export default function SuperAdminPortal() {
                   className="action-btn"
                   style={{ background: 'rgba(6, 182, 212, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#22d3ee', cursor: 'pointer' }}
                   onClick={() => {
-                    setUserForm({ ...row, password: '' });
+                    setUserForm({
+                      ...row,
+                      password: '',
+                      subRole: row.roleCode || row.role,
+                      dispatchCategory: row.dispatchCategory || (row.role?.includes('2') ? 'D2' : 'D1'),
+                    });
                     setUserModalMode('edit');
                     setShowUserModal(true);
                   }}
@@ -3496,22 +3563,14 @@ export default function SuperAdminPortal() {
                   <RefreshCw size={12} />
                 </button>
                 <button
-                  title="Force Logout"
-                  className="action-btn"
-                  style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#f87171', cursor: 'pointer' }}
-                  onClick={() => forceLogoutUser(row)}
-                >
-                  <UserX size={12} />
-                </button>
-                <button
-                  title={row.status === 'Active' ? 'Disable User' : 'Enable User'}
+                  title={row.isActive ? 'Disable User' : 'Enable User'}
                   className="action-btn"
                   style={{
-                    background: row.status === 'Active' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(74, 222, 128, 0.15)',
+                    background: row.isActive ? 'rgba(245, 158, 11, 0.15)' : 'rgba(74, 222, 128, 0.15)',
                     border: 'none',
                     padding: '6px',
                     borderRadius: '4px',
-                    color: row.status === 'Active' ? '#f59e0b' : '#4ade80',
+                    color: row.isActive ? '#f59e0b' : '#4ade80',
                     cursor: 'pointer'
                   }}
                   onClick={() => toggleUserStatus(row)}
@@ -3535,10 +3594,10 @@ export default function SuperAdminPortal() {
         {/* User Modal */}
         {showUserModal && (
           <div className="modal-overlay active" onClick={() => setShowUserModal(false)} style={{ zIndex: 10000 }}>
-            <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '450px' }}>
+            <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '480px' }}>
               <div className="modal-header-row">
                 <h3 className="modal-title-text">{userModalMode === 'create' ? 'Create User Account' : 'Edit User details'}</h3>
-                <button className="modal-close-btn" onClick={() => setShowUserModal(false)}>âœ•</button>
+                <button className="modal-close-btn" onClick={() => setShowUserModal(false)}>✕</button>
               </div>
               <form onSubmit={handleUserSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
@@ -3565,40 +3624,104 @@ export default function SuperAdminPortal() {
                     <input
                       type="password" required value={userForm.password}
                       onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                      className="form-input" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                      className="form-input" placeholder="••••••••"
                     />
                   </div>
                 )}
 
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>System Role Level</label>
+                  <label className="form-label" style={{ color: '#8893A7' }}>Department / Node Type</label>
                   <select
-                    value={userForm.role}
+                    value={userForm.role || 'Dispatch'}
                     onChange={(e) => {
                       const r = e.target.value;
-                      let dept = 'Sales';
-                      if (r === 'Super Admin' || r === 'Admin') dept = 'Executive';
-                      if (r === 'Production') dept = 'Production';
-                      if (r === 'Finance') dept = 'Finance';
-                      if (r === 'HR') dept = 'HR';
-                      if (r === 'Store') dept = 'Store';
-                      if (r === 'QC') dept = 'QC';
-                      if (r === 'Dispatch') dept = 'Dispatch';
-                      setUserForm({ ...userForm, role: r, department: dept });
+                      let dept = r;
+                      let subRole = r;
+                      let dCat = null;
+                      if (r === 'Dispatch') {
+                        subRole = 'DISPATCH_EXECUTIVE';
+                        dCat = 'D1';
+                      } else if (r === 'Sales') {
+                        subRole = 'SALES_EXECUTIVE';
+                      } else if (r === 'Finance') {
+                        subRole = 'FINANCE_MANAGER';
+                      } else if (r === 'Production') {
+                        subRole = 'PLANT_HEAD';
+                      }
+                      setUserForm({ ...userForm, role: r, subRole, dispatchCategory: dCat, department: dept });
                     }}
                     className="form-select"
                   >
-                    <option value="Super Admin">Super Admin</option>
+                    <option value="Dispatch">Dispatch Department</option>
+                    <option value="Sales">Sales Department</option>
+                    <option value="Finance">Finance Department</option>
+                    <option value="Production">Production Department</option>
+                    <option value="Store">Store Department</option>
+                    <option value="QC">QC Department</option>
+                    <option value="HR">HR Department</option>
                     <option value="Admin">Admin</option>
-                    <option value="Sales">Sales</option>
-                    <option value="Production">Production</option>
-                    <option value="Store">Store</option>
-                    <option value="QC">QC</option>
-                    <option value="Dispatch">Dispatch</option>
-                    <option value="Finance">Finance</option>
-                    <option value="HR">HR</option>
+                    <option value="Super Admin">Super Admin</option>
                   </select>
                 </div>
+
+                {/* Sub-role / Category Options dynamically based on Department */}
+                {(userForm.role === 'Dispatch' || userForm.role?.includes('Dispatch') || userForm.subRole === 'DISPATCH_EXECUTIVE') && (
+                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Dispatch Category / Executive Assignment</label>
+                    <select
+                      value={userForm.dispatchCategory || 'D1'}
+                      onChange={(e) => setUserForm({ ...userForm, dispatchCategory: e.target.value, subRole: 'DISPATCH_EXECUTIVE' })}
+                      className="form-select"
+                    >
+                      <option value="D1">Dispatch 1 (D1) — Ravikant Tiwari Queue</option>
+                      <option value="D2">Dispatch 2 (D2) — Sahad Mansuri Queue</option>
+                    </select>
+                  </div>
+                )}
+
+                {userForm.role === 'Sales' && (
+                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Sales Role Type</label>
+                    <select
+                      value={userForm.subRole || 'SALES_EXECUTIVE'}
+                      onChange={(e) => setUserForm({ ...userForm, subRole: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="SUPER_SALES">SuperSales (Full Sales Scoping)</option>
+                      <option value="SALES_EXECUTIVE">Sales Executive (Individual Scoping)</option>
+                      <option value="SALES_MANAGER">Sales Manager</option>
+                    </select>
+                  </div>
+                )}
+
+                {userForm.role === 'Finance' && (
+                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Finance Role Type</label>
+                    <select
+                      value={userForm.subRole || 'FINANCE_MANAGER'}
+                      onChange={(e) => setUserForm({ ...userForm, subRole: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="FINANCE_MANAGER">Finance Manager</option>
+                      <option value="FINANCE_EXECUTIVE">Finance Executive</option>
+                    </select>
+                  </div>
+                )}
+
+                {userForm.role === 'Production' && (
+                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Production Role Type</label>
+                    <select
+                      value={userForm.subRole || 'PLANT_HEAD'}
+                      onChange={(e) => setUserForm({ ...userForm, subRole: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="PLANT_HEAD">Plant Head</option>
+                      <option value="PRODUCTION_PLANNER">Production Planner</option>
+                      <option value="PRODUCTION_OPERATOR">Production Operator</option>
+                    </select>
+                  </div>
+                )}
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ color: '#8893A7' }}>Phone Contact</label>

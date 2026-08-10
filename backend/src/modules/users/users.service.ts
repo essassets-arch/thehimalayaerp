@@ -108,6 +108,8 @@ export class UsersService {
         name,
         roleId: role.id,
         companyId,
+        dispatchCategory: data.dispatchCategory || data.dispatch_category || null,
+        isActive: data.isActive !== undefined ? Boolean(data.isActive) : (data.status ? (data.status === 'Active' || data.status === 'ACTIVE') : true),
       },
       include: {
         role: true,
@@ -158,6 +160,14 @@ export class UsersService {
     }
     if (hashedPassword) {
       updateData.password = hashedPassword;
+    }
+    if (data.dispatchCategory !== undefined || data.dispatch_category !== undefined) {
+      updateData.dispatchCategory = data.dispatchCategory || data.dispatch_category || null;
+    }
+    if (data.isActive !== undefined) {
+      updateData.isActive = Boolean(data.isActive);
+    } else if (data.status !== undefined) {
+      updateData.isActive = data.status === 'Active' || data.status === 'ACTIVE';
     }
 
     const updatedUser = await this.prisma.user.update({
