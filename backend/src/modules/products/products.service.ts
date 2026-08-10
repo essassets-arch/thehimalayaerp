@@ -23,7 +23,11 @@ export class ProductsService {
     const sku = dto.sku || dto.product_code;
     const category = dto.category || dto.product_family || 'General';
     const productType = dto.productType || dto.product_type || 'MANUFACTURING';
-    const dispatchCategory = dto.dispatchCategory || dto.dispatch_category;
+    let dispatchCategory: string | null = null;
+    const rawDC = dto.dispatchCategory || dto.dispatch_category;
+    if (rawDC === 'D1' || rawDC === 'DISPATCH 1') dispatchCategory = 'D1';
+    else if (rawDC === 'D2' || rawDC === 'DISPATCH 2') dispatchCategory = 'D2';
+    else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED') dispatchCategory = String(rawDC);
     const gstRate = dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
     const hsnCode = dto.hsnCode || dto.hsn_sac_code;
     const variantDetails = dto.variantDetails || dto.variant_details;
@@ -266,7 +270,13 @@ export class ProductsService {
     if (dto.unitPrice !== undefined) updateData.unitPrice = dto.unitPrice;
     if (dto.productType || dto.product_type) updateData.productType = dto.productType || dto.product_type;
     if (dto.brand !== undefined) updateData.brand = dto.brand;
-    if (dto.dispatchCategory || dto.dispatch_category) updateData.dispatchCategory = dto.dispatchCategory || dto.dispatch_category;
+    if (dto.dispatchCategory !== undefined || dto.dispatch_category !== undefined) {
+      const rawDC = dto.dispatchCategory !== undefined ? dto.dispatchCategory : dto.dispatch_category;
+      if (rawDC === 'D1' || rawDC === 'DISPATCH 1') updateData.dispatchCategory = 'D1';
+      else if (rawDC === 'D2' || rawDC === 'DISPATCH 2') updateData.dispatchCategory = 'D2';
+      else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED') updateData.dispatchCategory = String(rawDC);
+      else updateData.dispatchCategory = null;
+    }
     if (dto.gstRate !== undefined || dto.gst_rate !== undefined) updateData.gstRate = dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
     if (dto.hsnCode || dto.hsn_sac_code) updateData.hsnCode = dto.hsnCode || dto.hsn_sac_code;
     if (dto.variantDetails || dto.variant_details) updateData.variantDetails = dto.variantDetails || dto.variant_details;

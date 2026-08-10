@@ -64,19 +64,26 @@ export default function ProductMasterUI({ role }) {
         const list = data.data || [];
         
         // Normalize fields for backend compatibility
-        const normalizedList = list.map(p => ({
-          ...p,
-          product_name: p.product_name || p.name || '',
-          product_code: p.product_code || p.sku || '',
-          product_family: p.product_family || p.category || '',
-          unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
-          product_type: normalizeProductType(p.product_type || p.productType),
-          brand: p.brand || 'HIMALAYA',
-          gst_rate: p.gst_rate ?? p.gstRate ?? 18,
-          hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
-          dispatch_category: (p.dispatch_category === 'D1' || p.dispatchCategory === 'D1') ? 'DISPATCH 1' : ((p.dispatch_category === 'D2' || p.dispatchCategory === 'D2') ? 'DISPATCH 2' : (p.dispatch_category || p.dispatchCategory || 'DISPATCH 1')),
-          image_url: p.image_url || p.imageUrl || ''
-        }));
+        const normalizedList = list.map(p => {
+          let cat = p.dispatchCategory || p.dispatch_category;
+          if (cat === 'D1' || cat === 'DISPATCH 1') cat = 'D1';
+          else if (cat === 'D2' || cat === 'DISPATCH 2') cat = 'D2';
+          else cat = 'Unassigned';
+
+          return {
+            ...p,
+            product_name: p.product_name || p.name || '',
+            product_code: p.product_code || p.sku || '',
+            product_family: p.product_family || p.category || '',
+            unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
+            product_type: normalizeProductType(p.product_type || p.productType),
+            brand: p.brand || 'HIMALAYA',
+            gst_rate: p.gst_rate ?? p.gstRate ?? 18,
+            hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
+            dispatch_category: cat,
+            image_url: p.image_url || p.imageUrl || ''
+          };
+        });
 
         setRawProducts(normalizedList);
       }
@@ -108,7 +115,11 @@ export default function ProductMasterUI({ role }) {
         p.product_family.toLowerCase().includes(q);
 
       const matchesFamily = filterFamily === 'All' || p.product_family === filterFamily;
-      const matchesDispatch = filterDispatch === 'All' || p.dispatch_category === filterDispatch;
+      
+      const matchesDispatch = filterDispatch === 'All' || filterDispatch === 'All Dispatches' ||
+        (filterDispatch === 'D1' && p.dispatch_category === 'D1') ||
+        (filterDispatch === 'D2' && p.dispatch_category === 'D2') ||
+        (filterDispatch === 'Unassigned' && (p.dispatch_category === 'Unassigned' || !p.dispatch_category));
       
       const pType = String(p.product_type || '').toUpperCase();
       const matchesSubMenu = activeSubMenu === 'ALL' || 
@@ -135,8 +146,9 @@ export default function ProductMasterUI({ role }) {
 
   // KPI Computations
   const activeCount = useMemo(() => rawProducts.filter(p => p.isActive !== false).length, [rawProducts]);
-  const d1Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'DISPATCH 1').length, [rawProducts]);
-  const d2Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'DISPATCH 2').length, [rawProducts]);
+  const d1Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'D1').length, [rawProducts]);
+  const d2Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'D2').length, [rawProducts]);
+  const unassignedCount = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'Unassigned' || !p.dispatch_category).length, [rawProducts]);
   const familyCount = Math.max(0, availableFamilies.length - 1);
 
   const mfgCount = useMemo(() => rawProducts.filter(p => {
@@ -151,7 +163,7 @@ export default function ProductMasterUI({ role }) {
   
   const allCount = rawProducts.length;
 
-  const dispatchCats = ['All', 'DISPATCH 1', 'DISPATCH 2'];
+  const dispatchCats = ['All Dispatches', 'D1', 'D2', 'Unassigned'];
   const productTypes = [
     { value: 'MANUFACTURING', label: 'Manufactured' },
     { value: 'TRADING', label: 'Trading' },
@@ -393,8 +405,15 @@ export default function ProductMasterUI({ role }) {
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#F59E0B' }} />
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: '#D97706', letterSpacing: '0.05em' }}>Dispatch Routing</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', marginTop: '8px', lineHeight: 1 }}>
-              <span style={{ color: '#4F46E5' }}>D1: {d1Count}</span> <span style={{ color: '#94A3B8', margin: '0 4px' }}>|</span> <span style={{ color: '#059669' }}>D2: {d2Count}</span>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '8px', lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ color: '#0284c7' }}>D1: {d1Count}</span>
+              <span style={{ color: '#94A3B8' }}>|</span>
+              <span style={{ color: '#059669' }}>D2: {d2Count}</span>
+              {unassignedCount > 0 && (
+                <span style={{ color: '#d97706', fontSize: '11px', background: '#FEF3C7', padding: '2px 6px', borderRadius: '4px', border: '1px solid #FCD34D' }}>
+                  ⚠ Null: {unassignedCount}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: '12px', color: '#64748B', marginTop: '8px' }}>Logistics dispatch breakdown</div>
           </div>
@@ -648,15 +667,51 @@ export default function ProductMasterUI({ role }) {
                       {p.gst_rate}%{p.hsn_sac_code ? ` / ${p.hsn_sac_code}` : ''}
                     </td>
 
-                    {/* Dispatch */}
+                    {/* Dispatch (Interactive Inline Management) */}
                     <td style={{ padding: '16px 20px' }}>
-                      {p.dispatch_category === 'DISPATCH 2' ? (
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0' }}>D2</span>
-                      ) : p.dispatch_category === 'DISPATCH 1' ? (
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE' }}>D1</span>
-                      ) : (
-                        <span style={{ fontSize: '11px', color: '#94A3B8' }}>—</span>
-                      )}
+                      <select
+                        value={p.dispatch_category || 'Unassigned'}
+                        onChange={async (e) => {
+                          const newCat = e.target.value;
+                          const updatedCat = newCat === 'Unassigned' ? null : newCat;
+                          try {
+                            await axios.put(`/api/backend/products/${p.id}`, { dispatchCategory: updatedCat });
+                            setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
+                            showToast(`Product ${p.product_code} category updated to ${newCat}!`);
+                          } catch (err) {
+                            showToast('Failed to update dispatch category.');
+                          }
+                        }}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          border: p.dispatch_category === 'D1'
+                            ? '1px solid #93C5FD'
+                            : p.dispatch_category === 'D2'
+                            ? '1px solid #A7F3D0'
+                            : '1px solid #FCD34D',
+                          background: p.dispatch_category === 'D1'
+                            ? '#EFF6FF'
+                            : p.dispatch_category === 'D2'
+                            ? '#ECFDF5'
+                            : '#FEF3C7',
+                          color: p.dispatch_category === 'D1'
+                            ? '#1D4ED8'
+                            : p.dispatch_category === 'D2'
+                            ? '#047857'
+                            : '#B45309',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <option value="D1" style={{ background: '#fff', color: '#1D4ED8', fontWeight: 'bold' }}>D1 (Dispatch 1)</option>
+                        <option value="D2" style={{ background: '#fff', color: '#047857', fontWeight: 'bold' }}>D2 (Dispatch 2)</option>
+                        <option value="Unassigned" style={{ background: '#fff', color: '#B45309', fontWeight: 'bold' }}>⚠ Unassigned</option>
+                      </select>
                     </td>
 
                     {/* Actions */}
@@ -853,14 +908,15 @@ export default function ProductMasterUI({ role }) {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Dispatch Category</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Dispatch Category Routing</label>
                   <select 
-                    value={formData.dispatch_category} 
+                    value={formData.dispatch_category || 'Unassigned'} 
                     onChange={e => setFormData({ ...formData, dispatch_category: e.target.value })} 
-                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }}
+                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', fontWeight: 'bold' }}
                   >
-                    <option value="DISPATCH 1">DISPATCH 1</option>
-                    <option value="DISPATCH 2">DISPATCH 2</option>
+                    <option value="D1">D1 (Dispatch 1 — Ravikant Tiwari Queue)</option>
+                    <option value="D2">D2 (Dispatch 2 — Sahad Mansuri Queue)</option>
+                    <option value="Unassigned">⚠ Unassigned / Pending</option>
                   </select>
                 </div>
 
