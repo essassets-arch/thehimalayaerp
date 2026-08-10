@@ -23,7 +23,8 @@ import { useAuthStore } from '@/store/authStore';
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
   'super-admin':    ['Super Admin', 'SUPER_ADMIN'],
   'admin':          ['Admin', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
-  'sales':          ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'Super Admin', 'SALES', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
+  'sales':          ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Super Admin', 'SALES', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
+  'supersales':     ['SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'plant-head':     ['Plant Head', 'Super Admin', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN'],
   'production':     ['Production', 'Production Planner', 'Production Operator', 'Plant Head', 'Super Admin', 'PRODUCTION', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'ADMIN', 'SUPER_ADMIN'],
   'store':          ['Store', 'Store Manager', 'Plant Head', 'Super Admin', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
@@ -119,6 +120,7 @@ function getUserRoleName(rawRole: any): string {
       const codeMap: Record<string, string> = {
         SUPER_ADMIN: 'Super Admin',
         ADMIN: 'Admin',
+        SUPER_SALES: 'SuperSales',
         SALES_EXECUTIVE: 'Sales Executive',
         SALES_MANAGER: 'Sales Manager',
         PLANT_HEAD: 'Plant Head',
@@ -204,6 +206,10 @@ function getDefaultPath(role: string): string {
     'Sales Admin': '/sales/dashboard',
     'Sales Executive': '/sales/dashboard',
     'Sales Manager': '/sales/dashboard',
+    'SuperSales': '/supersales/dashboard',
+    'SuperSales 1': '/supersales/dashboard',
+    'SuperSales 2': '/supersales/dashboard',
+    'SUPER_SALES': '/supersales/dashboard',
     'Plant Head': '/plant-head/dashboard',
     'Production': '/production/dashboard',
     'Production Planner': '/production/dashboard',
