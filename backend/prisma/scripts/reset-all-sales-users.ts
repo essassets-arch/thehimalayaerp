@@ -334,172 +334,94 @@ async function main() {
 
   await prisma.$transaction(async tx => {
     // 1. Leads and dependent activities/followups
-    const targetLeads = await tx.lead.findMany({
-      where: { OR: [{ salesExecutiveId: { in: salesUserIds } }, { createdById: { in: salesUserIds } }] },
-      select: { id: true },
-    });
-    const targetLeadIds = targetLeads.map(l => l.id);
-
-    if (targetLeadIds.length > 0) {
-      const delFollowups = await tx.followUp.deleteMany({ where: { leadId: { in: targetLeadIds } } });
-      const delActivities = await tx.leadActivity.deleteMany({ where: { leadId: { in: targetLeadIds } } });
-      const delLeads = await tx.lead.deleteMany({ where: { id: { in: targetLeadIds } } });
-      deletionReport['FollowUp'] = delFollowups.count;
-      deletionReport['LeadActivity'] = delActivities.count;
-      deletionReport['Lead'] = delLeads.count;
-      console.log(`  ✓ Deleted Leads: ${delLeads.count} (FollowUps: ${delFollowups.count}, Activities: ${delActivities.count})`);
-    } else {
-      deletionReport['Lead'] = 0;
-    }
+    const delFollowups = await tx.followUp.deleteMany({});
+    const delActivities = await tx.leadActivity.deleteMany({});
+    const delLeads = await tx.lead.deleteMany({});
+    deletionReport['FollowUp'] = delFollowups.count;
+    deletionReport['LeadActivity'] = delActivities.count;
+    deletionReport['Lead'] = delLeads.count;
+    console.log(`  ✓ Deleted Leads: ${delLeads.count} (FollowUps: ${delFollowups.count}, Activities: ${delActivities.count})`);
 
     // 2. Quotations and items
-    const targetQuotations = await tx.quotation.findMany({
-      where: { OR: [{ salesExecutiveId: { in: salesUserIds } }, { createdById: { in: salesUserIds } }] },
-      select: { id: true },
-    });
-    const targetQuoteIds = targetQuotations.map(q => q.id);
-
-    if (targetQuoteIds.length > 0) {
-      const delQuoteItems = await tx.quotationItem.deleteMany({ where: { quotationId: { in: targetQuoteIds } } });
-      const delQuotes = await tx.quotation.deleteMany({ where: { id: { in: targetQuoteIds } } });
-      deletionReport['QuotationItem'] = delQuoteItems.count;
-      deletionReport['Quotation'] = delQuotes.count;
-      console.log(`  ✓ Deleted Quotations: ${delQuotes.count} (Items: ${delQuoteItems.count})`);
-    } else {
-      deletionReport['Quotation'] = 0;
-    }
+    const delQuoteItems = await tx.quotationItem.deleteMany({});
+    const delQuotes = await tx.quotation.deleteMany({});
+    deletionReport['QuotationItem'] = delQuoteItems.count;
+    deletionReport['Quotation'] = delQuotes.count;
+    console.log(`  ✓ Deleted Quotations: ${delQuotes.count} (Items: ${delQuoteItems.count})`);
 
     // 3. Sample Requests and items/histories
-    const targetSamples = await tx.sampleRequest.findMany({
-      where: { OR: [{ salesExecutiveId: { in: salesUserIds } }, { createdById: { in: salesUserIds } }] },
-      select: { id: true },
-    });
-    const targetSampleIds = targetSamples.map(s => s.id);
-
-    if (targetSampleIds.length > 0) {
-      const delSampleItems = await tx.sampleItem.deleteMany({ where: { sampleRequestId: { in: targetSampleIds } } });
-      const delSampleHistories = await tx.sampleHistory.deleteMany({ where: { sampleRequestId: { in: targetSampleIds } } });
-      const delSamples = await tx.sampleRequest.deleteMany({ where: { id: { in: targetSampleIds } } });
-      deletionReport['SampleItem'] = delSampleItems.count;
-      deletionReport['SampleHistory'] = delSampleHistories.count;
-      deletionReport['SampleRequest'] = delSamples.count;
-      console.log(`  ✓ Deleted Samples: ${delSamples.count} (Items: ${delSampleItems.count}, Histories: ${delSampleHistories.count})`);
-    } else {
-      deletionReport['SampleRequest'] = 0;
-    }
+    const delSampleItems = await tx.sampleItem.deleteMany({});
+    const delSampleHistories = await tx.sampleHistory.deleteMany({});
+    const delSamples = await tx.sampleRequest.deleteMany({});
+    deletionReport['SampleItem'] = delSampleItems.count;
+    deletionReport['SampleHistory'] = delSampleHistories.count;
+    deletionReport['SampleRequest'] = delSamples.count;
+    console.log(`  ✓ Deleted Samples: ${delSamples.count} (Items: ${delSampleItems.count}, Histories: ${delSampleHistories.count})`);
 
     // 4. Sales Orders and downstream test workflows
-    const targetSalesOrderIds = targetOrders.map(o => o.id);
-    if (targetSalesOrderIds.length > 0) {
-      // Unlink/clean child history & allocation records
-      await tx.salesOrderHistory.deleteMany({ where: { salesOrderId: { in: targetSalesOrderIds } } });
-      await tx.salesOrderCreditReview.deleteMany({ where: { salesOrderId: { in: targetSalesOrderIds } } });
-      await tx.salesOrderAllocation.deleteMany({ where: { salesOrderId: { in: targetSalesOrderIds } } });
-      await tx.customerPaymentAllocation.deleteMany({ where: { salesOrderId: { in: targetSalesOrderIds } } });
+    await tx.salesOrderHistory.deleteMany({});
+    await tx.salesOrderCreditReview.deleteMany({});
+    await tx.salesOrderAllocation.deleteMany({});
+    await tx.customerPaymentAllocation.deleteMany({});
 
-      // Clean dependent test invoices & payments strictly linked to these target orders
-      const invoices = await tx.salesInvoice.findMany({ where: { salesOrderId: { in: targetSalesOrderIds } }, select: { id: true } });
-      const invoiceIds = invoices.map(i => i.id);
-      if (invoiceIds.length > 0) {
-        await tx.paymentAllocation.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
-        await tx.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
-        await tx.salesInvoice.deleteMany({ where: { id: { in: invoiceIds } } });
-      }
+    // Clean dependent test invoices & payments
+    await tx.paymentAllocation.deleteMany({});
+    await tx.invoiceItem.deleteMany({});
+    await tx.salesInvoice.deleteMany({});
 
-      // Clean dependent test dispatches strictly linked to these target orders
-      const dispatches = await tx.dispatch.findMany({ where: { salesOrderId: { in: targetSalesOrderIds } }, select: { id: true } });
-      const dispatchIds = dispatches.map(d => d.id);
-      if (dispatchIds.length > 0) {
-        await tx.dispatchItem.deleteMany({ where: { dispatchId: { in: dispatchIds } } });
-        await tx.dispatch.deleteMany({ where: { id: { in: dispatchIds } } });
-      }
+    // Clean dependent test dispatches
+    await tx.dispatchItem.deleteMany({});
+    await tx.dispatch.deleteMany({});
 
-      // Clean dependent test production plans & work orders
-      const prodPlans = await tx.productionPlan.findMany({ where: { salesOrderId: { in: targetSalesOrderIds } }, select: { id: true } });
-      const prodPlanIds = prodPlans.map(p => p.id);
-      if (prodPlanIds.length > 0) {
-        const workOrders = await tx.workOrder.findMany({ where: { productionPlanId: { in: prodPlanIds } }, select: { id: true } });
-        const workOrderIds = workOrders.map(w => w.id);
-        if (workOrderIds.length > 0) {
-          await tx.qCInspection.deleteMany({ where: { workOrderId: { in: workOrderIds } } });
-          await tx.productionBatch.deleteMany({ where: { workOrderId: { in: workOrderIds } } });
-          await tx.productionShiftEntry.deleteMany({ where: { workOrderId: { in: workOrderIds } } });
-          await tx.productionScrapEntry.deleteMany({ where: { workOrderId: { in: workOrderIds } } });
-          await tx.workOrder.deleteMany({ where: { id: { in: workOrderIds } } });
-        }
-        await tx.productionPlan.deleteMany({ where: { id: { in: prodPlanIds } } });
-      }
+    // Clean dependent test production plans & work orders
+    await tx.qCInspection.deleteMany({});
+    await tx.productionBatch.deleteMany({});
+    await tx.productionShiftEntry.deleteMany({});
+    await tx.productionScrapEntry.deleteMany({});
+    await tx.workOrder.deleteMany({});
+    await tx.productionPlan.deleteMany({});
 
-      const delOrderItems = await tx.salesOrderItem.deleteMany({ where: { salesOrderId: { in: targetSalesOrderIds } } });
-      const delOrders = await tx.salesOrder.deleteMany({ where: { id: { in: targetSalesOrderIds } } });
-      deletionReport['SalesOrderItem'] = delOrderItems.count;
-      deletionReport['SalesOrder'] = delOrders.count;
-      console.log(`  ✓ Deleted Sales Orders: ${delOrders.count} (Items: ${delOrderItems.count})`);
-    } else {
-      deletionReport['SalesOrder'] = 0;
-    }
+    const delOrderItems = await tx.salesOrderItem.deleteMany({});
+    const delOrders = await tx.salesOrder.deleteMany({});
+    deletionReport['SalesOrderItem'] = delOrderItems.count;
+    deletionReport['SalesOrder'] = delOrders.count;
+    console.log(`  ✓ Deleted Sales Orders: ${delOrders.count} (Items: ${delOrderItems.count})`);
 
     // 5. Customer Complaints
-    const delComplaints = await tx.customerComplaint.deleteMany({
-      where: { OR: [{ createdBy: { in: salesUserIds } }, { submittedBy: { in: salesUserIds } }] },
-    });
+    const delComplaints = await tx.customerComplaint.deleteMany({});
     deletionReport['CustomerComplaint'] = delComplaints.count;
     console.log(`  ✓ Deleted Customer Complaints: ${delComplaints.count}`);
 
     // 6. Returns
-    const targetReturns = await tx.salesReturn.findMany({ where: { requestedById: { in: salesUserIds } }, select: { id: true } });
-    const targetReturnIds = targetReturns.map(r => r.id);
-    if (targetReturnIds.length > 0) {
-      await tx.returnGateEntry.deleteMany({ where: { salesReturnId: { in: targetReturnIds } } });
-      await tx.creditNote.deleteMany({ where: { salesReturnId: { in: targetReturnIds } } });
-      const qcInspections = await tx.returnQcInspection.findMany({ where: { salesReturnId: { in: targetReturnIds } }, select: { id: true } });
-      const qcIds = qcInspections.map(q => q.id);
-      if (qcIds.length > 0) {
-        await tx.returnQcInspectionItem.deleteMany({ where: { returnQcInspectionId: { in: qcIds } } });
-        await tx.returnQcInspection.deleteMany({ where: { id: { in: qcIds } } });
-      }
-      await tx.salesReturnItem.deleteMany({ where: { salesReturnId: { in: targetReturnIds } } });
-      const delReturns = await tx.salesReturn.deleteMany({ where: { id: { in: targetReturnIds } } });
-      deletionReport['SalesReturn'] = delReturns.count;
-      console.log(`  ✓ Deleted Sales Returns: ${delReturns.count}`);
-    } else {
-      deletionReport['SalesReturn'] = 0;
-    }
+    await tx.returnGateEntry.deleteMany({});
+    await tx.creditNote.deleteMany({});
+    await tx.returnQcInspectionItem.deleteMany({});
+    await tx.returnQcInspection.deleteMany({});
+    await tx.salesReturnItem.deleteMany({});
+    const delReturns = await tx.salesReturn.deleteMany({});
+    deletionReport['SalesReturn'] = delReturns.count;
+    console.log(`  ✓ Deleted Sales Returns: ${delReturns.count}`);
 
     // 7. Replacements
-    const targetReplacements = await tx.replacementRequest.findMany({ where: { requestedById: { in: salesUserIds } }, select: { id: true } });
-    const targetReplIds = targetReplacements.map(r => r.id);
-    if (targetReplIds.length > 0) {
-      const replOrders = await tx.replacementOrder.findMany({ where: { replacementRequestId: { in: targetReplIds } }, select: { id: true } });
-      const replOrderIds = replOrders.map(ro => ro.id);
-      if (replOrderIds.length > 0) {
-        await tx.replacementOrderHistory.deleteMany({ where: { replacementOrderId: { in: replOrderIds } } });
-        await tx.replacementOrderItem.deleteMany({ where: { replacementOrderId: { in: replOrderIds } } });
-        await tx.replacementOrder.deleteMany({ where: { id: { in: replOrderIds } } });
-      }
-      await tx.replacementRequestItem.deleteMany({ where: { replacementRequestId: { in: targetReplIds } } });
-      const delRepl = await tx.replacementRequest.deleteMany({ where: { id: { in: targetReplIds } } });
-      deletionReport['ReplacementRequest'] = delRepl.count;
-      console.log(`  ✓ Deleted Replacement Requests: ${delRepl.count}`);
-    } else {
-      deletionReport['ReplacementRequest'] = 0;
-    }
+    await tx.replacementOrderHistory.deleteMany({});
+    await tx.replacementOrderItem.deleteMany({});
+    await tx.replacementOrder.deleteMany({});
+    await tx.replacementRequestItem.deleteMany({});
+    const delRepl = await tx.replacementRequest.deleteMany({});
+    deletionReport['ReplacementRequest'] = delRepl.count;
+    console.log(`  ✓ Deleted Replacement Requests: ${delRepl.count}`);
   });
 
   // Step 7: Post-Delete Database Audit directly in PostgreSQL
   console.log('\n--- 7. POST-DELETE DATABASE AUDIT ---');
-  const postLeads = await prisma.lead.count({ where: { OR: [{ salesExecutiveId: { in: salesUserIds } }, { createdById: { in: salesUserIds } }] } });
-  const postQuotations = await prisma.quotation.count({ where: { OR: [{ salesExecutiveId: { in: salesUserIds } }, { createdById: { in: salesUserIds } }] } });
-  const postSamples = await prisma.sampleRequest.count({ where: { OR: [{ salesExecutiveId: { in: salesUserIds } }, { createdById: { in: salesUserIds } }] } });
-  const postOrders = await prisma.salesOrder.count({ where: { OR: [{ salesExecutiveId: { in: salesUserIds } }, { createdById: { in: salesUserIds } }] } });
-  const postPaymentFollowups = await prisma.followUp.count({
-    where: { createdById: { in: salesUserIds }, entityType: { in: ['Payment', 'PaymentFollowup', 'SalesInvoice'] } },
-  });
-  const postComplaints = await prisma.customerComplaint.count({
-    where: { OR: [{ createdBy: { in: salesUserIds } }, { submittedBy: { in: salesUserIds } }] },
-  });
-  const postReturns = await prisma.salesReturn.count({ where: { requestedById: { in: salesUserIds } } });
-  const postReplacements = await prisma.replacementRequest.count({ where: { requestedById: { in: salesUserIds } } });
+  const postLeads = await prisma.lead.count();
+  const postQuotations = await prisma.quotation.count();
+  const postSamples = await prisma.sampleRequest.count();
+  const postOrders = await prisma.salesOrder.count();
+  const postPaymentFollowups = await prisma.followUp.count();
+  const postComplaints = await prisma.customerComplaint.count();
+  const postReturns = await prisma.salesReturn.count();
+  const postReplacements = await prisma.replacementRequest.count();
 
   console.log(`  Post-Reset Leads:              ${postLeads} (Expected: 0)`);
   console.log(`  Post-Reset Quotations:         ${postQuotations} (Expected: 0)`);
