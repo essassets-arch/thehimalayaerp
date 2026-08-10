@@ -203,6 +203,12 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'HIMALAYA FRP WGC 300X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - C250 Class' },
   { name: 'HIMALAYA FRP WGC 300X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - D400 Class' },
   
+  { name: 'HIMALAYA FRP WGC 600X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 600X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 600X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 600X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 600X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x900mm - D400 Class' },
+  
   // FRP ONGC (Oil and Natural Gas Corporation)
   { name: 'HIMALAYA FRPONGC 300X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Extra Light Duty' },
   { name: 'HIMALAYA FRPONGC 300X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Light Duty' },
