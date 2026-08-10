@@ -243,6 +243,7 @@ export class ProductsService {
   if (dto.leadTimeDays !== undefined) updateData.leadTimeDays = dto.leadTimeDays;
   if (dto.preferredVendorId !== undefined) updateData.preferredVendorId = dto.preferredVendorId;
   if (dto.isAutoReorderEnabled !== undefined) updateData.isAutoReorderEnabled = dto.isAutoReorderEnabled;
+  if (dto.storageLocation !== undefined || dto.storage_location !== undefined) updateData.storageLocation = dto.storageLocation || dto.storage_location;
   if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
   return this.prisma.product.update({

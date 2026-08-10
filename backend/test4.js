@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { const u = await prisma.user.findUnique({where: {email: 'sahad.accounts@himalayaerp.com'}}); console.log('User exists:', !!u); console.log('failedLoginAttempts:', u?.failedLoginAttempts); } main().finally(() => prisma.$disconnect());

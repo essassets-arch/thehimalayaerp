@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { const u = await prisma.user.findMany({where: {failedLoginAttempts: {gt: 0}}}); console.log('Users with failed attempts:', u.map(x => ({email: x.email, attempts: x.failedLoginAttempts}))); } main().finally(() => prisma.$disconnect());

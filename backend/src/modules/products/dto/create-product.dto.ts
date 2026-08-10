@@ -140,4 +140,12 @@ export class CreateProductDto {
   @IsBoolean()
   @IsOptional()
   isAutoReorderEnabled?: boolean;
+
+  @IsString()
+  @IsOptional()
+  storageLocation?: string;
+
+  @IsString()
+  @IsOptional()
+  storage_location?: string;
 }

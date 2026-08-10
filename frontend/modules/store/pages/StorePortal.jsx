@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import { useRouter, usePathname, useParams } from 'next/navigation';
+import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { StoreDashboard } from './StoreDashboard';
 import { StoreSummaryReport } from './StoreSummaryReport';
@@ -277,11 +277,15 @@ function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPa
 }
 
 export default function StorePortal() {
-  const params = useParams(); const view = params?.slug?.[0]; const materialName = params?.slug?.[1];
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const view = params?.slug?.[0];
+  const targetId = searchParams?.get('id');
+  const materialName = params?.slug?.[1] || searchParams?.get('name');
   const navigate = useRouter();
   const location = { pathname: usePathname(), search: "" };
   const currentView = view || (
-    location.pathname.includes('/store/edit-material/')
+    location.pathname.includes('/store/edit-material')
       ? 'edit-material'
       : location.pathname.includes('/store/add-material')
         ? 'add-material'
@@ -292,8 +296,7 @@ export default function StorePortal() {
   const showToast = useNotificationStore(s => s.showToast);
   const globalSearch = useSearchStore(s => s.globalSearch);
 
-  const searchParams = new URLSearchParams(location.search);
-  const tabParam = searchParams.get('tab');
+  const tabParam = searchParams?.get('tab');
 
   // Inject Fake Entries as requested
   useEffect(() => {
@@ -396,6 +399,7 @@ export default function StorePortal() {
           rate: Number(p.unitPrice) || 0,
           stock: qty,
           description: p.description || '',
+          storageLocation: p.storageLocation || '',
           location: 'Raw Material Store',
           status,
           history: [] 
@@ -410,7 +414,7 @@ export default function StorePortal() {
   }, []);
 
   useEffect(() => {
-    if (currentView === 'raw-inventory' || currentView === 'dashboard' || currentView === 'low-stock-alerts') {
+    if (currentView === 'raw-inventory' || currentView === 'dashboard' || currentView === 'low-stock-alerts' || currentView === 'edit-material') {
       fetchRawInventory();
     }
   }, [currentView, fetchRawInventory]);
@@ -442,11 +446,12 @@ export default function StorePortal() {
   const [editMatId, setEditMatId] = useState('');
   const [editMatCode, setEditMatCode] = useState('');
   const [editMatName, setEditMatName] = useState('');
-  const [editMatCategory, setEditMatCategory] = useState('');
+  const [editMatCategory, setEditMatCategory] = useState('Raw Material');
   const [editMatUnit, setEditMatUnit] = useState('');
   const [editMatMinStock, setEditMatMinStock] = useState('');
   const [editMatRate, setEditMatRate] = useState('');
   const [editMatDescription, setEditMatDescription] = useState('');
+  const [editMatStorageLocation, setEditMatStorageLocation] = useState('');
   const [editMatOldName, setEditMatOldName] = useState('');
 
   // Local search filter
@@ -505,30 +510,35 @@ export default function StorePortal() {
   };
 
   useEffect(() => {
-    if (currentView === 'edit-material' && materialName) {
-      const decodedName = decodeURIComponent(materialName);
-      const list = dbRawInventory;
-      const item = list.find(i => i.material.toLowerCase() === decodedName.toLowerCase());
-      if (item) {
+    if (currentView === 'edit-material' && (targetId || materialName)) {
+      const decodedName = materialName ? decodeURIComponent(materialName).trim() : '';
+      const list = dbRawInventory || [];
+      const item = list.find(i => 
+        (targetId && String(i.id) === String(targetId)) ||
+        (i.id && String(i.id) === decodedName) ||
+        (i.code && String(i.code).toLowerCase() === decodedName.toLowerCase()) ||
+        (i.material && String(i.material).trim().toLowerCase() === decodedName.toLowerCase())
+      );
+      if (item && editMatId !== item.id) {
         setEditMatId(item.id);
-        setEditMatCode(item.code);
-        setEditMatName(item.material);
-        setEditMatCategory(item.category);
-        setEditMatUnit(item.unit);
-        setEditMatMinStock(item.reorderLevel);
-        setEditMatRate(item.rate);
-        setEditMatDescription(item.description);
-        setEditMatOldName(item.material);
+        setEditMatCode(item.code || '');
+        setEditMatName(item.material || '');
+        setEditMatCategory(item.category || 'Raw Material');
+        setEditMatUnit(item.unit || 'PCS');
+        setEditMatMinStock(item.reorderLevel ?? item.minStock ?? 0);
+        setEditMatRate(item.rate ?? 0);
+        setEditMatDescription(item.description || '');
+        setEditMatStorageLocation(item.storageLocation || '');
+        setEditMatOldName(item.material || '');
       }
     }
-  }, [currentView, materialName, dbRawInventory]);
+  }, [currentView, targetId, materialName, dbRawInventory, editMatId]);
 
   useEffect(() => {
-    if (currentView === 'add-material' && !matCode) {
-      setMatCode(generateNextMaterialCode());
+    if (currentView === 'add-material') {
       setMatCategory('Raw Material');
     }
-  }, [currentView, matCode, dbRawInventory]);
+  }, [currentView]);
 
 
 
@@ -847,7 +857,7 @@ export default function StorePortal() {
   };
 
   const resetAddMaterialForm = () => {
-    setMatCode(generateNextMaterialCode());
+    setMatCode('');
     setMatName('');
     setMatCategory('Raw Material');
     setMatUnit('');
@@ -914,8 +924,13 @@ export default function StorePortal() {
 
   const handleEditMaterialSubmit = async (e) => {
     e.preventDefault();
-    if (!editMatCode || !editMatName || !editMatCategory) {
-      showToast('Please fill in Code, Name and Category.');
+    if (!editMatId) {
+      showToast('Error: Material ID is missing. Please return to Raw Inventory and try again.');
+      return;
+    }
+    const finalCategory = editMatCategory || 'Raw Material';
+    if (!editMatCode || !editMatName) {
+      showToast('Please fill in Material Code and Name.');
       return;
     }
 
@@ -924,15 +939,17 @@ export default function StorePortal() {
       await apiClient.patch(`/products/${editMatId}`, {
         sku: editMatCode,
         name: editMatName,
-        category: editMatCategory,
+        category: finalCategory,
         unit: editMatUnit,
         minimumStock: Number(editMatMinStock) || 0,
         unitPrice: Number(editMatRate) || 0,
-        description: editMatDescription
+        description: editMatDescription,
+        storageLocation: editMatStorageLocation
       });
       await fetchRawInventory();
       setShowEditMaterialModal(false);
       showToast(`Material registry "${editMatName}" updated.`);
+      navigate.push('/store/raw-inventory');
     } catch (err) {
       console.error('Update material failed:', err);
       Swal.fire({ icon: 'error', title: 'Error Updating Material', text: err.response?.data?.message || err.message });
@@ -1398,6 +1415,7 @@ export default function StorePortal() {
                           <button className="m-theme-btn-action-green" onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }} title="Stock In">+ In</button>
                           <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }} title="Stock Out">- Out</button>
                           <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }} title="Adjust Stock">Adj</button>
+                          <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); navigate.push(`/store/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`); }} title="Edit Material">Edit</button>
                         </div>
                       </td>
                     </tr>
@@ -1494,46 +1512,7 @@ export default function StorePortal() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
-                  <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <FileText size={14} /> Stock Transactions ledger
-                  </h4>
-                  <div style={{ overflowY: 'auto', flex: 1, maxHeight: '350px', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                      <thead style={{ position: 'sticky', top: 0, background: '#F5FAFE', borderBottom: '1px solid var(--color-border)', zIndex: 10 }}>
-                        <tr>
-                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: '700', color: 'var(--color-text-secondary)' }}>Date</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: '700', color: 'var(--color-text-secondary)' }}>Type</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700', color: 'var(--color-text-secondary)' }}>Qty</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: '700', color: 'var(--color-text-secondary)' }}>Supplier/Ref</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {!item.transactions || item.transactions.length === 0 ? (
-                          <tr><td colSpan={4} style={{ textAlign: 'center', padding: '16px', color: 'var(--color-text-muted)' }}>No stock receipts or issuances logged.</td></tr>
-                        ) : (
-                          [...item.transactions].reverse().map((tx, idx) => {
-                            let typeBadge = 'info';
-                            if (tx.type === 'Stock In') typeBadge = 'success';
-                            else if (tx.type === 'Stock Out') typeBadge = 'danger';
-                            else if (tx.type === 'Adjustment') typeBadge = 'warning';
-                            return (
-                              <tr key={tx.id || idx} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
-                                <td style={{ padding: '8px 12px' }}>{tx.date}</td>
-                                <td style={{ padding: '8px 12px' }}><span className={`badge badge-${typeBadge}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{tx.type}</span></td>
-                                <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700' }}>{tx.type === 'Stock Out' ? '-' : tx.type === 'Stock In' ? '+' : ''}{(tx.quantity ?? 0).toLocaleString()}</td>
-                                <td style={{ padding: '8px 12px' }}>
-                                  <div style={{ fontWeight: '600' }}>{tx.supplier || tx.reference || 'N/A'}</div>
-                                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{tx.remarks}</div>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <button className="action-btn" style={{ flex: 1, padding: '10px', background: 'var(--color-primary)', border: 'none', borderRadius: '8px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }} onClick={() => handleQuickStockIn(item)}>+ Stock In</button>
@@ -3505,6 +3484,12 @@ export default function StorePortal() {
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Minimum Stock Alert Level *</label>
                 <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatMinStock} onChange={e => setEditMatMinStock(e.target.value)} required />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Storage Location</label>
+                <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Rack A1 / Bay 4" value={editMatStorageLocation} onChange={e => setEditMatStorageLocation(e.target.value)} />
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>

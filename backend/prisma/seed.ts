@@ -608,7 +608,7 @@ const hardwareProducts: ProductSeedData[] = hardwareItemsRaw.map(item => ({
 }));
 
 // Combine all products (230 seedbackup + 136 hardware = 366 items total)
-const allProducts: ProductSeedData[] = [
+let allProducts: ProductSeedData[] = [
   ...manufacturingProducts,
   ...coverblockProducts,
   ...rccPipeProducts,
@@ -1010,7 +1010,8 @@ async function main() {
     create: { publicId: 'COMP-000001', name: 'Himalaya Wellness Pvt. Ltd.' },
   });
 
-  await seed136RawMaterials(prisma, company.id);
+  // Disable raw materials seeding to keep Store Dashboard empty
+  // await seed136RawMaterials(prisma, company.id);
 
   // ── 4. Assign all permissions to SUPER_ADMIN and ADMIN ─────────────────────
   console.log('🔗 Assigning permissions to admin roles...');
@@ -1120,6 +1121,8 @@ async function main() {
         password: hashedPassword,
         roleId: role.id,
         name: role.name,
+        isActive: true,
+        deletedAt: null,
       },
       create: {
         publicId: uid('USR'),

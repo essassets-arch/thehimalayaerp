@@ -1,0 +1,1 @@
+fetch('http://127.0.0.1:4000/api/v1/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: 'store.manager@himalayaerp.com', password: 'admin123'})}).then(r => r.json().then(d => console.log(r.status, d))).catch(console.error);
