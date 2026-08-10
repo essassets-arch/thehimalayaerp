@@ -581,8 +581,30 @@ export class ProductionWorkflowService {
     return entry;
   }
 
-  async getFinishedGoods(companyId?: string) {
+  async getFinishedGoods(companyId?: string, userId?: string, role?: string) {
+    let userCategory: string | null = null;
+    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+      const u: any = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (u?.dispatchCategory) {
+        userCategory = u.dispatchCategory;
+      }
+    }
+
+    const fgWhere: any = {};
+    const woWhere: any = {
+      OR: [
+        { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] } },
+        { qcInspections: { some: { status: { in: ['PASSED', 'APPROVED'] } } } },
+      ],
+    };
+
+    if (userCategory) {
+      fgWhere.product = { dispatchCategory: userCategory };
+      woWhere.salesOrderItem = { product: { dispatchCategory: userCategory } };
+    }
+
     const records = await this.prisma.finishedGoods.findMany({
+      where: fgWhere,
       include: {
         product: true,
         workOrder: {
@@ -606,12 +628,7 @@ export class ProductionWorkflowService {
     const existingWoIds = new Set(records.map((r: any) => r.workOrderId).filter(Boolean));
 
     const qcApprovedWorkOrders = await this.prisma.workOrder.findMany({
-      where: {
-        OR: [
-          { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] } },
-          { qcInspections: { some: { status: { in: ['PASSED', 'APPROVED'] } } } },
-        ],
-      },
+      where: woWhere,
       include: {
         salesOrderItem: { include: { product: true } },
         productionPlan: {

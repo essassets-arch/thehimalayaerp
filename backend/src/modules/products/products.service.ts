@@ -80,7 +80,7 @@ export class ProductsService {
     });
   }
 
-  async findAll(companyId: string, search?: string, scope?: string, type?: string) {
+  async findAll(companyId: string, search?: string, scope?: string, type?: string, userId?: string, role?: string) {
     if (scope === 'store' || scope === 'inventory') {
       const products = await this.prisma.product.findMany({
         where: { companyId, isActive: true },
@@ -123,6 +123,7 @@ export class ProductsService {
         where,
         orderBy: { createdAt: 'desc' },
       });
+
       return rawMaterials.map((rm) => ({
         id: rm.id,
         publicId: rm.publicId,
@@ -140,6 +141,15 @@ export class ProductsService {
     }
 
     const where: any = { companyId, isActive: true };
+
+    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+      const user: any = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+      if (user?.dispatchCategory) {
+        where.dispatchCategory = user.dispatchCategory;
+      }
+    }
 
     if (scope === 'sales') {
       where.AND = [

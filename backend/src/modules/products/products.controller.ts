@@ -36,7 +36,7 @@ export class ProductsController {
     @Query('scope') scope?: string,
     @Query('type') type?: string,
   ) {
-    return this.productsService.findAll(user.companyId, search, scope, type);
+    return this.productsService.findAll(user.companyId, search, scope, type, user.sub || user.id, user.role);
   }
 
   @RequirePermissions('admin.products.read', 'products.read', 'store.read', 'store.materials.read', 'store.rawinventory.read', 'inventory.stock.read')

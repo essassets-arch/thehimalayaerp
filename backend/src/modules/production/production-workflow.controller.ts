@@ -65,7 +65,9 @@ export class ProductionWorkflowController {
   @Get('production/finished-goods')
   async getFinishedGoods(@Req() req: any) {
     const companyId = req.headers['x-company-id'] || req.user?.companyId;
-    const data = await this.workflowService.getFinishedGoods(companyId);
+    const userId = req.user?.sub || req.user?.id;
+    const role = req.user?.role;
+    const data = await this.workflowService.getFinishedGoods(companyId, userId, role);
     return { success: true, data };
   }
 
