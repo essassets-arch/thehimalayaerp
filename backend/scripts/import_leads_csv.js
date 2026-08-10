@@ -3,114 +3,143 @@ const fs = require('fs');
 const path = require('path');
 
 const prisma = new PrismaClient();
+const args = process.argv.slice(2);
+const isDryRun = args.includes('--dry-run');
+const limitArgIdx = args.indexOf('--limit');
+const limit = limitArgIdx !== -1 ? parseInt(args[limitArgIdx + 1], 10) : null;
+
+const filePath = args.find((a) => !a.startsWith('--') && (limitArgIdx === -1 || a !== String(limit))) 
+  || path.join(__dirname, '../../leads.csv');
 
 async function importLeads() {
-  const filePath = process.argv[2] || path.join(__dirname, 'leads.csv');
+  console.log(`\n🚀 LEAD IMPORT RUNNER (${isDryRun ? 'DRY-RUN / MOCK TEST MODE' : 'LIVE IMPORT MODE'})`);
+  if (limit) console.log(`🔍 Limit applied: Testing only first ${limit} lead(s)`);
+
   if (!fs.existsSync(filePath)) {
     console.error(`❌ CSV file not found at: ${filePath}`);
-    console.log('Usage: node scripts/import_leads_csv.js <path_to_leads.csv>');
     process.exit(1);
   }
 
   const content = fs.readFileSync(filePath, 'utf8').trim();
-  const lines = content.split('\n').filter((l) => l.trim().length > 0);
+  const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length <= 1) {
     console.error('❌ CSV file is empty or missing data rows.');
     process.exit(1);
   }
 
-  const header = lines[0].split('\t').length > 1 ? lines[0].split('\t') : lines[0].split(',');
   const isTab = lines[0].split('\t').length > 1;
+  const rawHeaders = isTab ? lines[0].split('\t') : parseCsvLine(lines[0]);
+  const headers = rawHeaders.map((h) => h.trim().replace(/^"/, '').replace(/"$/, ''));
 
-  console.log(`📋 Found ${lines.length - 1} leads to import...`);
+  const totalRows = lines.length - 1;
+  const rowsToProcess = limit ? Math.min(limit, totalRows) : totalRows;
 
-  // Default company
-  const company = await prisma.company.findFirst();
-  if (!company) throw new Error('No company found in database.');
+  console.log(`📑 Total rows in file: ${totalRows} | Processing: ${rowsToProcess}`);
 
-  let inserted = 0;
-  let skipped = 0;
+  // Pre-fetch valid foreign key sets from DB
+  const dbCompany = await prisma.company.findFirst();
+  const dbUser = await prisma.user.findFirst();
+  const defaultCompanyId = dbCompany ? dbCompany.id : null;
+  const defaultUserId = dbUser ? dbUser.id : null;
 
-  for (let i = 1; i < lines.length; i++) {
+  const validWorkflowStates = new Set((await prisma.workflowState.findMany({ select: { id: true } })).map((w) => w.id));
+  const validUsers = new Set((await prisma.user.findMany({ select: { id: true } })).map((u) => u.id));
+  const validCompanies = new Set((await prisma.company.findMany({ select: { id: true } })).map((c) => c.id));
+  const firstWorkflowState = validWorkflowStates.size > 0 ? Array.from(validWorkflowStates)[0] : null;
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (let i = 1; i <= rowsToProcess; i++) {
     const cols = isTab ? lines[i].split('\t') : parseCsvLine(lines[i]);
     if (cols.length < 3) continue;
 
     const row = {};
-    header.forEach((h, idx) => {
-      let key = h.trim().replace(/^"/, '').replace(/"$/, '');
-      let val = cols[idx] ? cols[idx].trim().replace(/^"/, '').replace(/"$/, '') : null;
+    headers.forEach((h, idx) => {
+      let val = cols[idx] ? cols[idx].trim() : null;
+      if (val) {
+        val = val.replace(/^"/, '').replace(/"$/, '');
+      }
       if (val === 'NULL' || val === '' || val === 'null') val = null;
-      row[key] = val;
+      row[h] = val;
     });
 
-    const leadNumber = row.leadNumber || row.leadNum || `LEAD-2026-${String(i).padStart(2, '0')}`;
+    const leadNumber = row.leadNumber || row.leadNum || `LEAD-2026-${String(i).padStart(5, '0')}`;
     const companyName = row.companyName || row.company || 'Unknown Company';
+    const contactPerson = row.contactPerson || row.contactPe || 'Contact Person';
 
-    try {
-      await prisma.lead.upsert({
-        where: { id: row.id || `lead-${i}` },
-        update: {
-          leadNumber,
-          companyName,
-          groupName: row.groupName || row.groupNam,
-          projectName: row.projectName || row.projectNa,
-          contactPerson: row.contactPerson || row.contactPe,
-          email: row.email,
-          phone: row.phone,
-          gstName: row.gstName,
-          gstNumber: row.gstNumber || row.gstNumbe,
-          address: row.address,
-          source: row.source,
-          productInterest: row.productInterest || row.productIn,
-          detailedItems: parseJsonOrNull(row.detailedItems || row.detailedIt),
-          estimatedQuantity: row.estimatedQuantity ? parseFloat(row.estimatedQuantity) : null,
-          unit: row.unit,
-          workflowStateId: row.workflowStateId || row.workflow,
-          assignedToId: row.assignedToId || row.assignedT,
-          customerId: row.customerId || row.customerI,
-          remarks: row.remarks,
-          createdById: row.createdById || row.createdBy || 'SYSTEM',
-          updatedById: row.updatedById || row.updatedB,
-          companyId: row.companyId || company.id,
-          createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
-          updatedAt: row.updatedAt ? new Date(row.updatedAt) : new Date(),
-        },
-        create: {
-          id: row.id,
-          leadNumber,
-          companyName,
-          groupName: row.groupName || row.groupNam,
-          projectName: row.projectName || row.projectNa,
-          contactPerson: row.contactPerson || row.contactPe,
-          email: row.email,
-          phone: row.phone,
-          gstName: row.gstName,
-          gstNumber: row.gstNumber || row.gstNumbe,
-          address: row.address,
-          source: row.source,
-          productInterest: row.productInterest || row.productIn,
-          detailedItems: parseJsonOrNull(row.detailedItems || row.detailedIt),
-          estimatedQuantity: row.estimatedQuantity ? parseFloat(row.estimatedQuantity) : null,
-          unit: row.unit,
-          workflowStateId: row.workflowStateId || row.workflow,
-          assignedToId: row.assignedToId || row.assignedT,
-          customerId: row.customerId || row.customerI,
-          remarks: row.remarks,
-          createdById: row.createdById || row.createdBy || 'SYSTEM',
-          updatedById: row.updatedById || row.updatedB,
-          companyId: row.companyId || company.id,
-          createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
-          updatedAt: row.updatedAt ? new Date(row.updatedAt) : new Date(),
-        },
-      });
-      inserted++;
-    } catch (err) {
-      console.error(`⚠️ Error inserting lead ${leadNumber} (${companyName}):`, err.message);
-      skipped++;
+    const rawWorkflow = row.workflowStateId || row.workflow;
+    const rawCreatedBy = row.createdById || row.createdBy;
+    const rawSalesExec = row.salesExecutiveId || rawCreatedBy;
+    const rawAssigned = row.assignedToId || row.assignedT;
+    const rawCompany = row.companyId;
+
+    const dataPayload = {
+      id: row.id || undefined,
+      leadNumber,
+      companyName,
+      groupName: row.groupName || row.groupNam,
+      projectName: row.projectName || row.projectNa,
+      contactPerson,
+      email: row.email,
+      phone: row.phone,
+      gstName: row.gstName,
+      gstNumber: row.gstNumber || row.gstNumbe,
+      address: parseJsonOrNull(row.address),
+      source: sanitizeEnum(row.source, ['OTHER', 'WEBSITE', 'REFERRAL', 'COLD_CALL', 'EXHIBITION', 'INBOUND']),
+      productInterest: row.productInterest || row.productIn,
+      detailedItems: parseJsonOrNull(row.detailedItems || row.detailedIt),
+      estimatedQuantity: row.estimatedQuantity ? parseFloat(row.estimatedQuantity) : null,
+      unit: row.unit,
+      workflowStateId: (rawWorkflow && validWorkflowStates.has(rawWorkflow)) ? rawWorkflow : firstWorkflowState,
+      assignedToId: (rawAssigned && validUsers.has(rawAssigned)) ? rawAssigned : null,
+      customerId: row.customerId || row.customerI || null,
+      convertedCustomerId: row.convertedCustomerId || null,
+      convertedAt: parseDateOrNull(row.convertedAt),
+      convertedById: row.convertedById || null,
+      nextReminderAt: parseDateOrNull(row.nextReminderAt),
+      lostReason: row.lostReason || null,
+      remarks: row.remarks || '',
+      version: row.version ? parseInt(row.version, 10) : 1,
+      createdById: (rawCreatedBy && validUsers.has(rawCreatedBy)) ? rawCreatedBy : defaultUserId,
+      updatedById: (row.updatedById && validUsers.has(row.updatedById)) ? row.updatedById : null,
+      salesExecutiveId: (rawSalesExec && validUsers.has(rawSalesExec)) ? rawSalesExec : defaultUserId,
+      companyId: (rawCompany && validCompanies.has(rawCompany)) ? rawCompany : defaultCompanyId,
+      createdAt: parseDateOrNull(row.createdAt) || new Date(),
+      updatedAt: parseDateOrNull(row.updatedAt) || new Date(),
+      deletedAt: parseDateOrNull(row.deletedAt),
+    };
+
+    if (isDryRun) {
+      console.log(`[DRY-RUN VALIDATED] Lead #${i}: ${leadNumber} - ${companyName} (${contactPerson})`);
+      successCount++;
+    } else {
+      try {
+        await prisma.lead.upsert({
+          where: { leadNumber: dataPayload.leadNumber },
+          update: dataPayload,
+          create: dataPayload,
+        });
+        console.log(`✅ [INSERTED/UPDATED] Lead #${i}: ${leadNumber} - ${companyName}`);
+        successCount++;
+      } catch (err) {
+        console.error(`❌ [ERROR] Lead #${i} (${leadNumber}):`, err.message);
+        errorCount++;
+      }
     }
   }
 
-  console.log(`🎉 Successfully imported ${inserted} leads (${skipped} skipped/errors)!`);
+  console.log(`\n======================================================`);
+  console.log(`📊 IMPORT SUMMARY (${isDryRun ? 'DRY-RUN' : 'LIVE'})`);
+  console.log(`======================================================`);
+  console.log(`Successful: ${successCount}`);
+  console.log(`Failed: ${errorCount}`);
+}
+
+function sanitizeEnum(val, validEnums) {
+  if (!val) return null;
+  const upper = val.toUpperCase().trim();
+  return validEnums.includes(upper) ? upper : 'OTHER';
 }
 
 function parseJsonOrNull(str) {
@@ -122,6 +151,12 @@ function parseJsonOrNull(str) {
   }
 }
 
+function parseDateOrNull(str) {
+  if (!str || str === 'NULL' || str === 'null') return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function parseCsvLine(text) {
   const result = [];
   let cur = '';
@@ -129,7 +164,12 @@ function parseCsvLine(text) {
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (c === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && text[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (c === ',' && !inQuotes) {
       result.push(cur);
       cur = '';
