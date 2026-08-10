@@ -161,7 +161,10 @@ export class ProductsService {
 
     if (search) {
       const rawSearch = search.trim();
-      const normalizedSearch = rawSearch.replace(/\s+/g, '');
+      // Product codes are commonly entered with optional spaces, hyphens, or
+      // punctuation (for example, "frpmhceld 10 x 10").  Match their compact
+      // SKU form as well, without making the user reproduce its exact format.
+      const normalizedSearch = rawSearch.replace(/[^a-zA-Z0-9]/g, '');
       const tokens = rawSearch.split(/\s+/).filter(Boolean);
 
       const searchConditions: any[] = [
