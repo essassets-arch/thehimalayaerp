@@ -72,8 +72,8 @@ const DEMO_ACCOUNTS = [
   { role: 'Sales Executive 7', email: 'sales7@himalayaerp.com' },
   { role: 'Plant Head', email: 'plant.head@himalayaerp.com' },
   { role: 'Production Operator', email: 'production.operator@himalayaerp.com' },
-  { role: 'Dispatch 1', email: 'dispatch.executive@himalayaerp.com' },
-  { role: 'Dispatch 2', email: 'dispatch2@himalayaerp.com' },
+  { role: 'Dispatch 1', email: 'ravikant.tiwari@himalayaerp.com' },
+  { role: 'Dispatch 2', email: 'sahad.dispatch@himalayaerp.com' },
   { role: 'Finance Executive', email: 'finance.executive@himalayaerp.com' },
   { role: 'Finance Manager', email: 'sahad.accounts@himalayaerp.com' },
   { role: 'Store Manager', email: 'store.manager@himalayaerp.com' },
@@ -102,6 +102,8 @@ function toFriendlyRole(code: string, email?: string): string {
 
 function inferDemoRoleFromEmail(email: string): string {
   const e = email.toLowerCase().trim();
+  if (e === 'ravikant.tiwari@himalayaerp.com') return 'Dispatch 1';
+  if (e === 'sahad.dispatch@himalayaerp.com') return 'Dispatch 2';
   if (e === 'supersales1@himalayaerp.com') return 'SuperSales 1';
   if (e === 'supersales2@himalayaerp.com') return 'SuperSales 2';
   if (e.includes('super.sales') || e.includes('supersales')) return 'SuperSales';
@@ -131,6 +133,12 @@ export default function LoginPage() {
 
   const getPasswordForEmail = (emailStr: string): string => {
     const e = emailStr.toLowerCase().trim();
+    if (e === 'ravikant.tiwari@himalayaerp.com') {
+      return 'Dispatch@1';
+    }
+    if (e === 'sahad.dispatch@himalayaerp.com') {
+      return 'Dispatch@2';
+    }
     if (e === 'sahad.accounts@himalayaerp.com') {
       return 'Hcpp1@5253';
     }
