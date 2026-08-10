@@ -226,6 +226,143 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'HIMALAYA FRPONGC 600X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - Light Duty' },
   { name: 'HIMALAYA FRPONGC 600X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - B125 Class' },
   { name: 'HIMALAYA FRPONGC 600X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 1800X1800 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1800x1800mm - D400 Class' },
+  
+  // FRP MHC Rectangular
+  { name: 'HIMALAYA FRP MHC 450X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 450X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 450X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 450X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 450X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 450X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 450X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x900mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 600X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 600X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 600X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x900mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 600X1200 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X1200 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 600X1200 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 600X1200 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 600X1200 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600x1200mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP MHC 900X1200 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 900X1200 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 900X1200 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 900X1200 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 900X1200 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900x1200mm - D400 Class' },
+  
+  // FRP MHC Round
+  { name: 'HIMALAYA FRPMHC 560MM DIA ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - Extra Light Duty' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - Light Duty' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - B125 Class' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - C250 Class' },
+  { name: 'HIMALAYA FRPMHC 560MM DIA D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 560mm Dia - D400 Class' },
+  
+  { name: 'HIMALAYA FRPMHC 600MM DIA ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - Extra Light Duty' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - Light Duty' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - B125 Class' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - C250 Class' },
+  { name: 'HIMALAYA FRPMHC 600MM DIA D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 600mm Dia - D400 Class' },
+  
+  { name: 'HIMALAYA FRPMHC 900MM DIA ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - Extra Light Duty' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - Light Duty' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - B125 Class' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - C250 Class' },
+  { name: 'HIMALAYA FRPMHC 900MM DIA D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 900mm Dia - D400 Class' },
+  
+  // FRP RCS (Round Cover Square Frame)
+  { name: 'HIMALAYA FRP RCS 300X300 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 300X300 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 300X300 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 300X300 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 300X300 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 300x300mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 450X450 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 450X450 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 450X450 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 450X450 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 450X450 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 450x450mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 600X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 600X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 600X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 750X750 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 750X750 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 750X750 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 750X750 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 750X750 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 750x750mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 900X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 900X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 900X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 900X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 900X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 900x900mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP RCS 600X450 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X450 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - Light Duty' },
+  { name: 'HIMALAYA FRP RCS 600X450 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - B125 Class' },
+  { name: 'HIMALAYA FRP RCS 600X450 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - C250 Class' },
+  { name: 'HIMALAYA FRP RCS 600X450 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Round Cover Square Frame', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Round Cover Square Frame 600x450mm - D400 Class' },
+  
+  // FRP WGC (With Grate Cover)
+  { name: 'HIMALAYA FRP WGC 300X300 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X300 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X300 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 300X300 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 300X300 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x300mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP WGC 450X450 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 450X450 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 450X450 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 450X450 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 450X450 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 450x450mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP WGC 600X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 600X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 600X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 600X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 600X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 600x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRP WGC 300X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - Light Duty' },
+  { name: 'HIMALAYA FRP WGC 300X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - B125 Class' },
+  { name: 'HIMALAYA FRP WGC 300X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - C250 Class' },
+  { name: 'HIMALAYA FRP WGC 300X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - D400 Class' },
+  
+  // FRP ONGC (Oil and Natural Gas Corporation)
+  { name: 'HIMALAYA FRPONGC 300X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 300X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 300X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 300X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - C250 Class' },
+  { name: 'HIMALAYA FRPONGC 300X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRPONGC 385X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 385X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 385X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 385X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - C250 Class' },
+  { name: 'HIMALAYA FRPONGC 385X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRPONGC 450X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 450X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 450X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 450X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - C250 Class' },
+  { name: 'HIMALAYA FRPONGC 450X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - D400 Class' },
+  
+  { name: 'HIMALAYA FRPONGC 600X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRPONGC 600X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - Light Duty' },
+  { name: 'HIMALAYA FRPONGC 600X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - B125 Class' },
+  { name: 'HIMALAYA FRPONGC 600X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - C250 Class' },
   { name: 'HIMALAYA FRPONGC 600X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - D400 Class' },
   
   // FRP Moulded Grating
@@ -233,7 +370,8 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'FRP MOULDED GRATING 30MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 30mm thickness' },
   { name: 'FRP MOULDED GRATING 38MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 38mm thickness' },
   { name: 'FRP MOULDED FRATINGS 50MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 50mm thickness' },
-  // FRP Covers Basic (FRPMHCELD)
+  
+  // FRP Covers Basic (FRPMHCELD & FRPMHCLD)
   { name: 'FRPMHCELD 10X10', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 10x10' },
   { name: 'FRPMHCELD 12X12', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 12x12' },
   { name: 'FRPMHCELD 15X15', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 15x15' },
@@ -244,13 +382,19 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'FRPMHCELD 28X28', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 28x28' },
   { name: 'FRPMHCELD 30X30', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 30x30' },
   { name: 'FRPMHCELD 36X36', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 36x36' },
+  
+  // FRPMHCLD Light Duty Series
+  { name: 'FRPMHCLD 10X10', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 10x10' },
+  { name: 'FRPMHCLD 12X12', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 12x12' },
+  { name: 'FRPMHCLD 15X15', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 15x15' },
+  { name: 'FRPMHCLD 18X18', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 18x18' },
+  { name: 'FRPMHCLD 18X24', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 18x24' },
+  { name: 'FRPMHCLD 21X21', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 21x21' },
+  { name: 'FRPMHCLD 24X24', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 24x24' },
+  { name: 'FRPMHCLD 28X28', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 28x28' },
+  { name: 'FRPMHCLD 30X30', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 30x30' },
+  { name: 'FRPMHCLD 36X36', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 36x36' },
   { name: 'FRPMHCLD 1800X1800', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 1800x1800' },
-  { name: 'FRPMHCELD 1800X1800', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 1800x1800' },
-];
-
-// Trading Products - Coverblocks
-const coverblockProducts: ProductSeedData[] = [
-  // Wire Coverblocks (WCB)
   { name: 'WCB 20MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 20MM' },
   { name: 'WCB 25MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 25MM' },
   { name: 'WCB 30MM', brand: 'HIMALAYA', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', hsnCode: '68109990', unit: 'PCS', unitPrice: 0, description: 'COVERBLOCK WIRE 30MM' },
