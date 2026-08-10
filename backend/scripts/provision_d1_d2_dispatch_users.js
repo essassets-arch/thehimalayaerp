@@ -1,10 +1,14 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 async function provisionDispatchUsers() {
   console.log('🚀 Provisioning D1 and D2 Dispatch Users...');
 
-  // 1. Configure Ravikant Tiwari as Dispatch 1 (D1)
+  const d1PasswordHash = await bcrypt.hash('Dispatch@1', 12);
+  const d2PasswordHash = await bcrypt.hash('Dispatch@2', 12);
+
+  // 1. Configure Ravikant Tiwari as Dispatch 1 (D1) with password Dispatch@1
   const d1User = await prisma.user.findFirst({
     where: { email: { equals: 'ravikant.tiwari@himalayaerp.com', mode: 'insensitive' } },
   });
@@ -12,14 +16,14 @@ async function provisionDispatchUsers() {
   if (d1User) {
     await prisma.user.update({
       where: { id: d1User.id },
-      data: { dispatchCategory: 'D1', isActive: true },
+      data: { dispatchCategory: 'D1', isActive: true, password: d1PasswordHash },
     });
-    console.log('  ✓ Configured Ravikant Tiwari (ravikant.tiwari@himalayaerp.com) -> Dispatch 1 (D1)');
+    console.log('  ✓ Configured Ravikant Tiwari (ravikant.tiwari@himalayaerp.com) -> Dispatch 1 (D1) | Password: Dispatch@1');
   } else {
     console.error('  ❌ Ravikant Tiwari user account not found!');
   }
 
-  // 2. Configure Sahad Mansuri as Dispatch 2 (D2)
+  // 2. Configure Sahad Mansuri as Dispatch 2 (D2) with password Dispatch@2
   const d2User = await prisma.user.findFirst({
     where: { email: { equals: 'sahad.dispatch@himalayaerp.com', mode: 'insensitive' } },
   });
@@ -27,9 +31,9 @@ async function provisionDispatchUsers() {
   if (d2User) {
     await prisma.user.update({
       where: { id: d2User.id },
-      data: { dispatchCategory: 'D2', isActive: true },
+      data: { dispatchCategory: 'D2', isActive: true, password: d2PasswordHash },
     });
-    console.log('  ✓ Configured Sahad Mansuri (sahad.dispatch@himalayaerp.com) -> Dispatch 2 (D2)');
+    console.log('  ✓ Configured Sahad Mansuri (sahad.dispatch@himalayaerp.com) -> Dispatch 2 (D2) | Password: Dispatch@2');
   } else {
     console.error('  ❌ Sahad Mansuri user account not found!');
   }
