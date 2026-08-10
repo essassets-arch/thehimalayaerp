@@ -52,7 +52,7 @@ export default function ProductPicker({
       queryParams.set('scope', 'sales');
       if (q) queryParams.set('search', q);
 
-      const response = await backendFetch(`/api/backend/products?${queryParams.toString()}`);
+      const response = await backendFetch(`/api/backend/products?${queryParams.toString()}`, { cacheTtlMs: 0 });
       const products = Array.isArray(response) ? response : response?.data || [];
 
       // Filter out internal Hardware and Raw Materials

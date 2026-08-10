@@ -36,24 +36,6 @@ async function performRequest(method, path, body = null, options = {}) {
   const startTime = Date.now();
   const fetchTask = async () => {
     try {
-      // Local Mock for Product Catalog
-      if (path.includes('/products/search')) {
-        const mockProducts = [
-          { id: '1', product_name: 'Widget A', product_code: 'WA-01', brand: 'Acme', gst_rate: 18, hsn_sac_code: '1234', unit_of_measure: 'pcs', dispatch_category: 'DISPATCH 1', selling_price: 1500, price: 1500 },
-          { id: '2', product_name: 'Widget B', product_code: 'WB-02', brand: 'Acme', gst_rate: 18, hsn_sac_code: '1235', unit_of_measure: 'pcs', dispatch_category: 'DISPATCH 2', selling_price: 2500, price: 2500 }
-        ];
-        return mockProducts;
-      }
-      if (path.includes('/products/catalog')) {
-        return {
-          categories: [{ id: 'CAT1', name: 'Raw Material' }],
-          products: [
-            { id: '1', product_name: 'Widget A', product_code: 'WA-01', brand: 'Acme', gst_rate: 18, hsn_sac_code: '1234', unit_of_measure: 'pcs', dispatch_category: 'DISPATCH 1' },
-            { id: '2', product_name: 'Widget B', product_code: 'WB-02', brand: 'Acme', gst_rate: 18, hsn_sac_code: '1235', unit_of_measure: 'pcs', dispatch_category: 'DISPATCH 2' }
-          ]
-        };
-      }
-
       // Local Mock for Reminders
       if (path.includes('/sales/reminders')) {
         const LS_KEY = 'erp_reminders';
