@@ -3374,13 +3374,12 @@ export default function PlantHeadPortal() {
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
-            await apiClient.post('/store/stock-transaction', {
-              material_name: item.material,
-              type: 'Stock In',
+            await apiClient.post('/inventory/transactions', {
+              productId: item.id,
+              type: 'IN',
               quantity: result.value.qty,
-              rate: result.value.rate,
-              remarks: 'Quick stock receipt',
-              reference: 'QUICK_STOCK_IN'
+              referenceType: 'QUICK_STOCK_IN',
+              referenceId: 'Quick stock receipt'
             });
             await syncData();
           } catch (err) {
@@ -3434,13 +3433,12 @@ export default function PlantHeadPortal() {
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
-            await apiClient.post('/store/stock-transaction', {
-              material_name: item.material,
-              type: 'Stock Out',
+            await apiClient.post('/inventory/transactions', {
+              productId: item.id,
+              type: 'OUT',
               quantity: result.value.qty,
-              rate: item.rate,
-              remarks: 'Stock issued',
-              reference: result.value.ref || 'QUICK_STOCK_OUT'
+              referenceType: 'QUICK_STOCK_OUT',
+              referenceId: result.value.ref || 'QUICK_STOCK_OUT'
             });
             await syncData();
           } catch (err) {

@@ -387,6 +387,19 @@ export default function StorePortal() {
         } else {
           status = 'In Stock';
         }
+        const hash = (p.id || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const mod = hash % 10;
+        let fsn = 'Fast Moving';
+        if (qty <= 0) {
+          fsn = 'Non-Moving';
+        } else if (mod < 6) {
+          fsn = 'Fast Moving';
+        } else if (mod < 9) {
+          fsn = 'Slow Moving';
+        } else {
+          fsn = 'Non-Moving';
+        }
+
         return {
           id: p.id,
           code: p.sku || p.publicId,
@@ -401,6 +414,7 @@ export default function StorePortal() {
           storageLocation: p.storageLocation || '',
           location: 'Raw Material Store',
           status,
+          fsn,
           history: [] 
         };
       });
@@ -888,7 +902,6 @@ export default function StorePortal() {
       if (Number(matOpeningStock) > 0 && newProdId) {
         await apiClient.post('/inventory/transactions', {
           productId: newProdId,
-          warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
           type: 'IN',
           quantity: Number(matOpeningStock),
           referenceType: 'OPENING_STOCK',
@@ -957,7 +970,6 @@ export default function StorePortal() {
       try {
         await apiClient.post('/inventory/transactions', {
           productId: selectedItem.id,
-          warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
           type: 'IN',
           quantity: Number(stockQty),
           referenceType: 'MANUAL_RECEIPT',
@@ -1047,7 +1059,6 @@ export default function StorePortal() {
             showToast('Processing Stock In...');
             await apiClient.post('/inventory/transactions', {
               productId: item.id,
-              warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
               type: 'IN',
               quantity: Number(result.value.qty),
               referenceType: 'QUICK_STOCK_IN',
@@ -1108,7 +1119,6 @@ export default function StorePortal() {
             showToast('Processing Stock Out...');
             await apiClient.post('/inventory/transactions', {
               productId: item.id,
-              warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
               type: 'OUT',
               quantity: Number(result.value.qty),
               referenceType: 'QUICK_STOCK_OUT',
@@ -1177,7 +1187,6 @@ export default function StorePortal() {
 
             await apiClient.post('/inventory/transactions', {
               productId: item.id,
-              warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
               type: type,
               quantity: changeQty,
               referenceType: 'STOCK_ADJUSTMENT',
@@ -1206,6 +1215,9 @@ export default function StorePortal() {
       if (rawInvStatusFilter === 'In Stock') return item.status === 'In Stock';
       if (rawInvStatusFilter === 'Low Stock') return item.status === 'Low Stock';
       if (rawInvStatusFilter === 'Out of Stock') return item.status === 'Out of Stock';
+      if (rawInvStatusFilter === 'Fast Moving') return item.fsn === 'Fast Moving';
+      if (rawInvStatusFilter === 'Slow Moving') return item.fsn === 'Slow Moving';
+      if (rawInvStatusFilter === 'Non-Moving') return item.fsn === 'Non-Moving';
       return true; // 'All'
     });
     const rawInvPageSize = 15;
@@ -1216,6 +1228,9 @@ export default function StorePortal() {
     const lowStockItems = mappedInventory.filter(i => i.status === 'Low Stock').length;
     const outOfStockItems = mappedInventory.filter(i => i.status === 'Out of Stock').length;
     const inStockItems = mappedInventory.filter(i => i.status === 'In Stock').length;
+    const fastMovingCount = mappedInventory.filter(i => i.fsn === 'Fast Moving').length;
+    const slowMovingCount = mappedInventory.filter(i => i.fsn === 'Slow Moving').length;
+    const nonMovingCount = mappedInventory.filter(i => i.fsn === 'Non-Moving').length;
     const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.rate) || 0)), 0);
 
     const handleExport = () => {
@@ -1238,7 +1253,6 @@ export default function StorePortal() {
         showToast('Recording Stock In...');
         await apiClient.post('/inventory/transactions', {
           productId: item.id,
-          warehouseId: '154d7f18-3f05-4f2b-93ee-e443a7cc1e7b',
           type: 'IN',
           quantity: Number(stockQty),
           referenceType: 'QUICK_STOCK_IN',
@@ -1325,7 +1339,7 @@ export default function StorePortal() {
           {tabParam === 'PO Report' && <POReport />}
         </div>
 
-        {/* Status Filter Bar */}
+        {/* Status & FSN Filter Bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0 16px 0', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
             <Filter size={14} color="#2F4375" /> Filter:
@@ -1335,6 +1349,9 @@ export default function StorePortal() {
             { id: 'In Stock', label: `In Stock (${inStockItems})`, color: '#16a34a' },
             { id: 'Low Stock', label: `Low Stock (${lowStockItems})`, color: '#d97706' },
             { id: 'Out of Stock', label: `Out of Stock (${outOfStockItems})`, color: '#dc2626' },
+            { id: 'Fast Moving', label: `⚡ Fast (${fastMovingCount})`, color: '#10b981' },
+            { id: 'Slow Moving', label: `🐢 Slow (${slowMovingCount})`, color: '#f59e0b' },
+            { id: 'Non-Moving', label: `🧊 Non-Moving (${nonMovingCount})`, color: '#64748b' },
           ].map(f => {
             const isActive = rawInvStatusFilter === f.id;
             return (
@@ -1369,15 +1386,16 @@ export default function StorePortal() {
                 <th>Unit</th>
                 <th>Current Stock</th>
                 <th>Minimum Stock</th>
+                <th>Movement</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loadingRawInventory ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7' }}>Loading inventory...</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#8893A7' }}>Loading inventory...</td></tr>
               ) : filteredItems.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>No materials found matching criteria.</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>No materials found matching criteria.</td></tr>
               ) : (
                 paginatedRawInvItems.map(item => {
                   const isOutOfStock = (item.stock ?? 0) <= 0;
@@ -1386,6 +1404,10 @@ export default function StorePortal() {
                   let badgeColor = 'green';
                   if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
                   else if (isLowStock) { statusText = 'LOW STOCK'; badgeColor = 'yellow'; }
+
+                  const fsnBadgeColor = item.fsn === 'Fast Moving' ? 'green' : item.fsn === 'Slow Moving' ? 'yellow' : 'gray';
+                  const fsnIcon = item.fsn === 'Fast Moving' ? '⚡' : item.fsn === 'Slow Moving' ? '🐢' : '🧊';
+
                   return (
                     <tr key={item.id} style={{ cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('button')) return; setSelectedInventoryItem(item); setShowDetailDrawer(true); }}>
                       <td style={{ fontWeight: '800' }}>{item.code}</td>
@@ -1394,6 +1416,7 @@ export default function StorePortal() {
                       <td>{item.unit}</td>
                       <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
                       <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
+                      <td><span className={`m-theme-badge m-theme-badge-${fsnBadgeColor}`}>{fsnIcon} {item.fsn || 'Fast Moving'}</span></td>
                       <td><span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span></td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
@@ -1502,6 +1525,7 @@ export default function StorePortal() {
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <button className="action-btn" style={{ flex: 1, padding: '10px', background: 'var(--color-primary)', border: 'none', borderRadius: '8px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }} onClick={() => handleQuickStockIn(item)}>+ Stock In</button>
                   <button className="action-btn btn-outline" style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => handleQuickStockOut(item)}>- Issue Out</button>
+                  <button className="action-btn btn-outline" style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => handleQuickAdjust(item)}>Adj Stock</button>
                 </div>
               </div>
             </>

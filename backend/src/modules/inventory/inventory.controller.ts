@@ -6,13 +6,13 @@ import { InventoryService } from './inventory.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-@Controller('inventory')
+@Controller(['inventory', 'store'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  @RequirePermissions('inventory.inventory.create', 'inventory.create', 'store.inventory.create', 'store.create', 'store.materials.create', 'procurement.grns.create', 'inventory.stock.read')
-  @Post('transactions')
+  @RequirePermissions('inventory.inventory.create', 'inventory.create', 'store.inventory.create', 'store.create', 'store.materials.create', 'procurement.grns.create', 'inventory.stock.read', 'store.read', 'store.rawinventory.read', 'planthead.read', 'plant-head.read')
+  @Post(['transactions', 'stock-transaction'])
   createTransaction(
     @CurrentUser() user: any,
     @Body() dto: CreateInventoryTransactionDto,

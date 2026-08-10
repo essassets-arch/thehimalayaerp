@@ -3,13 +3,14 @@ import { Type } from 'class-transformer';
 
 export class CreateInventoryTransactionDto {
   @IsString()
-  productId: string;
+  @IsOptional()
+  productId?: string;
 
   @IsString()
-  warehouseId: string;
+  @IsOptional()
+  warehouseId?: string;
 
   @IsString()
-  @IsIn(['IN', 'OUT', 'ADJUSTMENT'])
   type: string;
 
   @IsNumber()
