@@ -20,6 +20,21 @@ export class WorkOrdersService {
     if (statuses && statuses.length > 0) {
       where.status = { in: statuses };
     }
+
+    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { dispatchCategory: true },
+      });
+      if (user?.dispatchCategory) {
+        where.salesOrderItem = {
+          product: {
+            dispatchCategory: user.dispatchCategory,
+          },
+        };
+      }
+    }
+
     return this.prisma.workOrder.findMany({
       where,
       include: {
@@ -27,7 +42,7 @@ export class WorkOrdersService {
           include: { salesOrder: { include: { customer: true, items: true, sourceQuotation: true } } },
         },
         salesOrderItem: {
-          include: { dispatchItems: true },
+          include: { dispatchItems: true, product: true },
         },
         qcInspections: {
           where: { status: 'APPROVED' },
