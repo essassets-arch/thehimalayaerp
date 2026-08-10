@@ -29,6 +29,7 @@ interface ProductSeedData {
   unit: string;
   unitPrice: number;
   description: string;
+  dispatchCategory?: string;
   sku?: string;
   minimumStock?: number;
 }
@@ -226,29 +227,17 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'FRP MOULDED GRATING 30MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 30mm thickness' },
   { name: 'FRP MOULDED GRATING 38MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 38mm thickness' },
   { name: 'FRP MOULDED FRATINGS 50MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 50mm thickness' },
-  // FRP Covers Basic (FRPMHCLD)
-  { name: 'FRPMHCLD 10X10', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 10x10' },
-  { name: 'FRPMHCLD 12X12', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 12x12' },
-  { name: 'FRPMHCLD 15X15', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 15x15' },
-  { name: 'FRPMHCLD 18X18', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 18x18' },
-  { name: 'FRPMHCLD 18X24', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 18x24' },
-  { name: 'FRPMHCLD 21X21', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 21x21' },
-  { name: 'FRPMHCLD 24X24', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 24x24' },
-  { name: 'FRPMHCLD 28X28', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 28x28' },
-  { name: 'FRPMHCLD 30X30', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 30x30' },
-  { name: 'FRPMHCLD 36X36', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic 36x36' },
-  
   // FRP Covers Basic (FRPMHCELD)
-  { name: 'FRPMHCELD 10X10', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 10x10' },
-  { name: 'FRPMHCELD 12X12', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 12x12' },
-  { name: 'FRPMHCELD 15X15', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 15x15' },
-  { name: 'FRPMHCELD 18X18', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 18x18' },
-  { name: 'FRPMHCELD 18X24', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 18x24' },
-  { name: 'FRPMHCELD 21X21', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 21x21' },
-  { name: 'FRPMHCELD 24X24', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 24x24' },
-  { name: 'FRPMHCELD 28X28', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 28x28' },
-  { name: 'FRPMHCELD 30X30', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 30x30' },
-  { name: 'FRPMHCELD 36X36', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover Basic ELD', hsnCode: '39259090', unit: 'INFO', unitPrice: 0, description: 'FRP Manhole Cover Basic ELD 36x36' },
+  { name: 'FRPMHCELD 10X10', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 10x10' },
+  { name: 'FRPMHCELD 12X12', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 12x12' },
+  { name: 'FRPMHCELD 15X15', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 15x15' },
+  { name: 'FRPMHCELD 18X18', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 18x18' },
+  { name: 'FRPMHCELD 18X24', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 18x24' },
+  { name: 'FRPMHCELD 21X21', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 21x21' },
+  { name: 'FRPMHCELD 24X24', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 24x24' },
+  { name: 'FRPMHCELD 28X28', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 28x28' },
+  { name: 'FRPMHCELD 30X30', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 30x30' },
+  { name: 'FRPMHCELD 36X36', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 36x36' },
 ];
 
 // Trading Products - Coverblocks

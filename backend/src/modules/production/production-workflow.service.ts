@@ -715,9 +715,16 @@ export class ProductionWorkflowService {
       }
     }
 
-    // Also include any Finished Goods products from Product table if not yet present
+    // Also include any Finished Goods / Manufacturing products from Product table if not yet present
     const fgProducts = await this.prisma.product.findMany({
-      where: { productType: 'FINISHED_GOODS' },
+      where: {
+        companyId: companyId ? companyId : undefined,
+        isActive: true,
+        OR: [
+          { productType: { in: ['MANUFACTURING', 'FINISHED_GOODS'] } },
+          { category: { in: ['FRP COVER', 'FRP COVERS', 'COVERBLOCK', 'FRP GRATINGS'] } },
+        ],
+      },
     });
 
     for (const p of fgProducts) {
@@ -730,13 +737,14 @@ export class ProductionWorkflowService {
           productId: p.id,
           productName: p.name,
           productCode: p.sku || p.publicId,
-          category: p.category || 'Hardware',
+          category: p.category || 'FRP COVER',
+          dispatchCategory: p.dispatchCategory || 'D1',
           customerName: 'Internal Stock',
           quantity: 0,
           availableQuantity: 0,
-          unit: (p.unit || 'PCS').toUpperCase(),
-          status: 'OUT_OF_STOCK',
-          receivedAt: p.createdAt.toISOString(),
+          unit: (p.unit || 'SET').toUpperCase(),
+          status: 'AVAILABLE',
+          receivedAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
           receivedById: null,
           product: p,
         });

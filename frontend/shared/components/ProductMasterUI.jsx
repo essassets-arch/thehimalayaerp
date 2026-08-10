@@ -74,7 +74,7 @@ export default function ProductMasterUI({ role }) {
           brand: p.brand || 'HIMALAYA',
           gst_rate: p.gst_rate ?? p.gstRate ?? 18,
           hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
-          dispatch_category: p.dispatch_category || p.dispatchCategory || 'DISPATCH 1',
+          dispatch_category: (p.dispatch_category === 'D1' || p.dispatchCategory === 'D1') ? 'DISPATCH 1' : ((p.dispatch_category === 'D2' || p.dispatchCategory === 'D2') ? 'DISPATCH 2' : (p.dispatch_category || p.dispatchCategory || 'DISPATCH 1')),
           image_url: p.image_url || p.imageUrl || ''
         }));
 
