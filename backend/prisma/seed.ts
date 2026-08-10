@@ -1213,7 +1213,7 @@ async function main() {
       try {
         const sku = productData.sku || generateSku(productData.name);
         const pType = productData.productType || (
-          ['FRP COVERS', 'FRP GRATINGS'].includes(productData.category) ? 'MANUFACTURING' :
+          ['FRP COVER', 'FRP COVERS', 'FRP GRATING', 'FRP GRATINGS'].includes(productData.category) ? 'MANUFACTURING' :
           ['COVERBLOCK', 'RCC PIPE', 'FRC COVER', 'OTHERS'].includes(productData.category) ? 'TRADING' :
           productData.category === 'Raw Material' ? 'RAW_MATERIAL' : 'HARDWARE'
         );
