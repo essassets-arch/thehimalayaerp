@@ -85,6 +85,12 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'HIMALAYA FRP MHC 1500X1500 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1500x1500mm - C250 Class' },
   { name: 'HIMALAYA FRP MHC 1500X1500 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1500x1500mm - D400 Class' },
   
+  { name: 'HIMALAYA FRP MHC 1800X1800 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1800x1800mm - Extra Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1800X1800 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1800x1800mm - Light Duty' },
+  { name: 'HIMALAYA FRP MHC 1800X1800 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1800x1800mm - B125 Class' },
+  { name: 'HIMALAYA FRP MHC 1800X1800 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1800x1800mm - C250 Class' },
+  { name: 'HIMALAYA FRP MHC 1800X1800 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 1800x1800mm - D400 Class' },
+  
   // FRP MHC Rectangular
   { name: 'HIMALAYA FRP MHC 450X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - Extra Light Duty' },
   { name: 'HIMALAYA FRP MHC 450X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'Manhole Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover 450x600mm - Light Duty' },
@@ -238,6 +244,8 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'FRPMHCELD 28X28', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 28x28' },
   { name: 'FRPMHCELD 30X30', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 30x30' },
   { name: 'FRPMHCELD 36X36', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 36x36' },
+  { name: 'FRPMHCLD 1800X1800', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic LD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Light Duty 1800x1800' },
+  { name: 'FRPMHCELD 1800X1800', brand: 'HIMALAYA', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP Manhole Cover Extra Light Duty 1800x1800' },
 ];
 
 // Trading Products - Coverblocks
