@@ -22,7 +22,17 @@ export class DispatchService {
   ) {}
 
   async listDispatches(userId?: string, role?: string, status?: string) {
-    const scope = getSalesScope(userId, role, 'Dispatch');
+    let scope = getSalesScope(userId, role, 'Dispatch');
+
+    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { dispatchCategory: true },
+      });
+      if (user?.dispatchCategory) {
+        scope = { ...scope, dispatchCategory: user.dispatchCategory };
+      }
+    }
 
     const where: any = { ...scope };
     if (status) {
@@ -41,7 +51,18 @@ export class DispatchService {
   }
 
   async getDispatch(id: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'Dispatch');
+    let scope = getSalesScope(userId, role, 'Dispatch');
+
+    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { dispatchCategory: true },
+      });
+      if (user?.dispatchCategory) {
+        scope = { ...scope, dispatchCategory: user.dispatchCategory };
+      }
+    }
+
     const dispatch = await this.prisma.dispatch.findFirst({
       where: {
         AND: [
@@ -294,11 +315,28 @@ export class DispatchService {
         );
       }
 
+      // Auto-detect D1 vs D2 dispatchCategory from ordered items
+      let detectedCategory = 'D1';
+      for (const item of dto.items) {
+        const soItem = soItemsMap.get(item.salesOrderItemId);
+        if (soItem?.productId) {
+          const prod = await tx.product.findUnique({
+            where: { id: soItem.productId },
+            select: { dispatchCategory: true },
+          });
+          if (prod?.dispatchCategory) {
+            detectedCategory = prod.dispatchCategory;
+            break;
+          }
+        }
+      }
+
       // Create Dispatch record starting directly as IN_TRANSIT
       const dispatch = await tx.dispatch.create({
         data: {
           dispatchNo,
           salesOrderId: dto.salesOrderId,
+          dispatchCategory: detectedCategory,
           status: 'IN_TRANSIT',
           isSubmitted: false,
           createdById: userId,

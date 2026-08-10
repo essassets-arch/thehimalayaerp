@@ -136,6 +136,7 @@ model User {
   name                          String
   roleId                        String
   companyId                     String
+  dispatchCategory              String?
   isActive                      Boolean                @default(true)
   failedLoginAttempts           Int                    @default(0)
   lockedUntil                   DateTime?
@@ -2379,8 +2380,9 @@ model QCInspection {
 model Dispatch {
   id           String         @id @default(uuid())
   dispatchNo   String         @unique
-  salesOrderId String
-  status       DispatchStatus @default(DISPATCH_DRAFT)
+  salesOrderId     String
+  dispatchCategory String?
+  status           DispatchStatus @default(DISPATCH_DRAFT)
   isSubmitted  Boolean        @default(false)
 
   // Delivery info
