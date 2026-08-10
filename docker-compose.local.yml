@@ -73,7 +73,7 @@ services:
       BACKEND_PORT: 4000
       API_PREFIX: api/v1
       BACKEND_API_PREFIX: api/v1
-      DATABASE_URL: postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public
+      DATABASE_URL: postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public&connection_limit=10&pool_timeout=20
       JWT_ACCESS_SECRET: LOCAL_DEV_JWT_ACCESS_SECRET_KEY_12345
       JWT_ACCESS_EXPIRES_IN: 1d
       JWT_REFRESH_SECRET: LOCAL_DEV_JWT_REFRESH_SECRET_KEY_67890
@@ -96,6 +96,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:4000/api/v1/health/readiness || exit 1"]
       interval: 10s
