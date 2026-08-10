@@ -43,7 +43,18 @@ export class DispatchService {
   async getDispatch(id: string, userId?: string, role?: string) {
     const scope = getSalesScope(userId, role, 'Dispatch');
     const dispatch = await this.prisma.dispatch.findFirst({
-      where: { id, ...scope },
+      where: {
+        AND: [
+          scope,
+          {
+            OR: [
+              { id },
+              { dispatchNo: id },
+              { dispatchNo: { contains: id, mode: 'insensitive' } },
+            ],
+          },
+        ],
+      },
       include: {
         salesOrder: { include: { customer: true } },
         items: { include: { salesOrderItem: true } },
@@ -383,7 +394,15 @@ export class DispatchService {
   }
 
   async startDelivery(id: string) {
-    const dispatch = await this.prisma.dispatch.findUnique({ where: { id } });
+    const dispatch = await this.prisma.dispatch.findFirst({
+      where: {
+        OR: [
+          { id },
+          { dispatchNo: id },
+          { dispatchNo: { contains: id, mode: 'insensitive' } },
+        ],
+      },
+    });
     if (!dispatch) throw new NotFoundException('Dispatch not found');
     if (dispatch.status !== 'IN_TRANSIT') {
       throw new BadRequestException(
@@ -392,7 +411,7 @@ export class DispatchService {
     }
 
     return this.prisma.dispatch.update({
-      where: { id },
+      where: { id: dispatch.id },
       data: {
         status: 'OUT_FOR_DELIVERY',
         version: { increment: 1 },
@@ -401,8 +420,14 @@ export class DispatchService {
   }
 
   async confirmDelivery(id: string, dto: ConfirmDeliveryDto, userId?: string) {
-    const dispatch = await this.prisma.dispatch.findUnique({
-      where: { id },
+    const dispatch = await this.prisma.dispatch.findFirst({
+      where: {
+        OR: [
+          { id },
+          { dispatchNo: id },
+          { dispatchNo: { contains: id, mode: 'insensitive' } },
+        ],
+      },
       include: {
         salesOrder: { include: { customer: true } },
         items: { include: { salesOrderItem: true } },
