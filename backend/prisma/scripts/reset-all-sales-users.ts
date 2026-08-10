@@ -36,7 +36,6 @@ const TARGET_ROLE_CODES = [
 const EXPECTED_PASSWORDS: Record<string, string> = {
   'supersales1@himalayaerp.com': 'HimalayaSuperSales#1',
   'supersales2@himalayaerp.com': 'HimalayaSuperSales#2',
-  'super.sales@himalayaerp.com': 'SuperSales#123',
   'sales1@himalayaerp.com': 'HimalayaSales#1',
   'sales2@himalayaerp.com': 'HimalayaSales#2',
   'sales3@himalayaerp.com': 'HimalayaSales#3',

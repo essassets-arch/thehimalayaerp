@@ -63,7 +63,6 @@ const DEMO_ACCOUNTS = [
   { role: 'Super Admin', email: 'super.admin@himalayaerp.com' },
   { role: 'SuperSales 1', email: 'supersales1@himalayaerp.com' },
   { role: 'SuperSales 2', email: 'supersales2@himalayaerp.com' },
-  { role: 'SuperSales', email: 'super.sales@himalayaerp.com' },
   { role: 'Sales Executive 1', email: 'sales1@himalayaerp.com' },
   { role: 'Sales Executive 2', email: 'sales2@himalayaerp.com' },
   { role: 'Sales Executive 3', email: 'sales3@himalayaerp.com' },
@@ -82,7 +81,10 @@ const DEMO_ACCOUNTS = [
 ] as const;
 
 /** Map backend role codes to friendly display strings */
-function toFriendlyRole(code: string): string {
+function toFriendlyRole(code: string, email?: string): string {
+  const e = email?.toLowerCase().trim() || '';
+  if (e === 'supersales1@himalayaerp.com') return 'SuperSales 1';
+  if (e === 'supersales2@himalayaerp.com') return 'SuperSales 2';
   const normalizedCode = code.trim().toUpperCase();
   const acronymRoles: Record<string, string> = {
     HR: 'HR',
@@ -100,6 +102,8 @@ function toFriendlyRole(code: string): string {
 
 function inferDemoRoleFromEmail(email: string): string {
   const e = email.toLowerCase().trim();
+  if (e === 'supersales1@himalayaerp.com') return 'SuperSales 1';
+  if (e === 'supersales2@himalayaerp.com') return 'SuperSales 2';
   if (e.includes('super.sales') || e.includes('supersales')) return 'SuperSales';
   if (e.includes('sales')) return 'Sales Executive';
   if (e.includes('plant')) return 'Plant Head';
@@ -175,7 +179,7 @@ export default function LoginPage() {
         throw new Error('Unexpected response from server. Missing access token.');
       }
 
-      const friendlyRole = toFriendlyRole(user.role);
+      const friendlyRole = toFriendlyRole(user.role, user.email);
       login(friendlyRole, { ...user, role: friendlyRole }, accessToken);
 
       const redirectPath = getDefaultPath(user.role);
