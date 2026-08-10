@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(companyId: string, dto: CreateProductDto) {
     const isRawMaterial =
