@@ -1386,16 +1386,15 @@ export default function StorePortal() {
                 <th>Unit</th>
                 <th>Current Stock</th>
                 <th>Minimum Stock</th>
-                <th>Movement</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loadingRawInventory ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#8893A7' }}>Loading inventory...</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7' }}>Loading inventory...</td></tr>
               ) : filteredItems.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>No materials found matching criteria.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>No materials found matching criteria.</td></tr>
               ) : (
                 paginatedRawInvItems.map(item => {
                   const isOutOfStock = (item.stock ?? 0) <= 0;
@@ -1405,9 +1404,6 @@ export default function StorePortal() {
                   if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
                   else if (isLowStock) { statusText = 'LOW STOCK'; badgeColor = 'yellow'; }
 
-                  const fsnBadgeColor = item.fsn === 'Fast Moving' ? 'green' : item.fsn === 'Slow Moving' ? 'yellow' : 'gray';
-                  const fsnIcon = item.fsn === 'Fast Moving' ? '⚡' : item.fsn === 'Slow Moving' ? '🐢' : '🧊';
-
                   return (
                     <tr key={item.id} style={{ cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('button')) return; setSelectedInventoryItem(item); setShowDetailDrawer(true); }}>
                       <td style={{ fontWeight: '800' }}>{item.code}</td>
@@ -1416,7 +1412,6 @@ export default function StorePortal() {
                       <td>{item.unit}</td>
                       <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
                       <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
-                      <td><span className={`m-theme-badge m-theme-badge-${fsnBadgeColor}`}>{fsnIcon} {item.fsn || 'Fast Moving'}</span></td>
                       <td><span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span></td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
