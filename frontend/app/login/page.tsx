@@ -61,8 +61,16 @@ function getDefaultPath(role: string): string {
 
 const DEMO_ACCOUNTS = [
   { role: 'Super Admin', email: 'super.admin@himalayaerp.com' },
+  { role: 'SuperSales 1', email: 'supersales1@himalayaerp.com' },
+  { role: 'SuperSales 2', email: 'supersales2@himalayaerp.com' },
   { role: 'SuperSales', email: 'super.sales@himalayaerp.com' },
-  { role: 'Sales Executive', email: 'sales.executive@himalayaerp.com' },
+  { role: 'Sales Executive 1', email: 'sales1@himalayaerp.com' },
+  { role: 'Sales Executive 2', email: 'sales2@himalayaerp.com' },
+  { role: 'Sales Executive 3', email: 'sales3@himalayaerp.com' },
+  { role: 'Sales Executive 4', email: 'sales4@himalayaerp.com' },
+  { role: 'Sales Executive 5', email: 'sales5@himalayaerp.com' },
+  { role: 'Sales Executive 6', email: 'sales6@himalayaerp.com' },
+  { role: 'Sales Executive 7', email: 'sales7@himalayaerp.com' },
   { role: 'Plant Head', email: 'plant.head@himalayaerp.com' },
   { role: 'Production Operator', email: 'production.operator@himalayaerp.com' },
   { role: 'Dispatch 1', email: 'dispatch.executive@himalayaerp.com' },
@@ -121,6 +129,14 @@ export default function LoginPage() {
     const e = emailStr.toLowerCase().trim();
     if (e === 'sahad.accounts@himalayaerp.com') {
       return 'Hcpp1@5253';
+    }
+    const salesMatch = e.match(/^sales(\d+)@himalayaerp\.com$/);
+    if (salesMatch) {
+      return `HimalayaSales#${salesMatch[1]}`;
+    }
+    const superSalesMatch = e.match(/^supersales(\d+)@himalayaerp\.com$/);
+    if (superSalesMatch) {
+      return `HimalayaSuperSales#${superSalesMatch[1]}`;
     }
     return 'admin123';
   };
