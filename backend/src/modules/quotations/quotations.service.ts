@@ -466,7 +466,7 @@ export class QuotationsService {
         id,
       );
 
-      const scope = getSalesScope(userId, role, 'createdById');
+      const scope = getSalesScope(userId, role, 'Quotation');
       const quotation = await tx.quotation.findFirst({
         where: { id, ...scope },
         include: { items: true, workflowState: true, lead: true },
@@ -623,6 +623,7 @@ export class QuotationsService {
           customerId,
           quotationId: id,
           sourceQuotationId: id,
+          salesExecutiveId: quotation.salesExecutiveId || userId,
           workflowStateId: soInitialState?.id,
           createdById: userId,
           paymentTermsDays: quotation.paymentTermDays || (quotation.paymentTerms ? parseInt(String(quotation.paymentTerms).match(/\d+/)?.[0] || '0', 10) : undefined) || undefined,
