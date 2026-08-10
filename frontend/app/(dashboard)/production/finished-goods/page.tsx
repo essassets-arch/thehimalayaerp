@@ -357,8 +357,8 @@ export default function FinishedGoodsPage() {
     {
       id: "actions",
       header: "Actions",
-      size: 165,
-            cell: ({ row }) => {
+      size: 270,
+      cell: ({ row }) => {
         const item = row.original as any;
         const rowKey = String(item.id || item.jobNo || item.workOrderId || item.productId || '');
         const isSending = Boolean(dispatchSendingMap[rowKey]);
@@ -375,7 +375,7 @@ export default function FinishedGoodsPage() {
           Boolean(item.workOrder?.dispatchedAt);
 
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
             {isAlreadySent ? (
               <button
                 type="button"
@@ -383,16 +383,17 @@ export default function FinishedGoodsPage() {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
+                  gap: '5px',
+                  padding: '7px 14px',
+                  borderRadius: '7px',
                   background: '#64748B',
                   color: '#FFFFFF',
                   border: 'none',
                   fontSize: '12px',
                   fontWeight: 700,
                   cursor: 'not-allowed',
-                  opacity: 0.85
+                  opacity: 0.85,
+                  whiteSpace: 'nowrap'
                 }}
               >
                 <Truck size={14} />
@@ -404,7 +405,12 @@ export default function FinishedGoodsPage() {
                 className={styles.btnDispatch}
                 disabled={isSending}
                 onClick={() => handleSendToDispatch(item)}
-                style={isSending ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+                style={{
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  whiteSpace: 'nowrap',
+                  ...(isSending ? { opacity: 0.6, cursor: 'not-allowed' } : {})
+                }}
               >
                 <Truck size={14} />
                 {isSending ? "Sending..." : "Send to Dispatch"}
@@ -417,14 +423,15 @@ export default function FinishedGoodsPage() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
-                padding: '6px 10px',
-                borderRadius: '6px',
+                padding: '7px 11px',
+                borderRadius: '7px',
                 border: '1px solid #CBD5E1',
                 background: '#F8FAFC',
                 color: '#334155',
                 fontSize: '12px',
                 fontWeight: 600,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
               }}
             >
               <Sliders size={13} />

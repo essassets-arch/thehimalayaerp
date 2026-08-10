@@ -271,33 +271,20 @@
 .panel :global(tbody tr:hover) { background: #f8fbff; }
 .panel :global(td:first-child) { font-weight: 700; color: #0f172a; }
 
-/* Column widths */
-.panel :global(th:nth-child(1)),
-.panel :global(td:nth-child(1)) { width: 145px; }
-
-.panel :global(th:nth-child(2)),
-.panel :global(td:nth-child(2)) { width: 160px; }
-
-.panel :global(th:nth-child(3)),
-.panel :global(td:nth-child(3)) { width: 100px; text-align: center; }
-
-.panel :global(th:nth-child(4)),
-.panel :global(td:nth-child(4)) { width: 100px; text-align: center; }
-
-.panel :global(th:nth-child(5)),
-.panel :global(td:nth-child(5)) { width: 130px; }
-
-.panel :global(th:nth-child(6)),
-.panel :global(td:nth-child(6)) { width: 175px; }
-
-.panel :global(th:nth-child(7)),
-.panel :global(td:nth-child(7)) { width: 150px; }
-
-.panel :global(th:nth-child(8)),
-.panel :global(td:nth-child(8)) { width: 100px; }
-
-.panel :global(th:nth-child(9)),
-.panel :global(td:nth-child(9)) { width: 120px; }
+/* Clean scrollbar styling */
+.tableScrollArea::-webkit-scrollbar {
+    height: 7px;
+}
+.tableScrollArea::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+.tableScrollArea::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.tableScrollArea::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
 
 /* Pagination */
 .panel :global(.erp-data-table__pagination) {
