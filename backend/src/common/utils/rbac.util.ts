@@ -75,13 +75,13 @@ export function getReplacementSalesScope(userId?: string, role?: string): Record
 export function getPaymentSalesScope(userId?: string, role?: string): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
   if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
-  return { createdById: userId };
+  return { OR: [{ salesOrder: { salesExecutiveId: userId } }, { createdById: userId }] };
 }
 
 export function getFollowUpSalesScope(userId?: string, role?: string): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
   if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
-  return { createdById: userId };
+  return { OR: [{ lead: { salesExecutiveId: userId } }, { createdById: userId }] };
 }
 
 export function getAdvancedScope(

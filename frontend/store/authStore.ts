@@ -70,7 +70,12 @@ export const useAuthStore = create<AuthState>()(
         if (typeof window !== 'undefined') {
           try {
             sessionStorage.clear();
-            localStorage.clear();
+            localStorage.removeItem('auth-storage');
+            localStorage.removeItem('sales-store');
+            localStorage.removeItem('supersales-store');
+            localStorage.removeItem('sales-dashboard-cache');
+            localStorage.removeItem('current-sales-user');
+            localStorage.removeItem('himalaya-erp-store');
             document.cookie.split(';').forEach((c) => {
               const name = c.split('=')[0].trim();
               if (name) {
