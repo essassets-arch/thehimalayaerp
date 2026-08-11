@@ -22,7 +22,7 @@ export const backendSalesReadRepository: SalesReadRepository = {
     const searchParams = new URLSearchParams();
 
     if (params.page) searchParams.set('page', String(params.page));
-    if (params.pageSize) searchParams.set('pageSize', String(params.pageSize));
+    if (params.pageSize) searchParams.set('pageSize', String(Math.min(params.pageSize, 500)));
     else searchParams.set('pageSize', '500');
     if (params.search) searchParams.set('search', params.search);
     if (params.orderStatus) searchParams.set('orderStatus', params.orderStatus);
