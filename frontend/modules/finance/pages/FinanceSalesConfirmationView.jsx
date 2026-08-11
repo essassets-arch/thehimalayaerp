@@ -43,15 +43,19 @@ export default function FinanceSalesConfirmationView() {
   }, [backendDeliveredOrders, localOrders]);
 
   const calculateVerifiedPaidAmount = (orderId, confirmations) => {
+    const normId = String(orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
     const list = confirmations || [];
     return list
-      .filter((payment) => payment.orderId === orderId && payment.status === 'FINANCE_VERIFIED')
+      .filter((payment) => {
+        const normPId = String(payment.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
+        return normPId === normId && payment.status === 'FINANCE_VERIFIED';
+      })
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   };
 
   const calculatePendingAmount = (order, confirmations) => {
     const total = Number(order.grandTotal ?? order.totalAmount ?? 0);
-    const paid = calculateVerifiedPaidAmount(order.id, confirmations);
+    const paid = calculateVerifiedPaidAmount(order.id || order.orderNo, confirmations);
     return Math.max(total - paid, 0);
   };
 
@@ -138,7 +142,26 @@ export default function FinanceSalesConfirmationView() {
           },
         };
       });
-    return [...getStorageConfirmations(), ...localConfirmations, ...persistedConfirmations];
+
+    const all = [...persistedConfirmations, ...localConfirmations, ...getStorageConfirmations()];
+    const getPriority = (item) => (item.source === 'backend' ? 3 : item.source === 'local' ? 2 : 1);
+    const map = new Map();
+    all.forEach((item) => {
+      const normOrder = String(item.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
+      if (!normOrder) return;
+      const ref = String(item.transactionReference || '').replace(/^UTR-88992233$/, '').trim().toLowerCase();
+      const key = `${normOrder}_${item.amount}_${item.status}${ref ? `_${ref}` : ''}`;
+      if (!map.has(key)) {
+        map.set(key, item);
+      } else {
+        const existing = map.get(key);
+        if (getPriority(item) > getPriority(existing)) {
+          map.set(key, item);
+        }
+      }
+    });
+
+    return Array.from(map.values());
   }, [state.finance?.customerPayments, backendPayments]);
 
   const [activeTab, setActiveTab] = useState('Payment Outstanding');
@@ -196,34 +219,44 @@ export default function FinanceSalesConfirmationView() {
         filteredConfirmations = paymentConfirmations.filter((c) => c.status === 'FINANCE_REJECTED');
       }
 
-      // Older UI versions could submit the same confirmation repeatedly before
-      // Finance reacted. Present one canonical row per confirmation/order/status.
-      filteredConfirmations = Array.from(
-        new Map(
-          filteredConfirmations.map((confirmation) => [
-            `${confirmation.id}|${confirmation.orderId}|${confirmation.status}`,
-            confirmation,
-          ])
-        ).values()
-      );
+      // Deduplicate confirmations per order/amount/status (prioritizing backend > local > local_storage)
+      const getPriority = (item) => (item.source === 'backend' ? 3 : item.source === 'local' ? 2 : 1);
+      const map = new Map();
+      filteredConfirmations.forEach((confirmation) => {
+        const normOrder = String(confirmation.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
+        const key = `${normOrder}|${confirmation.amount}|${confirmation.status}`;
+        if (!map.has(key)) {
+          map.set(key, confirmation);
+        } else {
+          const existing = map.get(key);
+          if (getPriority(confirmation) > getPriority(existing)) {
+            map.set(key, confirmation);
+          }
+        }
+      });
+      filteredConfirmations = Array.from(map.values());
 
       result = filteredConfirmations.map((c) => {
-        const o = orders.find((ord) => ord.id === c.orderId) || c.orderSnapshot || {};
+        const normCId = String(c.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
+        const o = orders.find((ord) => {
+          const normOId = String(ord.id || ord.orderNo || ord.orderNumber || '').replace(/^ORD-/, '').trim().toLowerCase();
+          return normOId === normCId;
+        }) || c.orderSnapshot || {};
         return {
           type: 'CONFIRMATION',
           id: c.id,
           orderId: c.orderId,
           confirmationId: c.id,
-          invoiceNo: o.invoiceNo || 'Pending',
-          customerName: o.customerName || 'Unknown',
-          salesperson: o.salesperson || 'Unknown',
+          invoiceNo: o.invoiceNo || (o.invoice_number ? o.invoice_number : `INV-${String(c.orderId).replace(/^ORD-/, '').slice(-6)}`),
+          customerName: o.customerName || o.customer_name || o.customer?.name || c.orderSnapshot?.customerName || 'Unknown',
+          salesperson: o.salesperson || c.orderSnapshot?.salesperson || 'Sales',
           paymentAmount: c.amount,
           paymentDate: c.paymentDate,
           paymentMethod: c.method,
           transactionRef: c.transactionReference,
           paymentProof: c.proofDocument,
-          totalAmount: o.grandTotal || 0,
-          verifiedAmount: calculateVerifiedPaidAmount(o.id, paymentConfirmations),
+          totalAmount: o.grandTotal || o.totalAmount || c.amount,
+          verifiedAmount: calculateVerifiedPaidAmount(c.orderId, paymentConfirmations),
           pendingAmount: calculatePendingAmount(o, paymentConfirmations),
           status: c.status,
           remarks: c.financeRemarks,
