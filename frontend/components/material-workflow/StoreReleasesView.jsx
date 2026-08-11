@@ -87,10 +87,18 @@ export default function StoreReleasesView() {
       : Number(item.issuedQty || 0);
     const totalRemaining = Math.max(0, approvedQty - cumulativeIssued);
 
-    // Default current transaction issue input to total remaining
-    const currentInput = inputQuantities[itemKey] !== undefined
-      ? Math.max(0, Math.min(totalRemaining, Number(inputQuantities[itemKey])))
-      : totalRemaining;
+    const rawInput = inputQuantities[itemKey];
+    let currentInput = 0;
+    if (rawInput !== undefined) {
+      if (rawInput === '' || rawInput === null) {
+        currentInput = 0;
+      } else {
+        const parsed = Number(rawInput);
+        currentInput = isNaN(parsed) ? 0 : Math.max(0, Math.min(totalRemaining, parsed));
+      }
+    } else {
+      currentInput = totalRemaining;
+    }
 
     const newRemaining = Math.max(0, totalRemaining - currentInput);
 
@@ -100,6 +108,7 @@ export default function StoreReleasesView() {
       cumulativeIssued,
       totalRemaining,
       currentInput,
+      rawInput: rawInput !== undefined ? rawInput : String(totalRemaining),
       newRemaining,
       isFullyIssued: totalRemaining === 0
     };
@@ -124,8 +133,14 @@ export default function StoreReleasesView() {
   }, [visibleOrderIds, page, pageSize]);
 
   const handleInputChange = (itemKey, maxQty, value) => {
-    const num = Math.max(0, Math.min(maxQty, Number(value) || 0));
-    setInputQuantities((prev) => ({ ...prev, [itemKey]: num }));
+    if (value === '') {
+      setInputQuantities((prev) => ({ ...prev, [itemKey]: '' }));
+      return;
+    }
+    const num = Number(value);
+    if (isNaN(num)) return;
+    const clamped = Math.max(0, Math.min(maxQty, num));
+    setInputQuantities((prev) => ({ ...prev, [itemKey]: String(clamped) }));
   };
 
   const issueOrder = async (orderId, targetDept = 'Production') => {
@@ -348,12 +363,13 @@ export default function StoreReleasesView() {
                         </td>
                         <td data-label="Issue Qty (To Send)">
                           {activeTab === 'pending' ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <input
                                 type="number"
                                 min="0"
                                 max={details.totalRemaining}
-                                value={details.currentInput}
+                                disabled={details.isFullyIssued || details.totalRemaining === 0}
+                                value={details.rawInput}
                                 onChange={(e) => handleInputChange(details.itemKey, details.totalRemaining, e.target.value)}
                                 style={{
                                   width: '90px',
@@ -363,12 +379,32 @@ export default function StoreReleasesView() {
                                   fontSize: '14px',
                                   fontWeight: '800',
                                   color: '#0f172a',
-                                  background: '#f8fafc',
+                                  background: (details.isFullyIssued || details.totalRemaining === 0) ? '#f1f5f9' : '#ffffff',
                                   outline: 'none',
-                                  textAlign: 'center'
+                                  textAlign: 'center',
+                                  cursor: (details.isFullyIssued || details.totalRemaining === 0) ? 'not-allowed' : 'text'
                                 }}
                               />
                               <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>{item.unit}</span>
+                              {!details.isFullyIssued && details.totalRemaining > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleInputChange(details.itemKey, details.totalRemaining, String(details.totalRemaining))}
+                                  style={{
+                                    padding: '3px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    color: '#2563eb',
+                                    background: '#eff6ff',
+                                    border: '1px solid #bfdbfe',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Fill maximum remaining quantity"
+                                >
+                                  Max ({details.totalRemaining})
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span>{details.cumulativeIssued} {item.unit}</span>
