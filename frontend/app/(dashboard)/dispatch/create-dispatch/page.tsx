@@ -125,6 +125,7 @@ export default function CreateDispatchPage() {
   const [driverPhone, setDriverPhone] = useState<string>("");
   const [dispatchRemarks, setDispatchRemarks] = useState<string>("");
   const [invoiceNumber, setInvoiceNumber] = useState<string>("");
+  const [challanNumber, setChallanNumber] = useState<string>("");
   const [ewayBillNumber, setEwayBillNumber] = useState<string>("");
   const [actualFreightPaidAmount, setActualFreightPaidAmount] = useState<number>(0);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
@@ -330,35 +331,21 @@ export default function CreateDispatchPage() {
   );
   const extractTransportationCost = (order: any): number => {
     if (!order) return 0;
-    const directCost = order.freightAmount ??
-      order.expectedTransportationCost ??
-      order.transportationCost ??
-      order.transportCharge ??
-      order.sourceQuotation?.expectedTransportationCost ??
+    const directCost = order.sourceQuotation?.expectedTransportationCost ??
       order.sourceQuotation?.transportCharge ??
       order.sourceQuotation?.freightAmount ??
-      order.sourceQuotation?.transportationCost;
+      order.sourceQuotation?.transportationCost ??
+      order.expectedTransportationCost ??
+      order.freightAmount ??
+      order.transportationCost ??
+      order.transportCharge;
 
-    if (directCost !== undefined && directCost !== null && Number(directCost) > 0) {
+    if (directCost !== undefined && directCost !== null && !isNaN(Number(directCost)) && Number(directCost) >= 0) {
       return Number(directCost);
     }
 
     try {
       if (typeof window !== 'undefined') {
-        const rawOrders = localStorage.getItem('himalaya_sales_orders');
-        if (rawOrders) {
-          const orders = JSON.parse(rawOrders);
-          const match = orders.find((o: any) =>
-            String(o.id) === String(order.id) ||
-            String(o.orderNumber) === String(order.orderNumber) ||
-            String(o.orderNo) === String(order.orderNumber)
-          );
-          if (match) {
-            const locCost = match.expectedTransportationCost ?? match.transportCharge ?? match.freightAmount ?? match.transportationCost;
-            if (locCost !== undefined && locCost !== null && Number(locCost) > 0) return Number(locCost);
-          }
-        }
-
         const rawQuotations = localStorage.getItem('himalaya_quotations');
         if (rawQuotations) {
           const qtns = JSON.parse(rawQuotations);
@@ -369,7 +356,21 @@ export default function CreateDispatchPage() {
           );
           if (matchQ) {
             const locCost = matchQ.expectedTransportationCost ?? matchQ.transportCharge ?? matchQ.freightAmount;
-            if (locCost !== undefined && locCost !== null && Number(locCost) > 0) return Number(locCost);
+            if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) >= 0) return Number(locCost);
+          }
+        }
+
+        const rawOrders = localStorage.getItem('himalaya_sales_orders');
+        if (rawOrders) {
+          const orders = JSON.parse(rawOrders);
+          const match = orders.find((o: any) =>
+            String(o.id) === String(order.id) ||
+            String(o.orderNumber) === String(order.orderNumber) ||
+            String(o.orderNo) === String(order.orderNumber)
+          );
+          if (match) {
+            const locCost = match.expectedTransportationCost ?? match.transportCharge ?? match.freightAmount ?? match.transportationCost;
+            if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) >= 0) return Number(locCost);
           }
         }
 
@@ -379,7 +380,7 @@ export default function CreateDispatchPage() {
           const matchL = leads.find((l: any) => String(l.id) === String(order.leadId || order.customer?.id));
           if (matchL) {
             const locCost = matchL.expectedTransportationCost ?? matchL.transportCharge;
-            if (locCost !== undefined && locCost !== null && Number(locCost) > 0) return Number(locCost);
+            if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) >= 0) return Number(locCost);
           }
         }
       }
@@ -422,7 +423,7 @@ export default function CreateDispatchPage() {
       return firstOrderWithDate ? new Date(firstOrderWithDate.requestedDeliveryDate || Date.now()).toISOString().slice(0, 10) : "";
     });
 
-    if (transportationCost > 0) {
+    if (transportationCost !== undefined && transportationCost >= 0) {
       setActualFreightPaidAmount(transportationCost);
     }
   }, [selectedSalesOrders, transportationCost]);
@@ -462,6 +463,14 @@ export default function CreateDispatchPage() {
   const handleSubmit = async () => {
     if (!selectedWorkOrders.length) {
       toast.error("Select at least one pending dispatch order");
+      return;
+    }
+    if (!invoiceNumber.trim()) {
+      toast.error("Invoice Number is mandatory");
+      return;
+    }
+    if (!challanNumber.trim()) {
+      toast.error("Challan Number is mandatory");
       return;
     }
     if (
@@ -536,7 +545,8 @@ export default function CreateDispatchPage() {
               group.salesOrder.requestedDeliveryDate ||
               expectedDeliveryDate ||
               undefined,
-            invoiceNumber,
+            invoiceNumber: invoiceNumber.trim(),
+            challanNumber: challanNumber.trim(),
             ewayBillNumber,
             freightAmount:
               transportationCost > 0
@@ -764,6 +774,28 @@ export default function CreateDispatchPage() {
         <div className={styles.formGrid}>
 
           <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Invoice Number<span className={styles.required}>*</span></label>
+            <input
+              type="text"
+              value={invoiceNumber}
+              onChange={(e) => setInvoiceNumber(e.target.value)}
+              className={styles.formInput}
+              placeholder="e.g. INV-2026-001"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Challan Number<span className={styles.required}>*</span></label>
+            <input
+              type="text"
+              value={challanNumber}
+              onChange={(e) => setChallanNumber(e.target.value)}
+              className={styles.formInput}
+              placeholder="e.g. CHN-2026-001"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
             <label className={styles.formLabel}>Total Weight (Tons)<span className={styles.required}>*</span></label>
             <input
               type="number"
@@ -820,7 +852,7 @@ export default function CreateDispatchPage() {
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Courier / Transport<span className={styles.required}>*</span></label>
+            <label className={styles.formLabel}>Courier / Transport</label>
             <input
               type="text"
               value={transporterName}
@@ -855,11 +887,11 @@ export default function CreateDispatchPage() {
             <label className={styles.formLabel}>Fetched Transportation Cost (₹)</label>
             <input
               type="number"
-              value={transportationCost || ""}
+              value={transportationCost !== undefined ? transportationCost : 0}
               readOnly
               disabled
               className={styles.formInput}
-              style={{ backgroundColor: "#f8fafc", cursor: "not-allowed", color: "#94a3b8" }}
+              style={{ backgroundColor: "#f8fafc", cursor: "not-allowed", color: "#334155", fontWeight: 600 }}
             />
           </div>
 
@@ -867,7 +899,7 @@ export default function CreateDispatchPage() {
             <label className={styles.formLabel}>To Be Paid (₹)</label>
             <input
               type="number"
-              value={actualFreightPaidAmount || ""}
+              value={actualFreightPaidAmount !== undefined ? actualFreightPaidAmount : ""}
               onChange={(e) => setActualFreightPaidAmount(Number(e.target.value))}
               className={styles.formInput}
               placeholder="e.g. 500.00"

@@ -44,9 +44,9 @@ export default function WorkOrderListPage() {
       const payload = await backendFetch<WorkOrder[]>('/api/backend/production/work-orders');
       return Array.isArray(payload)
         ? payload.filter((workOrder) => {
-            const status = String(workOrder.workflowState?.name || workOrder.status || '').toUpperCase();
-            return !['CREATED', 'CANCELLED'].includes(status);
-          })
+          const status = String(workOrder.workflowState?.name || workOrder.status || '').toUpperCase();
+          return !['CREATED', 'CANCELLED'].includes(status);
+        })
         : [];
     }
   });
@@ -201,7 +201,7 @@ export default function WorkOrderListPage() {
             if (!isNaN(parsed.getTime())) {
               displayDate = parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
             }
-          } catch {}
+          } catch { }
         }
         if (!displayDate) {
           const created = wo.createdAt ? new Date(wo.createdAt) : new Date();
@@ -222,7 +222,7 @@ export default function WorkOrderListPage() {
       size: 260,
       cell: ({ row }) => {
         const status = String(row.original.workflowState?.name || row.original.status || '').toUpperCase();
-        
+
         const viewButton = (
           <button
             type="button"
@@ -232,7 +232,7 @@ export default function WorkOrderListPage() {
               const rawSo = wo.productionPlan?.salesOrder?.orderNumber || (wo as any).salesOrder?.orderNumber;
               const numPart = wo.workOrderNumber ? wo.workOrderNumber.replace(/\D/g, '').slice(-5) : '00001';
               const soNo = rawSo || `SO-2026-${numPart.padStart(5, '0')}`;
-              
+
               const customerObj = wo.productionPlan?.salesOrder?.customer || (wo as any).salesOrder?.customer || (wo as any).customer;
               const customerName = customerObj?.companyName || customerObj?.name || (wo as any).customerName || 'Production Stock';
               const address = customerObj?.address || customerObj?.city || (wo as any).customerAddress || (wo as any).address || 'Andheri, Mumbai (Default Address)';
@@ -331,7 +331,7 @@ export default function WorkOrderListPage() {
             </div>
           );
         }
-        
+
         if (status === 'COMPLETED' || status === 'DONE') {
           return (
             <div className={styles.actionButtons}>
@@ -370,8 +370,8 @@ export default function WorkOrderListPage() {
           {isLoading ? (
             <div className="flex items-center justify-center min-h-[280px] text-slate-500 text-sm">Loading work orders...</div>
           ) : (
-            <DataTable 
-              columns={columns} 
+            <DataTable
+              columns={columns}
               data={filteredData}
               serverSide={false}
               emptyMessage={search ? 'No work orders match your search.' : 'No work orders have been released yet.'}
@@ -380,10 +380,10 @@ export default function WorkOrderListPage() {
         </div>
       </div>
       {selectedOrderForModal && (
-        <OrderDetailsModal 
+        <OrderDetailsModal
           order={selectedOrderForModal}
           role="production"
-          onClose={() => setSelectedOrderForModal(null)} 
+          onClose={() => setSelectedOrderForModal(null)}
         />
       )}
     </main>

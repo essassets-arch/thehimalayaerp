@@ -38,9 +38,9 @@ export class CreateDispatchDto {
   @IsString()
   vehicleNumber: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  transporterName: string;
+  transporterName?: string;
 
   @IsOptional()
   @IsString()
@@ -71,6 +71,10 @@ export class CreateDispatchDto {
   @IsOptional()
   @IsString()
   invoiceNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  challanNumber?: string;
 
   @IsOptional()
   @IsString()
