@@ -21,6 +21,7 @@ import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import { ChevronLeft, ChevronRight, Search, Download, Edit3, Trash2, Box, Package, Plus, ShieldAlert, ArrowRight, X, User, BarChart2, Activity, Settings, Truck, ClipboardList, CheckCircle2, Clock, Upload, ArrowLeft, ClipboardCheck, AlertTriangle, Pencil, Layers, BarChart3, TrendingUp, Percent, AlertCircle, AlertOctagon, Loader2, FileText, DollarSign, RefreshCw, ShieldCheck } from 'lucide-react';
 import ProductMasterUI from '../../../shared/components/ProductMasterUI';
+import CategoryMasterUI from '../../../shared/components/CategoryMasterUI';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
 import { ComposedChart, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
@@ -113,9 +114,7 @@ export default function PlantHeadPortal() {
   const pathSlug = pathname ? pathname.split('/').filter(Boolean) : [];
   let view = params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
   if (view === 'plant-head') view = 'dashboard';
-  if (view === 'products' || view === 'products-add' || view === 'products-edit') {
-    view = 'raw-inventory';
-  }
+
   const productId = params?.slug?.[1]; const materialName = params?.slug?.[1];
   const location = { pathname: pathname || '', search: "" };
   const navigate = useRouter();
@@ -3543,6 +3542,10 @@ export default function PlantHeadPortal() {
     return <ProductMasterUI role={user?.role || 'Plant Head'} />;
   };
 
+  const renderCategories = () => {
+    return <CategoryMasterUI role={user?.role || 'Plant Head'} />;
+  };
+
   const renderProductFormPage = () => {
     return <ProductMasterUI role={user?.role || 'Plant Head'} />;
   };
@@ -4731,6 +4734,7 @@ export default function PlantHeadPortal() {
       {currentView === 'reports' && renderReports()}
       {currentView === 'qc-failures' && renderQCFailures()}
       {currentView === 'products' && renderProducts()}
+      {currentView === 'categories' && renderCategories()}
       {(currentView === 'products-add' || currentView === 'products-edit') && renderProductFormPage()}
       {currentView === 'raw-inventory' && renderRawInventory()}
       {currentView === 'finished-goods' && renderFinishedGoods()}
@@ -4740,7 +4744,7 @@ export default function PlantHeadPortal() {
       {currentView === 'indent-approvals' && <MaterialIndentApproval />}
       {currentView === 'leave-approvals' && <LeaveApprovalView roleMode="PLANT_HEAD" />}
 
-      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'department-overview', 'executive-reports', 'reports', 'qc-failures', 'products', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals'].includes(currentView) && (
+      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'department-overview', 'executive-reports', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals'].includes(currentView) && (
         <ModulePlaceholder 
           title="Module Not Available" 
           description="This Plant Head feature is not implemented yet." 

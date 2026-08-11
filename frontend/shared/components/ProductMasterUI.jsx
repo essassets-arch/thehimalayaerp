@@ -9,12 +9,14 @@ import axios from 'axios';
 import { backendFetch } from '../../lib/backendFetch';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { useERP } from '../context/ERPContext';
 
 const UNITS = ['PCS', 'SET', 'KG', 'LTR', 'BAG', 'ROLL', 'CAN', 'BARREL', 'PKT', 'MTR'];
 
 export default function ProductMasterUI({ role }) {
   const { showToast } = useToast();
   const { confirm, ConfirmDialogComponent } = useConfirm();
+  const { syncData } = useERP() || {};
 
   const [rawProducts, setRawProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -235,6 +237,7 @@ export default function ProductMasterUI({ role }) {
       }
       setIsModalOpen(false);
       fetchProducts();
+      if (syncData) syncData();
     } catch (err) {
       showToast(err.message || 'Failed to save product');
     } finally {
@@ -255,6 +258,7 @@ export default function ProductMasterUI({ role }) {
         await backendFetch(`/api/backend/products/${id}`, { method: 'DELETE' });
         showToast('Product deleted successfully.');
         fetchProducts();
+        if (syncData) syncData();
       } catch (err) {
         showToast(err.message || 'Failed to delete product');
       }

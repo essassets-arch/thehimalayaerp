@@ -39,6 +39,8 @@ export const navigationConfig = {
   ],
   'Plant Head': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/plant-head/dashboard' },
+    { id: 'products', label: 'Products', icon: Package, path: '/plant-head/products' },
+    { id: 'categories', label: 'Categories', icon: Grid, path: '/plant-head/categories' },
     { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/plant-head/incoming-orders' },
     { id: 'planning', label: 'Planning Board', icon: Wrench, path: '/plant-head/planning' },
     { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },

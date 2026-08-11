@@ -55,12 +55,13 @@ export default function ProductPicker({
       const response = await backendFetch(`/api/backend/products?${queryParams.toString()}`, { cacheTtlMs: 0 });
       const products = Array.isArray(response) ? response : response?.data || [];
 
-      // Filter out internal Hardware and Raw Materials
+      // Filter out internal Hardware and Raw Materials (unless explicitly MANUFACTURING or TRADING)
       const salesProducts = products.filter(p => {
-        const type = p.productType || '';
-        const cat = (p.category || '').toLowerCase();
+        const type = (p.productType || p.product_type || '').toUpperCase();
+        const cat = (p.category || p.product_family || '').toLowerCase();
         if (type === 'HARDWARE' || type === 'RAW_MATERIAL') return false;
-        if (cat === 'hardware' || cat === 'raw material' || cat === 'electric') return false;
+        if (type === 'MANUFACTURING' || type === 'TRADING') return true;
+        if (cat === 'raw material' || cat === 'electric') return false;
         return true;
       });
 
