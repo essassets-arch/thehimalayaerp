@@ -27,6 +27,7 @@ export type AuditEvent = {
 
 export type SalesLead = {
   id: string;
+  leadDate?: string;
   customerName: string;
   companyName: string;
   contactPerson: string;

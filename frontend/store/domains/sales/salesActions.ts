@@ -111,6 +111,7 @@ const withSales = (state: ERPState, updates: Partial<SalesDomainState>, newAudit
 
 export type CreateLeadPayload = {
   id?: string;
+  leadDate?: string;
   companyName: string;
   contactPerson: string;
   customerName?: string;
@@ -297,6 +298,7 @@ export function createLead(
 
   const newLead: SalesLead = {
     id: leadId,
+    leadDate: payload.leadDate || new Date().toISOString(),
     customerName: companyName,
     companyName,
     contactPerson,

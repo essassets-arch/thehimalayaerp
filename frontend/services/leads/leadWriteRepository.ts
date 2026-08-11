@@ -3,6 +3,7 @@ export interface WriteRequestOptions {
 }
 
 export interface CreateLeadInput {
+  leadDate?: string | Date;
   companyName: string;
   contactPerson: string;
   email?: string;

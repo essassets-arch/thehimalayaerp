@@ -217,10 +217,20 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     };
   };
 
+  const formatInitialLeadDate = (lead) => {
+    const raw = lead?.leadDate || lead?.date || lead?.createdAt || lead?.created_at;
+    if (raw) {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    return new Date().toISOString().split('T')[0];
+  };
+
   const initialItems = getInitialItems();
   const parsedAddr = parseAddress(editingLead?.address);
 
   const emptyLeadForm = {
+    leadDate: formatInitialLeadDate(editingLead),
     projectName: editingLead?.projectName ?? '',
     groupName: editingLead?.groupName ?? '',
     companyName: editingLead?.companyName ?? '',
@@ -256,7 +266,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   }, [editingLead]);
 
   const {
-    projectName, groupName, companyName, gstNumber, siteInchargeName, siteInchargeMobile, officeContact,
+    leadDate, projectName, groupName, companyName, gstNumber, siteInchargeName, siteInchargeMobile, officeContact,
     email, remarks, addressLine1, city, stateName, pincode, sampleRequired, expectedTransportationCost,
     items, sampleItems, submitAction
   } = formData;
@@ -268,6 +278,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     }));
   };
 
+  const setLeadDate = (val) => updateField('leadDate', val);
   const setProjectName = (val) => updateField('projectName', val);
   const setGroupName = (val) => updateField('groupName', val);
   const setCompanyName = (val) => updateField('companyName', val);
@@ -374,6 +385,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     const itemsDescription = items.map(item => `${item.productName} (x${item.quantity})`).join(', ');
 
     const payload = {
+      leadDate: leadDate ? new Date(leadDate).toISOString() : new Date().toISOString(),
       projectName: projectName.trim(),
       groupName: groupName.trim(),
       companyName: companyName.trim(),
@@ -595,10 +607,24 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
               <div className="form-row">
                 <div className="form-group">
+                  <label className="form-label">Lead Date *</label>
+                  <input
+                    data-testid="lead-date"
+                    type="date"
+                    className="form-input"
+                    value={leadDate}
+                    onChange={e => setLeadDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
                   <label className="form-label">Project Name *</label>
                   <input data-testid="lead-project-name" type="text" className="form-input" placeholder="e.g. Skyline Premium Residency" value={projectName} onChange={e => setProjectName(e.target.value)} maxLength={255} required />
                 </div>
-                <div className="form-group">
+              </div>
+
+              <div className="form-row">
+                <div className="form-group-full">
                   <label className="form-label">Group Name *</label>
                   <input data-testid="lead-group-name" type="text" className="form-input" placeholder="e.g. ABC Group" value={groupName} onChange={e => setGroupName(e.target.value)} maxLength={255} required />
                 </div>

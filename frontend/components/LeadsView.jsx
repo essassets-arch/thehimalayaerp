@@ -421,7 +421,7 @@ export default function LeadsView({
   const availableMonths = useMemo(() => {
     const set = new Set();
     (leads || []).forEach(lead => {
-      const rawDate = lead.date || lead.createdAt || lead.created_at || lead.leadDate || lead.updatedAt;
+      const rawDate = lead.leadDate || lead.date || lead.createdAt || lead.created_at || lead.updatedAt;
       if (rawDate) {
         const d = parseAnyDate(rawDate);
         if (d) {
@@ -464,7 +464,7 @@ export default function LeadsView({
     if (filter === 'Reminders') return false;
     const matchesFilter = filter === 'All' ? (lead.status !== 'Lost' && lead.status !== 'Converted') : lead.status === filter;
 
-    const leadDateVal = lead.date || lead.createdAt || lead.created_at || lead.leadDate || lead.updatedAt;
+    const leadDateVal = lead.leadDate || lead.date || lead.createdAt || lead.created_at || lead.updatedAt;
     const matchesDate = isLeadInDateRange(leadDateVal, selectedMonth, fromDate, toDate);
 
     return matchesSearch && matchesFilter && matchesDate;
@@ -892,7 +892,7 @@ export default function LeadsView({
               ) : (
                 displayedLeads.map((lead) => {
                   const displayStatus = getSmartLeadStatus(lead, orders, quotations, samples, reminders, erpStore.state);
-                  const leadDateStr = formatLeadDate(lead.date || lead.createdAt || lead.created_at || lead.leadDate);
+                  const leadDateStr = formatLeadDate(lead.leadDate || lead.date || lead.createdAt || lead.created_at);
 
                   return (
                     <tr key={lead.id}>

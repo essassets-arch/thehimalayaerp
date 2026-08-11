@@ -23,6 +23,7 @@ export const backendSalesReadRepository: SalesReadRepository = {
 
     if (params.page) searchParams.set('page', String(params.page));
     if (params.pageSize) searchParams.set('pageSize', String(params.pageSize));
+    else searchParams.set('pageSize', '500');
     if (params.search) searchParams.set('search', params.search);
     if (params.orderStatus) searchParams.set('orderStatus', params.orderStatus);
     if (params.productionStatus) searchParams.set('productionStatus', params.productionStatus);

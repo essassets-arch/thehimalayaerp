@@ -43,8 +43,13 @@ export default function OrdersView({
   const [requestModal, setRequestModal] = useState(null);
   const [filter, setFilter] = useState('All Orders');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [reminderModal, setReminderModal] = useState(null);
   const [sendingOrderId, setSendingOrderId] = useState(null);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filter, pageSize]);
 
   const handleSaveReminder = async (formData) => {
     if (!reminderModal) return;
@@ -330,16 +335,41 @@ export default function OrdersView({
   const validOrders = orders.filter(o => {
     if (!o) return false;
     const orderReference = o.orderNo || o.orderNumber || o.orderId || o.id;
-    const hasOrderReference = typeof orderReference === 'string' && orderReference.length > 0;
-    const hasCustomer = Boolean(o.customerName || o.customer?.name);
-    const hasItems = (Array.isArray(o.items) && o.items.length > 0) || Boolean(o.products);
-    return hasOrderReference && hasCustomer && hasItems;
+    const hasOrderReference = Boolean(orderReference);
+    const cust = o.customerName || o.customer?.companyName || o.customer?.name || o.clientName || o.companyName || o.leadName || o.customer;
+    const hasCustomer = Boolean(cust);
+    const hasItems =
+      (Array.isArray(o.items) && o.items.length > 0) ||
+      (Array.isArray(o.detailedItems) && o.detailedItems.length > 0) ||
+      (Array.isArray(o.orderItems) && o.orderItems.length > 0) ||
+      Boolean(o.products) ||
+      Boolean(o.totalAmount) ||
+      Boolean(o.grandTotal) ||
+      Boolean(o.totalValue) ||
+      Boolean(orderReference);
+    return hasOrderReference && (hasCustomer || hasItems);
   });
 
   const filteredOrders = validOrders.filter(o => {
-    const custName = o.customerName || o.customer?.name || '';
-    const matchesSearch = custName.toLowerCase().includes(search.toLowerCase()) || 
-                          (o.products || '').toLowerCase().includes(search.toLowerCase());
+    const custVal = o.customerName || o.customer?.companyName || o.customer?.name || o.clientName || o.companyName || o.leadName || '';
+    const custName = typeof custVal === 'string' ? custVal : (custVal?.companyName || custVal?.name || '');
+
+    let itemsStr = '';
+    if (typeof o.products === 'string') {
+      itemsStr = o.products;
+    } else if (Array.isArray(o.items)) {
+      itemsStr = o.items.map(i => i.productName || i.name || i.productNameSnapshot || i.productCode || '').join(' ');
+    } else if (Array.isArray(o.detailedItems)) {
+      itemsStr = o.detailedItems.map(i => i.productName || i.name || '').join(' ');
+    }
+
+    const orderNoStr = String(o.orderNo || o.orderNumber || o.orderId || o.id || '');
+    const qStr = search.trim().toLowerCase();
+
+    const matchesSearch = !qStr ||
+      custName.toLowerCase().includes(qStr) || 
+      itemsStr.toLowerCase().includes(qStr) ||
+      orderNoStr.toLowerCase().includes(qStr);
     
     const stage = String(o.status || o.overallStage || o.order_stage || o.productionStatus || 'Draft');
     const stageUpper = stage.toUpperCase();
@@ -361,12 +391,27 @@ export default function OrdersView({
     return matchesSearch && matchesFilter;
   });
 
-  const ITEMS_PER_PAGE = 25;
-  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
+  const startIndex = filteredOrders.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, filteredOrders.length);
   const displayedOrders = flat ? filteredOrders : filteredOrders.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   );
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
 
   const getDispatchBadge = (status) => {
     const s = status || 'Pending';
@@ -960,25 +1005,110 @@ export default function OrdersView({
       </div>
 
       {/* Pagination controls */}
-      {!flat && totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
-          <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-            Showing page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> (<strong>{filteredOrders.length}</strong> total orders)
-          </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
+      {!flat && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          marginTop: '20px',
+          borderTop: '1px solid var(--color-border, #e2e8f0)',
+          paddingTop: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-secondary, #64748b)' }}>
+              Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of <strong>{filteredOrders.length}</strong> orders
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-text-secondary, #64748b)' }}>
+              <span>Show:</span>
+              <select
+                aria-label="Items per page"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  fontSize: '13px',
+                  color: '#1e293b',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>per page</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
-              disabled={currentPage === 1}
+              disabled={currentPage === 1 || filteredOrders.length === 0}
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               className="btn-small btn-outline-small"
-              style={{ margin: 0, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+              style={{
+                margin: 0,
+                padding: '6px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                opacity: (currentPage === 1 || filteredOrders.length === 0) ? 0.5 : 1,
+                cursor: (currentPage === 1 || filteredOrders.length === 0) ? 'not-allowed' : 'pointer',
+                borderRadius: '6px',
+                fontWeight: '600'
+              }}
             >
               <ChevronLeft size={14} /> Previous
             </button>
+
+            {filteredOrders.length > 0 && getPageNumbers().map(pageNum => (
+              <button
+                key={pageNum}
+                onClick={() => setCurrentPage(pageNum)}
+                style={{
+                  minWidth: '32px',
+                  height: '32px',
+                  padding: '0 6px',
+                  borderRadius: '6px',
+                  border: currentPage === pageNum ? 'none' : '1px solid #cbd5e1',
+                  background: currentPage === pageNum ? '#2F4375' : '#ffffff',
+                  color: currentPage === pageNum ? '#ffffff' : '#334155',
+                  fontWeight: currentPage === pageNum ? '700' : '600',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {pageNum}
+              </button>
+            ))}
+
             <button
-              disabled={currentPage === totalPages}
+              disabled={currentPage === totalPages || filteredOrders.length === 0}
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               className="btn-small btn-outline-small"
-              style={{ margin: 0, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+              style={{
+                margin: 0,
+                padding: '6px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                opacity: (currentPage === totalPages || filteredOrders.length === 0) ? 0.5 : 1,
+                cursor: (currentPage === totalPages || filteredOrders.length === 0) ? 'not-allowed' : 'pointer',
+                borderRadius: '6px',
+                fontWeight: '600'
+              }}
             >
               Next <ChevronRight size={14} />
             </button>

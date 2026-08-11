@@ -99,6 +99,7 @@ export class LeadsService {
     return this.prisma.lead.create({
       data: {
         leadNumber,
+        leadDate: dto.leadDate ? new Date(dto.leadDate) : new Date(),
         companyName: dto.companyName,
         groupName: dto.groupName,
         projectName: dto.projectName,
@@ -137,6 +138,7 @@ export class LeadsService {
     await this.getLead(id, companyId, userId, role);
 
     const allowed = [
+      'leadDate',
       'companyName',
       'groupName',
       'projectName',
@@ -164,6 +166,10 @@ export class LeadsService {
 
     if (data.nextReminderAt) {
       data.nextReminderAt = new Date(data.nextReminderAt);
+    }
+
+    if (data.leadDate) {
+      data.leadDate = new Date(data.leadDate);
     }
     
     // Prevent unauthorized reassignment for salesperson roles

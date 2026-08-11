@@ -227,6 +227,8 @@ model Lead {
   id         String @id @default(uuid())
   leadNumber String @unique
 
+  leadDate    DateTime? @default(now())
+
   companyName   String
   groupName     String?
   projectName   String?

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { useERP, useSalesBackend } from '../../../shared/context/ERPContext.jsx';
 import { useERPStore } from '../../../store/erpStore';
@@ -26,7 +26,25 @@ export function useOrders(showToast, currentView) {
     requestReplacement,
   } = useSalesBackend();
 
-  const orders = Array.isArray(salesOrders) ? salesOrders : [];
+  const storeOrders = useERPStore((s) => s.state?.sales?.orders || s.sales?.orders || []);
+  const backendOrdersArr = Array.isArray(salesOrders) ? salesOrders : [];
+
+  const orders = useMemo(() => {
+    const map = new Map();
+    for (const o of storeOrders) {
+      if (o) {
+        const key = String(o.id || o.orderNo || o.orderNumber || '');
+        if (key) map.set(key, o);
+      }
+    }
+    for (const o of backendOrdersArr) {
+      if (o) {
+        const key = String(o.id || o.orderNo || o.orderNumber || '');
+        if (key) map.set(key, o);
+      }
+    }
+    return Array.from(map.values());
+  }, [storeOrders, backendOrdersArr]);
 
   const pagination = salesOrdersPagination ?? {
     page: 1,
