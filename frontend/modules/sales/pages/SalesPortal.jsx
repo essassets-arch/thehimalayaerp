@@ -139,6 +139,17 @@ function EditLeadContainer({
         console.warn('Post-save refetch failed:', e);
       }
     }
+    if (navigate && navigate.push) {
+      navigate.push(`${basePath || '/sales'}/leads`);
+    }
+    return res;
+  };
+
+  const handleDelete = async (id, reason) => {
+    const res = await deleteLead(id, undefined, reason);
+    if (navigate && navigate.push) {
+      navigate.push(`${basePath || '/sales'}/leads`);
+    }
     return res;
   };
 
@@ -179,7 +190,7 @@ function EditLeadContainer({
         key={leadToEdit ? `edit-${leadToEdit.id}` : 'new'}
         leads={leads}
         onAddLead={handleUpdate}
-        onDeleteLead={deleteLead}
+        onDeleteLead={handleDelete}
         onCancel={onCancel}
         editingLead={leadToEdit}
       />
