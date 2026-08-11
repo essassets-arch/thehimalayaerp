@@ -249,6 +249,29 @@ export const PlantHeadDashboard = () => {
     fetchPlantData();
   }, [fetchPlantData]);
 
+  // ── Standardized Machines Performance Data ──
+  const machineData = useMemo(() => {
+    if (machineStatuses.length > 0) {
+      return machineStatuses.map((m, idx) => {
+        const st = m.status === 'USE' ? 'Running' : m.status === 'NOT_USE' ? 'Idle' : 'Breakdown';
+        const isRun = st === 'Running';
+        return {
+          id: m.machineId || `HM00${idx + 1}`,
+          name: m.machineName || `Hydraulic Machine ${idx + 1}`,
+          line: `Line ${String.fromCharCode(65 + (idx % 4))}`,
+          status: st,
+          runtime: isRun ? '7.8 hrs' : '0.0 hrs',
+          utilization: isRun ? 91 : 0,
+          oee: isRun ? 96 : 0,
+          output: isRun ? '2,450 Pcs' : '0 Pcs',
+          rejectionPct: isRun ? '2.1%' : '—',
+          downtime: isRun ? '0.7 hrs' : '8.0 hrs'
+        };
+      });
+    }
+    return [];
+  }, [machineStatuses]);
+
   // ── Executive 10 KPI Calculations (100% Dynamic) ──
   const kpis = useMemo(() => {
     const plannedTotal = workOrders.reduce((sum, w) => sum + (Number(w.plannedQty) || 0), 0);
@@ -304,67 +327,6 @@ export const PlantHeadDashboard = () => {
     }
     return alerts;
   }, [machineData, kpis, workOrders]);
-
-  // ── Category-wise Production Data ──
-  const categoryProductionData = useMemo(() => {
-    if (workOrders.length > 0) {
-      const catMap = {};
-      const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
-      workOrders.forEach((wo) => {
-        const cat = wo.category || 'Production Order';
-        if (!catMap[cat]) catMap[cat] = { category: cat, planned: 0, actual: 0 };
-        catMap[cat].planned += Number(wo.plannedQty || 0);
-        catMap[cat].actual += Number(wo.actualQty || 0);
-      });
-      return Object.values(catMap).map((item, idx) => ({
-        ...item,
-        fill: colors[idx % colors.length]
-      }));
-    }
-    return [];
-  }, [workOrders]);
-
-  // ── Product-wise Production Donut Data ──
-  const productProductionData = useMemo(() => {
-    if (workOrders.length > 0) {
-      const prodMap = {};
-      const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#6366f1'];
-      workOrders.forEach((wo) => {
-        const prod = wo.product || 'Standard Product';
-        if (!prodMap[prod]) prodMap[prod] = 0;
-        prodMap[prod] += Number(wo.actualQty || wo.plannedQty || 0);
-      });
-      return Object.entries(prodMap).map(([name, value], idx) => ({
-        name,
-        value,
-        color: colors[idx % colors.length]
-      }));
-    }
-    return [];
-  }, [workOrders]);
-
-  // ── Standardized Machines Performance Data ──
-  const machineData = useMemo(() => {
-    if (machineStatuses.length > 0) {
-      return machineStatuses.map((m, idx) => {
-        const st = m.status === 'USE' ? 'Running' : m.status === 'NOT_USE' ? 'Idle' : 'Breakdown';
-        const isRun = st === 'Running';
-        return {
-          id: m.machineId || `HM00${idx + 1}`,
-          name: m.machineName || `Hydraulic Machine ${idx + 1}`,
-          line: `Line ${String.fromCharCode(65 + (idx % 4))}`,
-          status: st,
-          runtime: isRun ? '7.8 hrs' : '0.0 hrs',
-          utilization: isRun ? 91 : 0,
-          oee: isRun ? 96 : 0,
-          output: isRun ? '2,450 Pcs' : '0 Pcs',
-          rejectionPct: isRun ? '2.1%' : '—',
-          downtime: isRun ? '0.7 hrs' : '8.0 hrs'
-        };
-      });
-    }
-    return [];
-  }, [machineStatuses]);
 
   // ── Export Report CSV Handler ──
   const handleExportCSV = () => {
