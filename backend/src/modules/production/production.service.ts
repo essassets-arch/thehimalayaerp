@@ -61,15 +61,26 @@ export class ProductionService {
       where: { salesOrderId: dto.salesOrderId, status: { not: 'CANCELLED' } },
     });
     if (existingPlan) {
-      throw new BadRequestException(
-        `A production plan already exists for Sales Order ${dto.salesOrderId}.`,
-      );
+      return this.prisma.productionPlan.update({
+        where: { id: existingPlan.id },
+        data: {
+          plannedStartDate: dto.plannedStartDate
+            ? new Date(dto.plannedStartDate)
+            : existingPlan.plannedStartDate,
+          plannedEndDate: dto.plannedEndDate
+            ? new Date(dto.plannedEndDate)
+            : existingPlan.plannedEndDate,
+          productionLine: dto.productionLine || existingPlan.productionLine,
+        },
+      });
     }
 
     const initialState =
       await this.workflowService.getInitialState('PRODUCTION_PLAN');
-    const count = await this.prisma.productionPlan.count();
-    const planNumber = `PP-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+    const planNumber = await this.sequenceService.generateNext(
+      'production_plan_number',
+      'PP-',
+    );
 
     return this.prisma.productionPlan.create({
       data: {

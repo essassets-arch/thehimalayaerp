@@ -722,23 +722,19 @@ export function acceptOrderByPlantHead(
   const sales = normalizeSales(state.sales);
   const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId || (o as any).order_number === orderId);
   if (!order) throw new Error(`Order ${orderId} not found`);
-  if (order.planningStatus !== 'PENDING_ACCEPTANCE' && order.planningStatus !== 'PLANT_HEAD_ACCEPTED') {
-    throw new SalesTransitionError(
-      `Order ${orderId} cannot be accepted; planningStatus is ${order.planningStatus}`
-    );
-  }
 
   // Idempotency
-  if (order.planningStatus === 'PLANT_HEAD_ACCEPTED') return state;
+  if (order.planningStatus === 'PLANT_HEAD_ACCEPTED' && (order as any).status === 'PLANT_APPROVED') return state;
 
   const updated: SalesOrder = {
     ...order,
     planningStatus: 'PLANT_HEAD_ACCEPTED',
     workflowStatus: 'PLANT_HEAD_ACCEPTED',
+    status: 'PLANT_APPROVED',
     plantHeadStatus: 'ACCEPTED',
     acceptedByPlantHeadAt: new Date().toISOString(),
-    remarks: payload?.remarks || order.remarks,
-  };
+    remarks: payload?.remarks || (order as any).remarks,
+  } as any;
 
   return withSales(
     state,
@@ -756,11 +752,6 @@ export function rejectOrderByPlantHead(
   const sales = normalizeSales(state.sales);
   const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId || (o as any).order_number === orderId);
   if (!order) throw new Error(`Order ${orderId} not found`);
-  if (order.planningStatus !== 'PENDING_ACCEPTANCE') {
-    throw new SalesTransitionError(
-      `Order ${orderId} cannot be rejected; planningStatus is ${order.planningStatus}`
-    );
-  }
 
   const updated: SalesOrder = {
     ...order,
@@ -784,11 +775,6 @@ export function planOrder(
   const sales = normalizeSales(state.sales);
   const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId || (o as any).order_number === orderId);
   if (!order) throw new Error(`Order ${orderId} not found`);
-  if (order.planningStatus !== 'PLANT_HEAD_ACCEPTED' && order.planningStatus !== 'PENDING_ACCEPTANCE' && order.commercialStatus !== 'SENT_TO_PLANT_HEAD') {
-    throw new SalesTransitionError(
-      `Order ${orderId} must be accepted before planning; planningStatus is ${order.planningStatus}`
-    );
-  }
 
   // Idempotency
   if (order.planningStatus === 'PRODUCTION_PLANNED' && order.productionStatus === 'NOT_STARTED') return state;
