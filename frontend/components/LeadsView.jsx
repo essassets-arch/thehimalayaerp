@@ -14,6 +14,17 @@ import { useERPStore, getLeadQuotationState, getLeadSampleState } from '../store
 import { displayEntityId } from '../store/idGenerator';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 
+const formatLeadDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  const day = String(d.getDate()).padStart(2, '0');
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
+};
+
 const getSmartLeadStatus = (lead, orders = [], quotations = [], samples = [], reminders = [], erpState = {}) => {
   let status = lead.status || lead.leadStatus || lead.workflowState?.name || lead.workflowState?.code || 'New';
   if (status === 'Lost' || status === 'Converted' || status === 'WON') return status === 'WON' ? 'Converted' : status;
@@ -499,6 +510,7 @@ export default function LeadsView({
             <thead>
               <tr>
                 <th>Lead ID</th>
+                <th>Date</th>
                 <th>Company Name</th>
                 <th>Phone / Email</th>
                 <th>Status</th>
@@ -509,7 +521,7 @@ export default function LeadsView({
             <tbody>
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                     <strong>No leads found.</strong>
                     <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
                       Create your first lead to begin the sales workflow.
@@ -519,10 +531,12 @@ export default function LeadsView({
               ) : (
                 displayedLeads.map((lead) => {
                   const displayStatus = getSmartLeadStatus(lead, orders, quotations, samples, reminders, erpStore.state);
+                  const leadDateStr = formatLeadDate(lead.date || lead.createdAt || lead.created_at || lead.leadDate);
 
                   return (
                     <tr key={lead.id}>
                       <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{displayEntityId(lead.id)}</td>
+                      <td data-label="Date" style={{ fontSize: '13px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{leadDateStr}</td>
                       <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</td>
                       <td data-label="Phone / Email">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -770,7 +784,10 @@ export default function LeadsView({
               return (
                 <div key={lead.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span onClick={() => onOpenLead && onOpenLead(lead)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>{displayEntityId(lead.id)}</span>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span onClick={() => onOpenLead && onOpenLead(lead)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>{displayEntityId(lead.id)}</span>
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>· {formatLeadDate(lead.date || lead.createdAt || lead.created_at || lead.leadDate)}</span>
+                    </div>
                     <button onClick={() => onOpenLead && onOpenLead(lead)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                       <MoreVertical size={18} />
                     </button>
@@ -922,6 +939,10 @@ export default function LeadsView({
             </div>
 
             <div className="details-grid">
+              <div className="details-row">
+                <span className="details-label">Date Created</span>
+                <span className="details-value">{formatLeadDate(currentDetailsLead.date || currentDetailsLead.createdAt || currentDetailsLead.created_at || currentDetailsLead.leadDate)}</span>
+              </div>
               <div className="details-row">
                 <span className="details-label">Company Name</span>
                 <span className="details-value">{currentDetailsLead.companyName}</span>
