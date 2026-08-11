@@ -265,9 +265,13 @@ export class LeadsService {
           lead.companyId ||
           (await tx.company.findFirst({ select: { id: true } }))?.id;
         if (!companyId) throw new NotFoundException('Company not found');
+        const cleanGstin = lead.gstNumber?.trim()
+          ? lead.gstNumber.trim()
+          : null;
         const duplicateFilters = [
           ...(lead.email ? [{ email: lead.email }] : []),
           ...(lead.phone ? [{ phone: lead.phone }] : []),
+          ...(cleanGstin ? [{ gstin: cleanGstin }] : []),
           {
             companyName: {
               equals: lead.companyName,
@@ -293,19 +297,48 @@ export class LeadsService {
             'CUST-',
           );
 
-          const newCustomer = await tx.customer.create({
-            data: {
-              customerCode,
-              companyName: lead.companyName,
-              contactPerson: lead.contactPerson,
-              email: lead.email,
-              phone: lead.phone,
-              status: 'ACTIVE',
-              companyId,
-              createdById: userId,
-            },
-          });
-          customerId = newCustomer.id;
+          try {
+            const newCustomer = await tx.customer.create({
+              data: {
+                customerCode,
+                companyName: lead.companyName,
+                contactPerson: lead.contactPerson,
+                email: lead.email,
+                phone: lead.phone,
+                gstin: cleanGstin,
+                status: 'ACTIVE',
+                companyId,
+                createdById: userId,
+              },
+            });
+            customerId = newCustomer.id;
+          } catch (err: any) {
+            if (err.code === 'P2002') {
+              const fallbackCustomer = await tx.customer.findFirst({
+                where: {
+                  companyId,
+                  deletedAt: null,
+                  OR: [
+                    ...(cleanGstin ? [{ gstin: cleanGstin }] : []),
+                    { customerCode },
+                    {
+                      companyName: {
+                        equals: lead.companyName,
+                        mode: 'insensitive' as const,
+                      },
+                    },
+                  ],
+                },
+              });
+              if (fallbackCustomer) {
+                customerId = fallbackCustomer.id;
+              } else {
+                throw err;
+              }
+            } else {
+              throw err;
+            }
+          }
         }
 
         await tx.lead.update({

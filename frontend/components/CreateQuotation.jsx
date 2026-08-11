@@ -460,8 +460,8 @@ export default function CreateQuotation({
       return;
     }
     
-    if (transportCharge === '' || transportCharge === null || transportCharge === undefined || Number(transportCharge) <= 0) {
-      alert('Please specify a valid Expected Transportation Cost (greater than 0).');
+    if (transportCharge === '' || transportCharge === null || transportCharge === undefined || isNaN(Number(transportCharge)) || Number(transportCharge) < 0) {
+      alert('Please specify a valid Expected Transportation Cost (0 or greater).');
       return;
     }
     
@@ -537,8 +537,8 @@ export default function CreateQuotation({
       price: items.length > 0 ? items[0].unitPrice : 0, // Fallback average pricing indicator
       discount: 0,
       tax: 0,
-      transportCharge: transportCharge || 0,
-      expectedTransportationCost: transportCharge || 0,
+      transportCharge: transportCharge === '' || transportCharge === null || transportCharge === undefined ? 0 : Number(transportCharge),
+      expectedTransportationCost: transportCharge === '' || transportCharge === null || transportCharge === undefined ? 0 : Number(transportCharge),
       totalAmount: Math.round(grandTotal),
       date: new Date().toISOString().split('T')[0],
       validTill,
@@ -793,6 +793,7 @@ export default function CreateQuotation({
               type="number" 
               className="form-input" 
               placeholder="e.g. 2500"
+              min="0"
               value={transportCharge !== undefined && transportCharge !== null ? transportCharge : ''} 
               onChange={e => setTransportCharge(e.target.value === '' ? '' : Number(e.target.value))} 
               required

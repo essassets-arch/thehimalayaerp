@@ -79,7 +79,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (prismaError.code === 'P2002') {
         status = HttpStatus.CONFLICT;
         code = 'UNIQUE_CONSTRAINT_VIOLATION';
-        message = 'A record with this value already exists.';
+        const targetFields = Array.isArray(prismaError.meta?.target)
+          ? prismaError.meta.target.join(', ')
+          : prismaError.meta?.target;
+        message = targetFields
+          ? `A record with this value already exists (${targetFields}).`
+          : 'A record with this value already exists.';
       } else if (prismaError.code === 'P2025') {
         if (request.body && typeof request.body.expectedVersion === 'number') {
           status = HttpStatus.CONFLICT;

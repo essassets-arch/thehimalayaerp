@@ -254,7 +254,7 @@ export class QuotationsService {
         discount: totals.discount,
         tax: totals.tax,
         total: totals.total,
-        expectedTransportationCost: Number(dto.expectedTransportationCost || dto.transportCharge || 0),
+        expectedTransportationCost: Number(dto.expectedTransportationCost ?? dto.transportCharge ?? 0),
         remarks: dto.remarks,
         paymentTerms: paymentTermInfo.paymentTerms,
         paymentTermDays: paymentTermInfo.paymentTermDays,
@@ -319,7 +319,7 @@ export class QuotationsService {
           paymentTerms: paymentTermInfo.paymentTerms !== undefined ? paymentTermInfo.paymentTerms : undefined,
           paymentTermDays: paymentTermInfo.paymentTermDays !== undefined ? paymentTermInfo.paymentTermDays : undefined,
           updatedById: userId,
-          expectedTransportationCost: dto.expectedTransportationCost !== undefined || dto.transportCharge !== undefined ? Number(dto.expectedTransportationCost || dto.transportCharge || 0) : undefined,
+          expectedTransportationCost: dto.expectedTransportationCost !== undefined || dto.transportCharge !== undefined ? Number(dto.expectedTransportationCost ?? dto.transportCharge ?? 0) : undefined,
           ...(totals
             ? {
                 subtotal: totals.subtotal,
@@ -534,31 +534,33 @@ export class QuotationsService {
             'Quotation must be linked to a valid Customer before conversion.',
           );
         }
+        const cleanGstin = quotation.lead.gstNumber?.trim()
+          ? quotation.lead.gstNumber.trim()
+          : null;
+        const companyId = quotation.companyId || quotation.lead.companyId || undefined;
+        const duplicateConditions: any[] = [];
+        if (quotation.lead.email) duplicateConditions.push({ email: quotation.lead.email });
+        if (quotation.lead.phone) duplicateConditions.push({ phone: quotation.lead.phone });
+        if (cleanGstin) duplicateConditions.push({ gstin: cleanGstin });
+        if (quotation.lead.companyName) {
+          duplicateConditions.push({
+            companyName: {
+              equals: quotation.lead.companyName,
+              mode: 'insensitive' as const,
+            },
+          });
+        }
+
         const existingCustomer = await tx.customer.findFirst({
           where: {
-            companyId:
-              quotation.companyId || quotation.lead.companyId || undefined,
+            companyId,
             deletedAt: null,
-            OR: [
-              ...(quotation.lead.email
-                ? [{ email: quotation.lead.email }]
-                : []),
-              ...(quotation.lead.phone
-                ? [{ phone: quotation.lead.phone }]
-                : []),
-              {
-                companyName: {
-                  equals: quotation.lead.companyName,
-                  mode: 'insensitive' as const,
-                },
-              },
-            ],
+            OR: duplicateConditions.length > 0 ? duplicateConditions : undefined,
           },
         });
         if (existingCustomer) {
           customerId = existingCustomer.id;
         } else {
-          const companyId = quotation.companyId || quotation.lead.companyId;
           if (!companyId)
             throw new BadRequestException(
               'Lead company is required for customer creation.',
@@ -568,21 +570,49 @@ export class QuotationsService {
             'customer_number',
             'CUST-',
           );
-          const customer = await tx.customer.create({
-            data: {
-              customerCode,
-              companyId,
-              companyName: quotation.lead.companyName,
-              contactPerson: quotation.lead.contactPerson,
-              email: quotation.lead.email,
-              phone: quotation.lead.phone,
-              gstin: quotation.lead.gstNumber,
-              billingAddress: quotation.lead.address || undefined,
-              status: 'ACTIVE',
-              createdById: userId,
-            },
-          });
-          customerId = customer.id;
+          try {
+            const customer = await tx.customer.create({
+              data: {
+                customerCode,
+                companyId,
+                companyName: quotation.lead.companyName,
+                contactPerson: quotation.lead.contactPerson,
+                email: quotation.lead.email,
+                phone: quotation.lead.phone,
+                gstin: cleanGstin,
+                billingAddress: quotation.lead.address || undefined,
+                status: 'ACTIVE',
+                createdById: userId,
+              },
+            });
+            customerId = customer.id;
+          } catch (err: any) {
+            if (err.code === 'P2002') {
+              const fallbackCustomer = await tx.customer.findFirst({
+                where: {
+                  companyId,
+                  deletedAt: null,
+                  OR: [
+                    ...(cleanGstin ? [{ gstin: cleanGstin }] : []),
+                    { customerCode },
+                    {
+                      companyName: {
+                        equals: quotation.lead.companyName,
+                        mode: 'insensitive' as const,
+                      },
+                    },
+                  ],
+                },
+              });
+              if (fallbackCustomer) {
+                customerId = fallbackCustomer.id;
+              } else {
+                throw err;
+              }
+            } else {
+              throw err;
+            }
+          }
         }
         await tx.lead.update({
           where: { id: quotation.lead.id },

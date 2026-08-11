@@ -331,9 +331,9 @@ export default function QuotationsView({
       price: editItems.length > 0 ? editItems[0].unitPrice : 0,
       discount: editItems.length > 0 ? editItems[0].discount : 0,
       tax: editItems.length > 0 ? editItems[0].tax : 18,
-      transportCharge: editTransportCharge || 0,
-      expectedTransportationCost: editTransportCharge || 0,
-      totalAmount: Math.round(grandTotal + (editTransportCharge || 0)),
+      transportCharge: editTransportCharge === '' || editTransportCharge === null || editTransportCharge === undefined ? 0 : Number(editTransportCharge),
+      expectedTransportationCost: editTransportCharge === '' || editTransportCharge === null || editTransportCharge === undefined ? 0 : Number(editTransportCharge),
+      totalAmount: Math.round(grandTotal + (editTransportCharge === '' || editTransportCharge === null || editTransportCharge === undefined ? 0 : Number(editTransportCharge))),
       paymentTerms: editPaymentTerms,
       notes: editNotes.trim()
     });
@@ -705,8 +705,8 @@ export default function QuotationsView({
                 className="form-input"
                 placeholder="e.g. 2500"
                 min="0"
-                value={editTransportCharge || ''}
-                onChange={e => setEditTransportCharge(Number(e.target.value) || 0)}
+                value={editTransportCharge !== undefined && editTransportCharge !== null ? editTransportCharge : ''}
+                onChange={e => setEditTransportCharge(e.target.value === '' ? '' : Number(e.target.value))}
               />
             </div>
           </div>
@@ -1476,9 +1476,9 @@ export default function QuotationsView({
                 <span>GST Amount:</span>
                 <span style={{ fontWeight: '600', color: '#1e293b' }}>{formatINR(calculatedTaxAmt)}</span>
               </div>
-              {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) > 0) && (
+              {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) >= 0) && (
                 <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#0369a1', fontWeight: '500' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Truck size={12} /> Transport (Approx.):</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Truck size={12} /> Expected Transportation Cost:</span>
                   <span style={{ fontWeight: '600' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
                 </div>
               )}
