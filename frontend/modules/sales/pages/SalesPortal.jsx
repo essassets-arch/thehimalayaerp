@@ -375,12 +375,16 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     if (res?.success) {
       const matchedLead = leads.find(
         (l) =>
+          (qData.leadId && (l.id === qData.leadId || l.leadId === qData.leadId)) ||
+          (qData.sourceId && l.id === qData.sourceId) ||
           l.companyName?.toLowerCase() === qData.customerName?.trim().toLowerCase() ||
           l.projectName?.toLowerCase()  === qData.customerName?.trim().toLowerCase()
       );
       if (matchedLead) {
-        // Fire-and-forget: advance the linked lead's status
-        updateLead(matchedLead.id, { status: 'Quotation' }).catch(() => {});
+        await updateLead(matchedLead.id, { status: 'Quotation' }).catch(() => {});
+      }
+      if (loadLeads) {
+        await loadLeads().catch(() => {});
       }
       setPrefillQuotationData(null);
       navigate.push(`${basePath}/quotations`);

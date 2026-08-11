@@ -242,7 +242,7 @@ export class QuotationsService {
       ? (dto.salesExecutiveId || leadSalesExecutiveId || userId)
       : (leadSalesExecutiveId || userId);
 
-    return this.prisma.quotation.create({
+    const quotation = await this.prisma.quotation.create({
       data: {
         quotationNumber,
         companyId: resolvedCompanyId,
@@ -279,6 +279,20 @@ export class QuotationsService {
         lead: true,
       },
     });
+
+    if (dto.leadId) {
+      const quotationState = await this.prisma.workflowState.findFirst({
+        where: { workflow: { code: 'LEAD' }, code: 'QUOTATION_SENT' },
+      });
+      if (quotationState) {
+        await this.prisma.lead.update({
+          where: { id: dto.leadId },
+          data: { workflowStateId: quotationState.id },
+        }).catch(() => {});
+      }
+    }
+
+    return quotation;
   }
 
   async updateQuotation(

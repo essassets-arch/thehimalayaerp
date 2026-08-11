@@ -5607,13 +5607,13 @@ export const getProcurementAnalytics = (state: any) => {
 };
 
 export const getLeadQuotationState = (state: any, leadId: string) => {
-  const quotations = Array.isArray(state.sales?.quotations)
+  const quotations = Array.isArray(state?.sales?.quotations)
     ? state.sales.quotations
     : [];
 
   const quotation = quotations.find(
     (item: any) =>
-      (item.leadId === leadId || item.id === leadId) &&
+      (item.leadId === leadId || item.id === leadId || item.sourceId === leadId || item.lead?.id === leadId) &&
       item.status !== 'CANCELLED' &&
       item.status !== 'DELETED'
   );
@@ -5628,9 +5628,16 @@ export const getLeadQuotationState = (state: any, leadId: string) => {
   const completedStatuses = [
     'QUOTATION_CREATED',
     'SENT',
+    'APPROVED',
+    'NEW',
+    'INTERNAL_REVIEW',
+    'QUOTATION_SENT',
+    'QUOTATION_APPROVED',
     'CUSTOMER_ACCEPTED',
     'CUSTOMER_REJECTED',
     'CONVERTED_TO_ORDER',
+    'CONVERTED_TO_SO',
+    'CONVERTED',
   ];
 
   return {

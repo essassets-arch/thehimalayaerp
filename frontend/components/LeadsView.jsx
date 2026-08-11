@@ -14,23 +14,55 @@ import { useERPStore, getLeadQuotationState, getLeadSampleState } from '../store
 import { displayEntityId } from '../store/idGenerator';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 
-const getSmartLeadStatus = (lead, orders, quotations, samples, reminders, erpState) => {
-  let status = lead.status || lead.leadStatus || 'New';
-  if (status === 'Lost' || status === 'Converted') return status;
+const getSmartLeadStatus = (lead, orders = [], quotations = [], samples = [], reminders = [], erpState = {}) => {
+  let status = lead.status || lead.leadStatus || lead.workflowState?.name || lead.workflowState?.code || 'New';
+  if (status === 'Lost' || status === 'Converted' || status === 'WON') return status === 'WON' ? 'Converted' : status;
 
   const leadId = lead.id || lead.leadId;
+  const compName = (lead.companyName || lead.customerName || lead.projectName || '').trim().toLowerCase();
+
+  const hasOrder = (orders || []).some(
+    (o) =>
+      (leadId && (o.leadId === leadId || o.quotation?.leadId === leadId || o.sourceQuotation?.leadId === leadId)) ||
+      (compName && (o.customerName || o.customer?.companyName || '').trim().toLowerCase() === compName)
+  );
+  if (hasOrder) return 'Converted';
+
+  const leadQuotations = (quotations || []).filter(
+    (q) =>
+      (leadId && (q.leadId === leadId || q.sourceId === leadId || q.lead?.id === leadId)) ||
+      (compName && (q.customerName || q.lead?.companyName || '').trim().toLowerCase() === compName)
+  );
+  const hasQuotation = leadQuotations.length > 0;
+
   const quoState = getLeadQuotationState(erpState, leadId);
   const smpState = getLeadSampleState(erpState, leadId);
-  const hasOrder = orders.some(o => o.leadId === leadId || (o.customerName && o.customerName === lead.companyName));
-  const hasReminder = reminders.some(r => (r.moduleId === leadId || r.customerName === lead.companyName) && r.status !== 'Completed' && r.status !== 'Closed');
 
-  if (hasOrder) {
-    return 'Converted';
-  } else if (quoState.state === 'COMPLETED') {
+  const hasSample = (samples || []).some(
+    (s) =>
+      (leadId && (s.leadId === leadId || s.sourceId === leadId || s.lead?.id === leadId)) ||
+      (compName && (s.leadName || s.customerName || '').trim().toLowerCase() === compName)
+  );
+
+  const hasReminder = (reminders || []).some(
+    (r) =>
+      ((leadId && r.moduleId === leadId) || (compName && (r.customerName || '').trim().toLowerCase() === compName)) &&
+      r.status !== 'Completed' &&
+      r.status !== 'Closed'
+  );
+
+  if (
+    hasQuotation ||
+    quoState.state === 'COMPLETED' ||
+    lead.workflowState?.code === 'QUOTATION_SENT' ||
+    status === 'Quotation' ||
+    status === 'Quotation Sent' ||
+    status === 'Quotation Generated'
+  ) {
     return 'Quotation Generated';
   } else if (quoState.state === 'DRAFT') {
     return 'Quotation Draft';
-  } else if (smpState.state === 'COMPLETED' || smpState.state === 'DRAFT') {
+  } else if (hasSample || smpState.state === 'COMPLETED' || smpState.state === 'DRAFT') {
     return 'Sample Sent';
   } else if (hasReminder) {
     return 'Follow-up';

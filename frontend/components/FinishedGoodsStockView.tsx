@@ -82,6 +82,7 @@ export default function FinishedGoodsStockView({
     status: "AVAILABLE",
     customerName: "Internal Stock / Global Logistics",
     remarks: "",
+    date: new Date().toISOString().split("T")[0],
   });
 
   const queryClient = useQueryClient();
@@ -120,7 +121,7 @@ export default function FinishedGoodsStockView({
       availableQuantity: Number(item.availableQuantity ?? item.quantity ?? 0),
       unit: (item.unit || item.product?.unit || "PCS").toUpperCase(),
       status: item.status || "AVAILABLE",
-      receivedAt: item.receivedAt || item.createdAt || new Date().toISOString(),
+      receivedAt: item.receivedAt || item.date || item.createdAt || new Date().toISOString(),
       receivedById: item.receivedById || null,
       workOrder: item.workOrder,
     }));
@@ -201,6 +202,7 @@ export default function FinishedGoodsStockView({
       status: "AVAILABLE",
       customerName: "Internal Stock / Global Logistics",
       remarks: "",
+      date: new Date().toISOString().split("T")[0],
     });
     setCustomUnit("");
     setIsCustomUnitActive(false);
@@ -229,6 +231,8 @@ export default function FinishedGoodsStockView({
         unit: finalUnit,
         status: "AVAILABLE",
         customerName: formData.customerName,
+        date: formData.date,
+        receivedAt: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
       };
 
       await backendFetch("/api/backend/production/finished-goods", {
@@ -527,6 +531,7 @@ export default function FinishedGoodsStockView({
                   <th>Item Code</th>
                   <th>Item / Description Name</th>
                   <th>Category</th>
+                  <th>Date</th>
                   <th>UOM</th>
                   <th>Total Stock</th>
                   <th>Avail Qty</th>
@@ -537,19 +542,28 @@ export default function FinishedGoodsStockView({
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={readOnly ? 7 : 8} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                    <td colSpan={readOnly ? 8 : 9} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
                       Loading live stock data...
                     </td>
                   </tr>
                 ) : paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={readOnly ? 7 : 8} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
+                    <td colSpan={readOnly ? 8 : 9} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
                       No finished goods stock items found.
                     </td>
                   </tr>
                 ) : (
                   paginatedData.map((row) => {
                     const isOut = Number(row.quantity) <= 0;
+                    const dateFormatted = row.receivedAt
+                      ? row.receivedAt.includes("T")
+                        ? new Date(row.receivedAt).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })
+                        : row.receivedAt.split("-").reverse().join("/")
+                      : "-";
                     return (
                       <tr key={row.id}>
                         <td data-label="Item Code">
@@ -559,6 +573,7 @@ export default function FinishedGoodsStockView({
                           {row.productName}
                         </td>
                         <td data-label="Category">{row.category}</td>
+                        <td data-label="Date">{dateFormatted}</td>
                         <td data-label="UOM">{row.unit}</td>
                         <td data-label="Total Stock">
                           <strong>{Number(row.quantity).toLocaleString()}</strong>
@@ -786,18 +801,28 @@ export default function FinishedGoodsStockView({
                     </div>
                   </div>
 
-                  <div className={modalStyles.formGroupFull}>
-                    <div className={modalStyles.formGroup}>
-                      <label>Category</label>
-                      <select
-                        value={formData.productionLine}
-                        onChange={(e) => setFormData({ ...formData, productionLine: e.target.value })}
-                      >
-                        <option value="Line A - Finishing & Assembly">Hardware</option>
-                        <option value="Line B - CNC Heavy Components">Machinery Parts</option>
-                        <option value="Line C - Standard Fitting">Fittings</option>
-                      </select>
-                    </div>
+                  <div className={modalStyles.formGroup}>
+                    <label>Category</label>
+                    <select
+                      value={formData.productionLine}
+                      onChange={(e) => setFormData({ ...formData, productionLine: e.target.value })}
+                    >
+                      <option value="Line A - Finishing & Assembly">Hardware</option>
+                      <option value="Line B - CNC Heavy Components">Machinery Parts</option>
+                      <option value="Line C - Standard Fitting">Fittings</option>
+                    </select>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>
+                      Date <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    />
                   </div>
 
                   <div className={modalStyles.formGroup}>

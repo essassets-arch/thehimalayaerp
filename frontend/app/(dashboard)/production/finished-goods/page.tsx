@@ -62,6 +62,7 @@ export default function FinishedGoodsPage() {
     status: "AVAILABLE",
     customerName: "Internal Stock / Global Logistics",
     remarks: "",
+    date: new Date().toISOString().split("T")[0],
   });
 
   const router = useRouter();
@@ -178,6 +179,7 @@ export default function FinishedGoodsPage() {
       status: "AVAILABLE",
       customerName: "Internal Stock / Global Logistics",
       remarks: "",
+      date: new Date().toISOString().split("T")[0],
     });
     setCustomUnit("");
     setIsCustomUnitActive(false);
@@ -206,6 +208,8 @@ export default function FinishedGoodsPage() {
         status: formData.status,
         customerName: formData.customerName,
         remarks: formData.remarks,
+        date: formData.date,
+        receivedAt: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
       };
 
       await backendFetch("/api/backend/production/finished-goods", {
@@ -767,6 +771,16 @@ export default function FinishedGoodsPage() {
                       style={{ marginTop: "8px" }}
                     />
                   )}
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  />
                 </div>
 
                 <div className={styles.formGroup}>

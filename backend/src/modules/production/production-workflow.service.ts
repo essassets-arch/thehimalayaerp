@@ -878,6 +878,7 @@ export class ProductionWorkflowService {
     realWorkOrderId = existingWo.id;
 
     const availQty = Number(dto.availableQuantity ?? qty);
+    const receivedAtDate = dto.date || dto.receivedAt ? new Date(dto.date || dto.receivedAt) : new Date();
 
     const fg = await this.prisma.finishedGoods.upsert({
       where: { workOrderId: realWorkOrderId },
@@ -888,6 +889,7 @@ export class ProductionWorkflowService {
         availableQuantity: availQty,
         unit,
         status: qty <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+        receivedAt: receivedAtDate,
         receivedById: userId,
       },
       update: {
@@ -895,6 +897,7 @@ export class ProductionWorkflowService {
         availableQuantity: { increment: availQty },
         unit,
         status: 'AVAILABLE',
+        receivedAt: receivedAtDate,
       },
       include: {
         product: true,
