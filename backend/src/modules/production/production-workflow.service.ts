@@ -760,7 +760,7 @@ export class ProductionWorkflowService {
           quantity: 0,
           availableQuantity: 0,
           unit: (p.unit || 'SET').toUpperCase(),
-          status: 'AVAILABLE',
+          status: 'OUT_OF_STOCK',
           receivedAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
           receivedById: null,
           product: p,

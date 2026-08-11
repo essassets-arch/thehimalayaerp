@@ -187,6 +187,12 @@ export default function DispatchOrdersPage() {
       const unifiedFinishedGoods: UnifiedPendingDispatchItem[] = rawFinishedGoods
         .filter((fg) => {
           const s = String(fg.status || '').toUpperCase();
+          const jobNoStr = String(fg.jobNo || fg.workOrderId || fg.id || '');
+          const isWoStock = jobNoStr.startsWith('WO-STOCK-') || jobNoStr.includes('WO-STOCK-');
+          const qtyVal = fg.availableQuantity ?? fg.quantity ?? 0;
+          const qty = typeof qtyVal === 'number' ? qtyVal : parseFloat(String(qtyVal)) || 0;
+
+          if (isWoStock || qty <= 0) return false;
           return ['AVAILABLE', 'READY_FOR_DISPATCH', 'QC_APPROVED', 'PASSED', 'STAGED', 'IN_STAGING'].includes(s);
         })
         .map((fg) => {
@@ -211,6 +217,9 @@ export default function DispatchOrdersPage() {
 
       const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders
         .filter((wo) => {
+          const woNo = String(wo.workOrderNumber || wo.id || '');
+          const soNo = String(wo.productionPlan?.salesOrder?.orderNumber || '');
+          if (woNo.startsWith('WO-STOCK-') || woNo.includes('WO-STOCK-') || woNo.includes('TEST') || soNo.includes('SO-TEST-')) return false;
           const prodStatus = String((wo as any).productionStatus || wo.status || '').toUpperCase();
           if (prodStatus === 'DISPATCHED' || prodStatus === 'COMPLETED' || prodStatus === 'DELIVERED') return false;
           const item = wo.salesOrderItem;
@@ -246,6 +255,8 @@ export default function DispatchOrdersPage() {
           // Exclude sales orders that already have active manufacturing work orders
           return;
         }
+        const orderNo = String(so.orderNumber || so.orderId || '');
+        if (orderNo.includes('SO-TEST-')) return;
 
         const status = String(so.status || so.dispatchStatus || '').toUpperCase();
         if (status === 'IN_TRANSIT' || status === 'COMPLETED' || status === 'DELIVERED') return;
