@@ -331,22 +331,18 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                 <th className="p-3 border-b border-slate-800">3. Customer</th>
                 <th className="p-3 border-b border-slate-800">4. Salesperson</th>
                 <th className="p-3 border-b border-slate-800">5. Delivery Date</th>
-                <th className="p-3 border-b border-slate-800">6. Invoice Date</th>
-                <th className="p-3 border-b border-slate-800">7. Payment Terms</th>
-                <th className="p-3 border-b border-slate-800">8. Payment Due Date</th>
-                <th className="p-3 border-b border-slate-800">9. Remaining Days</th>
-                <th className="p-3 border-b border-slate-800">10. Total Amount</th>
-                <th className="p-3 border-b border-slate-800">11. Paid Amount</th>
-                <th className="p-3 border-b border-slate-800">12. Pending Amount</th>
-                <th className="p-3 border-b border-slate-800">13. Status</th>
-                <th className="p-3 border-b border-slate-800">14. Reminder</th>
-                <th className="p-3 border-b border-slate-800 text-right">15. Action</th>
+                <th className="p-3 border-b border-slate-800">6. Payment Due Date</th>
+                <th className="p-3 border-b border-slate-800">7. Remaining Days</th>
+                <th className="p-3 border-b border-slate-800">8. Total Amount</th>
+                <th className="p-3 border-b border-slate-800">9. Status</th>
+                <th className="p-3 border-b border-slate-800">10. Reminder</th>
+                <th className="p-3 border-b border-slate-800 text-right">11. Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={11} className="p-8 text-center text-slate-400 italic">
                     No orders match the selected payment filters.
                   </td>
                 </tr>
@@ -360,8 +356,6 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                       <td className="p-3 font-semibold text-slate-800">{o.customerName || o.customer}</td>
                       <td className="p-3 text-slate-600">{o.salesperson}</td>
                       <td className="p-3 text-slate-700">{o.deliveryDate}</td>
-                      <td className="p-3 text-slate-600">{o.invoiceDate}</td>
-                      <td className="p-3 font-semibold text-indigo-700">{o.paymentTerms.toLowerCase().includes('advance') || o.paymentTerms.toLowerCase().includes('days') ? o.paymentTerms : `${o.paymentTerms} Days`}</td>
                       <td className="p-3 font-medium text-slate-900">{o.dueDate}</td>
                       <td className={`p-3 font-bold ${
                         o.remainingDays !== null && o.remainingDays < 0 ? 'text-red-600' :
@@ -370,8 +364,6 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                         {remainingText}
                       </td>
                       <td className="p-3 font-bold text-slate-900">₹{o.totalAmount.toLocaleString('en-IN')}</td>
-                      <td className="p-3 font-semibold text-emerald-700">₹{o.paidAmount.toLocaleString('en-IN')}</td>
-                      <td className="p-3 font-bold text-amber-700">₹{o.pendingAmount.toLocaleString('en-IN')}</td>
                       <td className="p-3">
                         <PaymentStatusBadge
                           orderStatus={o.status}

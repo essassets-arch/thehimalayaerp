@@ -764,13 +764,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     <th>Invoice No</th>
                     <th>Customer</th>
                     <th>Delivery Date</th>
-                    <th>Invoice Date</th>
-                    <th>Payment Terms</th>
                     <th>Payment Due Date</th>
                     <th>Remaining Days</th>
                     <th style={{ textAlign: 'right' }}>Total Amount</th>
-                    <th style={{ textAlign: 'right' }}>Paid Amount</th>
-                    <th style={{ textAlign: 'right' }}>Pending Amount</th>
                     <th>Status</th>
                     <th>Reminder</th>
                     <th style={{ textAlign: 'right' }}>Action</th>
@@ -778,7 +774,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 </thead>
                 <tbody>
                   {pendingRows.length === 0 ? (
-                    <tr><td colSpan="14" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
+                    <tr><td colSpan="10" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
                   ) : (
                     pendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
@@ -802,13 +798,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                           <td data-label="Invoice No" style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.invoice_number}</td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
-                          <td data-label="Invoice Date">{isoDate(o.invoice_date) || '—'}</td>
-                          <td data-label="Payment Terms">{o.payment_terms}</td>
                           <td data-label="Payment Due Date">{isoDate(o.payment_due_date) || '—'}</td>
                           <td data-label="Remaining Days" style={{ fontWeight: 700, color: Number(o.remaining_days) < 0 ? '#dc2626' : '#334155' }}>{o.remaining_days === null ? '—' : o.remaining_days}</td>
                           <td data-label="Total Amount" style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
-                          <td data-label="Paid Amount" style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>{formatINR(paid)}</td>
-                          <td data-label="Pending Amount" style={{ textAlign: 'right', fontWeight: 900, color: '#ef4444' }}>{formatINR(bal)}</td>
                           <td data-label="Status" style={{ fontWeight: 800 }}>{paymentLabel}</td>
                           <td data-label="Reminder" style={{ whiteSpace: 'nowrap' }}>{o.reminder_label}</td>
                           <td data-label="Action" style={{ textAlign: 'right' }}>

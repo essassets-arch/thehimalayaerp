@@ -468,23 +468,19 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                 <th>3. Customer</th>
                 <th>4. Salesperson</th>
                 <th>5. Delivery Date</th>
-                <th>6. Invoice Date</th>
-                <th>7. Payment Terms</th>
-                <th>8. Payment Due Date</th>
-                <th>9. Remaining Days</th>
-                <th>10. Total Amount</th>
-                <th>11. Paid Amount</th>
-                <th>12. Pending Amount</th>
-                <th>13. Status</th>
-                <th>14. POD Document</th>
-                <th>15. Reminder</th>
-                <th style={{ textAlign: 'right' }}>16. Action</th>
+                <th>6. Payment Due Date</th>
+                <th>7. Remaining Days</th>
+                <th>8. Total Amount</th>
+                <th>9. Status</th>
+                <th>10. POD Document</th>
+                <th>11. Reminder</th>
+                <th style={{ textAlign: 'right' }}>12. Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={16} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
+                  <td colSpan={12} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
                     No orders match the selected payment filters.
                   </td>
                 </tr>
@@ -498,15 +494,11 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                       <td style={{ fontWeight: 700, color: '#24345C' }}>{o.customerName || o.customer}</td>
                       <td style={{ color: '#475569' }}>{o.salesperson}</td>
                       <td style={{ color: '#334155' }}>{o.deliveryDate}</td>
-                      <td style={{ color: '#475569' }}>{o.invoiceDate}</td>
-                      <td className="p-3 font-semibold text-indigo-700">{o.paymentTerms.toLowerCase().includes('advance') || o.paymentTerms.toLowerCase().includes('days') ? o.paymentTerms : `${o.paymentTerms} Days`}</td>
                       <td style={{ fontWeight: 600, color: '#24345C' }}>{o.dueDate}</td>
                       <td style={{ fontWeight: 800, color: o.remainingDays !== null && o.remainingDays < 0 ? '#dc2626' : o.remainingDays === 0 ? '#b45309' : '#334155' }}>
                         {remainingText}
                       </td>
                       <td style={{ fontWeight: 800, color: '#24345C' }}>₹{o.totalAmount.toLocaleString('en-IN')}</td>
-                      <td style={{ fontWeight: 700, color: '#047857' }}>₹{o.paidAmount.toLocaleString('en-IN')}</td>
-                      <td style={{ fontWeight: 800, color: '#b45309' }}>₹{o.pendingAmount.toLocaleString('en-IN')}</td>
                       <td>
                         {o.hasPendingFinanceConfirmation ? (
                           <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 999, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
