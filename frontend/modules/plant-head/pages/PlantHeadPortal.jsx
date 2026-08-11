@@ -2990,18 +2990,17 @@ export default function PlantHeadPortal() {
       })
       .filter(order => {
         const planning = normalizeStatus(order.planningStatus);
-        const hasProdTarget = Boolean(order.productionTargetDate || order.productionPlan?.plannedEndDate || order.planTargetDate);
+        const planStatus = String(order.productionPlan?.workflowState?.code || order.productionPlan?.status || '').toUpperCase();
+        const hasProdTarget = Boolean(order.productionTargetDate || (order.productionPlan?.plannedEndDate && planStatus !== 'PENDING_PLANNING' && planStatus !== 'DRAFT') || order.planTargetDate);
         const isPlanned = Boolean(
           planning === 'PRODUCTION_PLANNED' ||
           order.status === 'PLANNED' ||
           order.productionStatus === 'PLANNED' ||
           order.productionStatus === 'IN_PRODUCTION' ||
           order.productionStatus === 'WORK_ORDER_CREATED' ||
-          order.productionPlanId ||
-          order.productionPlan ||
-          order.workOrder ||
+          ['RELEASED', 'APPROVED', 'IN_PRODUCTION', 'COMPLETED'].includes(planStatus) ||
           hasProdTarget ||
-          (Array.isArray(order.workOrders) && order.workOrders.length > 0)
+          (Array.isArray(order.workOrders) && order.workOrders.length > 0 && order.workOrders.some(wo => wo.status !== 'CANCELLED'))
         );
 
         if (planningViewTab === 'history') return isPlanningHistoryOrder(order);
@@ -3124,17 +3123,18 @@ export default function PlantHeadPortal() {
           searchQuery={''}
           searchField="customerName"
           actions={(row) => {
+            const planning = normalizeStatus(row.planningStatus);
+            const planStatus = String(row.productionPlan?.workflowState?.code || row.productionPlan?.status || '').toUpperCase();
+            const hasProdTarget = Boolean(row.productionTargetDate || (row.productionPlan?.plannedEndDate && planStatus !== 'PENDING_PLANNING' && planStatus !== 'DRAFT') || row.planTargetDate);
             const isPlanned = Boolean(
-              normalizeStatus(row.planningStatus) === 'PRODUCTION_PLANNED' ||
+              planning === 'PRODUCTION_PLANNED' ||
               row.status === 'PLANNED' ||
               row.productionStatus === 'PLANNED' ||
               row.productionStatus === 'IN_PRODUCTION' ||
               row.productionStatus === 'WORK_ORDER_CREATED' ||
-              row.productionPlanId ||
-              row.productionPlan ||
-              row.workOrder ||
-              row.targetDate ||
-              (Array.isArray(row.workOrders) && row.workOrders.length > 0)
+              ['RELEASED', 'APPROVED', 'IN_PRODUCTION', 'COMPLETED'].includes(planStatus) ||
+              hasProdTarget ||
+              (Array.isArray(row.workOrders) && row.workOrders.length > 0 && row.workOrders.some(wo => wo.status !== 'CANCELLED'))
             );
             return planningViewTab === 'pending' ? (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
