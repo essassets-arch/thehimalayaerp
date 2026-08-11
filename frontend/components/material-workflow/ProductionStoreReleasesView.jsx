@@ -30,17 +30,46 @@ export default function ProductionStoreReleasesView() {
     }
   ], []);
 
-  // Combined requests (fallback + backend requests)
+  // Combined requests (fallback + backend requests) with localStorage issued quantities overlay
   const requests = useMemo(() => {
+    let savedQuantities = {};
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('store_issued_quantities');
+        if (saved) savedQuantities = JSON.parse(saved);
+      } catch {}
+    }
+
     const map = new Map();
-    fallbackRequests.forEach(req => map.set(req.id, req));
-    (allRequests || []).forEach(req => {
-      // Include requests that are approved or issued
-      if (['ISSUED_TO_PRODUCTION', 'ISSUED', 'STORE_APPROVED', 'PARTIALLY_ISSUED'].includes(req.status) ||
-          (req.items && req.items.some(it => Number(it.issuedQty || it.approvedQty || 0) > 0))) {
-        map.set(req.id, req);
+    fallbackRequests.forEach((req) => {
+      const updatedItems = req.items.map((item, idx) => {
+        const itemKey = `${req.id}-${item.materialId || idx}`;
+        const issuedVal = savedQuantities[itemKey] !== undefined ? savedQuantities[itemKey] : item.issuedQty;
+        return { ...item, issuedQty: issuedVal };
+      });
+      const allIssued = updatedItems.every((it) => Number(it.issuedQty || 0) >= Number(it.approvedQty || 0));
+      map.set(req.id, {
+        ...req,
+        items: updatedItems,
+        status: allIssued ? 'ISSUED_TO_PRODUCTION' : req.status,
+      });
+    });
+
+    (allRequests || []).forEach((req) => {
+      const updatedItems = req.items.map((item, idx) => {
+        const itemKey = `${req.id}-${item.materialId || idx}`;
+        const issuedVal = savedQuantities[itemKey] !== undefined ? savedQuantities[itemKey] : item.issuedQty;
+        return { ...item, issuedQty: issuedVal };
+      });
+      const anyIssued = updatedItems.some((it) => Number(it.issuedQty || 0) > 0);
+      if (
+        ['ISSUED_TO_PRODUCTION', 'ISSUED', 'STORE_APPROVED', 'PARTIALLY_ISSUED'].includes(req.status) ||
+        anyIssued
+      ) {
+        map.set(req.id, { ...req, items: updatedItems });
       }
     });
+
     return Array.from(map.values());
   }, [allRequests, fallbackRequests]);
 

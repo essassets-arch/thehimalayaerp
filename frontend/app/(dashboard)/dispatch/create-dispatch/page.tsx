@@ -130,7 +130,19 @@ export default function CreateDispatchPage() {
   const [actualFreightPaidAmount, setActualFreightPaidAmount] = useState<number>(0);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const [fileError, setFileError] = useState<string | null>(null);
   const initialSelectionSet = React.useRef(false);
+
+  // Fetch existing dispatches for duplicate Invoice + Challan validation
+  const { data: existingDispatches = [] } = useQuery<any[]>({
+    queryKey: ["dispatches-duplicate-check"],
+    queryFn: async () => {
+      const res = await backendFetch<any>("/api/backend/logistics/dispatches").catch(() => []);
+      return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+    },
+  });
 
   // Fetch the complete pending queue so multiple compatible lines can be
   // consolidated into one dispatch.
@@ -428,6 +440,144 @@ export default function CreateDispatchPage() {
     }
   }, [selectedSalesOrders, transportationCost]);
 
+  const validateForm = React.useCallback(() => {
+    const errors: Record<string, string> = {};
+
+    // 1. Invoice Number: Text/Alphanumeric. Minimum 1 character. No special characters except '-' and '/'.
+    const inv = invoiceNumber.trim();
+    if (!inv) {
+      errors.invoiceNumber = "Invoice Number is required.";
+    } else if (!/^[A-Za-z0-9\-\/]+$/.test(inv)) {
+      errors.invoiceNumber = "Only alphanumeric characters, '-' and '/' are allowed.";
+    }
+
+    // 2. Challan Number: Text/Alphanumeric. Minimum 1 character. No unnecessary spaces/special chars except '-' and '/'.
+    const chn = challanNumber.trim();
+    if (!chn) {
+      errors.challanNumber = "Challan Number is required.";
+    } else if (!/^[A-Za-z0-9\-\/]+$/.test(chn)) {
+      errors.challanNumber = "Only alphanumeric characters, '-' and '/' are allowed.";
+    }
+
+    // Duplicate Check: Prevent duplicate Invoice Number + Challan Number combinations
+    if (inv && chn && existingDispatches.length > 0) {
+      const isDuplicate = existingDispatches.some((d: any) => {
+        const dInv = (d.invoiceNumber || d.invoice_number || "").trim().toLowerCase();
+        const dChn = (d.challanNumber || d.deliveryChallanNumber || d.challan_number || "").trim().toLowerCase();
+        return dInv === inv.toLowerCase() && dChn === chn.toLowerCase();
+      });
+      if (isDuplicate) {
+        errors.challanNumber = "This Invoice Number + Challan Number combination already exists.";
+      }
+    }
+
+    // 3. Total Weight (Tons): Numeric only. Must be > 0. Allow up to 3 decimal places.
+    if (totalWeight === undefined || totalWeight === null || isNaN(totalWeight) || totalWeight <= 0) {
+      errors.totalWeight = "Total Weight is required and must be greater than 0.";
+    } else {
+      const weightStr = String(totalWeight);
+      if (weightStr.includes('.') && weightStr.split('.')[1].length > 3) {
+        errors.totalWeight = "Maximum 3 decimal places allowed.";
+      }
+    }
+
+    // 4. Vehicle No.: Required. Valid Indian vehicle registration format. Store in uppercase.
+    const veh = vehicleNumber.trim().toUpperCase();
+    if (!veh) {
+      errors.vehicleNumber = "Vehicle Number is required.";
+    } else {
+      const vehRegex = /^[A-Z]{2}[-\s]?[0-9]{1,2}[-\s]?[A-Z]{1,3}[-\s]?[0-9]{4}$/;
+      if (!vehRegex.test(veh)) {
+        errors.vehicleNumber = "Must be a valid Indian vehicle registration (e.g. UK-07-CB-1234 or UK07CB1234).";
+      }
+    }
+
+    // 5. Driver Name: Required. Alphabets and spaces only. Minimum 2 characters.
+    const drv = driverName.trim();
+    if (!drv) {
+      errors.driverName = "Driver Name is required.";
+    } else if (drv.length < 2) {
+      errors.driverName = "Driver Name must be at least 2 characters.";
+    } else if (!/^[A-Za-z\s]+$/.test(drv)) {
+      errors.driverName = "Driver Name must contain alphabets and spaces only.";
+    }
+
+    // 6. Driver Phone: Optional. Exactly 10 digits. Accept Indian mobile numbers only.
+    const phone = driverPhone.trim();
+    if (phone) {
+      if (!/^[6-9]\d{9}$/.test(phone)) {
+        errors.driverPhone = "Must be a valid 10-digit Indian mobile number (starts with 6-9).";
+      }
+    }
+
+    // 7. Dispatch Remarks: Optional. Text. Maximum 500 characters.
+    if (dispatchRemarks.length > 500) {
+      errors.dispatchRemarks = "Dispatch Remarks cannot exceed 500 characters.";
+    }
+
+    // 8. Courier / Transport: Optional. Text. Maximum 100 characters.
+    if (transporterName.length > 100) {
+      errors.transporterName = "Courier / Transport cannot exceed 100 characters.";
+    }
+
+    // 9. LR / AWB Number: Optional. Alphanumeric. Maximum 50 characters. Uppercase.
+    const lr = ewayBillNumber.trim().toUpperCase();
+    if (lr) {
+      if (lr.length > 50) {
+        errors.ewayBillNumber = "LR / AWB Number cannot exceed 50 characters.";
+      } else if (!/^[A-Za-z0-9\-\/]+$/.test(lr)) {
+        errors.ewayBillNumber = "Only alphanumeric characters, '-' and '/' allowed.";
+      }
+    }
+
+    // 10. Dispatch Date: Required. Valid date. Should not be a future date.
+    if (!expectedDeliveryDate) {
+      errors.expectedDeliveryDate = "Dispatch Date is required.";
+    } else {
+      const selectedDate = new Date(expectedDeliveryDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (selectedDate > today) {
+        errors.expectedDeliveryDate = "Dispatch Date cannot be a future date.";
+      }
+    }
+
+    // 11. To Be Paid (₹): Optional. Numeric only. Must be >= 0. Allow up to 2 decimal places. Should not exceed transportation cost.
+    if (actualFreightPaidAmount !== undefined && actualFreightPaidAmount !== null) {
+      if (isNaN(actualFreightPaidAmount) || actualFreightPaidAmount < 0) {
+        errors.actualFreightPaidAmount = "To Be Paid (₹) must be 0 or greater.";
+      } else {
+        const str = String(actualFreightPaidAmount);
+        if (str.includes('.') && str.split('.')[1].length > 2) {
+          errors.actualFreightPaidAmount = "Maximum 2 decimal places allowed.";
+        }
+        if (transportationCost > 0 && actualFreightPaidAmount > transportationCost) {
+          errors.actualFreightPaidAmount = `To Be Paid (₹${actualFreightPaidAmount}) cannot exceed Fetched Transportation Cost (₹${transportationCost}).`;
+        }
+      }
+    }
+
+    return errors;
+  }, [
+    invoiceNumber,
+    challanNumber,
+    totalWeight,
+    vehicleNumber,
+    driverName,
+    driverPhone,
+    dispatchRemarks,
+    transporterName,
+    ewayBillNumber,
+    expectedDeliveryDate,
+    actualFreightPaidAmount,
+    transportationCost,
+    existingDispatches,
+  ]);
+
+  useEffect(() => {
+    setFieldErrors(validateForm());
+  }, [validateForm]);
+
   const toggleWorkOrder = (candidate: WorkOrder) => {
     setSelectedIds((current) => {
       if (current.includes(candidate.id)) {
@@ -444,6 +594,25 @@ export default function CreateDispatchPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+      const ext = "." + file.name.split(".").pop()?.toLowerCase();
+      const allowedExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
+
+      if (!allowedTypes.includes(file.type.toLowerCase()) && !allowedExtensions.includes(ext)) {
+        setFileError("Only PDF, JPG, JPEG, and PNG files are allowed.");
+        setDocumentFile(null);
+        setDocumentPreview(null);
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        setFileError("Maximum allowed file size is 5 MB.");
+        setDocumentFile(null);
+        setDocumentPreview(null);
+        return;
+      }
+
+      setFileError(null);
       setDocumentFile(file);
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
@@ -455,6 +624,7 @@ export default function CreateDispatchPage() {
         setDocumentPreview(null);
       }
     } else {
+      setFileError(null);
       setDocumentFile(null);
       setDocumentPreview(null);
     }
@@ -465,19 +635,26 @@ export default function CreateDispatchPage() {
       toast.error("Select at least one pending dispatch order");
       return;
     }
-    if (!invoiceNumber.trim()) {
-      toast.error("Invoice Number is mandatory");
-      return;
-    }
-    if (!challanNumber.trim()) {
-      toast.error("Challan Number is mandatory");
-      return;
-    }
-    if (
-      !Number.isFinite(actualFreightPaidAmount) ||
-      actualFreightPaidAmount < 0
-    ) {
-      toast.error("Actual Paid Amount cannot be negative");
+
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0 || Boolean(fileError)) {
+      setFieldErrors(errors);
+      // Mark all fields as touched to display validation errors
+      setTouchedFields({
+        invoiceNumber: true,
+        challanNumber: true,
+        totalWeight: true,
+        vehicleNumber: true,
+        driverName: true,
+        driverPhone: true,
+        dispatchRemarks: true,
+        transporterName: true,
+        ewayBillNumber: true,
+        expectedDeliveryDate: true,
+        actualFreightPaidAmount: true,
+      });
+      const firstError = Object.values(errors)[0] || fileError || "Please fix validation errors.";
+      toast.error(firstError);
       return;
     }
     for (const selected of selectedWorkOrders) {
@@ -773,116 +950,216 @@ export default function CreateDispatchPage() {
         {/* ── Form Fields Grid ── */}
         <div className={styles.formGrid}>
 
+          {/* Invoice Number */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Invoice Number<span className={styles.required}>*</span></label>
             <input
               type="text"
               value={invoiceNumber}
-              onChange={(e) => setInvoiceNumber(e.target.value)}
+              onChange={(e) => {
+                setInvoiceNumber(e.target.value);
+                setTouchedFields((t) => ({ ...t, invoiceNumber: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. INV-2026-001"
             />
+            {touchedFields.invoiceNumber && fieldErrors.invoiceNumber && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.invoiceNumber}
+              </span>
+            )}
           </div>
 
+          {/* Challan Number */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Challan Number<span className={styles.required}>*</span></label>
             <input
               type="text"
               value={challanNumber}
-              onChange={(e) => setChallanNumber(e.target.value)}
+              onChange={(e) => {
+                setChallanNumber(e.target.value);
+                setTouchedFields((t) => ({ ...t, challanNumber: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. CHN-2026-001"
             />
+            {touchedFields.challanNumber && fieldErrors.challanNumber && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.challanNumber}
+              </span>
+            )}
           </div>
 
+          {/* Total Weight (Tons) */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Total Weight (Tons)<span className={styles.required}>*</span></label>
             <input
               type="number"
-              min="0.1"
-              step="0.1"
+              min="0.001"
+              step="0.001"
               value={totalWeight || ""}
-              onChange={(e) => setTotalWeight(Number(e.target.value))}
+              onChange={(e) => {
+                const val = e.target.value;
+                setTotalWeight(val === "" ? 0 : Number(val));
+                setTouchedFields((t) => ({ ...t, totalWeight: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. 15.5"
             />
+            {touchedFields.totalWeight && fieldErrors.totalWeight && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.totalWeight}
+              </span>
+            )}
           </div>
 
+          {/* Vehicle No. */}
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Vehicle No<span className={styles.required}>*</span></label>
+            <label className={styles.formLabel}>Vehicle No.<span className={styles.required}>*</span></label>
             <input
               type="text"
               value={vehicleNumber}
-              onChange={(e) => setVehicleNumber(e.target.value)}
+              onChange={(e) => {
+                setVehicleNumber(e.target.value.toUpperCase());
+                setTouchedFields((t) => ({ ...t, vehicleNumber: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. UK-07-CB-1234"
             />
+            {touchedFields.vehicleNumber && fieldErrors.vehicleNumber && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.vehicleNumber}
+              </span>
+            )}
           </div>
 
+          {/* Driver Name */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Driver Name<span className={styles.required}>*</span></label>
             <input
               type="text"
               value={driverName}
-              onChange={(e) => setDriverName(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^A-Za-z\s]/g, "");
+                setDriverName(val);
+                setTouchedFields((t) => ({ ...t, driverName: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. Ramesh Singh"
             />
+            {touchedFields.driverName && fieldErrors.driverName && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.driverName}
+              </span>
+            )}
           </div>
 
+          {/* Driver Phone */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Driver Phone</label>
             <input
               type="tel"
+              maxLength={10}
               value={driverPhone}
-              onChange={(e) => setDriverPhone(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setDriverPhone(val);
+                setTouchedFields((t) => ({ ...t, driverPhone: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. 9876543210"
             />
+            {touchedFields.driverPhone && fieldErrors.driverPhone && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.driverPhone}
+              </span>
+            )}
           </div>
+
+          {/* Dispatch Remarks */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Dispatch Remarks</label>
             <input
               type="text"
+              maxLength={500}
               value={dispatchRemarks}
-              onChange={(e) => setDispatchRemarks(e.target.value)}
+              onChange={(e) => {
+                setDispatchRemarks(e.target.value);
+                setTouchedFields((t) => ({ ...t, dispatchRemarks: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. Fragile items loaded carefully"
             />
+            {touchedFields.dispatchRemarks && fieldErrors.dispatchRemarks && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.dispatchRemarks}
+              </span>
+            )}
           </div>
 
+          {/* Courier / Transport */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Courier / Transport</label>
             <input
               type="text"
+              maxLength={100}
               value={transporterName}
-              onChange={(e) => setTransporterName(e.target.value)}
+              onChange={(e) => {
+                setTransporterName(e.target.value);
+                setTouchedFields((t) => ({ ...t, transporterName: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. Himalaya Own Fleet / DTDC"
             />
+            {touchedFields.transporterName && fieldErrors.transporterName && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.transporterName}
+              </span>
+            )}
           </div>
 
+          {/* LR / AWB Number */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>LR / AWB Number</label>
             <input
               type="text"
+              maxLength={50}
               value={ewayBillNumber}
-              onChange={(e) => setEwayBillNumber(e.target.value)}
+              onChange={(e) => {
+                setEwayBillNumber(e.target.value.toUpperCase());
+                setTouchedFields((t) => ({ ...t, ewayBillNumber: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. LR-2024-00123"
             />
+            {touchedFields.ewayBillNumber && fieldErrors.ewayBillNumber && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.ewayBillNumber}
+              </span>
+            )}
           </div>
 
+          {/* Dispatch Date */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Dispatch Date<span className={styles.required}>*</span></label>
             <input
               type="date"
+              max={new Date().toISOString().split("T")[0]}
               value={expectedDeliveryDate}
-              onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+              onChange={(e) => {
+                setExpectedDeliveryDate(e.target.value);
+                setTouchedFields((t) => ({ ...t, expectedDeliveryDate: true }));
+              }}
               className={styles.formInput}
             />
+            {touchedFields.expectedDeliveryDate && fieldErrors.expectedDeliveryDate && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.expectedDeliveryDate}
+              </span>
+            )}
           </div>
 
+          {/* Fetched Transportation Cost (₹) */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Fetched Transportation Cost (₹)</label>
             <input
@@ -895,17 +1172,30 @@ export default function CreateDispatchPage() {
             />
           </div>
 
+          {/* To Be Paid (₹) */}
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>To Be Paid (₹)</label>
             <input
               type="number"
+              min="0"
+              step="0.01"
               value={actualFreightPaidAmount !== undefined ? actualFreightPaidAmount : ""}
-              onChange={(e) => setActualFreightPaidAmount(Number(e.target.value))}
+              onChange={(e) => {
+                const val = e.target.value;
+                setActualFreightPaidAmount(val === "" ? 0 : Number(val));
+                setTouchedFields((t) => ({ ...t, actualFreightPaidAmount: true }));
+              }}
               className={styles.formInput}
               placeholder="e.g. 500.00"
             />
+            {touchedFields.actualFreightPaidAmount && fieldErrors.actualFreightPaidAmount && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fieldErrors.actualFreightPaidAmount}
+              </span>
+            )}
           </div>
 
+          {/* Dispatch Document (PDF / Image) */}
           <div className={`${styles.formGroup} ${styles.span2}`}>
             <label className={styles.formLabel}>Dispatch Document (PDF / Image)</label>
             <label className={styles.fileInput}>
@@ -915,11 +1205,16 @@ export default function CreateDispatchPage() {
               </span>
               <input 
                 type="file" 
-                accept="image/*,.pdf" 
+                accept="image/jpeg,image/jpg,image/png,application/pdf" 
                 style={{ display: "none" }} 
                 onChange={handleFileChange}
               />
             </label>
+            {fileError && (
+              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
+                {fileError}
+              </span>
+            )}
             {documentPreview && (
               <div style={{ marginTop: 12 }}>
                 <img 
@@ -931,7 +1226,7 @@ export default function CreateDispatchPage() {
             )}
             {documentFile && !documentPreview && (
                <div style={{ marginTop: 12, fontSize: 13, color: '#64748b' }}>
-                 Preview not available for this file type.
+                 Selected PDF: {documentFile.name} ({(documentFile.size / 1024).toFixed(1)} KB)
                </div>
             )}
           </div>
@@ -943,7 +1238,30 @@ export default function CreateDispatchPage() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={selectedWorkOrders.length === 0}
+            disabled={
+              selectedWorkOrders.length === 0 ||
+              !invoiceNumber.trim() ||
+              !challanNumber.trim() ||
+              !totalWeight || totalWeight <= 0 ||
+              !vehicleNumber.trim() ||
+              !driverName.trim() ||
+              !expectedDeliveryDate ||
+              Object.keys(fieldErrors).length > 0 ||
+              Boolean(fileError)
+            }
+            style={
+              (selectedWorkOrders.length === 0 ||
+              !invoiceNumber.trim() ||
+              !challanNumber.trim() ||
+              !totalWeight || totalWeight <= 0 ||
+              !vehicleNumber.trim() ||
+              !driverName.trim() ||
+              !expectedDeliveryDate ||
+              Object.keys(fieldErrors).length > 0 ||
+              Boolean(fileError))
+                ? { opacity: 0.5, cursor: "not-allowed" }
+                : {}
+            }
             className={styles.submitBtn}
           >
             Book Dispatch Consignment

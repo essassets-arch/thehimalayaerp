@@ -32,8 +32,18 @@ export default function StoreReleasesView() {
   const [activeTab, setActiveTab] = useState('pending');
   const [cardDepartments, setCardDepartments] = useState({});
   
-  // Track cumulative issued quantities per item
-  const [issuedQuantities, setIssuedQuantities] = useState({});
+  // Track cumulative issued quantities per item (persisted in localStorage)
+  const [issuedQuantities, setIssuedQuantities] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('store_issued_quantities');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse store_issued_quantities:', e);
+      }
+    }
+    return {};
+  });
   // Track editable input quantities per item for current transaction
   const [inputQuantities, setInputQuantities] = useState({});
 
@@ -207,6 +217,14 @@ export default function StoreReleasesView() {
 
       setIssuedQuantities(newIssuedState);
       setInputQuantities(newInputState);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('store_issued_quantities', JSON.stringify(newIssuedState));
+        } catch (e) {
+          console.error('Failed to save store_issued_quantities:', e);
+        }
+      }
 
       // Trigger backend patch if possible
       await Promise.all(
