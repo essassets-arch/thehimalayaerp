@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Eye, Plus, Clipboard, Edit, ChevronLeft, ChevronRight, Bell, Trash2, FlaskConical, FileText, ShieldCheck, MoreVertical } from 'lucide-react';
+import { Search, Eye, Plus, Clipboard, Edit, ChevronLeft, ChevronRight, Bell, Trash2, FlaskConical, FileText, ShieldCheck, MoreVertical, Calendar, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
 import {
@@ -14,15 +14,120 @@ import { useERPStore, getLeadQuotationState, getLeadSampleState } from '../store
 import { displayEntityId } from '../store/idGenerator';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 
+const parseAnyDate = (raw) => {
+  if (!raw) return null;
+  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
+
+  if (typeof raw === 'number') {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    const matchYmd = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (matchYmd) {
+      const year = parseInt(matchYmd[1], 10);
+      const month = parseInt(matchYmd[2], 10) - 1;
+      const day = parseInt(matchYmd[3], 10);
+
+      if (trimmed.includes('T') || trimmed.includes(' ')) {
+        const d = new Date(trimmed);
+        if (!Number.isNaN(d.getTime())) return d;
+      }
+      return new Date(year, month, day);
+    }
+
+    const matchDmy = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (matchDmy) {
+      const day = parseInt(matchDmy[1], 10);
+      const month = parseInt(matchDmy[2], 10) - 1;
+      const year = parseInt(matchDmy[3], 10);
+      return new Date(year, month, day);
+    }
+  }
+
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 const formatLeadDate = (value) => {
   if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
+  const d = parseAnyDate(value);
+  if (!d) return String(value);
   const day = String(d.getDate()).padStart(2, '0');
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const month = monthNames[d.getMonth()];
   const year = d.getFullYear();
   return `${day} ${month} ${year}`;
+};
+
+const formatMonthOptionLabel = (yyyyMm) => {
+  if (!yyyyMm || !/^\d{4}-\d{2}$/.test(yyyyMm)) return yyyyMm;
+  const [y, m] = yyyyMm.split('-').map(Number);
+  const d = new Date(y, m - 1, 1);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+const isLeadInDateRange = (rawDateVal, monthFilter, fromDateVal, toDateVal) => {
+  if (monthFilter === 'ALL' && !fromDateVal && !toDateVal) {
+    return true;
+  }
+
+  const d = parseAnyDate(rawDateVal);
+  if (!d) {
+    return false;
+  }
+
+  const year = d.getFullYear();
+  const month = d.getMonth();
+
+  if (monthFilter && monthFilter !== 'ALL' && monthFilter !== 'CUSTOM') {
+    const now = new Date();
+    let targetYear, targetMonth;
+
+    if (monthFilter === 'THIS_MONTH') {
+      targetYear = now.getFullYear();
+      targetMonth = now.getMonth();
+    } else if (monthFilter === 'LAST_MONTH') {
+      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      targetYear = prevMonthDate.getFullYear();
+      targetMonth = prevMonthDate.getMonth();
+    } else if (/^\d{4}-\d{2}$/.test(monthFilter)) {
+      const [y, m] = monthFilter.split('-').map(Number);
+      targetYear = y;
+      targetMonth = m - 1;
+    }
+
+    if (targetYear !== undefined && targetMonth !== undefined) {
+      if (year !== targetYear || month !== targetMonth) {
+        return false;
+      }
+    }
+  }
+
+  if (monthFilter === 'CUSTOM') {
+    if (fromDateVal) {
+      const from = parseAnyDate(fromDateVal);
+      if (from) {
+        from.setHours(0, 0, 0, 0);
+        if (d < from) return false;
+      }
+    }
+
+    if (toDateVal) {
+      const to = parseAnyDate(toDateVal);
+      if (to) {
+        to.setHours(23, 59, 59, 999);
+        if (d > to) return false;
+      }
+    }
+  }
+
+  return true;
 };
 
 const getSmartLeadStatus = (lead, orders = [], quotations = [], samples = [], reminders = [], erpState = {}) => {
@@ -113,6 +218,10 @@ export default function LeadsView({
   const [filter, setFilter] = useState('All');
   const [reminderBucket, setReminderBucket] = useState('Today');
   const [reminderModal, setReminderModal] = useState(null);
+
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   const [editingLead, setEditingLead] = useState(null);
   const [editCompanyName, setEditCompanyName] = useState('');
@@ -309,10 +418,41 @@ export default function LeadsView({
 
   const [currentPage, setCurrentPage] = useState(1);
 
+  const availableMonths = useMemo(() => {
+    const set = new Set();
+    (leads || []).forEach(lead => {
+      const rawDate = lead.date || lead.createdAt || lead.created_at || lead.leadDate || lead.updatedAt;
+      if (rawDate) {
+        const d = parseAnyDate(rawDate);
+        if (d) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          set.add(`${yyyy}-${mm}`);
+        }
+      }
+    });
+    const now = new Date();
+    const curYyyy = now.getFullYear();
+    const curMm = String(now.getMonth() + 1).padStart(2, '0');
+    set.add(`${curYyyy}-${curMm}`);
+
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevYyyy = prev.getFullYear();
+    const prevMm = String(prev.getMonth() + 1).padStart(2, '0');
+    set.add(`${prevYyyy}-${prevMm}`);
+
+    return Array.from(set).sort().reverse();
+  }, [leads]);
+
+  const now = new Date();
+  const currentYyyyMm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastYyyyMm = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
   // Reset page when search or filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filter, reminderBucket]);
+  }, [search, filter, reminderBucket, selectedMonth, fromDate, toDate]);
 
   const filteredLeads = leads.filter(lead => {
     const companyName = lead.companyName || '';
@@ -323,7 +463,11 @@ export default function LeadsView({
       salesperson.toLowerCase().includes(search.toLowerCase());
     if (filter === 'Reminders') return false;
     const matchesFilter = filter === 'All' ? (lead.status !== 'Lost' && lead.status !== 'Converted') : lead.status === filter;
-    return matchesSearch && matchesFilter;
+
+    const leadDateVal = lead.date || lead.createdAt || lead.created_at || lead.leadDate || lead.updatedAt;
+    const matchesDate = isLeadInDateRange(leadDateVal, selectedMonth, fromDate, toDate);
+
+    return matchesSearch && matchesFilter && matchesDate;
   });
 
   const filteredLeadReminders = useMemo(() => {
@@ -332,12 +476,15 @@ export default function LeadsView({
       if (!lead) return false;
       const companyName = lead.companyName || '';
       const contactPerson = lead.contactPerson || '';
-      return companyName.toLowerCase().includes(search.toLowerCase()) ||
+      const matchesSearch = companyName.toLowerCase().includes(search.toLowerCase()) ||
         contactPerson.toLowerCase().includes(search.toLowerCase()) ||
         (r.reminderType || '').toLowerCase().includes(search.toLowerCase());
+      const remDateVal = r.reminderDate || lead.createdAt || lead.date;
+      const matchesDate = isLeadInDateRange(remDateVal, selectedMonth, fromDate, toDate);
+      return matchesSearch && matchesDate;
     });
     return filterRemindersByBucket(list, reminderBucket);
-  }, [leadReminders, leads, search, reminderBucket]);
+  }, [leadReminders, leads, search, reminderBucket, selectedMonth, fromDate, toDate]);
 
   const ITEMS_PER_PAGE = 25;
   const isRemindersView = filter === 'Reminders';
@@ -436,6 +583,220 @@ export default function LeadsView({
           >
             <Plus size={14} /> Add Lead
           </button>
+        </div>
+      </div>
+
+      {/* Date & Month Filter Toolbar */}
+      <div className="leads-date-filter-bar">
+        <style>{`
+          .leads-date-filter-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 12px 18px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+            border-radius: 12px;
+            margin-bottom: 18px;
+            margin-top: 12px;
+          }
+          .leads-filter-controls-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+          }
+          .leads-filter-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #1e293b;
+            letter-spacing: -0.01em;
+          }
+          .leads-filter-icon-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: #eff6ff;
+            color: #2563eb;
+            flex-shrink: 0;
+          }
+          .leads-month-select {
+            padding: 8px 36px 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #0f172a;
+            background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") no-repeat right 12px center / 14px 14px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            transition: all 0.15s ease;
+          }
+          .leads-month-select:focus, .leads-month-select:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+          }
+          .leads-custom-date-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: #ffffff;
+            padding: 4px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+          }
+          .leads-date-input-field {
+            padding: 6px 10px;
+            font-size: 12.5px;
+            font-weight: 600;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #0f172a;
+            outline: none;
+          }
+          .leads-date-input-field:focus {
+            border-color: #3b82f6;
+          }
+          .leads-clear-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 7px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #dc2626;
+            background: #fef2f2;
+            border: 1.5px solid #fecaca;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+          }
+          .leads-clear-btn:hover {
+            background: #fee2e2;
+            border-color: #fca5a5;
+          }
+          .leads-badge-counter {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 12.5px;
+            font-weight: 700;
+            border: 1px solid #e2e8f0;
+          }
+          @media (max-width: 768px) {
+            .leads-date-filter-bar {
+              flex-direction: column;
+              align-items: stretch;
+              gap: 10px;
+              padding: 12px 14px;
+            }
+            .leads-filter-controls-group {
+              flex-direction: column;
+              align-items: stretch;
+              width: 100%;
+            }
+            .leads-month-select {
+              width: 100%;
+            }
+            .leads-custom-date-group {
+              width: 100%;
+              justify-content: space-between;
+            }
+            .leads-badge-counter {
+              align-self: flex-start;
+            }
+          }
+        `}</style>
+
+        <div className="leads-filter-controls-group">
+          <div className="leads-filter-label">
+            <span className="leads-filter-icon-badge">
+              <Calendar size={16} />
+            </span>
+            <span>Month & Date Filter:</span>
+          </div>
+
+          <select
+            className="leads-month-select"
+            value={selectedMonth}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedMonth(val);
+              if (val !== 'CUSTOM') {
+                setFromDate('');
+                setToDate('');
+              }
+            }}
+          >
+            <option value="ALL">All Months / All Time</option>
+            <option value="THIS_MONTH">This Month ({formatMonthOptionLabel(currentYyyyMm)})</option>
+            <option value="LAST_MONTH">Last Month ({formatMonthOptionLabel(lastYyyyMm)})</option>
+            <optgroup label="Select Specific Month">
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>{formatMonthOptionLabel(m)}</option>
+              ))}
+            </optgroup>
+            <option value="CUSTOM">Custom Date Range...</option>
+          </select>
+
+          {selectedMonth === 'CUSTOM' && (
+            <div className="leads-custom-date-group">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>From:</span>
+                <input
+                  type="date"
+                  className="leads-date-input-field"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>To:</span>
+                <input
+                  type="date"
+                  className="leads-date-input-field"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {(selectedMonth !== 'ALL' || fromDate || toDate) && (
+            <button
+              className="leads-clear-btn"
+              onClick={() => {
+                setSelectedMonth('ALL');
+                setFromDate('');
+                setToDate('');
+              }}
+            >
+              <X size={14} /> Clear Filter
+            </button>
+          )}
+        </div>
+
+        <div className="leads-badge-counter">
+          <span>Showing:</span>
+          <span style={{ color: '#1d4ed8' }}>{filteredLeads.length} {filteredLeads.length === 1 ? 'lead' : 'leads'}</span>
         </div>
       </div>
 
