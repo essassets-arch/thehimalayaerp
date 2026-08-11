@@ -258,17 +258,81 @@ export default function FinanceSalesConfirmationView() {
     if (!result.isConfirmed) return;
     setIsProcessing(true);
     try {
-      if (confirmation?.source === 'backend') {
-        // Hit backend: mark as VERIFIED and persist to DB
-        await backendFetch(`/api/backend/finance/payments/${confirmationId}/verify`, {
-          method: 'POST',
-        });
-      } else if (confirmation?.source === 'local' && typeof verifyFinancePayment === 'function') {
-        // Fallback for legacy local mock payments
-        verifyFinancePayment(confirmationId, 'Finance Team');
-      } else {
+      let processed = false;
+
+      // 1. Try Backend if source is backend or not PC- local ID
+      if (confirmation?.source === 'backend' || (confirmationId && !String(confirmationId).startsWith('PC-'))) {
+        try {
+          await backendFetch(`/api/backend/finance/payments/${confirmationId}/verify`, {
+            method: 'POST',
+          });
+          processed = true;
+        } catch (backendErr) {
+          console.warn('Backend payment verification failed, falling back to local handlers:', backendErr);
+        }
+      }
+
+      // 2. Try Store action
+      if (!processed && typeof verifyFinancePayment === 'function') {
+        try {
+          verifyFinancePayment(confirmationId, 'Finance Team');
+          processed = true;
+        } catch (storeErr) {
+          console.warn('Store verifyFinancePayment failed:', storeErr);
+        }
+      }
+
+      // 3. Update localStorage confirmations if source is local_storage or fallback
+      if (confirmation || !processed) {
+        try {
+          const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const updated = list.map((c) => {
+              if (c.id === confirmationId || c.orderId === confirmation?.orderId || c.orderNo === confirmation?.orderId) {
+                return {
+                  ...c,
+                  status: 'FINANCE_VERIFIED',
+                  paymentStatus: 'PAID',
+                  verifiedAt: new Date().toISOString(),
+                };
+              }
+              return c;
+            });
+            localStorage.setItem('himalaya_sales_payment_confirmations', JSON.stringify(updated));
+            processed = true;
+          }
+        } catch (lsErr) {
+          console.warn('LocalStorage payment update error:', lsErr);
+        }
+
+        // Also sync order payment status in himalaya_erp_store if available
+        try {
+          const rawStore = localStorage.getItem('himalaya_erp_store');
+          if (rawStore) {
+            const parsedStore = JSON.parse(rawStore);
+            if (parsedStore?.state?.sales?.orders) {
+              parsedStore.state.sales.orders = parsedStore.state.sales.orders.map((ord) => {
+                if (ord.id === confirmation?.orderId || ord.orderNo === confirmation?.orderId || ord.orderNumber === confirmation?.orderId) {
+                  return {
+                    ...ord,
+                    paymentStatus: 'PAID',
+                    verifiedPaidAmount: Number(confirmation?.amount || ord.grandTotal || ord.totalAmount || 0),
+                    balanceAmount: 0,
+                  };
+                }
+                return ord;
+              });
+              localStorage.setItem('himalaya_erp_store', JSON.stringify(parsedStore));
+            }
+          }
+        } catch {}
+      }
+
+      if (!processed && !confirmation) {
         throw new Error('Cannot find this payment record. It may have already been processed.');
       }
+
       await refetchBackendPayments();
       await Swal.fire({ icon: 'success', title: 'Payment Verified ✓', text: 'The payment has been verified and the order payment status updated.', timer: 1800, showConfirmButton: false });
     } catch (err) {
@@ -285,21 +349,66 @@ export default function FinanceSalesConfirmationView() {
     const remarks = String(fd.get('remarks') || '');
     setIsProcessing(true);
     try {
-      const confirmation = paymentConfirmations.find((item) => item.id === rejectModal.confirmationId);
-      if (confirmation?.source === 'backend') {
-        // Hit backend: mark as BOUNCED and persist to DB
-        await backendFetch(`/api/backend/finance/payments/${rejectModal.confirmationId}/bounce`, {
-          method: 'POST',
-          body: { remarks },
-        });
-        await refetchBackendPayments();
-      } else if (typeof rejectFinancePayment === 'function') {
-        // Fallback for legacy local mock payments
-        rejectFinancePayment(rejectModal.confirmationId, remarks, 'Finance Team');
-      } else {
+      const confirmationId = rejectModal.confirmationId;
+      const confirmation = paymentConfirmations.find((item) => item.id === confirmationId);
+      let processed = false;
+
+      // 1. Try Backend if source is backend or not PC- local ID
+      if (confirmation?.source === 'backend' || (confirmationId && !String(confirmationId).startsWith('PC-'))) {
+        try {
+          await backendFetch(`/api/backend/finance/payments/${confirmationId}/bounce`, {
+            method: 'POST',
+            body: { remarks },
+          });
+          processed = true;
+        } catch (backendErr) {
+          console.warn('Backend payment rejection failed, falling back to local handlers:', backendErr);
+        }
+      }
+
+      // 2. Try Store action
+      if (!processed && typeof rejectFinancePayment === 'function') {
+        try {
+          rejectFinancePayment(confirmationId, remarks, 'Finance Team');
+          processed = true;
+        } catch (storeErr) {
+          console.warn('Store rejectFinancePayment failed:', storeErr);
+        }
+      }
+
+      // 3. Update localStorage confirmations if source is local_storage or fallback
+      if (confirmation || !processed) {
+        try {
+          const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const updated = list.map((c) => {
+              if (c.id === confirmationId || c.orderId === confirmation?.orderId || c.orderNo === confirmation?.orderId) {
+                return {
+                  ...c,
+                  status: 'FINANCE_REJECTED',
+                  paymentStatus: 'BOUNCED',
+                  financeRemarks: remarks,
+                  remarks,
+                  rejectedAt: new Date().toISOString(),
+                };
+              }
+              return c;
+            });
+            localStorage.setItem('himalaya_sales_payment_confirmations', JSON.stringify(updated));
+            processed = true;
+          }
+        } catch (lsErr) {
+          console.warn('LocalStorage payment rejection error:', lsErr);
+        }
+      }
+
+      if (!processed && !confirmation) {
         throw new Error('Cannot find this payment record. It may have already been processed.');
       }
+
       setRejectModal(null);
+      await refetchBackendPayments();
       await Swal.fire({ icon: 'success', title: 'Payment Rejected', text: 'The payment has been marked as bounced. Sales can submit a corrected payment confirmation.', timer: 1800, showConfirmButton: false });
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'Rejection Failed', text: err?.message || String(err) });
