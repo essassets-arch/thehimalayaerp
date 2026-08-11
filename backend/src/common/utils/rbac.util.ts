@@ -48,7 +48,12 @@ export function getOrderSalesScope(userId?: string, role?: string): Record<strin
   return {
     OR: [
       { createdById: userId },
+      { salesExecutiveId: userId },
+      { salesExecutiveId: null },
       { quotation: { salesExecutiveId: userId } },
+      { quotation: { createdById: userId } },
+      { sourceQuotation: { salesExecutiveId: userId } },
+      { sourceQuotation: { createdById: userId } },
     ],
   };
 }
@@ -81,7 +86,10 @@ export function getReturnSalesScope(userId?: string, role?: string): Record<stri
   return {
     OR: [
       { requestedById: userId },
+      { salesOrder: { salesExecutiveId: userId } },
+      { salesOrder: { createdById: userId } },
       { salesOrder: { quotation: { salesExecutiveId: userId } } },
+      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
     ],
   };
 }
@@ -92,7 +100,10 @@ export function getReplacementSalesScope(userId?: string, role?: string): Record
   return {
     OR: [
       { requestedById: userId },
+      { salesOrder: { salesExecutiveId: userId } },
+      { salesOrder: { createdById: userId } },
       { salesOrder: { quotation: { salesExecutiveId: userId } } },
+      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
     ],
   };
 }
@@ -103,7 +114,10 @@ export function getPaymentSalesScope(userId?: string, role?: string): Record<str
   return {
     OR: [
       { createdById: userId },
+      { salesOrder: { salesExecutiveId: userId } },
+      { salesOrder: { createdById: userId } },
       { salesOrder: { quotation: { salesExecutiveId: userId } } },
+      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
     ],
   };
 }
@@ -120,7 +134,10 @@ export function getDispatchSalesScope(userId?: string, role?: string): Record<st
   return {
     OR: [
       { createdById: userId },
+      { salesOrder: { salesExecutiveId: userId } },
+      { salesOrder: { createdById: userId } },
       { salesOrder: { quotation: { salesExecutiveId: userId } } },
+      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
     ],
   };
 }

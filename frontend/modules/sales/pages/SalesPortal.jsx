@@ -263,7 +263,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   const orders = backendOrders;
 
-  const { refreshSamples, loadLeads, loadCustomers, createSample } = useSalesBackend();
+  const { refreshSalesOrders, refreshSamples, loadLeads, loadCustomers, createSample } = useSalesBackend();
 
   useEffect(() => {
     // Load orders on orders view or dashboard
@@ -393,6 +393,9 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     const res = await confirmOrder(qtn);
     if (res?.success) {
       showToast('🎉 Order created from quotation!');
+      if (refreshSalesOrders) {
+        await refreshSalesOrders().catch(() => {});
+      }
       navigate.push(`${basePath}/orders`);
     }
   };

@@ -149,9 +149,6 @@ export function useQuotations(showToast, autoLoad = true) {
       });
       await loadQuotations();
       showToast?.(`Order ${order.orderNumber || order.orderId || order.id || ''} created successfully.`);
-      if (typeof window !== 'undefined') {
-        window.location.href = '/sales/orders';
-      }
       return { success: true, data: order, orderId: order.id, id: order.id };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

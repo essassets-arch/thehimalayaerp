@@ -659,7 +659,7 @@ export class QuotationsService {
           customerId,
           quotationId: id,
           sourceQuotationId: id,
-          salesExecutiveId: quotation.salesExecutiveId || userId,
+          salesExecutiveId: quotation.salesExecutiveId || quotation.createdById || quotation.lead?.salesExecutiveId || quotation.lead?.createdById || userId,
           workflowStateId: soInitialState?.id,
           createdById: userId,
           paymentTermsDays: quotation.paymentTermDays || (quotation.paymentTerms ? parseInt(String(quotation.paymentTerms).match(/\d+/)?.[0] || '0', 10) : undefined) || undefined,
