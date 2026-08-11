@@ -38,7 +38,7 @@ export class WorkOrdersService {
       where,
       include: {
         productionPlan: {
-          include: { salesOrder: { include: { customer: true, items: true, sourceQuotation: true } } },
+          include: { salesOrder: { include: { customer: true, items: { include: { product: true } }, sourceQuotation: true } } },
         },
         salesOrderItem: {
           include: { dispatchItems: true, product: true },
@@ -61,11 +61,13 @@ export class WorkOrdersService {
         productionPlan: {
           include: {
             salesOrder: {
-              include: { customer: true, items: true, sourceQuotation: true },
+              include: { customer: true, items: { include: { product: true } }, sourceQuotation: true },
             },
           },
         },
-        salesOrderItem: true,
+        salesOrderItem: {
+          include: { product: true },
+        },
         workflowState: true,
         productionBatches: true,
       },

@@ -232,23 +232,59 @@ export default function WorkOrderListPage() {
               const rawSo = wo.productionPlan?.salesOrder?.orderNumber || (wo as any).salesOrder?.orderNumber;
               const numPart = wo.workOrderNumber ? wo.workOrderNumber.replace(/\D/g, '').slice(-5) : '00001';
               const soNo = rawSo || `SO-2026-${numPart.padStart(5, '0')}`;
+              
+              const customerObj = wo.productionPlan?.salesOrder?.customer || (wo as any).salesOrder?.customer || (wo as any).customer;
+              const customerName = customerObj?.companyName || customerObj?.name || (wo as any).customerName || 'Production Stock';
+              const address = customerObj?.address || customerObj?.city || (wo as any).customerAddress || (wo as any).address || 'Andheri, Mumbai (Default Address)';
+              const gst = customerObj?.gstin || customerObj?.gst || (wo as any).customerGst || (wo as any).gst || '27ABCDE4321G2Z8';
+
+              const rawDate = wo.createdAt || (wo.productionPlan?.salesOrder as any)?.createdAt;
+              const orderDate = rawDate
+                ? new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+              let itemsList: Array<{ name: string; code: string; qty: number; rate?: number; gst?: number; total?: number }> = [];
+
+              const soItems = wo.productionPlan?.salesOrder?.items || (wo as any).salesOrder?.items;
+              if (Array.isArray(soItems) && soItems.length > 0) {
+                itemsList = soItems.map((item: any) => {
+                  const name = item.product?.name || item.productNameSnapshot || item.productName || item.name || 'Ordered Product';
+                  const code = item.product?.sku || item.product?.publicId || item.product?.code || item.productCodeSnapshot || item.productCode || item.code || '-';
+                  const qty = Number(item.quantity ?? wo.quantity ?? 1);
+                  const rate = Number(item.unitPrice ?? item.price ?? item.rate ?? 0);
+                  const gstVal = item.gst !== undefined ? item.gst : (item.tax !== undefined ? item.tax : 18);
+                  const total = Number(item.totalAmount ?? item.total ?? (qty * rate * (1 + gstVal / 100)));
+                  return { name, code, qty, rate, gst: gstVal, total };
+                });
+              }
+
+              if (itemsList.length === 0 && (wo as any).salesOrderItem) {
+                const soi = (wo as any).salesOrderItem;
+                const name = soi.product?.name || soi.productNameSnapshot || soi.productName || 'Ordered Product';
+                const code = soi.product?.sku || soi.product?.publicId || soi.product?.code || soi.productCodeSnapshot || soi.productCode || '-';
+                const qty = Number(wo.quantity || soi.quantity || 1);
+                const rate = Number(soi.unitPrice || soi.price || soi.rate || 0);
+                itemsList.push({ name, code, qty, rate });
+              }
+
+              if (itemsList.length === 0) {
+                const name = (wo as any).productName || (wo as any).product?.name || (wo.productionPlan?.planNumber ? `Work Order - ${wo.workOrderNumber}` : 'Production Item');
+                const code = (wo as any).productCode || (wo as any).product?.sku || (wo as any).product?.publicId || wo.workOrderNumber || '-';
+                const qty = Number(wo.quantity || 1);
+                itemsList.push({ name, code, qty });
+              }
+
               const mapped = {
                 ref: soNo,
                 orderNo: soNo,
-                customerName: wo.productionPlan?.salesOrder?.customer?.companyName || 'Production Stock',
-                address: 'Andheri, Mumbai (Default Address)',
-                gst: '27ABCDE4321G2Z8',
-                orderDate: new Date(wo.createdAt).toLocaleDateString(),
+                customerName,
+                address,
+                gst,
+                orderDate,
                 salesStatus: 'Confirmed',
                 productionStatus: wo.workflowState?.name || wo.status || 'Pending',
                 dispatchStatus: 'Pending',
-                items: [
-                  {
-                    name: 'Lifecycle Product MS4J0RRM',
-                    code: 'E2E-MS4J0RRM',
-                    qty: wo.quantity,
-                  }
-                ]
+                items: itemsList,
               };
               setSelectedOrderForModal(mapped);
             }}
