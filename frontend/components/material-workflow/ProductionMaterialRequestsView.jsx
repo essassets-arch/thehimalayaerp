@@ -57,8 +57,8 @@ export default function ProductionMaterialRequestsView() {
   const closeRequest = () => {};
   const deleteRequest = () => {};
 
-  // Tab state: 'Raise' or 'Past'
-  const [activeTab, setActiveTab] = useState('Past');
+  // Tab state: 'Raise' or 'Past' (Default to 'Raise' as requested)
+  const [activeTab, setActiveTab] = useState('Raise');
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedReq, setSelectedReq] = useState(null);
 
