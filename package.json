@@ -21,6 +21,7 @@
     "prisma:generate": "npm --prefix backend run prisma:generate",
     "prisma:migrate": "npm --prefix backend run prisma:migrate",
     "prisma:studio": "npm --prefix backend run prisma:studio",
+    "prisma:seed": "npm --prefix backend run prisma:seed",
     "seed:browser-test": "npm --prefix backend run seed:browser-test",
     "validate:browser-test-seed": "npm --prefix backend run validate:browser-test-seed --",
     "ensure:browser-test-credentials": "npm --prefix backend run ensure:browser-test-credentials",
