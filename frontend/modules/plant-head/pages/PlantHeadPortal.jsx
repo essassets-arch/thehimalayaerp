@@ -308,6 +308,13 @@ export default function PlantHeadPortal() {
   // ── FILTER STATE ──
   const [incomingSearch, setIncomingSearch] = useState('');
   const [incomingStatusFilter, setIncomingStatusFilter] = useState('All');
+  const [incomingPage, setIncomingPage] = useState(1);
+  const [incomingPageSize, setIncomingPageSize] = useState(25);
+
+  useEffect(() => {
+    setIncomingPage(1);
+  }, [incomingSearch, incomingStatusFilter, incomingPageSize]);
+
   const [planningSearch, setPlanningSearch] = useState('');
   const [planningStatusFilter, setPlanningStatusFilter] = useState('All');
   const [planningPriorityFilter, setPlanningPriorityFilter] = useState('All');
@@ -2742,6 +2749,28 @@ export default function PlantHeadPortal() {
       return matchQuery && matchStatus;
     });
 
+    const totalIncomingPages = Math.ceil(filteredIncoming.length / incomingPageSize) || 1;
+    const startIndex = filteredIncoming.length === 0 ? 0 : (incomingPage - 1) * incomingPageSize + 1;
+    const endIndex = Math.min(incomingPage * incomingPageSize, filteredIncoming.length);
+    const displayedIncomingOrders = filteredIncoming.slice(
+      (incomingPage - 1) * incomingPageSize,
+      incomingPage * incomingPageSize
+    );
+
+    const getIncomingPageNumbers = () => {
+      const pages = [];
+      const maxVisible = 5;
+      let start = Math.max(1, incomingPage - Math.floor(maxVisible / 2));
+      let end = Math.min(totalIncomingPages, start + maxVisible - 1);
+      if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+      }
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      return pages;
+    };
+
     const priorityBadge = (priority) => {
       const colors = {
         High: { bg: '#fef2f2', color: '#dc2626', border: '#fca5a5' },
@@ -2880,10 +2909,6 @@ export default function PlantHeadPortal() {
           </div>
         </div>
 
-        <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '12px', fontWeight: '500' }}>
-          Showing {filteredIncoming.length} of {allIncomingOrders.length} orders
-        </p>
-
         <DataTable
           columns={[
             { header: 'Order No', accessor: 'orderNo', render: (row) => (
@@ -2900,7 +2925,7 @@ export default function PlantHeadPortal() {
             { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
             { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) }
           ]}
-          data={filteredIncoming}
+          data={displayedIncomingOrders}
           searchQuery={''}
           actions={(row) => {
             const statusUpper = String(row.workflowStatus || row.status || row.planningStatus || row.workflowStateCode || '').toUpperCase();
@@ -2953,6 +2978,118 @@ export default function PlantHeadPortal() {
           }}
           emptyMessage="No incoming orders found matching filter criteria."
         />
+
+        {/* Pagination controls */}
+        {filteredIncoming.length > 0 && (
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginTop: '20px',
+            borderTop: '1px solid var(--color-border, #e2e8f0)',
+            paddingTop: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', color: 'var(--color-text-secondary, #64748b)' }}>
+                Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of <strong>{filteredIncoming.length}</strong> orders (Total: {allIncomingOrders.length})
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-text-secondary, #64748b)' }}>
+                <span>Show:</span>
+                <select
+                  aria-label="Items per page"
+                  value={incomingPageSize}
+                  onChange={(e) => {
+                    setIncomingPageSize(Number(e.target.value));
+                    setIncomingPage(1);
+                  }}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    fontSize: '13px',
+                    color: '#1e293b',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span>per page</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                disabled={incomingPage === 1 || filteredIncoming.length === 0}
+                onClick={() => setIncomingPage(p => Math.max(1, p - 1))}
+                className="btn-small btn-outline-small"
+                style={{
+                  margin: 0,
+                  padding: '6px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  opacity: (incomingPage === 1 || filteredIncoming.length === 0) ? 0.5 : 1,
+                  cursor: (incomingPage === 1 || filteredIncoming.length === 0) ? 'not-allowed' : 'pointer',
+                  borderRadius: '6px',
+                  fontWeight: '600'
+                }}
+              >
+                <ChevronLeft size={14} /> Previous
+              </button>
+
+              {filteredIncoming.length > 0 && getIncomingPageNumbers().map(pageNum => (
+                <button
+                  key={pageNum}
+                  onClick={() => setIncomingPage(pageNum)}
+                  style={{
+                    minWidth: '32px',
+                    height: '32px',
+                    padding: '0 6px',
+                    borderRadius: '6px',
+                    border: incomingPage === pageNum ? 'none' : '1px solid #cbd5e1',
+                    background: incomingPage === pageNum ? '#2F4375' : '#ffffff',
+                    color: incomingPage === pageNum ? '#ffffff' : '#334155',
+                    fontWeight: incomingPage === pageNum ? '700' : '600',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              <button
+                disabled={incomingPage === totalIncomingPages || filteredIncoming.length === 0}
+                onClick={() => setIncomingPage(p => Math.min(totalIncomingPages, p + 1))}
+                className="btn-small btn-outline-small"
+                style={{
+                  margin: 0,
+                  padding: '6px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  opacity: (incomingPage === totalIncomingPages || filteredIncoming.length === 0) ? 0.5 : 1,
+                  cursor: (incomingPage === totalIncomingPages || filteredIncoming.length === 0) ? 'not-allowed' : 'pointer',
+                  borderRadius: '6px',
+                  fontWeight: '600'
+                }}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
