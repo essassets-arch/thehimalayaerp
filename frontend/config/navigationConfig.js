@@ -47,8 +47,15 @@ export const navigationConfig = {
   'Production': [
     { type: 'badge', label: 'PRODUCTION' },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/production/dashboard' },
-    { id: 'work-orders', label: 'Work Orders', icon: ClipboardList, path: '/production/work-orders' },
     { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/production/incoming-orders' },
+
+    { id: 'work-orders', label: 'Work Orders', icon: ClipboardList, path: '/production/work-orders' },
+
+    { id: 'floor', label: 'Production Floor', icon: Wrench, path: '/production/floor' },
+    { id: 'completed', label: 'Completed', icon: ClipboardCheck, path: '/production/completed' },
+    { id: 'all-stock', label: 'All Stock', icon: Boxes, path: '/production/all-stock' },
+    { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
+
     {
       id: 'material-workflow',
       label: 'Material Requests',
@@ -60,14 +67,12 @@ export const navigationConfig = {
       ]
     },
     { id: 'store-releases', label: 'Store Releases', icon: PackageCheck, path: '/production/store-releases' },
-    { id: 'floor', label: 'Production Floor', icon: Wrench, path: '/production/floor' },
-    { id: 'completed', label: 'Completed', icon: ClipboardCheck, path: '/production/completed' },
     { id: 'qc-failed', label: 'QC Failed & Reproduction', icon: RefreshCw, path: '/production/qc-failed' },
     { id: 'testing', label: 'Testing', icon: ClipboardCheck, path: '/production/testing' },
-    { id: 'all-stock', label: 'All Stock', icon: Boxes, path: '/production/all-stock' },
-    { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' },
+
     { id: 'machines', label: 'Machine Performance', icon: Cpu, path: '/production/machines' },
+    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' },
+
 
     { type: 'badge', label: 'QUALITY CONTROL' },
     { id: 'qc-pending', label: 'Pending Inspections', icon: Clock, path: '/production/qc-pending' },
@@ -78,9 +83,9 @@ export const navigationConfig = {
   'Plant Head': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/plant-head/dashboard' },
     { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/plant-head/incoming-orders', group: 'Planning Board' },
-    { id: 'recruitment-request', label: 'Recruitment Request', icon: UserPlus, path: '/plant-head/recruitment-request', group: 'Planning Board' },
-    { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods', group: 'Planning Board' },
     { id: 'planning', label: 'Planning', icon: Wrench, path: '/plant-head/planning', group: 'Planning Board' },
+
+    { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods', group: 'Planning Board' },
     { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },
     { id: 'indent-approvals', label: 'Indent Approvals', icon: CheckCircle, path: '/plant-head/indent-approvals' },
     { id: 'replacements', label: 'Replacement Requests', icon: RefreshCw, path: '/plant-head/replacements' },
@@ -102,6 +107,8 @@ export const navigationConfig = {
     { id: 'qc-failures', label: 'QC Failures', icon: ShieldAlert, path: '/plant-head/qc-failures' },
     { id: 'testing', label: 'Production Testing', icon: ClipboardCheck, path: '/plant-head/testing' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/plant-head/profile' },
+    { id: 'recruitment-request', label: 'Recruitment Request', icon: UserPlus, path: '/plant-head/recruitment-request', group: 'Planning Board' },
+
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/plant-head/leave-approvals' }
   ],
 
@@ -359,7 +366,7 @@ export const navigationConfig = {
     { type: 'badge', label: 'MASTER DATA' },
     { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
-        
+
     { type: 'badge', label: 'ANALYTICS & REPORTS' },
     { id: 'analytics-business', label: 'Business Analytics', icon: BarChart3, path: '/super-admin/analytics/business' },
     { id: 'analytics-sales', label: 'Sales Analytics', icon: TrendingUp, path: '/super-admin/analytics/sales' },
