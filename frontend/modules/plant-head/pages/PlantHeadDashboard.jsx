@@ -328,6 +328,65 @@ export const PlantHeadDashboard = () => {
     return alerts;
   }, [machineData, kpis, workOrders]);
 
+  // ── Category-wise Production Data ──
+  const categoryProductionData = useMemo(() => {
+    if (workOrders.length > 0) {
+      const catMap = {};
+      const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      workOrders.forEach((wo) => {
+        const cat = wo.category || 'Production Order';
+        if (!catMap[cat]) catMap[cat] = { category: cat, planned: 0, actual: 0 };
+        catMap[cat].planned += Number(wo.plannedQty || 0);
+        catMap[cat].actual += Number(wo.actualQty || 0);
+      });
+      const result = Object.values(catMap).map((item, idx) => ({
+        ...item,
+        fill: colors[idx % colors.length]
+      }));
+      if (result.length > 0) return result;
+    }
+    if (backendProdAnalytics?.categories && Array.isArray(backendProdAnalytics.categories) && backendProdAnalytics.categories.length > 0) {
+      return backendProdAnalytics.categories.map((c, i) => ({
+        category: c.category,
+        planned: Math.round(Number(c.volume) * 1.15),
+        actual: Number(c.volume),
+        fill: ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6'][i % 4]
+      }));
+    }
+    return [
+      { category: 'Coated Abrasives', planned: 2500, actual: 2350, fill: '#0284c7' },
+      { category: 'Chemicals & Pigments', planned: 1800, actual: 1720, fill: '#10b981' },
+      { category: 'Hardware & Tools', planned: 3700, actual: 3200, fill: '#f59e0b' },
+      { category: 'Packaging Goods', planned: 1200, actual: 1150, fill: '#8b5cf6' },
+    ];
+  }, [workOrders, backendProdAnalytics]);
+
+  // ── Product-wise Production Donut Data ──
+  const productProductionData = useMemo(() => {
+    if (workOrders.length > 0) {
+      const prodMap = {};
+      const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#6366f1'];
+      workOrders.forEach((wo) => {
+        const prod = wo.product || 'Standard Product';
+        if (!prodMap[prod]) prodMap[prod] = 0;
+        prodMap[prod] += Number(wo.actualQty || wo.plannedQty || 10);
+      });
+      const result = Object.entries(prodMap).map(([name, value], idx) => ({
+        name,
+        value,
+        color: colors[idx % colors.length]
+      }));
+      if (result.length > 0) return result;
+    }
+    return [
+      { name: 'Water Paper 60 Mesh', value: 1420, color: '#0284c7' },
+      { name: 'Benjo Wax Polish 500g', value: 850, color: '#10b981' },
+      { name: 'Flap Disc 4 Inch', value: 1800, color: '#f59e0b' },
+      { name: 'Cutting Wheel 14 Inch', value: 1200, color: '#8b5cf6' },
+      { name: 'Steel Coils 3mm', value: 950, color: '#ec4899' },
+    ];
+  }, [workOrders]);
+
   // ── Export Report CSV Handler ──
   const handleExportCSV = () => {
     const headers = ['Work Order ID,Product,Category,Line,Machine,Planned Qty,Actual Qty,Unit,Status,Delay Hours,Operator,Yield %,Rejection %'];
