@@ -772,10 +772,12 @@ export default function SuperAdminPortal() {
     const first_name = nameParts[0] || '';
     const last_name = nameParts.slice(1).join(' ') || '';
 
+    const compId = (typeof currentUser?.company_id === 'string' && currentUser.company_id.length > 5) ? currentUser.company_id : undefined;
+
     if (userModalMode === 'create') {
       adminService.createUser({
         name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
-        company_id: currentUser?.company_id || 1,
+        company_id: compId,
         username: userForm.email ? userForm.email.split('@')[0] : 'user' + Date.now(),
         email: userForm.email,
         password: userForm.password || 'password123',
@@ -799,7 +801,7 @@ export default function SuperAdminPortal() {
     } else {
       adminService.updateUser(userForm.id, {
         name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
-        company_id: currentUser?.company_id || 1,
+        company_id: compId,
         email: userForm.email,
         first_name,
         last_name,

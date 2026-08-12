@@ -266,6 +266,24 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     }
     return NextResponse.json({ success: true, data: globalAny.mockModules });
   }
+  if (backendPath.startsWith('/reports/finance/revenue-expense')) {
+    return NextResponse.json({
+      success: true,
+      data: {
+        totalRevenue: 8450000,
+        totalExpenses: 3200000,
+        netProfit: 5250000,
+        monthlyBreakdown: [
+          { month: 'Feb', revenue: 1200000, expense: 450000 },
+          { month: 'Mar', revenue: 1400000, expense: 500000 },
+          { month: 'Apr', revenue: 1350000, expense: 520000 },
+          { month: 'May', revenue: 1500000, expense: 580000 },
+          { month: 'Jun', revenue: 1450000, expense: 550000 },
+          { month: 'Jul', revenue: 1550000, expense: 600000 },
+        ]
+      }
+    });
+  }
 
   const cookieToken = request.cookies.get('accessToken')?.value;
   const token = authorization?.replace(/^Bearer\s+/i, '') || cookieToken;

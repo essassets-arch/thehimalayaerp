@@ -82,15 +82,20 @@ export class UsersService {
     }
 
     let companyId = data.companyId || data.company_id;
-    if (!companyId) {
-      const company = await this.prisma.company.findFirst();
-      if (!company) {
-        throw new BadRequestException(
-          'No company found in database to assign.',
-        );
-      }
-      companyId = company.id;
+    let company = typeof companyId === 'string' && companyId.length > 5
+      ? await this.prisma.company.findUnique({ where: { id: companyId } })
+      : null;
+
+    if (!company) {
+      company = await this.prisma.company.findFirst();
     }
+
+    if (!company) {
+      throw new BadRequestException(
+        'No company found in database to assign.',
+      );
+    }
+    companyId = company.id;
 
     const name = data.name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || email.split('@')[0];
     const passwordToHash = data.password || 'admin123';
