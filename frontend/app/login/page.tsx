@@ -626,51 +626,76 @@ export default function LoginPage() {
               {loading ? 'Authenticating…' : 'Sign In'}
             </button>
 
-            {/* Quick Demo Accounts */}
-            <div>
-              <div className="login-label" style={{ marginBottom: '6px', color: '#64748B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Select Demo Account</span>
-                <span style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600 }}>Prefills Email</span>
+            {/* Quick Demo Accounts Selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+              <div className="login-label" style={{ color: '#64748B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Quick Demo Login (18 Accounts)</span>
+                <span style={{ fontSize: '10px', color: '#3BAEEB', fontWeight: 700 }}>Auto Sign-In</span>
               </div>
 
-              {/* Filter Tabs */}
-              <div className="category-tabs">
-                {(['All', 'Sales', 'Dispatch', 'Finance', 'Production', 'Admin'] as const).map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    className={`cat-tab ${selectedCategory === cat ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory(cat)}
-                  >
-                    {cat}
-                  </button>
-                ))}
+              <div className="login-input-wrap">
+                <ShieldCheck size={16} className="login-icon" style={{ color: '#3BAEEB' }} />
+                <select
+                  id="demo-account-select"
+                  data-testid="demo-account-select"
+                  className="login-input"
+                  style={{
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    paddingRight: '36px',
+                    cursor: loading ? 'default' : 'pointer',
+                    fontWeight: 600,
+                    color: email ? '#0284C7' : '#64748B',
+                    background: email ? '#F0F9FF' : '#F8FAFD',
+                    border: email ? '1.5px solid #3BAEEB' : '1.5px solid #E2E8F0',
+                  }}
+                  value={email}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleSelectAccount(e.target.value);
+                    }
+                  }}
+                  disabled={loading}
+                >
+                  <option value="" disabled>-- Select Demo Account to Auto Sign-In --</option>
+                  {DEMO_ACCOUNTS.map((acc) => (
+                    <option key={acc.role} value={acc.email} style={{ color: '#1E293B', padding: '6px' }}>
+                      {acc.role} — {acc.email}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ position: 'absolute', right: '14px', pointerEvents: 'none', color: '#64748B', fontSize: '11px' }}>
+                  ▼
+                </div>
               </div>
 
-              {/* Scrollable Demo Accounts */}
-              <div className="demo-accounts-scroll">
-                {filteredAccounts.map((account) => {
-                  const isSelected = email === account.email;
+              {/* Popular Quick Pills */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px' }}>
+                {[
+                  { role: 'Super Admin', email: 'super.admin@himalayaerp.com' },
+                  { role: 'Sales Executive 1', email: 'sales1@himalayaerp.com' },
+                  { role: 'Dispatch 1', email: 'ravikant.tiwari@himalayaerp.com' },
+                  { role: 'Finance Executive', email: 'finance.executive@himalayaerp.com' },
+                  { role: 'HR', email: 'hr@himalayaerp.com' },
+                ].map((acc) => {
+                  const isSelected = email === acc.email;
                   return (
                     <button
-                      key={account.role}
+                      key={acc.role}
                       type="button"
                       disabled={loading}
-                      onClick={() => handleSelectAccount(account.email)}
-                      title={`${account.role} (${account.email})`}
-                      className="demo-account-btn"
+                      onClick={() => handleSelectAccount(acc.email)}
+                      className="cat-tab"
                       style={{
-                        border: isSelected ? '1.5px solid #3BAEEB' : '1px solid #E2E8F0',
-                        background: isSelected ? '#F0F9FF' : '#F8FAFD',
-                        cursor: loading ? 'default' : 'pointer',
+                        fontSize: '10px',
+                        padding: '4px 8px',
+                        background: isSelected ? '#3BAEEB' : '#F1F5F9',
+                        color: isSelected ? '#FFFFFF' : '#475569',
+                        borderColor: isSelected ? '#3BAEEB' : '#E2E8F0',
+                        fontWeight: 600,
                       }}
                     >
-                      <span style={{ display: 'block', color: isSelected ? '#0284C7' : '#1E293B', fontWeight: 700, fontSize: '11px' }}>
-                        {account.role}
-                      </span>
-                      <span className="demo-email-text">
-                        {account.email}
-                      </span>
+                      {acc.role}
                     </button>
                   );
                 })}
