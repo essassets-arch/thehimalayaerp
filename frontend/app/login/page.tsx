@@ -440,68 +440,28 @@ export default function LoginPage() {
           75%      { transform: translateX(5px); }
         }
 
-        .category-tabs {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          overflow-x: auto;
-          padding-bottom: 6px;
-          margin-bottom: 8px;
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-        }
-        .category-tabs::-webkit-scrollbar { display: none; }
-
-        .cat-tab {
-          padding: 4px 10px;
-          border-radius: 20px;
-          font-size: 10.5px;
-          font-weight: 700;
-          border: 1px solid #E2E8F0;
-          background: #F8FAFD;
-          color: #64748B;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: all 0.15s ease;
-        }
-        .cat-tab.active {
-          background: #3BAEEB;
-          color: #FFFFFF;
-          border-color: #3BAEEB;
-          box-shadow: 0 2px 6px rgba(59,174,235,0.25);
-        }
-
-        .demo-accounts-scroll {
-          max-height: 220px;
-          overflow-y: auto;
-          padding-right: 4px;
+        .demo-accounts-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 6px;
-          -webkit-overflow-scrolling: touch;
-        }
-        .demo-accounts-scroll::-webkit-scrollbar {
-          width: 4px;
-        }
-        .demo-accounts-scroll::-webkit-scrollbar-thumb {
-          background: #CBD5E1;
-          border-radius: 4px;
+          gap: 8px;
         }
 
         .demo-account-btn {
-          border-radius: 10px;
-          padding: 8px 10px;
+          border-radius: 12px;
+          padding: 10px 12px;
           color: #1E293B;
-          font-size: 11px;
-          font-weight: 600;
+          font-size: 11.5px;
+          font-weight: 700;
           text-align: left;
           transition: all 0.15s ease;
-          min-height: 48px;
+          min-height: 52px;
           display: flex;
           flex-direction: column;
           justify-content: center;
           width: 100%;
           min-width: 0;
+          background: #F8FAFD;
+          border: 1px solid #E2E8F0;
         }
         .demo-account-btn:hover:not(:disabled) {
           border-color: #3BAEEB !important;
@@ -514,35 +474,41 @@ export default function LoginPage() {
         .demo-email-text {
           display: block;
           color: #64748B;
-          font-size: 9.5px;
-          margin-top: 2px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          font-size: 10px;
+          font-weight: 500;
+          margin-top: 3px;
+          word-break: break-word;
+          line-height: 1.3;
           width: 100%;
         }
 
         @media (max-width: 480px) {
           .login-root {
-            padding: 10px 8px 24px;
+            padding: 12px 10px 32px;
           }
           .login-card {
-            padding: 16px 14px;
-            border-radius: 16px;
-            gap: 14px;
+            padding: 20px 16px;
+            border-radius: 18px;
+            gap: 16px;
           }
           .logo-box {
-            padding: 6px 12px;
+            padding: 8px 16px;
           }
-          .demo-accounts-scroll {
+          .demo-accounts-grid {
             grid-template-columns: repeat(2, 1fr);
-            gap: 5px;
-            max-height: 180px;
+            gap: 6px;
+          }
+          .demo-account-btn {
+            padding: 8px 10px;
+            min-height: 48px;
+          }
+          .demo-email-text {
+            font-size: 9.5px;
           }
         }
 
         @media (max-width: 340px) {
-          .demo-accounts-scroll {
+          .demo-accounts-grid {
             grid-template-columns: 1fr;
           }
         }
@@ -626,76 +592,34 @@ export default function LoginPage() {
               {loading ? 'Authenticating…' : 'Sign In'}
             </button>
 
-            {/* Quick Demo Accounts Selector */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-              <div className="login-label" style={{ color: '#64748B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Quick Demo Login (18 Accounts)</span>
-                <span style={{ fontSize: '10px', color: '#3BAEEB', fontWeight: 700 }}>Auto Sign-In</span>
+            {/* ── Demo Accounts ─────────────────────────── */}
+            <div>
+              <div className="login-label" style={{ marginBottom: '10px', color: '#64748B' }}>
+                Select Account — Prefills Email Field
               </div>
-
-              <div className="login-input-wrap">
-                <ShieldCheck size={16} className="login-icon" style={{ color: '#3BAEEB' }} />
-                <select
-                  id="demo-account-select"
-                  data-testid="demo-account-select"
-                  className="login-input"
-                  style={{
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    paddingRight: '36px',
-                    cursor: loading ? 'default' : 'pointer',
-                    fontWeight: 600,
-                    color: email ? '#0284C7' : '#64748B',
-                    background: email ? '#F0F9FF' : '#F8FAFD',
-                    border: email ? '1.5px solid #3BAEEB' : '1.5px solid #E2E8F0',
-                  }}
-                  value={email}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      handleSelectAccount(e.target.value);
-                    }
-                  }}
-                  disabled={loading}
-                >
-                  <option value="" disabled>-- Select Demo Account to Auto Sign-In --</option>
-                  {DEMO_ACCOUNTS.map((acc) => (
-                    <option key={acc.role} value={acc.email} style={{ color: '#1E293B', padding: '6px' }}>
-                      {acc.role} — {acc.email}
-                    </option>
-                  ))}
-                </select>
-                <div style={{ position: 'absolute', right: '14px', pointerEvents: 'none', color: '#64748B', fontSize: '11px' }}>
-                  ▼
-                </div>
-              </div>
-
-              {/* Popular Quick Pills */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px' }}>
-                {[
-                  { role: 'Super Admin', email: 'super.admin@himalayaerp.com' },
-                  { role: 'Sales Executive 1', email: 'sales1@himalayaerp.com' },
-                  { role: 'Dispatch 1', email: 'ravikant.tiwari@himalayaerp.com' },
-                  { role: 'Finance Executive', email: 'finance.executive@himalayaerp.com' },
-                  { role: 'HR', email: 'hr@himalayaerp.com' },
-                ].map((acc) => {
-                  const isSelected = email === acc.email;
+              <div className="demo-accounts-grid">
+                {DEMO_ACCOUNTS.map((account) => {
+                  const isSelected = email === account.email;
                   return (
                     <button
-                      key={acc.role}
+                      key={account.role}
                       type="button"
                       disabled={loading}
-                      onClick={() => handleSelectAccount(acc.email)}
-                      className="cat-tab"
+                      onClick={() => handleSelectAccount(account.email)}
+                      title={`Select ${account.role}`}
+                      className="demo-account-btn"
                       style={{
-                        fontSize: '10px',
-                        padding: '4px 8px',
-                        background: isSelected ? '#3BAEEB' : '#F1F5F9',
-                        color: isSelected ? '#FFFFFF' : '#475569',
-                        borderColor: isSelected ? '#3BAEEB' : '#E2E8F0',
-                        fontWeight: 600,
+                        border: isSelected ? '1.5px solid #3BAEEB' : '1px solid #E2E8F0',
+                        background: isSelected ? '#F0F9FF' : '#F8FAFD',
+                        cursor: loading ? 'default' : 'pointer',
                       }}
                     >
-                      {acc.role}
+                      <span style={{ display: 'block', color: isSelected ? '#0284C7' : '#1E293B', fontWeight: 700, fontSize: '11px' }}>
+                        {account.role}
+                      </span>
+                      <span className="demo-email-text">
+                        {account.email}
+                      </span>
                     </button>
                   );
                 })}
