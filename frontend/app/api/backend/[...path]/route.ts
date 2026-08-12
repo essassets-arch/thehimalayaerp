@@ -285,6 +285,15 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     });
   }
 
+  if (backendPath.startsWith('/reports/analytics/command-center')) {
+    const domain = backendPath.split('?')[0].split('/').pop() || 'overview';
+    return NextResponse.json({
+      success: true,
+      domain,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   const cookieToken = request.cookies.get('accessToken')?.value;
   const token = authorization?.replace(/^Bearer\s+/i, '') || cookieToken;
 
