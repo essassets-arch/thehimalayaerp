@@ -577,7 +577,7 @@ export default function SuperAdminPortal() {
 
   const loadLiveUsers = useCallback(async () => {
     try {
-      const res = await backendFetch('/api/backend/users');
+      const res = await backendFetch('/api/backend/users', { cacheTtlMs: 0 });
       if (Array.isArray(res)) setBackendUsers(res);
       else if (Array.isArray(res?.data)) setBackendUsers(res.data);
     } catch (e) {
@@ -775,40 +775,46 @@ export default function SuperAdminPortal() {
     if (userModalMode === 'create') {
       adminService.createUser({
         name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
-        company_id: currentUser.company_id || 1,
+        company_id: currentUser?.company_id || 1,
         username: userForm.email ? userForm.email.split('@')[0] : 'user' + Date.now(),
         email: userForm.email,
         password: userForm.password || 'password123',
         first_name,
         last_name,
         role: userForm.role,
-        roleCode: userForm.role,
+        roleCode: userForm.subRole || userForm.role,
         role_name: userForm.role,
+        dispatchCategory: userForm.dispatchCategory,
         phone: userForm.phone || '',
         department: userForm.department || 'Sales'
       }).then(() => {
         logActivity('User Created', `Created user account for ${userForm.name} (${userForm.role})`, 'User Management');
         showToast(`User ${userForm.name} created successfully!`);
         syncData();
+        loadLiveUsers();
+        if (typeof refetchAdminData === 'function') refetchAdminData();
       }).catch(err => {
         showToast(`Failed to create user: ${err.message}`);
       });
     } else {
       adminService.updateUser(userForm.id, {
         name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
-        company_id: currentUser.company_id || 1,
+        company_id: currentUser?.company_id || 1,
         email: userForm.email,
         first_name,
         last_name,
         role: userForm.role,
-        roleCode: userForm.role,
+        roleCode: userForm.subRole || userForm.role,
         role_name: userForm.role,
+        dispatchCategory: userForm.dispatchCategory,
         phone: userForm.phone || '',
         department: userForm.department || 'Sales'
       }).then(() => {
         logActivity('User Updated', `Updated user details for ${userForm.name}`, 'User Management');
         showToast(`User ${userForm.name} updated successfully!`);
         syncData();
+        loadLiveUsers();
+        if (typeof refetchAdminData === 'function') refetchAdminData();
       }).catch(err => {
         showToast(`Failed to update user: ${err.message}`);
       });
@@ -817,7 +823,7 @@ export default function SuperAdminPortal() {
   };
 
   const toggleUserStatus = async (user) => {
-    const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
+    const newStatus = user.isActive ? 'Inactive' : 'Active';
     const confirmed = await confirm({
       title: `${newStatus} User`,
       message: `Are you sure you want to ${newStatus.toLowerCase()} user "${user.name}"?`,
@@ -830,6 +836,8 @@ export default function SuperAdminPortal() {
         logActivity('User Status Changed', `${newStatus} user account for ${user.name}`, 'User Management');
         showToast(`User account for ${user.name} is now ${newStatus}!`);
         syncData();
+        loadLiveUsers();
+        if (typeof refetchAdminData === 'function') refetchAdminData();
       }, `Failed to toggle status`).catch(err => {
         showToast(`Failed to toggle status: ${err.message}`);
       });
@@ -849,6 +857,8 @@ export default function SuperAdminPortal() {
         logActivity('User Deleted', `Deleted user account ${userName} (${userId})`, 'User Management');
         showToast(`User ${userName} deleted.`);
         syncData();
+        loadLiveUsers();
+        if (typeof refetchAdminData === 'function') refetchAdminData();
       }, 'Failed to delete user').catch(err => {
         showToast(`Failed to delete user: ${err.message}`);
       });
