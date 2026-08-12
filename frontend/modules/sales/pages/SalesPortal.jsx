@@ -43,6 +43,7 @@ import CreateQuotation            from '../../../components/CreateQuotation.jsx'
 import OrdersView                 from '../../../components/OrdersView.jsx';
 import PaymentsView               from '../../../components/PaymentsView.jsx';
 import PaymentFollowupERPView     from '../../../components/PaymentFollowupERPView.jsx';
+import PaymentHistoryView         from '../../../components/PaymentHistoryView.jsx';
 import CreatePayment              from '../../../components/CreatePayment.jsx';
 import CustomersView              from '../../../components/CustomersView.jsx';
 import ReportsView                from '../../../components/ReportsView.jsx';
@@ -1319,6 +1320,20 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             onSaveReminder={createReminder}
             onUpdateReminder={updateReminder}
             onCompleteReminder={completeReminder}
+          />
+        </>
+      );
+    }
+
+    case 'payment-history': {
+      return (
+        <>
+          <O2PWorkflowBanner accentColor="#10b981" />
+          <PaymentHistoryView
+            orders={orders}
+            payments={payments}
+            searchQuery={globalSearch}
+            setSearchQuery={setGlobalSearch}
           />
         </>
       );
