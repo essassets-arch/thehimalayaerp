@@ -28,6 +28,7 @@ export class PaymentsService {
             id: true,
             orderNumber: true,
             totalAmount: true,
+            customer: true,
           },
         },
         workflowState: true,

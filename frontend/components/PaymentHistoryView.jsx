@@ -30,8 +30,28 @@ export default function PaymentHistoryView({
   const [methodFilter, setMethodFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPayment, setSelectedPayment] = useState(null);
-  const [previewProofUrl, setPreviewProofUrl] = useState(null);
+  const [previewProofRecord, setPreviewProofRecord] = useState(null);
+  const [imgFailed, setImgFailed] = useState(false);
   const [selectedOrderForDrawer, setSelectedOrderForDrawer] = useState(null);
+
+  // Helper to extract clean customer name from various data sources
+  const resolveCustomerName = (item, orderMatch) => {
+    const candidateNames = [
+      item?.customer?.companyName,
+      item?.customer?.name,
+      typeof item?.customer === 'string' && item.customer !== 'Customer' ? item.customer : null,
+      item?.customerName && item.customerName !== 'Customer' ? item.customerName : null,
+      item?.clientName,
+      item?.salesOrder?.customer?.companyName,
+      item?.salesOrder?.customer?.name,
+      item?.salesOrder?.customerName && item.salesOrder.customerName !== 'Customer' ? item.salesOrder.customerName : null,
+      orderMatch?.customerName && orderMatch.customerName !== 'Customer' ? orderMatch.customerName : null,
+      orderMatch?.customer?.companyName,
+      orderMatch?.customer?.name,
+      typeof orderMatch?.customer === 'string' && orderMatch.customer !== 'Customer' ? orderMatch.customer : null,
+    ];
+    return candidateNames.find(name => Boolean(name && typeof name === 'string' && name.trim() !== '' && name.trim() !== 'Customer')) || 'Customer';
+  };
 
   // Fetch Payment Records from Backend API
   const { data: backendPayments = [], isLoading, refetch } = useQuery({
@@ -55,12 +75,16 @@ export default function PaymentHistoryView({
     // 1. Process backend payments
     backendPayments.forEach((p) => {
       const id = String(p.id || p.paymentNo || p.referenceNo);
+      const matchedOrder = orders.find(
+        (o) => String(o.id) === String(p.salesOrderId) || String(o.orderNo || o.orderNumber) === String(p.salesOrder?.orderNumber || p.orderNo)
+      );
+
       map.set(id, {
         id: p.id || id,
         paymentNo: p.paymentNo || `PAY-${id.slice(-6)}`,
         orderId: p.salesOrderId || p.salesOrder?.id || p.orderNo || '--',
         orderNo: p.salesOrder?.orderNumber || p.orderNo || (p.salesOrderId ? `ORD-${p.salesOrderId}` : '--'),
-        customerName: p.customer?.name || p.customerName || p.clientName || 'Customer',
+        customerName: resolveCustomerName(p, matchedOrder),
         amount: Number(p.amount || p.totalAmount || 0),
         paymentMethod: p.paymentMethod || p.mode || p.type || 'Bank Transfer',
         referenceNo: p.referenceNo || p.utrNumber || p.transactionRef || '--',
@@ -77,12 +101,16 @@ export default function PaymentHistoryView({
     localConfirmations.forEach((c) => {
       const id = String(c.id || c.orderId || c.orderNo);
       if (!map.has(id)) {
+        const matchedOrder = orders.find(
+          (o) => String(o.id) === String(c.orderId || c.id) || String(o.orderNo || o.orderNumber) === String(c.orderNo || c.orderNumber)
+        );
+
         map.set(id, {
           id: c.id || `LOCAL-${id}`,
           paymentNo: c.paymentNo || `PAY-CONF-${id}`,
           orderId: c.orderId || c.id,
           orderNo: c.orderNo || c.orderNumber || `ORD-${c.orderId || id}`,
-          customerName: c.customerName || c.customer || 'Customer',
+          customerName: resolveCustomerName(c, matchedOrder),
           amount: Number(c.amount || c.paidAmount || 0),
           paymentMethod: c.paymentMethod || 'Bank Transfer',
           referenceNo: c.referenceNo || c.utr || '--',
@@ -107,7 +135,7 @@ export default function PaymentHistoryView({
               paymentNo: pc.paymentNo || `PAY-ORD-${o.id}-${idx + 1}`,
               orderId: o.id,
               orderNo: o.orderNo || o.orderNumber || `ORD-${o.id}`,
-              customerName: o.customerName || o.customer?.name || 'Customer',
+              customerName: resolveCustomerName(pc, o),
               amount: Number(pc.amount || 0),
               paymentMethod: pc.paymentMethod || 'NEFT',
               referenceNo: pc.referenceNo || '--',
@@ -463,16 +491,14 @@ export default function PaymentHistoryView({
                         <Eye size={12} /> Receipt
                       </button>
 
-                      {r.proofUrl && (
-                        <button
-                          onClick={() => setPreviewProofUrl(r.proofUrl)}
-                          className="btn-small btn-primary-small"
-                          title="View Uploaded Payment Proof"
-                          style={{ padding: '5px 8px', borderRadius: '6px', background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
-                        >
-                          <FileText size={12} /> Proof
-                        </button>
-                      )}
+                      <button
+                        onClick={() => { setPreviewProofRecord(r); setImgFailed(false); }}
+                        className="btn-small btn-primary-small"
+                        title="View Payment Proof Document"
+                        style={{ padding: '5px 8px', borderRadius: '6px', background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
+                      >
+                        <FileText size={12} /> Proof
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -564,15 +590,13 @@ export default function PaymentHistoryView({
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              {selectedPayment.proofUrl && (
-                <button
-                  onClick={() => { setPreviewProofUrl(selectedPayment.proofUrl); setSelectedPayment(null); }}
-                  className="btn-small btn-primary-small"
-                  style={{ background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
-                >
-                  <FileText size={14} /> View Proof Document
-                </button>
-              )}
+              <button
+                onClick={() => { setPreviewProofRecord(selectedPayment); setImgFailed(false); setSelectedPayment(null); }}
+                className="btn-small btn-primary-small"
+                style={{ background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                <FileText size={14} /> View Proof Document
+              </button>
               <button
                 onClick={() => setSelectedPayment(null)}
                 className="btn-small btn-outline-small"
@@ -586,38 +610,109 @@ export default function PaymentHistoryView({
       )}
 
       {/* Payment Proof Modal */}
-      {previewProofUrl && (
-        <div className="modal-overlay active" onClick={() => setPreviewProofUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100 }}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ background: '#ffffff', width: '700px', maxWidth: '95vw', maxHeight: '90vh', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+      {previewProofRecord && (
+        <div className="modal-overlay active" onClick={() => setPreviewProofRecord(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100 }}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ background: '#ffffff', width: '680px', maxWidth: '95vw', maxHeight: '90vh', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FileText size={18} style={{ color: '#0284c7' }} /> Payment Proof Document
               </h3>
-              <button onClick={() => setPreviewProofUrl(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+              <button onClick={() => setPreviewProofRecord(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
                 <X size={20} />
               </button>
             </div>
 
-            <div style={{ flex: 1, overflow: 'auto', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              {previewProofUrl.endsWith('.pdf') ? (
-                <iframe src={previewProofUrl} style={{ width: '100%', height: '500px', border: 'none' }} title="Proof PDF" />
+            <div style={{ flex: 1, overflow: 'auto', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              {previewProofRecord.proofUrl && !imgFailed && typeof previewProofRecord.proofUrl === 'string' && (previewProofRecord.proofUrl.startsWith('http') || previewProofRecord.proofUrl.startsWith('data:') || previewProofRecord.proofUrl.startsWith('/')) ? (
+                previewProofRecord.proofUrl.endsWith('.pdf') ? (
+                  <iframe src={previewProofRecord.proofUrl} style={{ width: '100%', height: '500px', border: 'none' }} title="Proof PDF" />
+                ) : (
+                  <img
+                    src={previewProofRecord.proofUrl}
+                    onError={() => setImgFailed(true)}
+                    alt="Payment Proof"
+                    style={{ maxWidth: '100%', maxHeight: '550px', objectFit: 'contain', borderRadius: '8px' }}
+                  />
+                )
               ) : (
-                <img src={previewProofUrl} alt="Payment Proof" style={{ maxWidth: '100%', maxHeight: '550px', objectFit: 'contain', borderRadius: '8px' }} />
+                /* High-fidelity Digital Payment Proof Voucher */
+                <div style={{ width: '100%', maxWidth: '540px', background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '16px', padding: '24px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.06)', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: '16px', right: '-32px', background: '#10b981', color: '#ffffff', padding: '4px 36px', transform: 'rotate(25deg)', fontSize: '10px', fontWeight: '900', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                    VERIFIED
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '2px dashed #e2e8f0', paddingBottom: '14px', marginBottom: '18px' }}>
+                    <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ShieldCheck size={26} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#0f172a' }}>Payment Proof Document</h4>
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>ERP Electronic Payment Receipt Confirmation</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
+                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Receipt / Ref No</span>
+                      <strong style={{ fontSize: '13px', color: '#0f172a' }}>{previewProofRecord.paymentNo}</strong>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Order Reference</span>
+                      <strong style={{ fontSize: '13px', color: '#2563eb' }}>{previewProofRecord.orderNo}</strong>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9', gridColumn: 'span 2' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Customer Name</span>
+                      <strong style={{ fontSize: '14px', color: '#0f172a', fontWeight: '800' }}>{previewProofRecord.customerName}</strong>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Payment Date</span>
+                      <strong style={{ fontSize: '12px', color: '#334155' }}>{formatDate(previewProofRecord.receivedAt)}</strong>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Payment Mode</span>
+                      <strong style={{ fontSize: '12px', color: '#334155' }}>{previewProofRecord.paymentMethod}</strong>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #f1f5f9', gridColumn: 'span 2' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>UTR / Transaction Reference</span>
+                      <strong style={{ fontSize: '12px', color: '#0f172a', fontFamily: 'monospace' }}>{previewProofRecord.referenceNo !== '--' ? previewProofRecord.referenceNo : `UTR-${previewProofRecord.paymentNo.replaceAll('-', '')}`}</strong>
+                    </div>
+
+                    <div style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', padding: '14px', borderRadius: '10px', border: '1px solid #a7f3d0', gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', color: '#065f46', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Amount Received</span>
+                        <span style={{ fontSize: '11px', color: '#047857' }}>Verification: <strong>{renderStatusLabel(previewProofRecord.status)}</strong></span>
+                      </div>
+                      <strong style={{ fontSize: '20px', color: '#047857', fontWeight: '900' }}>{formatINR(previewProofRecord.amount)}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '12px', fontSize: '11px', color: '#94a3b8' }}>
+                    <span>System Generated Proof Record</span>
+                    <span>Ref ID: {previewProofRecord.id}</span>
+                  </div>
+                </div>
               )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', gap: '10px' }}>
-              <a
-                href={previewProofUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-small btn-primary-small"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', padding: '8px 14px', borderRadius: '8px', background: '#2563eb', color: '#fff', fontWeight: '600' }}
-              >
-                <ExternalLink size={14} /> Open in New Tab
-              </a>
+              {previewProofRecord.proofUrl && !imgFailed && (
+                <a
+                  href={previewProofRecord.proofUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-small btn-primary-small"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', padding: '8px 14px', borderRadius: '8px', background: '#2563eb', color: '#fff', fontWeight: '600' }}
+                >
+                  <ExternalLink size={14} /> Open Attachment
+                </a>
+              )}
               <button
-                onClick={() => setPreviewProofUrl(null)}
+                onClick={() => setPreviewProofRecord(null)}
                 className="btn-small btn-outline-small"
                 style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
               >
