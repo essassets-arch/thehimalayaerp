@@ -40,9 +40,21 @@ export class PlantHeadController {
   @Get('planning')
   async getPlanningOrders(@Req() req: Request) {
     const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+      (req as any).user?.['companyId'] ||
+      (req.headers['x-company-id'] as string);
     return this.plantHeadService.getPlanningOrders(companyId);
+  }
+
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @Get('daily-summary')
+  async getDailySummary(
+    @Req() req: Request,
+    @Query('date') date?: string,
+  ) {
+    const companyId =
+      (req as any).user?.['companyId'] ||
+      (req.headers['x-company-id'] as string);
+    return this.plantHeadService.getDailySummary(companyId, date);
   }
 
   @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')

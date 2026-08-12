@@ -886,4 +886,523 @@ export class PlantHeadService {
       inventoryCatalog,
     };
   }
+
+  async getDailySummary(companyId: string, dateStr?: string) {
+    // ── Timezone Aware Date Boundaries (Asia/Kolkata UTC+5:30) ──
+    const now = new Date();
+    let targetDate = new Date();
+    if (dateStr && dateStr !== 'today') {
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) targetDate = parsed;
+    }
+
+    const yyyy = targetDate.getFullYear();
+    const mm = targetDate.getMonth();
+    const dd = targetDate.getDate();
+
+    // Start & End of Today in UTC for Asia/Kolkata (00:00:00 IST to 23:59:59.999 IST)
+    const todayStart = new Date(Date.UTC(yyyy, mm, dd, 0, 0, 0) - (5.5 * 60 * 60 * 1000));
+    const todayEnd = new Date(Date.UTC(yyyy, mm, dd, 23, 59, 59, 999) - (5.5 * 60 * 60 * 1000));
+
+    // Yesterday boundaries
+    const yestDate = new Date(targetDate);
+    yestDate.setDate(yestDate.getDate() - 1);
+    const yYyyy = yestDate.getFullYear();
+    const yMm = yestDate.getMonth();
+    const yDd = yestDate.getDate();
+
+    const yesterdayStart = new Date(Date.UTC(yYyyy, yMm, yDd, 0, 0, 0) - (5.5 * 60 * 60 * 1000));
+    const yesterdayEnd = new Date(Date.UTC(yYyyy, yMm, yDd, 23, 59, 59, 999) - (5.5 * 60 * 60 * 1000));
+
+    const companyFilter = companyId ? { companyId } : {};
+    const salesCompanyFilter = companyId ? { customer: { companyId } } : {};
+
+    // ── 1. Fetch Sales Orders (Incoming & Production Planning) ──
+    const allSalesOrders = await this.prisma.salesOrder.findMany({
+      where: { ...salesCompanyFilter, deletedAt: null },
+      include: { customer: true, items: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const receivedToday = allSalesOrders.filter(o => o.createdAt >= todayStart && o.createdAt <= todayEnd).length;
+    const receivedYesterday = allSalesOrders.filter(o => o.createdAt >= yesterdayStart && o.createdAt <= yesterdayEnd).length;
+
+    const awaitingPlantHead = allSalesOrders.filter(o => o.status === 'SENT_TO_PLANT_HEAD' || o.status === 'SENT_TO_PLANT').length;
+    const approvedToday = allSalesOrders.filter(o => (o.status === 'PLANT_APPROVED' || o.status === 'READY_FOR_PRODUCTION' || o.status === 'IN_PRODUCTION') && o.updatedAt >= todayStart && o.updatedAt <= todayEnd).length;
+    const rejectedToday = allSalesOrders.filter(o => o.status === 'CANCELLED' && o.updatedAt >= todayStart && o.updatedAt <= todayEnd).length;
+    const pendingPlanning = allSalesOrders.filter(o => o.status === 'PLANT_APPROVED' || o.status === 'SENT_TO_PLANT_HEAD' || o.status === 'SENT_TO_PLANT').length;
+
+    const overdueOrders = allSalesOrders.filter(o => {
+      if (!o.requestedDeliveryDate) return false;
+      return o.requestedDeliveryDate < now && !['COMPLETED', 'READY_FOR_DISPATCH', 'CANCELLED'].includes(o.status);
+    }).length;
+
+    // Incoming orders latest 8 records table
+    const incomingOrdersTable = allSalesOrders.slice(0, 8).map(o => {
+      const firstItem = o.items?.[0];
+      const prodName = firstItem ? (firstItem.productNameSnapshot || firstItem.product?.name || 'Item') : 'Multiple Items';
+      const totalQty = o.items?.reduce((s, it) => s + Number(it.orderedQuantity || 0), 0) || 0;
+      const ageHours = Math.round((now.getTime() - new Date(o.createdAt).getTime()) / (1000 * 60 * 60));
+      return {
+        id: o.id,
+        orderNo: o.orderNumber,
+        customerName: o.customer?.companyName || 'Unknown Customer',
+        productName: prodName,
+        quantity: totalQty,
+        status: o.status,
+        targetDate: o.requestedDeliveryDate ? o.requestedDeliveryDate.toISOString().slice(0, 10) : 'N/A',
+        age: ageHours > 24 ? `${Math.floor(ageHours / 24)}d ${ageHours % 24}h` : `${ageHours}h`
+      };
+    });
+
+    // ── 2. Production Planning ──
+    const allProductionPlans = await this.prisma.productionPlan.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { salesOrder: { include: { customer: true, items: { include: { product: true } } } }, workOrders: true }
+    });
+
+    const plansCreatedToday = allProductionPlans.filter(p => p.createdAt >= todayStart && p.createdAt <= todayEnd).length;
+    const plansCreatedYesterday = allProductionPlans.filter(p => p.createdAt >= yesterdayStart && p.createdAt <= yesterdayEnd).length;
+
+    const scheduledPlans = allProductionPlans.filter(p => p.status === 'APPROVED' || p.status === 'RELEASED' || p.status === 'IN_PROGRESS').length;
+    const delayedPlans = allProductionPlans.filter(p => p.plannedEndDate && p.plannedEndDate < now && p.status !== 'COMPLETED').length;
+
+    const planningTable = allSalesOrders.filter(o => ['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION'].includes(o.status)).slice(0, 8).map(o => {
+      const firstItem = o.items?.[0];
+      const prodName = firstItem ? (firstItem.productNameSnapshot || firstItem.product?.name || 'Item') : 'Item';
+      const ordered = firstItem ? Number(firstItem.orderedQuantity || 0) : 0;
+      const fgAvailable = 0;
+      const reservedFg = 0;
+      const produce = Math.max(0, ordered - fgAvailable);
+      return {
+        id: o.id,
+        orderNo: o.orderNumber,
+        productName: prodName,
+        ordered,
+        fgAvailable,
+        reservedFg,
+        produce,
+        status: o.status
+      };
+    });
+
+    // ── 3. Production Status & Work Orders ──
+    const allWorkOrders = await this.prisma.workOrder.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { salesOrderItem: { include: { product: true } }, qcInspections: true }
+    });
+
+    const woCreatedToday = allWorkOrders.filter(w => w.createdAt >= todayStart && w.createdAt <= todayEnd).length;
+
+    const prodNotStarted = allWorkOrders.filter(w => w.status === 'CREATED' || w.status === 'MATERIAL_PENDING' || w.status === 'READY').length;
+    const prodRunning = allWorkOrders.filter(w => w.status === 'STARTED' || w.status === 'PARTIALLY_COMPLETED' || (w.status as string) === 'IN_PROGRESS' || w.productionStatus === 'IN_PRODUCTION').length;
+    const completedToday = allWorkOrders.filter(w => (w.status === 'COMPLETED' || w.status === 'QC_APPROVED' || w.status === 'READY_FOR_DISPATCH') && w.updatedAt >= todayStart && w.updatedAt <= todayEnd).length;
+    const completedYesterday = allWorkOrders.filter(w => (w.status === 'COMPLETED' || w.status === 'QC_APPROVED' || w.status === 'READY_FOR_DISPATCH') && w.updatedAt >= yesterdayStart && w.updatedAt <= yesterdayEnd).length;
+
+    const prodDelayed = allWorkOrders.filter(w => w.productionEndTime && w.productionEndTime < now && w.status !== 'COMPLETED').length;
+    const pendingQuantity = allWorkOrders.filter(w => w.status !== 'COMPLETED' && w.status !== 'DISPATCHED' && w.status !== 'CLOSED')
+      .reduce((acc, w) => acc + Number(w.quantity || 0), 0);
+
+    // Workflow Pipeline Counts
+    const pipelinePlanning = pendingPlanning;
+    const pipelineWoCreated = allWorkOrders.filter(w => w.status === 'CREATED').length;
+    const pipelineRunning = prodRunning;
+    const pipelineCompleted = allWorkOrders.filter(w => w.status === 'COMPLETED').length;
+    const pipelineQcPending = allWorkOrders.filter(w => w.status === 'QC_PENDING' || w.productionStatus === 'QC_PENDING').length;
+    const pipelineQcApproved = allWorkOrders.filter(w => w.status === 'QC_APPROVED').length;
+    const pipelineFg = await this.prisma.finishedGoods.count();
+
+    // ── 4. Material Requests ──
+    const allMaterialRequests = await this.prisma.materialRequest.findMany({
+      where: companyFilter,
+      include: { requestedBy: true, items: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const mrCreatedToday = allMaterialRequests.filter(m => m.createdAt >= todayStart && m.createdAt <= todayEnd).length;
+    const mrCreatedYesterday = allMaterialRequests.filter(m => m.createdAt >= yesterdayStart && m.createdAt <= yesterdayEnd).length;
+
+    const mrPendingApproval = allMaterialRequests.filter(m => m.status === 'PENDING_PLANT_HEAD_APPROVAL' || m.status === 'PENDING').length;
+    const mrApprovedToday = allMaterialRequests.filter(m => m.status === 'APPROVED' && m.updatedAt >= todayStart && m.updatedAt <= todayEnd).length;
+    const mrRejectedToday = allMaterialRequests.filter(m => m.status === 'REJECTED' && m.updatedAt >= todayStart && m.updatedAt <= todayEnd).length;
+    const mrPendingIssue = allMaterialRequests.filter(m => m.status === 'APPROVED' || m.status === 'PARTIALLY_ISSUED').length;
+    const mrMaterialShortage = allMaterialRequests.filter(m => m.status === 'SHORTAGE' || m.items.some(it => Number(it.quantity || 0) > Number(it.product?.minimumStock || 0))).length;
+
+    const materialRequestsTable = allMaterialRequests.slice(0, 8).map(m => {
+      const firstItem = m.items?.[0];
+      const matName = firstItem?.product?.name || 'Raw Material Item';
+      const requested = firstItem ? Number(firstItem.quantity || 0) : 0;
+      const available = firstItem?.product ? Number(firstItem.product.minimumStock || 50) : 0;
+      const isShortage = requested > available;
+      return {
+        id: m.id,
+        mrNo: m.publicId || m.id.substring(0, 8),
+        workOrderNo: m.workOrderNo || 'N/A',
+        materialName: matName,
+        requested,
+        available,
+        status: isShortage ? 'SHORTAGE' : m.status,
+        isShortage
+      };
+    });
+
+    // ── 5. Indent Approvals ──
+    const allIndents = await this.prisma.purchaseIndent.findMany({
+      where: companyFilter,
+      include: { requestedBy: true, items: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const indentNewToday = allIndents.filter(i => i.createdAt >= todayStart && i.createdAt <= todayEnd).length;
+    const indentPendingPlantHead = allIndents.filter(i => i.status === 'PENDING_PLANT_HEAD_APPROVAL' || i.status === 'PENDING').length;
+    const indentApprovedToday = allIndents.filter(i => (i.status === 'INDENT_APPROVED' || i.status === 'APPROVED') && i.updatedAt >= todayStart && i.updatedAt <= todayEnd).length;
+    const indentRejected = allIndents.filter(i => i.status === 'PLANT_HEAD_REJECTED' || i.status === 'REJECTED').length;
+    const indentProcurementPending = allIndents.filter(i => i.status === 'INDENT_APPROVED' || i.status === 'APPROVED').length;
+    const indentPoCreated = allIndents.filter(i => i.status === 'PO_CREATED').length;
+
+    const indentsTable = allIndents.slice(0, 8).map(i => {
+      const firstItem = i.items?.[0];
+      const matName = firstItem?.product?.name || 'Material Item';
+      const qty = firstItem ? Number(firstItem.quantity || 0) : 0;
+      const ageHours = Math.round((now.getTime() - new Date(i.createdAt).getTime()) / (1000 * 60 * 60));
+      return {
+        id: i.id,
+        indentNo: i.publicId || i.id.substring(0, 8),
+        materialName: matName,
+        quantity: qty,
+        requestedBy: i.requestedBy?.name || 'Store User',
+        currentStage: i.status,
+        age: ageHours > 24 ? `${Math.floor(ageHours / 24)}d ${ageHours % 24}h` : `${ageHours}h`
+      };
+    });
+
+    // ── 6. Raw Material Inventory ──
+    const rawProducts = await this.prisma.product.findMany({
+      where: { ...companyFilter, isActive: true },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    const totalMaterials = rawProducts.length;
+    const inStock = rawProducts.filter(p => Number(p.minimumStock || 0) > 0).length;
+    const lowStock = rawProducts.filter(p => Number(p.minimumStock || 0) <= 20 && Number(p.minimumStock || 0) > 0).length;
+    const outOfStock = rawProducts.filter(p => Number(p.minimumStock || 0) === 0).length;
+    const belowMin = lowStock + outOfStock;
+    const matReceivedToday = await this.prisma.goodsReceiptNote.count({ where: { ...companyFilter, createdAt: { gte: todayStart, lte: todayEnd } } });
+    const matConsumedToday = mrApprovedToday;
+
+    const criticalStockTable = rawProducts.filter(p => Number(p.minimumStock || 0) <= 20).slice(0, 8).map(p => ({
+      id: p.id,
+      code: p.sku || p.publicId || p.id.substring(0, 8),
+      materialName: p.name,
+      available: Number(p.minimumStock || 0),
+      minimum: Number(p.reorderQuantity || 50),
+      status: Number(p.minimumStock || 0) === 0 ? 'Out of Stock' : 'Low Stock'
+    }));
+
+    // ── 7. Finished Goods (Identical math source to /plant-head/finished-goods) ──
+    const fgRecords = await this.prisma.finishedGoods.findMany({
+      include: { product: true, salesOrder: true, workOrder: true }
+    });
+
+    const totalFgProducts = fgRecords.length > 0 ? fgRecords.length : rawProducts.filter(p => p.productType === 'MANUFACTURING').length;
+    const availableFgQty = fgRecords.reduce((s, f) => s + Number(f.availableQuantity || f.quantity || 0), 0);
+    const reservedFgQty = fgRecords.filter(f => f.salesOrderId).reduce((s, f) => s + Number(f.quantity || 0), 0);
+    const producedFgToday = completedToday;
+    const readyForDispatchFg = allSalesOrders.filter(o => o.status === 'READY_FOR_DISPATCH').length;
+    const dispatchedFgToday = await this.prisma.dispatch.count({ where: { status: 'DISPATCHED', updatedAt: { gte: todayStart, lte: todayEnd } } });
+
+    const fgTable = fgRecords.slice(0, 8).map(f => ({
+      id: f.id,
+      productName: f.product?.name || 'Finished Product',
+      available: Number(f.availableQuantity || 0),
+      reserved: Number(f.quantity || 0) - Number(f.availableQuantity || 0),
+      producedToday: f.receivedAt >= todayStart ? Number(f.quantity || 0) : 0,
+      dispatchToday: f.status === 'DISPATCHED' ? Number(f.quantity || 0) : 0
+    }));
+
+    // ── 8. Quality Control (QC Summary) ──
+    const qcInspections = await this.prisma.qCInspection.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { workOrder: { include: { salesOrderItem: { include: { product: true } } } } }
+    });
+
+    const qcPending = qcInspections.filter(q => q.status === 'PENDING').length;
+    const inspectedToday = qcInspections.filter(q => q.createdAt >= todayStart && q.createdAt <= todayEnd).length;
+    const qcApprovedToday = qcInspections.filter(q => (q.status === 'APPROVED' || q.status === 'PASSED') && q.createdAt >= todayStart && q.createdAt <= todayEnd).length;
+    const qcFailedToday = qcInspections.filter(q => (q.status === 'FAILED' || q.status === 'REWORK') && q.createdAt >= todayStart && q.createdAt <= todayEnd).length;
+    const qcFailedYesterday = qcInspections.filter(q => (q.status === 'FAILED' || q.status === 'REWORK') && q.createdAt >= yesterdayStart && q.createdAt <= yesterdayEnd).length;
+
+    const qcRework = qcInspections.filter(q => q.status === 'REWORK').length;
+    const qcReTest = 0;
+    const qcScrapPending = qcInspections.filter(q => q.status === 'FAILED').length;
+    const qcDecisionPending = qcPending + qcScrapPending;
+
+    const qcFailureTable = qcInspections.filter(q => q.status === 'FAILED' || q.status === 'REWORK').slice(0, 8).map(q => ({
+      id: q.id,
+      workOrderNo: q.workOrder?.workOrderNumber || 'WO-N/A',
+      productName: q.workOrder?.salesOrderItem?.productNameSnapshot || q.workOrder?.salesOrderItem?.product?.name || 'Product Item',
+      batchNo: `BATCH-${q.id.substring(0, 6)}`,
+      failedQty: Number(q.rejectedQuantity || 1),
+      reason: q.remarks || q.notes || 'Dimensional deviation',
+      decision: q.status
+    }));
+
+    // ── 9. Dispatch Summary ──
+    const dispatches = await this.prisma.dispatch.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { salesOrder: { include: { customer: true } } }
+    });
+
+    const dispatchReady = dispatches.filter(d => d.status === 'READY_FOR_PICKUP' || d.status === 'DISPATCH_APPROVED').length;
+    const dispatchCreatedToday = dispatches.filter(d => d.createdAt >= todayStart && d.createdAt <= todayEnd).length;
+    const dispatchInTransit = dispatches.filter(d => d.status === 'IN_TRANSIT' || d.status === 'DISPATCHED' || d.status === 'OUT_FOR_DELIVERY').length;
+    const dispatchDeliveredToday = dispatches.filter(d => d.status === 'DELIVERED' && d.updatedAt >= todayStart && d.updatedAt <= todayEnd).length;
+    const dispatchCompletedYesterday = dispatches.filter(d => d.status === 'DELIVERED' && d.updatedAt >= yesterdayStart && d.updatedAt <= yesterdayEnd).length;
+
+    const dispatchPartial = 0;
+    const dispatchRemaining = dispatches.filter(d => d.status !== 'DELIVERED' && d.status !== 'DISPATCH_CLOSED').length;
+    const dispatchDelayed = dispatches.filter(d => d.eta && d.eta < now && d.status !== 'DELIVERED').length;
+
+    const dispatchTable = dispatches.slice(0, 8).map(d => ({
+      id: d.id,
+      orderNo: d.salesOrder?.orderNumber || 'SO-N/A',
+      customerName: d.salesOrder?.customer?.companyName || 'Customer',
+      productName: 'Dispatched Consignment',
+      quantity: Number(d.loadedQuantity || d.totalWeight || 1),
+      dispatchStatus: d.status,
+      targetDate: d.eta ? d.eta.toISOString().slice(0, 10) : 'Today'
+    }));
+
+    // ── 10. Replacements & Returns ──
+    const replacements = await this.prisma.replacementRequest.findMany({ orderBy: { requestedAt: 'desc' } });
+    const procReplacements = await this.prisma.procurementReplacementRequest.findMany({ orderBy: { createdAt: 'desc' } });
+    const allReplacementsCount = replacements.length + procReplacements.length;
+    const replacementNew = replacements.filter(r => r.requestedAt >= todayStart && r.requestedAt <= todayEnd).length;
+    const replacementPending = replacements.filter(r => r.status === 'REQUESTED' || r.status === 'UNDER_REVIEW').length;
+    const replacementApproved = replacements.filter(r => r.status === 'APPROVED').length;
+
+    const salesReturns = await this.prisma.salesReturn.findMany({ orderBy: { requestedAt: 'desc' } });
+    const vendorReturns = await this.prisma.vendorReturn.findMany({ orderBy: { createdAt: 'desc' } });
+    const returnsNew = salesReturns.filter(r => r.requestedAt >= todayStart && r.requestedAt <= todayEnd).length;
+    const returnsPending = salesReturns.filter(r => r.status === 'REQUESTED' || r.status === 'UNDER_REVIEW').length;
+    const returnsApproved = salesReturns.filter(r => r.status === 'APPROVED').length;
+
+    // ── 11. Single Approval Inbox Summary ──
+    const pendingLeaveApprovals = await this.prisma.leaveRequest.count({ where: { status: 'PENDING_PLANT_HEAD' } });
+    const approvalInbox = [
+      { type: 'Incoming Orders', pending: awaitingPlantHead, link: '/plant-head/incoming-orders' },
+      { type: 'Material Requests', pending: mrPendingApproval, link: '/plant-head/material-approvals' },
+      { type: 'Purchase Indents', pending: indentPendingPlantHead, link: '/plant-head/indent-approvals' },
+      { type: 'QC Failures', pending: qcDecisionPending, link: '/plant-head/qc-failures' },
+      { type: 'Replacements', pending: replacementPending, link: '/plant-head/replacements' },
+      { type: 'Returns', pending: returnsPending, link: '/plant-head/returns' },
+      { type: 'Leave Requests', pending: pendingLeaveApprovals, link: '/plant-head/leave-approvals' },
+    ];
+    const totalPendingApprovals = approvalInbox.reduce((s, i) => s + i.pending, 0);
+
+    // ── 12. Attention Required Prioritized Issues Table ──
+    const attentionRequired: any[] = [];
+    if (overdueOrders > 0) {
+      attentionRequired.push({ priority: 'CRITICAL', type: 'Sales Order', reference: `${overdueOrders} Orders`, problem: 'Sales delivery target date overdue', age: '> 24 Hours', actionLink: '/plant-head/incoming-orders' });
+    }
+    if (mrMaterialShortage > 0) {
+      attentionRequired.push({ priority: 'CRITICAL', type: 'Material Shortage', reference: `${mrMaterialShortage} Requests`, problem: 'Production floor blocked due to raw material stock shortage', age: 'Active', actionLink: '/plant-head/material-approvals' });
+    }
+    if (qcDecisionPending > 0) {
+      attentionRequired.push({ priority: 'HIGH', type: 'QC Failure', reference: `${qcDecisionPending} Batches`, problem: 'Batches failed quality inspection awaiting Plant Head decision', age: 'Recent', actionLink: '/plant-head/qc-failures' });
+    }
+    if (outOfStock > 0) {
+      attentionRequired.push({ priority: 'HIGH', type: 'Raw Material', reference: `${outOfStock} SKUs`, problem: 'Materials completely out of stock in warehouse', age: 'Immediate', actionLink: '/plant-head/raw-inventory' });
+    }
+    if (indentPendingPlantHead > 0) {
+      attentionRequired.push({ priority: 'WARNING', type: 'Purchase Indent', reference: `${indentPendingPlantHead} Indents`, problem: 'Purchase indents awaiting Plant Head sign-off for procurement', age: '> 12 Hours', actionLink: '/plant-head/indent-approvals' });
+    }
+    if (dispatchDelayed > 0) {
+      attentionRequired.push({ priority: 'WARNING', type: 'Dispatch', reference: `${dispatchDelayed} Consignments`, problem: 'Transit delivery target delayed by carrier', age: 'In Transit', actionLink: '/plant-head/dispatch-analytics' });
+    }
+
+    const criticalAlertsCount = attentionRequired.length;
+
+    // ── 13. Today's Activity Timeline (Audit/Workflow History First) ──
+    const workflowLogs = await this.prisma.workflowHistory.findMany({
+      where: { createdAt: { gte: todayStart, lte: todayEnd } },
+      orderBy: { createdAt: 'desc' },
+      take: 12
+    });
+
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: { createdAt: { gte: todayStart, lte: todayEnd } },
+      orderBy: { createdAt: 'desc' },
+      take: 12
+    });
+
+    let activityTimeline: any[] = [];
+    if (workflowLogs.length > 0) {
+      activityTimeline = workflowLogs.map(l => {
+        const timeStr = new Date(l.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        return {
+          id: l.id,
+          time: timeStr,
+          description: `${l.entityType} ${l.entityId.substring(0, 8)} transition from ${l.fromStatus} to ${l.toStatus} (${l.action})`
+        };
+      });
+    } else if (auditLogs.length > 0) {
+      activityTimeline = auditLogs.map(a => {
+        const timeStr = new Date(a.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        return {
+          id: a.id,
+          time: timeStr,
+          description: `${a.action} performed on ${a.entityType} ${a.entityId.substring(0, 8)}`
+        };
+      });
+    } else {
+      // Fallback timeline from entity timestamps
+      activityTimeline = [
+        ...allSalesOrders.slice(0, 3).map(o => ({ id: o.id, time: new Date(o.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), description: `Sales Order ${o.orderNumber} received from Sales` })),
+        ...allMaterialRequests.slice(0, 3).map(m => ({ id: m.id, time: new Date(m.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), description: `Material Request ${m.publicId || m.id.substring(0, 8)} created for ${m.workOrderNo || 'Production'}` })),
+        ...allWorkOrders.slice(0, 3).map(w => ({ id: w.id, time: new Date(w.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), description: `Work Order ${w.workOrderNumber} status: ${w.status}` }))
+      ].slice(0, 10);
+    }
+
+    // ── 14. Today vs Yesterday Comparison ──
+    const comparison = [
+      { kpi: 'Incoming Orders', today: receivedToday, yesterday: receivedYesterday, diff: receivedToday - receivedYesterday },
+      { kpi: 'Plans Created', today: plansCreatedToday, yesterday: plansCreatedYesterday, diff: plansCreatedToday - plansCreatedYesterday },
+      { kpi: 'Production Completed', today: completedToday, yesterday: completedYesterday, diff: completedToday - completedYesterday },
+      { kpi: 'Material Requests', today: mrCreatedToday, yesterday: mrCreatedYesterday, diff: mrCreatedToday - mrCreatedYesterday },
+      { kpi: 'QC Failures', today: qcFailedToday, yesterday: qcFailedYesterday, diff: qcFailedToday - qcFailedYesterday },
+      { kpi: 'Dispatch Completed', today: dispatchDeliveredToday, yesterday: dispatchCompletedYesterday, diff: dispatchDeliveredToday - dispatchCompletedYesterday },
+    ];
+
+    // ── 15. Automatic Daily Summary Text ──
+    const summaryText = `Today the plant received ${receivedToday} new orders. ${pendingPlanning} orders are awaiting production planning. ${prodRunning} work orders are currently active in production and ${completedToday} were completed today. ${mrPendingApproval} material requests require approval and ${indentPendingPlantHead} purchase indents remain pending. ${qcDecisionPending} QC failures require Plant Head attention and ${dispatchReady} orders are ready for dispatch.`;
+
+    return {
+      date: targetDate.toISOString().slice(0, 10),
+      lastUpdated: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      mainKpis: {
+        incomingOrders: awaitingPlantHead + receivedToday,
+        pendingPlanning,
+        activeProduction: prodRunning,
+        materialRequests: mrPendingApproval,
+        pendingIndents: indentPendingPlantHead,
+        qcPending,
+        readyDispatch: dispatchReady,
+        criticalAlerts: criticalAlertsCount
+      },
+      summaryText,
+      attentionRequired,
+      approvalInbox: {
+        total: totalPendingApprovals,
+        items: approvalInbox
+      },
+      orders: {
+        receivedToday,
+        awaitingPlantHead,
+        approvedToday,
+        rejectedToday,
+        pendingPlanning,
+        overdueOrders,
+        table: incomingOrdersTable
+      },
+      planning: {
+        pendingPlanning,
+        plansCreatedToday,
+        scheduledPlans,
+        delayedPlans,
+        fgDirectFulfillment: 0,
+        productionRequired: pendingPlanning,
+        table: planningTable
+      },
+      production: {
+        woCreatedToday,
+        prodNotStarted,
+        prodRunning,
+        completedToday,
+        prodDelayed,
+        pendingQuantity,
+        pipeline: {
+          planning: pipelinePlanning,
+          woCreated: pipelineWoCreated,
+          running: pipelineRunning,
+          completed: pipelineCompleted,
+          qcPending: pipelineQcPending,
+          qcApproved: pipelineQcApproved,
+          fg: pipelineFg
+        }
+      },
+      materialRequests: {
+        mrCreatedToday,
+        mrPendingApproval,
+        mrApprovedToday,
+        mrRejectedToday,
+        mrPendingIssue,
+        mrMaterialShortage,
+        table: materialRequestsTable
+      },
+      indents: {
+        indentNewToday,
+        indentPendingPlantHead,
+        indentApprovedToday,
+        indentRejected,
+        indentProcurementPending,
+        indentPoCreated,
+        table: indentsTable
+      },
+      rawInventory: {
+        totalMaterials,
+        inStock,
+        lowStock,
+        outOfStock,
+        belowMin,
+        matReceivedToday,
+        matConsumedToday,
+        criticalTable: criticalStockTable
+      },
+      finishedGoods: {
+        totalFgProducts,
+        availableFgQty,
+        reservedFgQty,
+        producedFgToday,
+        readyForDispatchFg,
+        dispatchedFgToday,
+        table: fgTable
+      },
+      qc: {
+        qcPending,
+        inspectedToday,
+        qcApprovedToday,
+        qcFailedToday,
+        qcRework,
+        qcReTest,
+        qcScrapPending,
+        qcDecisionPending,
+        failureTable: qcFailureTable
+      },
+      dispatch: {
+        dispatchReady,
+        dispatchCreatedToday,
+        dispatchInTransit,
+        dispatchDeliveredToday,
+        dispatchPartial,
+        dispatchRemaining,
+        dispatchDelayed,
+        table: dispatchTable
+      },
+      replacements: {
+        allReplacementsCount,
+        replacementNew,
+        replacementPending,
+        replacementApproved
+      },
+      returns: {
+        returnsNew,
+        returnsPending,
+        returnsApproved
+      },
+      activityTimeline,
+      comparison
+    };
+  }
 }
+

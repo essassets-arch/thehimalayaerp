@@ -82,6 +82,7 @@ export const navigationConfig = {
 
   'Plant Head': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/plant-head/dashboard' },
+    { id: 'daily-summary', label: 'Daily Summary', icon: LayoutGrid, path: '/plant-head/daily-summary' },
 
     { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/plant-head/incoming-orders', group: 'Planning Board' },
     { id: 'planning', label: 'Planning', icon: Wrench, path: '/plant-head/planning', group: 'Planning Board' },
