@@ -180,10 +180,10 @@ export const StoreDashboard = () => {
       totalRejections += item.rejections;
     });
 
-    const catalogItemCount = rawMaterialsList.length || liveInventory.length;
-    const availableQtyDisplay = totalAvailableQty;
-    const slowDisplay = slowCount;
-    const fastDisplay = fastCount;
+    const catalogItemCount = summaryData?.totalSkus ?? (rawMaterialsList.length || liveInventory.length);
+    const availableQtyDisplay = summaryData?.availableStock ?? totalAvailableQty;
+    const slowDisplay = summaryData?.slowMovingSkus ?? slowCount;
+    const fastDisplay = summaryData?.fastMovingSkus ?? fastCount;
 
     // Calculate dynamic QC rejection rate
     let rejectionRateDisplay = '0.0';
@@ -201,9 +201,9 @@ export const StoreDashboard = () => {
       totalVal,
       rawMaterialCount: catalogItemCount,
       totalAvailableQty: availableQtyDisplay,
-      belowMinCount,
-      aboveMaxCount,
-      deadStockVal,
+      belowMinCount: summaryData?.belowMinStock ?? belowMinCount,
+      aboveMaxCount: summaryData?.aboveMaxStock ?? aboveMaxCount,
+      deadStockVal: summaryData?.deadStockValue ?? deadStockVal,
       slowCount: slowDisplay,
       fastCount: fastDisplay,
       rejectionRate: rejectionRateDisplay,
