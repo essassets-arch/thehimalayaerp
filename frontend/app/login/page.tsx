@@ -130,6 +130,7 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<'All' | 'Sales' | 'Dispatch' | 'Finance' | 'Production' | 'Admin'>('All');
 
   const getPasswordForEmail = (emailStr: string): string => {
     const e = emailStr.toLowerCase().trim();
@@ -215,12 +216,30 @@ export default function LoginPage() {
     await executeLogin(email, password);
   };
 
+  const filteredAccounts = DEMO_ACCOUNTS.filter((acc) => {
+    if (selectedCategory === 'All') return true;
+    const e = acc.email.toLowerCase();
+    const r = acc.role.toLowerCase();
+    if (selectedCategory === 'Sales') return r.includes('sales') || e.includes('sales');
+    if (selectedCategory === 'Dispatch') return r.includes('dispatch') || e.includes('dispatch') || e.includes('tiwari');
+    if (selectedCategory === 'Finance') return r.includes('finance') || e.includes('finance') || e.includes('accounts');
+    if (selectedCategory === 'Production') return r.includes('production') || r.includes('plant') || e.includes('plant') || e.includes('operator');
+    if (selectedCategory === 'Admin') return r.includes('admin') || r.includes('hr') || r.includes('store') || e.includes('hr') || e.includes('store');
+    return true;
+  });
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+          width: 100%;
+          min-height: 100%;
+          overflow-x: hidden;
+        }
 
         .login-root {
           min-height: 100vh;
@@ -229,9 +248,9 @@ export default function LoginPage() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
+          justify-content: flex-start;
           background: linear-gradient(145deg, #EFF6FF 0%, #F0F9FF 40%, #E0F2FE 70%, #EEF2FF 100%);
-          padding: 32px 16px;
+          padding: 16px 12px 32px;
           font-family: 'Outfit', sans-serif;
           position: relative;
           overflow-y: auto;
@@ -244,8 +263,8 @@ export default function LoginPage() {
           position: fixed;
           top: -120px;
           right: -120px;
-          width: 500px;
-          height: 500px;
+          width: 400px;
+          height: 400px;
           background: radial-gradient(circle, rgba(59,174,235,0.12) 0%, transparent 70%);
           border-radius: 50%;
           pointer-events: none;
@@ -256,8 +275,8 @@ export default function LoginPage() {
           position: fixed;
           bottom: -100px;
           left: -100px;
-          width: 420px;
-          height: 420px;
+          width: 350px;
+          height: 350px;
           background: radial-gradient(circle, rgba(99,102,241,0.10) 0%, transparent 70%);
           border-radius: 50%;
           pointer-events: none;
@@ -266,44 +285,44 @@ export default function LoginPage() {
 
         .login-card {
           width: 100%;
-          max-width: 480px;
-          margin: auto;
+          max-width: 440px;
+          margin: 0 auto;
           background: #ffffff;
-          border-radius: 24px;
-          padding: 40px 36px;
+          border-radius: 18px;
+          padding: 24px 20px;
           box-shadow:
-            0 1px 3px rgba(0,0,0,0.04),
-            0 8px 32px rgba(47,67,117,0.08),
-            0 32px 64px rgba(47,67,117,0.06);
-          border: 1px solid rgba(226,232,240,0.8);
+            0 2px 4px rgba(0,0,0,0.02),
+            0 8px 24px rgba(47,67,117,0.07),
+            0 24px 48px rgba(47,67,117,0.05);
+          border: 1px solid rgba(226,232,240,0.85);
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 16px;
           position: relative;
           z-index: 1;
-          animation: cardIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+          animation: cardIn 0.35s ease-out both;
         }
 
         @keyframes cardIn {
-          from { opacity: 0; transform: translateY(24px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
 
         .brand-wrapper {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 8px;
+          gap: 4px;
           text-align: center;
         }
 
         .logo-box {
-          padding: 12px 24px;
-          border-radius: 16px;
+          padding: 6px 14px;
+          border-radius: 12px;
           background: linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 100%);
           border: 1.5px solid #DBEAFE;
-          margin-bottom: 4px;
-          box-shadow: 0 2px 8px rgba(47,67,117,0.06);
+          margin-bottom: 2px;
+          box-shadow: 0 2px 6px rgba(47,67,117,0.04);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -334,7 +353,7 @@ export default function LoginPage() {
 
         .login-input {
           width: 100%;
-          padding: 13px 14px 13px 42px;
+          padding: 12px 14px 12px 42px;
           background: #F8FAFD;
           border: 1.5px solid #E2E8F0;
           border-radius: 12px;
@@ -378,27 +397,27 @@ export default function LoginPage() {
 
         .login-btn {
           width: 100%;
-          padding: 14px;
+          padding: 13px;
           background: linear-gradient(135deg, #2F4375 0%, #3BAEEB 100%);
           color: #fff;
           border: none;
           border-radius: 12px;
           font-weight: 800;
-          font-size: 14.5px;
+          font-size: 14px;
           font-family: 'Outfit', sans-serif;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
-          box-shadow: 0 4px 20px rgba(47,67,117,0.22);
+          box-shadow: 0 4px 18px rgba(47,67,117,0.20);
           transition: all 0.2s;
-          margin-top: 4px;
-          min-height: 46px;
+          margin-top: 2px;
+          min-height: 44px;
         }
         .login-btn:hover:not(:disabled) {
           transform: translateY(-2px);
-          box-shadow: 0 8px 28px rgba(47,67,117,0.28);
+          box-shadow: 0 8px 24px rgba(47,67,117,0.26);
         }
         .login-btn:active:not(:disabled) { transform: translateY(0); }
         .login-btn:disabled { opacity: 0.65; cursor: not-allowed; }
@@ -407,72 +426,123 @@ export default function LoginPage() {
           background: #FFF5F5;
           border: 1.5px solid #FECACA;
           border-radius: 10px;
-          padding: 11px 16px;
+          padding: 10px 14px;
           color: #DC2626;
-          font-size: 13px;
+          font-size: 12.5px;
           font-weight: 500;
           text-align: center;
-          line-height: 1.5;
+          line-height: 1.4;
           animation: shake 0.35s ease;
         }
         @keyframes shake {
           0%,100% { transform: translateX(0); }
-          25%      { transform: translateX(-6px); }
-          75%      { transform: translateX(6px); }
+          25%      { transform: translateX(-5px); }
+          75%      { transform: translateX(5px); }
         }
 
-        .demo-accounts-grid {
+        .category-tabs {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          overflow-x: auto;
+          padding-bottom: 6px;
+          margin-bottom: 8px;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .category-tabs::-webkit-scrollbar { display: none; }
+
+        .cat-tab {
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 10.5px;
+          font-weight: 700;
+          border: 1px solid #E2E8F0;
+          background: #F8FAFD;
+          color: #64748B;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s ease;
+        }
+        .cat-tab.active {
+          background: #3BAEEB;
+          color: #FFFFFF;
+          border-color: #3BAEEB;
+          box-shadow: 0 2px 6px rgba(59,174,235,0.25);
+        }
+
+        .demo-accounts-scroll {
+          max-height: 220px;
+          overflow-y: auto;
+          padding-right: 4px;
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-          gap: 8px;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 6px;
+          -webkit-overflow-scrolling: touch;
+        }
+        .demo-accounts-scroll::-webkit-scrollbar {
+          width: 4px;
+        }
+        .demo-accounts-scroll::-webkit-scrollbar-thumb {
+          background: #CBD5E1;
+          border-radius: 4px;
         }
 
         .demo-account-btn {
           border-radius: 10px;
-          padding: 9px 10px;
+          padding: 8px 10px;
           color: #1E293B;
           font-size: 11px;
           font-weight: 600;
           text-align: left;
           transition: all 0.15s ease;
-          min-height: 46px;
+          min-height: 48px;
           display: flex;
           flex-direction: column;
           justify-content: center;
           width: 100%;
+          min-width: 0;
         }
         .demo-account-btn:hover:not(:disabled) {
           border-color: #3BAEEB !important;
           background: #F0F9FF !important;
-          transform: translateY(-1px);
         }
         .demo-account-btn:active:not(:disabled) {
           transform: scale(0.98);
         }
 
+        .demo-email-text {
+          display: block;
+          color: #64748B;
+          font-size: 9.5px;
+          margin-top: 2px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          width: 100%;
+        }
+
         @media (max-width: 480px) {
           .login-root {
-            padding: 20px 12px;
+            padding: 10px 8px 24px;
           }
           .login-card {
-            padding: 24px 18px;
-            border-radius: 20px;
-            gap: 20px;
+            padding: 16px 14px;
+            border-radius: 16px;
+            gap: 14px;
           }
           .logo-box {
-            padding: 10px 18px;
+            padding: 6px 12px;
           }
-          .demo-accounts-grid {
+          .demo-accounts-scroll {
             grid-template-columns: repeat(2, 1fr);
-            gap: 6px;
+            gap: 5px;
+            max-height: 180px;
           }
         }
 
-        @media (max-width: 360px) {
-          .login-card {
-            padding: 20px 12px;
-          }
-          .demo-accounts-grid {
+        @media (max-width: 340px) {
+          .demo-accounts-scroll {
             grid-template-columns: 1fr;
           }
         }
@@ -489,7 +559,7 @@ export default function LoginPage() {
                 alt="Himalaya"
                 width={240}
                 height={80}
-                style={{ width: '170px', height: 'auto', objectFit: 'contain' }}
+                style={{ width: '135px', height: 'auto', objectFit: 'contain' }}
                 priority
               />
             </div>
@@ -501,10 +571,10 @@ export default function LoginPage() {
           {error && <div className="login-error">{error}</div>}
 
           {/* ── Form ───────────────────────────────── */}
-          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
             {/* Email */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label className="login-label">Email Address</label>
               <div className="login-input-wrap">
                 <Mail size={15} className="login-icon" />
@@ -523,7 +593,7 @@ export default function LoginPage() {
             </div>
 
             {/* Password */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label className="login-label">Password</label>
               <div className="login-input-wrap">
                 <KeyRound size={15} className="login-icon" />
@@ -555,12 +625,31 @@ export default function LoginPage() {
               <ShieldCheck size={16} />
               {loading ? 'Authenticating…' : 'Sign In'}
             </button>
+
+            {/* Quick Demo Accounts */}
             <div>
-              <div className="login-label" style={{ marginBottom: '8px', color: '#64748B' }}>
-                Select Account — Prefills Email Field
+              <div className="login-label" style={{ marginBottom: '6px', color: '#64748B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Select Demo Account</span>
+                <span style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600 }}>Prefills Email</span>
               </div>
-              <div className="demo-accounts-grid">
-                {DEMO_ACCOUNTS.map((account) => {
+
+              {/* Filter Tabs */}
+              <div className="category-tabs">
+                {(['All', 'Sales', 'Dispatch', 'Finance', 'Production', 'Admin'] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`cat-tab ${selectedCategory === cat ? 'active' : ''}`}
+                    onClick={() => setSelectedCategory(cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Scrollable Demo Accounts */}
+              <div className="demo-accounts-scroll">
+                {filteredAccounts.map((account) => {
                   const isSelected = email === account.email;
                   return (
                     <button
@@ -568,7 +657,7 @@ export default function LoginPage() {
                       type="button"
                       disabled={loading}
                       onClick={() => handleSelectAccount(account.email)}
-                      title={`Select ${account.role}`}
+                      title={`${account.role} (${account.email})`}
                       className="demo-account-btn"
                       style={{
                         border: isSelected ? '1.5px solid #3BAEEB' : '1px solid #E2E8F0',
@@ -576,8 +665,10 @@ export default function LoginPage() {
                         cursor: loading ? 'default' : 'pointer',
                       }}
                     >
-                      <span style={{ display: 'block', color: isSelected ? '#0284C7' : '#1E293B', fontWeight: 700 }}>{account.role}</span>
-                      <span style={{ display: 'block', color: '#64748B', fontSize: '9.5px', marginTop: '2px', wordBreak: 'break-all' }}>
+                      <span style={{ display: 'block', color: isSelected ? '#0284C7' : '#1E293B', fontWeight: 700, fontSize: '11px' }}>
+                        {account.role}
+                      </span>
+                      <span className="demo-email-text">
                         {account.email}
                       </span>
                     </button>
