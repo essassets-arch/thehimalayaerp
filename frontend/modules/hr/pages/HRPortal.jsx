@@ -19,9 +19,11 @@ import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import { 
   Users, UserPlus, Clock, ClipboardList, FileText, PackageCheck, CreditCard, Bell, 
-  Trash2, Edit3, Shield, UserX, CheckCircle, XCircle, Search, Save, Calendar, Camera, Play, Eye
+  Trash2, Edit3, Shield, UserX, CheckCircle, XCircle, Search, Save, Calendar, Camera, Play, Eye, Download, FileSpreadsheet
 } from 'lucide-react';
 import UsersManagementView from '../components/UsersManagementView';
+import ExitClearanceFormModal from '../components/ExitClearanceFormModal';
+import { exportToCSV, exportToExcel } from '../../../services/export.service';
 
 export default function HRPortal() {
   const params = useParams(); const view = params?.slug?.[0];
@@ -65,6 +67,7 @@ export default function HRPortal() {
 
   // Exit clearance state
   const [showExitModal, setShowExitModal] = useState(false);
+  const [selectedExitRecord, setSelectedExitRecord] = useState(null);
   const [exitForm, setExitForm] = useState({ empId: 'EMP-001', effectiveDate: '2026-06-01' });
 
   // Selected Alert state for Inspector
@@ -131,7 +134,7 @@ export default function HRPortal() {
 
   // ── INITIATE EXIT OFFBOARDING ──
   const handleInitiateExit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const resigningStaff = employees.find(emp => emp.id === exitForm.empId);
     if (!resigningStaff) return;
 
@@ -160,6 +163,38 @@ export default function HRPortal() {
 
     showToast(`Exit checkpoints initiated for ${resigningStaff.name}!`);
     setShowExitModal(false);
+  };
+
+  const handleSaveExitFormModal = async (record) => {
+    const clearedCount = Object.values(record.checkpoints || {}).filter(Boolean).length;
+    const progress = Math.round((clearedCount / (Object.keys(record.checkpoints || {}).length || 4)) * 100);
+    const updatedRecord = {
+      ...record,
+      progress,
+      status: record.approval?.finalHrStatus === 'Cleared' ? 'Cleared' : progress === 100 ? 'Cleared' : 'In Progress'
+    };
+
+    const existing = exitClearances.find(ex => ex.empId === record.empId);
+    if (existing) {
+      dispatch({ type: 'UPDATE_EXIT_CLEARANCE', payload: updatedRecord });
+    } else {
+      dispatch({ type: 'ADD_EXIT_CLEARANCE', payload: updatedRecord });
+    }
+
+    try {
+      await adminService.updateEmployee(record.empId, {
+        is_active: updatedRecord.status === 'Cleared' ? false : true,
+        exit_date: record.effectiveDate,
+        exit_status: updatedRecord.status
+      });
+      await syncData();
+    } catch (err) {
+      console.warn('Exit DB sync failed:', err.message);
+    }
+
+    showToast(`Resignation & Exit Clearance Form saved for ${record.name}!`);
+    setShowExitModal(false);
+    setSelectedExitRecord(null);
   };
 
   const toggleCheckpoint = async (empId, deptKey) => {
@@ -684,20 +719,186 @@ export default function HRPortal() {
 
   // 7. EXIT CLEARANCE
   const renderExitClearance = () => {
+    const defaultExitClearances = [
+      {
+        empId: 'EMP-005',
+        name: 'Neha Shah',
+        department: 'Finance',
+        effectiveDate: '2026-06-30',
+        empDetails: {
+          id: 'EMP-005',
+          name: 'Neha Shah',
+          designation: 'Senior Accountant',
+          department: 'Finance',
+          dateOfJoining: '2021-03-15',
+          resignationDate: '2026-05-30',
+          lastWorkingDay: '2026-06-30',
+          noticePeriod: '30',
+          noticeServed: '30',
+          reportingManager: 'Anil Kumar (VP Finance)'
+        },
+        clearance: {
+          workHandover: 'Completed',
+          assetsReturned: 'Yes',
+          financeDues: 'Cleared',
+          adminClearance: 'Cleared',
+          managerClearance: 'Cleared',
+          exitInterview: 'Done',
+          leaveBalance: '5',
+          fullAndFinal: 'Completed'
+        },
+        assets: {
+          laptopPc: true,
+          monitor: true,
+          keyboardMouse: true,
+          mobileCharger: true,
+          idCard: true,
+          keys: true,
+          headsetDisk: false,
+          documentsFiles: true,
+          other: 'Access token returned'
+        },
+        approval: {
+          remarks: 'Handover complete. All financial ledger access revoked.',
+          empSignature: 'Neha Shah',
+          empSigDate: '2026-06-30',
+          mgrSignature: 'Anil Kumar',
+          mgrSigDate: '2026-06-30',
+          hrSignature: 'Raman HR',
+          hrSigDate: '2026-06-30',
+          finalHrStatus: 'Cleared',
+          hrSignOff: 'Raman HR',
+          hrSignOffDate: '2026-06-30',
+          companyStamp: 'Himalaya Enterprises - HR Seal'
+        },
+        checkpoints: { IT: true, Finance: true, Store: true, HR: true },
+        progress: 100,
+        status: 'Cleared'
+      },
+      {
+        empId: 'EMP-002',
+        name: 'Ramanathan Swamy',
+        department: 'Operations',
+        effectiveDate: '2026-07-15',
+        empDetails: {
+          id: 'EMP-002',
+          name: 'Ramanathan Swamy',
+          designation: 'Operations Lead',
+          department: 'Operations',
+          dateOfJoining: '2022-04-10',
+          resignationDate: '2026-06-15',
+          lastWorkingDay: '2026-07-15',
+          noticePeriod: '30',
+          noticeServed: '30',
+          reportingManager: 'Plant Manager'
+        },
+        clearance: {
+          workHandover: 'Pending',
+          assetsReturned: 'Yes',
+          financeDues: 'Pending',
+          adminClearance: 'Cleared',
+          managerClearance: 'Pending',
+          exitInterview: 'Pending',
+          leaveBalance: '8',
+          fullAndFinal: 'Pending'
+        },
+        assets: {
+          laptopPc: true,
+          monitor: false,
+          keyboardMouse: true,
+          mobileCharger: true,
+          idCard: true,
+          keys: true,
+          headsetDisk: true,
+          documentsFiles: true,
+          other: ''
+        },
+        approval: {
+          remarks: 'Notice period underway. Store handover pending.',
+          empSignature: 'Ramanathan Swamy',
+          empSigDate: '2026-06-15',
+          mgrSignature: '',
+          mgrSigDate: '',
+          hrSignature: 'HR Team',
+          hrSigDate: '2026-06-15',
+          finalHrStatus: 'Pending',
+          hrSignOff: '',
+          hrSignOffDate: '',
+          companyStamp: 'Himalaya Enterprises - HR Seal'
+        },
+        checkpoints: { IT: true, Finance: false, Store: true, HR: false },
+        progress: 50,
+        status: 'In Progress'
+      }
+    ];
+
+    const activeExitList = exitClearances.length > 0 ? exitClearances : defaultExitClearances;
+
+    const handleExportRegistryCSV = () => {
+      const data = activeExitList.map(item => ({
+        'Employee Code': item.empId,
+        'Resigning Staff': item.name,
+        'Department': item.department,
+        'Effective Date': item.effectiveDate,
+        'IT Cleared': item.checkpoints?.IT ? 'Yes' : 'No',
+        'Finance Cleared': item.checkpoints?.Finance ? 'Yes' : 'No',
+        'Store Cleared': item.checkpoints?.Store ? 'Yes' : 'No',
+        'HR Cleared': item.checkpoints?.HR ? 'Yes' : 'No',
+        'Clearance Progress': `${item.progress}%`,
+        'Overall Status': item.status
+      }));
+      exportToCSV(data, `exit-clearance-registry-${new Date().toISOString().split('T')[0]}.csv`);
+    };
+
+    const handleExportRegistryExcel = () => {
+      const data = activeExitList.map(item => ({
+        'Employee Code': item.empId,
+        'Resigning Staff': item.name,
+        'Department': item.department,
+        'Effective Date': item.effectiveDate,
+        'IT Cleared': item.checkpoints?.IT ? 'Yes' : 'No',
+        'Finance Cleared': item.checkpoints?.Finance ? 'Yes' : 'No',
+        'Store Cleared': item.checkpoints?.Store ? 'Yes' : 'No',
+        'HR Cleared': item.checkpoints?.HR ? 'Yes' : 'No',
+        'Clearance Progress': `${item.progress}%`,
+        'Overall Status': item.status
+      }));
+      exportToExcel(data, `exit-clearance-registry-${new Date().toISOString().split('T')[0]}.xls`);
+    };
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '16px' }}>
+        <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h2 className="card-heading" style={{ fontSize: '18px', fontWeight: '800' }}>Corporate Offboarding & Exit Clearance Registry</h2>
             <span style={{ fontSize: '11px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
           </div>
-          <button 
-            className="action-btn"
-            style={{ background: '#24345C', border: 'none', padding: '8px 16px', borderRadius: '6px', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
-            onClick={() => setShowExitModal(true)}
-          >
-            Initiate Exit Process
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button 
+              className="action-btn"
+              style={{ background: '#0284c7', border: 'none', padding: '8px 14px', borderRadius: '6px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+              onClick={handleExportRegistryCSV}
+            >
+              <Download size={14} /> Export CSV
+            </button>
+            <button 
+              className="action-btn"
+              style={{ background: '#16a34a', border: 'none', padding: '8px 14px', borderRadius: '6px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+              onClick={handleExportRegistryExcel}
+            >
+              <FileSpreadsheet size={14} /> Export Excel
+            </button>
+            <button 
+              className="action-btn"
+              style={{ background: '#24345C', border: 'none', padding: '8px 14px', borderRadius: '6px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+              onClick={() => {
+                setSelectedExitRecord(null);
+                setShowExitModal(true);
+              }}
+            >
+              <FileText size={14} /> Initiate Exit Process
+            </button>
+          </div>
         </div>
 
         <div className="app-card">
@@ -743,60 +944,58 @@ export default function HRPortal() {
                     {row.status}
                   </span>
                 )
+              },
+              {
+                header: 'Resignation Form',
+                accessor: 'empId',
+                render: (row) => (
+                  <button
+                    className="action-btn"
+                    style={{
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      padding: '4px 10px',
+                      borderRadius: '5px',
+                      color: '#0f172a',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    onClick={() => {
+                      setSelectedExitRecord(row);
+                      setShowExitModal(true);
+                    }}
+                  >
+                    <FileText size={12} /> View / Edit Form
+                  </button>
+                )
               }
             ]}
-            data={exitClearances}
+            data={activeExitList}
             searchQuery={globalSearch}
             searchField="name"
             emptyMessage="No offboarding processes registered."
           />
         </div>
 
-        {/* Exit Process Creation Popover Modal */}
-        {showExitModal && (
-          <div className="modal-overlay active" onClick={() => setShowExitModal(null)} style={{ zIndex: 10000 }}>
-            <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '400px' }}>
-              <div className="modal-header-row">
-                <h3 className="modal-title-text">Initiate Staff Resignation</h3>
-                <button className="modal-close-btn" onClick={() => setShowExitModal(false)}>✕</button>
-              </div>
-              <form onSubmit={handleInitiateExit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Select Employee</label>
-                  <select 
-                    value={exitForm.empId} 
-                    onChange={(e) => setExitForm({...exitForm, empId: e.target.value})} 
-                    className="form-select"
-                  >
-                    {employees.map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Effective Date of Exit</label>
-                  <input 
-                    type="date" 
-                    required 
-                    value={exitForm.effectiveDate} 
-                    onChange={(e) => setExitForm({...exitForm, effectiveDate: e.target.value})} 
-                    className="form-input" 
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className="action-btn"
-                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}
-                >
-                  Confirm Exit Process
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Exit Clearance Form Modal */}
+        <ExitClearanceFormModal
+          isOpen={showExitModal}
+          onClose={() => {
+            setShowExitModal(false);
+            setSelectedExitRecord(null);
+          }}
+          onSubmit={handleSaveExitFormModal}
+          employees={employees}
+          initialData={selectedExitRecord}
+        />
       </div>
     );
   };
+
 
   // 8. PAYROLL OUTLAY
   const renderPayroll = () => {

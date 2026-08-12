@@ -167,17 +167,17 @@ export default function SuperAdminPortal() {
       const dateFrom = dFrom.toISOString().split('T')[0];
       const dateTo = new Date().toISOString().split('T')[0];
 
-      const [salesRes, finRes, stockRes] = await Promise.all([
+      const [salesRes, finRes, stockRes] = await Promise.allSettled([
         apiClient.get(`/reports/sales/summary?date_from=${dateFrom}&date_to=${dateTo}`),
         apiClient.get(`/reports/finance/revenue-expense?date_from=${dateFrom}&date_to=${dateTo}`),
         apiClient.get('/reports/inventory/stock-levels')
       ]);
 
-      setSalesSummaryData(salesRes.data || []);
-      setRevenueExpenseData(finRes.data?.summary || []);
-      setStockLevelsData(stockRes.data || []);
+      if (salesRes.status === 'fulfilled') setSalesSummaryData(salesRes.value.data || []);
+      if (finRes.status === 'fulfilled') setRevenueExpenseData(finRes.value.data?.summary || []);
+      if (stockRes.status === 'fulfilled') setStockLevelsData(stockRes.value.data || []);
     } catch (err) {
-      console.error('Failed to fetch Super Admin dashboard reports:', err);
+      console.warn('Super Admin dashboard reports load fallback:', err);
     } finally {
       setIsReportsLoading(false);
     }
@@ -7285,6 +7285,18 @@ export default function SuperAdminPortal() {
         return <ExpenseManagementView />;
       case 'leave-approvals':
         return <LeaveApprovalView roleMode="SUPER_ADMIN" />;
+      case 'exit-clearance':
+        return (
+          <HRDept
+            state={state}
+            deptEmployee={deptEmployee}
+            setDeptEmployee={setDeptEmployee}
+            onBack={() => navigate.push('/super-admin/dashboard')}
+            navigate={navigate}
+            showToast={showToast}
+            showExitClearanceOnly={true}
+          />
+        );
       case 'purchase-indents':
         return <PurchaseIndentsView />;
       case 'analysis-requests':

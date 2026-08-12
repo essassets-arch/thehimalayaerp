@@ -233,6 +233,7 @@ export const navigationConfig = {
   ],
   'Super Admin': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
+    { id: 'exit-clearance', label: 'Exit Clearance (Read-Only)', icon: PackageCheck, path: '/super-admin/exit-clearance' },
     { id: 'salary-approvals', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approvals' },
     { id: 'workflow', label: 'Workflow Monitor', icon: Activity, path: '/super-admin/workflow' },
     { id: 'users', label: 'Users', icon: Users, path: '/super-admin/users' },
