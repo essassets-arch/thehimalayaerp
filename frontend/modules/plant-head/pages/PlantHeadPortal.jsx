@@ -33,7 +33,6 @@ import { PlantHeadDashboard } from './PlantHeadDashboard';
 import { PlantHeadProductionAnalytics } from './PlantHeadProductionAnalytics';
 import { PlantHeadDispatchAnalytics } from './PlantHeadDispatchAnalytics';
 import { PlantHeadMaterialAnalytics } from './PlantHeadMaterialAnalytics';
-import { PlantHeadExecutiveReports } from './PlantHeadExecutiveReports';
 import PlantHeadMaterialApprovalView from '../../../components/material-workflow/PlantHeadMaterialApprovalView';
 import MaterialIndentApproval from '../../procurement/plant-head/MaterialIndentApproval';
 import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
@@ -192,28 +191,7 @@ export default function PlantHeadPortal() {
     fetchAnalytics();
   }, [globalDateFilter, customStartDate, customEndDate]);
 
-  useEffect(() => {
-    if (currentView === 'executive-reports') {
-      const fetchReport = async () => {
-        setIsGeneratingReport(true);
-        try {
-          const res = await apiClient.post('/plant-head/reports/generate-ai', {
-            filter: reportDateFilter,
-            customStart: reportCustomStart,
-            customEnd: reportCustomEnd
-          });
-          if (res.success) {
-            setAiReportData(res.data);
-          }
-        } catch (err) {
-          console.error("Error generating AI report:", err);
-        } finally {
-          setIsGeneratingReport(false);
-        }
-      };
-      fetchReport();
-    }
-  }, [currentView, reportDateFilter, reportCustomStart, reportCustomEnd]);
+
 
   const incomingOrders = useERPStore(selectPlantHeadIncomingOrders) || [];
   const storePlanningOrders = useERPStore(selectPlantHeadPlanningOrders) || [];
@@ -4728,7 +4706,6 @@ export default function PlantHeadPortal() {
       {currentView === 'production-analytics' && <PlantHeadProductionAnalytics />}
       {currentView === 'dispatch-analytics' && <PlantHeadDispatchAnalytics />}
       {currentView === 'material-analytics' && <PlantHeadMaterialAnalytics />}
-      {currentView === 'executive-reports' && <PlantHeadExecutiveReports />}
       {currentView === 'reports' && renderReports()}
       {currentView === 'qc-failures' && renderQCFailures()}
       {currentView === 'products' && renderProducts()}
@@ -4742,7 +4719,7 @@ export default function PlantHeadPortal() {
       {currentView === 'indent-approvals' && <MaterialIndentApproval />}
       {currentView === 'leave-approvals' && <LeaveApprovalView roleMode="PLANT_HEAD" />}
 
-      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'executive-reports', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals'].includes(currentView) && (
+      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals'].includes(currentView) && (
         <ModulePlaceholder 
           title="Module Not Available" 
           description="This Plant Head feature is not implemented yet." 
