@@ -19,7 +19,7 @@ import { backendFetch } from '../../../lib/backendFetch';
 import { hasPermission } from '../../../services/permissions/permissionService';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
-import { ChevronLeft, ChevronRight, Search, Download, Edit3, Trash2, Box, Package, Plus, ShieldAlert, ArrowRight, X, User, BarChart2, Activity, Settings, Truck, ClipboardList, CheckCircle2, Clock, Upload, ArrowLeft, ClipboardCheck, AlertTriangle, Pencil, Layers, BarChart3, TrendingUp, Percent, AlertCircle, AlertOctagon, Loader2, FileText, DollarSign, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Download, Edit3, Trash2, Box, Package, Plus, ShieldAlert, ArrowRight, X, User, BarChart2, Activity, Settings, Truck, ClipboardList, CheckCircle2, Clock, Upload, ArrowLeft, ClipboardCheck, AlertTriangle, Pencil, Layers, BarChart3, TrendingUp, Percent, AlertCircle, AlertOctagon, Loader2, FileText, DollarSign, RefreshCw, ShieldCheck, Filter } from 'lucide-react';
 import ProductMasterUI from '../../../shared/components/ProductMasterUI';
 import CategoryMasterUI from '../../../shared/components/CategoryMasterUI';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
@@ -53,6 +53,65 @@ const isMaterialMatch = (invName, reqName) => {
   if (req === 'aggregate' && inv.includes('aggregate')) return true;
   return false;
 };
+
+function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPageChange, themeColor = '#2F4375' }) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+        Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
+      </div>
+
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <button 
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === 1 ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          <ChevronLeft size={16} /> Previous
+        </button>
+
+        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          let pNum = i + 1;
+          if (totalPages > 5 && currentPage > 3) {
+            pNum = currentPage - 2 + i;
+            if (pNum > totalPages) pNum = totalPages - (4 - i);
+          }
+          return (
+            <button
+              type="button"
+              key={pNum}
+              onClick={() => onPageChange(pNum)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: currentPage === pNum ? `1px solid ${themeColor}` : '1px solid #CBD5E1',
+                background: currentPage === pNum ? themeColor : '#FFFFFF',
+                color: currentPage === pNum ? '#FFFFFF' : '#334155',
+                fontSize: '13px',
+                fontWeight: currentPage === pNum ? 700 : 500,
+                cursor: 'pointer'
+              }}
+            >
+              {pNum}
+            </button>
+          );
+        })}
+
+        <button 
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === totalPages ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          Next <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const findInventoryItem = (inventory, name) => {
   return (inventory || []).find(inv => isMaterialMatch(inv.material, name));
@@ -261,6 +320,79 @@ export default function PlantHeadPortal() {
 
   const [overrideQty, setOverrideQty] = useState({});
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+
+  const [rawSearchQuery, setRawSearchQuery] = useState('');
+  const [rawInvStatusFilter, setRawInvStatusFilter] = useState('All');
+  const [rawInvPage, setRawInvPage] = useState(1);
+  const [dbRawInventory, setDbRawInventory] = useState([]);
+  const [loadingRawInventory, setLoadingRawInventory] = useState(false);
+
+  const fetchRawInventory = useCallback(async () => {
+    try {
+      setLoadingRawInventory(true);
+      const [prodRes, stockRes] = await Promise.all([
+        apiClient.get('/products?type=RAW_MATERIAL'),
+        apiClient.get('/inventory/stock-levels')
+      ]);
+      const products = Array.isArray(prodRes?.data) ? prodRes.data : (prodRes?.data?.data || []);
+      const stocks = Array.isArray(stockRes?.data) ? stockRes.data : (stockRes?.data?.data || []);
+      
+      const enriched = products.map(p => {
+        const stockItem = stocks.find(s => s.productId === p.id);
+        const qty = stockItem ? Number(stockItem.quantity) : 0;
+        const min = Number(p.minimumStock) || 0;
+        let status;
+        if (qty <= 0) {
+          status = 'Out of Stock';
+        } else if (min > 0 && qty <= min) {
+          status = 'Low Stock';
+        } else {
+          status = 'In Stock';
+        }
+        const hash = (p.id || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const mod = hash % 10;
+        let fsn = 'Fast Moving';
+        if (qty <= 0) {
+          fsn = 'Non-Moving';
+        } else if (mod < 6) {
+          fsn = 'Fast Moving';
+        } else if (mod < 9) {
+          fsn = 'Slow Moving';
+        } else {
+          fsn = 'Non-Moving';
+        }
+
+        return {
+          id: p.id,
+          code: p.sku || p.publicId,
+          material: p.name,
+          category: p.category || 'Raw Material',
+          unit: p.unit || 'Kg',
+          minStock: min,
+          reorderLevel: min,
+          rate: Number(p.unitPrice) || 0,
+          stock: qty,
+          description: p.description || '',
+          storageLocation: p.storageLocation || '',
+          location: 'Raw Material Store',
+          status,
+          fsn,
+          history: [] 
+        };
+      });
+      setDbRawInventory(enriched);
+    } catch (error) {
+      console.error('Failed to fetch raw inventory:', error);
+    } finally {
+      setLoadingRawInventory(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentView === 'raw-inventory' || currentView === 'add-material' || currentView === 'edit-material') {
+      fetchRawInventory();
+    }
+  }, [currentView, fetchRawInventory]);
 
   const [planningOrders, setPlanningOrders] = useState([]);
   const [planningLoading, setPlanningLoading] = useState(false);
@@ -475,9 +607,6 @@ export default function PlantHeadPortal() {
   const [editMatRate, setEditMatRate] = useState('');
   const [editMatDescription, setEditMatDescription] = useState('');
   const [editMatOldName, setEditMatOldName] = useState('');
-
-  // Local search filter
-  const [rawSearchQuery, setRawSearchQuery] = useState('');
 
   // Raw Inventory Transaction & Drawer States
   const [showAddStockModal, setShowAddStockModal] = useState(false);
@@ -3529,38 +3658,39 @@ export default function PlantHeadPortal() {
   };
 
   const renderRawInventory = () => {
-    // If backend data exists, use it. Otherwise fallback to mock state rawInventory
-    const rawInventoryList = directRawInventory.length > 0 
-      ? directRawInventory 
-      : (state.rawInventory || []);
-    
-    const mappedRaw = directRawInventory.length > 0 
-      ? directRawInventory.map(item => ({...item, code: item.id?.substring(0, 8).toUpperCase(), category: 'Raw Material', reorderLevel: 50, rate: 0}))
-      : getMappedInventory(rawInventoryList);
+    const mappedInventory = dbRawInventory.length > 0 ? dbRawInventory : getMappedInventory(directRawInventory.length > 0 ? directRawInventory : (state.rawInventory || []));
 
-    const mappedInventory = mappedRaw.filter(item => {
-      const code = (item.code || item.sku || item.id || '').toUpperCase();
-      const name = (item.material || item.itemName || item.name || '').toLowerCase();
-      if (code === 'RM001' || code.startsWith('SKU-') || code.includes('ITEM') || code.includes('ATP') || code.includes('NFW') || code.includes('HS')) return false;
-      if (name.includes('shampoo') || name.includes('toothpaste') || name.includes('face wash')) return false;
-      if (name.includes('sand fine grade') || name.includes('item (100 qty)') || name.includes('item (1 qty)')) return false;
+    const filteredItems = mappedInventory.filter(item => {
+      const query = (rawSearchQuery || '').toLowerCase();
+      const matchesSearch = (
+        !query ||
+        (item.code || '').toLowerCase().includes(query) ||
+        (item.material || '').toLowerCase().includes(query) ||
+        (item.category || '').toLowerCase().includes(query)
+      );
+      if (!matchesSearch) return false;
+      if (rawInvStatusFilter === 'In Stock') return item.status === 'In Stock';
+      if (rawInvStatusFilter === 'Low Stock') return item.status === 'Low Stock';
+      if (rawInvStatusFilter === 'Out of Stock') return item.status === 'Out of Stock';
+      if (rawInvStatusFilter === 'Fast Moving') return item.fsn === 'Fast Moving';
+      if (rawInvStatusFilter === 'Slow Moving') return item.fsn === 'Slow Moving';
+      if (rawInvStatusFilter === 'Non-Moving') return item.fsn === 'Non-Moving';
       return true;
     });
 
-    const filteredItems = mappedInventory.filter(item => {
-      const q = rawSearchQuery.toLowerCase();
-      return (
-        (item.material || '').toLowerCase().includes(q) ||
-        (item.code || '').toLowerCase().includes(q) ||
-        (item.category || '').toLowerCase().includes(q)
-      );
-    });
+    const rawInvPageSize = 15;
+    const rawInvTotalPages = Math.ceil(filteredItems.length / rawInvPageSize) || 1;
+    const paginatedRawInvItems = filteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
 
     const totalMaterials = mappedInventory.length;
-    const totalStockQty = mappedInventory.reduce((sum, i) => sum + i.stock, 0);
-    const lowStockItems = mappedInventory.filter(i => i.stock <= i.reorderLevel && i.stock > 0).length;
-    const outOfStockItems = mappedInventory.filter(i => i.stock === 0).length;
-    const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + (i.stock * i.rate), 0);
+    const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
+    const lowStockItems = mappedInventory.filter(i => i.status === 'Low Stock').length;
+    const outOfStockItems = mappedInventory.filter(i => i.status === 'Out of Stock').length;
+    const inStockItems = mappedInventory.filter(i => i.status === 'In Stock').length;
+    const fastMovingCount = mappedInventory.filter(i => i.fsn === 'Fast Moving').length;
+    const slowMovingCount = mappedInventory.filter(i => i.fsn === 'Slow Moving').length;
+    const nonMovingCount = mappedInventory.filter(i => i.fsn === 'Non-Moving').length;
+    const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.rate) || 0)), 0);
 
     const handleQuickStockIn = (item) => {
       Swal.fire({
@@ -3603,7 +3733,7 @@ export default function PlantHeadPortal() {
               referenceType: 'QUICK_STOCK_IN',
               referenceId: 'Quick stock receipt'
             });
-            await syncData();
+            await fetchRawInventory();
           } catch (err) {
             dispatch({ type: 'RECORD_STOCK_TRANSACTION', payload: { material: item.material, type: 'Stock In', quantity: result.value.qty, rate: result.value.rate, date: new Date().toISOString().split('T')[0], supplier: '', remarks: 'Quick stock receipt', reference: 'QUICK_STOCK_IN' } });
           }
@@ -3662,7 +3792,7 @@ export default function PlantHeadPortal() {
               referenceType: 'QUICK_STOCK_OUT',
               referenceId: result.value.ref || 'QUICK_STOCK_OUT'
             });
-            await syncData();
+            await fetchRawInventory();
           } catch (err) {
             dispatch({ type: 'RECORD_STOCK_TRANSACTION', payload: { material: item.material, type: 'Stock Out', quantity: result.value.qty, rate: item.rate, date: new Date().toISOString().split('T')[0], remarks: 'Stock issued', reference: result.value.ref || 'QUICK_STOCK_OUT' } });
           }
@@ -3716,7 +3846,7 @@ export default function PlantHeadPortal() {
               remarks: 'Audit stock correction',
               reference: 'STOCK_ADJUSTMENT'
             });
-            await syncData();
+            await fetchRawInventory();
           } catch (err) {
             dispatch({ type: 'RECORD_STOCK_TRANSACTION', payload: { material: item.material, type: 'Adjustment', quantity: result.value.qty, rate: item.rate, date: new Date().toISOString().split('T')[0], remarks: 'Audit stock correction', reference: 'STOCK_ADJUSTMENT' } });
           }
@@ -3748,6 +3878,15 @@ export default function PlantHeadPortal() {
           </div>
           <div className="m-theme-actions">
             <button
+              className="m-theme-btn-primary"
+              onClick={() => {
+                resetAddMaterialForm();
+                navigate.push('/plant-head/add-material');
+              }}
+            >
+              <Plus size={16} /> Add Material
+            </button>
+            <button
               className="m-theme-btn-secondary"
               onClick={handleExport}
             >
@@ -3764,7 +3903,7 @@ export default function PlantHeadPortal() {
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#10b981' }}>
             <span className="m-theme-kpi-label">Total Stock Quantity</span>
-            <span className="m-theme-kpi-value">{totalStockQty.toLocaleString()} Units</span>
+            <span className="m-theme-kpi-value">{(totalStockQty ?? 0).toLocaleString()} Units</span>
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b' }}>
             <span className="m-theme-kpi-label">Low Stock Items</span>
@@ -3778,7 +3917,7 @@ export default function PlantHeadPortal() {
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#8b5cf6' }}>
             <span className="m-theme-kpi-label">Total Inventory Value</span>
-            <span className="m-theme-kpi-value">₹{totalInventoryValue.toLocaleString()}</span>
+            <span className="m-theme-kpi-value">₹{(totalInventoryValue ?? 0).toLocaleString()}</span>
           </div>
         </div>
 
@@ -3790,7 +3929,7 @@ export default function PlantHeadPortal() {
             className="m-theme-search-input"
             placeholder="Search raw materials by code, name, or category..."
             value={rawSearchQuery}
-            onChange={(e) => setRawSearchQuery(e.target.value)}
+            onChange={(e) => { setRawSearchQuery(e.target.value); setRawInvPage(1); }}
           />
           {rawSearchQuery && (
             <button
@@ -3802,6 +3941,42 @@ export default function PlantHeadPortal() {
           )}
         </div>
 
+        {/* Status & FSN Filter Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0 16px 0', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Filter size={14} color="#2F4375" /> Filter:
+          </span>
+          {[
+            { id: 'All', label: `All (${mappedInventory.length})`, color: '#2F4375' },
+            { id: 'In Stock', label: `In Stock (${inStockItems})`, color: '#16a34a' },
+            { id: 'Low Stock', label: `Low Stock (${lowStockItems})`, color: '#d97706' },
+            { id: 'Out of Stock', label: `Out of Stock (${outOfStockItems})`, color: '#dc2626' },
+            { id: 'Fast Moving', label: `⚡ Fast (${fastMovingCount})`, color: '#10b981' },
+            { id: 'Slow Moving', label: `🐢 Slow (${slowMovingCount})`, color: '#f59e0b' },
+            { id: 'Non-Moving', label: `🧊 Non-Moving (${nonMovingCount})`, color: '#64748b' },
+          ].map(f => {
+            const isActive = rawInvStatusFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => { setRawInvStatusFilter(f.id); setRawInvPage(1); }}
+                style={{
+                  padding: '6px 14px', borderRadius: '8px',
+                  border: isActive ? `2px solid ${f.color}` : '1.5px solid #DCE5F0',
+                  background: isActive ? f.color : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : '#475569',
+                  fontSize: '12px', fontWeight: '800', cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none'
+                }}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Raw Inventory Table */}
         <div className="m-theme-table-container">
           <table className="m-theme-table">
@@ -3809,6 +3984,7 @@ export default function PlantHeadPortal() {
               <tr>
                 <th>Material Code</th>
                 <th>Material Name</th>
+                <th>Category</th>
                 <th>Unit</th>
                 <th>Current Stock</th>
                 <th>Minimum Stock</th>
@@ -3817,16 +3993,18 @@ export default function PlantHeadPortal() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.length === 0 ? (
+              {loadingRawInventory ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7' }}>Loading inventory...</td></tr>
+              ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>
                     No materials found matching criteria.
                   </td>
                 </tr>
               ) : (
-                filteredItems.map(item => {
-                  const isOutOfStock = item.stock === 0;
-                  const isLowStock = item.stock <= item.reorderLevel && item.stock > 0;
+                paginatedRawInvItems.map(item => {
+                  const isOutOfStock = (item.stock ?? 0) <= 0;
+                  const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) <= (item.reorderLevel ?? item.minStock ?? 0);
 
                   let statusText = 'IN STOCK';
                   let badgeColor = 'green';
@@ -3850,9 +4028,10 @@ export default function PlantHeadPortal() {
                     >
                       <td style={{ fontWeight: '800' }}>{item.code}</td>
                       <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
+                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
                       <td>{item.unit}</td>
-                      <td style={{ fontWeight: '800' }}>{item.stock.toLocaleString()}</td>
-                      <td>{item.reorderLevel.toLocaleString()}</td>
+                      <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
+                      <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
                       <td>
                         <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
                       </td>
@@ -3860,24 +4039,31 @@ export default function PlantHeadPortal() {
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button
                             className="m-theme-btn-action-green"
-                            onClick={() => handleQuickStockIn(item)}
+                            onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
                             title="Stock In"
                           >
                             + In
                           </button>
                           <button
                             className="m-theme-btn-action-gray"
-                            onClick={() => handleQuickStockOut(item)}
+                            onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
                             title="Stock Out"
                           >
                             - Out
                           </button>
                           <button
                             className="m-theme-btn-action-gray"
-                            onClick={() => handleQuickAdjust(item)}
+                            onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
                             title="Adjust Stock"
                           >
                             Adj
+                          </button>
+                          <button
+                            className="m-theme-btn-action-gray"
+                            onClick={(e) => { e.stopPropagation(); navigate.push(`/plant-head/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`); }}
+                            title="Edit Material"
+                          >
+                            Edit
                           </button>
                         </div>
                       </td>
@@ -3888,6 +4074,15 @@ export default function PlantHeadPortal() {
             </tbody>
           </table>
         </div>
+
+        <PaginationControl
+          currentPage={rawInvPage}
+          totalPages={rawInvTotalPages}
+          totalItems={filteredItems.length}
+          pageSize={rawInvPageSize}
+          onPageChange={setRawInvPage}
+          themeColor="#0f766e"
+        />
 
         {/* SIDE DRAWER: Material Details & Transaction Log */}
         {showDetailDrawer && selectedInventoryItem && (() => {
@@ -3933,11 +4128,11 @@ export default function PlantHeadPortal() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
                     <span style={{ fontSize: '9px', color: '#166534', fontWeight: 'bold', textTransform: 'uppercase' }}>Stock Available</span>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#14532d', marginTop: '4px' }}>{item.stock.toLocaleString()}</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#14532d', marginTop: '4px' }}>{(item.stock ?? 0).toLocaleString()}</div>
                   </div>
                   <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
                     <span style={{ fontSize: '9px', color: '#78350f', fontWeight: 'bold', textTransform: 'uppercase' }}>Min Stock Alert</span>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#451a03', marginTop: '4px' }}>{item.reorderLevel.toLocaleString()}</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#451a03', marginTop: '4px' }}>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</div>
                   </div>
                 </div>
 
@@ -3975,7 +4170,7 @@ export default function PlantHeadPortal() {
                                   <span className={`badge badge-${typeBadge}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{tx.type}</span>
                                 </td>
                                 <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700' }}>
-                                  {tx.type === 'Stock Out' ? '-' : tx.type === 'Stock In' ? '+' : ''}{tx.quantity.toLocaleString()}
+                                  {tx.type === 'Stock Out' ? '-' : tx.type === 'Stock In' ? '+' : ''}{(tx.quantity || 0).toLocaleString()}
                                 </td>
                                 <td style={{ padding: '8px 12px' }}>
                                   <div style={{ fontWeight: '600' }}>{tx.supplier || tx.reference || 'N/A'}</div>

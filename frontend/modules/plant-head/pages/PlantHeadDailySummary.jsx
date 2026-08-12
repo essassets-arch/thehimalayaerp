@@ -339,13 +339,13 @@ export const PlantHeadDailySummary = () => {
           </span>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto', maxHeight: '480px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#fef2f2', borderBottom: '2px solid #fecaca', textTransform: 'uppercase', fontSize: '11px', color: '#991b1b' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'left' }}>Priority</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left' }}>Type</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Reference</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Material Code</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left' }}>Problem</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left' }}>Age / Status</th>
                 <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
@@ -361,7 +361,7 @@ export const PlantHeadDailySummary = () => {
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', fontWeight: '800', color: '#1e293b' }}>{item.type}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0284c7' }}>{item.reference}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0284c7' }}>{item.materialCode || item.reference || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#991b1b', fontWeight: '700' }}>{item.problem}</td>
                     <td style={{ padding: '10px 12px', color: '#64748b' }}>{item.age}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -374,7 +374,7 @@ export const PlantHeadDailySummary = () => {
               ) : (
                 <tr>
                   <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: '#166534', fontWeight: '700', background: '#f0fdf4' }}>
-                    ✅ All plant operations are running smoothly without any critical alerts.
+                    No critical operational alerts recorded today.
                   </td>
                 </tr>
               )}
@@ -734,7 +734,7 @@ export const PlantHeadDailySummary = () => {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', maxHeight: '480px', overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', color: '#475569', textTransform: 'uppercase', fontSize: '11px' }}>
@@ -1210,8 +1210,7 @@ export const PlantHeadDailySummary = () => {
                   <tr style={{ background: '#fef2f2', borderBottom: '1.5px solid #fecaca', color: '#991b1b', textTransform: 'uppercase', fontSize: '10.5px' }}>
                     <th style={{ padding: '6px 8px', textAlign: 'left', width: '15%', border: '1px solid #fecaca' }}>Priority</th>
                     <th style={{ padding: '6px 8px', textAlign: 'left', width: '20%', border: '1px solid #fecaca' }}>Category</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'left', width: '20%', border: '1px solid #fecaca' }}>Reference</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'left', width: '45%', border: '1px solid #fecaca' }}>Issue Description</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', width: '65%', border: '1px solid #fecaca' }}>Material Code</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1220,12 +1219,11 @@ export const PlantHeadDailySummary = () => {
                       <tr key={i}>
                         <td style={{ padding: '6px 8px', fontWeight: '900', color: att.priority === 'CRITICAL' ? '#dc2626' : '#d97706', border: '1px solid #fecaca' }}>{att.priority}</td>
                         <td style={{ padding: '6px 8px', fontWeight: '700', color: '#1e293b', border: '1px solid #fecaca' }}>{att.type}</td>
-                        <td style={{ padding: '6px 8px', color: '#0284c7', fontWeight: '700', border: '1px solid #fecaca' }}>{att.reference}</td>
-                        <td style={{ padding: '6px 8px', color: '#7f1d1d', border: '1px solid #fecaca' }}>{att.problem}</td>
+                        <td style={{ padding: '6px 8px', color: '#0284c7', fontWeight: '700', border: '1px solid #fecaca', wordBreak: 'break-word', lineHeight: '1.5' }}>{att.materialCode || att.reference || '—'}</td>
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={4} style={{ padding: '10px', textAlign: 'center', color: '#166534', border: '1px solid #cbd5e1' }}>No critical operational alerts recorded today.</td></tr>
+                    <tr><td colSpan={3} style={{ padding: '10px', textAlign: 'center', color: '#166534', border: '1px solid #cbd5e1' }}>No critical operational alerts recorded today.</td></tr>
                   )}
                 </tbody>
               </table>

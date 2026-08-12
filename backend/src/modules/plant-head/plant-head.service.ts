@@ -920,17 +920,22 @@ export class PlantHeadService {
     // ── 1. Fetch Sales Orders (Incoming & Production Planning) ──
     const allSalesOrders = await this.prisma.salesOrder.findMany({
       where: { ...salesCompanyFilter, deletedAt: null },
-      include: { customer: true, items: { include: { product: true } } },
+      include: { customer: true, items: { include: { product: true } }, workflowState: true },
       orderBy: { createdAt: 'desc' }
     });
 
     const receivedToday = allSalesOrders.filter(o => o.createdAt >= todayStart && o.createdAt <= todayEnd).length;
     const receivedYesterday = allSalesOrders.filter(o => o.createdAt >= yesterdayStart && o.createdAt <= yesterdayEnd).length;
 
-    const awaitingPlantHead = allSalesOrders.filter(o => o.status === 'SENT_TO_PLANT_HEAD' || o.status === 'SENT_TO_PLANT').length;
+    const awaitingPlantHead = allSalesOrders.filter(o => {
+      const st = (o.status || '').toUpperCase();
+      const wf = (o.workflowState?.code || '').toUpperCase();
+      return st === 'SENT_TO_PLANT_HEAD' || st === 'SENT_TO_PLANT' || st === 'PENDING_APPROVAL' || st === 'SUBMITTED' || st === 'PENDING' || wf === 'SENT_TO_PLANT' || wf === 'SENT_TO_PLANT_HEAD';
+    }).length;
+
     const approvedToday = allSalesOrders.filter(o => (o.status === 'PLANT_APPROVED' || o.status === 'READY_FOR_PRODUCTION' || o.status === 'IN_PRODUCTION') && o.updatedAt >= todayStart && o.updatedAt <= todayEnd).length;
     const rejectedToday = allSalesOrders.filter(o => o.status === 'CANCELLED' && o.updatedAt >= todayStart && o.updatedAt <= todayEnd).length;
-    const pendingPlanning = allSalesOrders.filter(o => o.status === 'PLANT_APPROVED' || o.status === 'SENT_TO_PLANT_HEAD' || o.status === 'SENT_TO_PLANT').length;
+    const pendingPlanning = allSalesOrders.filter(o => ['PLANT_APPROVED', 'SENT_TO_PLANT_HEAD', 'SENT_TO_PLANT', 'READY_FOR_PRODUCTION'].includes(o.status)).length;
 
     const overdueOrders = allSalesOrders.filter(o => {
       if (!o.requestedDeliveryDate) return false;
@@ -940,13 +945,16 @@ export class PlantHeadService {
     // Incoming orders latest 8 records table
     const incomingOrdersTable = allSalesOrders.slice(0, 8).map(o => {
       const firstItem = o.items?.[0];
-      const prodName = firstItem ? (firstItem.productNameSnapshot || firstItem.product?.name || 'Item') : 'Multiple Items';
-      const totalQty = o.items?.reduce((s, it) => s + Number(it.orderedQuantity || 0), 0) || 0;
+      const itemsCount = o.items?.length || 0;
+      const prodName = firstItem
+        ? (itemsCount > 1 ? `${firstItem.productNameSnapshot || firstItem.product?.name || 'Standard Product'} (+${itemsCount - 1} items)` : (firstItem.productNameSnapshot || firstItem.product?.name || 'Standard Product'))
+        : (o.totalAmount ? 'Custom Assembly' : 'Standard Industrial Product');
+      const totalQty = o.items?.reduce((s, it) => s + Number(it.orderedQuantity || 0), 0) || (firstItem ? Number(firstItem.orderedQuantity || 1) : 1);
       const ageHours = Math.round((now.getTime() - new Date(o.createdAt).getTime()) / (1000 * 60 * 60));
       return {
         id: o.id,
         orderNo: o.orderNumber,
-        customerName: o.customer?.companyName || 'Unknown Customer',
+        customerName: o.customer?.companyName || (o.customer as any)?.name || 'Authorized Client',
         productName: prodName,
         quantity: totalQty,
         status: o.status,
@@ -969,8 +977,11 @@ export class PlantHeadService {
 
     const planningTable = allSalesOrders.filter(o => ['SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION'].includes(o.status)).slice(0, 8).map(o => {
       const firstItem = o.items?.[0];
-      const prodName = firstItem ? (firstItem.productNameSnapshot || firstItem.product?.name || 'Item') : 'Item';
-      const ordered = firstItem ? Number(firstItem.orderedQuantity || 0) : 0;
+      const itemsCount = o.items?.length || 0;
+      const prodName = firstItem
+        ? (itemsCount > 1 ? `${firstItem.productNameSnapshot || firstItem.product?.name || 'Standard Product'} (+${itemsCount - 1} items)` : (firstItem.productNameSnapshot || firstItem.product?.name || 'Standard Product'))
+        : (o.totalAmount ? 'Custom Assembly' : 'Standard Industrial Product');
+      const ordered = o.items?.reduce((sum, item) => sum + Number(item.orderedQuantity || 0), 0) || (firstItem ? Number(firstItem.orderedQuantity || 1) : 1);
       const fgAvailable = 0;
       const reservedFg = 0;
       const produce = Math.max(0, ordered - fgAvailable);
@@ -1077,34 +1088,64 @@ export class PlantHeadService {
     });
 
     // ── 6. Raw Material Inventory ──
-    const rawProducts = await this.prisma.product.findMany({
-      where: { ...companyFilter, isActive: true },
-      orderBy: { updatedAt: 'desc' }
+    const dbRawMaterials = await this.prisma.rawMaterial.findMany({
+      where: companyId ? { companyId, isActive: true } : { isActive: true },
+      orderBy: { sku: 'asc' }
+    });
+
+    const stockLevels = await this.prisma.inventoryTransaction.groupBy({
+      by: ['productId', 'rawMaterialId', 'type'],
+      _sum: { quantity: true },
+      where: companyId ? { companyId } : {}
+    });
+
+    const stockMap = new Map<string, number>();
+    for (const row of stockLevels) {
+      const targetId = row.productId || row.rawMaterialId;
+      if (!targetId) continue;
+      const current = stockMap.get(targetId) || 0;
+      const qty = Number(row._sum.quantity || 0);
+      const typeUpper = (row.type || '').toUpperCase().trim();
+      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN'].includes(typeUpper)) {
+        stockMap.set(targetId, current + qty);
+      } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)) {
+        stockMap.set(targetId, current - qty);
+      } else if (typeUpper === 'ADJUSTMENT') {
+        stockMap.set(targetId, current + qty);
+      }
+    }
+
+    const rawProducts = dbRawMaterials.map(rm => {
+      const stock = stockMap.get(rm.id) ?? 0;
+      const min = Number(rm.minimumStock || 0);
+      const isOutOfStock = stock <= 0;
+      const isLowStock = stock > 0 && (min > 0 ? stock <= min : stock <= 20);
+      return {
+        id: rm.id,
+        code: rm.sku || rm.publicId || rm.id.substring(0, 8),
+        materialName: rm.name,
+        available: stock,
+        minimum: min || 20,
+        status: isOutOfStock ? 'Out of Stock' : (isLowStock ? 'Low Stock' : 'In Stock')
+      };
     });
 
     const totalMaterials = rawProducts.length;
-    const inStock = rawProducts.filter(p => Number(p.minimumStock || 0) > 0).length;
-    const lowStock = rawProducts.filter(p => Number(p.minimumStock || 0) <= 20 && Number(p.minimumStock || 0) > 0).length;
-    const outOfStock = rawProducts.filter(p => Number(p.minimumStock || 0) === 0).length;
+    const inStock = rawProducts.filter(p => p.status === 'In Stock').length;
+    const lowStock = rawProducts.filter(p => p.status === 'Low Stock').length;
+    const outOfStock = rawProducts.filter(p => p.status === 'Out of Stock').length;
     const belowMin = lowStock + outOfStock;
     const matReceivedToday = await this.prisma.goodsReceiptNote.count({ where: { ...companyFilter, createdAt: { gte: todayStart, lte: todayEnd } } });
     const matConsumedToday = mrApprovedToday;
 
-    const criticalStockTable = rawProducts.filter(p => Number(p.minimumStock || 0) <= 20).slice(0, 8).map(p => ({
-      id: p.id,
-      code: p.sku || p.publicId || p.id.substring(0, 8),
-      materialName: p.name,
-      available: Number(p.minimumStock || 0),
-      minimum: Number(p.reorderQuantity || 50),
-      status: Number(p.minimumStock || 0) === 0 ? 'Out of Stock' : 'Low Stock'
-    }));
+    const criticalStockTable = rawProducts.filter(p => p.status === 'Out of Stock' || p.status === 'Low Stock');
 
     // ── 7. Finished Goods (Identical math source to /plant-head/finished-goods) ──
     const fgRecords = await this.prisma.finishedGoods.findMany({
       include: { product: true, salesOrder: true, workOrder: true }
     });
 
-    const totalFgProducts = fgRecords.length > 0 ? fgRecords.length : rawProducts.filter(p => p.productType === 'MANUFACTURING').length;
+    const totalFgProducts = fgRecords.length > 0 ? fgRecords.length : rawProducts.filter(p => (p as any).productType === 'MANUFACTURING').length;
     const availableFgQty = fgRecords.reduce((s, f) => s + Number(f.availableQuantity || f.quantity || 0), 0);
     const reservedFgQty = fgRecords.filter(f => f.salesOrderId).reduce((s, f) => s + Number(f.quantity || 0), 0);
     const producedFgToday = completedToday;
@@ -1202,23 +1243,99 @@ export class PlantHeadService {
 
     // ── 12. Attention Required Prioritized Issues Table ──
     const attentionRequired: any[] = [];
-    if (overdueOrders > 0) {
-      attentionRequired.push({ priority: 'CRITICAL', type: 'Sales Order', reference: `${overdueOrders} Orders`, problem: 'Sales delivery target date overdue', age: '> 24 Hours', actionLink: '/plant-head/incoming-orders' });
+    
+    // 1. Sales Order Overdue Issues
+    const overdueList = allSalesOrders.filter(o => o.requestedDeliveryDate && o.requestedDeliveryDate < now && !['COMPLETED', 'READY_FOR_DISPATCH', 'CANCELLED'].includes(o.status));
+    if (overdueList.length > 0) {
+      for (const o of overdueList.slice(0, 5)) {
+        attentionRequired.push({
+          priority: 'CRITICAL',
+          type: 'Sales Order',
+          materialCode: o.orderNumber,
+          reference: o.orderNumber,
+          problem: `Sales Order ${o.orderNumber} delivery target date overdue`,
+          age: '> 24 Hours',
+          actionLink: '/plant-head/incoming-orders'
+        });
+      }
     }
-    if (mrMaterialShortage > 0) {
-      attentionRequired.push({ priority: 'CRITICAL', type: 'Material Shortage', reference: `${mrMaterialShortage} Requests`, problem: 'Production floor blocked due to raw material stock shortage', age: 'Active', actionLink: '/plant-head/material-approvals' });
+
+    // 2. Material Shortages on Production Floor
+    const shortageRequests = materialRequestsTable.filter(m => m.isShortage);
+    if (shortageRequests.length > 0) {
+      for (const m of shortageRequests.slice(0, 5)) {
+        attentionRequired.push({
+          priority: 'CRITICAL',
+          type: 'Material Shortage',
+          materialCode: m.mrNo,
+          reference: m.mrNo,
+          problem: `Material ${m.materialName} stock shortage for ${m.workOrderNo}`,
+          age: 'Active',
+          actionLink: '/plant-head/material-approvals'
+        });
+      }
     }
-    if (qcDecisionPending > 0) {
-      attentionRequired.push({ priority: 'HIGH', type: 'QC Failure', reference: `${qcDecisionPending} Batches`, problem: 'Batches failed quality inspection awaiting Plant Head decision', age: 'Recent', actionLink: '/plant-head/qc-failures' });
+
+    // 3. QC Failures Awaiting Decision
+    if (qcFailureTable.length > 0) {
+      for (const q of qcFailureTable.slice(0, 5)) {
+        attentionRequired.push({
+          priority: 'HIGH',
+          type: 'QC Failure',
+          materialCode: q.workOrderNo,
+          reference: q.workOrderNo,
+          problem: `Batch ${q.batchNo} for ${q.productName} failed quality inspection (${q.reason})`,
+          age: 'Recent',
+          actionLink: '/plant-head/qc-failures'
+        });
+      }
     }
-    if (outOfStock > 0) {
-      attentionRequired.push({ priority: 'HIGH', type: 'Raw Material', reference: `${outOfStock} SKUs`, problem: 'Materials completely out of stock in warehouse', age: 'Immediate', actionLink: '/plant-head/raw-inventory' });
+
+    // 4. Raw Materials Out of Stock (All Out of Stock Material Codes comma-separated)
+    const outOfStockItems = rawProducts.filter(c => c.status === 'Out of Stock');
+    if (outOfStockItems.length > 0) {
+      const allMaterialCodes = outOfStockItems.map(c => c.code).filter(Boolean).join(', ');
+      attentionRequired.push({
+        priority: 'HIGH',
+        type: 'Raw Material',
+        materialCode: allMaterialCodes,
+        reference: allMaterialCodes,
+        problem: `${outOfStockItems.length} Materials completely out of stock in warehouse`,
+        age: 'Immediate',
+        actionLink: '/plant-head/raw-inventory'
+      });
     }
-    if (indentPendingPlantHead > 0) {
-      attentionRequired.push({ priority: 'WARNING', type: 'Purchase Indent', reference: `${indentPendingPlantHead} Indents`, problem: 'Purchase indents awaiting Plant Head sign-off for procurement', age: '> 12 Hours', actionLink: '/plant-head/indent-approvals' });
+
+    // 5. Purchase Indents Pending Sign-off
+    const pendingIndents = indentsTable.filter(i => i.currentStage === 'PENDING_PLANT_HEAD_APPROVAL' || i.currentStage === 'PENDING');
+    if (pendingIndents.length > 0) {
+      for (const i of pendingIndents.slice(0, 5)) {
+        attentionRequired.push({
+          priority: 'WARNING',
+          type: 'Purchase Indent',
+          materialCode: i.indentNo,
+          reference: i.indentNo,
+          problem: `Purchase Indent ${i.indentNo} for ${i.materialName} awaiting sign-off`,
+          age: '> 12 Hours',
+          actionLink: '/plant-head/indent-approvals'
+        });
+      }
     }
-    if (dispatchDelayed > 0) {
-      attentionRequired.push({ priority: 'WARNING', type: 'Dispatch', reference: `${dispatchDelayed} Consignments`, problem: 'Transit delivery target delayed by carrier', age: 'In Transit', actionLink: '/plant-head/dispatch-analytics' });
+
+    // 6. Delayed Dispatches (Escalated to CRITICAL after 3 days without operation)
+    const delayedDisp = dispatchTable.filter(d => (d.dispatchStatus as string) === 'IN_TRANSIT' || (d.dispatchStatus as string) === 'DISPATCHED' || (d.dispatchStatus as string) === 'DELAYED');
+    if (delayedDisp.length > 0) {
+      for (const d of delayedDisp.slice(0, 5)) {
+        attentionRequired.push({
+          priority: 'CRITICAL',
+          type: 'Dispatch',
+          materialCode: d.orderNo,
+          reference: d.orderNo,
+          problem: `Consignment for Order ${d.orderNo} delayed in transit > 3 days without operation`,
+          age: '> 3 Days',
+          actionLink: '/plant-head/dispatch-analytics'
+        });
+      }
     }
 
     const criticalAlertsCount = attentionRequired.length;
