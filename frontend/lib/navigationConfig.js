@@ -54,8 +54,7 @@ export const navigationConfig = {
       subItems: [
         { id: 'production-analytics', label: 'Production Analytics', path: '/plant-head/production-analytics' },
         { id: 'dispatch-analytics', label: 'Dispatch Analytics', path: '/plant-head/dispatch-analytics' },
-        { id: 'material-analytics', label: 'Material Analytics', path: '/plant-head/material-analytics' },
-        { id: 'department-overview', label: 'Department Overview', path: '/plant-head/department-overview' },
+        { id: 'material-analytics', label: 'Store Analytics', path: '/plant-head/material-analytics' },
         { id: 'executive-reports', label: 'Executive Reports', path: '/plant-head/executive-reports' }
       ]
     },

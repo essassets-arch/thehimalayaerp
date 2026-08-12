@@ -103,6 +103,25 @@ export class PlantHeadController {
   }
 
   @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @Get('analytics/dispatch')
+  async getDispatchAnalytics(
+    @Req() req: Request,
+    @Query('filter') filter?: string,
+    @Query('customStart') customStart?: string,
+    @Query('customEnd') customEnd?: string,
+  ) {
+    const companyId =
+      (req.headers['x-company-id'] as string) ||
+      (req as any).user?.['companyId'];
+    return this.plantHeadService.getDispatchAnalytics(
+      companyId,
+      filter,
+      customStart,
+      customEnd,
+    );
+  }
+
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
   @Get('overview/departments')
   async getDepartmentOverview(@Req() req: Request) {
     const companyId =

@@ -33,7 +33,6 @@ import { PlantHeadDashboard } from './PlantHeadDashboard';
 import { PlantHeadProductionAnalytics } from './PlantHeadProductionAnalytics';
 import { PlantHeadDispatchAnalytics } from './PlantHeadDispatchAnalytics';
 import { PlantHeadMaterialAnalytics } from './PlantHeadMaterialAnalytics';
-import { PlantHeadDepartmentOverview } from './PlantHeadDepartmentOverview';
 import { PlantHeadExecutiveReports } from './PlantHeadExecutiveReports';
 import PlantHeadMaterialApprovalView from '../../../components/material-workflow/PlantHeadMaterialApprovalView';
 import MaterialIndentApproval from '../../procurement/plant-head/MaterialIndentApproval';
@@ -4729,7 +4728,6 @@ export default function PlantHeadPortal() {
       {currentView === 'production-analytics' && <PlantHeadProductionAnalytics />}
       {currentView === 'dispatch-analytics' && <PlantHeadDispatchAnalytics />}
       {currentView === 'material-analytics' && <PlantHeadMaterialAnalytics />}
-      {currentView === 'department-overview' && <PlantHeadDepartmentOverview />}
       {currentView === 'executive-reports' && <PlantHeadExecutiveReports />}
       {currentView === 'reports' && renderReports()}
       {currentView === 'qc-failures' && renderQCFailures()}
@@ -4744,7 +4742,7 @@ export default function PlantHeadPortal() {
       {currentView === 'indent-approvals' && <MaterialIndentApproval />}
       {currentView === 'leave-approvals' && <LeaveApprovalView roleMode="PLANT_HEAD" />}
 
-      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'department-overview', 'executive-reports', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals'].includes(currentView) && (
+      {!['dashboard', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'executive-reports', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals'].includes(currentView) && (
         <ModulePlaceholder 
           title="Module Not Available" 
           description="This Plant Head feature is not implemented yet." 

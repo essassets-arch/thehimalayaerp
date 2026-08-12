@@ -33,11 +33,13 @@ const ResponsiveChartBox = ({ children, height = 290 }) => {
   }, [height]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: `${height}px`, minHeight: `${height}px`, position: 'relative' }}>
+    <div ref={containerRef} style={{ width: '100%', height: `${height}px`, minHeight: `${height}px`, position: 'relative', overflow: 'hidden' }}>
       {dimensions.width > 0 ? (
-        <ResponsiveContainer width={dimensions.width} height={height}>
-          {children}
-        </ResponsiveContainer>
+        React.isValidElement(children) ? (
+          React.cloneElement(children, { width: dimensions.width, height })
+        ) : (
+          children
+        )
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: `${height}px`, color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>
           Loading chart view...
