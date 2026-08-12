@@ -203,9 +203,15 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Salesperson: All Representatives</option>
-            <option value="Rahul Sharma">Rahul Sharma</option>
-            <option value="Priya Verma">Priya Verma</option>
-            <option value="Amit Kumar">Amit Kumar</option>
+            <option value="SuperSales 1">SuperSales 1 (supersales1@himalayaerp.com)</option>
+            <option value="SuperSales 2">SuperSales 2 (supersales2@himalayaerp.com)</option>
+            <option value="Sales Executive 1">Sales Executive 1 (sales1@himalayaerp.com)</option>
+            <option value="Sales Executive 2">Sales Executive 2 (sales2@himalayaerp.com)</option>
+            <option value="Sales Executive 3">Sales Executive 3 (sales3@himalayaerp.com)</option>
+            <option value="Sales Executive 4">Sales Executive 4 (sales4@himalayaerp.com)</option>
+            <option value="Sales Executive 5">Sales Executive 5 (sales5@himalayaerp.com)</option>
+            <option value="Sales Executive 6">Sales Executive 6 (sales6@himalayaerp.com)</option>
+            <option value="Sales Executive 7">Sales Executive 7 (sales7@himalayaerp.com)</option>
           </select>
         )}
 

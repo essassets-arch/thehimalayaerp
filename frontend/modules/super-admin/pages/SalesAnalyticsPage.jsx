@@ -121,11 +121,15 @@ const SalesAnalyticsContent = () => {
   ];
 
   const employeePerformance = (employeesData.performance && employeesData.performance.length > 0) ? employeesData.performance : [
-    { executive: 'Rahul Patel', leads: 24, revenue: '32500000', closed: 18 },
-    { executive: 'Amit Shah', leads: 18, revenue: '28400000', closed: 14 },
-    { executive: 'Neha Patel', leads: 21, revenue: '24100000', closed: 15 },
-    { executive: 'Priya Singh', leads: 16, revenue: '19800000', closed: 11 },
-    { executive: 'Amit Sharma', leads: 14, revenue: '16500000', closed: 9 }
+    { executive: 'SuperSales 1', email: 'supersales1@himalayaerp.com', leads: 32, revenue: '45000000', closed: 26 },
+    { executive: 'SuperSales 2', email: 'supersales2@himalayaerp.com', leads: 28, revenue: '38000000', closed: 22 },
+    { executive: 'Sales Executive 1', email: 'sales1@himalayaerp.com', leads: 24, revenue: '32500000', closed: 18 },
+    { executive: 'Sales Executive 2', email: 'sales2@himalayaerp.com', leads: 21, revenue: '28400000', closed: 16 },
+    { executive: 'Sales Executive 3', email: 'sales3@himalayaerp.com', leads: 19, revenue: '24100000', closed: 14 },
+    { executive: 'Sales Executive 4', email: 'sales4@himalayaerp.com', leads: 18, revenue: '21500000', closed: 13 },
+    { executive: 'Sales Executive 5', email: 'sales5@himalayaerp.com', leads: 16, revenue: '19800000', closed: 11 },
+    { executive: 'Sales Executive 6', email: 'sales6@himalayaerp.com', leads: 14, revenue: '16500000', closed: 9 },
+    { executive: 'Sales Executive 7', email: 'sales7@himalayaerp.com', leads: 12, revenue: '14200000', closed: 8 }
   ];
 
   const agingBuckets = (financeData.agingBuckets && Object.keys(financeData.agingBuckets).length > 0) ? financeData.agingBuckets : {
@@ -136,13 +140,15 @@ const SalesAnalyticsContent = () => {
   };
 
   const defaultExplorerRows = [
-    { orderNumber: 'ORD-2026-001', customer: 'ABC Infrastructure Ltd', salesExecutive: 'Rahul Patel', product: 'FRP Manhole Covers (Heavy Duty)', quantity: 120, revenue: 250000, margin: 95000, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
-    { orderNumber: 'ORD-2026-002', customer: 'Urban Construction Corp', salesExecutive: 'Amit Shah', product: 'RCC Hume Pipes (NP3 Class)', quantity: 65, revenue: 210000, margin: 55500, paymentStatus: 'Pending', deliveryStatus: 'In Transit' },
-    { orderNumber: 'ORD-2026-003', customer: 'Metro Projects India', salesExecutive: 'Neha Patel', product: 'FRP Chambers (Telecom Spec)', quantity: 80, revenue: 180000, margin: 69300, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
-    { orderNumber: 'ORD-2026-004', customer: 'Apex Builders & Engineers', salesExecutive: 'Priya Singh', product: 'FRP Gratings (Anti-Slip)', quantity: 150, revenue: 95000, margin: 5300, paymentStatus: 'Overdue', deliveryStatus: 'Pending Dispatch' },
-    { orderNumber: 'ORD-2026-005', customer: 'Smart City Development Group', salesExecutive: 'Rahul Patel', product: 'FRP Manhole Covers (Medium)', quantity: 200, revenue: 240000, margin: 75500, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
-    { orderNumber: 'ORD-2026-006', customer: 'Hindustan Builders', salesExecutive: 'Amit Sharma', product: 'Precast Drain Covers', quantity: 90, revenue: 135000, margin: 22500, paymentStatus: 'Partial', deliveryStatus: 'In Transit' },
-    { orderNumber: 'ORD-2026-007', customer: 'Delta Infra Tech', salesExecutive: 'Neha Patel', product: 'FRP Water Tank Slabs', quantity: 40, revenue: 110000, margin: -500, paymentStatus: 'Pending', deliveryStatus: 'Processing' }
+    { orderNumber: 'ORD-2026-001', customer: 'ABC Infrastructure Ltd', salesExecutive: 'SuperSales 1', product: 'FRP Manhole Covers (Heavy Duty)', quantity: 120, revenue: 250000, margin: 95000, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
+    { orderNumber: 'ORD-2026-002', customer: 'Urban Construction Corp', salesExecutive: 'SuperSales 2', product: 'RCC Hume Pipes (NP3 Class)', quantity: 65, revenue: 210000, margin: 55500, paymentStatus: 'Pending', deliveryStatus: 'In Transit' },
+    { orderNumber: 'ORD-2026-003', customer: 'Metro Projects India', salesExecutive: 'Sales Executive 1', product: 'FRP Chambers (Telecom Spec)', quantity: 80, revenue: 180000, margin: 69300, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
+    { orderNumber: 'ORD-2026-004', customer: 'Apex Builders & Engineers', salesExecutive: 'Sales Executive 2', product: 'FRP Gratings (Anti-Slip)', quantity: 150, revenue: 95000, margin: 5300, paymentStatus: 'Overdue', deliveryStatus: 'Pending Dispatch' },
+    { orderNumber: 'ORD-2026-005', customer: 'Smart City Development Group', salesExecutive: 'Sales Executive 3', product: 'FRP Manhole Covers (Medium)', quantity: 200, revenue: 240000, margin: 75500, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
+    { orderNumber: 'ORD-2026-006', customer: 'Hindustan Builders', salesExecutive: 'Sales Executive 4', product: 'Precast Drain Covers', quantity: 90, revenue: 135000, margin: 22500, paymentStatus: 'Partial', deliveryStatus: 'In Transit' },
+    { orderNumber: 'ORD-2026-007', customer: 'Delta Infra Tech', salesExecutive: 'Sales Executive 5', product: 'FRP Water Tank Slabs', quantity: 40, revenue: 110000, margin: -500, paymentStatus: 'Pending', deliveryStatus: 'Processing' },
+    { orderNumber: 'ORD-2026-008', customer: 'Reliance Infra Projects', salesExecutive: 'Sales Executive 6', product: 'Heavy Duty FRP Grates', quantity: 110, revenue: 290000, margin: 82000, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
+    { orderNumber: 'ORD-2026-009', customer: 'L&T Infrastructure', salesExecutive: 'Sales Executive 7', product: 'Telecom Cable Chambers', quantity: 140, revenue: 310000, margin: 92000, paymentStatus: 'Paid', deliveryStatus: 'In Transit' }
   ];
 
   const rawExplorerRows = (explorerData.rows && explorerData.rows.length > 0) ? explorerData.rows : defaultExplorerRows;
