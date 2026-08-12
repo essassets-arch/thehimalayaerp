@@ -1,45 +1,57 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ResponsiveContainer } from 'recharts';
 
-export default function ResponsiveChartWrapper({ children, minHeight = 200, className = '' }) {
+export default function ResponsiveChartWrapper({ children, minHeight = 280, height, className = '' }) {
   const containerRef = useRef(null);
-  const [ready, setReady] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   useEffect(() => {
-    const element = containerRef.current;
-    if (!element) return undefined;
-
-    const update = () => {
-      const { width, height } = element.getBoundingClientRect();
-      setReady(width > 0 && height > 0);
+    const measure = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.clientWidth;
+        if (w > 0) {
+          setContainerWidth(w);
+        }
+      }
     };
 
-    update();
+    measure();
+    const animationFrame = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+
     const observer = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(update)
+      ? new ResizeObserver(measure)
       : null;
-    observer?.observe(element);
-    window.addEventListener('resize', update);
+    if (containerRef.current && observer) {
+      observer.observe(containerRef.current);
+    }
 
     return () => {
+      cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', measure);
       observer?.disconnect();
-      window.removeEventListener('resize', update);
     };
   }, []);
+
+  const containerHeight = height || minHeight;
 
   return (
     <div
       ref={containerRef}
       className={className}
-      style={{ width: '100%', height: '100%', minWidth: 0, minHeight }}
+      style={{ width: '100%', height: containerHeight, minHeight: containerHeight, position: 'relative' }}
     >
-      {ready ? (
-        <ResponsiveContainer width="100%" height="100%">
+      {containerWidth > 0 ? (
+        <ResponsiveContainer width={containerWidth} height={containerHeight}>
           {children}
         </ResponsiveContainer>
-      ) : null}
+      ) : (
+        <div style={{ width: '100%', height: containerHeight, background: '#f8fafc', borderRadius: '12px' }} />
+      )}
     </div>
   );
 }
+
+
