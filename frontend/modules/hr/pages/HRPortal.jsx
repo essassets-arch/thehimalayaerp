@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import UsersManagementView from '../components/UsersManagementView';
 import ExitClearanceFormModal from '../components/ExitClearanceFormModal';
+import HRDashboardView from '../components/HRDashboardView';
 import { exportToCSV, exportToExcel } from '../../../services/export.service';
 
 export default function HRPortal() {
@@ -257,91 +258,18 @@ export default function HRPortal() {
 
   // 1. DASHBOARD
   const renderDashboard = () => {
-    const totalStaff = employees.length;
-    const activeStaff = employees.filter(e => e.active).length;
-    const pendingLeavesCount = leaves.filter(l => l.status === 'PH Pending' || l.status === 'Pending').length;
-    const salaryExpense = employees.reduce((sum, e) => sum + (e.salary || 30000), 0);
-
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '800' }}>HR Dashboard: Overview</h2>
-          <span style={{ fontSize: '12px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
-        </div>
-
-        {/* Stats Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-          <div className="app-card" style={{ borderLeft: '4px solid #0ea5e9' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Total Staff Strength</span>
-            <h3 style={{ fontSize: '24px', marginTop: '6px' }}>{totalStaff} Employees</h3>
-            <span style={{ fontSize: '11px', color: '#84cc16' }}>{activeStaff} Active on floor</span>
-          </div>
-
-          <div className="app-card" style={{ borderLeft: '4px solid #84cc16' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Daily Attendance</span>
-            <h3 style={{ fontSize: '24px', marginTop: '6px' }}>96% Attendance</h3>
-            <span style={{ fontSize: '11px', color: '#8893A7' }}>Simulated average rate</span>
-          </div>
-
-          <div className="app-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Leave Requests Awaiting</span>
-            <h3 style={{ fontSize: '24px', marginTop: '6px' }}>{pendingLeavesCount} Applications</h3>
-            <span style={{ fontSize: '11px', color: '#ef4444' }}>Awaiting HR Clearance</span>
-          </div>
-
-          <div className="app-card" style={{ borderLeft: '4px solid #9333ea' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Monthly Payroll Outlay</span>
-            <h3 style={{ fontSize: '24px', marginTop: '6px' }}>₹{(salaryExpense / 100000).toFixed(2)} L</h3>
-            <span style={{ fontSize: '11px', color: '#8893A7' }}>Cumulative Wages Outlay</span>
-          </div>
-        </div>
-
-        {/* Department Breakdown & Alerts */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'start' }}>
-          <div className="app-card">
-            <h3 className="card-heading" style={{ marginBottom: '16px' }}>Employee Department Breakdown</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {employees.map(emp => (
-                <div key={emp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                  <div>
-                    <strong>{emp.name}</strong> ({emp.id})
-                    <div style={{ fontSize: '11px', color: '#5E6B82' }}>{emp.role}</div>
-                  </div>
-                  <span style={{ 
-                    padding: '3px 8px', 
-                    borderRadius: '4px', 
-                    fontSize: '11px', 
-                    fontWeight: 'bold',
-                    background: emp.department === 'Sales' ? 'rgba(14, 165, 233, 0.1)' : emp.department === 'Production' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(147, 51, 234, 0.1)',
-                    color: emp.department === 'Sales' ? '#0ea5e9' : emp.department === 'Production' ? '#16a34a' : '#9333ea'
-                  }}>
-                    {emp.department}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="app-card" style={{ border: '1px dashed #ef4444', background: 'rgba(239,68,68,0.02)' }}>
-            <h3 className="card-heading" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⚠️ HR Action Alerts
-            </h3>
-            <div style={{ marginTop: '14px', fontSize: '13px' }}>
-              <strong>Leave Requests Awaiting Review</strong>
-              <p style={{ color: '#475569', marginTop: '6px', lineHeight: '1.5' }}>
-                There are {pendingLeavesCount} leaves pending manager review. Open Leave Approvals to clear.
-              </p>
-              <button 
-                className="action-btn"
-                style={{ background: '#ef4444', color: '#fff', border: 'none', width: '100%', padding: '8px', borderRadius: '6px', fontWeight: 'bold', marginTop: '16px', cursor: 'pointer' }}
-                onClick={() => navigate.push('/hr/leaves')}
-              >
-                Resolve Leave Applications
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <HRDashboardView 
+        onNavigate={(path) => navigate.push(path)}
+        onOpenExitModal={(record) => {
+          setSelectedExitRecord(record);
+          setShowExitModal(true);
+        }}
+        employees={employees}
+        leaves={leaves}
+        exitClearances={exitClearances}
+        shifts={shifts}
+      />
     );
   };
 
@@ -560,36 +488,98 @@ export default function HRPortal() {
     );
   };
 
-  // 5. SHIFT SCHEDULES BOARD
+  // 5. SHIFT SCHEDULES BOARD & MONITOR
   const renderShifts = () => {
+    const shiftSummaryData = [
+      { shift: 'General', employees: 142, present: 136, late: 6, timing: '09:00 AM - 06:00 PM', status: 'Optimal' },
+      { shift: 'Morning', employees: 61, present: 58, late: 3, timing: '06:00 AM - 02:00 PM', status: 'Optimal' },
+      { shift: 'Night', employees: 45, present: 37, late: 8, timing: '10:00 PM - 06:00 AM', status: 'Attention' }
+    ];
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '800' }}>Active Corporate Shift Templates</h2>
-          <span style={{ fontSize: '12px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
+        {/* Header Bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', padding: '20px 24px', borderRadius: '14px', color: '#ffffff' }}>
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>Shift & Attendance Monitor</h2>
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0' }}>Current workforce distribution by active shift</p>
+          </div>
+          <button 
+            className="action-btn"
+            style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
+            onClick={() => showToast('Shift management configuration updated.')}
+          >
+            Manage Shifts
+          </button>
         </div>
 
-        {/* Templates Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-          {[
-            { id: 'General', label: 'General Shift', hours: '09:00 - 18:00', grace: '+15 mins', type: 'Full-time standard' },
-            { id: 'Morning', label: 'Morning Shift', hours: '06:00 - 14:00', grace: '+10 mins', type: 'Full-time standard' },
-            { id: 'Night', label: 'Night Shift', hours: '22:00 - 06:00', grace: '+15 mins', type: 'Full-time standard' }
-          ].map(temp => (
-            <div key={temp.id} className="app-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <strong>{temp.label}</strong>
-                <button style={{ background: 'transparent', border: 'none', color: '#0ea5e9', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>Edit</button>
+        {/* 1. Shift Workforce Distribution Table */}
+        <div className="app-card" style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 className="card-heading" style={{ margin: 0 }}>Current Workforce Distribution by Shift</h3>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Total Staff: 248 Employees</span>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
+                  <th style={{ padding: '12px 16px', fontWeight: '700' }}>Shift</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '700' }}>Employees</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '700' }}>Present</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '700' }}>Late</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '700' }}>Timing</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '700' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shiftSummaryData.map((row) => (
+                  <tr key={row.shift} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: '700', color: '#0f172a' }}>{row.shift}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: '700', color: '#334155' }}>{row.employees}</td>
+                    <td style={{ padding: '12px 16px', color: '#10b981', fontWeight: '800' }}>{row.present}</td>
+                    <td style={{ padding: '12px 16px', color: row.late > 5 ? '#ef4444' : '#f59e0b', fontWeight: '800' }}>{row.late}</td>
+                    <td style={{ padding: '12px 16px', color: '#64748b', fontWeight: '600' }}>{row.timing}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ 
+                        padding: '3px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800',
+                        background: row.status === 'Optimal' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                        color: row.status === 'Optimal' ? '#10b981' : '#ef4444'
+                      }}>
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 2. Templates Grid */}
+        <div className="app-card">
+          <h3 className="card-heading" style={{ marginBottom: '16px' }}>Active Corporate Shift Templates</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+            {[
+              { id: 'General', label: 'General Shift', hours: '09:00 AM - 06:00 PM', grace: '+15 mins', type: 'Full-time standard' },
+              { id: 'Morning', label: 'Morning Shift', hours: '06:00 AM - 02:00 PM', grace: '+10 mins', type: 'Full-time standard' },
+              { id: 'Night', label: 'Night Shift', hours: '10:00 PM - 06:00 AM', grace: '+15 mins', type: 'Full-time standard' }
+            ].map(temp => (
+              <div key={temp.id} style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <strong style={{ color: '#0f172a', fontSize: '14px' }}>{temp.label}</strong>
+                  <button onClick={() => showToast(`Edit template for ${temp.label}`)} style={{ background: 'transparent', border: 'none', color: '#0ea5e9', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>Edit</button>
+                </div>
+                <h4 style={{ fontSize: '16px', margin: '4px 0', color: '#0ea5e9', fontWeight: '800' }}>{temp.hours}</h4>
+                <p style={{ fontSize: '11px', color: '#5E6B82', margin: '4px 0 0 0' }}>
+                  Grace window: {temp.grace} | Type: {temp.type}
+                </p>
               </div>
-              <h3 style={{ fontSize: '18px', margin: '4px 0', color: '#24345C' }}>{temp.hours}</h3>
-              <p style={{ fontSize: '11px', color: '#5E6B82', margin: '4px 0 0 0' }}>
-                Grace window: {temp.grace} | Type: {temp.type}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* Schedules table */}
+        {/* 3. Schedules table */}
         <div className="app-card">
           <h3 className="card-heading" style={{ marginBottom: '16px' }}>Staff Shift Schedules Board</h3>
           
@@ -641,9 +631,9 @@ export default function HRPortal() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
                 <label className="form-label">Select Template Shift</label>
                 <select value={newShiftVal} onChange={(e) => setNewShiftVal(e.target.value)} className="form-select">
-                  <option value="General Shift">General Shift (09:00 - 18:00)</option>
-                  <option value="Morning Shift">Morning Shift (06:00 - 14:00)</option>
-                  <option value="Night Shift">Night Shift (22:00 - 06:00)</option>
+                  <option value="General Shift">General Shift (09:00 AM - 06:00 PM)</option>
+                  <option value="Morning Shift">Morning Shift (06:00 AM - 02:00 PM)</option>
+                  <option value="Night Shift">Night Shift (10:00 PM - 06:00 AM)</option>
                 </select>
                 <button 
                   className="action-btn"
