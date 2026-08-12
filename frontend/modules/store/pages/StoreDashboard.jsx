@@ -553,3 +553,6 @@ export const StoreDashboard = () => {
     </div>
   );
 };
+
+export default StoreDashboard;
+
