@@ -180,10 +180,10 @@ export const StoreDashboard = () => {
       totalRejections += item.rejections;
     });
 
-    const catalogItemCount = rawMaterialsList.length || liveInventory.length || 216;
-    const availableQtyDisplay = totalAvailableQty > 0 ? totalAvailableQty : 9101;
-    const slowDisplay = slowCount > 0 ? slowCount : 37;
-    const fastDisplay = fastCount > 0 ? fastCount : 667;
+    const catalogItemCount = rawMaterialsList.length || liveInventory.length;
+    const availableQtyDisplay = totalAvailableQty;
+    const slowDisplay = slowCount;
+    const fastDisplay = fastCount;
 
     // Calculate dynamic QC rejection rate
     let rejectionRateDisplay = '0.0';
