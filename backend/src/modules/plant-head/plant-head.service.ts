@@ -848,7 +848,7 @@ export class PlantHeadService {
       const minStock = Number(item.minStock || 30);
       const price = Number(item.price || item.unitPrice || 250);
       return {
-        id: item.sku || item.publicId || item.id?.substring(0, 8) || `RM-${idx + 101}`,
+        id: item.sku || item.publicId || (item.id ? String(item.id).substring(0, 8) : '') || `RM-${idx + 101}`,
         name: item.name || item.itemName || `Store Item ${idx + 1}`,
         category: item.category || 'Raw Material',
         unit: item.unit || 'Kg',
