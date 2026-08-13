@@ -14,12 +14,17 @@ echo "======================================================================"
 echo "💾 HIMALAYA ERP — CREATING DATABASE BACKUP"
 echo "======================================================================"
 
+POSTGRES_CONTAINER="himalaya-postgres"
 if [ "$(docker inspect -f '{{.State.Running}}' himalaya-postgres 2>/dev/null)" != "true" ]; then
-    echo "❌ Error: PostgreSQL container (himalaya-postgres) is not running."
-    exit 1
+    if [ "$(docker inspect -f '{{.State.Running}}' himalaya-local-postgres 2>/dev/null)" == "true" ]; then
+        POSTGRES_CONTAINER="himalaya-local-postgres"
+    else
+        echo "❌ Error: PostgreSQL container (himalaya-postgres or himalaya-local-postgres) is not running."
+        exit 1
+    fi
 fi
 
-echo "📦 Exporting database dump to: ${BACKUP_FILE}..."
+echo "📦 Exporting database dump from container '${POSTGRES_CONTAINER}' to: ${BACKUP_FILE}..."
 
 # Source environment variables if .env exists
 if [ -f ".env" ]; then
@@ -31,7 +36,7 @@ fi
 DB_USER="${POSTGRES_USER:-himalaya_erp_user}"
 DB_NAME="${POSTGRES_DB:-himalaya_erp}"
 
-docker exec -t himalaya-postgres pg_dump -U "${DB_USER}" "${DB_NAME}" | gzip > "${BACKUP_FILE}"
+docker exec -t "${POSTGRES_CONTAINER}" pg_dump -U "${DB_USER}" "${DB_NAME}" | gzip > "${BACKUP_FILE}"
 
 if [ -s "${BACKUP_FILE}" ]; then
     SIZE=$(du -h "${BACKUP_FILE}" | cut -f1)

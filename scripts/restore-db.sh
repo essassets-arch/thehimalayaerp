@@ -37,21 +37,28 @@ if [ -f ".env" ]; then
     set +o allexport
 fi
 
+POSTGRES_CONTAINER="himalaya-postgres"
+if [ "$(docker inspect -f '{{.State.Running}}' himalaya-postgres 2>/dev/null)" != "true" ]; then
+    if [ "$(docker inspect -f '{{.State.Running}}' himalaya-local-postgres 2>/dev/null)" == "true" ]; then
+        POSTGRES_CONTAINER="himalaya-local-postgres"
+    fi
+fi
+
 DB_USER="${POSTGRES_USER:-himalaya_erp_user}"
 DB_NAME="${POSTGRES_DB:-himalaya_erp}"
 
 echo "🛑 Stopping application services during restore..."
-docker compose stop backend frontend
+docker compose stop backend frontend 2>/dev/null || docker compose -f docker-compose.local.yml stop backend frontend 2>/dev/null || true
 
-echo "⏳ Restoring database from dump..."
+echo "⏳ Restoring database from dump using container '${POSTGRES_CONTAINER}'..."
 if [[ "${BACKUP_FILE}" == *.gz ]]; then
-    gunzip -c "${BACKUP_FILE}" | docker exec -i himalaya-postgres psql -U "${DB_USER}" -d "${DB_NAME}"
+    gunzip -c "${BACKUP_FILE}" | docker exec -i "${POSTGRES_CONTAINER}" psql -U "${DB_USER}" -d "${DB_NAME}"
 else
-    docker exec -i himalaya-postgres psql -U "${DB_USER}" -d "${DB_NAME}" < "${BACKUP_FILE}"
+    docker exec -i "${POSTGRES_CONTAINER}" psql -U "${DB_USER}" -d "${DB_NAME}" < "${BACKUP_FILE}"
 fi
 
 echo "🚀 Restarting application services..."
-docker compose start backend frontend
+docker compose start backend frontend 2>/dev/null || docker compose -f docker-compose.local.yml start backend frontend 2>/dev/null || true
 
 echo ""
 echo "✅ Database restoration completed successfully!"
