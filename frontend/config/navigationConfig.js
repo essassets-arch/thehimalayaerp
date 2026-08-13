@@ -379,7 +379,6 @@ export const navigationConfig = {
     { id: 'analytics-inventory', label: 'Inventory Analytics', icon: Database, path: '/super-admin/analytics/inventory' },
     { id: 'analytics-hr', label: 'HR Analytics', icon: Users, path: '/super-admin/analytics/hr' },
     { id: 'analytics-dispatch', label: 'Dispatch Analytics', icon: Truck, path: '/super-admin/analytics/dispatch' },
-    { id: 'analytics-profitability', label: 'Profitability Analytics', icon: DollarSign, path: '/super-admin/analytics/profitability' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' },
     { id: 'notifications', label: 'Notification Management', icon: Bell, path: '/super-admin/notifications' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/super-admin/profile' },

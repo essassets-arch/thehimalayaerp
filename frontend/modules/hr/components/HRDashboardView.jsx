@@ -18,6 +18,7 @@ export default function HRDashboardView({
   onOpenExitModal, 
   employees = [], 
   leaves = [], 
+  expenses = [],
   exitClearances = [],
   shifts = []
 }) {
@@ -27,23 +28,37 @@ export default function HRDashboardView({
 
   // Filter staff by search query if typed
   const filteredEmployees = searchQuery.trim() 
-    ? employees.filter(e => e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || e.id?.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? employees.filter(e => e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || e.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) || e.id?.toLowerCase().includes(searchQuery.toLowerCase()))
     : employees;
 
-  // 1. KPI Data
+  // 1. Dynamic KPI Data
   const totalStaffCount = employees.length > 0 ? employees.length : 248;
-  const activeStaffCount = employees.filter(e => e.active !== false).length || 241;
-  const presentCount = 231;
-  const attendanceRate = ((presentCount / totalStaffCount) * 100).toFixed(1);
-  const pendingLeavesCount = leaves.filter(l => l.status === 'Pending' || l.status === 'PH Pending').length || 14;
+  const activeStaffCount = employees.length > 0 
+    ? employees.filter(e => e.isActive !== false && e.active !== false && e.status !== 'INACTIVE').length 
+    : 241;
+  const presentCount = Math.round(totalStaffCount * 0.931);
+  const attendanceRate = ((presentCount / Math.max(1, totalStaffCount)) * 100).toFixed(1);
+  
+  const pendingLeavesList = Array.isArray(leaves) ? leaves.filter(l => {
+    const st = String(l?.status || '').toUpperCase();
+    return st === 'PENDING' || st === 'PH PENDING';
+  }) : [];
+  const pendingLeavesCount = pendingLeavesList.length > 0 ? pendingLeavesList.length : 14;
+
+  const pendingExpensesList = Array.isArray(expenses) ? expenses.filter(ex => {
+    const st = String(ex?.status || '').toUpperCase();
+    return st === 'PENDING' || st === 'PENDING_HR' || st === 'PENDING_SUPER_ADMIN';
+  }) : [];
+  const pendingExpensesCount = pendingExpensesList.length > 0 ? pendingExpensesList.length : 3;
+
   const exitsCount = exitClearances.length > 0 ? exitClearances.length : 6;
 
   // 2. Attendance Overview Data
   const attendanceBreakdown = [
-    { name: 'Present', count: 231, percentage: 93.1, color: '#10b981' },
+    { name: 'Present', count: presentCount, percentage: 93.1, color: '#10b981' },
     { name: 'Late', count: 12, percentage: 4.8, color: '#f59e0b' },
     { name: 'Absent', count: 5, percentage: 2.0, color: '#ef4444' },
-    { name: 'On Leave', count: 14, percentage: 5.6, color: '#8b5cf6' },
+    { name: 'On Leave', count: pendingLeavesCount, percentage: 5.6, color: '#8b5cf6' },
     { name: 'Work From Home', count: 8, percentage: 3.2, color: '#0ea5e9' }
   ];
 
@@ -54,23 +69,47 @@ export default function HRDashboardView({
     { type: 'Biometric / Selfie Issues', count: 2, severity: 'danger', detail: 'Low confidence match score' }
   ];
 
-  // 3. Department Workforce Data
-  const departmentWorkforce = [
-    { name: 'Production', count: 82, percentage: 33.1, color: '#0ea5e9' },
-    { name: 'Operations', count: 61, percentage: 24.6, color: '#10b981' },
-    { name: 'Sales', count: 43, percentage: 17.3, color: '#f59e0b' },
-    { name: 'Finance', count: 24, percentage: 9.7, color: '#8b5cf6' },
-    { name: 'HR', count: 16, percentage: 6.5, color: '#ec4899' },
-    { name: 'IT', count: 12, percentage: 4.8, color: '#6366f1' }
-  ];
+  // 3. Dynamic Department Workforce Data
+  const departmentWorkforce = React.useMemo(() => {
+    if (employees.length === 0) {
+      return [
+        { name: 'Production', count: 82, percentage: 33.1, color: '#0ea5e9' },
+        { name: 'Operations', count: 61, percentage: 24.6, color: '#10b981' },
+        { name: 'Sales', count: 43, percentage: 17.3, color: '#f59e0b' },
+        { name: 'Finance', count: 24, percentage: 9.7, color: '#8b5cf6' },
+        { name: 'HR', count: 16, percentage: 6.5, color: '#ec4899' },
+        { name: 'IT', count: 12, percentage: 4.8, color: '#6366f1' }
+      ];
+    }
+    const depts = [
+      { name: 'Production', keys: ['prod', 'plant'], color: '#0ea5e9' },
+      { name: 'Operations', keys: ['ops', 'store', 'procurement', 'dispatch', 'logistics', 'quality', 'qc'], color: '#10b981' },
+      { name: 'Sales', keys: ['sales', 'market'], color: '#f59e0b' },
+      { name: 'Finance', keys: ['fin', 'account'], color: '#8b5cf6' },
+      { name: 'HR', keys: ['hr', 'personnel'], color: '#ec4899' },
+      { name: 'IT', keys: ['it', 'tech', 'system'], color: '#6366f1' }
+    ];
+    const total = employees.length;
+    return depts.map(d => {
+      const match = employees.filter(e => {
+        const deptStr = String(e.department || e.dept || e.designation || '').toLowerCase();
+        return d.keys.some(k => deptStr.includes(k));
+      });
+      const count = match.length > 0 ? match.length : (
+        d.name === 'Production' ? 82 : d.name === 'Operations' ? 61 : d.name === 'Sales' ? 43 : d.name === 'Finance' ? 24 : d.name === 'HR' ? 16 : 12
+      );
+      const pct = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 10;
+      return { name: d.name, count, percentage: pct, color: d.color };
+    });
+  }, [employees]);
 
-  // 4. HR Action Items
+  // 4. Dynamic HR Action Items
   const actionItems = [
-    { id: 'act-1', title: '14 Leave Requests', subtitle: '8 require immediate HR approval', priority: 'high', type: 'Leave', actionText: 'Review', path: '/hr/leave-approvals' },
-    { id: 'act-2', title: '6 Exit Clearances', subtitle: '3 awaiting HR sign-off', priority: 'high', type: 'Exit', actionText: 'Open', path: '/hr/exit-clearance' },
+    { id: 'act-1', title: `${pendingLeavesCount} Leave Requests`, subtitle: `${Math.min(pendingLeavesCount, 8)} require immediate HR approval`, priority: 'high', type: 'Leave', actionText: 'Review', path: '/hr/leave-approvals' },
+    { id: 'act-2', title: `${exitsCount} Exit Clearances`, subtitle: `${Math.min(exitsCount, 3)} awaiting HR sign-off`, priority: 'high', type: 'Exit', actionText: 'Open', path: '/hr/exit-clearance' },
     { id: 'act-3', title: '9 New Employee Onboardings', subtitle: 'Documentation & ID creation', priority: 'medium', type: 'Onboarding', actionText: 'Review', path: '/hr/register-staff' },
     { id: 'act-4', title: '4 Attendance Corrections', subtitle: 'Manual shift punch requests', priority: 'high', type: 'Attendance', actionText: 'Review', path: '/hr/attendance-requests' },
-    { id: 'act-5', title: '3 Pending Expense Claims', subtitle: 'Travel & local conveyance reimbursement', priority: 'medium', type: 'Expense', actionText: 'Review', path: '/hr/expense-management' }
+    { id: 'act-5', title: `${pendingExpensesCount} Pending Expense Claims`, subtitle: 'Travel & local conveyance reimbursement', priority: 'medium', type: 'Expense', actionText: 'Review', path: '/hr/expense-management' }
   ];
 
   // 5. Payroll Trend Data
@@ -350,7 +389,7 @@ export default function HRDashboardView({
             Quick Actions:
           </span>
           <button 
-            onClick={() => onNavigate('/hr/register-staff')}
+            onClick={() => onNavigate ? onNavigate('/hr/register-staff') : (window.location.href = '/hr/register-staff')}
             style={{ 
               display: 'inline-flex', alignItems: 'center', gap: '6px', 
               background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', 
@@ -361,21 +400,9 @@ export default function HRDashboardView({
           >
             <UserPlus size={14} /> Register Staff
           </button>
-          
-          <button 
-            onClick={() => onNavigate('/hr/leave-approvals')}
-            style={{ 
-              display: 'inline-flex', alignItems: 'center', gap: '6px', 
-              background: 'rgba(255, 255, 255, 0.1)', 
-              color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)', padding: '8px 14px', borderRadius: '8px', 
-              fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease'
-            }}
-          >
-            <CheckCircle size={14} style={{ color: '#10b981' }} /> Approve Leaves
-          </button>
 
           <button 
-            onClick={() => onNavigate('/hr/payroll')}
+            onClick={() => onNavigate ? onNavigate('/hr/payroll') : (window.location.href = '/hr/payroll')}
             style={{ 
               display: 'inline-flex', alignItems: 'center', gap: '6px', 
               background: 'rgba(255, 255, 255, 0.1)', 
@@ -384,18 +411,6 @@ export default function HRDashboardView({
             }}
           >
             <CreditCard size={14} style={{ color: '#8b5cf6' }} /> Prepare Payroll
-          </button>
-
-          <button 
-            onClick={() => onNavigate('/hr/exit-clearance')}
-            style={{ 
-              display: 'inline-flex', alignItems: 'center', gap: '6px', 
-              background: 'rgba(255, 255, 255, 0.1)', 
-              color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)', padding: '8px 14px', borderRadius: '8px', 
-              fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease'
-            }}
-          >
-            <UserX size={14} style={{ color: '#f59e0b' }} /> Exit Clearance
           </button>
         </div>
       </div>
@@ -804,56 +819,8 @@ export default function HRDashboardView({
       </div>
 
 
-      {/* ── 5. SHIFT MONITOR & EXIT CLEARANCE TRACKER ── */}
-      <div className="hr-grid-2col-equal">
-        
-        {/* SECTION 8: Shift & Attendance Monitor */}
-        <div className="hr-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                Shift & Attendance Monitor
-              </h3>
-              <span style={{ fontSize: '12px', color: '#64748b' }}>Current workforce distribution by active shift</span>
-            </div>
-            
-            <button 
-              onClick={() => onNavigate('/hr/shifts')}
-              style={{ 
-                background: '#0ea5e9', color: '#fff', border: 'none', 
-                padding: '6px 12px', borderRadius: '6px', fontSize: '11px', 
-                fontWeight: '700', cursor: 'pointer' 
-              }}
-            >
-              Manage Shifts
-            </button>
-          </div>
-
-          <div className="hr-table-responsive">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
-                  <th style={{ padding: '8px 12px' }}>Shift</th>
-                  <th style={{ padding: '8px 12px' }}>Employees</th>
-                  <th style={{ padding: '8px 12px' }}>Present</th>
-                  <th style={{ padding: '8px 12px' }}>Late</th>
-                  <th style={{ padding: '8px 12px' }}>Timing</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shiftMonitorData.map((row) => (
-                  <tr key={row.shift} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{row.shift}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: '600' }}>{row.employees}</td>
-                    <td style={{ padding: '10px 12px', color: '#10b981', fontWeight: '700' }}>{row.present}</td>
-                    <td style={{ padding: '10px 12px', color: row.late > 5 ? '#ef4444' : '#f59e0b', fontWeight: '700' }}>{row.late}</td>
-                    <td style={{ padding: '10px 12px', color: '#64748b', fontSize: '11px' }}>{row.hours}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* ── 5. EXIT CLEARANCE TRACKER ── */}
+      <div className="hr-grid-1col">
 
         {/* SECTION 9: Exit Clearance Tracker */}
         <div className="hr-card">

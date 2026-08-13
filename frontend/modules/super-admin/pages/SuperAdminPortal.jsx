@@ -7322,7 +7322,6 @@ export default function SuperAdminPortal() {
         if (subView === 'inventory') return <InventoryCostAnalyticsPage />;
         if (subView === 'hr') return <HRAnalyticsPage />;
         if (subView === 'dispatch') return <DispatchCostAnalyticsPage />;
-        if (subView === 'profitability') return <ProfitabilityAnalyticsPage />;
         return (
           <DashboardView
             timeFilter={timeFilter}

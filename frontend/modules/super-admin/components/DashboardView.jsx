@@ -670,13 +670,6 @@ export default function DashboardView({
             <Lucide.DollarSign size={20} color="#10b981" />
             <h2 className="sa-section-title">Order-Wise Profitability Control</h2>
           </div>
-          <button 
-            className="task-action"
-            onClick={() => onNavigateView ? onNavigateView('analytics', 'profitability') : window.location.assign('/super-admin/analytics/profitability')}
-            style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '12px' }}
-          >
-            View Full Profitability Analytics →
-          </button>
         </div>
 
         <div className="dashboard-card" style={{ padding: '20px' }}>
