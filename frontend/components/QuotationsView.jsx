@@ -42,8 +42,8 @@ export default function QuotationsView({
 }) {
   const isSuperSalesContext = isSuperSales || (typeof window !== 'undefined' && window.location.pathname.startsWith('/supersales')) || basePath?.startsWith('/supersales');
   const paymentTermOptions = isSuperSalesContext
-    ? ['7 Days', '15 Days', '20 Days', '30 Days', '90 Days', 'Custom']
-    : ['7 Days', '15 Days', '20 Days', 'Custom'];
+    ? ['Advance', '7 Days', '15 Days', '20 Days', '30 Days', '90 Days', 'Custom']
+    : ['Advance', '7 Days', '15 Days', '20 Days', 'Custom'];
   const predefinedTerms = paymentTermOptions.filter(t => t !== 'Custom');
   const [localSearch, setLocalSearch] = useState('');
   const search = (searchQuery !== undefined && searchQuery !== null) ? searchQuery : localSearch;

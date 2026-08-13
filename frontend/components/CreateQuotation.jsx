@@ -65,8 +65,8 @@ export default function CreateQuotation({
   const isSpecialRole = isSuperSalesUser || userRole === 'Super Admin' || userRole === 'Admin';
   const maxDays = maxPaymentTermDays || (isSpecialRole ? 90 : 20);
   const paymentTermOptions = isSuperSalesUser
-    ? ['7 Days', '15 Days', '20 Days', '30 Days', '90 Days', 'Custom']
-    : ['7 Days', '15 Days', '20 Days', 'Custom'];
+    ? ['Advance', '7 Days', '15 Days', '20 Days', '30 Days', '90 Days', 'Custom']
+    : ['Advance', '7 Days', '15 Days', '20 Days', 'Custom'];
   const predefinedTerms = paymentTermOptions.filter(t => t !== 'Custom');
   const salespersonName = user?.name || user?.fullName || user?.email || 'Sales Executive';
   
