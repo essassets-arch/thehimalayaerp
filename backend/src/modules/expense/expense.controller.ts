@@ -9,14 +9,14 @@ export class ExpenseController {
 
   @Post()
   createExpense(@Body() body: any, @Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = req.user?.sub || req.user?.id;
     const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     return this.expenseService.createExpense(body, userId, companyId);
   }
 
   @Get('my')
   getMyExpenses(@Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = req.user?.sub || req.user?.id;
     const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     return this.expenseService.getMyExpenses(userId, companyId);
   }
@@ -26,6 +26,12 @@ export class ExpenseController {
     const userId = req.user?.sub;
     const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     return this.expenseService.getPendingExpenses(userId, companyId);
+  }
+
+  @Get('all')
+  getAllExpenses(@Req() req: any) {
+    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    return this.expenseService.getAllExpenses(companyId);
   }
 
   @Patch(':id/approve')

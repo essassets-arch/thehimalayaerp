@@ -224,13 +224,13 @@ const SalesAnalyticsContent = () => {
       </div>
 
       {/* ── 5. CHARTS ROW ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         
         {/* Revenue & Profit Trend Curve */}
-        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px' }}>
+        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px', minWidth: 0 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>Gross Billings & Receipts Curve</h3>
-          <div style={{ height: '200px' }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ height: '200px', minHeight: '200px', width: '100%', minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <AreaChart data={revenueTrends}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -249,10 +249,10 @@ const SalesAnalyticsContent = () => {
         </div>
 
         {/* Target vs Actual output */}
-        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px' }}>
+        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px', minWidth: 0 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>Planned Target vs Produced Output</h3>
-          <div style={{ height: '200px' }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ height: '200px', minHeight: '200px', width: '100%', minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={[
                 { name: 'Planned', qty: productionData.metrics?.planned_qty || 45000 },
                 { name: 'Actual', qty: productionData.metrics?.produced_qty || 42000 }
@@ -268,10 +268,10 @@ const SalesAnalyticsContent = () => {
         </div>
 
         {/* Lead acquisition share */}
-        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px' }}>
+        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px', minWidth: 0 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>CRM Lead Source Distribution Share</h3>
-          <div style={{ height: '200px' }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ height: '200px', minHeight: '200px', width: '100%', minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <PieChart>
                 <Pie data={crmSources} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="count" nameKey="source">
                   {crmSources.map((entry, index) => (

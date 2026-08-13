@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Lucide from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -11,6 +11,34 @@ import { computeFinancialData, formatCurrency, formatNumber, formatPercent, getD
 import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from './SuperAdminAnalyticsFilter';
 import "./dashboard.css";
+
+// Dynamic Responsive Wrapper to bypass Recharts ResponsiveContainer 0px measurement bug
+const ResponsiveWrapper = ({ height = 300, children }) => {
+  const containerRef = useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 0) {
+          setDimensions({ width: Math.floor(rect.width), height });
+        }
+      }
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [height]);
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height, minHeight: height, minWidth: 0, overflow: 'hidden' }}>
+      {children(dimensions.width > 0 ? dimensions.width : 600, height)}
+    </div>
+  );
+};
 
 // Custom Recharts Tooltip Component for ultra-clean UI
 const CustomTooltip = ({ active, payload, label, formatter }) => {
@@ -55,18 +83,40 @@ export default function DashboardView({
   const { state } = useERP();
   const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
   const [mounted, setMounted] = useState(false);
+  const [fetchedExpenses, setFetchedExpenses] = useState([]);
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window === 'undefined') return;
+    let isCancelled = false;
+    async function loadExpenses() {
+      try {
+        const res = await backendFetch('/expenses/all');
+        const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+        if (!isCancelled && Array.isArray(list) && list.length > 0) {
+          setFetchedExpenses(list);
+        }
+      } catch (err) {
+        // Silently fall back to ERPContext state
+      }
+    }
+    loadExpenses();
+    return () => { isCancelled = true; };
   }, []);
-  
-  // Compute ERP Financial Data using active filter context
-  const fin = computeFinancialData(state, period, startDate, endDate);
 
-  // Interactive filters
-  const [orderSearch, setOrderSearch] = useState('');
+  const safeState = state || {};
+  const mergedState = {
+    ...safeState,
+    expenses: (safeState.expenses && safeState.expenses.length > 0) ? safeState.expenses : fetchedExpenses
+  };
+
+  // Compute ERP Financial Data using active filter context
+  const fin = computeFinancialData(mergedState, period || 'This Month', startDate, endDate, filters || {});
+
+  // UI Interactive States
   const [selectedOrderStage, setSelectedOrderStage] = useState('All');
   const [profitabilityTab, setProfitabilityTab] = useState('All');
+  const [orderSearch, setOrderSearch] = useState('');
 
   // Interactive tasks with local state toggling
   const [tasks, setTasks] = useState([
@@ -83,7 +133,39 @@ export default function DashboardView({
     setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
-  const getProductSpecs = (productName) => {
+  const getProductSpecs = (productName, orderObj = null) => {
+    // 1. Dynamic extraction from state product catalog if matching item exists
+    const catalogMatch = (state?.productCatalog || []).find(p => 
+      (p.name || p.product_name || '').toLowerCase() === String(productName).toLowerCase()
+    );
+
+    if (catalogMatch) {
+      return [
+        { label: 'Product Name', value: catalogMatch.name || catalogMatch.product_name || productName },
+        { label: 'Category / Family', value: catalogMatch.category || catalogMatch.product_family || 'Standard Catalog' },
+        { label: 'Unit Price', value: formatCurrency(catalogMatch.price || catalogMatch.costPrice || 0) },
+        { label: 'Unit of Measure', value: catalogMatch.unit || 'Set' },
+        { label: 'Stock Available', value: `${formatNumber(catalogMatch.stock || 0)} Units` },
+        { label: 'Load Rating / Spec', value: catalogMatch.load_class || catalogMatch.loadClass || 'Class B125 / Standard' },
+        { label: 'Material Composition', value: catalogMatch.material || catalogMatch.description || 'FRP / Composite Matrix' },
+        { label: 'Compliance Standard', value: catalogMatch.compliance || 'ISO 9001 / EN 124-5 Compliant' }
+      ];
+    }
+
+    // 2. Dynamic extraction if order object has spec properties
+    if (orderObj && (orderObj.loadClass || orderObj.dimensions || orderObj.material || orderObj.specs)) {
+      return [
+        { label: 'Product Name', value: productName },
+        { label: 'Clear Opening / Dimensions', value: orderObj.dimensions || 'Standard Factory Spec' },
+        { label: 'Load Class Rating', value: orderObj.loadClass || 'Class B125 / Heavy Duty' },
+        { label: 'Material Composition', value: orderObj.material || 'FRP Composite Matrix' },
+        { label: 'Order Quantity', value: `${formatNumber(orderObj.quantity || orderObj.qty || 1)} Units` },
+        { label: 'Order Total Value', value: formatCurrency(orderObj.totalValue || orderObj.sales || 0) },
+        { label: 'Compliance Standard', value: orderObj.compliance || 'IS:458 / EN 124-5 Certified' }
+      ];
+    }
+
+    // 3. Fallback catalog specifications dictionary
     const specs = {
       'FRP Manhole Covers (Heavy Duty)': [
         { label: 'Clear Opening Dimensions', value: '600mm x 600mm' },
@@ -132,74 +214,15 @@ export default function DashboardView({
     ];
   };
 
-  // Mock Operational Chart Data
-  const salesDispatchTrendData = [
-    { name: '17 May', sales: 6.2, dispatch: 450, orders: 8 },
-    { name: '20 May', sales: 11.4, dispatch: 520, orders: 10 },
-    { name: '23 May', sales: 8.1, dispatch: 380, orders: 7 },
-    { name: '26 May', sales: 10.5, dispatch: 490, orders: 9 },
-    { name: '29 May', sales: 7.8, dispatch: 560, orders: 11 },
-    { name: '30 May', sales: 9.6, dispatch: 680, orders: 12 },
-  ];
-
-  const monthlyRevenueData = [
-    { name: 'Jun', revenue: 65, collection: 55, outstanding: 10 },
-    { name: 'Jul', revenue: 70, collection: 60, outstanding: 10 },
-    { name: 'Aug', revenue: 68, collection: 50, outstanding: 18 },
-    { name: 'Sep', revenue: 75, collection: 65, outstanding: 10 },
-    { name: 'Oct', revenue: 80, collection: 70, outstanding: 10 },
-    { name: 'Nov', revenue: 85, collection: 80, outstanding: 5 },
-    { name: 'Dec', revenue: 90, collection: 85, outstanding: 5 },
-    { name: 'Jan', revenue: 88, collection: 78, outstanding: 10 },
-    { name: 'Feb', revenue: 75, collection: 70, outstanding: 5 },
-    { name: 'Mar', revenue: 80, collection: 75, outstanding: 5 },
-    { name: 'Apr', revenue: 82, collection: 80, outstanding: 2 },
-    { name: 'May', revenue: 85, collection: 75, outstanding: 10 },
-  ];
-
-  const monthlyProductionData = [
-    { name: 'Week 1', target: 750, produced: 700, rejected: 10 },
-    { name: 'Week 2', target: 750, produced: 720, rejected: 15 },
-    { name: 'Week 3', target: 750, produced: 710, rejected: 12 },
-    { name: 'Week 4', target: 750, produced: 740, rejected: 8 },
-    { name: 'Week 5', target: 750, produced: 735, rejected: 5 },
-  ];
-
-  const productionData = [
-    { name: "Target", value: 800, fill: "#D6E2F0" },
-    { name: "Produced", value: 735, fill: "#10b981" }
-  ];
-
-  const topProductsData = [
-    { name: 'FRP Manhole Covers', value: 28.0, percent: 34, color: '#3B82F6' },
-    { name: 'RCC Hume Pipes', value: 20.5, percent: 25, color: '#10B981' },
-    { name: 'FRP Chambers', value: 14.8, percent: 18, color: '#F59E0B' },
-    { name: 'FRP Gratings', value: 10.2, percent: 12, color: '#EF4444' },
-    { name: 'Telecom Covers', value: 8.5, percent: 11, color: '#8B5CF6' },
-  ];
-
-  const ageingData = [
-    { name: '0 - 30 Days', value: 12.5, count: 8, color: '#10B981' },
-    { name: '31 - 60 Days', value: 6.8, count: 5, color: '#F59E0B' },
-    { name: '61 - 90 Days', value: 3.2, count: 3, color: '#EF4444' },
-    { name: '90+ Days Critical', value: 1.5, count: 2, color: '#8B5CF6' },
-  ];
-
-  const topCustomers = [
-    { name: 'ABC Infrastructure Ltd', revenue: '₹14.2 L', orders: 12, growth: '+18%' },
-    { name: 'Urban Construction Corp', revenue: '₹11.8 L', orders: 9, growth: '+12%' },
-    { name: 'Metro Projects India', revenue: '₹9.5 L', orders: 8, growth: '+25%' },
-    { name: 'Apex Builders & Engineers', revenue: '₹7.6 L', orders: 6, growth: '-4%' },
-    { name: 'Smart City Development Group', revenue: '₹6.4 L', orders: 5, growth: '+15%' },
-  ];
-
-  const recentOrders = [
-    { id: 'ORD-001', cust: 'ABC Infrastructure Ltd', prod: 'FRP Manhole Covers (Heavy Duty)', qty: '120 Units', stage: 'Production', amount: '₹1,44,000', priority: 'Urgent' },
-    { id: 'ORD-002', cust: 'Urban Construction Corp', prod: 'RCC Hume Pipes (NP3 Class)', qty: '65 Units', stage: 'QC', amount: '₹2,10,000', priority: 'High' },
-    { id: 'ORD-003', cust: 'Metro Projects India', prod: 'FRP Chambers (Telecom Spec)', qty: '80 Units', stage: 'Dispatch', amount: '₹1,80,000', priority: 'Normal' },
-    { id: 'ORD-004', cust: 'Apex Builders & Engineers', prod: 'FRP Gratings (Anti-Slip)', qty: '150 Units', stage: 'Delivered', amount: '₹95,000', priority: 'Normal' },
-    { id: 'ORD-005', cust: 'Smart City Development Group', prod: 'FRP Manhole Covers (Medium)', qty: '200 Units', stage: 'Production', amount: '₹2,40,000', priority: 'High' },
-  ];
+  // Operational Chart Data dynamically bound to fin
+  const salesDispatchTrendData = fin.salesDispatchTrendData;
+  const monthlyRevenueData = fin.monthlyRevenueData;
+  const monthlyProductionData = fin.monthlyProductionData;
+  const productionData = fin.productionData;
+  const topProductsData = fin.topProductsData;
+  const ageingData = fin.ageingData;
+  const topCustomers = fin.topCustomers;
+  const recentOrders = fin.recentOrders;
 
   const filteredRecentOrders = recentOrders.filter(o => {
     const matchesSearch = o.id.toLowerCase().includes(orderSearch.toLowerCase()) || 
@@ -282,7 +305,7 @@ export default function DashboardView({
 
         <div className="sa-financial-card" style={{ '--kpi-accent': '#10b981' }}>
           <div className="sa-card-top">
-            <span className="sa-card-label">Revenue Collected</span>
+            <span className="sa-card-label">Payment Received</span>
             <div className="sa-card-icon" style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)' }}>
               <Lucide.CheckCircle size={16} />
             </div>
@@ -329,56 +352,7 @@ export default function DashboardView({
         </div>
       </section>
 
-      {/* Row 2 of Financial Cards (3 Cards) */}
-      <section className="sa-financial-grid-row2">
-        <div className="sa-financial-card" style={{ '--kpi-accent': '#06b6d4' }}>
-          <div className="sa-card-top">
-            <span className="sa-card-label">Gross Profit</span>
-            <div className="sa-card-icon" style={{ color: '#06b6d4', background: 'rgba(6, 182, 212, 0.1)' }}>
-              <Lucide.TrendingUp size={16} />
-            </div>
-          </div>
-          <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.grossProfit)}</span>
-          </div>
-          <div className="sa-card-subtext">Recognized Sales Revenue - Direct COGS</div>
-          <div className="sa-card-footer">
-            <span className="kpi-success">Direct COGS: {formatCurrency(fin.directCOGS)}</span>
-          </div>
-        </div>
 
-        <div className="sa-financial-card" style={{ '--kpi-accent': '#8b5cf6' }}>
-          <div className="sa-card-top">
-            <span className="sa-card-label">Estimated Net Profit</span>
-            <div className="sa-card-icon" style={{ color: '#8b5cf6', background: 'rgba(139, 92, 246, 0.1)' }}>
-              <Lucide.Award size={16} />
-            </div>
-          </div>
-          <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.estimatedNetProfit)}</span>
-          </div>
-          <div className="sa-card-subtext">Recognized Revenue - Total Business Expenses</div>
-          <div className="sa-card-footer">
-            <span className="kpi-success">Operating Surplus</span>
-          </div>
-        </div>
-
-        <div className="sa-financial-card" style={{ '--kpi-accent': '#10b981' }}>
-          <div className="sa-card-top">
-            <span className="sa-card-label">Profit Margin %</span>
-            <div className="sa-card-icon" style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)' }}>
-              <Lucide.Percent size={16} />
-            </div>
-          </div>
-          <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatPercent(fin.profitMarginPercent)}</span>
-          </div>
-          <div className="sa-card-subtext">Estimated Net Profit / Recognized Revenue × 100</div>
-          <div className="sa-card-footer">
-            <span className="kpi-success">Healthy Operating Margin</span>
-          </div>
-        </div>
-      </section>
 
       {/* 3. Executive Financial Alerts */}
       <section className="sa-alerts-container">
@@ -422,12 +396,12 @@ export default function DashboardView({
       </div>
       <section className="dashboard-kpis">
         {[
-          { title: 'Daily Production', icon: Lucide.Factory, val: '735', suffix: 'Units', target: '800 Units Target', progress: 92, accent: '#2563eb', footerText: '★ 92% Achievement', footerClass: 'kpi-success' },
-          { title: 'Daily Dispatch', icon: Lucide.Truck, val: '12', suffix: 'Dispatches', target: '680 Units Dispatched', progress: 85, accent: '#10b981', footerText: '12 Orders Pending', footerClass: 'kpi-warning' },
-          { title: 'Daily Sales', icon: Lucide.IndianRupee, val: '₹8.40 L', suffix: '', target: '14 Orders Confirmed', progress: 100, accent: '#9333ea', footerText: '↑ +14% vs Yesterday', footerClass: 'kpi-success' },
-          { title: 'Pending Orders', icon: Lucide.ClipboardList, val: '28', suffix: 'Orders', target: 'Across All Departments', progress: 70, accent: '#f59e0b', footerText: '⚡ 12 Urgent Priority', footerClass: 'kpi-danger' },
-          { title: 'Pending Payments', icon: Lucide.FileText, val: '₹24.00 L', suffix: '', target: '18 Active Customers', progress: 60, accent: '#ef4444', footerText: '⚠️ ₹8.20 L Overdue', footerClass: 'kpi-danger' },
-          { title: 'Low Stock Alert', icon: Lucide.AlertTriangle, val: '12', suffix: 'Items', target: '3 Out of Stock Critical', progress: 30, accent: '#ea580c', footerText: 'Inspect Inventory →', footerClass: 'kpi-warning' },
+          { title: 'Daily Production', icon: Lucide.Factory, val: formatNumber(fin.dailyProductionVal), suffix: 'Units', target: `${formatNumber(fin.dailyProductionTarget)} Units Target`, progress: fin.dailyProductionProgress, accent: '#2563eb', footerText: `★ ${fin.dailyProductionProgress}% Achievement`, footerClass: 'kpi-success' },
+          { title: 'Daily Dispatch', icon: Lucide.Truck, val: formatNumber(fin.dailyDispatchCount), suffix: 'Dispatches', target: `${formatNumber(fin.dailyUnitsDispatched)} Units Dispatched`, progress: 85, accent: '#10b981', footerText: `${fin.dailyDispatchPending} Orders Pending`, footerClass: 'kpi-warning' },
+          { title: 'Daily Sales', icon: Lucide.IndianRupee, val: formatCurrency(fin.dailySalesVal), suffix: '', target: `${fin.dailySalesOrders} Orders Confirmed`, progress: 100, accent: '#9333ea', footerText: '↑ +14% vs Yesterday', footerClass: 'kpi-success' },
+          { title: 'Pending Orders', icon: Lucide.ClipboardList, val: formatNumber(fin.pendingOrdersCount), suffix: 'Orders', target: 'Across All Departments', progress: 70, accent: '#f59e0b', footerText: `⚡ ${fin.urgentOrdersCount} Urgent Priority`, footerClass: 'kpi-danger' },
+          { title: 'Pending Payments', icon: Lucide.FileText, val: formatCurrency(fin.outstandingReceivables), suffix: '', target: `${fin.activeCustomersCount} Active Customers`, progress: 60, accent: '#ef4444', footerText: `⚠️ ${formatCurrency(fin.overdueAmount)} Overdue`, footerClass: 'kpi-danger' },
+          { title: 'Low Stock Alert', icon: Lucide.AlertTriangle, val: formatNumber(fin.lowStockCount), suffix: 'Items', target: `${fin.criticalStockCount} Out of Stock Critical`, progress: 30, accent: '#ea580c', footerText: 'Inspect Inventory →', footerClass: 'kpi-warning' },
         ].map((kpi, idx) => (
           <div key={idx} className="dashboard-card kpi-card" style={{ '--kpi-accent': kpi.accent, '--progress': `${kpi.progress}%` }}>
             <div className="kpi-card-header">
@@ -455,45 +429,7 @@ export default function DashboardView({
       </div>
 
       <section className="sa-cost-grid">
-        {/* Raw Material / Purchase Cost */}
-        <div className="sa-cost-card">
-          <div className="sa-cost-card-header">
-            <span className="sa-cost-title">Raw Material / Purchase Cost</span>
-            <Lucide.Database size={18} color="#3b82f6" />
-          </div>
-          <div className="sa-cost-amount">{formatCurrency(fin.rawMaterialCost)}</div>
-          <div className="sa-cost-rows">
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>PO Commitments</span>
-              <strong>{formatCurrency(fin.poCommitmentVal)}</strong>
-            </div>
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Recognized Material Cost</span>
-              <strong style={{ color: '#2563eb' }}>{formatCurrency(fin.rawMaterialCost)}</strong>
-            </div>
-          </div>
-          <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>Store GRN & Approved POs</span>
-        </div>
 
-        {/* Production Cost */}
-        <div className="sa-cost-card">
-          <div className="sa-cost-card-header">
-            <span className="sa-cost-title">Tracked Production Cost</span>
-            <Lucide.Factory size={18} color="#10b981" />
-          </div>
-          <div className="sa-cost-amount">{formatCurrency(fin.productionCost)}</div>
-          <div className="sa-cost-rows">
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Material & Consumables</span>
-              <strong>₹5.80 L</strong>
-            </div>
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Direct Labour & Power</span>
-              <strong>₹2.60 L</strong>
-            </div>
-          </div>
-          <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>Plant Floor & Machine Log</span>
-        </div>
 
         {/* Dispatch & Transportation Cost */}
         <div className="sa-cost-card">
@@ -505,11 +441,11 @@ export default function DashboardView({
           <div className="sa-cost-rows">
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Dispatches / Avg Cost</span>
-              <strong>42 | ₹6,667 / Disp</strong>
+              <strong>{fin.totalDispatchesCount} | {formatCurrency(fin.avgCostPerDispatch)} / Disp</strong>
             </div>
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Cost / Delivered Unit</span>
-              <strong>₹412 / Unit</strong>
+              <strong>₹{formatNumber(fin.costPerDeliveredUnit)} / Unit</strong>
             </div>
           </div>
           <button 
@@ -531,11 +467,11 @@ export default function DashboardView({
           <div className="sa-cost-rows">
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Gross Payroll</span>
-              <strong>₹6.50 L</strong>
+              <strong>{formatCurrency(fin.grossPayroll)}</strong>
             </div>
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Overtime & Bonus</span>
-              <strong>₹70,000</strong>
+              <strong>{formatCurrency(fin.overtimeBonus)}</strong>
             </div>
           </div>
           <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>HR Approved Payroll</span>
@@ -547,39 +483,21 @@ export default function DashboardView({
             <span className="sa-cost-title">Rework Material</span>
             <Lucide.Wrench size={18} color="#ef4444" />
           </div>
-          <div className="sa-cost-amount">430 Kg</div>
+          <div className="sa-cost-amount">{formatNumber(fin.reworkMaterialKg)} Kg</div>
           <div className="sa-cost-rows">
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Material Cost</span>
-              <strong>₹52,000</strong>
+              <strong>{formatCurrency(fin.reworkMaterialCost)}</strong>
             </div>
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Labour & Prod Cost</span>
-              <strong>₹33,000</strong>
+              <strong>{formatCurrency(fin.reworkLabourCost)}</strong>
             </div>
           </div>
           <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>QC Failures Material Consumption</span>
         </div>
 
-        {/* Scrap / Wastage */}
-        <div className="sa-cost-card">
-          <div className="sa-cost-card-header">
-            <span className="sa-cost-title">Scrap / Wastage</span>
-            <Lucide.Trash2 size={18} color="#ea580c" />
-          </div>
-          <div className="sa-cost-amount">350 Kg</div>
-          <div className="sa-cost-rows">
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Scrap Value</span>
-              <strong>₹42,000</strong>
-            </div>
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Wastage Rate %</span>
-              <strong style={{ color: '#ea580c' }}>2.4%</strong>
-            </div>
-          </div>
-          <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>Production Scrap Material</span>
-        </div>
+
 
         {/* Sales Return Cost */}
         <div className="sa-cost-card">
@@ -591,35 +509,17 @@ export default function DashboardView({
           <div className="sa-cost-rows">
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Returned Value</span>
-              <strong>₹45,000</strong>
+              <strong>{formatCurrency(fin.returnedValue)}</strong>
             </div>
             <div className="sa-cost-row">
               <span style={{ color: '#5E6B82' }}>Replacement & Logistics</span>
-              <strong>₹20,000</strong>
+              <strong>{formatCurrency(fin.replacementLogisticsCost)}</strong>
             </div>
           </div>
           <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>Sales Returns Analysis</span>
         </div>
 
-        {/* Vendor Return Value */}
-        <div className="sa-cost-card">
-          <div className="sa-cost-card-header">
-            <span className="sa-cost-title">Vendor Return Value</span>
-            <Lucide.RefreshCw size={18} color="#6366f1" />
-          </div>
-          <div className="sa-cost-amount">{formatCurrency(fin.vendorReturnVal)}</div>
-          <div className="sa-cost-rows">
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Vendor Credit Expected</span>
-              <strong style={{ color: '#10b981' }}>₹1.20 L</strong>
-            </div>
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Replacement Pending</span>
-              <strong>2 Batches</strong>
-            </div>
-          </div>
-          <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>Store VRN Records</span>
-        </div>
+
       </section>
 
       {/* 6. Monthly Business Performance (Profit & Loss Overview Chart & Table) */}
@@ -640,21 +540,23 @@ export default function DashboardView({
             </div>
           </div>
 
-          <div className="pnl-chart-container" style={{ marginTop: '16px' }}>
+          <div className="pnl-chart-container" style={{ width: '100%', minWidth: 0, height: '320px', minHeight: '280px' }}>
             {mounted && (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={fin.monthlyPerformance} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf3" />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#5E6B82" }} />
-                  <YAxis axisLine={false} tickLine={false} width={38} tick={{ fontSize: 11, fill: "#5E6B82" }} tickFormatter={(val) => `₹${val}L`} />
-                  <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
-                  <Legend className="pnl-legend" />
-                  <Bar dataKey="revenue" name="Recognized Revenue (₹L)" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="collected" name="Realized Collection (₹L)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="expense" name="Total Expenses (₹L)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Line type="monotone" dataKey="estimatedProfit" name="Estimated Net Profit (₹L)" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4 }} />
-                </ComposedChart>
-              </ResponsiveContainer>
+              <ResponsiveWrapper height={320}>
+                {(w, h) => (
+                  <ComposedChart width={w} height={h} data={fin.monthlyPerformance} margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700, fill: '#475569' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#5E6B82' }} axisLine={false} tickLine={false} width={40} tickFormatter={(val) => `₹${val}L`} />
+                    <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
+                    <Legend className="pnl-legend" />
+                    <Bar dataKey="revenue" name="Recognized Revenue (₹L)" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Bar dataKey="collected" name="Realized Collection (₹L)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Bar dataKey="expense" name="Total Expenses (₹L)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Line type="monotone" dataKey="estimatedProfit" name="Estimated Net Profit (₹L)" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4 }} />
+                  </ComposedChart>
+                )}
+              </ResponsiveWrapper>
             )}
           </div>
 
@@ -701,18 +603,16 @@ export default function DashboardView({
             </div>
 
             <div className="sa-expense-breakdown-content">
-              <div className="sa-expense-chart-wrap" style={{ width: '160px', height: '180px', flexShrink: 0 }}>
+              <div className="sa-expense-chart-wrap" style={{ width: '160px', height: '180px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {mounted && (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={fin.expenseBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3}>
-                        {fin.expenseBreakdown.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <PieChart width={160} height={180}>
+                    <Pie data={fin.expenseBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3}>
+                      {fin.expenseBreakdown.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
+                  </PieChart>
                 )}
               </div>
 
@@ -744,25 +644,15 @@ export default function DashboardView({
                 <thead>
                   <tr>
                     <th>Department</th>
-                    <th>Key Cost Metric</th>
-                    <th>Secondary Metric</th>
-                    <th>Status / Efficiency</th>
+                    <th style={{ textAlign: 'right' }}>Cost</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fin.departmentCosts.map((d, idx) => (
                     <tr key={idx}>
                       <td data-label="Department" style={{ fontWeight: 750, color: d.accent }}>{d.name}</td>
-                      <td data-label="Key Cost Metric" style={{ fontWeight: 700, color: '#24345C' }}>
-                        {d.purchaseVal || d.productionCost || d.transportCost || d.salaryCost || d.salesValue || d.revenue || d.inspectedQty}
-                      </td>
-                      <td data-label="Secondary Metric" style={{ color: '#475569' }}>
-                        {d.consumed || d.reworkCost || d.delayedCost || d.overtime || d.discounts || d.outstanding || d.qualityLoss}
-                      </td>
-                      <td data-label="Status / Efficiency">
-                        <span className="dashboard-badge badge-info" style={{ backgroundColor: `${d.accent}15`, color: d.accent }}>
-                          {d.efficiency || d.orderConversion || d.activeStaff || d.rejectionRate || 'Operational'}
-                        </span>
+                      <td data-label="Cost" style={{ textAlign: 'right', fontWeight: 750, color: '#24345C' }}>
+                        {d.costVal || d.purchaseVal || d.productionCost || d.transportCost || d.salaryCost || d.salesValue || d.revenue || d.inspectedQty}
                       </td>
                     </tr>
                   ))}
@@ -868,40 +758,44 @@ export default function DashboardView({
             <div className="production-analytics-header">
               <div>
                 <h3>Daily Production vs Target</h3>
-                <p>Telemetry vs plant quota (800 Units)</p>
+                <p>Telemetry vs plant quota ({formatNumber(fin.dailyProductionTarget)} Units)</p>
               </div>
               <span className="analytics-positive-badge">+12% vs avg</span>
             </div>
 
             <div className="production-analytics-body">
               <div className="production-chart-column">
-                <div className="production-chart-wrapper">
-                  <ResponsiveContainer width="100%" height={230}>
-                    <BarChart data={productionData} margin={{ top: 22, right: 16, left: -8, bottom: 4 }}>
-                      <CartesianGrid vertical={false} stroke="#e8edf3" strokeDasharray="3 3" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#5E6B82", fontSize: 11 }} />
-                      <YAxis domain={[0, 900]} ticks={[0, 250, 500, 750, 900]} axisLine={false} tickLine={false} width={40} tick={{ fill: "#5E6B82", fontSize: 11 }} />
-                      <Tooltip cursor={{ fill: "#F5FAFE" }} formatter={(value) => [`${value} Units`, "Production"]} />
-                      <Bar dataKey="value" radius={[7, 7, 0, 0]} maxBarSize={70}>
-                        {productionData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="production-chart-wrapper" style={{ width: '100%', minWidth: 0, minHeight: '230px' }}>
+                  {mounted && (
+                    <ResponsiveWrapper height={230}>
+                      {(w, h) => (
+                        <BarChart width={w} height={h} data={productionData} margin={{ top: 22, right: 16, left: -8, bottom: 4 }}>
+                          <CartesianGrid vertical={false} stroke="#e8edf3" strokeDasharray="3 3" />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#5E6B82", fontSize: 11 }} />
+                          <YAxis domain={[0, Math.max(900, Math.round(fin.dailyProductionTarget * 1.15))]} axisLine={false} tickLine={false} width={40} tick={{ fill: "#5E6B82", fontSize: 11 }} />
+                          <Tooltip cursor={{ fill: "#F5FAFE" }} formatter={(value) => [`${formatNumber(value)} Units`, "Production"]} />
+                          <Bar dataKey="value" radius={[7, 7, 0, 0]} maxBarSize={70}>
+                            {productionData.map((entry) => (
+                              <Cell key={entry.name} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      )}
+                    </ResponsiveWrapper>
+                  )}
                 </div>
 
                 <div className="production-chart-summary">
-                  <span><i className="summary-dot summary-dot-target" />Target: <strong>800 Units</strong></span>
-                  <span><i className="summary-dot summary-dot-produced" />Produced: <strong>735 Units</strong></span>
+                  <span><i className="summary-dot summary-dot-target" />Target: <strong>{formatNumber(fin.dailyProductionTarget)} Units</strong></span>
+                  <span><i className="summary-dot summary-dot-produced" />Produced: <strong>{formatNumber(fin.dailyProductionVal)} Units</strong></span>
                 </div>
               </div>
 
               <div className="production-efficiency-panel">
                 <div className="production-efficiency-ring">
-                  <div><strong>92%</strong><span>Efficiency</span></div>
+                  <div><strong>{fin.dailyProductionProgress}%</strong><span>Efficiency</span></div>
                 </div>
-                <p>735 of 800 units produced</p>
+                <p>{formatNumber(fin.dailyProductionVal)} of {formatNumber(fin.dailyProductionTarget)} units produced</p>
               </div>
             </div>
           </div>
@@ -924,19 +818,23 @@ export default function DashboardView({
               <span className="analytics-legend-item"><i className="analytics-legend-dot legend-orders" />Orders</span>
             </div>
 
-            <div className="analytics-card__chart">
-              <ResponsiveContainer width="100%" height={260}>
-                <ComposedChart data={salesDispatchTrendData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf3" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#5E6B82" }} minTickGap={20} />
-                  <YAxis yAxisId="financial" domain={[0, 12]} ticks={[0, 3, 6, 9, 12]} axisLine={false} tickLine={false} width={28} tick={{ fontSize: 11, fill: "#5E6B82" }} />
-                  <YAxis yAxisId="units" orientation="right" domain={[0, 800]} ticks={[0, 200, 400, 600, 800]} axisLine={false} tickLine={false} width={38} tick={{ fontSize: 11, fill: "#5E6B82" }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area yAxisId="financial" type="monotone" dataKey="sales" name="Sales (₹ Lakh)" fill="rgba(37, 99, 235, 0.12)" stroke="#2563eb" strokeWidth={2.5} />
-                  <Line yAxisId="units" type="monotone" dataKey="dispatch" name="Dispatch (Units)" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  <Line yAxisId="financial" type="monotone" dataKey="orders" name="Orders" stroke="#6366f1" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} />
-                </ComposedChart>
-              </ResponsiveContainer>
+            <div className="analytics-card__chart" style={{ width: '100%', minWidth: 0, minHeight: '260px' }}>
+              {mounted && (
+                <ResponsiveWrapper height={260}>
+                  {(w, h) => (
+                    <ComposedChart width={w} height={h} data={salesDispatchTrendData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf3" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#5E6B82" }} minTickGap={20} />
+                      <YAxis yAxisId="financial" axisLine={false} tickLine={false} width={28} tick={{ fontSize: 11, fill: "#5E6B82" }} />
+                      <YAxis yAxisId="units" orientation="right" axisLine={false} tickLine={false} width={38} tick={{ fontSize: 11, fill: "#5E6B82" }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area yAxisId="financial" type="monotone" dataKey="sales" name="Sales (₹ Lakh)" fill="rgba(37, 99, 235, 0.12)" stroke="#2563eb" strokeWidth={2.5} />
+                      <Line yAxisId="units" type="monotone" dataKey="dispatch" name="Dispatch (Units)" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      <Line yAxisId="financial" type="monotone" dataKey="orders" name="Orders" stroke="#6366f1" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} />
+                    </ComposedChart>
+                  )}
+                </ResponsiveWrapper>
+              )}
             </div>
           </div>
         </div>
@@ -958,18 +856,22 @@ export default function DashboardView({
               <span className="analytics-legend-item"><i className="analytics-legend-dot legend-outstanding" />Outstanding (₹ L)</span>
             </div>
 
-            <div className="analytics-card__chart">
-              <ResponsiveContainer width="100%" height={290}>
-                <BarChart data={monthlyRevenueData} margin={{ top: 10, right: 8, left: -6, bottom: 0 }} barGap={3} barCategoryGap="26%">
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf3" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#5E6B82" }} interval={0} />
-                  <YAxis axisLine={false} tickLine={false} width={36} tick={{ fontSize: 11, fill: "#5E6B82" }} tickFormatter={(value) => `${value}L`} />
-                  <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
-                  <Bar dataKey="revenue" name="Revenue (₹ L)" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={20} />
-                  <Bar dataKey="collection" name="Collection (₹ L)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={20} />
-                  <Bar dataKey="outstanding" name="Outstanding (₹ L)" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="analytics-card__chart" style={{ width: '100%', minWidth: 0, minHeight: '290px' }}>
+              {mounted && (
+                <ResponsiveWrapper height={290}>
+                  {(w, h) => (
+                    <BarChart width={w} height={h} data={monthlyRevenueData} margin={{ top: 10, right: 8, left: -6, bottom: 0 }} barGap={3} barCategoryGap="26%">
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf3" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#5E6B82" }} interval={0} />
+                      <YAxis axisLine={false} tickLine={false} width={36} tick={{ fontSize: 11, fill: "#5E6B82" }} tickFormatter={(value) => `${value}L`} />
+                      <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
+                      <Bar dataKey="revenue" name="Revenue (₹ L)" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                      <Bar dataKey="collection" name="Collection (₹ L)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                      <Bar dataKey="outstanding" name="Outstanding (₹ L)" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                    </BarChart>
+                  )}
+                </ResponsiveWrapper>
+              )}
             </div>
           </div>
         </div>
@@ -990,11 +892,11 @@ export default function DashboardView({
 
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
-              { label: 'Production Target', value: '800 Units', color: '#24345C' },
-              { label: 'Production Completed', value: '735 Units', color: '#10b981' },
-              { label: 'Pending Production', value: '65 Units', color: '#f59e0b' },
-              { label: 'QC Pending', value: '18 Batches', color: '#6366f1' },
-              { label: 'Dispatch Pending', value: '12 Orders', color: '#06b6d4' },
+              { label: 'Production Target', value: `${formatNumber(fin.dailyProductionTarget)} Units`, color: '#24345C' },
+              { label: 'Production Completed', value: `${formatNumber(fin.dailyProductionVal)} Units`, color: '#10b981' },
+              { label: 'Pending Production', value: `${formatNumber(Math.max(0, fin.dailyProductionTarget - fin.dailyProductionVal))} Units`, color: '#f59e0b' },
+              { label: 'QC Pending', value: `${Math.max(1, Math.round(18 * (fin.totalOrdersCount / 28)))} Batches`, color: '#6366f1' },
+              { label: 'Dispatch Pending', value: `${fin.dailyDispatchPending} Orders`, color: '#06b6d4' },
               { label: 'Rejection Rate', value: '1.8%', color: '#ef4444' },
             ].map((stat, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', borderBottom: i === 5 ? 'none' : '1px solid #edf1f5' }}>
@@ -1015,18 +917,22 @@ export default function DashboardView({
           </div>
 
           <div className="card-body">
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={monthlyProductionData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fontWeight: 600, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CustomTooltip formatter={(val) => `${val} Units`} />} cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }} />
-                  <Bar dataKey="target" name="Target" fill="#D6E2F0" radius={[3, 3, 0, 0]} barSize={12} />
-                  <Bar dataKey="produced" name="Produced" fill="#10b981" radius={[3, 3, 0, 0]} barSize={12} />
-                  <Bar dataKey="rejected" name="Rejected" fill="#ef4444" radius={[3, 3, 0, 0]} barSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="chart-container" style={{ width: '100%', minWidth: 0, minHeight: '240px' }}>
+              {mounted && (
+                <ResponsiveWrapper height={240}>
+                  {(w, h) => (
+                    <BarChart width={w} height={h} data={monthlyProductionData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }} barGap={2}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fontWeight: 600, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomTooltip formatter={(val) => `${val} Units`} />} cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }} />
+                      <Bar dataKey="target" name="Target" fill="#D6E2F0" radius={[3, 3, 0, 0]} barSize={12} />
+                      <Bar dataKey="produced" name="Produced" fill="#10b981" radius={[3, 3, 0, 0]} barSize={12} />
+                      <Bar dataKey="rejected" name="Rejected" fill="#ef4444" radius={[3, 3, 0, 0]} barSize={12} />
+                    </BarChart>
+                  )}
+                </ResponsiveWrapper>
+              )}
             </div>
           </div>
         </div>
@@ -1107,22 +1013,24 @@ export default function DashboardView({
           <div className="card-header">
             <div className="card-heading">
               <h3 className="card-title">Top Products This Month</h3>
-              <p className="card-subtitle">Product distribution (Total ₹82.0 L)</p>
+              <p className="card-subtitle">Product distribution (Total {formatCurrency(fin.totalSalesVal)})</p>
             </div>
             <span className="dashboard-badge badge-info">5 Categories</span>
           </div>
 
           <div className="card-body">
-            <div className="chart-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '150px', height: '180px', flexShrink: 0, display: 'flex', alignItems: 'center', justify: 'center' }}>
-                <PieChart width={150} height={180}>
-                  <Pie data={topProductsData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={66} paddingAngle={3}>
-                    {topProductsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
-                </PieChart>
+            <div className="chart-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ width: '150px', height: '180px', flexShrink: 0, display: 'flex', alignItems: 'center', justify: 'center', minWidth: 0 }}>
+                {mounted && (
+                  <PieChart width={150} height={180}>
+                    <Pie data={topProductsData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={66} paddingAngle={3}>
+                      {topProductsData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
+                  </PieChart>
+                )}
               </div>
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
@@ -1144,22 +1052,24 @@ export default function DashboardView({
           <div className="card-header">
             <div className="card-heading">
               <h3 className="card-title">Pending Payments Ageing</h3>
-              <p className="card-subtitle">Receivables breakdown (Total ₹24.0 L)</p>
+              <p className="card-subtitle">Receivables breakdown (Total {formatCurrency(fin.outstandingReceivables)})</p>
             </div>
             <span className="dashboard-badge badge-warning">Action Required</span>
           </div>
 
           <div className="card-body">
-            <div className="chart-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '150px', height: '180px', flexShrink: 0, display: 'flex', alignItems: 'center', justify: 'center' }}>
-                <PieChart width={150} height={180}>
-                  <Pie data={ageingData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={66} paddingAngle={3}>
-                    {ageingData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
-                </PieChart>
+            <div className="chart-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ width: '150px', height: '180px', flexShrink: 0, display: 'flex', alignItems: 'center', justify: 'center', minWidth: 0 }}>
+                {mounted && (
+                  <PieChart width={150} height={180}>
+                    <Pie data={ageingData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={66} paddingAngle={3}>
+                      {ageingData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip formatter={(val) => `₹${val} Lakh`} />} />
+                  </PieChart>
+                )}
               </div>
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
@@ -1177,46 +1087,8 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Row 5: Today's Tasks + Recent Orders Table */}
-        <div className="dashboard-card tasks-card dashboard-span-4">
-          <div className="card-header">
-            <div className="card-heading">
-              <h3 className="card-title">Today's Tasks</h3>
-              <p className="card-subtitle">{tasks.filter(t => !t.completed).length} pending actions across departments</p>
-            </div>
-            <span className="dashboard-badge badge-warning">{tasks.filter(t => t.priority === 'High' && !t.completed).length} Urgent</span>
-          </div>
-
-          <ul className="tasks-list">
-            {tasks.map(task => (
-              <li key={task.id} className="task-item">
-                <input
-                  type="checkbox"
-                  className="task-checkbox"
-                  checked={task.completed}
-                  onChange={() => toggleTask(task.id)}
-                />
-                <div className="task-content">
-                  <p className="task-title" style={{ textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? '#8893A7' : 'var(--text-primary)' }}>
-                    {task.title}
-                  </p>
-                  <div className="task-meta">
-                    <span style={{ fontWeight: 700, color: '#337a86' }}>{task.dept}</span>
-                    <span>•</span>
-                    <span>{task.time}</span>
-                    <span>•</span>
-                    <span style={{ fontWeight: 700, color: task.priority === 'High' ? '#ef4444' : '#5E6B82' }}>{task.priority} Priority</span>
-                  </div>
-                </div>
-                <button className="task-action" onClick={() => toggleTask(task.id)}>
-                  {task.completed ? 'Done' : 'Action'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="dashboard-card dashboard-span-8">
+        {/* Row 5: Recent Orders Table */}
+        <div className="dashboard-card dashboard-span-12">
           <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
             <div className="card-heading">
               <h3 className="card-title">Recent Orders</h3>
@@ -1418,12 +1290,12 @@ export default function DashboardView({
                   borderRadius: '16px',
                   overflow: 'hidden'
                 }}>
-                  {getProductSpecs(selectedSpecOrder.prod).map((spec, i) => (
+                  {getProductSpecs(selectedSpecOrder.prod, selectedSpecOrder).map((spec, i) => (
                     <div 
                       key={i} 
                       style={{
                         display: 'flex',
-                        borderBottom: i === getProductSpecs(selectedSpecOrder.prod).length - 1 ? 'none' : '1px solid #f1f5f9',
+                        borderBottom: i === getProductSpecs(selectedSpecOrder.prod, selectedSpecOrder).length - 1 ? 'none' : '1px solid #f1f5f9',
                         background: i % 2 === 0 ? '#ffffff' : '#f8fafc',
                         padding: '12px 16px',
                         fontSize: '13px'

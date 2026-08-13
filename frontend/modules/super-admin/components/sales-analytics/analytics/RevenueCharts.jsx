@@ -30,9 +30,9 @@ const RevenueCharts = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Row 1: Monthly Revenue Trend + Daily Revenue Area */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         <ChartCard title="Monthly Revenue Trend" subtitle="Revenue vs Target by Month">
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={240} minWidth={0}>
             <BarChart data={data.monthlyRevenue} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
@@ -46,7 +46,7 @@ const RevenueCharts = () => {
         </ChartCard>
 
         <ChartCard title="Daily Revenue (This Month)" subtitle="Day-by-day cumulative area">
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={240} minWidth={0}>
             <AreaChart data={data.dailyRevenue} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
@@ -65,9 +65,9 @@ const RevenueCharts = () => {
       </div>
 
       {/* Row 2: Quarterly Comparison + YoY */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         <ChartCard title="Quarterly Revenue Comparison" subtitle="Q1–Q4 across years">
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={240} minWidth={0}>
             <BarChart data={data.quarterly} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="quarter" tick={{ fontSize: 10, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
@@ -82,7 +82,7 @@ const RevenueCharts = () => {
         </ChartCard>
 
         <ChartCard title="Year-on-Year Growth (%)" subtitle="Annual revenue growth rate">
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={240} minWidth={0}>
             <LineChart data={data.yoyGrowth} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="year" tick={{ fontSize: 10, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
@@ -96,9 +96,9 @@ const RevenueCharts = () => {
       </div>
 
       {/* Row 3: Revenue by Category grouped bar + Revenue Mix Area */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         <ChartCard title="Revenue by Category — Monthly" subtitle="Stacked view per product category">
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={260} minWidth={0}>
             <BarChart data={data.categoryMonthly} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#5E6B82' }} axisLine={false} tickLine={false} />
@@ -114,7 +114,7 @@ const RevenueCharts = () => {
         </ChartCard>
 
         <ChartCard title="Revenue Trends by Region" subtitle="All regions — monthly line">
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={260} minWidth={0}>
             <LineChart data={data.regionMonthly} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#5E6B82' }} axisLine={false} tickLine={false} />

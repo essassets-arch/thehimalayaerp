@@ -1706,33 +1706,92 @@
   min-width: 0;
 }
 
-@media (max-width: 1024px) {
-  .pnl-chart-container {
-    height: 320px;
+/* Media Queries for Universal Device Responsiveness (Small to Large Screens) */
+@media (max-width: 1200px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .expense-breakdown-grid {
+  .sa-financial-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sa-cost-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sa-expense-dept-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .trend-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-span-3,
+  .dashboard-span-4,
+  .dashboard-span-5,
+  .dashboard-span-6,
+  .dashboard-span-7,
+  .dashboard-span-8,
+  .dashboard-span-9 {
+    grid-column: span 12 !important;
+  }
+
+  .production-analytics-body {
+    flex-direction: column;
+  }
+
+  .sa-expense-breakdown-content {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .pnl-chart-container {
+    height: 300px;
   }
 }
 
 @media (max-width: 768px) {
-  .dashboard-section,
-  .financial-section,
-  .pnl-section,
-  .expense-section,
-  .department-cost-section,
-  .order-profitability-section {
-    padding-left: 0;
-    padding-right: 0;
+  .super-dashboard {
+    padding: 12px;
   }
 
-  .dashboard-card {
-    border-radius: 12px;
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .dashboard-filters {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .dashboard-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .sa-financial-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .sa-cost-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .pnl-chart-container {
-    height: 290px;
+    height: 260px;
   }
 
   .pnl-legend {
@@ -1740,21 +1799,21 @@
   }
 
   .dashboard-table-wrapper table {
-    min-width: 680px;
+    min-width: 640px;
   }
 }
 
 @media (max-width: 480px) {
-  .expense-breakdown-grid {
+  .dashboard-kpis {
     grid-template-columns: 1fr;
   }
 
   .pnl-chart-container {
-    height: 260px;
+    height: 240px;
   }
 
   .dashboard-table-wrapper table {
-    min-width: 640px;
+    min-width: 580px;
   }
 }
 

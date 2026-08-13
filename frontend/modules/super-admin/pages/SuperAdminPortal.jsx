@@ -2747,27 +2747,25 @@ export default function SuperAdminPortal() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ width: '180px', height: '180px', position: 'relative', flexShrink: 0 }}>
+                  <div style={{ width: '180px', height: '180px', position: 'relative', flexShrink: 0, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isMounted && (
-                      <ResponsiveContainer width="100%" height={180}>
-                        <PieChart>
-                          <Pie
-                            data={currentData.donut}
-                            innerRadius={55}
-                            outerRadius={80}
-                            dataKey="value"
-                            paddingAngle={3}
-                          >
-                            {currentData.donut.map((_, i) => (
-                              <Cell key={i} fill={currentData.colors[i % currentData.colors.length]} stroke="rgba(0,0,0,0.3)" strokeWidth={1} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{ background: '#ffffff', border: '1px solid rgba(15,23,42,0.08)', borderRadius: '8px' }}
-                            itemStyle={{ color: 'var(--color-text-primary)' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <PieChart width={180} height={180}>
+                        <Pie
+                          data={currentData.donut}
+                          innerRadius={55}
+                          outerRadius={80}
+                          dataKey="value"
+                          paddingAngle={3}
+                        >
+                          {currentData.donut.map((_, i) => (
+                            <Cell key={i} fill={currentData.colors[i % currentData.colors.length]} stroke="rgba(0,0,0,0.3)" strokeWidth={1} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ background: '#ffffff', border: '1px solid rgba(15,23,42,0.08)', borderRadius: '8px' }}
+                          itemStyle={{ color: 'var(--color-text-primary)' }}
+                        />
+                      </PieChart>
                     )}
                     <div style={{
                       position: 'absolute',
@@ -2811,7 +2809,7 @@ export default function SuperAdminPortal() {
                 </div>
                 <div style={{ height: '260px', width: '100%', minHeight: 0 }}>
                   {isMounted && (
-                    <ResponsiveContainer width="100%" height={260}>
+                    <ResponsiveContainer width="100%" height={260} minWidth={0}>
                       <LineChart data={currentData.revenue} margin={{ top: 10, right: 15, left: 15, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(15, 23, 42, 0.05)" />
                         <XAxis dataKey="name" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} />
@@ -2832,7 +2830,7 @@ export default function SuperAdminPortal() {
               </div>
             </div>
 
-            {/* SECTION 4 â€” DEPARTMENT PERFORMANCE BAR CHART OR HIDDEN & SECTION 5 â€” ORDER PIPELINE FLOW */}
+            {/* SECTION 4 — DEPARTMENT PERFORMANCE BAR CHART OR HIDDEN & SECTION 5 — ORDER PIPELINE FLOW */}
             {selectedDept === 'All' ? (
               <>
                 <div className="super-admin-col-6 animated-card delay-3">
@@ -2846,7 +2844,7 @@ export default function SuperAdminPortal() {
                     </div>
                     <div style={{ height: '260px', width: '100%', minHeight: 0 }}>
                       {isMounted && (
-                        <ResponsiveContainer width="100%" height={260}>
+                        <ResponsiveContainer width="100%" height={260} minWidth={0}>
                           <BarChart data={barChartData} margin={{ top: 10, right: 15, left: 15, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(15, 23, 42, 0.05)" />
                             <XAxis dataKey="dept" tick={{ fill: '#8893A7', fontSize: 11 }} />

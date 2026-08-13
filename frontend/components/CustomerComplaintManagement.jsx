@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Swal from 'sweetalert2';
-import { Eye, FilePenLine, Plus, Trash2, Search, X, Check } from 'lucide-react';
+import { Eye, FilePenLine, Plus, Trash2, Search, X, Check, ShieldCheck, AlertCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
 
 const blank = () => ({
@@ -193,6 +193,11 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Review Remarks & Search Filter states
+  const [reviewRemarks, setReviewRemarks] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusTab, setStatusTab] = useState('ALL');
+
   const load = async () => {
     setLoading(true);
     try {
@@ -208,6 +213,12 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
   useEffect(() => {
     load();
   }, [base]);
+
+  useEffect(() => {
+    if (selected) {
+      setReviewRemarks(selected.adminRemarks || '');
+    }
+  }, [selected]);
 
   useEffect(() => {
     if (admin) return;
@@ -250,7 +261,7 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
       productId: complaint.productId,
       complaintType: complaint.complaintType,
       priority: complaint.priority,
-      complaintDate: complaint.complaintDate.slice(0, 10),
+      complaintDate: complaint.complaintDate ? complaint.complaintDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
       subject: complaint.subject,
       description: complaint.description,
       salesRemarks: complaint.salesRemarks || '',
@@ -322,30 +333,31 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
     }
   };
 
-  const adminAction = async (complaint, action) => {
-    const prompt = await Swal.fire({
-      title:
-        action === 'approve'
-          ? 'Approve complaint'
-          : action === 'reject'
-          ? 'Reject complaint'
-          : 'Admin remarks',
-      input: 'textarea',
-      inputLabel: 'Remarks',
-      inputValidator: (v) =>
-        action === 'reject' && !v?.trim() ? 'Rejection remarks are required.' : undefined,
-      showCancelButton: true,
-    });
-    if (!prompt.isConfirmed) return;
+  const handleAdminDecision = async (action) => {
+    if (!selected) return;
+    if (action === 'reject' && !reviewRemarks.trim()) {
+      return Swal.fire({
+        title: 'Rejection Remarks Required',
+        text: 'Please provide rejection remarks before rejecting the complaint.',
+        icon: 'warning',
+      });
+    }
+
     try {
-      await backendFetch(`${base}/${complaint.id}/${action}`, {
+      await backendFetch(`${base}/${selected.id}/${action}`, {
         method: 'PUT',
-        body: { adminRemarks: prompt.value || '' },
+        body: { adminRemarks: reviewRemarks || '' },
+      });
+      Swal.fire({
+        title: action === 'approve' ? 'Complaint Approved' : action === 'reject' ? 'Complaint Rejected' : 'Remarks Updated',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
       });
       setSelected(null);
       await load();
     } catch (e) {
-      Swal.fire('Unable to update', e.message, 'error');
+      Swal.fire('Unable to update', e.message || 'Server error', 'error');
     }
   };
 
@@ -353,15 +365,15 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
     <span
       className={`inline-block rounded-full text-xs font-bold text-center ${
         value === 'APPROVED'
-          ? 'bg-emerald-100 text-emerald-700'
+          ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
           : value === 'REJECTED'
-          ? 'bg-red-100 text-red-700'
+          ? 'bg-red-100 text-red-700 border border-red-300'
           : value === 'DRAFT'
-          ? 'bg-slate-100 text-slate-700'
-          : 'bg-amber-100 text-amber-700'
+          ? 'bg-slate-100 text-slate-700 border border-slate-300'
+          : 'bg-amber-100 text-amber-800 border border-amber-300'
       }`}
       style={{
-        padding: '4px 12px',
+        padding: '3px 12px',
         width: 'max-content',
         minWidth: '80px',
         whiteSpace: 'nowrap',
@@ -371,18 +383,44 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
     </span>
   );
 
+  const filteredComplaints = useMemo(() => {
+    return complaints.filter((c) => {
+      if (statusTab !== 'ALL' && c.status !== statusTab) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        String(c.complaintNo || '').toLowerCase().includes(q) ||
+        String(c.customer?.companyName || '').toLowerCase().includes(q) ||
+        String(c.product?.name || '').toLowerCase().includes(q) ||
+        String(c.subject || '').toLowerCase().includes(q) ||
+        String(c.complaintType || '').toLowerCase().includes(q)
+      );
+    });
+  }, [complaints, statusTab, searchQuery]);
+
+  const stats = useMemo(() => {
+    return {
+      total: complaints.length,
+      pending: complaints.filter((c) => c.status === 'PENDING_SUPER_ADMIN').length,
+      approved: complaints.filter((c) => c.status === 'APPROVED').length,
+      rejected: complaints.filter((c) => c.status === 'REJECTED').length,
+    };
+  }, [complaints]);
+
   return (
-    <div className="app-card" style={{ flex: 1 }}>
-      <div className="module-header-row">
+    <div className="app-card" style={{ flex: 1, padding: '20px' }}>
+      
+      {/* Header Row */}
+      <div className="module-header-row" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 className="module-title">
+          <h2 className="module-title" style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>
             {admin ? 'Customer Complaint Review' : 'Customer Complaint Management'}
           </h2>
-          <span className="text-sm text-slate-500">
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
             {admin
-              ? 'Review submitted customer complaints.'
-              : 'Create and track customer complaints.'}
-          </span>
+              ? 'Review and resolve submitted customer complaints with decision remarks.'
+              : 'Create, track, and manage customer quality and service complaints.'}
+          </p>
         </div>
         {!admin && (
           <button
@@ -395,16 +433,89 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
               setForm(blank());
               setOpen(true);
             }}
+            style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Plus size={15} /> Create Complaint
+            <Plus size={16} /> Create Complaint
           </button>
         )}
       </div>
 
-      <div className="crm-table-container">
-        <table className="crm-table responsive-table flat-table">
+      {/* KPI Stats summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Complaints</span>
+          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>{stats.total}</h3>
+        </div>
+        <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Review</span>
+          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#d97706' }}>{stats.pending}</h3>
+        </div>
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approved</span>
+          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>{stats.approved}</h3>
+        </div>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: '#b91c1c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rejected</span>
+          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>{stats.rejected}</h3>
+        </div>
+      </div>
+
+      {/* Filter Control Row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'ALL', label: 'All' },
+            { id: 'PENDING_SUPER_ADMIN', label: 'Pending Review' },
+            { id: 'APPROVED', label: 'Approved' },
+            { id: 'REJECTED', label: 'Rejected' },
+            ...(!admin ? [{ id: 'DRAFT', label: 'Drafts' }] : [])
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusTab(tab.id)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                fontSize: '12.5px',
+                fontWeight: '700',
+                border: statusTab === tab.id ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                background: statusTab === tab.id ? '#eff6ff' : '#ffffff',
+                color: statusTab === tab.id ? '#1d4ed8' : '#64748b',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ position: 'relative', minWidth: '240px', flex: '1 1 max-content', maxWidth: '320px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            placeholder="Search complaint, customer, product..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '7px 12px 7px 32px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              fontSize: '12.5px',
+              outline: 'none',
+              background: '#ffffff',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Complaints Table */}
+      <div className="crm-table-container" style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+        <table className="crm-table responsive-table flat-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr>
+            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
               {(admin
                 ? [
                     'Complaint No',
@@ -431,59 +542,71 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
                     'Actions',
                   ]
               ).map((x) => (
-                <th key={x}>{x}</th>
+                <th key={x} style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: '800', color: '#475569', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{x}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="10">Loading complaints…</td>
+                <td colSpan="10" style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>Loading complaints…</td>
               </tr>
-            ) : complaints.length === 0 ? (
+            ) : filteredComplaints.length === 0 ? (
               <tr>
-                <td colSpan="10">No complaints found.</td>
+                <td colSpan="10" style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>No complaints found matching filter criteria.</td>
               </tr>
             ) : (
-              complaints.map((c) => (
-                <tr key={c.id}>
-                  <td data-label="Complaint No">{c.complaintNo}</td>
-                  <td data-label="Customer">{c.customer?.companyName}</td>
-                  <td data-label="Product">{c.product?.name}</td>
-                  <td data-label="Complaint Type">{c.complaintType}</td>
-                  <td data-label="Subject">{c.subject}</td>
-                  <td data-label="Priority">{c.priority}</td>
+              filteredComplaints.map((c) => (
+                <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s ease' }} className="hover:bg-slate-50">
+                  <td data-label="Complaint No" style={{ padding: '12px 14px', fontWeight: '800', color: '#0284c7', fontSize: '12.5px' }}>{c.complaintNo}</td>
+                  <td data-label="Customer" style={{ padding: '12px 14px', fontWeight: '750', color: '#0f172a', fontSize: '13px' }}>{c.customer?.companyName || '—'}</td>
+                  <td data-label="Product" style={{ padding: '12px 14px', color: '#334155', fontSize: '12.5px', fontWeight: '600' }}>{c.product?.name || '—'}</td>
+                  <td data-label="Complaint Type" style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>{c.complaintType}</td>
+                  <td data-label="Subject" style={{ padding: '12px 14px', color: '#1e293b', fontSize: '12.5px', fontWeight: '600', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</td>
+                  <td data-label="Priority" style={{ padding: '12px 14px' }}>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      background: c.priority === 'Critical' ? '#fee2e2' : c.priority === 'High' ? '#ffedd5' : '#f1f5f9',
+                      color: c.priority === 'Critical' ? '#dc2626' : c.priority === 'High' ? '#c2410c' : '#475569'
+                    }}>
+                      {c.priority}
+                    </span>
+                  </td>
                   {admin ? (
                     <>
-                      <td data-label="Submitted By">{c.submittedBy || '—'}</td>
-                      <td data-label="Submitted Date">
+                      <td data-label="Submitted By" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>{c.submittedBy || '—'}</td>
+                      <td data-label="Submitted Date" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>
                         {c.submittedAt ? new Date(c.submittedAt).toLocaleDateString('en-IN') : '—'}
                       </td>
                     </>
                   ) : (
                     <>
-                      <td data-label="Status">
+                      <td data-label="Status" style={{ padding: '12px 14px' }}>
                         <Status value={c.status} />
                       </td>
-                      <td data-label="Created Date">
+                      <td data-label="Created Date" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>
                         {new Date(c.createdAt).toLocaleDateString('en-IN')}
                       </td>
-                      <td data-label="Super Admin Remarks">{c.adminRemarks || '—'}</td>
+                      <td data-label="Super Admin Remarks" style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>{c.adminRemarks || '—'}</td>
                     </>
                   )}
                   {admin && (
-                    <td data-label="Status">
+                    <td data-label="Status" style={{ padding: '12px 14px' }}>
                       <Status value={c.status} />
                     </td>
                   )}
-                  <td data-label="Actions">
-                    <div className="flex items-center gap-2 action-btn-group">
+                  <td data-label="Actions" style={{ padding: '12px 14px' }}>
+                    <div className="flex items-center gap-2 action-btn-group" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button
                         className="action-btn flex items-center justify-center"
-                        title="View"
+                        title="View & Review"
                         onClick={() => setSelected(c)}
+                        style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', color: '#334155' }}
                       >
-                        <Eye size={15} />
+                        <Eye size={14} />
                       </button>
                       {!admin && c.status === 'DRAFT' && (
                         <>
@@ -491,15 +614,17 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
                             className="action-btn flex items-center justify-center"
                             title="Edit"
                             onClick={() => edit(c)}
+                            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', color: '#334155' }}
                           >
-                            <FilePenLine size={15} />
+                            <FilePenLine size={14} />
                           </button>
                           <button
                             className="action-btn flex items-center justify-center"
                             title="Delete"
                             onClick={() => remove(c)}
+                            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff', cursor: 'pointer', color: '#dc2626' }}
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} />
                           </button>
                         </>
                       )}
@@ -507,6 +632,7 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
                         <button
                           className="btn-small btn-primary-small"
                           onClick={() => resubmit(c)}
+                          style={{ padding: '4px 10px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
                         >
                           Resubmit
                         </button>
@@ -515,6 +641,7 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
                         <button
                           className="btn-small btn-primary-small"
                           onClick={() => setSelected(c)}
+                          style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
                         >
                           Review
                         </button>
@@ -528,8 +655,9 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
         </table>
       </div>
 
+      {/* Create / Edit Form Modal */}
       {open && (
-        <div className="complaint-modal-overlay">
+        <div className="complaint-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="complaint-modal">
             <div className="complaint-modal-header">
               <h2>{editing ? 'Edit Complaint' : 'Create Complaint'}</h2>
@@ -673,58 +801,181 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
         </div>
       )}
 
+      {/* Review & Detail Modal */}
       {selected && (
-        <div className="complaint-modal-overlay">
-          <div className="complaint-modal">
-            <div className="complaint-modal-header">
-              <h2>
-                {selected.complaintNo}: {selected.subject}
-              </h2>
-              <button onClick={() => setSelected(null)}>×</button>
-            </div>
-            <div className="complaint-form-body">
-              <p>
-                <b>Customer:</b> {selected.customer?.companyName}
-              </p>
-              <p>
-                <b>Product:</b> {selected.product?.name}
-              </p>
-              <p>
-                <b>Status:</b> <Status value={selected.status} />
-              </p>
-              <p>
-                <b>Description:</b> {selected.description}
-              </p>
-              <p>
-                <b>Sales remarks:</b> {selected.salesRemarks || '—'}
-              </p>
-              <p>
-                <b>Super Admin remarks:</b> {selected.adminRemarks || '—'}
-              </p>
-            </div>
-            {admin && (
-              <div className="complaint-modal-footer">
-                {selected.status === 'PENDING_SUPER_ADMIN' && (
-                  <>
-                    <button
-                      className="btn-small btn-primary-small"
-                      onClick={() => adminAction(selected, 'approve')}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="btn-small"
-                      onClick={() => adminAction(selected, 'reject')}
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-                <button className="btn-small" onClick={() => adminAction(selected, 'remarks')}>
-                  Add Remarks
-                </button>
+        <div className="complaint-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
+          <div className="complaint-modal" style={{ width: 'min(780px, 95vw)', borderRadius: '16px', border: '1px solid #CBD5E1', boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)', overflow: 'hidden' }}>
+            
+            {/* Modal Header */}
+            <div className="complaint-modal-header" style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#ffffff', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ background: '#2563eb', color: '#fff', fontSize: '11px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px', letterSpacing: '0.05em' }}>
+                    {selected.complaintNo}
+                  </span>
+                  <Status value={selected.status} />
+                </div>
+                <h2 style={{ margin: '6px 0 0 0', fontSize: '18px', fontWeight: '800', color: '#f8fafc' }}>
+                  {selected.subject}
+                </h2>
               </div>
-            )}
+              <button 
+                onClick={() => setSelected(null)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#94a3b8', width: '32px', height: '32px', borderRadius: '8px', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="complaint-form-body" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', overflowY: 'auto' }}>
+              
+              {/* Metadata Grid (2-Column) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer Name</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>
+                    {selected.customer?.companyName || '—'}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Affected Product</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>
+                    {selected.product?.name || '—'}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Complaint Type</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                    {selected.complaintType}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Priority Level</span>
+                  <div style={{ marginTop: '4px' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 10px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      background: selected.priority === 'Critical' ? '#fee2e2' : selected.priority === 'High' ? '#ffedd5' : '#f1f5f9',
+                      color: selected.priority === 'Critical' ? '#dc2626' : selected.priority === 'High' ? '#c2410c' : '#475569'
+                    }}>
+                      {selected.priority} Priority
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Submitted By</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+                    {selected.submittedBy || 'Sales Executive'}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Submitted Date</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+                    {selected.submittedAt ? new Date(selected.submittedAt).toLocaleDateString('en-IN') : (selected.createdAt ? new Date(selected.createdAt).toLocaleDateString('en-IN') : '—')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Complaint Description */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Complaint Description
+                </span>
+                <p style={{ margin: 0, fontSize: '13.5px', color: '#1e293b', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                  {selected.description || 'No detailed description provided.'}
+                </p>
+              </div>
+
+              {/* Sales Remarks */}
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '16px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#0369a1', display: 'block', marginBottom: '6px' }}>
+                  Sales Representative Remarks
+                </span>
+                <p style={{ margin: 0, fontSize: '13px', color: '#0c4a6e', lineHeight: '1.5' }}>
+                  {selected.salesRemarks || 'No sales remarks submitted.'}
+                </p>
+              </div>
+
+              {/* Super Admin Remarks Input / Inspection Area */}
+              {admin ? (
+                <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '12px', padding: '16px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '800', color: '#6b21a8', display: 'block', marginBottom: '8px' }}>
+                    Super Admin Review Remarks & Feedback
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Enter review notes, instructions, or resolution remarks..."
+                    value={reviewRemarks}
+                    onChange={(e) => setReviewRemarks(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #d8b4fe',
+                      fontSize: '13px',
+                      color: '#0f172a',
+                      background: '#ffffff',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              ) : (
+                selected.adminRemarks && (
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Super Admin Response & Remarks
+                    </span>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>
+                      {selected.adminRemarks}
+                    </p>
+                  </div>
+                )
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="complaint-modal-footer" style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+              <button 
+                onClick={() => setSelected(null)}
+                style={{ padding: '8px 16px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}
+              >
+                Close
+              </button>
+
+              {admin ? (
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => handleAdminDecision('remarks')}
+                    style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
+                  >
+                    Save Remarks
+                  </button>
+                  {selected.status === 'PENDING_SUPER_ADMIN' && (
+                    <>
+                      <button
+                        onClick={() => handleAdminDecision('reject')}
+                        style={{ padding: '8px 16px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => handleAdminDecision('approve')}
+                        style={{ padding: '8px 18px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}
+                      >
+                        Approve
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
           </div>
         </div>
       )}
