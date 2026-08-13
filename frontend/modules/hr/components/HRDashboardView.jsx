@@ -20,11 +20,20 @@ export default function HRDashboardView({
   leaves = [], 
   expenses = [],
   exitClearances = [],
-  shifts = []
+  shifts = [],
+  filters = {},
+  activeDates = {},
+  hideHeader = false
 }) {
-  const [selectedMonth, setSelectedMonth] = useState('August 2026');
+  const [selectedMonth, setSelectedMonth] = useState(filters?.salaryMonth || 'July 2026');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeEventTab, setActiveEventTab] = useState('all');
+
+  useEffect(() => {
+    if (filters?.salaryMonth) {
+      setSelectedMonth(filters.salaryMonth);
+    }
+  }, [filters?.salaryMonth]);
 
   // Filter staff by search query if typed
   const filteredEmployees = searchQuery.trim() 
@@ -32,11 +41,11 @@ export default function HRDashboardView({
     : employees;
 
   // 1. Dynamic KPI Data
-  const totalStaffCount = employees.length > 0 ? employees.length : 248;
+  const totalStaffCount = employees.length > 0 ? employees.length : 15;
   const activeStaffCount = employees.length > 0 
     ? employees.filter(e => e.isActive !== false && e.active !== false && e.status !== 'INACTIVE').length 
-    : 241;
-  const presentCount = Math.round(totalStaffCount * 0.931);
+    : 15;
+  const presentCount = employees.length > 0 ? Math.round(totalStaffCount * 0.933) : 14;
   const attendanceRate = ((presentCount / Math.max(1, totalStaffCount)) * 100).toFixed(1);
   
   const pendingLeavesList = Array.isArray(leaves) ? leaves.filter(l => {
@@ -55,7 +64,7 @@ export default function HRDashboardView({
 
   // 2. Attendance Overview Data
   const attendanceBreakdown = [
-    { name: 'Present', count: presentCount, percentage: 93.1, color: '#10b981' },
+    { name: 'Present', count: presentCount, percentage: 93.3, color: '#10b981' },
     { name: 'Late', count: 12, percentage: 4.8, color: '#f59e0b' },
     { name: 'Absent', count: 5, percentage: 2.0, color: '#ef4444' },
     { name: 'On Leave', count: pendingLeavesCount, percentage: 5.6, color: '#8b5cf6' },
@@ -73,12 +82,12 @@ export default function HRDashboardView({
   const departmentWorkforce = React.useMemo(() => {
     if (employees.length === 0) {
       return [
-        { name: 'Production', count: 82, percentage: 33.1, color: '#0ea5e9' },
-        { name: 'Operations', count: 61, percentage: 24.6, color: '#10b981' },
-        { name: 'Sales', count: 43, percentage: 17.3, color: '#f59e0b' },
-        { name: 'Finance', count: 24, percentage: 9.7, color: '#8b5cf6' },
-        { name: 'HR', count: 16, percentage: 6.5, color: '#ec4899' },
-        { name: 'IT', count: 12, percentage: 4.8, color: '#6366f1' }
+        { name: 'Production', count: 82, percentage: 546.7, color: '#0ea5e9' },
+        { name: 'Operations', count: 61, percentage: 406.7, color: '#10b981' },
+        { name: 'Sales', count: 43, percentage: 286.7, color: '#f59e0b' },
+        { name: 'Finance', count: 24, percentage: 160.0, color: '#8b5cf6' },
+        { name: 'HR', count: 16, percentage: 106.7, color: '#ec4899' },
+        { name: 'IT', count: 12, percentage: 80.0, color: '#6366f1' }
       ];
     }
     const depts = [
@@ -89,7 +98,7 @@ export default function HRDashboardView({
       { name: 'HR', keys: ['hr', 'personnel'], color: '#ec4899' },
       { name: 'IT', keys: ['it', 'tech', 'system'], color: '#6366f1' }
     ];
-    const total = employees.length;
+    const total = totalStaffCount;
     return depts.map(d => {
       const match = employees.filter(e => {
         const deptStr = String(e.department || e.dept || e.designation || '').toLowerCase();
@@ -101,7 +110,7 @@ export default function HRDashboardView({
       const pct = total > 0 ? Number(((count / total) * 100).toFixed(1)) : 10;
       return { name: d.name, count, percentage: pct, color: d.color };
     });
-  }, [employees]);
+  }, [employees, totalStaffCount]);
 
   // 4. Dynamic HR Action Items
   const actionItems = [
@@ -329,91 +338,93 @@ export default function HRDashboardView({
       `}</style>
 
       {/* ── 1. HEADER SECTION ── */}
-      <div className="hr-dash-header">
-        <div className="hr-header-top">
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 style={{ fontSize: '24px', fontWeight: '800', margin: 0, letterSpacing: '-0.02em', background: 'linear-gradient(90deg, #ffffff, #cbd5e1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                HR Dashboard
-              </h1>
-              <span style={{ background: 'rgba(14, 165, 233, 0.2)', color: '#38bdf8', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '20px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
-                Live Operations
-              </span>
+      {!hideHeader && (
+        <div className="hr-dash-header">
+          <div className="hr-header-top">
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h1 style={{ fontSize: '24px', fontWeight: '800', margin: 0, letterSpacing: '-0.02em', background: 'linear-gradient(90deg, #ffffff, #cbd5e1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  HR Dashboard
+                </h1>
+                <span style={{ background: 'rgba(14, 165, 233, 0.2)', color: '#38bdf8', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '20px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                  Live Operations
+                </span>
+              </div>
+              <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
+                Workforce & people operations overview
+              </p>
             </div>
-            <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-              Workforce & people operations overview
-            </p>
+
+            <div className="hr-header-controls">
+              {/* Current Month Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.08)', padding: '6px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                <Calendar size={15} style={{ color: '#38bdf8' }} />
+                <select 
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '13px', fontWeight: '600', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="August 2026" style={{ color: '#0f172a' }}>August 2026</option>
+                  <option value="July 2026" style={{ color: '#0f172a' }}>July 2026</option>
+                  <option value="June 2026" style={{ color: '#0f172a' }}>June 2026</option>
+                </select>
+              </div>
+
+              {/* Quick Employee Search Input */}
+              <div style={{ position: 'relative', width: '220px' }}>
+                <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input 
+                  type="text"
+                  placeholder="Search employee..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '7px 12px 7px 34px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="hr-header-controls">
-            {/* Current Month Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.08)', padding: '6px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
-              <Calendar size={15} style={{ color: '#38bdf8' }} />
-              <select 
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '13px', fontWeight: '600', outline: 'none', cursor: 'pointer' }}
-              >
-                <option value="August 2026" style={{ color: '#0f172a' }}>August 2026</option>
-                <option value="July 2026" style={{ color: '#0f172a' }}>July 2026</option>
-                <option value="June 2026" style={{ color: '#0f172a' }}>June 2026</option>
-              </select>
-            </div>
+          {/* Quick Actions Toolbar */}
+          <div className="hr-quick-actions">
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', fontWeight: '700', marginRight: '4px' }}>
+              Quick Actions:
+            </span>
+            <button 
+              onClick={() => onNavigate ? onNavigate('/hr/register-staff') : (window.location.href = '/hr/register-staff')}
+              style={{ 
+                display: 'inline-flex', alignItems: 'center', gap: '6px', 
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', 
+                color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', 
+                fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)'
+              }}
+            >
+              <UserPlus size={14} /> Register Staff
+            </button>
 
-            {/* Quick Employee Search Input */}
-            <div style={{ position: 'relative', width: '220px' }}>
-              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input 
-                type="text"
-                placeholder="Search employee..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '7px 12px 7px 34px',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  color: '#ffffff',
-                  fontSize: '12px',
-                  outline: 'none'
-                }}
-              />
-            </div>
+            <button 
+              onClick={() => onNavigate ? onNavigate('/hr/payroll') : (window.location.href = '/hr/payroll')}
+              style={{ 
+                display: 'inline-flex', alignItems: 'center', gap: '6px', 
+                background: 'rgba(255, 255, 255, 0.1)', 
+                color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)', padding: '8px 14px', borderRadius: '8px', 
+                fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease'
+              }}
+            >
+              <CreditCard size={14} style={{ color: '#8b5cf6' }} /> Prepare Payroll
+            </button>
           </div>
         </div>
-
-        {/* Quick Actions Toolbar */}
-        <div className="hr-quick-actions">
-          <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', fontWeight: '700', marginRight: '4px' }}>
-            Quick Actions:
-          </span>
-          <button 
-            onClick={() => onNavigate ? onNavigate('/hr/register-staff') : (window.location.href = '/hr/register-staff')}
-            style={{ 
-              display: 'inline-flex', alignItems: 'center', gap: '6px', 
-              background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', 
-              color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', 
-              fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease',
-              boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)'
-            }}
-          >
-            <UserPlus size={14} /> Register Staff
-          </button>
-
-          <button 
-            onClick={() => onNavigate ? onNavigate('/hr/payroll') : (window.location.href = '/hr/payroll')}
-            style={{ 
-              display: 'inline-flex', alignItems: 'center', gap: '6px', 
-              background: 'rgba(255, 255, 255, 0.1)', 
-              color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)', padding: '8px 14px', borderRadius: '8px', 
-              fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease'
-            }}
-          >
-            <CreditCard size={14} style={{ color: '#8b5cf6' }} /> Prepare Payroll
-          </button>
-        </div>
-      </div>
+      )}
 
 
       {/* ── 2. KPI CARDS ── */}

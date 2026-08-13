@@ -84,6 +84,9 @@ export default function HRAnalyticsPage() {
         employees={employees}
         leaves={leaves}
         expenses={expenses}
+        filters={filters}
+        activeDates={activeDates}
+        hideHeader={true}
       />
     </div>
   );
