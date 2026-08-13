@@ -113,6 +113,7 @@ export const navigationConfig = {
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/plant-head/profile' },
     { id: 'recruitment-request', label: 'Recruitment Request', icon: UserPlus, path: '/plant-head/recruitment-request', group: 'Planning Board' },
 
+    { id: 'daily-reports', label: 'Daily Reports', icon: FileText, path: '/plant-head/daily-reports' },
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/plant-head/leave-approvals' }
   ],
 
@@ -355,6 +356,7 @@ export const navigationConfig = {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
 
     { type: 'badge', label: 'APPROVALS' },
+    { id: 'daily-reports', label: 'Daily Production Reports', icon: FileText, path: '/super-admin/daily-reports' },
     { id: 'brand-analysis', label: 'Brand Analysis Requests', icon: ShieldCheck, path: '/super-admin/brand-analysis' },
     { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },
     { id: 'salary-approval', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approval' },

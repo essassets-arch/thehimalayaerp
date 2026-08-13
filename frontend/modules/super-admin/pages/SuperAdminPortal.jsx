@@ -38,6 +38,7 @@ import { apiClient } from '../../../lib/apiClient';
 import { useSuperAdminData } from '../hooks/useSuperAdminData';
 import ProductMasterUI from '../../../shared/components/ProductMasterUI';
 import CategoryMasterUI from '../../../shared/components/CategoryMasterUI';
+import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
 
 
 // Analytics & Filter Control Modules
@@ -82,7 +83,11 @@ import {
 const SIMULATION_CURRENT_TIME = Date.now();
 
 export default function SuperAdminPortal() {
-  const params = useParams(); const view = params?.slug?.[0]; const subView = params?.slug?.[1];
+  const pathname = usePathname();
+  const params = useParams();
+  const pathSlug = pathname ? pathname.split('/').filter(Boolean) : [];
+  const view = params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
+  const subView = params?.slug?.[1] || (pathSlug.length > 2 ? pathSlug[pathSlug.length - 1] : undefined);
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
@@ -7310,6 +7315,8 @@ export default function SuperAdminPortal() {
         );
       case 'purchase-indents':
         return <PurchaseIndentsView />;
+      case 'daily-reports':
+        return <DailyReportHistoryView roleMode="SUPER_ADMIN" />;
       case 'analysis-requests':
         return renderAnalysisRequestsWorkspace();
       case 'customer-complaints':

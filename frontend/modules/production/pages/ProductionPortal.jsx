@@ -3987,7 +3987,7 @@ export default function ProductionPortal() {
 
       {view === 'daily-report-view' && (
         <DailyReportPrintView
-          reportId={params?.slug?.[1]}
+          reportId={params?.slug?.[1] || (pathname ? pathname.split('/daily-report/')[1] : null)}
           onBack={() => navigate.push('/production/daily-report/history')}
         />
       )}

@@ -10,7 +10,6 @@ import {
   Eye,
   Edit,
   Printer,
-  FileDown,
   Plus,
   RefreshCw,
   Clock,
@@ -20,16 +19,29 @@ import {
   Package,
   Scale,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  X,
+  Lock,
+  FileText
 } from 'lucide-react';
 
-export default function DailyReportHistoryView({ onNewReport, onEditReport, onViewReport }) {
+export default function DailyReportHistoryView({
+  roleMode = 'PRODUCTION', // 'PRODUCTION' | 'PLANT_HEAD' | 'SUPER_ADMIN'
+  isReadOnly = roleMode === 'PLANT_HEAD' || roleMode === 'SUPER_ADMIN',
+  onNewReport,
+  onEditReport,
+  onViewReport
+}) {
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(15);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Modal Detail View
+  const [selectedReportModal, setSelectedReportModal] = useState(null);
+  const [loadingModalDetail, setLoadingModalDetail] = useState(false);
 
   // Filters
   const [preset, setPreset] = useState('All');
@@ -70,6 +82,23 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
+
+  const openReportModal = async (reportId) => {
+    try {
+      setLoadingModalDetail(true);
+      const data = await backendFetch(`/api/backend/production/daily-reports/${reportId}`);
+      setSelectedReportModal(data);
+    } catch (err) {
+      console.error('[DailyReportHistory] Error opening detail modal:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Unable to load report details'
+      });
+    } finally {
+      setLoadingModalDetail(false);
+    }
+  };
 
   // Aggregate stats across current page/view
   const historyStats = useMemo(() => {
@@ -136,16 +165,28 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
     );
   };
 
+  const getHeaderTitle = () => {
+    if (roleMode === 'PLANT_HEAD') return 'Plant Head — Daily Production Reports (Read Only)';
+    if (roleMode === 'SUPER_ADMIN') return 'Super Admin — Daily Production Reports (Read Only)';
+    return 'Daily Production Report History';
+  };
+
+  const getHeaderSubtitle = () => {
+    if (roleMode === 'PLANT_HEAD') return 'Read-only view of daily production output logs submitted by the production department.';
+    if (roleMode === 'SUPER_ADMIN') return 'Read-only oversight & audit view of all daily production reports across all shifts.';
+    return 'Filter, inspect, print, and audit historical daily production logs.';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
       
       {/* HEADER & TOP CONTROLS */}
       <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg-card, #ffffff)',
+        border: '1px solid var(--color-border, #e2e8f0)',
         borderRadius: '16px',
         padding: '20px 24px',
-        boxShadow: 'var(--shadow-soft)',
+        boxShadow: 'var(--shadow-soft, 0 4px 6px -1px rgba(0,0,0,0.05))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -153,11 +194,29 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
         flexWrap: 'wrap'
       }}>
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)', margin: 0 }}>
-            Daily Production Report History
-          </h1>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
-            Filter, inspect, print, and audit historical daily production logs.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h1 style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary, #0f172a)', margin: 0 }}>
+              {getHeaderTitle()}
+            </h1>
+            {isReadOnly && (
+              <span style={{
+                background: 'rgba(100, 116, 139, 0.1)',
+                color: '#475569',
+                border: '1px solid rgba(100, 116, 139, 0.2)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: '800',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <Lock size={12} /> Read Only
+              </span>
+            )}
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary, #64748b)', margin: '4px 0 0 0' }}>
+            {getHeaderSubtitle()}
           </p>
         </div>
 
@@ -171,9 +230,9 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
               gap: '6px',
               padding: '9px 14px',
               borderRadius: '10px',
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-bg-subtle)',
-              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border, #cbd5e1)',
+              background: 'var(--color-bg-subtle, #f8fafc)',
+              color: 'var(--color-text-primary, #0f172a)',
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer'
@@ -182,26 +241,28 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
             <RefreshCw size={15} /> Refresh
           </button>
 
-          <button
-            type="button"
-            onClick={onNewReport}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 18px',
-              borderRadius: '10px',
-              border: 'none',
-              background: 'linear-gradient(135deg, #2F4375 0%, #3BAEEB 100%)',
-              color: '#ffffff',
-              fontSize: '13px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(47, 67, 117, 0.25)'
-            }}
-          >
-            <Plus size={16} /> Create Daily Report
-          </button>
+          {!isReadOnly && (onNewReport || roleMode === 'PRODUCTION') && (
+            <button
+              type="button"
+              onClick={onNewReport || (() => { window.location.href = '/production/daily-report'; })}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                borderRadius: '10px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #2F4375 0%, #3BAEEB 100%)',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(47, 67, 117, 0.25)'
+              }}
+            >
+              <Plus size={16} /> Create Daily Report
+            </button>
+          )}
         </div>
       </div>
 
@@ -211,42 +272,42 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '14px'
       }}>
-        <div style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ background: 'var(--color-bg-card, #ffffff)', border: '1px solid var(--color-border, #e2e8f0)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', padding: '10px', borderRadius: '10px' }}>
             <Calendar size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Total Reports</div>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)' }}>{total}</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>Total Reports</div>
+            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary, #0f172a)' }}>{total}</div>
           </div>
         </div>
 
-        <div style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ background: 'var(--color-bg-card, #ffffff)', border: '1px solid var(--color-border, #e2e8f0)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', padding: '10px', borderRadius: '10px' }}>
             <Package size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Covers Produced</div>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)' }}>{historyStats.covers.toLocaleString()}</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>Covers Produced</div>
+            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary, #0f172a)' }}>{historyStats.covers.toLocaleString()}</div>
           </div>
         </div>
 
-        <div style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ background: 'var(--color-bg-card, #ffffff)', border: '1px solid var(--color-border, #e2e8f0)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '10px', borderRadius: '10px' }}>
             <Boxes size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Frames Produced</div>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)' }}>{historyStats.frames.toLocaleString()}</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>Frames Produced</div>
+            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary, #0f172a)' }}>{historyStats.frames.toLocaleString()}</div>
           </div>
         </div>
 
-        <div style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ background: 'var(--color-bg-card, #ffffff)', border: '1px solid var(--color-border, #e2e8f0)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#7c3aed', padding: '10px', borderRadius: '10px' }}>
             <Scale size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Production Weight</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>Production Weight</div>
             <div style={{ fontSize: '18px', fontWeight: '900', color: '#7c3aed' }}>{historyStats.weight.toLocaleString()} kg</div>
             <div style={{ fontSize: '11px', fontWeight: '800', color: '#6d28d9' }}>{historyStats.weightMT} MT</div>
           </div>
@@ -255,8 +316,8 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
 
       {/* FILTER & SEARCH BAR */}
       <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg-card, #ffffff)',
+        border: '1px solid var(--color-border, #e2e8f0)',
         borderRadius: '16px',
         padding: '16px 20px',
         display: 'flex',
@@ -332,7 +393,7 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
           </div>
         </div>
 
-        {/* Custom Date Range if preset is not preset */}
+        {/* Custom Date Range if preset is All */}
         {preset === 'All' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
             <span style={{ fontWeight: '700', color: '#64748b' }}>Custom Range:</span>
@@ -357,16 +418,16 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
 
       {/* HISTORY TABLE */}
       <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg-card, #ffffff)',
+        border: '1px solid var(--color-border, #e2e8f0)',
         borderRadius: '16px',
-        boxShadow: 'var(--shadow-soft)',
+        boxShadow: 'var(--shadow-soft, 0 4px 6px -1px rgba(0,0,0,0.05))',
         overflow: 'hidden'
       }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border, #e2e8f0)' }}>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Report No</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Date</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Shift</th>
@@ -408,9 +469,23 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
                     >
                       {/* Report No */}
                       <td style={{ padding: '12px 16px' }}>
-                        <span style={{ fontWeight: '800', fontFamily: 'monospace', color: 'var(--color-primary)', fontSize: '13px' }}>
+                        <button
+                          type="button"
+                          onClick={() => openReportModal(report.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            fontWeight: '800',
+                            fontFamily: 'monospace',
+                            color: 'var(--color-primary, #2563eb)',
+                            fontSize: '13px',
+                            textDecoration: 'underline'
+                          }}
+                        >
                           {report.reportNo}
-                        </span>
+                        </button>
                       </td>
 
                       {/* Date */}
@@ -463,14 +538,14 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                           <button
                             type="button"
-                            title="View Printable Report"
-                            onClick={() => onViewReport(report.id)}
+                            title="Inspect Details (Read Only)"
+                            onClick={() => openReportModal(report.id)}
                             style={{ background: 'rgba(59, 130, 246, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#2563eb', cursor: 'pointer' }}
                           >
                             <Eye size={14} />
                           </button>
 
-                          {(report.status === 'DRAFT' || report.status === 'REOPENED') && (
+                          {!isReadOnly && (report.status === 'DRAFT' || report.status === 'REOPENED') && onEditReport && (
                             <button
                               type="button"
                               title="Edit Draft Report"
@@ -483,8 +558,11 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
 
                           <button
                             type="button"
-                            title="Print Report"
-                            onClick={() => onViewReport(report.id)}
+                            title="Print Report View"
+                            onClick={() => {
+                              if (onViewReport) onViewReport(report.id);
+                              else openReportModal(report.id);
+                            }}
                             style={{ background: 'rgba(100, 116, 139, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#475569', cursor: 'pointer' }}
                           >
                             <Printer size={14} />
@@ -502,7 +580,7 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
         {/* PAGINATION FOOTER */}
         <div style={{
           padding: '12px 24px',
-          borderTop: '1px solid var(--color-border)',
+          borderTop: '1px solid var(--color-border, #e2e8f0)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -561,6 +639,203 @@ export default function DailyReportHistoryView({ onNewReport, onEditReport, onVi
           </div>
         </div>
       </div>
+
+      {/* REPORT INSPECTION MODAL (READ ONLY) */}
+      {selectedReportModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99999,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}
+        onClick={() => setSelectedReportModal(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '900px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#f8fafc'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', margin: 0, fontFamily: 'monospace' }}>
+                    {selectedReportModal.reportNo}
+                  </h2>
+                  {renderStatusBadge(selectedReportModal.status)}
+                  {isReadOnly && (
+                    <span style={{ fontSize: '11px', fontWeight: '800', background: 'rgba(100,116,139,0.1)', color: '#475569', padding: '2px 8px', borderRadius: '6px' }}>
+                      Read Only View
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  Date: <strong>{selectedReportModal.reportDate ? selectedReportModal.reportDate.split('T')[0] : '—'}</strong> | Shift: <strong>{selectedReportModal.shift}</strong> | Supervisor: <strong>{selectedReportModal.supervisorName || '—'}</strong>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedReportModal(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* Creator & Approver Audit Card */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                fontSize: '12.5px'
+              }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Submitted By</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedReportModal.createdBy?.name || 'Operator'}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Approved By</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedReportModal.approvedBy?.name || (selectedReportModal.status === 'APPROVED' ? 'Plant Head' : 'Pending Approval')}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Total Net Production Weight</span>
+                  <strong style={{ color: '#7c3aed', fontSize: '14px' }}>{Number(selectedReportModal.totalWeight || 0).toLocaleString()} kg ({((selectedReportModal.totalWeight || 0)/1000).toFixed(2)} MT)</strong>
+                </div>
+              </div>
+
+              {/* Items Breakdown Table */}
+              <div>
+                <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 10px 0' }}>Production Items Breakdown</h3>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                        <th style={{ padding: '8px 12px', textAlign: 'center', fontSize: '11px', fontWeight: '800', color: '#475569' }}>#</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Product / Details</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Size</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Type</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Covers</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Cover Wt</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Frames</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Frame Wt</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Sets</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569' }}>Total Wt</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedReportModal.items && selectedReportModal.items.length > 0 ? (
+                        selectedReportModal.items.map((it, idx) => (
+                          <tr key={it.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: '700', color: '#0f172a' }}>
+                              {it.product?.name || it.customProductName || 'Product'}
+                              {it.remarks && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>Note: {it.remarks}</div>}
+                              {it.weightOverrideReason && <div style={{ fontSize: '11px', color: '#d97706', fontWeight: '600' }}>Override: {it.weightOverrideReason}</div>}
+                            </td>
+                            <td style={{ padding: '8px 12px', color: '#334155' }}>{it.size || '—'}</td>
+                            <td style={{ padding: '8px 12px', color: '#334155' }}>{it.type || '—'}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700', color: '#2563eb' }}>{it.coverQty}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: '#334155' }}>{Number(it.coverWeight || 0).toFixed(1)} kg</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700', color: '#d97706' }}>{it.frameQty}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: '#334155' }}>{Number(it.frameWeight || 0).toFixed(1)} kg</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>{it.setQty}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '800', color: '#7c3aed' }}>{Number(it.totalWeight || 0).toFixed(1)} kg</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={10} style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>No line items recorded</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#f8fafc',
+              gap: '12px'
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(`/production/daily-report/${selectedReportModal.id}`, '_blank');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                <Printer size={15} /> Printable Page
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedReportModal(null)}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
