@@ -23,15 +23,15 @@ const DEPT_COLORS = ["#7C3AED", "#4F46E5", "#06B6D4", "#10B981", "#F59E0B", "#EF
 const getKPIBorder = (title) => {
   const t = title.toLowerCase();
   if (t.includes('revenue') || t.includes('collection') || t.includes('profit') || t.includes('outstanding')) {
-    return '4px solid #4f46e5'; // financial - Indigo
+    return '4px solid #4f46e5';
   }
   if (t.includes('production') || t.includes('capacity') || t.includes('dispatch')) {
-    return '4px solid #10b981'; // operations - Emerald
+    return '4px solid #10b981';
   }
   if (t.includes('pipeline') || t.includes('sample')) {
-    return '4px solid #f59e0b'; // pipeline/sales - Amber
+    return '4px solid #f59e0b';
   }
-  return '4px solid #8b5cf6'; // status - Purple
+  return '4px solid #8b5cf6';
 };
 
 const SalesAnalyticsContent = () => {
@@ -42,7 +42,7 @@ const SalesAnalyticsContent = () => {
   const { data, loading, refreshAll } = useCommandCenter(filters, activeDates);
   const { exportCSV, exportExcel, exportPDF } = useSalesExport(data, 'overview');
 
-  const [drilldownEntity, setDrilldownEntity] = useState(null); // { type, id, details }
+  const [drilldownEntity, setDrilldownEntity] = useState(null);
 
   const safeData = data || {};
   const overviewData = safeData.overview || {};
@@ -53,105 +53,15 @@ const SalesAnalyticsContent = () => {
   const employeesData = safeData.employees || {};
   const explorerData = safeData.explorer || {};
 
-  // Guaranteed Non-Empty Datasets
-  const kpisList = (overviewData.kpis && overviewData.kpis.length > 0) ? overviewData.kpis : [
-    { title: 'Gross Sales Revenue', value: '₹84.20 Lakh', achievement: 92, change: '+8.4%' },
-    { title: 'Cash Collections', value: '₹64.20 Lakh', achievement: 76, change: '+12.1%' },
-    { title: 'Outstanding Receivables', value: '₹18.20 Lakh', achievement: 22, change: '-4.3%' },
-    { title: 'Confirmed Orders', value: '42 Orders', achievement: 88, change: '+5.2%' },
-    { title: 'Avg Order Value', value: '₹2.00 Lakh', achievement: 100, change: '+3.1%' },
-    { title: 'Active CRM Leads', value: '68 Leads', achievement: 85, change: '+14.2%' },
-    { title: 'Lead Conversion Rate', value: '88%', achievement: 85, change: '+6.0%' },
-    { title: 'Production Output Yield', value: '92%', achievement: 92, change: '+2.8%' },
-    { title: 'QC Pass Rate', value: '98%', achievement: 98, change: '+0.5%' },
-    { title: 'Dispatches Delivered', value: '38 Loads', achievement: 90, change: '+4.0%' },
-    { title: 'Gross Profit Margin', value: '34.8%', achievement: 87, change: '+1.5%' },
-    { title: 'Est. Net Profit', value: '₹23.57 Lakh', achievement: 82, change: '+9.4%' },
-    { title: 'Overdue Invoices', value: '14 Invoices', achievement: 20, change: '-2.1%' },
-    { title: 'Active Enterprise Clients', value: '28 Clients', achievement: 95, change: '+12.0%' },
-    { title: 'Quotation Conversion', value: '78.5%', achievement: 78, change: '+5.0%' },
-    { title: 'Average Sales Cycle', value: '12.4 Days', achievement: 80, change: '-1.5 Days' },
-    { title: 'Sample Fulfillment', value: '94.0%', achievement: 94, change: '+3.2%' },
-    { title: 'Rework & Scrap Loss', value: '₹1.27 Lakh', achievement: 15, change: '-8.5%' },
-    { title: 'Sales Rep Achievement', value: '86.4%', achievement: 86, change: '+7.1%' },
-    { title: 'On-Time Dispatch Rate', value: '95.2%', achievement: 95, change: '+2.4%' }
-  ];
-
-  const healthData = (safeData.health && safeData.health.length > 0) ? safeData.health : [
-    { name: 'Sales Pipeline', rating: 88, status: '🟢', color: '#10b981' },
-    { name: 'Production Runtimes', rating: 92, status: '🟢', color: '#10b981' },
-    { name: 'QC Yields', rating: 98, status: '🟢', color: '#10b981' },
-    { name: 'Dispatch & Logistics', rating: 94, status: '🟢', color: '#10b981' },
-    { name: 'Collections Efficiency', rating: 78, status: '🟡', color: '#f59e0b' },
-    { name: 'Finance / Cash Flows', rating: 85, status: '🟢', color: '#10b981' }
-  ];
-
-  const exceptionsList = (exceptionsData.exceptions && exceptionsData.exceptions.length > 0) ? exceptionsData.exceptions : [
-    { alert: 'Overdue Payment: Urban Construction Corp - ₹2.30 L overdue by 14 days', severity: 'high' },
-    { alert: 'Low Margin Order: ORD-2026-007 (FRP Tank Slabs) - Margin -0.5% below cost threshold', severity: 'high' },
-    { alert: 'Dispatch Route Variance: Haridwar -> Delhi NCR freight cost exceeded estimate by ₹18,000', severity: 'medium' },
-    { alert: 'QC Rework Required: Batch #B-409 failed tensile test (12 units rework)', severity: 'medium' },
-    { alert: 'Raw Material Surge: Cement OPC 53 price increased by 7.9% across suppliers', severity: 'low' }
-  ];
-
-  const eventsList = (safeData.events && safeData.events.length > 0) ? safeData.events : [
-    { type: 'ORDER_CONFIRMED', details: 'Order ORD-2026-005 for ₹2.40 L confirmed by Rahul Patel', time: '5 mins ago' },
-    { type: 'PAYMENT_VERIFIED', details: '₹1.80 L payment verified for Metro Projects India', time: '18 mins ago' },
-    { type: 'DISPATCH_SHIPPED', details: 'DISP-2026-091 loaded and dispatched to Delhi NCR', time: '42 mins ago' },
-    { type: 'PRODUCTION_DONE', details: 'Work Order WO-884 (150 Units FRP Covers) completed', time: '1 hr ago' },
-    { type: 'LEAD_QUALIFIED', details: 'New lead from Smart City Infra assigned to Neha Patel', time: '2 hrs ago' }
-  ];
-
-  const revenueTrends = (safeData.trends && safeData.trends.length > 0) ? safeData.trends : [
-    { month: 'Jan', revenue: 5400000 },
-    { month: 'Feb', revenue: 6200000 },
-    { month: 'Mar', revenue: 7100000 },
-    { month: 'Apr', revenue: 6800000 },
-    { month: 'May', revenue: 7900000 },
-    { month: 'Jun', revenue: 8400000 },
-    { month: 'Jul', revenue: 9200000 }
-  ];
-
-  const crmSources = (crmData.splits?.sources && crmData.splits.sources.length > 0) ? crmData.splits.sources : [
-    { source: 'Direct Lead', count: 42 },
-    { source: 'Web Portal', count: 28 },
-    { source: 'Tender / Govt', count: 18 },
-    { source: 'Exhibition', count: 12 },
-    { source: 'Referral', count: 15 }
-  ];
-
-  const employeePerformance = (employeesData.performance && employeesData.performance.length > 0) ? employeesData.performance : [
-    { executive: 'SuperSales 1', email: 'supersales1@himalayaerp.com', leads: 32, revenue: '45000000', closed: 26 },
-    { executive: 'SuperSales 2', email: 'supersales2@himalayaerp.com', leads: 28, revenue: '38000000', closed: 22 },
-    { executive: 'Sales Executive 1', email: 'sales1@himalayaerp.com', leads: 24, revenue: '32500000', closed: 18 },
-    { executive: 'Sales Executive 2', email: 'sales2@himalayaerp.com', leads: 21, revenue: '28400000', closed: 16 },
-    { executive: 'Sales Executive 3', email: 'sales3@himalayaerp.com', leads: 19, revenue: '24100000', closed: 14 },
-    { executive: 'Sales Executive 4', email: 'sales4@himalayaerp.com', leads: 18, revenue: '21500000', closed: 13 },
-    { executive: 'Sales Executive 5', email: 'sales5@himalayaerp.com', leads: 16, revenue: '19800000', closed: 11 },
-    { executive: 'Sales Executive 6', email: 'sales6@himalayaerp.com', leads: 14, revenue: '16500000', closed: 9 },
-    { executive: 'Sales Executive 7', email: 'sales7@himalayaerp.com', leads: 12, revenue: '14200000', closed: 8 }
-  ];
-
-  const agingBuckets = (financeData.agingBuckets && Object.keys(financeData.agingBuckets).length > 0) ? financeData.agingBuckets : {
-    '0-30 Days': 950000,
-    '31-60 Days': 520000,
-    '61-90 Days': 230000,
-    '90+ Days (Overdue)': 120000
-  };
-
-  const defaultExplorerRows = [
-    { orderNumber: 'ORD-2026-001', customer: 'ABC Infrastructure Ltd', salesExecutive: 'SuperSales 1', product: 'FRP Manhole Covers (Heavy Duty)', quantity: 120, revenue: 250000, margin: 95000, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
-    { orderNumber: 'ORD-2026-002', customer: 'Urban Construction Corp', salesExecutive: 'SuperSales 2', product: 'RCC Hume Pipes (NP3 Class)', quantity: 65, revenue: 210000, margin: 55500, paymentStatus: 'Pending', deliveryStatus: 'In Transit' },
-    { orderNumber: 'ORD-2026-003', customer: 'Metro Projects India', salesExecutive: 'Sales Executive 1', product: 'FRP Chambers (Telecom Spec)', quantity: 80, revenue: 180000, margin: 69300, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
-    { orderNumber: 'ORD-2026-004', customer: 'Apex Builders & Engineers', salesExecutive: 'Sales Executive 2', product: 'FRP Gratings (Anti-Slip)', quantity: 150, revenue: 95000, margin: 5300, paymentStatus: 'Overdue', deliveryStatus: 'Pending Dispatch' },
-    { orderNumber: 'ORD-2026-005', customer: 'Smart City Development Group', salesExecutive: 'Sales Executive 3', product: 'FRP Manhole Covers (Medium)', quantity: 200, revenue: 240000, margin: 75500, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
-    { orderNumber: 'ORD-2026-006', customer: 'Hindustan Builders', salesExecutive: 'Sales Executive 4', product: 'Precast Drain Covers', quantity: 90, revenue: 135000, margin: 22500, paymentStatus: 'Partial', deliveryStatus: 'In Transit' },
-    { orderNumber: 'ORD-2026-007', customer: 'Delta Infra Tech', salesExecutive: 'Sales Executive 5', product: 'FRP Water Tank Slabs', quantity: 40, revenue: 110000, margin: -500, paymentStatus: 'Pending', deliveryStatus: 'Processing' },
-    { orderNumber: 'ORD-2026-008', customer: 'Reliance Infra Projects', salesExecutive: 'Sales Executive 6', product: 'Heavy Duty FRP Grates', quantity: 110, revenue: 290000, margin: 82000, paymentStatus: 'Paid', deliveryStatus: 'Delivered' },
-    { orderNumber: 'ORD-2026-009', customer: 'L&T Infrastructure', salesExecutive: 'Sales Executive 7', product: 'Telecom Cable Chambers', quantity: 140, revenue: 310000, margin: 92000, paymentStatus: 'Paid', deliveryStatus: 'In Transit' }
-  ];
-
-  const rawExplorerRows = (explorerData.rows && explorerData.rows.length > 0) ? explorerData.rows : defaultExplorerRows;
+  const kpisList = (overviewData.kpis && overviewData.kpis.length > 0) ? overviewData.kpis : [];
+  const healthData = (safeData.health && safeData.health.length > 0) ? safeData.health : [];
+  const exceptionsList = (exceptionsData.exceptions && exceptionsData.exceptions.length > 0) ? exceptionsData.exceptions : [];
+  const eventsList = (safeData.events && safeData.events.length > 0) ? safeData.events : [];
+  const revenueTrends = (safeData.trends && safeData.trends.length > 0) ? safeData.trends : [];
+  const crmSources = (crmData.splits?.sources && crmData.splits.sources.length > 0) ? crmData.splits.sources : [];
+  const employeePerformance = (employeesData.performance && employeesData.performance.length > 0) ? employeesData.performance : [];
+  const agingBuckets = financeData.agingBuckets || {};
+  const rawExplorerRows = (explorerData.rows && explorerData.rows.length > 0) ? explorerData.rows : [];
 
   const handleKPISelect = (kpi) => {
     setDrilldownEntity({
@@ -169,14 +79,25 @@ const SalesAnalyticsContent = () => {
     }
   };
 
-  // Filter Explorer rows by global search query
   const filteredExplorerRows = useMemo(() => {
     if (!globalSearch) return rawExplorerRows;
-    const q = globalSearch.toLowerCase();
-    return rawExplorerRows.filter(row => 
-      Object.values(row).some(val => String(val).toLowerCase().includes(q))
+    const lower = globalSearch.toLowerCase();
+    return rawExplorerRows.filter(r => 
+      String(r.customer || '').toLowerCase().includes(lower) || 
+      String(r.orderNumber || '').toLowerCase().includes(lower) || 
+      String(r.salesExecutive || '').toLowerCase().includes(lower) ||
+      String(r.product || '').toLowerCase().includes(lower)
     );
   }, [rawExplorerRows, globalSearch]);
+
+  const filteredEmployeePerformance = useMemo(() => {
+    if (!globalSearch) return employeePerformance;
+    const lower = globalSearch.toLowerCase();
+    return employeePerformance.filter(e => 
+      String(e.executive || '').toLowerCase().includes(lower) ||
+      String(e.email || '').toLowerCase().includes(lower)
+    );
+  }, [employeePerformance, globalSearch]);
 
   return (
     <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '24px', fontFamily: 'Outfit, sans-serif', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -382,15 +303,18 @@ const SalesAnalyticsContent = () => {
                 </tr>
               </thead>
               <tbody>
-                {employeePerformance.map((ex, idx) => {
-                  const target = 25000000;
+                {filteredEmployeePerformance.map((ex, idx) => {
+                  const target = 50000000;
                   const rawRevenue = parseFloat(ex.revenue || 0);
                   const achievementPct = Math.min(Math.round((rawRevenue / target) * 100), 100);
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.background = '#F5FAFE'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <td style={{ padding: '12px 8px', fontWeight: 'bold', color: '#1e293b' }}>{ex.executive}</td>
                       <td style={{ padding: '12px 8px' }}>
-                        <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{ex.leads} Leads</span>
+                        <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{ex.executive}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{ex.email}</div>
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{ex.leads} Leads</span>
                       </td>
                       <td style={{ padding: '12px 8px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -450,9 +374,24 @@ const SalesAnalyticsContent = () => {
             { header: 'Product Spec', accessor: 'product' },
             { header: 'Qty Sold', accessor: 'quantity' },
             { header: 'Total Revenue', accessor: 'revenue', render: (row) => <span style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{Number(row.revenue || 0).toLocaleString('en-IN')}</span> },
-            { header: 'Margin', accessor: 'margin', render: (row) => `₹${Number(row.margin || 0).toLocaleString('en-IN')}` },
-            { header: 'Payment', accessor: 'paymentStatus' },
-            { header: 'Delivery Status', accessor: 'deliveryStatus' }
+            { header: 'Margin', accessor: 'margin', render: (row) => <span style={{ color: Number(row.margin || 0) < 0 ? '#ef4444' : '#334155', fontWeight: 'bold' }}>₹{Number(row.margin || 0).toLocaleString('en-IN')}</span> },
+            { header: 'Payment', accessor: 'paymentStatus', render: (row) => {
+                const s = String(row.paymentStatus || 'Pending');
+                let bg = '#fef3c7', fg = '#d97706';
+                if (s === 'Paid' || s === 'Verified') { bg = '#dcfce7'; fg = '#16a34a'; }
+                else if (s === 'Overdue') { bg = '#fee2e2'; fg = '#dc2626'; }
+                return <span style={{ background: bg, color: fg, padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{s}</span>;
+              }
+            },
+            { header: 'Delivery Status', accessor: 'deliveryStatus', render: (row) => {
+                const s = String(row.deliveryStatus || 'Processing');
+                let bg = '#f1f5f9', fg = '#475569';
+                if (s === 'Delivered') { bg = '#dcfce7'; fg = '#16a34a'; }
+                else if (s === 'In Transit') { bg = '#e0f2fe'; fg = '#0284c7'; }
+                else if (s === 'Pending Dispatch') { bg = '#fef3c7'; fg = '#d97706'; }
+                return <span style={{ background: bg, color: fg, padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{s}</span>;
+              }
+            }
           ]} 
           data={filteredExplorerRows} 
           pageSize={10} 
@@ -508,4 +447,3 @@ const SalesAnalyticsPage = () => {
 };
 
 export default SalesAnalyticsPage;
-
