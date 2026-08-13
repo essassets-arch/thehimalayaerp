@@ -43,7 +43,11 @@ done
 echo " ✅ PostgreSQL healthy."
 
 echo ""
-echo "⚙️ Step 4: Running Prisma database migrations..."
+echo "💾 Step 4a: Taking automated database backup before applying migrations..."
+./scripts/backup-db.sh || true
+
+echo ""
+echo "⚙️ Step 4b: Running Prisma database migrations..."
 docker compose run --rm migrate
 echo " ✅ Database migrations completed."
 
