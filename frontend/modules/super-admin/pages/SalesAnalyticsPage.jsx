@@ -146,7 +146,7 @@ const SalesAnalyticsContent = () => {
         onExportExcel={() => exportExcel()}
       />
 
-      {/* ── 3. 20 EXECUTIVE KPI STRIP ── */}
+      {/* ── 3. EXECUTIVE KPI STRIP ── */}
       {kpisList && kpisList.length > 0 && (
         <div style={{ overflowX: 'auto', paddingBottom: '8px' }}>
           <div style={{ display: 'flex', gap: '12px', width: 'max-content' }}>
@@ -374,7 +374,6 @@ const SalesAnalyticsContent = () => {
             { header: 'Product Spec', accessor: 'product' },
             { header: 'Qty Sold', accessor: 'quantity' },
             { header: 'Total Revenue', accessor: 'revenue', render: (row) => <span style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{Number(row.revenue || 0).toLocaleString('en-IN')}</span> },
-            { header: 'Margin', accessor: 'margin', render: (row) => <span style={{ color: Number(row.margin || 0) < 0 ? '#ef4444' : '#334155', fontWeight: 'bold' }}>₹{Number(row.margin || 0).toLocaleString('en-IN')}</span> },
             { header: 'Payment', accessor: 'paymentStatus', render: (row) => {
                 const s = String(row.paymentStatus || 'Pending');
                 let bg = '#fef3c7', fg = '#d97706';

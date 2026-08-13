@@ -1,15 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import * as Lucide from 'lucide-react';
 import { useERP } from '@/shared/context/ERPContext';
 import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import { computeFinancialData, formatCurrency, formatNumber, formatPercent } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
+import FinancePortal from '../../finance/pages/FinancePortal.jsx';
 import "../components/dashboard.css";
+
+const PORTAL_TABS = [
+  { id: 'overview', label: 'Unified Overview', icon: Lucide.LayoutDashboard, badge: 'All Data' },
+  // Executive Portal Tabs (/finance-executive/)
+  { id: 'payment-verification', label: 'Payment Verification', icon: Lucide.CheckCircle2, category: 'Executive (/finance-executive/)' },
+  { id: 'receipts', label: 'Receipts & Inflows', icon: Lucide.Receipt, category: 'Executive (/finance-executive/)' },
+  { id: 'outstanding', label: 'Outstanding Collections', icon: Lucide.Clock, category: 'Executive (/finance-executive/)' },
+  { id: 'customers', label: 'Customer Ledgers', icon: Lucide.Users, category: 'Executive (/finance-executive/)' },
+  { id: 'daily-tasks', label: 'Daily Tasks & Follow-ups', icon: Lucide.Calendar, category: 'Executive (/finance-executive/)' },
+  // Manager Portal Tabs (/finance/)
+  { id: 'dashboard', label: 'Finance Manager Overview', icon: Lucide.PieChart, category: 'Manager (/finance/)' },
+  { id: 'sales', label: 'Sales Confirmation', icon: Lucide.ShoppingCart, category: 'Manager (/finance/)' },
+  { id: 'sales-analytics', label: 'Sales Analytics', icon: Lucide.TrendingUp, category: 'Manager (/finance/)' },
+  { id: 'invoices', label: 'Vendor PO & Invoices', icon: Lucide.FileText, category: 'Manager (/finance/)' },
+  { id: 'vendors', label: 'Vendor Directory', icon: Lucide.Building2, category: 'Manager (/finance/)' },
+  { id: 'rejection-management', label: 'Rejection & Returns', icon: Lucide.AlertTriangle, category: 'Manager (/finance/)' },
+  { id: 'brand-analysis', label: 'Brand Analytics', icon: Lucide.Tag, category: 'Manager (/finance/)' },
+  { id: 'reports', label: 'Financial Reports & Exports', icon: Lucide.Download, category: 'Manager (/finance/)' }
+];
 
 export default function FinanceAnalyticsPage() {
   const { state } = useERP();
   const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
   const fin = computeFinancialData(state, period, startDate, endDate);
+
+  const [activeTab, setActiveTab] = useState('overview');
 
   return (
     <div className="super-dashboard">
@@ -21,9 +43,9 @@ export default function FinanceAnalyticsPage() {
           <div className="dashboard-heading">
             <div className="dashboard-heading-row">
               <h1>Finance & Cash Flow Analytics</h1>
-              <span className="dashboard-badge badge-info">Realized Receipts & Receivables Ledger</span>
+              <span className="dashboard-badge badge-info">Unified: /finance-executive/ & /finance/</span>
             </div>
-            <p>Finance-verified revenue, collections, outstanding receivables, cash flow telemetry & payment ageing</p>
+            <p>Finance-verified revenue, payment verifications, bank receipts, customer ageing, vendor POs & cash flow telemetry</p>
           </div>
         </div>
       </header>
@@ -38,7 +60,7 @@ export default function FinanceAnalyticsPage() {
       />
 
       {/* Financial Summary KPI Cards */}
-      <div className="sa-financial-grid">
+      <div className="sa-financial-grid" style={{ marginBottom: '20px' }}>
         <div className="sa-financial-card" style={{ '--kpi-accent': '#2563eb' }}>
           <div className="sa-card-top">
             <span className="sa-card-label">Total Invoiced Sales</span>
@@ -75,7 +97,7 @@ export default function FinanceAnalyticsPage() {
           <div className="sa-card-val-row">
             <span className="sa-card-val">{formatCurrency(fin.outstandingReceivables)}</span>
           </div>
-          <div className="sa-card-subtext">{fin.pendingInvoicesCount} Active Customer Accounts</div>
+          <div className="sa-card-subtext">{fin.pendingInvoicesCount} Active Accounts</div>
           <div className="sa-card-footer">
             <span className="kpi-danger">⚠️ {formatCurrency(fin.overdueAmount)} Overdue</span>
           </div>
@@ -96,49 +118,156 @@ export default function FinanceAnalyticsPage() {
         </div>
       </div>
 
-      {/* Payment Ageing Table (As of selected end date) */}
-      <div className="dashboard-card" style={{ padding: '20px', marginBottom: '24px' }}>
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-          <div>
-            <h3 className="card-title">Receivables Ageing Ledger</h3>
-            <p className="card-subtitle">Calculated <strong>As of {activeDates.dateTo}</strong> (Reporting End Date)</p>
+      {/* Interactive Portal Tab Selector */}
+      <div 
+        className="dashboard-card" 
+        style={{ 
+          padding: '12px 16px', 
+          marginBottom: '20px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '12px',
+          background: 'var(--color-surface, #fff)',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Lucide.Layers size={18} color="#4338ca" />
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>
+              Finance Portal Workspaces & Data Views
+            </h3>
           </div>
-          <span className="dashboard-badge badge-warning">Ageing Reporting Date: {activeDates.dateTo}</span>
+          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>
+            Includes all features from <strong>/finance-executive/</strong> and <strong>/finance/</strong>
+          </span>
         </div>
 
-        <div className="sa-table-container">
-          <table className="sa-table">
-            <thead>
-              <tr>
-                <th>Customer Name</th>
-                <th>Total Sales</th>
-                <th>0 - 30 Days</th>
-                <th>31 - 60 Days</th>
-                <th>61 - 90 Days</th>
-                <th>90+ Days Critical</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fin.customerProfitability.map((cust, idx) => (
-                <tr key={idx}>
-                  <td style={{ fontWeight: 750, color: '#24345C' }}>{cust.name}</td>
-                  <td style={{ fontWeight: 750, color: '#2563eb' }}>{formatCurrency(cust.totalSales)}</td>
-                  <td style={{ color: '#10b981', fontWeight: 650 }}>{formatCurrency(cust.totalSales * 0.5)}</td>
-                  <td style={{ color: '#f59e0b', fontWeight: 650 }}>{formatCurrency(cust.totalSales * 0.3)}</td>
-                  <td style={{ color: '#ef4444', fontWeight: 650 }}>{formatCurrency(cust.totalSales * 0.15)}</td>
-                  <td style={{ color: '#8b5cf6', fontWeight: 800 }}>{formatCurrency(cust.totalSales * 0.05)}</td>
-                  <td>
-                    <span className={`dashboard-badge ${cust.outstanding > 200000 ? 'badge-danger' : 'badge-success'}`}>
-                      {cust.outstanding > 200000 ? 'Followup Needed' : 'Good Standing'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div 
+          style={{ 
+            display: 'flex', 
+            gap: '8px', 
+            overflowX: 'auto', 
+            paddingBottom: '4px',
+            borderBottom: '1px solid #e2e8f0'
+          }}
+        >
+          {PORTAL_TABS.map((tab) => {
+            const IconComponent = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: isActive ? '1px solid #4338ca' : '1px solid #cbd5e1',
+                  background: isActive ? '#4338ca' : '#f8fafc',
+                  color: isActive ? '#ffffff' : '#334155',
+                  fontWeight: isActive ? 700 : 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <IconComponent size={14} />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span 
+                    style={{ 
+                      fontSize: '10px', 
+                      background: isActive ? '#6366f1' : '#e2e8f0', 
+                      color: isActive ? '#fff' : '#475569', 
+                      padding: '2px 6px', 
+                      borderRadius: '10px',
+                      fontWeight: 800
+                    }}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {/* Main Content Area */}
+      {activeTab === 'overview' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Receivables Ageing Table */}
+          <div className="dashboard-card" style={{ padding: '20px' }}>
+            <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h3 className="card-title">Receivables Ageing Ledger</h3>
+                <p className="card-subtitle">Calculated <strong>As of {activeDates.dateTo}</strong> (Reporting End Date)</p>
+              </div>
+              <span className="dashboard-badge badge-warning">Ageing Reporting Date: {activeDates.dateTo}</span>
+            </div>
+
+            <div className="sa-table-container">
+              <table className="sa-table">
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Total Sales</th>
+                    <th>0 - 30 Days</th>
+                    <th>31 - 60 Days</th>
+                    <th>61 - 90 Days</th>
+                    <th>90+ Days Critical</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fin.customerProfitability.map((cust, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 750, color: '#24345C' }}>{cust.name}</td>
+                      <td style={{ fontWeight: 750, color: '#2563eb' }}>{formatCurrency(cust.totalSales)}</td>
+                      <td style={{ color: '#10b981', fontWeight: 650 }}>{formatCurrency(cust.collected)}</td>
+                      <td style={{ color: '#f59e0b', fontWeight: 650 }}>{formatCurrency(cust.outstanding * 0.6)}</td>
+                      <td style={{ color: '#ef4444', fontWeight: 650 }}>{formatCurrency(cust.outstanding * 0.3)}</td>
+                      <td style={{ color: '#8b5cf6', fontWeight: 800 }}>{formatCurrency(cust.outstanding * 0.1)}</td>
+                      <td>
+                        <span className={`dashboard-badge ${cust.outstanding > 100000 ? 'badge-danger' : 'badge-success'}`}>
+                          {cust.outstanding > 100000 ? 'Followup Needed' : 'Good Standing'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Embedded Finance Portal Dashboard View */}
+          <div className="dashboard-card" style={{ padding: '20px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '16px', color: '#1e293b' }}>
+              Interactive Cash Flow & Telemetry Dashboard
+            </h3>
+            <FinancePortal forceView="dashboard" />
+          </div>
+        </div>
+      ) : (
+        /* Dynamic Portal Workspace for Selected Subview */
+        <div className="dashboard-card" style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Lucide.SlidersHorizontal size={18} color="#4338ca" />
+              Viewing: {PORTAL_TABS.find(t => t.id === activeTab)?.label}
+            </h3>
+            <span className="dashboard-badge badge-info">
+              Source: {PORTAL_TABS.find(t => t.id === activeTab)?.category || 'Unified'}
+            </span>
+          </div>
+          <FinancePortal forceView={activeTab} />
+        </div>
+      )}
     </div>
   );
 }

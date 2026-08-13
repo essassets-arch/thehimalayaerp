@@ -54,6 +54,7 @@ import HRAnalyticsPage from './HRAnalyticsPage.jsx';
 import { SuperAdminFilterProvider } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import BrandAnalysisPage from './BrandAnalysisPage';
+import BusinessReportsPage from './BusinessReportsPage.jsx';
 
 
 // Department Views
@@ -7376,7 +7377,7 @@ export default function SuperAdminPortal() {
       case 'departments':
         return renderDepartmentControl();
       case 'reports':
-        return renderBusinessReports();
+        return <BusinessReportsPage />;
       case 'notifications':
         return renderGlobalNotifications();
       default:

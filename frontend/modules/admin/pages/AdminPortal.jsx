@@ -8,6 +8,7 @@ import { useSearchStore } from '@/store/searchStore';
 import { useERP } from '../../../shared/context/ERPContext';
 import { useAuth } from '../../../shared/context/AuthContext';
 import MyProfileView from '../../../shared/components/MyProfileView';
+import BusinessReportsPage from '../../super-admin/pages/BusinessReportsPage.jsx';
 import DataTable from '../../../shared/components/DataTable';
 import Swal from 'sweetalert2';
 import * as adminService from '../../../services/admin.service';
@@ -1085,7 +1086,7 @@ export default function AdminPortal() {
       case 'roles':            return renderRoles();
       case 'products':         return renderProducts();
       case 'audit-logs':       return renderAuditLogs();
-      case 'reports':          return renderReports();
+      case 'reports':          return <BusinessReportsPage />;
       default:                 return renderDashboard();
     }
   };
