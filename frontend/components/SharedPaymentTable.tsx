@@ -467,35 +467,38 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                 <th>2. Invoice No</th>
                 <th>3. Customer</th>
                 <th>4. Salesperson</th>
-                <th>5. Delivery Date</th>
-                <th>6. Payment Due Date</th>
-                <th>7. Remaining Days</th>
-                <th>8. Total Amount</th>
-                <th>9. Status</th>
-                <th>10. POD Document</th>
-                <th>11. Reminder</th>
-                <th style={{ textAlign: 'right' }}>12. Action</th>
+                <th>5. Payment Terms</th>
+                <th>6. Delivery Date</th>
+                <th>7. Payment Due Date</th>
+                <th>8. Remaining Days</th>
+                <th>9. Total Amount</th>
+                <th>10. Status</th>
+                <th>11. POD Document</th>
+                <th>12. Reminder</th>
+                <th style={{ textAlign: 'right' }}>13. Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
+                  <td colSpan={13} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
                     No orders match the selected payment filters.
                   </td>
                 </tr>
               ) : (
                 filteredOrders.map((o: any, idx: number) => {
-                  const remainingText = formatRemainingDays(o.remainingDays, o.paymentStatus);
+                  const isAdvance = String(o.paymentTerms || '').toLowerCase().includes('advance');
+                  const remainingText = formatRemainingDays(o.remainingDays, o.paymentStatus, isAdvance);
                   return (
                     <tr key={o.id || idx}>
                       <td style={{ fontWeight: 800, color: '#1e1b4b' }}>{o.orderNo || o.id}</td>
                       <td style={{ fontFamily: 'monospace', color: '#475569' }}>{o.invoiceNo}</td>
                       <td style={{ fontWeight: 700, color: '#24345C' }}>{o.customerName || o.customer}</td>
                       <td style={{ color: '#475569' }}>{o.salesperson}</td>
+                      <td style={{ fontWeight: 700, color: '#0284c7' }}>{o.paymentTerms || '15 Days'}</td>
                       <td style={{ color: '#334155' }}>{o.deliveryDate}</td>
                       <td style={{ fontWeight: 600, color: '#24345C' }}>{o.dueDate}</td>
-                      <td style={{ fontWeight: 800, color: o.remainingDays !== null && o.remainingDays < 0 ? '#dc2626' : o.remainingDays === 0 ? '#b45309' : '#334155' }}>
+                      <td style={{ fontWeight: 800, color: o.remainingDays !== null && o.remainingDays < 0 ? '#dc2626' : (o.remainingDays === 0 || isAdvance) ? '#b45309' : '#334155' }}>
                         {remainingText}
                       </td>
                       <td style={{ fontWeight: 800, color: '#24345C' }}>₹{o.totalAmount.toLocaleString('en-IN')}</td>

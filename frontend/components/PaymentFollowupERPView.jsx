@@ -536,18 +536,28 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const deliveredAt = consignment?.deliveredAt || o.delivered_at || o.deliveredAt ||
         o.actualDeliveryDate || o.deliveredDate;
       const invoiceDate = o.invoiceDate || o.invoice_date || deliveredAt || o.createdAt || o.created_at;
-      const paymentTermDays = Number(
-        o.paymentTermDays ?? o.payment_terms_days ?? quotation?.paymentTermDays ?? 15
-      ) || 15;
-      const dueDateValue = o.paymentDueDate || o.payment_due_date || (() => {
-        if (!invoiceDate) return null;
-        const date = new Date(invoiceDate);
-        date.setDate(date.getDate() + paymentTermDays);
-        return date.toISOString();
-      })();
-      const remainingDays = dueDateValue
-        ? Math.ceil((new Date(dueDateValue).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000)
-        : null;
+      const rawPaymentTerms = o.paymentTerms || o.payment_terms || quotation?.paymentTerms || quotation?.payment_terms || '';
+      const isAdvancePayment = String(rawPaymentTerms).toLowerCase().includes('advance') || String(o.payment_terms || '').toLowerCase().includes('advance');
+      const paymentTermDays = isAdvancePayment ? 0 : (Number(
+        o.paymentTermDays ?? o.payment_terms_days ?? quotation?.paymentTermDays ?? (String(rawPaymentTerms).match(/\d+/)?.[0] || 15)
+      ) || 15);
+      const displayPaymentTerms = isAdvancePayment ? 'Advance' : (rawPaymentTerms || `${paymentTermDays} Days`);
+
+      const dueDateValue = isAdvancePayment
+        ? (invoiceDate || deliveredAt || null)
+        : (o.paymentDueDate || o.payment_due_date || (() => {
+            if (!invoiceDate) return null;
+            const date = new Date(invoiceDate);
+            date.setDate(date.getDate() + paymentTermDays);
+            return date.toISOString();
+          })());
+
+      const remainingDays = isAdvancePayment
+        ? 0
+        : (dueDateValue
+            ? Math.ceil((new Date(dueDateValue).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000)
+            : null);
+
       const resolvedPaymentStatus = hasPendingConfirmation
         ? 'AWAITING_FINANCE_VERIFICATION'
         : (resolvedPaid >= resolvedTotal && resolvedTotal > 0
@@ -567,12 +577,14 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         payment_status: resolvedPaymentStatus,
         delivered_at: deliveredAt,
         invoice_date: invoiceDate,
-        payment_terms: `${paymentTermDays} Days`,
+        payment_terms: displayPaymentTerms,
         payment_due_date: dueDateValue,
         remaining_days: remainingDays,
-        reminder_label: remainingDays === null
-          ? 'Not scheduled'
-          : (remainingDays < 0 ? `Overdue by ${Math.abs(remainingDays)} Days` : `Due in ${remainingDays} Days`),
+        reminder_label: isAdvancePayment
+          ? 'Advance (Due on Delivery)'
+          : (remainingDays === null
+            ? 'Not scheduled'
+            : (remainingDays < 0 ? `Overdue by ${Math.abs(remainingDays)} Days` : (remainingDays === 0 ? 'Due Today' : `Due in ${remainingDays} Days`))),
         latest_pv_status: o.latest_pv_status || o.latestPvStatus,
         latest_pv_notes: o.latest_pv_notes || o.latestPvNotes
       };
@@ -764,6 +776,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     <th>Invoice No</th>
                     <th>Customer</th>
                     <th>Delivery Date</th>
+                    <th>Payment Terms</th>
                     <th>Payment Due Date</th>
                     <th>Remaining Days</th>
                     <th style={{ textAlign: 'right' }}>Total Amount</th>
@@ -774,7 +787,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 </thead>
                 <tbody>
                   {pendingRows.length === 0 ? (
-                    <tr><td colSpan="10" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
+                    <tr><td colSpan="11" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
                   ) : (
                     pendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
@@ -798,8 +811,11 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                           <td data-label="Invoice No" style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.invoice_number}</td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
+                          <td data-label="Payment Terms" style={{ fontWeight: 700, color: '#0284c7' }}>{o.payment_terms || '15 Days'}</td>
                           <td data-label="Payment Due Date">{isoDate(o.payment_due_date) || '—'}</td>
-                          <td data-label="Remaining Days" style={{ fontWeight: 700, color: Number(o.remaining_days) < 0 ? '#dc2626' : '#334155' }}>{o.remaining_days === null ? '—' : o.remaining_days}</td>
+                          <td data-label="Remaining Days" style={{ fontWeight: 700, color: Number(o.remaining_days) < 0 ? '#dc2626' : (Number(o.remaining_days) === 0 ? '#d97706' : '#334155') }}>
+                            {o.remaining_days === null ? '—' : (o.remaining_days === 0 && String(o.payment_terms).toLowerCase().includes('advance') ? '0 Days (Advance)' : o.remaining_days)}
+                          </td>
                           <td data-label="Total Amount" style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
                           <td data-label="Status" style={{ fontWeight: 800 }}>{paymentLabel}</td>
                           <td data-label="Reminder" style={{ whiteSpace: 'nowrap' }}>{o.reminder_label}</td>

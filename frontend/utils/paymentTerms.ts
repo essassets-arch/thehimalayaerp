@@ -4,33 +4,45 @@ export interface PaymentValidationResult {
 }
 
 export const PAYMENT_TERMS_OPTIONS = [
+  { label: 'Advance (Immediate)', value: 'Advance' },
   { label: '7 Days', value: 7 },
   { label: '15 Days (Default)', value: 15 },
   { label: '20 Days', value: 20 },
-  { label: 'Custom (Max 20 Days)', value: 'custom' },
+  { label: '30 Days', value: 30 },
+  { label: '90 Days', value: 90 },
+  { label: 'Custom', value: 'custom' },
 ];
 
-export function validatePaymentTerms(days: number, maxAllowedDays: number = 20): PaymentValidationResult {
-  if (isNaN(days) || days < 1) {
+export function validatePaymentTerms(days: number | string, maxAllowedDays: number = 20): PaymentValidationResult {
+  if (String(days).toLowerCase().includes('advance') || days === 0) {
+    return { valid: true };
+  }
+  const numDays = typeof days === 'number' ? days : parseInt(String(days), 10);
+  if (isNaN(numDays) || numDays < 1) {
     return { valid: false, error: 'Payment terms must be at least 1 day.' };
   }
-  if (days > maxAllowedDays) {
+  if (numDays > maxAllowedDays) {
     return { valid: false, error: `Payment terms cannot exceed ${maxAllowedDays} days.` };
   }
   return { valid: true };
 }
 
-export function calculateDueDate(deliveryDateStr: string, paymentTermsDays: number): string {
-  if (!deliveryDateStr || isNaN(paymentTermsDays)) return '--';
+export function calculateDueDate(deliveryDateStr: string, paymentTermsDays: number | string): string {
+  if (!deliveryDateStr) return '--';
+  const isAdvance = String(paymentTermsDays).toLowerCase().includes('advance') || paymentTermsDays === 0;
+  if (isAdvance) return deliveryDateStr;
+  const numDays = typeof paymentTermsDays === 'number' ? paymentTermsDays : parseInt(String(paymentTermsDays).match(/\d+/)?.[0] || '15', 10);
+  if (isNaN(numDays)) return '--';
   const deliveryDate = new Date(deliveryDateStr);
   if (isNaN(deliveryDate.getTime())) return '--';
   
   const dueDate = new Date(deliveryDate);
-  dueDate.setDate(dueDate.getDate() + paymentTermsDays);
+  dueDate.setDate(dueDate.getDate() + numDays);
   return dueDate.toISOString().split('T')[0];
 }
 
-export function calculateRemainingDays(dueDateStr: string): number | null {
+export function calculateRemainingDays(dueDateStr: string, isAdvance: boolean = false): number | null {
+  if (isAdvance) return 0;
   if (!dueDateStr || dueDateStr === '--') return null;
   const dueDate = new Date(dueDateStr);
   if (isNaN(dueDate.getTime())) return null;
@@ -44,9 +56,10 @@ export function calculateRemainingDays(dueDateStr: string): number | null {
   return diffDays;
 }
 
-export function formatRemainingDays(remainingDays: number | null, status: string): string {
+export function formatRemainingDays(remainingDays: number | null, status: string, isAdvance: boolean = false): string {
   if (status === 'Waiting for Delivery' || remainingDays === null) return '--';
   if (status === 'Paid') return 'Completed';
+  if (isAdvance) return '0 Days (Advance)';
   if (remainingDays < 0) {
     return `Overdue by ${Math.abs(remainingDays)} Day${Math.abs(remainingDays) > 1 ? 's' : ''}`;
   }
@@ -57,7 +70,7 @@ export function formatRemainingDays(remainingDays: number | null, status: string
 export function getPaymentStatus(
   orderStatus: string,
   deliveryDateStr: string | undefined,
-  paymentTermsDays: number,
+  paymentTermsDays: number | string,
   totalAmount: number,
   paidAmount: number
 ): {
@@ -68,6 +81,7 @@ export function getPaymentStatus(
   badgeColor: 'gray' | 'blue' | 'orange' | 'red' | 'green';
 } {
   const pendingAmount = Math.max(0, totalAmount - paidAmount);
+  const isAdvance = String(paymentTermsDays).toLowerCase().includes('advance') || paymentTermsDays === 0;
 
   if (pendingAmount === 0 && totalAmount > 0) {
     return {
@@ -92,7 +106,7 @@ export function getPaymentStatus(
   }
 
   const dueDate = calculateDueDate(deliveryDateStr, paymentTermsDays);
-  const remainingDays = calculateRemainingDays(dueDate);
+  const remainingDays = calculateRemainingDays(dueDate, isAdvance);
 
   if (remainingDays === null) {
     return {
@@ -101,6 +115,16 @@ export function getPaymentStatus(
       remainingDays: null,
       pendingAmount,
       badgeColor: 'gray'
+    };
+  }
+
+  if (isAdvance) {
+    return {
+      status: 'Due Today',
+      dueDate,
+      remainingDays: 0,
+      pendingAmount,
+      badgeColor: 'orange'
     };
   }
 
