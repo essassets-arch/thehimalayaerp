@@ -29,6 +29,9 @@ import ProductionMaterialReturnsView from '../../../components/material-workflow
 import QCPendingView from '../components/qc/QCPendingView';
 import QCHistoryView from '../components/qc/QCHistoryView';
 import FinishedGoodsView from '../components/FinishedGoodsView';
+import DailyReportEntryView from '../components/DailyReportEntryView';
+import DailyReportHistoryView from '../components/DailyReportHistoryView';
+import DailyReportPrintView from '../components/DailyReportPrintView';
 import ProductionOperationsDashboard from '../../../components/ProductionOperationsDashboard';
 import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, PieChart, Pie, LineChart, Line, Legend } from 'recharts';
 
@@ -417,6 +420,15 @@ export default function ProductionPortal() {
   else if (params?.slug?.[0] === 'material-receipts' || pathname?.includes('/material-receipts')) view = 'material-receipts';
   else if (params?.slug?.[0] === 'material-returns' || pathname?.includes('/material-returns')) view = 'material-returns';
   else if (params?.slug?.[0] === 'material-consumption' || pathname?.includes('/material-consumption')) view = 'material-consumption';
+  else if (params?.slug?.[0] === 'daily-report' || pathname?.includes('/daily-report')) {
+    if (params?.slug?.[1] === 'history' || pathname?.endsWith('/daily-report/history')) {
+      view = 'daily-report-history';
+    } else if (params?.slug?.[1] && params?.slug?.[1] !== 'history') {
+      view = 'daily-report-view';
+    } else {
+      view = 'daily-report-entry';
+    }
+  }
   if (view === 'production') view = 'dashboard';
 
   const navigate = useRouter();
@@ -3955,6 +3967,30 @@ export default function ProductionPortal() {
       {view === 'floor' && renderProductionWork()}
       {view === 'qc-failed' && renderRework()}
       {view === 'profile' && <MyProfileView />}
+
+      {/* Daily Production Report Module Routes */}
+      {view === 'daily-report-entry' && (
+        <DailyReportEntryView
+          reportId={searchParams.get('edit') || null}
+          onNavigateToHistory={() => navigate.push('/production/daily-report/history')}
+          onNavigateToPrint={(id) => navigate.push(`/production/daily-report/${id}`)}
+        />
+      )}
+
+      {view === 'daily-report-history' && (
+        <DailyReportHistoryView
+          onNewReport={() => navigate.push('/production/daily-report')}
+          onEditReport={(id) => navigate.push(`/production/daily-report?edit=${id}`)}
+          onViewReport={(id) => navigate.push(`/production/daily-report/${id}`)}
+        />
+      )}
+
+      {view === 'daily-report-view' && (
+        <DailyReportPrintView
+          reportId={params?.slug?.[1]}
+          onBack={() => navigate.push('/production/daily-report/history')}
+        />
+      )}
 
 
 

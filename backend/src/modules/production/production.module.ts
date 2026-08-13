@@ -9,6 +9,8 @@ import { MachineController } from './machine.controller';
 import { MachineService } from './machine.service';
 import { MachineStatusController } from './machine-status.controller';
 import { MachineStatusService } from './machine-status.service';
+import { ProductionDailyReportController } from './production-daily-report.controller';
+import { ProductionDailyReportService } from './production-daily-report.service';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { SequenceModule } from '../../common/sequence/sequence.module';
 
@@ -20,6 +22,7 @@ import { SequenceModule } from '../../common/sequence/sequence.module';
     ProductionWorkflowController,
     MachineController,
     MachineStatusController,
+    ProductionDailyReportController,
   ],
   providers: [
     ProductionService,
@@ -27,6 +30,7 @@ import { SequenceModule } from '../../common/sequence/sequence.module';
     ProductionWorkflowService,
     MachineService,
     MachineStatusService,
+    ProductionDailyReportService,
   ],
 })
 export class ProductionModule {}
