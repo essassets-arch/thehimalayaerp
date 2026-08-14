@@ -102,17 +102,22 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     const verifiedCollectionsSum = verifiedPayments.reduce((sum, p) => sum + Number(p.amount || p.paidAmount || p.totalAmount || 0), 0) +
       localConfirmations.filter(c => c.status === 'FINANCE_VERIFIED').reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
+    const formatDirectAmount = (val) => {
+      const num = Number(val || 0);
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 2
+      }).format(num);
+    };
+
     const totalCollectionsRaw = verifiedCollectionsSum;
-    const totalCollectionsStr = totalCollectionsRaw >= 10000000 
-      ? `₹${(totalCollectionsRaw / 10000000).toFixed(2)} Cr`
-      : `₹${(totalCollectionsRaw / 100000).toFixed(1)} L`;
+    const totalCollectionsStr = formatDirectAmount(totalCollectionsRaw);
 
     // Sales Revenue Sum
     const salesRevenueSum = salesOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || o.grandTotal || 0), 0);
     const totalRevenueRaw = salesRevenueSum;
-    const totalRevenueStr = totalRevenueRaw >= 10000000 
-      ? `₹${(totalRevenueRaw / 10000000).toFixed(2)} Cr`
-      : `₹${(totalRevenueRaw / 100000).toFixed(1)} L`;
+    const totalRevenueStr = formatDirectAmount(totalRevenueRaw);
 
     // Outstanding Receivables
     const outstandingSum = salesOrders.reduce((sum, o) => {
@@ -123,9 +128,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     }, 0);
 
     const outstandingReceivablesRaw = outstandingSum;
-    const outstandingReceivablesStr = outstandingReceivablesRaw >= 10000000
-      ? `₹${(outstandingReceivablesRaw / 10000000).toFixed(2)} Cr`
-      : `₹${(outstandingReceivablesRaw / 100000).toFixed(1)} L`;
+    const outstandingReceivablesStr = formatDirectAmount(outstandingReceivablesRaw);
 
     const unpaidInvoicesCount = salesOrders.filter(o => {
       const total = Number(o.grand_total || o.totalAmount || o.grandTotal || 0);
@@ -144,9 +147,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     }, 0);
 
     const overdueAmountRaw = overdueSum;
-    const overdueAmountStr = overdueAmountRaw >= 10000000
-      ? `₹${(overdueAmountRaw / 10000000).toFixed(2)} Cr`
-      : `₹${(overdueAmountRaw / 100000).toFixed(1)} L`;
+    const overdueAmountStr = formatDirectAmount(overdueAmountRaw);
 
     const overdueInvoicesCount = overdueOrders.length;
 
@@ -157,9 +158,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
 
     const totalExpensesRaw = expensesList.reduce((sum, e) => sum + Number(e.amount || 0), 0);
     const netProfitRaw = totalRevenueRaw > 0 ? Math.max(0, totalRevenueRaw - totalExpensesRaw) : 0;
-    const netProfitStr = netProfitRaw >= 10000000 
-      ? `₹${(netProfitRaw / 10000000).toFixed(2)} Cr`
-      : `₹${(netProfitRaw / 100000).toFixed(1)} L`;
+    const netProfitStr = formatDirectAmount(netProfitRaw);
 
     // Pending Verification Approvals Count
     const unverifiedLocalCount = localConfirmations.filter(c => c.status === 'FINANCE_VERIFICATION_PENDING').length;
@@ -171,16 +170,12 @@ export default function FinanceManagerDashboardView({ state: propState, payments
 
     // Vendor Payments Due & Monthly Expenses
     const pendingPOAmount = poRequests.filter(po => ['APPROVED', 'PENDING'].includes(String(po.status || '').toUpperCase())).reduce((sum, po) => sum + Number(po.totalAmount || po.amount || 0), 0);
-    const vendorPaymentsDueStr = pendingPOAmount >= 10000000 
-      ? `₹${(pendingPOAmount / 10000000).toFixed(2)} Cr`
-      : `₹${(pendingPOAmount / 100000).toFixed(1)} L`;
+    const vendorPaymentsDueStr = formatDirectAmount(pendingPOAmount);
 
     const pendingVendorsCount = new Set(poRequests.map(po => po.vendorId || po.vendorName).filter(Boolean)).size;
 
     const monthlyExpensesSum = totalExpensesRaw;
-    const monthlyExpensesStr = monthlyExpensesSum >= 10000000
-      ? `₹${(monthlyExpensesSum / 10000000).toFixed(2)} Cr`
-      : `₹${(monthlyExpensesSum / 100000).toFixed(1)} L`;
+    const monthlyExpensesStr = formatDirectAmount(monthlyExpensesSum);
 
     return {
       totalRevenueStr,
@@ -242,8 +237,8 @@ export default function FinanceManagerDashboardView({ state: propState, payments
 
     return last6Months.map(m => ({
       month: m.month,
-      revenue: Number((m.revenue / 10000000).toFixed(2)),
-      collections: Number((m.collections / 10000000).toFixed(2))
+      revenue: Number(m.revenue || 0),
+      collections: Number(m.collections || 0)
     }));
   }, [salesOrders, customerPayments, localConfirmations]);
 
@@ -264,10 +259,10 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     }).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
     return [
-      { category: 'Q1 2026', collections: Number((q1Coll / 10000000).toFixed(2)), outstanding: Number(((q1Coll * 0.25) / 10000000).toFixed(2)) },
-      { category: 'Q2 2026', collections: Number((q2Coll / 10000000).toFixed(2)), outstanding: Number(((q2Coll * 0.20) / 10000000).toFixed(2)) },
-      { category: 'Q3 2026', collections: Number((q3Coll / 10000000).toFixed(2)), outstanding: Number(((q3Coll * 0.15) / 10000000).toFixed(2)) },
-      { category: 'Current Month', collections: Number((dynamicMetrics.rawCollections / 10000000).toFixed(2)), outstanding: Number((dynamicMetrics.rawOutstanding / 10000000).toFixed(2)) }
+      { category: 'Q1 2026', collections: Number(q1Coll || 0), outstanding: Number(q1Coll * 0.25 || 0) },
+      { category: 'Q2 2026', collections: Number(q2Coll || 0), outstanding: Number(q2Coll * 0.20 || 0) },
+      { category: 'Q3 2026', collections: Number(q3Coll || 0), outstanding: Number(q3Coll * 0.15 || 0) },
+      { category: 'Current Month', collections: Number(dynamicMetrics.rawCollections || 0), outstanding: Number(dynamicMetrics.rawOutstanding || 0) }
     ];
   }, [customerPayments, dynamicMetrics]);
 
@@ -291,12 +286,14 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       });
     });
 
+    const formatDirectAmount = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val || 0);
+
     const sorted = Array.from(customerMap.values())
       .sort((a, b) => b.totalBal - a.totalBal)
       .slice(0, 5)
       .map(c => ({
         name: c.name,
-        amount: c.totalBal >= 10000000 ? `₹${(c.totalBal / 10000000).toFixed(2)} Cr` : `₹${(c.totalBal / 100000).toFixed(1)} L`,
+        amount: formatDirectAmount(c.totalBal),
         overdueDays: `${c.maxDays} Days`,
         status: c.maxDays > 25 ? 'OVERDUE' : 'PENDING',
         risk: c.maxDays > 40 ? 'HIGH' : (c.maxDays > 20 ? 'MEDIUM' : 'LOW')
@@ -332,6 +329,8 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       role: u.role?.name || (u.email.includes('supersales') ? 'SuperSales' : 'Sales Executive')
     })) : defaultReps;
 
+    const formatDirectAmount = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val || 0);
+
     return baseList.map(rep => {
       const repOrders = salesOrders.filter(o => {
         const oRep = String(o.salesperson || o.salesPerson || o.salesExecutiveId || o.createdById || '').toLowerCase();
@@ -341,9 +340,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       });
 
       const totalVal = repOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || o.grandTotal || 0), 0);
-      const salesValStr = totalVal >= 10000000 
-        ? `₹${(totalVal / 10000000).toFixed(2)} Cr` 
-        : (totalVal > 0 ? `₹${(totalVal / 100000).toFixed(2)} L` : '₹0.00');
+      const salesValStr = formatDirectAmount(totalVal);
 
       return {
         ...rep,
@@ -359,7 +356,8 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     const activeRepsCount = allSalesReps.length;
     const totalOrdersCount = salesOrders.length;
     const totalVal = salesOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || 0), 0);
-    const salesValStr = totalVal >= 10000000 ? `₹${(totalVal / 10000000).toFixed(2)} Cr` : `₹${(totalVal / 100000).toFixed(1)} L`;
+    const formatDirectAmount = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val || 0);
+    const salesValStr = formatDirectAmount(totalVal);
     const convRate = quotations.length > 0 ? Math.round((salesOrders.length / quotations.length) * 100) : 0;
 
     return {
@@ -529,17 +527,17 @@ export default function FinanceManagerDashboardView({ state: propState, payments
           <div style={{ width: '100%', height: '220px' }}>
             {isMounted && (
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <LineChart data={revenueTrendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="month" stroke="#64748B" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748B" fontSize={11} tickLine={false} unit="Cr" />
+                  <YAxis stroke="#64748B" fontSize={11} tickLine={false} tickFormatter={(val) => val >= 10000000 ? `₹${(val/10000000).toFixed(1)}Cr` : (val >= 100000 ? `₹${(val/100000).toFixed(1)}L` : (val >= 1000 ? `₹${(val/1000).toFixed(0)}k` : `₹${val}`))} />
                   <Tooltip 
-                    formatter={(val) => `₹${val} Cr`}
+                    formatter={(val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(val || 0))}
                     contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '12px', color: '#0F172A', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Line type="monotone" dataKey="revenue" name="Revenue (Cr)" stroke="#2563EB" strokeWidth={3} dot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="collections" name="Collections (Cr)" stroke="#16A34A" strokeWidth={3} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#2563EB" strokeWidth={3} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="collections" name="Collections" stroke="#16A34A" strokeWidth={3} dot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -565,17 +563,17 @@ export default function FinanceManagerDashboardView({ state: propState, payments
           <div style={{ width: '100%', height: '220px' }}>
             {isMounted && (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={collectionsVsOutstandingData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={collectionsVsOutstandingData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="category" stroke="#64748B" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748B" fontSize={11} tickLine={false} unit="Cr" />
+                  <YAxis stroke="#64748B" fontSize={11} tickLine={false} tickFormatter={(val) => val >= 10000000 ? `₹${(val/10000000).toFixed(1)}Cr` : (val >= 100000 ? `₹${(val/100000).toFixed(1)}L` : (val >= 1000 ? `₹${(val/1000).toFixed(0)}k` : `₹${val}`))} />
                   <Tooltip 
-                    formatter={(val) => `₹${val} Cr`}
+                    formatter={(val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(val || 0))}
                     contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '12px', color: '#0F172A', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="collections" name="Collections (Cr)" fill="#16A34A" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="outstanding" name="Outstanding (Cr)" fill="#D97706" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="collections" name="Collections" fill="#16A34A" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="outstanding" name="Outstanding" fill="#D97706" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
