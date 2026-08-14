@@ -1161,8 +1161,6 @@ export default function HRPortal() {
         return renderRegisterStaff();
       case 'attendance':
         return renderAttendance();
-      case 'shifts':
-        return renderShifts();
       case 'leaves':
         return renderLeaves();
       case 'exit-clearance':

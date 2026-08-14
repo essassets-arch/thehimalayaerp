@@ -188,7 +188,6 @@ export const navigationConfig = {
     { id: 'employees', label: 'Employees', icon: Users, path: '/hr/employees' },
     { id: 'register-staff', label: 'Register Staff', icon: UserPlus, path: '/hr/register-staff' },
     { id: 'attendance', label: 'Attendance & Clock', icon: Clock, path: '/hr/attendance' },
-    { id: 'shifts', label: 'Shift Schedule', icon: ClipboardList, path: '/hr/shifts' },
     { id: 'leaves', label: 'Leave Workflows', icon: FileText, path: '/hr/leaves' },
     { id: 'exit-clearance', label: 'Exit Clearance', icon: PackageCheck, path: '/hr/exit-clearance' },
     { id: 'salary-structure', label: 'Salary Structure', icon: Calculator, path: '/hr/salary-structure' },
