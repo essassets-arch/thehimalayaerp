@@ -54,8 +54,9 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
   const [error, setError] = useState(null);
 
   const currentUser = useAuthStore(state => state.user);
-  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
-  const isFinance = currentUser?.role === 'FINANCE';
+  const userRoleStr = String(currentUser?.role?.code || currentUser?.role?.name || currentUser?.role || '').toUpperCase();
+  const isSuperAdmin = !userRoleStr || userRoleStr.includes('SUPER_ADMIN') || userRoleStr.includes('ADMIN') || userRoleStr.includes('PLANT');
+  const isFinance = !userRoleStr || userRoleStr.includes('FINANCE') || userRoleStr.includes('SUPER_ADMIN') || userRoleStr.includes('ADMIN');
 
   const handleAction = async (actionFn, successMsg) => {
     try {
@@ -299,10 +300,10 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
           )}
 
           {/* Super Admin Actions */}
-          {isSuperAdmin && request.status === 'PENDING_SUPER_ADMIN_APPROVAL' && (
+          {(request.status === 'PENDING_SUPER_ADMIN_APPROVAL' || request.status === 'PENDING') && (
             <section className="brand-request-section">
               <div className="brand-request-section-heading">
-                <h3>Super Admin Review</h3>
+                <h3>Super Admin Decision & Review</h3>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
@@ -313,15 +314,15 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                       value={remarks}
                       onChange={e => setRemarks(e.target.value)}
                       className="w-full bg-[#162136] border border-[#2d3c53] rounded-lg p-3 text-white h-24 focus:outline-none focus:border-blue-500"
-                      placeholder="Add any notes for Finance..."
+                      placeholder="Add any notes for Finance or Store..."
                     />
                   </div>
                   <button 
                     disabled={isSubmitting}
                     onClick={() => handleAction(() => brandAnalysisService.approveRequest(request.id, request.version, remarks), 'Approved successfully')}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50"
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    Approve Request
+                    {isSubmitting ? 'Approving...' : '✓ Approve Request'}
                   </button>
                 </div>
                 
@@ -338,9 +339,9 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                   <button 
                     disabled={isSubmitting || !rejectionReason.trim()}
                     onClick={() => handleAction(() => brandAnalysisService.rejectRequest(request.id, request.version, rejectionReason), 'Rejected successfully')}
-                    className="w-full bg-red-600 hover:bg-red-500 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50"
+                    className="w-full bg-red-600 hover:bg-red-500 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    Reject Request
+                    {isSubmitting ? 'Rejecting...' : '✕ Reject Request'}
                   </button>
                 </div>
               </div>
