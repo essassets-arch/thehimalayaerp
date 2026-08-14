@@ -264,36 +264,36 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
           {request.status === 'FINANCE_ANALYSIS_COMPLETED' && (
             <section className="brand-request-section">
               <div className="brand-request-section-heading">
-                <h3 className="text-emerald-400">Analysis Results</h3>
+                <h3 className="text-emerald-700 font-bold">Analysis Results</h3>
               </div>
-              <div className="bg-[#162136] rounded-lg p-4 border border-[#2d3c53]">
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                 <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                   <div>
                     <p className="text-slate-500 mb-1">Recommended Brand</p>
-                    <p className="text-white font-medium">{request.recommendedBrand}</p>
+                    <p className="text-slate-900 font-bold">{request.recommendedBrand}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 mb-1">Recommendation</p>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      request.recommendation === 'RECOMMENDED' ? 'bg-emerald-500/10 text-emerald-400' :
-                      request.recommendation === 'NOT_RECOMMENDED' ? 'bg-red-500/10 text-red-400' :
-                      'bg-amber-500/10 text-amber-400'
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                      request.recommendation === 'RECOMMENDED' ? 'bg-emerald-100 text-emerald-800' :
+                      request.recommendation === 'NOT_RECOMMENDED' ? 'bg-red-100 text-red-800' :
+                      'bg-amber-100 text-amber-800'
                     }`}>
                       {request.recommendation?.replace(/_/g, ' ')}
                     </span>
                   </div>
                   <div>
                     <p className="text-slate-500 mb-1">Unit Cost</p>
-                    <p className="text-white font-medium">₹{Number(request.estimatedUnitCost || 0).toLocaleString()}</p>
+                    <p className="text-slate-900 font-bold">₹{Number(request.estimatedUnitCost || 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 mb-1">Total Cost</p>
-                    <p className="text-white font-medium">₹{Number(request.estimatedTotalCost || 0).toLocaleString()}</p>
+                    <p className="text-slate-900 font-bold">₹{Number(request.estimatedTotalCost || 0).toLocaleString()}</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-[#2d3c53]">
+                <div className="pt-4 border-t border-slate-200">
                   <p className="text-slate-500 text-xs mb-1">Analysis Details</p>
-                  <p className="text-white text-sm">{request.analysisResult}</p>
+                  <p className="text-slate-800 text-sm font-medium">{request.analysisResult}</p>
                 </div>
               </div>
             </section>
@@ -336,7 +336,7 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                     <span className="brand-request-decision-badge reject">Action Required</span>
                   </div>
                   <div>
-                    <label className="brand-request-label">Rejection Reason <span className="text-red-400">*</span></label>
+                    <label className="brand-request-label">Rejection Reason <span className="text-red-600">*</span></label>
                     <textarea 
                       value={rejectionReason}
                       onChange={e => setRejectionReason(e.target.value)}
@@ -363,11 +363,11 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                 <h3>Finance Analysis</h3>
               </div>
               <div className="flex justify-between items-center mt-4">
-                <p className="text-slate-400 text-sm">Click the button to mark this request as currently under analysis.</p>
+                <p className="text-slate-600 text-sm">Click the button to mark this request as currently under analysis.</p>
                 <button 
                   disabled={isSubmitting}
                   onClick={() => handleAction(() => brandAnalysisService.startAnalysis(request.id, request.version, remarks), 'Analysis started')}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                  className="bg-sky-600 hover:bg-sky-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors disabled:opacity-50 shadow-sm"
                 >
                   Start Analysis
                 </button>
@@ -384,70 +384,70 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 mt-4">
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Detailed Analysis Result <span className="text-emerald-500">*</span></label>
+                  <label className="brand-request-label">Detailed Analysis Result <span className="text-emerald-600">*</span></label>
                   <textarea 
                     value={analysisResult}
                     onChange={e => setAnalysisResult(e.target.value)}
-                    className="w-full bg-[#162136] border border-[#2d3c53] focus:border-blue-500 focus:outline-none rounded-lg p-3 text-white h-32"
+                    className="brand-request-textarea"
                     placeholder="Provide full details of the cost-benefit analysis..."
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Recommended Brand <span className="text-emerald-500">*</span></label>
+                  <label className="brand-request-label">Recommended Brand <span className="text-emerald-600">*</span></label>
                   <input 
                     type="text"
                     value={recommendedBrand}
                     onChange={e => setRecommendedBrand(e.target.value)}
-                    className="w-full bg-[#162136] border border-[#2d3c53] focus:border-blue-500 focus:outline-none rounded-lg p-3 text-white"
+                    className="w-full bg-white border border-slate-300 focus:border-sky-500 focus:outline-none rounded-lg p-3 text-slate-900"
                     placeholder="e.g. Brand X"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Supplier Name</label>
+                  <label className="brand-request-label">Supplier Name</label>
                   <input 
                     type="text"
                     value={supplierName}
                     onChange={e => setSupplierName(e.target.value)}
-                    className="w-full bg-[#162136] border border-[#2d3c53] focus:border-blue-500 focus:outline-none rounded-lg p-3 text-white"
+                    className="w-full bg-white border border-slate-300 focus:border-sky-500 focus:outline-none rounded-lg p-3 text-slate-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Estimated Unit Cost</label>
+                  <label className="brand-request-label">Estimated Unit Cost</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-3 text-slate-500">₹</span>
+                    <span className="absolute left-3 top-3 text-slate-400">₹</span>
                     <input 
                       type="number"
                       value={estimatedUnitCost}
                       onChange={e => setEstimatedUnitCost(e.target.value)}
-                      className="w-full bg-[#162136] border border-[#2d3c53] focus:border-blue-500 focus:outline-none rounded-lg p-3 pl-8 text-white"
+                      className="w-full bg-white border border-slate-300 focus:border-sky-500 focus:outline-none rounded-lg p-3 pl-8 text-slate-900"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Estimated Total Cost</label>
+                  <label className="brand-request-label">Estimated Total Cost</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-3 text-slate-500">₹</span>
+                    <span className="absolute left-3 top-3 text-slate-400">₹</span>
                     <input 
                       type="number"
                       value={estimatedTotalCost}
                       onChange={e => setEstimatedTotalCost(e.target.value)}
-                      className="w-full bg-[#162136] border border-[#2d3c53] focus:border-blue-500 focus:outline-none rounded-lg p-3 pl-8 text-white"
+                      className="w-full bg-white border border-slate-300 focus:border-sky-500 focus:outline-none rounded-lg p-3 pl-8 text-slate-900"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
 
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Final Recommendation <span className="text-emerald-500">*</span></label>
+                  <label className="brand-request-label">Final Recommendation <span className="text-emerald-600">*</span></label>
                   <select 
                     value={recommendation}
                     onChange={e => setRecommendation(e.target.value)}
-                    className="w-full bg-[#162136] border border-[#2d3c53] focus:border-blue-500 focus:outline-none rounded-lg p-3 text-white"
+                    className="w-full bg-white border border-slate-300 focus:border-sky-500 focus:outline-none rounded-lg p-3 text-slate-900"
                   >
                     <option value="RECOMMENDED">Recommended</option>
                     <option value="NOT_RECOMMENDED">Not Recommended</option>
@@ -456,7 +456,7 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4 border-t border-[#2d3c53]">
+              <div className="flex justify-end pt-4 border-t border-slate-200">
                 <button 
                   disabled={isSubmitting || !analysisResult || !recommendedBrand}
                   onClick={() => handleAction(() => brandAnalysisService.completeAnalysis(request.id, request.version, {
@@ -467,7 +467,7 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                     estimatedTotalCost: Number(estimatedTotalCost) || 0,
                     recommendation
                   }), 'Analysis completed')}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-lg font-bold transition-colors disabled:opacity-50"
                 >
                   Submit Analysis Report
                 </button>

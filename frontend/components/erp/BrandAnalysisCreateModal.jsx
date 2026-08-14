@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { brandAnalysisService } from '../../services/brandAnalysisService';
+import './BrandAnalysisCreateModal.css';
 
 export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
   const [formData, setFormData] = useState({
