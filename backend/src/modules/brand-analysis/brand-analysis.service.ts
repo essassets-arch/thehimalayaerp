@@ -53,6 +53,23 @@ export class BrandAnalysisService {
   async create(dto: CreateBrandAnalysisDto, userId: string) {
     const requestNo = await this.generateRequestNumber();
 
+    let parsedRequiredByDate: Date | null = null;
+    if (dto.requiredByDate) {
+      let d = new Date(dto.requiredByDate);
+      if (isNaN(d.getTime()) && typeof dto.requiredByDate === 'string') {
+        const parts = dto.requiredByDate.split(/[-/]/);
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          d = new Date(year, month, day);
+        }
+      }
+      if (!isNaN(d.getTime())) {
+        parsedRequiredByDate = d;
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.brandAnalysisRequest.create({
         data: {
@@ -65,9 +82,7 @@ export class BrandAnalysisService {
           imageOriginalName: dto.imageOriginalName,
           reason: dto.reason,
           orderDetails: dto.orderDetails,
-          requiredByDate: dto.requiredByDate
-            ? new Date(dto.requiredByDate)
-            : null,
+          requiredByDate: parsedRequiredByDate,
           remarks: dto.remarks,
           requestedById: userId,
           status: 'PENDING_SUPER_ADMIN_APPROVAL',
