@@ -3597,7 +3597,7 @@ export default function StorePortal() {
       {currentView === 'store-releases' && <StoreReleasesView />}
       {currentView === 'issued-history' && renderMaterialRequests()}
       {currentView === 'low-stock-alerts' && renderLowStockAlerts()}
-      {currentView === 'analysis-requests' && renderAnalysisRequests()}
+      {(currentView === 'analysis-requests' || currentView === 'brand-analysis' || currentView === 'brandanalysis') && <BrandAnalysisRequests />}
       {(currentView === 'reports' || currentView === 'summary-report' || currentView === 'store-summary-report') && <StoreSummaryReport />}
       {currentView === 'po' || currentView === 'purchase' ? renderPOWorkspace() : null}
       {currentView === 'add-material' && renderAddMaterialPage()}
@@ -3607,7 +3607,7 @@ export default function StorePortal() {
       {currentView === 'procurement-deliveries' && <VerifyPODelivery />}
       {currentView === 'replacement-deliveries' && <ReceiveReplacement />}
       {currentView === 'profile' && <MyProfileView />}
-      {!['dashboard', 'raw-inventory', 'finished-inventory', 'material-requests', 'store-releases', 'issued-history', 'low-stock-alerts', 'analysis-requests', 'reports', 'po', 'purchase', 'add-material', 'edit-material', 'grn-inspection', 'procurement-indents', 'procurement-deliveries', 'replacement-deliveries', 'profile'].includes(currentView) && (
+      {!['dashboard', 'raw-inventory', 'finished-inventory', 'material-requests', 'store-releases', 'issued-history', 'low-stock-alerts', 'analysis-requests', 'brand-analysis', 'brandanalysis', 'reports', 'summary-report', 'store-summary-report', 'po', 'purchase', 'add-material', 'edit-material', 'grn-inspection', 'procurement-indents', 'procurement-deliveries', 'replacement-deliveries', 'profile'].includes(currentView) && (
         <ModulePlaceholder 
           title="Module Not Available" 
           description="This Store feature is not implemented yet." 
