@@ -1978,6 +1978,110 @@ async function main() {
     });
   }
 
+  // Seeding initial recruitment requests
+  console.log('👥 Seeding recruitment requests...');
+  const plantHeadUser = await prisma.user.findFirst({ where: { email: 'plant.head@himalayaerp.com' } });
+  const hrUserObj = await prisma.user.findFirst({ where: { email: 'hr@himalayaerp.com' } });
+  const reqPlantHeadId = plantHeadUser ? plantHeadUser.id : 'b3d0b887-9361-46d4-9d34-cd6b758b211d';
+  const reqHrUserId = hrUserObj ? hrUserObj.id : '78fd58e8-fa59-4986-8136-09efe62deea5';
+
+  const recruitmentRequestsToSeed = [
+    {
+      indentNumber: 'RR-101',
+      designation: 'Production Engineer',
+      department: 'Production',
+      vacancies: 3,
+      priority: 'HIGH' as const,
+      employmentType: 'PERMANENT' as const,
+      requiredExperience: '3-5 Years',
+      requiredSkills: 'FRP Moulding, Resin Mix Control, Shift Management',
+      reasonForHiring: 'Plant expansion for new production line A3',
+      jobDescription: 'Oversee daily FRP sheet pressing and raw resin batch mixing operations.',
+      requestedById: reqPlantHeadId,
+      requestedByName: 'Plant Head',
+      requestedByRole: 'PLANT_HEAD',
+      status: 'OPEN' as const,
+    },
+    {
+      indentNumber: 'RR-102',
+      designation: 'QC Inspector',
+      department: 'Quality Control',
+      vacancies: 2,
+      priority: 'URGENT' as const,
+      employmentType: 'PERMANENT' as const,
+      requiredExperience: '2-4 Years',
+      requiredSkills: 'Tensile Strength Testing, Visual Inspection, QC Reporting',
+      reasonForHiring: 'Increased order volume requiring round-the-clock QC checks',
+      jobDescription: 'Perform dimensional and strength checks on finished manhole covers.',
+      requestedById: reqPlantHeadId,
+      requestedByName: 'Plant Head',
+      requestedByRole: 'PLANT_HEAD',
+      assignedHrUserId: reqHrUserId,
+      assignedHrUserName: 'HR Executive',
+      status: 'PENDING' as const,
+    },
+    {
+      indentNumber: 'RR-103',
+      designation: 'Maintenance Technician',
+      department: 'Maintenance',
+      vacancies: 2,
+      priority: 'MEDIUM' as const,
+      employmentType: 'PERMANENT' as const,
+      requiredExperience: '1-3 Years',
+      requiredSkills: 'Hydraulic Press Repair, Electrical Wiring, Preventive Maintenance',
+      reasonForHiring: 'Replacement for resigned maintenance staff',
+      jobDescription: 'Execute preventive maintenance on hydraulic presses HM001-HM006.',
+      requestedById: reqPlantHeadId,
+      requestedByName: 'Plant Head',
+      requestedByRole: 'PLANT_HEAD',
+      positionsFilled: 2,
+      fulfilledAt: new Date(),
+      status: 'FULFILLED' as const,
+    },
+    {
+      indentNumber: 'RR-104',
+      designation: 'Store Executive',
+      department: 'Inventory',
+      vacancies: 1,
+      priority: 'LOW' as const,
+      employmentType: 'PERMANENT' as const,
+      requiredExperience: '1-2 Years',
+      requiredSkills: 'GRN Entry, Raw Material Stock Ledger, ERP Entry',
+      reasonForHiring: 'Additional staff for raw material warehouse',
+      jobDescription: 'Manage resin and glass fiber raw inventory receipts.',
+      requestedById: reqPlantHeadId,
+      requestedByName: 'Plant Head',
+      requestedByRole: 'PLANT_HEAD',
+      status: 'OPEN' as const,
+    },
+    {
+      indentNumber: 'RR-105',
+      designation: 'Dispatch Assistant',
+      department: 'Logistics',
+      vacancies: 1,
+      priority: 'MEDIUM' as const,
+      employmentType: 'PERMANENT' as const,
+      requiredExperience: '1-2 Years',
+      requiredSkills: 'Packing Inspection, Loading Supervision, Lorry Receipt Handling',
+      reasonForHiring: 'Dispatch team capacity enhancement',
+      jobDescription: 'Supervise vehicle loading and verify invoice delivery documentation.',
+      requestedById: reqPlantHeadId,
+      requestedByName: 'Plant Head',
+      requestedByRole: 'PLANT_HEAD',
+      rejectedAt: new Date(),
+      rejectionReason: 'Headcount frozen for logistics department for Q3.',
+      status: 'REJECTED' as const,
+    }
+  ];
+
+  for (const r of recruitmentRequestsToSeed) {
+    await prisma.recruitmentRequest.upsert({
+      where: { indentNumber: r.indentNumber },
+      update: { ...r, companyId: company.id },
+      create: { ...r, companyId: company.id },
+    });
+  }
+
   console.log('\n✅ Seed complete!');
   console.log(`\n🏢 Company: Himalaya Wellness Pvt. Ltd.`);
   console.log(`📦 Products: ${createdCount} created, ${skippedCount} skipped`);
