@@ -768,10 +768,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                   <div className="lead-product-grid-spec" style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
                     <ProductPicker
                       testId="lead-product-picker"
-                      value={item.productId ? {
-                        id: item.productId,
-                        product_name: item.productName,
-                        product_code: item.productCode
+                      value={(item.productId || item.productName) ? {
+                        id: item.productId || item.productCode || 'custom',
+                        product_name: item.productName || item.productCode || 'Selected Product',
+                        product_code: item.productCode || ''
                       } : null}
                       onChange={(p) => {
                         if (p) {

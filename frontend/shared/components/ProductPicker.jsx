@@ -180,7 +180,7 @@ export default function ProductPicker({
               {value.display_name || value.product_name}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--color-text-secondary, #5E6B82)', marginTop: '1px' }}>
-              {value.product_code} · {value.brand} · GST {value.gst_rate}% · HSN {value.hsn_sac_code || '—'}
+              {[value.product_code, value.brand, value.gst_rate != null ? `GST ${value.gst_rate}%` : null, value.hsn_sac_code ? `HSN ${value.hsn_sac_code}` : null].filter(Boolean).join(' · ')}
             </div>
           </div>
           {!disabled && (

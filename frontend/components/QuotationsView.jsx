@@ -102,25 +102,49 @@ export default function QuotationsView({
 
   const normalizeText = (value) => String(value || '').trim().toLowerCase();
   const quotationItemsText = (quotation) => {
-    if (Array.isArray(quotation?.items)) {
-      return quotation.items
-        .map(item => `${item.productName || item.name || 'Item'} (${Number(item.quantity || item.qty || 0)} ${item.unit || 'Qty'})`)
+    const source = (Array.isArray(quotation?.items) && quotation.items.length > 0)
+      ? quotation.items
+      : (Array.isArray(quotation?.detailedItems) && quotation.detailedItems.length > 0)
+        ? quotation.detailedItems
+        : (Array.isArray(quotation?.lead?.detailedItems) && quotation.lead.detailedItems.length > 0)
+          ? quotation.lead.detailedItems
+          : null;
+
+    if (source && source.length > 0) {
+      return source
+        .map(item => {
+          const name = item.productName || item.description || item.product?.name || item.name || 'Item';
+          const qty = Number(item.quantity ?? item.qty ?? 0);
+          const unit = item.unit || 'Qty';
+          return `${name}${qty > 0 ? ` (${qty} ${unit})` : ''}`;
+        })
         .join(', ');
     }
-    return String(quotation?.items || quotation?.products || '');
+
+    if (quotation?.productInterest || quotation?.productInterested) {
+      return String(quotation.productInterest || quotation.productInterested);
+    }
+
+    if (quotation?.lead?.productInterest || quotation?.lead?.productInterested) {
+      return String(quotation.lead.productInterest || quotation.lead.productInterested);
+    }
+
+    return String(quotation?.items || quotation?.products || '—');
   };
   const quotationDetailItems = (quotation) => {
-    const source = Array.isArray(quotation?.detailedItems)
+    const source = (Array.isArray(quotation?.detailedItems) && quotation.detailedItems.length > 0)
       ? quotation.detailedItems
-      : Array.isArray(quotation?.items)
+      : (Array.isArray(quotation?.items) && quotation.items.length > 0)
         ? quotation.items
-        : [];
+        : (Array.isArray(quotation?.lead?.detailedItems) && quotation.lead.detailedItems.length > 0)
+          ? quotation.lead.detailedItems
+          : [];
     return source.map((item, index) => ({
       ...item,
       id: item.id || index + 1,
-      productName: item.productName || item.name || 'Item',
+      productName: item.productName || item.description || item.product?.name || item.name || 'Item',
       productDetails: item.productDetails || item.specification || item.description || '',
-      code: item.code || item.productCode || item.productId || `PRD-${index + 1}`,
+      code: item.code || item.productCode || item.product?.sku || item.productId || `PRD-${index + 1}`,
       quantity: Number(item.quantity ?? item.qty ?? 0),
       unitPrice: Number(item.unitPrice ?? item.rate ?? item.price ?? 0),
       discount: Number(item.discount ?? item.discountPercent ?? 0),
