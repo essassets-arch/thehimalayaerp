@@ -30,6 +30,17 @@ import IndentHistory from '../components/IndentHistory';
 import POReport from '../components/POReport';
 import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
 import BrandAnalysisRequests from '../components/BrandAnalysisRequests';
+
+const safeText = (val, fallback = '—') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    return val.name || val.label || val.code || val.title || String(val.id || fallback);
+  }
+  return fallback;
+};
+
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
   const req = (reqName || '').toLowerCase();
@@ -402,10 +413,10 @@ export default function StorePortal() {
 
         return {
           id: p.id,
-          code: p.sku || p.publicId,
-          material: p.name,
-          category: p.category || 'Raw Material',
-          unit: p.unit || 'Kg',
+          code: safeText(p.sku || p.publicId, `RM-${p.id}`),
+          material: safeText(p.name, 'Raw Material'),
+          category: safeText(p.category, 'Raw Material'),
+          unit: safeText(p.unit, 'Kg'),
           minStock: min,
           reorderLevel: min,
           rate: Number(p.unitPrice) || 0,
@@ -494,10 +505,10 @@ export default function StorePortal() {
       return {
         id: item.id || item.code || `RM-ID-${idx + 1}`,
         srNo: item.srNo || idx + 1,
-        code: item.code || `HCPPL${String(idx + 1).padStart(3, '0')}`,
-        material: item.material || item.itemName,
-        category: item.category || 'Hardware',
-        unit: item.unit || 'PCS',
+        code: safeText(item.code, `HCPPL${String(idx + 1).padStart(3, '0')}`),
+        material: safeText(item.material || item.itemName, `Raw Material #${idx + 1}`),
+        category: safeText(item.category, 'Raw Material'),
+        unit: safeText(item.unit, 'PCS'),
         stock: item.stock ?? item.balance ?? 0,
         rate: item.rate ?? 0,
         reorderLevel: item.reorderLevel ?? item.minStock ?? 10,
@@ -1478,8 +1489,8 @@ export default function StorePortal() {
                     <tr key={item.id} style={{ cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('button')) return; setSelectedInventoryItem(item); setShowDetailDrawer(true); }}>
                       <td style={{ fontWeight: '800' }}>{item.code}</td>
                       <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
-                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
-                      <td>{item.unit}</td>
+                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{safeText(item.category, 'Raw Material')}</td>
+                      <td>{safeText(item.unit, 'Kg')}</td>
                       <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
                       <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
                       <td><span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span></td>
@@ -1562,11 +1573,11 @@ export default function StorePortal() {
                   </div>
                   <div>
                     <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Category</span>
-                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '3px' }}>{item.category}</div>
+                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '3px' }}>{safeText(item.category, 'Raw Material')}</div>
                   </div>
                   <div>
                     <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Stock Unit</span>
-                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '3px' }}>{item.unit}</div>
+                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '3px' }}>{safeText(item.unit, 'Kg')}</div>
                   </div>
                   <div style={{ gridColumn: 'span 2' }}>
                     <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Description</span>
@@ -2212,8 +2223,8 @@ export default function StorePortal() {
                       <tr key={item.id}>
                         <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{item.code}</td>
                         <td style={{ fontWeight: 600, color: '#0f766e' }}>{item.material}</td>
-                        <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
-                        <td style={{ color: '#5E6B82' }}>{item.unit}</td>
+                        <td style={{ color: '#5E6B82', fontSize: '12px' }}>{safeText(item.category, 'Raw Material')}</td>
+                        <td style={{ color: '#5E6B82' }}>{safeText(item.unit, 'Kg')}</td>
                         <td>
                           <span style={{ fontWeight: 600, color: isOutOfStock ? '#ef4444' : '#f59e0b' }}>
                             {item.stock} {item.unit}
