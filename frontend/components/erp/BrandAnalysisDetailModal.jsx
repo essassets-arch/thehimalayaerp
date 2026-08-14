@@ -306,40 +306,40 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                 <h3>Super Admin Decision & Review</h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                <div className="space-y-4">
+              <div className="brand-request-decision-grid">
+                <div className="brand-request-decision-col">
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Approval Remarks (Optional)</label>
                     <textarea 
                       value={remarks}
                       onChange={e => setRemarks(e.target.value)}
-                      className="w-full bg-[#162136] border border-[#2d3c53] rounded-lg p-3 text-white h-24 focus:outline-none focus:border-blue-500"
+                      className="brand-request-textarea"
                       placeholder="Add any notes for Finance or Store..."
                     />
                   </div>
                   <button 
                     disabled={isSubmitting}
                     onClick={() => handleAction(() => brandAnalysisService.approveRequest(request.id, request.version, remarks), 'Approved successfully')}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="brand-request-btn-approve"
                   >
                     {isSubmitting ? 'Approving...' : '✓ Approve Request'}
                   </button>
                 </div>
                 
-                <div className="space-y-4">
+                <div className="brand-request-decision-col">
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Rejection Reason <span className="text-red-500">*</span></label>
                     <textarea 
                       value={rejectionReason}
                       onChange={e => setRejectionReason(e.target.value)}
-                      className="w-full bg-[#162136] border border-red-900/50 focus:border-red-500 rounded-lg p-3 text-white h-24 focus:outline-none"
+                      className="brand-request-textarea brand-request-textarea-danger"
                       placeholder="Why is this being rejected?"
                     />
                   </div>
                   <button 
                     disabled={isSubmitting || !rejectionReason.trim()}
                     onClick={() => handleAction(() => brandAnalysisService.rejectRequest(request.id, request.version, rejectionReason), 'Rejected successfully')}
-                    className="w-full bg-red-600 hover:bg-red-500 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="brand-request-btn-reject"
                   >
                     {isSubmitting ? 'Rejecting...' : '✕ Reject Request'}
                   </button>

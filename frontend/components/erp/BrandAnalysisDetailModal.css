@@ -359,6 +359,104 @@
   border-color: #718096;
 }
 
+/* Decision Action Grid & Responsive Form Controls */
+.brand-request-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 14px;
+}
+
+.brand-request-decision-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.brand-request-textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 12px;
+  color: #f8fafc;
+  background: #162136;
+  border: 1px solid #2d3c53;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  resize: vertical;
+  outline: none;
+}
+
+.brand-request-textarea:focus {
+  border-color: #3b82f6;
+}
+
+.brand-request-textarea-danger {
+  border-color: rgba(220, 38, 38, 0.5);
+}
+
+.brand-request-textarea-danger:focus {
+  border-color: #ef4444;
+}
+
+.brand-request-btn-approve {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 16px;
+  color: #ffffff;
+  background: #059669;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  transition: background 0.2s ease;
+}
+
+.brand-request-btn-approve:hover:not(:disabled) {
+  background: #10b981;
+}
+
+.brand-request-btn-reject {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 16px;
+  color: #ffffff;
+  background: #dc2626;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  transition: background 0.2s ease;
+}
+
+.brand-request-btn-reject:hover:not(:disabled) {
+  background: #ef4444;
+}
+
+.brand-request-btn-approve:disabled,
+.brand-request-btn-reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .brand-request-view-backdrop {
     align-items: flex-start;
