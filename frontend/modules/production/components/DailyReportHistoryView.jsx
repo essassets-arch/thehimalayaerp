@@ -29,6 +29,9 @@ import {
 export default function DailyReportHistoryView({
   roleMode = 'PRODUCTION', // 'PRODUCTION' | 'DISPATCH' | 'PLANT_HEAD' | 'SUPER_ADMIN'
   isReadOnly = roleMode === 'PLANT_HEAD' || roleMode === 'SUPER_ADMIN',
+  isDispatch = roleMode === 'DISPATCH',
+  title,
+  subtitle,
   onNewReport,
   onEditReport,
   onViewReport
@@ -219,14 +222,18 @@ export default function DailyReportHistoryView({
   };
 
   const getHeaderTitle = () => {
+    if (title) return title;
     if (roleMode === 'PLANT_HEAD') return 'Plant Head — Daily Production Reports (Read Only)';
     if (roleMode === 'SUPER_ADMIN') return 'Super Admin — Daily Production Reports (Read Only)';
+    if (isDispatch || roleMode === 'DISPATCH') return 'Daily Dispatch Report History';
     return 'Daily Production Report History';
   };
 
   const getHeaderSubtitle = () => {
+    if (subtitle) return subtitle;
     if (roleMode === 'PLANT_HEAD') return 'Read-only view of daily production output logs submitted by the production department.';
     if (roleMode === 'SUPER_ADMIN') return 'Read-only oversight & audit view of all daily production reports across all shifts.';
+    if (isDispatch || roleMode === 'DISPATCH') return 'Filter, inspect, print, and audit historical daily dispatch logs.';
     return 'Filter, inspect, print, and audit historical daily production logs.';
   };
 

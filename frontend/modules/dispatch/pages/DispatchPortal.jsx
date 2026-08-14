@@ -3661,6 +3661,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       {currentView === 'profile' && <MyProfileView />}
       {currentView === 'daily-report-entry' && (
         <DailyReportEntryView
+          isDispatch={true}
           reportId={params?.slug?.[1] || searchParams.get('edit')}
           onNavigateToHistory={() => navigate.push(`${basePath}/daily-report/history`)}
           onNavigateToPrint={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
@@ -3669,6 +3670,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       {currentView === 'daily-report-history' && (
         <DailyReportHistoryView
           roleMode="DISPATCH"
+          isDispatch={true}
           onNewReport={() => navigate.push(`${basePath}/daily-report`)}
           onEditReport={(id) => navigate.push(`${basePath}/daily-report?edit=${id}`)}
           onViewReport={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
@@ -3676,6 +3678,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       )}
       {currentView === 'daily-report-view' && (
         <DailyReportPrintView
+          isDispatch={true}
           reportId={params?.slug?.[1] || (pathname ? pathname.split('/daily-report/')[1] : null)}
           onBack={() => navigate.push(`${basePath}/daily-report/history`)}
         />

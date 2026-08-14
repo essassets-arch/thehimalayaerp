@@ -5,7 +5,7 @@ import { backendFetch } from '../../../lib/backendFetch';
 import Swal from 'sweetalert2';
 import { ArrowLeft, Printer, FileDown, CheckCircle, Clock } from 'lucide-react';
 
-export default function DailyReportPrintView({ reportId, onBack }) {
+export default function DailyReportPrintView({ reportId, onBack, title, isDispatch = false }) {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
   const printRef = useRef(null);
@@ -192,7 +192,7 @@ export default function DailyReportPrintView({ reportId, onBack }) {
             HIMALAYA
           </div>
           <div style={{ fontSize: '18px', fontWeight: '800', color: '#334155', marginTop: '4px' }}>
-            Industrial FRP Production Report
+            {title || (isDispatch ? 'Industrial FRP Dispatch Report' : 'Industrial FRP Production Report')}
           </div>
         </div>
 

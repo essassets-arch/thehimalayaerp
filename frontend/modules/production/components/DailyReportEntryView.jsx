@@ -28,7 +28,14 @@ import {
   Info
 } from 'lucide-react';
 
-export default function DailyReportEntryView({ reportId, onNavigateToHistory, onNavigateToPrint }) {
+export default function DailyReportEntryView({
+  reportId,
+  onNavigateToHistory,
+  onNavigateToPrint,
+  title,
+  subtitle,
+  isDispatch = false
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -918,12 +925,12 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h1 style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)', margin: 0 }}>
-              Industrial FRP Production Report
+              {title || (isDispatch ? 'Industrial FRP Dispatch Report' : 'Industrial FRP Production Report')}
             </h1>
             {renderStatusBadge(status)}
           </div>
           <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
-            Digital daily entry sheet for FRP Covers, Frames, Weights & Complete Sets.
+            {subtitle || (isDispatch ? 'Digital daily entry sheet for Dispatch FRP Covers, Frames, Weights & Complete Sets.' : 'Digital daily entry sheet for FRP Covers, Frames, Weights & Complete Sets.')}
           </p>
         </div>
 
