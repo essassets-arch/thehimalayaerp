@@ -24,7 +24,7 @@ export default function HRAnalyticsPage() {
       try {
         const [empRes, expRes, leaveRes] = await Promise.allSettled([
           backendFetch('/api/backend/admin/employees'),
-          backendFetch('/expenses/all'),
+          backendFetch('/api/backend/expenses/all'),
           backendFetch('/api/backend/leaves')
         ]);
 

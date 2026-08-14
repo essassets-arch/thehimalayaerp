@@ -43,6 +43,9 @@ async function performBackendFetch<T = unknown>(
   url: string,
   opts: BackendFetchInit = {},
 ): Promise<T> {
+  const targetUrl = (url.startsWith('/') && !url.startsWith('/api/backend'))
+    ? `/api/backend${url}`
+    : url;
   const method = opts.method || 'GET';
   const headers = getAuthHeaders(opts);
 
@@ -51,7 +54,7 @@ async function performBackendFetch<T = unknown>(
     fetchOpts.body = opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body);
   }
 
-  let res = await fetch(url, fetchOpts);
+  let res = await fetch(targetUrl, fetchOpts);
 
   // Development backend restarts can briefly interrupt the Next.js bridge.
   // Retry only safe read requests and keep write operations single-attempt.

@@ -91,7 +91,7 @@ export default function DashboardView({
     let isCancelled = false;
     async function loadExpenses() {
       try {
-        const res = await backendFetch('/expenses/all');
+        const res = await backendFetch('/api/backend/expenses/all');
         const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
         if (!isCancelled && Array.isArray(list) && list.length > 0) {
           setFetchedExpenses(list);
