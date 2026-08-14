@@ -198,6 +198,7 @@ export const navigationConfig = {
         { id: 'return-delivered', label: 'Delivered', path: '/dispatch/returns?status=delivered' },
       ],
     },
+    { id: 'daily-report', label: 'Daily Dispatch Report', icon: FileText, path: '/dispatch/daily-report', group: 'Logistics' },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch/remaining' },
     { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch/history' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch/profile' }
@@ -249,6 +250,7 @@ export const navigationConfig = {
         { id: 'return-delivered', label: 'Delivered', path: '/dispatch-2/returns?status=delivered' },
       ],
     },
+    { id: 'daily-report', label: 'Daily Dispatch Report', icon: FileText, path: '/dispatch-2/daily-report', group: 'Logistics' },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch-2/remaining' },
     { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch-2/history' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch-2/profile' }

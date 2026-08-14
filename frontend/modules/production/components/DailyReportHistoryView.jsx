@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 export default function DailyReportHistoryView({
-  roleMode = 'PRODUCTION', // 'PRODUCTION' | 'PLANT_HEAD' | 'SUPER_ADMIN'
+  roleMode = 'PRODUCTION', // 'PRODUCTION' | 'DISPATCH' | 'PLANT_HEAD' | 'SUPER_ADMIN'
   isReadOnly = roleMode === 'PLANT_HEAD' || roleMode === 'SUPER_ADMIN',
   onNewReport,
   onEditReport,
@@ -315,10 +315,10 @@ export default function DailyReportHistoryView({
             <Download size={15} /> Export CSV
           </button>
 
-          {!isReadOnly && (onNewReport || roleMode === 'PRODUCTION') && (
+          {!isReadOnly && (onNewReport || roleMode === 'PRODUCTION' || roleMode === 'DISPATCH') && (
             <button
               type="button"
-              onClick={onNewReport || (() => { window.location.href = '/production/daily-report'; })}
+              onClick={onNewReport || (() => { window.location.href = roleMode === 'DISPATCH' ? '/dispatch/daily-report' : '/production/daily-report'; })}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -870,7 +870,13 @@ export default function DailyReportHistoryView({
               <button
                 type="button"
                 onClick={() => {
-                  window.open(`/production/daily-report/${selectedReportModal.id}`, '_blank');
+                  if (onViewReport) {
+                    setSelectedReportModal(null);
+                    onViewReport(selectedReportModal.id);
+                  } else {
+                    const basePath = roleMode === 'DISPATCH' ? '/dispatch' : '/production';
+                    window.open(`${basePath}/daily-report/${selectedReportModal.id}`, '_blank');
+                  }
                 }}
                 style={{
                   display: 'flex',

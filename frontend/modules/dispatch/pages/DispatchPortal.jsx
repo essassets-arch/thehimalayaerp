@@ -21,6 +21,9 @@ import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
 import { backendFetch } from '../../../lib/backendFetch';
 import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
+import DailyReportEntryView from '../../production/components/DailyReportEntryView';
+import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
+import DailyReportPrintView from '../../production/components/DailyReportPrintView';
 
 export default function DispatchPortal({ view: propView, overrideBasePath, mode = 'DISPATCH_1' } = {}) {
   const params = useParams();
@@ -29,7 +32,16 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   
   const isDispatch2Portal = overrideBasePath === '/dispatch-2' || pathname?.startsWith('/dispatch-2') || mode === 'DISPATCH_2';
   const basePath = overrideBasePath ?? (isDispatch2Portal ? '/dispatch-2' : '/dispatch');
-  const view = propView || params?.slug?.[0] || (pathSegments[0] === 'dispatch' || pathSegments[0] === 'dispatch-2' ? pathSegments[1] : undefined);
+  let view = propView || params?.slug?.[0] || (pathSegments[0] === 'dispatch' || pathSegments[0] === 'dispatch-2' ? pathSegments[1] : undefined);
+  if (params?.slug?.[0] === 'daily-report' || pathname?.includes('/daily-report')) {
+    if (params?.slug?.[1] === 'history' || pathname?.endsWith('/daily-report/history')) {
+      view = 'daily-report-history';
+    } else if (params?.slug?.[1] && params?.slug?.[1] !== 'history') {
+      view = 'daily-report-view';
+    } else {
+      view = 'daily-report-entry';
+    }
+  }
   const orderId = params?.slug?.[1];
   const currentView = view || (orderId ? 'partial' : 'dashboard');
   const navigate = useRouter();
@@ -3647,6 +3659,27 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       {currentView === 'partial' && renderPartialDispatch()}
       {currentView === 'remaining' && renderRemainingDispatch()}
       {currentView === 'profile' && <MyProfileView />}
+      {currentView === 'daily-report-entry' && (
+        <DailyReportEntryView
+          reportId={params?.slug?.[1] || searchParams.get('edit')}
+          onNavigateToHistory={() => navigate.push(`${basePath}/daily-report/history`)}
+          onNavigateToPrint={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
+        />
+      )}
+      {currentView === 'daily-report-history' && (
+        <DailyReportHistoryView
+          roleMode="DISPATCH"
+          onNewReport={() => navigate.push(`${basePath}/daily-report`)}
+          onEditReport={(id) => navigate.push(`${basePath}/daily-report?edit=${id}`)}
+          onViewReport={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
+        />
+      )}
+      {currentView === 'daily-report-view' && (
+        <DailyReportPrintView
+          reportId={params?.slug?.[1] || (pathname ? pathname.split('/daily-report/')[1] : null)}
+          onBack={() => navigate.push(`${basePath}/daily-report/history`)}
+        />
+      )}
 
       {/* Delivery Proof modal */}
       {showDeliveryModal && selectedDispatchForDelivery && (
