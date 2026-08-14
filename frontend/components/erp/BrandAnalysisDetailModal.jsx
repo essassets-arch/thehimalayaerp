@@ -301,20 +301,24 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
 
           {/* Super Admin Actions */}
           {(request.status === 'PENDING_SUPER_ADMIN_APPROVAL' || request.status === 'PENDING') && (
-            <section className="brand-request-section">
+            <section className="brand-request-section brand-request-decision-section">
               <div className="brand-request-section-heading">
                 <h3>Super Admin Decision & Review</h3>
               </div>
               
               <div className="brand-request-decision-grid">
-                <div className="brand-request-decision-col">
+                <div className="brand-request-decision-card brand-request-decision-approve">
+                  <div className="brand-request-decision-header">
+                    <span className="brand-request-decision-title approve">Approval Option</span>
+                    <span className="brand-request-decision-badge approve">Proceed to Finance</span>
+                  </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Approval Remarks (Optional)</label>
+                    <label className="brand-request-label">Approval Remarks (Optional)</label>
                     <textarea 
                       value={remarks}
                       onChange={e => setRemarks(e.target.value)}
                       className="brand-request-textarea"
-                      placeholder="Add any notes for Finance or Store..."
+                      placeholder="Add any notes or special instructions for Finance or Store..."
                     />
                   </div>
                   <button 
@@ -322,18 +326,22 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                     onClick={() => handleAction(() => brandAnalysisService.approveRequest(request.id, request.version, remarks), 'Approved successfully')}
                     className="brand-request-btn-approve"
                   >
-                    {isSubmitting ? 'Approving...' : '✓ Approve Request'}
+                    {isSubmitting ? 'Processing Approval...' : '✓ Approve Request'}
                   </button>
                 </div>
                 
-                <div className="brand-request-decision-col">
+                <div className="brand-request-decision-card brand-request-decision-reject">
+                  <div className="brand-request-decision-header">
+                    <span className="brand-request-decision-title reject">Rejection Option</span>
+                    <span className="brand-request-decision-badge reject">Action Required</span>
+                  </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Rejection Reason <span className="text-red-500">*</span></label>
+                    <label className="brand-request-label">Rejection Reason <span className="text-red-400">*</span></label>
                     <textarea 
                       value={rejectionReason}
                       onChange={e => setRejectionReason(e.target.value)}
                       className="brand-request-textarea brand-request-textarea-danger"
-                      placeholder="Why is this being rejected?"
+                      placeholder="Provide mandatory reason why this brand request is being rejected..."
                     />
                   </div>
                   <button 
@@ -341,7 +349,7 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
                     onClick={() => handleAction(() => brandAnalysisService.rejectRequest(request.id, request.version, rejectionReason), 'Rejected successfully')}
                     className="brand-request-btn-reject"
                   >
-                    {isSubmitting ? 'Rejecting...' : '✕ Reject Request'}
+                    {isSubmitting ? 'Processing Rejection...' : '✕ Reject Request'}
                   </button>
                 </div>
               </div>
