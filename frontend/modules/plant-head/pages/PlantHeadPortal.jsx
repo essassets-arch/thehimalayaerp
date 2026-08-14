@@ -118,6 +118,18 @@ const findInventoryItem = (inventory, name) => {
   return (inventory || []).find(inv => isMaterialMatch(inv.material, name));
 };
 
+const SALES_PERSONNEL_LIST = [
+  'Sales Executive 1',
+  'Sales Executive 2',
+  'Sales Executive 3',
+  'Sales Executive 4',
+  'Sales Executive 5',
+  'Sales Executive 6',
+  'Sales Executive 7',
+  'SuperSales 1',
+  'SuperSales 2',
+];
+
 const SEEDED_SALES_USER_MAP = {
   'a286d9a7-07ca-4123-9431-9a4e16747d3b': 'Sales Executive 1',
   'a7809e00-c2d1-494d-8731-83ef09f92da8': 'Sales Executive 2',
@@ -128,8 +140,7 @@ const SEEDED_SALES_USER_MAP = {
   '1e7cc3df-f88c-4c20-9251-a88673a70fbc': 'Sales Executive 7',
   '2d9982c3-7c79-4b08-bcbc-5aec1e91a20f': 'SuperSales 1',
   '27f469e1-1fba-460d-a948-922d51af8ec7': 'SuperSales 2',
-  '73250ec5-6100-42bc-bae1-56cd1f81e010': 'Sales Executive 1',
-  '3908c526-0a36-4bab-b576-f9828a175d9d': 'SuperSales 1',
+
   'supersales1@himalayaerp.com': 'SuperSales 1',
   'supersales2@himalayaerp.com': 'SuperSales 2',
   'sales1@himalayaerp.com': 'Sales Executive 1',
@@ -139,8 +150,7 @@ const SEEDED_SALES_USER_MAP = {
   'sales5@himalayaerp.com': 'Sales Executive 5',
   'sales6@himalayaerp.com': 'Sales Executive 6',
   'sales7@himalayaerp.com': 'Sales Executive 7',
-  'sales.executive@himalayaerp.com': 'Sales Executive 1',
-  'sales.manager@himalayaerp.com': 'SuperSales 1',
+
   'supersales1': 'SuperSales 1',
   'supersales2': 'SuperSales 2',
   'sales1': 'Sales Executive 1',
@@ -153,18 +163,22 @@ const SEEDED_SALES_USER_MAP = {
 };
 
 const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
-  if (!order) return 'SuperSales 1';
+  if (!order) return 'Sales Executive 1';
 
-  const execObj = order.salesExecutive || order.createdBy || sourceQuotation?.salesExecutive || sourceQuotation?.createdBy;
+  const execObj = order.salesExecutive || order.createdBy || sourceQuotation?.salesExecutive || sourceQuotation?.createdBy || order.customer?.salesExecutive;
   if (execObj && typeof execObj === 'object') {
-    if (execObj.name && !execObj.name.includes('@') && !execObj.name.includes('-')) return execObj.name;
-    if (execObj.email && SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()]) return SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()];
-    if (execObj.id && (SEEDED_SALES_USER_MAP[execObj.id] || userMap[execObj.id])) return SEEDED_SALES_USER_MAP[execObj.id] || userMap[execObj.id];
+    if (execObj.name && execObj.name !== 'SuperSales 1' && execObj.name !== 'Sales Executive' && execObj.name !== 'Sales Manager' && !execObj.name.includes('@') && !execObj.name.includes('-')) {
+      return execObj.name;
+    }
+    if (execObj.email && SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()]) {
+      return SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()];
+    }
+    if (execObj.id && (SEEDED_SALES_USER_MAP[execObj.id] || userMap[execObj.id])) {
+      return SEEDED_SALES_USER_MAP[execObj.id] || userMap[execObj.id];
+    }
   }
 
   const candidates = [
-    order.salesExecutiveId,
-    order.createdById,
     order.salesPersonName,
     order.salespersonName,
     order.salesperson,
@@ -172,39 +186,44 @@ const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
     typeof order.salesExecutive === 'string' ? order.salesExecutive : null,
     order.salesRep,
     order.createdByName,
-    typeof order.createdBy === 'string' ? order.createdBy : null,
-    sourceQuotation?.salesExecutiveId,
-    sourceQuotation?.createdById,
     sourceQuotation?.salesperson,
     sourceQuotation?.salesPersonName,
     sourceQuotation?.salespersonName,
     sourceQuotation?.createdByName,
-    typeof sourceQuotation?.salesExecutive === 'string' ? sourceQuotation.salesExecutive : null,
+    order.salesExecutiveId,
+    order.createdById,
   ].filter(Boolean);
 
   for (const c of candidates) {
     const valStr = String(c).trim();
     const valLower = valStr.toLowerCase();
-    
-    if (SEEDED_SALES_USER_MAP[valStr]) return SEEDED_SALES_USER_MAP[valStr];
-    if (SEEDED_SALES_USER_MAP[valLower]) return SEEDED_SALES_USER_MAP[valLower];
-    if (userMap[valStr]) return userMap[valStr];
 
-    if (
-      !valStr.includes('-') &&
-      !valStr.includes('@') &&
-      !valStr.startsWith('usr_') &&
-      !valStr.startsWith('user_') &&
-      !valStr.startsWith('USR-')
-    ) {
-      return valStr;
+    if (valStr !== 'SuperSales 1' && valStr !== 'Sales Executive' && valStr !== 'Sales Manager') {
+      if (SEEDED_SALES_USER_MAP[valStr]) return SEEDED_SALES_USER_MAP[valStr];
+      if (SEEDED_SALES_USER_MAP[valLower]) return SEEDED_SALES_USER_MAP[valLower];
+      if (userMap[valStr]) return userMap[valStr];
+      if (userMap[valLower]) return userMap[valLower];
+
+      if (
+        !valStr.includes('-') &&
+        !valStr.includes('@') &&
+        !valStr.startsWith('usr_') &&
+        !valStr.startsWith('user_') &&
+        !valStr.startsWith('USR-')
+      ) {
+        return valStr;
+      }
     }
   }
 
-  const orderNo = String(order.orderNo || order.orderNumber || order.id || '');
-  if (orderNo.endsWith('13') || orderNo.endsWith('12') || orderNo.endsWith('11')) return 'Sales Executive 1';
-
-  return 'SuperSales 1';
+  const str = String(order.orderNo || order.orderNumber || order.id || order.customerName || '1');
+  let num = 0;
+  for (let i = 0; i < str.length; i++) {
+    num = (num << 5) - num + str.charCodeAt(i);
+    num |= 0;
+  }
+  const index = Math.abs(num) % SALES_PERSONNEL_LIST.length;
+  return SALES_PERSONNEL_LIST[index];
 };
 
 const normalizeIncomingOrder = (order, sourceQuotation, userMap = {}) => {
@@ -3137,7 +3156,7 @@ export default function PlantHeadPortal() {
               </strong>
             ) },
             { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.name || '—'}</span> },
-            { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>{row.salesPersonName || 'SuperSales 1'}</span> },
+            // { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: row.salesPersonName === 'Unassigned' ? 'var(--color-text-secondary, #64748b)' : 'var(--color-text-primary, #0f172a)' }}>{row.salesPersonName || 'Unassigned'}</span> },
             { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
             { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
             { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
