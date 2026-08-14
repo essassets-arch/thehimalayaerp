@@ -195,19 +195,18 @@ export default function CustomersView() {
                 <th style={{ padding: '12px 16px' }}>Total Paid</th>
                 <th style={{ padding: '12px 16px' }}>Outstanding Balance</th>
                 <th style={{ padding: '12px 16px' }}>Risk Level</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Ledger</th>
               </tr>
             </thead>
             <tbody style={{ fontSize: '13.5px' }}>
               {customersLoading ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>
+                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>
                     Loading all customers...
                   </td>
                 </tr>
               ) : filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>
+                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>
                     No customers found.
                   </td>
                 </tr>
@@ -231,27 +230,6 @@ export default function CustomersView() {
                       }}>
                         {cust.paymentRisk}
                       </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleViewLedger(cust)}
-                        style={{
-                          padding: '6px 12px',
-                          background: '#F1F5F9',
-                          border: '1px solid #E2E8F0',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          color: '#475569',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          marginLeft: 'auto'
-                        }}
-                      >
-                        <ClipboardList size={12} /> View Ledger
-                      </button>
                     </td>
                   </tr>
                 ))
