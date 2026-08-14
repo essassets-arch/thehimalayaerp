@@ -1,9 +1,8 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { useCreateMaterialRequest, useMaterialRequests } from '../../hooks/useMaterialRequests';
+import { backendFetch } from '../../lib/backendFetch';
 import { 
   ArrowLeft, 
   Package, 
@@ -15,7 +14,7 @@ import {
   Layers
 } from 'lucide-react';
 
-const RAW_MATERIALS_CATALOG = [
+const FALLBACK_RAW_MATERIALS_CATALOG = [
   { material: 'Cement Grade 53', unit: 'Bags', category: 'Raw Material' },
   { material: 'Fine River Sand', unit: 'Tons', category: 'Raw Material' },
   { material: 'Coarse Aggregate (20mm)', unit: 'Tons', category: 'Raw Material' },
@@ -57,6 +56,33 @@ export default function ProductionMaterialRequestsView() {
   const closeRequest = () => {};
   const deleteRequest = () => {};
 
+  // Dynamic Catalog State (Loaded live from store raw-inventory)
+  const [catalog, setCatalog] = useState(FALLBACK_RAW_MATERIALS_CATALOG);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadRawMaterials() {
+      try {
+        const data = await backendFetch('/api/backend/products?type=RAW_MATERIAL');
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          const liveList = data.map(item => ({
+            material: item.name || item.material || 'Raw Material Item',
+            unit: item.unit || 'Units',
+            category: item.category || 'Raw Material',
+            code: item.sku || item.code || ''
+          }));
+          const existingNames = new Set(liveList.map(i => i.material.toLowerCase()));
+          const extraFallbacks = FALLBACK_RAW_MATERIALS_CATALOG.filter(f => !existingNames.has(f.material.toLowerCase()));
+          setCatalog([...liveList, ...extraFallbacks]);
+        }
+      } catch (err) {
+        console.warn('[ProductionMaterialRequestsView] Failed to load live raw materials:', err);
+      }
+    }
+    loadRawMaterials();
+    return () => { isMounted = false; };
+  }, []);
+
   // Tab state: 'Raise' or 'Past' (Default to 'Raise' as requested)
   const [activeTab, setActiveTab] = useState('Raise');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -73,8 +99,10 @@ export default function ProductionMaterialRequestsView() {
   const [notes, setNotes] = useState('');
 
   // Dropdown list filtering
-  const filteredCatalog = RAW_MATERIALS_CATALOG.filter(item => 
-    item.material.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredCatalog = catalog.filter(item => 
+    item.material.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (item.code && item.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const isAdded = (name) => requestItems.some(item => item.material.toLowerCase() === name.toLowerCase());
@@ -95,8 +123,8 @@ export default function ProductionMaterialRequestsView() {
   };
 
   const handleAddEmptyRow = () => {
-    const remaining = RAW_MATERIALS_CATALOG.filter(p => !isAdded(p.material));
-    const nextProduct = remaining[0] || RAW_MATERIALS_CATALOG[0];
+    const remaining = catalog.filter(p => !isAdded(p.material));
+    const nextProduct = remaining[0] || catalog[0];
     if (nextProduct) {
       setRequestItems(prev => [...prev, {
         material: nextProduct.material,
@@ -115,7 +143,7 @@ export default function ProductionMaterialRequestsView() {
     setRequestItems(prev => prev.map((item, idx) => {
       if (idx !== index) return item;
       if (field === 'material') {
-        const catItem = RAW_MATERIALS_CATALOG.find(c => c.material === value);
+        const catItem = catalog.find(c => c.material === value);
         return {
           ...item,
           material: value,
@@ -392,8 +420,8 @@ export default function ProductionMaterialRequestsView() {
                             color: '#1e293b'
                           }}
                         >
-                          {RAW_MATERIALS_CATALOG.map(cat => (
-                            <option key={cat.material} value={cat.material}>{cat.material} ({cat.category})</option>
+                          {catalog.map((cat, catIdx) => (
+                            <option key={`${cat.material}-${catIdx}`} value={cat.material}>{cat.material} ({cat.category || 'Raw Material'})</option>
                           ))}
                         </select>
                       </td>

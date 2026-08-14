@@ -1,13 +1,12 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { useCreateMaterialRequest } from '../../hooks/useMaterialRequests';
+import { backendFetch } from '../../lib/backendFetch';
 import { Plus, Trash2, ArrowLeft, Send, Save, PackagePlus, AlertCircle } from 'lucide-react';
 import { useFormDraft } from '../../shared/hooks/useFormDraft';
 
-const RAW_MATERIALS_CATALOG = [
+const FALLBACK_RAW_MATERIALS_CATALOG = [
   { material: 'Cement Grade 53', defaultUnit: 'Bags' },
   { material: 'Fine River Sand', defaultUnit: 'Tons' },
   { material: 'Coarse Aggregate (20mm)', defaultUnit: 'Tons' },
@@ -25,6 +24,30 @@ const RAW_MATERIALS_CATALOG = [
 export default function ProductionMaterialCreateView() {
   const router = useRouter();
   const createRequest = useCreateMaterialRequest();
+
+  const [catalog, setCatalog] = useState(FALLBACK_RAW_MATERIALS_CATALOG);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadRawMaterials() {
+      try {
+        const data = await backendFetch('/api/backend/products?type=RAW_MATERIAL');
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          const liveList = data.map(item => ({
+            material: item.name || item.material || 'Raw Material Item',
+            defaultUnit: item.unit || 'Units'
+          }));
+          const existingNames = new Set(liveList.map(i => i.material.toLowerCase()));
+          const extraFallbacks = FALLBACK_RAW_MATERIALS_CATALOG.filter(f => !existingNames.has(f.material.toLowerCase()));
+          setCatalog([...liveList, ...extraFallbacks]);
+        }
+      } catch (err) {
+        console.warn('[ProductionMaterialCreateView] Failed to load live raw materials:', err);
+      }
+    }
+    loadRawMaterials();
+    return () => { isMounted = false; };
+  }, []);
 
   const emptyMaterialForm = {
     warehouse: 'Main Raw Material Store (Haridwar)',
@@ -61,7 +84,7 @@ export default function ProductionMaterialCreateView() {
 
   const handleAddItem = () => {
     const existing = items.map(i => i.material);
-    const available = RAW_MATERIALS_CATALOG.find(c => !existing.includes(c.material)) || RAW_MATERIALS_CATALOG[0];
+    const available = catalog.find(c => !existing.includes(c.material)) || catalog[0];
     setItems(prev => [...prev, { material: available.material, requestedQty: 10, unit: available.defaultUnit }]);
   };
 
@@ -77,7 +100,7 @@ export default function ProductionMaterialCreateView() {
     setItems(prev => prev.map((item, idx) => {
       if (idx !== index) return item;
       if (field === 'material') {
-        const catItem = RAW_MATERIALS_CATALOG.find(c => c.material === value);
+        const catItem = catalog.find(c => c.material === value);
         return { ...item, material: value, unit: catItem ? catItem.defaultUnit : item.unit };
       }
       return { ...item, [field]: value };
@@ -248,8 +271,8 @@ export default function ProductionMaterialCreateView() {
                       onChange={(e) => handleItemChange(idx, 'material', e.target.value)}
                       style={{ width: '100%', height: '40px', padding: '0 10px', borderRadius: '8px', border: '1px solid #D6E2F0', fontSize: '14px', fontWeight: '600' }}
                     >
-                      {RAW_MATERIALS_CATALOG.map(c => (
-                        <option key={c.material} value={c.material}>{c.material}</option>
+                      {catalog.map((c, cIdx) => (
+                        <option key={`${c.material}-${cIdx}`} value={c.material}>{c.material}</option>
                       ))}
                     </select>
                   </td>
