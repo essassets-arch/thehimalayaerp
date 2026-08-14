@@ -69,8 +69,7 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
     fontSize: '14px',
     fontWeight: 600,
     outline: 'none',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit'
+    boxSizing: 'border-box'
   };
 
   const labelStyle = {
@@ -84,60 +83,17 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
   };
 
   return (
-    <div 
-      className="brand-analysis-backdrop"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1100,
-        display: 'flex',
-        alignItems: 'center',
-        justify-content: 'center',
-        padding: '24px',
-        overflowY: 'auto',
-        background: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(5px)'
-      }}
-    >
+    <div className="brand-analysis-backdrop">
       <div
         className="brand-analysis-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="brand-analysis-title"
-        style={{
-          width: 'min(720px, 100%)',
-          maxHeight: 'calc(100vh - 48px)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          color: '#0f172a',
-          background: '#ffffff',
-          border: '1px solid #e2e8f0',
-          borderRadius: '18px',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.25)',
-          fontFamily: 'inherit'
-        }}
       >
-        <div 
-          className="brand-analysis-header"
-          style={{
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'flex-start',
-            justify-content: 'space-between',
-            gap: '16px',
-            padding: '20px 26px',
-            background: '#f8fafc',
-            borderBottom: '1px solid #e2e8f0'
-          }}
-        >
+        <div className="brand-analysis-header">
           <div>
-            <h2 id="brand-analysis-title" style={{ margin: 0, color: '#0f172a', fontSize: '1.3rem', fontWeight: 800 }}>
-              Create Brand Analysis Request
-            </h2>
-            <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.88rem' }}>
-              Submit a new request for finance review
-            </p>
+            <h2 id="brand-analysis-title">Create Brand Analysis Request</h2>
+            <p>Submit a new request for finance review</p>
           </div>
 
           <button
@@ -145,33 +101,20 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
             className="brand-analysis-close"
             aria-label="Close"
             onClick={onClose}
-            style={{
-              width: '36px',
-              height: '36px',
-              display: 'grid',
-              placeItems: 'center',
-              padding: 0,
-              color: '#64748b',
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
           >
             ✕
           </button>
         </div>
 
-        <form className="brand-analysis-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <div className="brand-analysis-body" style={{ flex: 1, overflowY: 'auto', padding: '26px', background: '#ffffff' }}>
+        <form className="brand-analysis-form" onSubmit={handleSubmit}>
+          <div className="brand-analysis-body">
             {error && (
               <div style={{ marginBottom: 20, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#991b1b', fontSize: '0.9rem', fontWeight: 600 }}>
                 {error}
               </div>
             )}
-            <div className="brand-analysis-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '18px' }}>
-              <div className="brand-analysis-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="brand-analysis-grid">
+              <div className="brand-analysis-field">
                 <label htmlFor="productName" style={labelStyle}>
                   Product Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
@@ -187,7 +130,7 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 />
               </div>
 
-              <div className="brand-analysis-field" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="brand-analysis-field">
                 <label htmlFor="brandName" style={labelStyle}>
                   Brand Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
@@ -203,12 +146,12 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 />
               </div>
 
-              <div className="brand-analysis-field" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="brand-analysis-field">
                 <label htmlFor="quantity" style={labelStyle}>
                   Quantity <span style={{ color: '#ef4444' }}>*</span>
                 </label>
 
-                <div className="brand-analysis-quantity" style={{ display: 'flex', gap: '10px' }}>
+                <div className="brand-analysis-quantity">
                   <input
                     id="quantity"
                     name="quantity"
@@ -238,7 +181,7 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 </div>
               </div>
 
-              <div className="brand-analysis-field" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="brand-analysis-field">
                 <label htmlFor="requiredByDate" style={labelStyle}>Required By Date</label>
                 <input
                   id="requiredByDate"
@@ -250,7 +193,7 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 />
               </div>
 
-              <div className="brand-analysis-field brand-analysis-full" style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column' }}>
+              <div className="brand-analysis-field brand-analysis-full">
                 <label htmlFor="productImage" style={labelStyle}>
                   Product Image / Reference <span style={{ color: '#ef4444' }}>*</span>
                 </label>
@@ -258,21 +201,9 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 <label
                   htmlFor="productImage"
                   className="brand-analysis-file-upload"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '14px',
-                    padding: '14px 18px',
-                    background: '#f8fafc',
-                    border: '2px dashed #cbd5e1',
-                    borderRadius: '12px',
-                    cursor: 'pointer'
-                  }}
                 >
-                  <span className="brand-analysis-file-button" style={{ padding: '8px 16px', color: '#ffffff', background: '#0284c7', borderRadius: '8px', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    Choose File
-                  </span>
-                  <span className="brand-analysis-file-name" style={{ color: '#334155', fontSize: '13px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span className="brand-analysis-file-button">Choose File</span>
+                  <span className="brand-analysis-file-name">
                     {imageFile?.name || "No file chosen"}
                   </span>
                 </label>
@@ -285,7 +216,6 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                   accept="image/*,.pdf"
                   onChange={handleFileChange}
                   required
-                  style={{ display: 'none' }}
                 />
 
                 <small style={{ color: '#64748b', fontSize: '0.82rem', marginTop: '4px', fontWeight: 500 }}>
@@ -293,7 +223,7 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 </small>
               </div>
 
-              <div className="brand-analysis-field brand-analysis-full" style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column' }}>
+              <div className="brand-analysis-field brand-analysis-full">
                 <label htmlFor="reason" style={labelStyle}>
                   Reason for Analysis <span style={{ color: '#ef4444' }}>*</span>
                 </label>
@@ -309,7 +239,7 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 />
               </div>
 
-              <div className="brand-analysis-field brand-analysis-full" style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column' }}>
+              <div className="brand-analysis-field brand-analysis-full">
                 <label htmlFor="orderDetails" style={labelStyle}>Order Details (Optional)</label>
                 <input
                   id="orderDetails"
@@ -322,7 +252,7 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
                 />
               </div>
 
-              <div className="brand-analysis-field brand-analysis-full" style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column' }}>
+              <div className="brand-analysis-field brand-analysis-full">
                 <label htmlFor="remarks" style={labelStyle}>Additional Remarks (Optional)</label>
                 <textarea
                   id="remarks"
@@ -337,32 +267,11 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
             </div>
           </div>
 
-          <div 
-            className="brand-analysis-footer"
-            style={{
-              flexShrink: 0,
-              display: 'flex',
-              justify: 'flex-end',
-              gap: '12px',
-              padding: '16px 26px',
-              background: '#f8fafc',
-              borderTop: '1px solid #e2e8f0'
-            }}
-          >
+          <div className="brand-analysis-footer">
             <button
               type="button"
               className="brand-analysis-btn brand-analysis-btn-secondary"
               onClick={onClose}
-              style={{
-                padding: '10px 22px',
-                color: '#475569',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                fontWeight: 700,
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}
             >
               Cancel
             </button>
@@ -371,18 +280,6 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
               type="submit"
               className="brand-analysis-btn brand-analysis-btn-primary"
               disabled={isSubmitting}
-              style={{
-                padding: '10px 24px',
-                color: '#ffffff',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '14px',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)',
-                opacity: isSubmitting ? 0.6 : 1
-              }}
             >
               {isSubmitting ? "Submitting..." : "Submit Request"}
             </button>
