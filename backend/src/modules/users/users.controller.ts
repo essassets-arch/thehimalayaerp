@@ -10,7 +10,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @RequirePermissions('user.read', 'finance.read', 'sales.orders.read', 'admin.read', 'hr.read')
+  @RequirePermissions('user.read', 'finance.read', 'sales.orders.read', 'admin.read', 'hr.read', 'store.read', 'super-admin.read', 'plant.read')
   async findAll(@Req() req: any) {
     // Standardize to use req.user for audit logging if needed, or row-level ownership checks
     return this.usersService.findAll();

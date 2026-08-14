@@ -143,6 +143,7 @@ export class PermissionsGuard implements CanActivate {
       'qc.inspection.read': ['production.qc.read', 'qc.inspection.read'],
       'production.productionworkflow.read': ['production.productionworkflow.read', 'production.finishedgoods.read', 'production.qc.read', 'qc.inspection.read', 'production.plan.read', 'production.workorder.read'],
       'production.finishedgoods.read': ['production.productionworkflow.read', 'production.finishedgoods.read', 'production.qc.read', 'qc.inspection.read', 'production.plan.read', 'production.workorder.read'],
+      'user.read': ['user.read', 'store.read', 'finance.read', 'sales.orders.read', 'admin.read', 'hr.read', 'super-admin.read', 'plant.read'],
       'finance.brand-analysis.read': ['finance.brand-analysis.read', 'brand-analysis.read', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'store.read', 'inventory.stock.read', 'inventory.inventory.read'],
       'store.brand-analysis.read': ['finance.brand-analysis.read', 'brand-analysis.read', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'store.read', 'inventory.stock.read', 'inventory.inventory.read'],
       'super-admin.brand-analysis.read': ['finance.brand-analysis.read', 'brand-analysis.read', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'store.read', 'inventory.stock.read', 'inventory.inventory.read', 'admin.read'],
