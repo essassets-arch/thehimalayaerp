@@ -18,6 +18,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     '/store/material-requests': '/material-requests',
     '/v1/plant-head/qc-failures': '/plant-head/qc-failures',
     '/brand-analysis-requests': '/brand-analysis/my-requests',
+    '/purchase-orders': '/procurement/purchase-orders',
   };
   
   let finalMethod = method;
