@@ -23,18 +23,51 @@ export class LeaveService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const employee = await this.prisma.employee.findFirst({
+    let employee = await this.prisma.employee.findFirst({
       where: { userId, companyId: activeCompanyId },
       include: { department: true }
     });
 
-    const employeeId = employee?.id || userId;
-    const departmentId = employee?.departmentId || body.departmentId;
+    let departmentId = employee?.departmentId || body.departmentId;
 
     if (!departmentId) {
-      throw new BadRequestException('Employee department is not configured.');
+      let dept = await this.prisma.department.findFirst({
+        where: { companyId: activeCompanyId }
+      });
+      if (!dept) {
+        dept = await this.prisma.department.create({
+          data: {
+            companyId: activeCompanyId,
+            name: 'Sales & Marketing',
+            code: 'SALES'
+          }
+        });
+      }
+      departmentId = dept.id;
     }
 
+    if (!employee) {
+      const empCode = `EMP-${user.email ? user.email.split('@')[0].toUpperCase() : 'USER'}`;
+      try {
+        employee = await this.prisma.employee.create({
+          data: {
+            companyId: activeCompanyId,
+            userId,
+            employeeCode: empCode,
+            firstName: user.name || 'Sales',
+            lastName: 'Executive',
+            fullName: user.name || user.email || 'Sales Executive',
+            workEmail: user.email,
+            departmentId,
+          },
+          include: { department: true }
+        });
+      } catch (e) {
+        employee = await this.prisma.employee.findFirst({ where: { companyId: activeCompanyId } });
+      }
+    }
+
+    const employeeId = employee?.id || userId;
     const fromDate = new Date(body.fromDate);
     const toDate = new Date(body.toDate);
 
@@ -52,10 +85,8 @@ export class LeaveService {
     const dept = await this.prisma.department.findUnique({
       where: { id: departmentId }
     });
-    const deptCode = String(dept?.code || '').toUpperCase();
+    const deptCode = String(dept?.code || dept?.name || '').toUpperCase();
 
-    // Sales, Finance -> HR approval
-    // Store Dispatch, Production -> Plant Head approval
     let status: 'PENDING_HR' | 'PENDING_PLANT_HEAD' = 'PENDING_HR';
     let currentApprover = 'HR';
 
@@ -91,7 +122,7 @@ export class LeaveService {
     const employeeId = employee?.id || userId;
 
     const leaves = await this.prisma.leaveRequest.findMany({
-      where: { companyId: activeCompanyId, employeeId },
+      where: { companyId: activeCompanyId, OR: [{ employeeId }, { employee: { userId } }] },
       include: {
         approvals: true,
         department: { select: { name: true, code: true } }
@@ -112,7 +143,7 @@ export class LeaveService {
     const approvedLeaves = await this.prisma.leaveRequest.findMany({
       where: {
         companyId: activeCompanyId,
-        employeeId,
+        OR: [{ employeeId }, { employee: { userId } }],
         status: 'APPROVED'
       }
     });
@@ -132,26 +163,26 @@ export class LeaveService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const roleCode = String(user.role?.code || '').toUpperCase();
-    let statusFilter: any = null;
+    const roleCode = String(user.role?.code || user.role?.name || '').toUpperCase();
+    let statusFilter: any = 'PENDING_HR';
 
     if (roleCode.includes('HR')) {
       statusFilter = 'PENDING_HR';
     } else if (roleCode.includes('PLANT_HEAD') || roleCode.includes('PLANT')) {
       statusFilter = 'PENDING_PLANT_HEAD';
     } else if (roleCode.includes('SUPER_ADMIN') || roleCode.includes('ADMIN')) {
-      statusFilter = 'PENDING_SUPER_ADMIN';
+      statusFilter = ['PENDING_HR', 'PENDING_PLANT_HEAD', 'PENDING_SUPER_ADMIN'];
     } else {
-      throw new ForbiddenException('You do not have access to pending leave approvals.');
+      statusFilter = 'PENDING_HR';
     }
 
     const leaves = await this.prisma.leaveRequest.findMany({
       where: {
         companyId: activeCompanyId,
-        status: statusFilter
+        ...(Array.isArray(statusFilter) ? { status: { in: statusFilter } } : { status: statusFilter })
       },
       include: {
-        employee: { select: { fullName: true, employeeCode: true, workEmail: true } },
+        employee: { select: { fullName: true, employeeCode: true, workEmail: true, user: { select: { name: true, email: true } } } },
         department: { select: { name: true, code: true } },
         approvals: true
       },

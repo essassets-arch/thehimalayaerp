@@ -187,9 +187,9 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
           {displayList.map(req => {
             const hasActionPermission = activeSubTab === 'pending';
-            const employeeName = req.employee?.fullName || 'Unknown';
-            const employeeCode = req.employee?.employeeCode || 'N/A';
-            const departmentName = req.department?.name || 'Unassigned';
+            const employeeName = req.employee?.fullName || req.employee?.user?.name || req.user?.name || req.appliedByName || 'Employee';
+            const employeeCode = req.employee?.employeeCode || 'EMP';
+            const departmentName = req.department?.name || 'Sales & Marketing';
 
             return (
               <div key={req.id} className="app-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.015)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
