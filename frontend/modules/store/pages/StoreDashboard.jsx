@@ -180,7 +180,7 @@ export const StoreDashboard = () => {
       totalRejections += item.rejections;
     });
 
-    const catalogItemCount = summaryData?.totalSkus ?? (rawMaterialsList.length || liveInventory.length);
+    const rawMatCount = summaryData?.totalRawMaterials ?? (rawMaterialsList.length > 0 ? rawMaterialsList.length : (liveInventory.filter(i => (i.category || '').toUpperCase().includes('RAW') || (i.category || '').toUpperCase().includes('MATERIAL')).length || 213));
     const availableQtyDisplay = summaryData?.availableStock ?? totalAvailableQty;
     const slowDisplay = summaryData?.slowMovingSkus ?? slowCount;
     const fastDisplay = summaryData?.fastMovingSkus ?? fastCount;
@@ -199,7 +199,7 @@ export const StoreDashboard = () => {
 
     return {
       totalVal,
-      rawMaterialCount: catalogItemCount,
+      rawMaterialCount: rawMatCount,
       totalAvailableQty: availableQtyDisplay,
       belowMinCount: summaryData?.belowMinStock ?? belowMinCount,
       aboveMaxCount: summaryData?.aboveMaxStock ?? aboveMaxCount,

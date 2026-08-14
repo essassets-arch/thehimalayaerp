@@ -214,7 +214,12 @@ export default function MyProfileView() {
   const handleLeaveSubmit = async (e) => {
     e.preventDefault();
     if (!leaveForm.fromDate || !leaveForm.toDate || !leaveForm.reason) {
-      alert('Please specify from date, to date, and reason.');
+      Swal.fire({
+        title: 'Validation Error',
+        text: 'Please specify from date, to date, and reason.',
+        icon: 'warning',
+        confirmButtonColor: '#0284c7'
+      });
       return;
     }
     try {
@@ -229,7 +234,15 @@ export default function MyProfileView() {
       if (!res || !res.success) {
         throw new Error(res?.message || 'Failed to submit leave.');
       }
-      alert('Leave request submitted successfully.');
+      
+      await Swal.fire({
+        title: 'Submitted!',
+        text: 'Leave request submitted successfully.',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false
+      });
+
       setLeaveForm({
         leaveType: 'CASUAL',
         fromDate: '',
@@ -244,7 +257,12 @@ export default function MyProfileView() {
       await fetchLeaveBalance();
     } catch (err) {
       console.error('Failed to submit leave:', err);
-      alert(`Failed to submit leave: ${err.message || 'Server error'}`);
+      Swal.fire({
+        title: 'Submission Error',
+        text: err.message || 'Failed to submit leave request.',
+        icon: 'error',
+        confirmButtonColor: '#0284c7'
+      });
     } finally {
       setSubmittingLeave(false);
     }

@@ -299,7 +299,7 @@ export class InventoryService {
       const available = Math.max(0, stockMap.get(rm.id) ?? 0);
       const min = Number(rm.minimumStock) || 0;
       const max = min > 0 ? min * 8 : 0;
-      const price = 0;
+      const price = Number((rm as any).unitPrice) || 0;
       const aging = calcAging(rm.id, rm.createdAt);
       const whName = latestTxMap.get(rm.id)?.warehouseName || 'Main Store';
 
@@ -308,30 +308,6 @@ export class InventoryService {
         code: rm.sku || rm.publicId || 'N/A',
         name: rm.name,
         category: rm.category || 'Raw Material',
-        warehouse: whName,
-        available,
-        reserved: 0,
-        min,
-        max,
-        price,
-        aging,
-        rejections: 0,
-      });
-    }
-
-    for (const p of products) {
-      const available = Math.max(0, stockMap.get(p.id) ?? 0);
-      const min = Number(p.minimumStock) || 0;
-      const max = Number(p.reorderQuantity) || (min > 0 ? min * 8 : 0);
-      const price = Number(p.unitPrice) || 0;
-      const aging = calcAging(p.id, p.createdAt);
-      const whName = latestTxMap.get(p.id)?.warehouseName || 'Main Store';
-
-      catalogItems.push({
-        id: p.id,
-        code: p.sku || p.publicId || 'N/A',
-        name: p.name,
-        category: p.category || 'Product',
         warehouse: whName,
         available,
         reserved: 0,
@@ -385,6 +361,7 @@ export class InventoryService {
       summary: {
         inventoryValue: Number(inventoryValue.toFixed(2)),
         totalSkus: catalogItems.length,
+        totalRawMaterials: rawMaterials.length,
         availableStock: totalAvailableStock,
         belowMinStock,
         aboveMaxStock,
