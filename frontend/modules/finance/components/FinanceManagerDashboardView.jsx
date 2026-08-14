@@ -344,10 +344,26 @@ export default function FinanceManagerDashboardView({ state: propState, payments
 
     return baseList.map(rep => {
       const repOrders = salesOrders.filter(o => {
-        const oRep = String(o.salesperson || o.salesPerson || o.salesExecutiveId || o.createdById || o.salesExecutiveEmail || '').toLowerCase();
+        const fields = [
+          o.salesperson,
+          o.salesPerson,
+          o.salesExecutiveId,
+          o.createdById,
+          o.salesExecutiveEmail,
+          o.salespersonEmail,
+          o.salesExecutive?.email,
+          o.salesExecutive?.name,
+          o.createdBy?.email,
+          o.createdBy?.name,
+          o.quotation?.salesExecutive?.email,
+          o.quotation?.salesExecutive?.name
+        ].filter(Boolean).map(v => String(v).toLowerCase());
+
         const repEm = rep.email.toLowerCase();
         const repNm = rep.name.toLowerCase();
-        return oRep.includes(repEm) || oRep.includes(repNm) || oRep === repEm;
+        const repUser = repEm.split('@')[0];
+
+        return fields.some(f => f.includes(repEm) || f.includes(repNm) || f.includes(repUser) || repEm.includes(f));
       });
 
       const totalVal = repOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || o.grandTotal || 0), 0);
