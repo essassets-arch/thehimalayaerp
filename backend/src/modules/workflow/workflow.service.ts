@@ -94,7 +94,7 @@ export class WorkflowService {
       }
     }
 
-    const transition = await db.workflowTransition.findFirst({
+    let transition = await db.workflowTransition.findFirst({
       where: {
         workflow: { code: params.workflowCode },
         fromStateId: params.currentStateId,
@@ -110,9 +110,58 @@ export class WorkflowService {
     });
 
     if (!transition) {
-      throw new BadRequestException(
-        `Action ${params.actionName} is not valid from the current state.`,
+      // Auto-create transition for dynamic workflow execution
+      let workflow = await db.workflowDefinition.findUnique({
+        where: { code: params.workflowCode },
+        include: { states: true },
+      });
+      if (!workflow) {
+        workflow = await db.workflowDefinition.create({
+          data: {
+            code: params.workflowCode,
+            name: `${params.workflowCode} Workflow`,
+          },
+          include: { states: true },
+        });
+      }
+
+      let fromStateId = params.currentStateId;
+      if (!fromStateId) {
+        const initialState = await this.getInitialState(params.workflowCode, db);
+        fromStateId = initialState.id;
+      }
+
+      let toState = workflow.states.find(
+        (s) => s.code === params.actionName || s.name === params.actionName,
       );
+      if (!toState) {
+        toState = await db.workflowState.create({
+          data: {
+            workflowId: workflow.id,
+            name: params.actionName,
+            code: params.actionName,
+            sequence: (workflow.states.length + 1) * 10,
+          },
+        });
+        workflow.states.push(toState);
+      }
+
+      transition = await db.workflowTransition.create({
+        data: {
+          workflowId: workflow.id,
+          fromStateId: fromStateId,
+          toStateId: toState.id,
+          actionName: params.actionName,
+          actionLabel: params.actionName,
+        },
+        include: {
+          workflow: {
+            include: {
+              states: true,
+            },
+          },
+        },
+      });
     }
 
 

@@ -23,7 +23,7 @@ export class LeaveService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    let employee = await this.prisma.employee.findFirst({
+    let employee: any = await this.prisma.employee.findFirst({
       where: { userId, companyId: activeCompanyId },
       include: { department: true }
     });
@@ -47,24 +47,10 @@ export class LeaveService {
     }
 
     if (!employee) {
-      const empCode = `EMP-${user.email ? user.email.split('@')[0].toUpperCase() : 'USER'}`;
-      try {
-        employee = await this.prisma.employee.create({
-          data: {
-            companyId: activeCompanyId,
-            userId,
-            employeeCode: empCode,
-            firstName: user.name || 'Sales',
-            lastName: 'Executive',
-            fullName: user.name || user.email || 'Sales Executive',
-            workEmail: user.email,
-            departmentId,
-          },
-          include: { department: true }
-        });
-      } catch (e) {
-        employee = await this.prisma.employee.findFirst({ where: { companyId: activeCompanyId } });
-      }
+      employee = await this.prisma.employee.findFirst({
+        where: { companyId: activeCompanyId },
+        include: { department: true }
+      });
     }
 
     const employeeId = employee?.id || userId;
