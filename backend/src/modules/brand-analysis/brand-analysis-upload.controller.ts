@@ -10,7 +10,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { join, extname } from 'path';
 import * as fs from 'fs';
 
@@ -29,56 +29,55 @@ export class BrandAnalysisUploadController {
   )
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          try {
-            const uploadPath = join(process.cwd(), 'uploads', 'brand-analysis');
-            if (!fs.existsSync(uploadPath)) {
-              fs.mkdirSync(uploadPath, { recursive: true });
-            }
-            cb(null, uploadPath);
-          } catch (e) {
-            cb(e as Error, join(process.cwd(), 'uploads', 'brand-analysis'));
-          }
-        },
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, `${uniqueSuffix}${extname(file.originalname || '')}`);
-        },
-      }),
+      storage: memoryStorage(),
       limits: {
         fileSize: 10 * 1024 * 1024, // 10MB limit
-      },
-      fileFilter: (req, file, cb) => {
-        if (!file) {
-          return cb(null, false);
-        }
-        const isImage = Boolean(
-          file.mimetype?.match(/^image\//i) ||
-          file.originalname?.match(/\.(jpeg|jpg|png|webp|gif|svg)$/i)
-        );
-        const isPdf = Boolean(
-          file.mimetype === 'application/pdf' ||
-          file.originalname?.toLowerCase().endsWith('.pdf')
-        );
-        if (!isImage && !isPdf) {
-          return cb(null, false);
-        }
-        cb(null, true);
       },
     }),
   )
   uploadFile(@UploadedFile() file: any) {
-    if (!file) {
+    if (!file || !file.buffer) {
       throw new BadRequestException(
         'File is missing or invalid. Please upload a valid image (JPEG, PNG, WEBP) or PDF file under 10MB.',
       );
     }
 
-    return {
-      url: `/uploads/brand-analysis/${file.filename}`,
-      originalName: file.originalname,
-    };
+    const isImage = Boolean(
+      file.mimetype?.match(/^image\//i) ||
+      file.originalname?.match(/\.(jpeg|jpg|png|webp|gif|svg)$/i)
+    );
+    const isPdf = Boolean(
+      file.mimetype === 'application/pdf' ||
+      file.originalname?.toLowerCase().endsWith('.pdf')
+    );
+
+    if (!isImage && !isPdf) {
+      throw new BadRequestException(
+        'Unsupported file type. Only JPEG, PNG, WEBP, GIF, SVG, and PDF files are allowed.',
+      );
+    }
+
+    try {
+      const uploadDir = join(process.cwd(), 'uploads', 'brand-analysis');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const fileExt = extname(file.originalname || '') || '.png';
+      const filename = `${uniqueSuffix}${fileExt}`;
+      const filePath = join(uploadDir, filename);
+
+      fs.writeFileSync(filePath, file.buffer);
+
+      return {
+        url: `/uploads/brand-analysis/${filename}`,
+        originalName: file.originalname,
+      };
+    } catch (err: any) {
+      throw new BadRequestException(
+        `Failed to save uploaded file: ${err.message || 'Storage write error'}`,
+      );
+    }
   }
 }
