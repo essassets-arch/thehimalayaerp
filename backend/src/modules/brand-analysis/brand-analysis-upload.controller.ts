@@ -12,16 +12,31 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import * as fs from 'fs';
 
 @Controller('uploads/brand-analysis')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class BrandAnalysisUploadController {
   @Post()
-  @RequirePermissions('store.brand-analysis.create')
+  @RequirePermissions(
+    'store.brand-analysis.create',
+    'store.create',
+    'store.read',
+    'store.manage',
+    'inventory.stock.read',
+    'inventory.inventory.read',
+    'procurement.create',
+  )
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads/brand-analysis',
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads/brand-analysis';
+          if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
         filename: (req, file, cb) => {
           const uniqueSuffix =
             Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -29,13 +44,14 @@ export class BrandAnalysisUploadController {
         },
       }),
       limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB limit
+        fileSize: 10 * 1024 * 1024, // 10MB limit
       },
       fileFilter: (req, file, cb) => {
-        // Validate MIME type
-        if (!file.mimetype.match(/^image\/(jpeg|png|webp|gif)$/)) {
+        const isImage = file.mimetype.match(/^image\/(jpeg|png|webp|gif|jpg|svg\+xml)$/i);
+        const isPdf = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+        if (!isImage && !isPdf) {
           return cb(
-            new BadRequestException('Only image files are allowed!'),
+            new BadRequestException('Only image (JPEG, PNG, WEBP) and PDF files are allowed!'),
             false,
           );
         }

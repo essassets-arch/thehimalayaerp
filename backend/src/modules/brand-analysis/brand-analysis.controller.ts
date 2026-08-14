@@ -25,27 +25,41 @@ export class BrandAnalysisController {
   constructor(private readonly brandAnalysisService: BrandAnalysisService) {}
 
   @Post()
-  @RequirePermissions('store.brand-analysis.create')
+  @RequirePermissions(
+    'store.brand-analysis.create',
+    'store.create',
+    'store.read',
+    'store.manage',
+    'inventory.stock.read',
+    'inventory.inventory.read',
+    'procurement.create',
+  )
   create(@Body() createDto: CreateBrandAnalysisDto, @Request() req) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.create(createDto, userId);
   }
 
   @Get('my-requests')
-  @RequirePermissions('store.brand-analysis.read')
+  @RequirePermissions(
+    'store.brand-analysis.read',
+    'store.read',
+    'inventory.stock.read',
+    'inventory.inventory.read',
+    'procurement.read',
+  )
   findAllForStore(@Request() req) {
     const userId = req.user.sub || req.user.id;
     return this.brandAnalysisService.findAllForStore(userId);
   }
 
   @Get('super-admin/requests')
-  @RequirePermissions('super-admin.brand-analysis.read')
+  @RequirePermissions('super-admin.brand-analysis.read', 'admin.read')
   findAllForSuperAdmin() {
     return this.brandAnalysisService.findAllForSuperAdmin();
   }
 
   @Get('finance/requests')
-  @RequirePermissions('finance.brand-analysis.read')
+  @RequirePermissions('finance.brand-analysis.read', 'finance.read')
   findAllForFinance() {
     return this.brandAnalysisService.findAllForFinance();
   }
@@ -55,6 +69,12 @@ export class BrandAnalysisController {
     'store.brand-analysis.read',
     'super-admin.brand-analysis.read',
     'finance.brand-analysis.read',
+    'store.read',
+    'inventory.stock.read',
+    'inventory.inventory.read',
+    'procurement.read',
+    'finance.read',
+    'admin.read',
   )
   findOne(@Param('id') id: string) {
     return this.brandAnalysisService.findOne(id);
