@@ -143,6 +143,14 @@
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
+.brand-analysis-field input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.8;
+  filter: none;
+  width: 18px;
+  height: 18px;
+}
+
 .brand-analysis-quantity {
   display: flex;
   gap: 10px;

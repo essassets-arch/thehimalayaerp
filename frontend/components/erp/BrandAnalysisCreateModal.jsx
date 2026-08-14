@@ -183,14 +183,24 @@ export default function BrandAnalysisCreateModal({ onClose, onRefresh }) {
 
               <div className="brand-analysis-field">
                 <label htmlFor="requiredByDate" style={labelStyle}>Required By Date</label>
-                <input
-                  id="requiredByDate"
-                  name="requiredByDate"
-                  value={formData.requiredByDate}
-                  onChange={handleChange}
-                  type="date"
-                  style={inputStyle}
-                />
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <input
+                    id="requiredByDate"
+                    name="requiredByDate"
+                    value={formData.requiredByDate}
+                    onChange={handleChange}
+                    type="date"
+                    style={{ ...inputStyle, paddingRight: '40px' }}
+                  />
+                  <svg 
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', width: '18px', height: '18px', color: '#475569' }} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
               </div>
 
               <div className="brand-analysis-field brand-analysis-full">
