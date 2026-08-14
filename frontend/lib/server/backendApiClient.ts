@@ -73,11 +73,17 @@ export async function forwardBackendRequest(
     }
 
     const isMultipart = body instanceof FormData;
+    const incomingHeaders = options.headers || {};
     const headers: Record<string, string> = {
       ...(!isMultipart && { 'Content-Type': 'application/json' }),
-      ...(options.headers || {}),
+      ...incomingHeaders,
       'X-Request-ID': requestId,
     };
+
+    if (isMultipart) {
+      delete headers['content-type'];
+      delete headers['Content-Type'];
+    }
 
     if (idempotencyKey) {
       headers['idempotency-key'] = idempotencyKey;
