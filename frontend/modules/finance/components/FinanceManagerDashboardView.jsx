@@ -25,7 +25,8 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     expenses: [],
     purchaseOrders: [],
     brandRequests: [],
-    quotations: []
+    quotations: [],
+    users: []
   });
   const [loadingLive, setLoadingLive] = useState(true);
 
@@ -43,13 +44,14 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     async function fetchAllFinanceData() {
       try {
         setLoadingLive(true);
-        const [ordersRes, paymentsRes, expensesRes, brandRes, poRes, quotRes] = await Promise.allSettled([
+        const [ordersRes, paymentsRes, expensesRes, brandRes, poRes, quotRes, usersRes] = await Promise.allSettled([
           backendFetch('/api/backend/sales/orders'),
           backendFetch('/api/backend/finance/payments'),
           backendFetch('/api/backend/expenses'),
           backendFetch('/api/backend/brand-analysis-requests'),
           backendFetch('/api/backend/purchase-orders'),
-          backendFetch('/api/backend/sales/quotations')
+          backendFetch('/api/backend/sales/quotations'),
+          backendFetch('/api/backend/users')
         ]);
 
         if (!active) return;
@@ -60,7 +62,8 @@ export default function FinanceManagerDashboardView({ state: propState, payments
           expenses: expensesRes.status === 'fulfilled' ? (Array.isArray(expensesRes.value) ? expensesRes.value : (expensesRes.value?.items || [])) : [],
           brandRequests: brandRes.status === 'fulfilled' ? (Array.isArray(brandRes.value) ? brandRes.value : (brandRes.value?.items || [])) : [],
           purchaseOrders: poRes.status === 'fulfilled' ? (Array.isArray(poRes.value) ? poRes.value : (poRes.value?.items || [])) : [],
-          quotations: quotRes.status === 'fulfilled' ? (Array.isArray(quotRes.value) ? quotRes.value : (quotRes.value?.items || [])) : []
+          quotations: quotRes.status === 'fulfilled' ? (Array.isArray(quotRes.value) ? quotRes.value : (quotRes.value?.items || [])) : [],
+          users: usersRes.status === 'fulfilled' ? (Array.isArray(usersRes.value) ? usersRes.value : (usersRes.value?.items || [])) : []
         });
       } catch (err) {
         console.error('[FinanceManagerDashboard] Live fetch error:', err);
@@ -302,21 +305,70 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     return sorted;
   }, [salesOrders]);
 
+  // --- Dynamic Sales Team Representatives Roster ---
+  const allSalesReps = useMemo(() => {
+    const fetchedUsers = liveData.users || [];
+    const salesUsers = fetchedUsers.filter(u => {
+      const r = String(u.role?.code || u.role?.name || u.role || '').toUpperCase();
+      const em = String(u.email || '').toLowerCase();
+      return r.includes('SALES') || em.includes('sales') || em.includes('supersales');
+    });
+
+    const defaultReps = [
+      { name: 'Super Sales 1', email: 'supersales1@himalayaerp.com', role: 'SuperSales' },
+      { name: 'Super Sales 2', email: 'supersales2@himalayaerp.com', role: 'SuperSales' },
+      { name: 'Sales Executive 1', email: 'sales1@himalayaerp.com', role: 'Sales Executive' },
+      { name: 'Sales Executive 2', email: 'sales2@himalayaerp.com', role: 'Sales Executive' },
+      { name: 'Sales Executive 3', email: 'sales3@himalayaerp.com', role: 'Sales Executive' },
+      { name: 'Sales Executive 4', email: 'sales4@himalayaerp.com', role: 'Sales Executive' },
+      { name: 'Sales Executive 5', email: 'sales5@himalayaerp.com', role: 'Sales Executive' },
+      { name: 'Sales Executive 6', email: 'sales6@himalayaerp.com', role: 'Sales Executive' },
+      { name: 'Sales Executive 7', email: 'sales7@himalayaerp.com', role: 'Sales Executive' },
+    ];
+
+    const baseList = salesUsers.length > 0 ? salesUsers.map(u => ({
+      name: u.name || u.email.split('@')[0],
+      email: u.email,
+      role: u.role?.name || (u.email.includes('supersales') ? 'SuperSales' : 'Sales Executive')
+    })) : defaultReps;
+
+    return baseList.map(rep => {
+      const repOrders = salesOrders.filter(o => {
+        const oRep = String(o.salesperson || o.salesPerson || o.salesExecutiveId || o.createdById || '').toLowerCase();
+        const repEm = rep.email.toLowerCase();
+        const repNm = rep.name.toLowerCase();
+        return oRep.includes(repEm) || oRep.includes(repNm) || oRep === repEm;
+      });
+
+      const totalVal = repOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || o.grandTotal || 0), 0);
+      const salesValStr = totalVal >= 10000000 
+        ? `₹${(totalVal / 10000000).toFixed(2)} Cr` 
+        : (totalVal > 0 ? `₹${(totalVal / 100000).toFixed(2)} L` : '₹0.00');
+
+      return {
+        ...rep,
+        orderCount: repOrders.length,
+        salesValStr,
+        rawTotal: totalVal
+      };
+    });
+  }, [liveData.users, salesOrders]);
+
   // --- Dynamic Sales Team Performance ---
   const salesPerformance = useMemo(() => {
-    const activeReps = new Set(salesOrders.map(o => o.salesperson || o.salesPerson || o.salesExecutiveId).filter(Boolean)).size;
+    const activeRepsCount = allSalesReps.length;
     const totalOrdersCount = salesOrders.length;
     const totalVal = salesOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || 0), 0);
     const salesValStr = totalVal >= 10000000 ? `₹${(totalVal / 10000000).toFixed(2)} Cr` : `₹${(totalVal / 100000).toFixed(1)} L`;
     const convRate = quotations.length > 0 ? Math.round((salesOrders.length / quotations.length) * 100) : 0;
 
     return {
-      activeReps,
+      activeReps: activeRepsCount,
       totalOrdersCount,
       salesValStr,
       convRate: `${convRate}%`
     };
-  }, [salesOrders, quotations]);
+  }, [allSalesReps, salesOrders, quotations]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: "var(--font-main), 'Plus Jakarta Sans', Inter, sans-serif", color: '#0F172A' }}>
@@ -566,9 +618,56 @@ export default function FinanceManagerDashboardView({ state: propState, payments
               <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700' }}>Sales Value</span>
               <div style={{ fontSize: '20px', fontWeight: '800', color: '#16A34A', marginTop: '4px' }}>{salesPerformance.salesValStr}</div>
             </div>
-            <div style={innerMetricBoxStyle}>
-              <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700' }}>Conversion Rate</span>
-              <div style={{ fontSize: '20px', fontWeight: '800', color: '#D97706', marginTop: '4px' }}>{salesPerformance.convRate}</div>
+          </div>
+
+          {/* 👥 Sales Team Representatives Roster */}
+          <div style={{ marginTop: '12px', borderTop: '1px solid #E2E8F0', paddingTop: '12px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Sales Team Roster ({allSalesReps.length} Representatives)</span>
+              <span style={{ fontSize: '11px', color: '#2563EB', fontWeight: '600' }}>Active Sales Force</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '190px', overflowY: 'auto', paddingRight: '4px' }}>
+              {allSalesReps.map((rep, idx) => (
+                <div key={idx} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#F8FAFC',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #E2E8F0'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: rep.role === 'SuperSales' ? '#EFF6FF' : '#F0FDF4',
+                      color: rep.role === 'SuperSales' ? '#2563EB' : '#16A34A',
+                      border: `1px solid ${rep.role === 'SuperSales' ? '#BFDBFE' : '#BBF7D0'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: '800'
+                    }}>
+                      {rep.name.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block' }}>{rep.name}</span>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '500' }}>{rep.email}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '800', color: rep.rawTotal > 0 ? '#16A34A' : '#475569', display: 'block' }}>
+                      {rep.salesValStr}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '600' }}>
+                      {rep.orderCount} Orders • <span style={{ color: '#16A34A', fontWeight: '700' }}>Active</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
