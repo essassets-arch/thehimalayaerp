@@ -412,8 +412,14 @@ export default function PlantHeadPortal() {
         setDirectFinishedGoods(list);
       }).catch(console.error);
     } else if (currentView === 'qc-failures') {
-      backendFetch('/api/backend/qc/inspections').then(res => {
-        setDirectQCFailures(res || []);
+      Promise.allSettled([
+        backendFetch('/api/backend/plant-head/qc-failures'),
+        backendFetch('/api/backend/qc/inspections')
+      ]).then(([phRes, inspRes]) => {
+        const phData = phRes.status === 'fulfilled' ? (phRes.value?.data || phRes.value || []) : [];
+        const inspData = inspRes.status === 'fulfilled' ? (inspRes.value?.data || inspRes.value || []) : [];
+        const combined = Array.isArray(phData) && phData.length ? phData : (Array.isArray(inspData) ? inspData : []);
+        setDirectQCFailures(combined);
       }).catch(console.error);
     }
   }, [currentView]);
