@@ -187,47 +187,63 @@ export default function BrandAnalysisDetailModal({ request, onClose, onRefresh }
 
           <section className="brand-request-section">
             <div className="brand-request-section-heading">
-              <h3>Reference Image</h3>
+              <h3>Reference Image / Document</h3>
             </div>
 
             <div className="brand-request-reference">
-              {request.imageUrl ? (
-                <a
-                  href={request.imageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="brand-request-image-link"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={request.imageUrl}
-                    alt="Brand analysis product reference"
-                    className="brand-request-image"
-                  />
-                </a>
-              ) : (
+              {request.imageUrl ? (() => {
+                const cleanUrl = String(request.imageUrl).replace(/\\/g, '/');
+                const finalUrl = cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://') || cleanUrl.startsWith('data:')
+                  ? cleanUrl
+                  : (cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`);
+                const isPdf = finalUrl.toLowerCase().endsWith('.pdf');
+
+                return (
+                  <>
+                    {isPdf ? (
+                      <div style={{ padding: '24px', background: '#1E293B', borderRadius: '12px', color: '#38BDF8', textAlign: 'center', width: '100%', border: '1px solid #334155' }}>
+                        <div style={{ fontSize: '15px', fontWeight: '800', marginBottom: '8px' }}>📄 PDF Reference Document</div>
+                        <a href={finalUrl} target="_blank" rel="noreferrer" className="brand-request-open-image" style={{ display: 'inline-block' }}>
+                          Open PDF Document
+                        </a>
+                      </div>
+                    ) : (
+                      <a
+                        href={finalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="brand-request-image-link"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={finalUrl}
+                          alt="Brand analysis product reference"
+                          className="brand-request-image"
+                        />
+                      </a>
+                    )}
+                    <div className="brand-request-image-info">
+                      <div>
+                        <span className="brand-request-detail-label">
+                          Uploaded Reference
+                        </span>
+                        <p>Product or brand reference file</p>
+                      </div>
+
+                      <a
+                        href={finalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="brand-request-open-image"
+                      >
+                        {isPdf ? 'View PDF File' : 'View Full Image'}
+                      </a>
+                    </div>
+                  </>
+                );
+              })() : (
                 <div className="brand-request-image-empty">
                   <span>No reference image available</span>
-                </div>
-              )}
-
-              {request.imageUrl && (
-                <div className="brand-request-image-info">
-                  <div>
-                    <span className="brand-request-detail-label">
-                      Uploaded Reference
-                    </span>
-                    <p>Product or brand reference image</p>
-                  </div>
-
-                  <a
-                    href={request.imageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="brand-request-open-image"
-                  >
-                    View Full Image
-                  </a>
                 </div>
               )}
             </div>

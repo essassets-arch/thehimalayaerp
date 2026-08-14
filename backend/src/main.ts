@@ -57,6 +57,8 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+  app.use('/api/backend/uploads', express.static(join(process.cwd(), 'uploads')));
+  app.use('/api/v1/uploads', express.static(join(process.cwd(), 'uploads')));
 
   const corsOriginsConfig = configService.get<string>('corsOrigin') || configService.get<string>('frontendUrl') || '';
   const parsedOrigins = corsOriginsConfig.split(',').map((s) => s.trim()).filter(Boolean);
