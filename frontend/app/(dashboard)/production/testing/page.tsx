@@ -371,7 +371,7 @@ export default function ProductionTestingPage() {
                   <th>Status</th>
                   <th>Tested By</th>
                   <th>Remarks</th>
-                  <th>Actions</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody className={styles.tbody}>
@@ -396,28 +396,28 @@ export default function ProductionTestingPage() {
                     <td style={{ fontSize: '13px', color: '#64748b' }}>
                       {record.remarks || '-'}
                     </td>
-                    <td>
-                      <div className={styles.actionBtns}>
+                    <td style={{ textAlign: 'right' }}>
+                      <div className={styles.actions}>
                         <button
-                          className={styles.iconBtn}
+                          className={styles.actionBtn}
                           title="Print Slip"
                           onClick={() => handlePrintSlip(record)}
                         >
-                          <Printer size={13} />
+                          <Printer size={14} />
                         </button>
                         <button
-                          className={styles.iconBtn}
+                          className={`${styles.actionBtn} ${styles.edit}`}
                           title="Edit Record"
                           onClick={() => handleEdit(record)}
                         >
-                          <Edit2 size={13} />
+                          <Edit2 size={14} />
                         </button>
                         <button
-                          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                          className={`${styles.actionBtn} ${styles.del}`}
                           title="Delete Record"
                           onClick={() => handleDelete(record.id)}
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>

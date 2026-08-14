@@ -1234,14 +1234,84 @@ export default function StorePortal() {
     const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.rate) || 0)), 0);
 
     const handleExport = () => {
-      showToast('Exporting Raw Inventory Registry to Excel...');
-      Swal.fire({
-        icon: 'success',
-        title: 'Export Complete',
-        text: 'Raw Inventory registry data exported as Excel spreadsheet.',
-        timer: 1500,
-        showConfirmButton: false
-      });
+      try {
+        const exportDataset = (filteredItems && filteredItems.length > 0) ? filteredItems : mappedInventory;
+        if (!exportDataset || exportDataset.length === 0) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'No Data to Export',
+            text: 'There are no raw material items available to export.',
+            confirmButtonColor: '#2F4375'
+          });
+          return;
+        }
+
+        const headers = [
+          'Material Code / SKU',
+          'Material Name',
+          'Category',
+          'Unit of Measure',
+          'Current Stock Quantity',
+          'Minimum Stock Level',
+          'Reorder Level',
+          'Unit Rate (INR)',
+          'Total Stock Value (INR)',
+          'Stock Status',
+          'FSN Velocity',
+          'Storage Location'
+        ];
+
+        const rows = exportDataset.map(item => {
+          const stock = Number(item.stock ?? 0);
+          const minStock = Number(item.reorderLevel ?? item.minStock ?? 0);
+          const rate = Number(item.rate ?? 0);
+          const value = stock * rate;
+          
+          let statusText = 'IN STOCK';
+          if (stock <= 0) statusText = 'OUT OF STOCK';
+          else if (stock <= minStock) statusText = 'LOW STOCK';
+
+          return [
+            `"${item.code || ''}"`,
+            `"${(item.material || '').replace(/"/g, '""')}"`,
+            `"${(item.category || 'Raw Material').replace(/"/g, '""')}"`,
+            `"${(item.unit || 'Units').replace(/"/g, '""')}"`,
+            String(stock),
+            String(minStock),
+            String(minStock),
+            rate.toFixed(2),
+            value.toFixed(2),
+            `"${statusText}"`,
+            `"${item.fsn || 'Fast Moving'}"`,
+            `"${(item.location || item.storageLocation || 'Main Depot').replace(/"/g, '""')}"`
+          ];
+        });
+
+        const filename = `Raw_Material_Inventory_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Export Successful!',
+          text: `Downloaded ${exportDataset.length} raw inventory records to ${filename}`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      } catch (err) {
+        console.error('Raw inventory export error:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Export Failed',
+          text: 'An error occurred while generating the inventory export file.'
+        });
+      }
     };
 
     const handleAddStockSubmit = async (e) => {

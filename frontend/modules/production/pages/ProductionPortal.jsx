@@ -18,7 +18,7 @@ import { selectProductionIncomingOrders, selectProductionWorkOrders } from '../.
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
-import { Play, CheckCircle2, PlusCircle, PackagePlus, X, CheckCircle, Clock, AlertCircle, Trash2, Layers, Grid, Box, Boxes, Wrench, Settings, Hammer, Activity, CircleDot, Search, Plus, ArrowLeft, Cpu, Pause, User, Truck, PackageCheck, RefreshCw, ShieldAlert, Printer, Edit, Eye, Package, ClipboardList, ClipboardCheck } from 'lucide-react';
+import { Play, CheckCircle2, PlusCircle, PackagePlus, X, CheckCircle, Clock, AlertCircle, Trash2, Layers, Grid, Box, Boxes, Wrench, Settings, Hammer, Activity, CircleDot, Search, Plus, ArrowLeft, Cpu, Pause, User, Truck, PackageCheck, RefreshCw, ShieldAlert, Printer, Edit, Eye, Package, ClipboardList, ClipboardCheck, Download } from 'lucide-react';
 // BOM_MASTER removed (using dynamic database lookup)
 import ProductionMaterialCreateView from '../../../components/material-workflow/ProductionMaterialCreateView';
 import ProductionStoreReleasesView from '../../../components/material-workflow/ProductionStoreReleasesView';
@@ -32,6 +32,7 @@ import FinishedGoodsView from '../components/FinishedGoodsView';
 import DailyReportEntryView from '../components/DailyReportEntryView';
 import DailyReportHistoryView from '../components/DailyReportHistoryView';
 import DailyReportPrintView from '../components/DailyReportPrintView';
+import ProductionReportsView from '../components/ProductionReportsView';
 import ProductionOperationsDashboard from '../../../components/ProductionOperationsDashboard';
 import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, PieChart, Pie, LineChart, Line, Legend } from 'recharts';
 
@@ -3455,13 +3456,75 @@ export default function ProductionPortal() {
       { title: 'Material Requests', value: kpis.materialRequests.total, onClick: () => navigate.push('/production/material-requests'), color: '#f59e0b' }
     ];
 
+    const handleExportProductionReportCSV = () => {
+      if (!recentWorkOrders || recentWorkOrders.length === 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'No Data to Export',
+          text: 'There are no work orders to export in the production report.',
+          confirmButtonColor: '#0284c7'
+        });
+        return;
+      }
+
+      const headers = [
+        'Work Order No',
+        'Product Name',
+        'Status',
+        'QC Result',
+        'Target Quantity',
+        'Quantity Produced',
+        'Created Date'
+      ];
+
+      const csvRows = recentWorkOrders.map(wo => [
+        `"${wo.workOrderNumber || wo.id || ''}"`,
+        `"${(wo.salesOrderItem?.product?.name || wo.productName || 'N/A').replace(/"/g, '""')}"`,
+        `"${wo.productionStatus || wo.status || ''}"`,
+        `"${wo.qcResult || 'Pending'}"`,
+        wo.targetQuantity || wo.quantity || 0,
+        wo.quantityProduced || wo.producedQty || 0,
+        `"${new Date(wo.createdAt).toLocaleDateString('en-GB')}"`
+      ].join(','));
+
+      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `Production_Comprehensive_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="module-content">
-        <div className="module-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', marginBottom: '24px' }}>
+        <div className="module-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h2 className="module-title" style={{ fontSize: '24px', color: 'var(--color-text-primary)', margin: 0 }}>Comprehensive Production Dashboard</h2>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px', marginTop: '6px', margin: '6px 0 0 0' }}>Real-time aggregated view of manufacturing, QC, and dispatch.</p>
           </div>
+          <button
+            type="button"
+            onClick={handleExportProductionReportCSV}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 18px',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Download size={16} /> Export CSV
+          </button>
         </div>
 
         {/* Top Row: KPIs */}
@@ -3954,7 +4017,7 @@ export default function ProductionPortal() {
       {view === 'store-releases' && <ProductionStoreReleasesView />}
       {view === 'production-work' && renderProductionWork()}
       {view === 'completed' && renderCompletedWorkOrders()}
-      {view === 'reports' && renderReports()}
+      {view === 'reports' && <ProductionReportsView />}
 
       {view === 'rework' && renderRework()}
       {view === 'testing' && renderTesting()}

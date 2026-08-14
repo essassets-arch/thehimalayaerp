@@ -22,7 +22,8 @@ import {
   ChevronRight,
   X,
   Lock,
-  FileText
+  FileText,
+  Download
 } from 'lucide-react';
 
 export default function DailyReportHistoryView({
@@ -98,6 +99,58 @@ export default function DailyReportHistoryView({
     } finally {
       setLoadingModalDetail(false);
     }
+  };
+
+  const handleExportCSV = () => {
+    if (!reports || reports.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No Data to Export',
+        text: 'There are no daily production reports to export.',
+        confirmButtonColor: '#0284c7'
+      });
+      return;
+    }
+
+    const headers = [
+      'Report No',
+      'Date',
+      'Shift',
+      'Supervisor',
+      'Status',
+      'Covers Produced',
+      'Frames Produced',
+      'Total Sets',
+      'Total Weight (KG)',
+      'Total Weight (MT)',
+      'Remarks'
+    ];
+
+    const csvRows = reports.map(r => {
+      const w = Number(r.totalWeight || 0);
+      return [
+        `"${r.reportNo || r.id || ''}"`,
+        `"${r.reportDate ? new Date(r.reportDate).toLocaleDateString('en-GB') : ''}"`,
+        `"${r.shift || ''}"`,
+        `"${r.shiftSupervisorName || r.supervisorName || ''}"`,
+        `"${r.status || 'DRAFT'}"`,
+        r.totalCovers || 0,
+        r.totalFrames || 0,
+        r.totalSets || 0,
+        w.toFixed(2),
+        (w / 1000).toFixed(3),
+        `"${(r.remarks || '').replace(/"/g, '""')}"`
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Daily_Production_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Aggregate stats across current page/view
@@ -239,6 +292,27 @@ export default function DailyReportHistoryView({
             }}
           >
             <RefreshCw size={15} /> Refresh
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              border: '1px solid #10b981',
+              background: 'rgba(16, 185, 129, 0.08)',
+              color: '#059669',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Download size={15} /> Export CSV
           </button>
 
           {!isReadOnly && (onNewReport || roleMode === 'PRODUCTION') && (
