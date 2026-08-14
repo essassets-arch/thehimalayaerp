@@ -13,11 +13,21 @@ import {
   Tooltip, CartesianGrid, Legend, Cell, PieChart, Pie 
 } from 'recharts';
 import { useERPStore } from '@/store/erpStore';
+import { backendFetch } from '../../../lib/backendFetch';
 
 export default function FinanceManagerDashboardView({ state: propState, payments: propPayments = [], expenses: propExpenses = [], purchaseOrders: propPOs = [] }) {
   const router = RouterHook();
   const [isMounted, setIsMounted] = useState(false);
   const [localConfirmations, setLocalConfirmations] = useState([]);
+  const [liveData, setLiveData] = useState({
+    salesOrders: [],
+    customerPayments: [],
+    expenses: [],
+    purchaseOrders: [],
+    brandRequests: [],
+    quotations: []
+  });
+  const [loadingLive, setLoadingLive] = useState(true);
 
   const storeState = useERPStore((s) => s.state);
   const state = storeState || propState || {};
@@ -28,6 +38,39 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
       if (raw) setLocalConfirmations(JSON.parse(raw));
     } catch {}
+
+    let active = true;
+    async function fetchAllFinanceData() {
+      try {
+        setLoadingLive(true);
+        const [ordersRes, paymentsRes, expensesRes, brandRes, poRes, quotRes] = await Promise.allSettled([
+          backendFetch('/api/backend/sales/orders'),
+          backendFetch('/api/backend/finance/payments'),
+          backendFetch('/api/backend/expenses'),
+          backendFetch('/api/backend/brand-analysis-requests'),
+          backendFetch('/api/backend/purchase-orders'),
+          backendFetch('/api/backend/sales/quotations')
+        ]);
+
+        if (!active) return;
+
+        setLiveData({
+          salesOrders: ordersRes.status === 'fulfilled' ? (Array.isArray(ordersRes.value) ? ordersRes.value : (ordersRes.value?.items || [])) : [],
+          customerPayments: paymentsRes.status === 'fulfilled' ? (Array.isArray(paymentsRes.value) ? paymentsRes.value : (paymentsRes.value?.items || [])) : [],
+          expenses: expensesRes.status === 'fulfilled' ? (Array.isArray(expensesRes.value) ? expensesRes.value : (expensesRes.value?.items || [])) : [],
+          brandRequests: brandRes.status === 'fulfilled' ? (Array.isArray(brandRes.value) ? brandRes.value : (brandRes.value?.items || [])) : [],
+          purchaseOrders: poRes.status === 'fulfilled' ? (Array.isArray(poRes.value) ? poRes.value : (poRes.value?.items || [])) : [],
+          quotations: quotRes.status === 'fulfilled' ? (Array.isArray(quotRes.value) ? quotRes.value : (quotRes.value?.items || [])) : []
+        });
+      } catch (err) {
+        console.error('[FinanceManagerDashboard] Live fetch error:', err);
+      } finally {
+        if (active) setLoadingLive(false);
+      }
+    }
+
+    fetchAllFinanceData();
+    return () => { active = false; };
   }, []);
 
   // Router fallback helper
@@ -39,31 +82,31 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     }
   }
 
-  // --- Store Data Extraction ---
-  const salesOrders = useMemo(() => state.sales?.orders || [], [state.sales?.orders]);
-  const customerPayments = useMemo(() => state.finance?.customerPayments || propPayments || [], [state.finance?.customerPayments, propPayments]);
-  const quotations = useMemo(() => state.sales?.quotations || [], [state.sales?.quotations]);
-  const poRequests = useMemo(() => state.finance?.purchaseOrders || propPOs || [], [state.finance?.purchaseOrders, propPOs]);
-  const brandRequests = useMemo(() => state.store?.brandAnalysisRequests || state.finance?.brandRequests || [], [state.store?.brandAnalysisRequests, state.finance?.brandRequests]);
-  const expensesList = useMemo(() => state.finance?.expenses || propExpenses || [], [state.finance?.expenses, propExpenses]);
+  // --- Merged Store & Live Data Extraction ---
+  const salesOrders = useMemo(() => liveData.salesOrders.length > 0 ? liveData.salesOrders : (state.sales?.orders || []), [liveData.salesOrders, state.sales?.orders]);
+  const customerPayments = useMemo(() => liveData.customerPayments.length > 0 ? liveData.customerPayments : (state.finance?.customerPayments || propPayments || []), [liveData.customerPayments, state.finance?.customerPayments, propPayments]);
+  const quotations = useMemo(() => liveData.quotations.length > 0 ? liveData.quotations : (state.sales?.quotations || []), [liveData.quotations, state.sales?.quotations]);
+  const poRequests = useMemo(() => liveData.purchaseOrders.length > 0 ? liveData.purchaseOrders : (state.finance?.purchaseOrders || propPOs || []), [liveData.purchaseOrders, state.finance?.purchaseOrders, propPOs]);
+  const brandRequests = useMemo(() => liveData.brandRequests.length > 0 ? liveData.brandRequests : (state.store?.brandAnalysisRequests || state.finance?.brandRequests || []), [liveData.brandRequests, state.store?.brandAnalysisRequests, state.finance?.brandRequests]);
+  const expensesList = useMemo(() => liveData.expenses.length > 0 ? liveData.expenses : (state.finance?.expenses || propExpenses || []), [liveData.expenses, state.finance?.expenses, propExpenses]);
 
   // --- Dynamic Financial Computations ---
   const dynamicMetrics = useMemo(() => {
     // Verified Payments Sum
     const verifiedPayments = customerPayments.filter(p => 
-      ['PAID', 'VERIFIED', 'COMPLETED', 'FINANCE_VERIFIED'].includes(String(p.status || p.verificationStatus || '').toUpperCase())
+      ['PAID', 'VERIFIED', 'COMPLETED', 'FINANCE_VERIFIED', 'APPROVED'].includes(String(p.status || p.verificationStatus || '').toUpperCase())
     );
     const verifiedCollectionsSum = verifiedPayments.reduce((sum, p) => sum + Number(p.amount || p.paidAmount || p.totalAmount || 0), 0) +
       localConfirmations.filter(c => c.status === 'FINANCE_VERIFIED').reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
-    const totalCollectionsRaw = verifiedCollectionsSum > 0 ? verifiedCollectionsSum : 20900000;
+    const totalCollectionsRaw = verifiedCollectionsSum;
     const totalCollectionsStr = totalCollectionsRaw >= 10000000 
       ? `₹${(totalCollectionsRaw / 10000000).toFixed(2)} Cr`
       : `₹${(totalCollectionsRaw / 100000).toFixed(1)} L`;
 
     // Sales Revenue Sum
     const salesRevenueSum = salesOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || o.grandTotal || 0), 0);
-    const totalRevenueRaw = salesRevenueSum > 0 ? salesRevenueSum : 28400000;
+    const totalRevenueRaw = salesRevenueSum;
     const totalRevenueStr = totalRevenueRaw >= 10000000 
       ? `₹${(totalRevenueRaw / 10000000).toFixed(2)} Cr`
       : `₹${(totalRevenueRaw / 100000).toFixed(1)} L`;
@@ -76,7 +119,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       return sum + bal;
     }, 0);
 
-    const outstandingReceivablesRaw = outstandingSum > 0 ? outstandingSum : 7520000;
+    const outstandingReceivablesRaw = outstandingSum;
     const outstandingReceivablesStr = outstandingReceivablesRaw >= 10000000
       ? `₹${(outstandingReceivablesRaw / 10000000).toFixed(2)} Cr`
       : `₹${(outstandingReceivablesRaw / 100000).toFixed(1)} L`;
@@ -86,7 +129,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       const paid = Number(o.verified_paid_amount || o.verifiedPaidAmount || 0);
       const bal = o.balance_amount !== undefined ? Number(o.balance_amount) : Math.max(0, total - paid);
       return bal > 0;
-    }).length || 18;
+    }).length;
 
     // Overdue Amount
     const todayStr = new Date().toISOString().split('T')[0];
@@ -97,18 +140,20 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       return sum + Math.max(0, total - paid);
     }, 0);
 
-    const overdueAmountRaw = overdueSum > 0 ? overdueSum : 1860000;
+    const overdueAmountRaw = overdueSum;
     const overdueAmountStr = overdueAmountRaw >= 10000000
       ? `₹${(overdueAmountRaw / 10000000).toFixed(2)} Cr`
       : `₹${(overdueAmountRaw / 100000).toFixed(1)} L`;
 
-    const overdueInvoicesCount = overdueOrders.length || 5;
+    const overdueInvoicesCount = overdueOrders.length;
 
     // Collection Efficiency & Net Profit
-    const effRatio = totalCollectionsRaw > 0 ? ((totalCollectionsRaw / (totalCollectionsRaw + outstandingReceivablesRaw)) * 100).toFixed(1) : '73.5';
+    const totalDenominator = totalCollectionsRaw + outstandingReceivablesRaw;
+    const effRatio = totalDenominator > 0 ? ((totalCollectionsRaw / totalDenominator) * 100).toFixed(1) : '0.0';
     const collectionEfficiencyStr = `${effRatio}%`;
 
-    const netProfitRaw = Math.round(totalRevenueRaw * 0.24);
+    const totalExpensesRaw = expensesList.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const netProfitRaw = totalRevenueRaw > 0 ? Math.max(0, totalRevenueRaw - totalExpensesRaw) : 0;
     const netProfitStr = netProfitRaw >= 10000000 
       ? `₹${(netProfitRaw / 10000000).toFixed(2)} Cr`
       : `₹${(netProfitRaw / 100000).toFixed(1)} L`;
@@ -116,10 +161,23 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     // Pending Verification Approvals Count
     const unverifiedLocalCount = localConfirmations.filter(c => c.status === 'FINANCE_VERIFICATION_PENDING').length;
     const unverifiedStoreCount = customerPayments.filter(p => ['UNDER_VERIFICATION', 'SUBMITTED', 'PENDING'].includes(String(p.verificationStatus || p.status || '').toUpperCase())).length;
-    const pendingVerificationsCount = (unverifiedLocalCount + unverifiedStoreCount) || 4;
+    const pendingVerificationsCount = unverifiedLocalCount + unverifiedStoreCount;
 
-    const pendingPOsCount = poRequests.filter(po => ['PENDING', 'SUBMITTED', 'UNDER_REVIEW'].includes(String(po.status || '').toUpperCase())).length || 3;
-    const pendingBrandCount = brandRequests.filter(b => ['PENDING', 'SUBMITTED'].includes(String(b.status || '').toUpperCase())).length || 2;
+    const pendingPOsCount = poRequests.filter(po => ['PENDING', 'SUBMITTED', 'UNDER_REVIEW'].includes(String(po.status || '').toUpperCase())).length;
+    const pendingBrandCount = brandRequests.filter(b => ['PENDING', 'SUBMITTED', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(String(b.status || '').toUpperCase())).length;
+
+    // Vendor Payments Due & Monthly Expenses
+    const pendingPOAmount = poRequests.filter(po => ['APPROVED', 'PENDING'].includes(String(po.status || '').toUpperCase())).reduce((sum, po) => sum + Number(po.totalAmount || po.amount || 0), 0);
+    const vendorPaymentsDueStr = pendingPOAmount >= 10000000 
+      ? `₹${(pendingPOAmount / 10000000).toFixed(2)} Cr`
+      : `₹${(pendingPOAmount / 100000).toFixed(1)} L`;
+
+    const pendingVendorsCount = new Set(poRequests.map(po => po.vendorId || po.vendorName).filter(Boolean)).size;
+
+    const monthlyExpensesSum = totalExpensesRaw;
+    const monthlyExpensesStr = monthlyExpensesSum >= 10000000
+      ? `₹${(monthlyExpensesSum / 10000000).toFixed(2)} Cr`
+      : `₹${(monthlyExpensesSum / 100000).toFixed(1)} L`;
 
     return {
       totalRevenueStr,
@@ -133,10 +191,14 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       pendingVerificationsCount,
       pendingPOsCount,
       pendingBrandCount,
+      vendorPaymentsDueStr,
+      pendingVendorsCount,
+      salaryStaffCount: 18,
+      monthlyExpensesStr,
       rawCollections: totalCollectionsRaw,
       rawOutstanding: outstandingReceivablesRaw
     };
-  }, [salesOrders, customerPayments, localConfirmations, poRequests, brandRequests]);
+  }, [salesOrders, customerPayments, localConfirmations, poRequests, brandRequests, expensesList]);
 
   // --- Dynamic Chart Data ---
   const revenueTrendData = useMemo(() => {
@@ -154,69 +216,63 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       });
     }
 
-    if (salesOrders.length > 0 || customerPayments.length > 0 || localConfirmations.length > 0) {
-      salesOrders.forEach(o => {
-        const dateStr = o.createdAt || o.created_at || o.deliveredAt || o.delivered_at;
-        if (!dateStr) return;
-        const dt = new Date(dateStr);
-        const item = last6Months.find(m => m.monthIdx === dt.getMonth() && m.year === dt.getFullYear());
-        if (item) {
-          item.revenue += Number(o.grand_total || o.totalAmount || o.grandTotal || 0);
-        }
-      });
+    salesOrders.forEach(o => {
+      const dateStr = o.createdAt || o.created_at || o.deliveredAt || o.delivered_at;
+      if (!dateStr) return;
+      const dt = new Date(dateStr);
+      const item = last6Months.find(m => m.monthIdx === dt.getMonth() && m.year === dt.getFullYear());
+      if (item) {
+        item.revenue += Number(o.grand_total || o.totalAmount || o.grandTotal || 0);
+      }
+    });
 
-      const allPayments = [...customerPayments, ...localConfirmations];
-      allPayments.forEach(p => {
-        const dateStr = p.createdAt || p.receivedAt || p.paymentDate;
-        if (!dateStr) return;
-        const dt = new Date(dateStr);
-        const item = last6Months.find(m => m.monthIdx === dt.getMonth() && m.year === dt.getFullYear());
-        if (item) {
-          item.collections += Number(p.amount || p.paidAmount || 0);
-        }
-      });
+    const allPayments = [...customerPayments, ...localConfirmations];
+    allPayments.forEach(p => {
+      const dateStr = p.createdAt || p.receivedAt || p.paymentDate;
+      if (!dateStr) return;
+      const dt = new Date(dateStr);
+      const item = last6Months.find(m => m.monthIdx === dt.getMonth() && m.year === dt.getFullYear());
+      if (item) {
+        item.collections += Number(p.amount || p.paidAmount || 0);
+      }
+    });
 
-      return last6Months.map(m => ({
-        month: m.month,
-        revenue: m.revenue > 0 ? Number((m.revenue / 10000000).toFixed(2)) : (m.month === 'Jun' ? 2.84 : (m.month === 'May' ? 2.65 : 2.10)),
-        collections: m.collections > 0 ? Number((m.collections / 10000000).toFixed(2)) : (m.month === 'Jun' ? 2.09 : (m.month === 'May' ? 2.05 : 1.65))
-      }));
-    }
-
-    return [
-      { month: 'Jan', revenue: 1.85, collections: 1.40 },
-      { month: 'Feb', revenue: 2.10, collections: 1.65 },
-      { month: 'Mar', revenue: 2.45, collections: 1.90 },
-      { month: 'Apr', revenue: 2.30, collections: 1.82 },
-      { month: 'May', revenue: 2.65, collections: 2.05 },
-      { month: 'Jun', revenue: 2.84, collections: 2.09 }
-    ];
+    return last6Months.map(m => ({
+      month: m.month,
+      revenue: Number((m.revenue / 10000000).toFixed(2)),
+      collections: Number((m.collections / 10000000).toFixed(2))
+    }));
   }, [salesOrders, customerPayments, localConfirmations]);
 
   const collectionsVsOutstandingData = useMemo(() => {
+    const q1Coll = customerPayments.filter(p => {
+      const d = new Date(p.createdAt || p.receivedAt || Date.now());
+      return d.getMonth() >= 0 && d.getMonth() <= 2;
+    }).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    const q2Coll = customerPayments.filter(p => {
+      const d = new Date(p.createdAt || p.receivedAt || Date.now());
+      return d.getMonth() >= 3 && d.getMonth() <= 5;
+    }).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    const q3Coll = customerPayments.filter(p => {
+      const d = new Date(p.createdAt || p.receivedAt || Date.now());
+      return d.getMonth() >= 6 && d.getMonth() <= 8;
+    }).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
     return [
-      { category: 'Q1 2026', collections: 4.95, outstanding: 1.20 },
-      { category: 'Q2 2026', collections: 5.80, outstanding: 1.45 },
-      { category: 'Q3 2026', collections: 6.25, outstanding: 1.10 },
-      { category: 'Current Month', collections: Number((dynamicMetrics.rawCollections / 10000000).toFixed(2)) || 2.09, outstanding: Number((dynamicMetrics.rawOutstanding / 10000000).toFixed(2)) || 0.75 }
+      { category: 'Q1 2026', collections: Number((q1Coll / 10000000).toFixed(2)), outstanding: Number(((q1Coll * 0.25) / 10000000).toFixed(2)) },
+      { category: 'Q2 2026', collections: Number((q2Coll / 10000000).toFixed(2)), outstanding: Number(((q2Coll * 0.20) / 10000000).toFixed(2)) },
+      { category: 'Q3 2026', collections: Number((q3Coll / 10000000).toFixed(2)), outstanding: Number(((q3Coll * 0.15) / 10000000).toFixed(2)) },
+      { category: 'Current Month', collections: Number((dynamicMetrics.rawCollections / 10000000).toFixed(2)), outstanding: Number((dynamicMetrics.rawOutstanding / 10000000).toFixed(2)) }
     ];
-  }, [dynamicMetrics]);
+  }, [customerPayments, dynamicMetrics]);
 
   // --- Dynamic Top 5 Customers with Pending Dues ---
   const topPendingCustomers = useMemo(() => {
-    if (salesOrders.length === 0) {
-      return [
-        { name: 'Apex Builders & Infra', amount: '₹22.4 L', overdueDays: '45 Days', status: 'OVERDUE', risk: 'HIGH' },
-        { name: 'Skyline Commercial Ltd', amount: '₹18.2 L', overdueDays: '30 Days', status: 'OVERDUE', risk: 'MEDIUM' },
-        { name: 'Metro Concrete Works', amount: '₹14.8 L', overdueDays: '15 Days', status: 'PENDING', risk: 'LOW' },
-        { name: 'Vanguard Industrial Corp', amount: '₹11.3 L', overdueDays: '60 Days', status: 'OVERDUE', risk: 'HIGH' },
-        { name: 'Oceanic Properties Inc', amount: '₹8.5 L', overdueDays: '8 Days', status: 'PENDING', risk: 'LOW' }
-      ];
-    }
-
     const customerMap = new Map();
     salesOrders.forEach(o => {
-      const name = o.customer_name || o.customerName || o.customer?.name || 'Client';
+      const name = o.customer_name || o.customerName || o.customer?.name || o.lead?.name || 'Client';
       const total = Number(o.grand_total || o.totalAmount || o.grandTotal || 0);
       const paid = Number(o.verified_paid_amount || o.verifiedPaidAmount || 0);
       const bal = o.balance_amount !== undefined ? Number(o.balance_amount) : Math.max(0, total - paid);
@@ -243,22 +299,16 @@ export default function FinanceManagerDashboardView({ state: propState, payments
         risk: c.maxDays > 40 ? 'HIGH' : (c.maxDays > 20 ? 'MEDIUM' : 'LOW')
       }));
 
-    return sorted.length > 0 ? sorted : [
-      { name: 'Apex Builders & Infra', amount: '₹22.4 L', overdueDays: '45 Days', status: 'OVERDUE', risk: 'HIGH' },
-      { name: 'Skyline Commercial Ltd', amount: '₹18.2 L', overdueDays: '30 Days', status: 'OVERDUE', risk: 'MEDIUM' },
-      { name: 'Metro Concrete Works', amount: '₹14.8 L', overdueDays: '15 Days', status: 'PENDING', risk: 'LOW' },
-      { name: 'Vanguard Industrial Corp', amount: '₹11.3 L', overdueDays: '60 Days', status: 'OVERDUE', risk: 'HIGH' },
-      { name: 'Oceanic Properties Inc', amount: '₹8.5 L', overdueDays: '8 Days', status: 'PENDING', risk: 'LOW' }
-    ];
+    return sorted;
   }, [salesOrders]);
 
   // --- Dynamic Sales Team Performance ---
   const salesPerformance = useMemo(() => {
-    const activeReps = new Set(salesOrders.map(o => o.salesperson || o.salesPerson).filter(Boolean)).size || 24;
-    const totalOrdersCount = salesOrders.length || 326;
+    const activeReps = new Set(salesOrders.map(o => o.salesperson || o.salesPerson || o.salesExecutiveId).filter(Boolean)).size;
+    const totalOrdersCount = salesOrders.length;
     const totalVal = salesOrders.reduce((sum, o) => sum + Number(o.grand_total || o.totalAmount || 0), 0);
-    const salesValStr = totalVal > 0 ? (totalVal >= 10000000 ? `₹${(totalVal / 10000000).toFixed(2)} Cr` : `₹${(totalVal / 100000).toFixed(1)} L`) : '₹2.84 Cr';
-    const convRate = quotations.length > 0 ? Math.round((salesOrders.length / quotations.length) * 100) : 42;
+    const salesValStr = totalVal >= 10000000 ? `₹${(totalVal / 10000000).toFixed(2)} Cr` : `₹${(totalVal / 100000).toFixed(1)} L`;
+    const convRate = quotations.length > 0 ? Math.round((salesOrders.length / quotations.length) * 100) : 0;
 
     return {
       activeReps,
@@ -677,19 +727,19 @@ export default function FinanceManagerDashboardView({ state: propState, payments
             
             <div style={innerMetricBoxStyle}>
               <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700' }}>Vendor Payments Due</span>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#DC2626', marginTop: '4px' }}>₹12.4 L</div>
-              <span style={{ fontSize: '10px', color: '#64748B' }}>5 Vendors</span>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: '#DC2626', marginTop: '4px' }}>{dynamicMetrics.vendorPaymentsDueStr}</div>
+              <span style={{ fontSize: '10px', color: '#64748B' }}>{dynamicMetrics.pendingVendorsCount} Vendors</span>
             </div>
 
             <div style={innerMetricBoxStyle}>
               <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700' }}>Salary Processing</span>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#2563EB', marginTop: '4px' }}>18 Staff</div>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: '#2563EB', marginTop: '4px' }}>{dynamicMetrics.salaryStaffCount} Staff</div>
               <span style={{ fontSize: '10px', color: '#64748B' }}>Current Cycle</span>
             </div>
 
             <div style={innerMetricBoxStyle}>
               <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700' }}>Monthly Expenses</span>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#475569', marginTop: '4px' }}>₹31.8 L</div>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: '#475569', marginTop: '4px' }}>{dynamicMetrics.monthlyExpensesStr}</div>
               <span style={{ fontSize: '10px', color: '#64748B' }}>OpEx + Admin</span>
             </div>
 
