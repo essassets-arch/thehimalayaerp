@@ -306,34 +306,45 @@ export default function FinanceManagerDashboardView({ state: propState, payments
   const allSalesReps = useMemo(() => {
     const fetchedUsers = liveData.users || [];
     const salesUsers = fetchedUsers.filter(u => {
-      const r = String(u.role?.code || u.role?.name || u.role || '').toUpperCase();
+      const r = String(u.role?.code || u.role?.name || u.roleCode || u.role || '').toUpperCase();
       const em = String(u.email || '').toLowerCase();
       return r.includes('SALES') || em.includes('sales') || em.includes('supersales');
     });
 
-    const defaultReps = [
-      { name: 'Super Sales 1', email: 'supersales1@himalayaerp.com', role: 'SuperSales' },
-      { name: 'Super Sales 2', email: 'supersales2@himalayaerp.com', role: 'SuperSales' },
-      { name: 'Sales Executive 1', email: 'sales1@himalayaerp.com', role: 'Sales Executive' },
-      { name: 'Sales Executive 2', email: 'sales2@himalayaerp.com', role: 'Sales Executive' },
-      { name: 'Sales Executive 3', email: 'sales3@himalayaerp.com', role: 'Sales Executive' },
-      { name: 'Sales Executive 4', email: 'sales4@himalayaerp.com', role: 'Sales Executive' },
-      { name: 'Sales Executive 5', email: 'sales5@himalayaerp.com', role: 'Sales Executive' },
-      { name: 'Sales Executive 6', email: 'sales6@himalayaerp.com', role: 'Sales Executive' },
-      { name: 'Sales Executive 7', email: 'sales7@himalayaerp.com', role: 'Sales Executive' },
-    ];
+    const repMap = new Map();
 
-    const baseList = salesUsers.length > 0 ? salesUsers.map(u => ({
-      name: u.name || u.email.split('@')[0],
-      email: u.email,
-      role: u.role?.name || (u.email.includes('supersales') ? 'SuperSales' : 'Sales Executive')
-    })) : defaultReps;
+    // 1. Add real sales users returned from backend API
+    salesUsers.forEach(u => {
+      const email = u.email || `${u.id}@himalayaerp.com`;
+      repMap.set(email.toLowerCase(), {
+        name: u.name || email.split('@')[0],
+        email: email,
+        role: u.role?.name || (email.toLowerCase().includes('supersales') ? 'SuperSales' : 'Sales Executive')
+      });
+    });
 
+    // 2. Also dynamically add any salespersons referenced in actual salesOrders
+    salesOrders.forEach(o => {
+      const repKey = o.salesperson || o.salesPerson || o.salesExecutiveName || o.createdByName;
+      const repEmail = o.salesExecutiveEmail || o.salespersonEmail;
+      if (repKey || repEmail) {
+        const key = (repEmail || repKey).toLowerCase();
+        if (!repMap.has(key)) {
+          repMap.set(key, {
+            name: repKey || key.split('@')[0],
+            email: repEmail || key,
+            role: key.includes('supersales') ? 'SuperSales' : 'Sales Executive'
+          });
+        }
+      }
+    });
+
+    const baseList = Array.from(repMap.values());
     const formatDirectAmount = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val || 0);
 
     return baseList.map(rep => {
       const repOrders = salesOrders.filter(o => {
-        const oRep = String(o.salesperson || o.salesPerson || o.salesExecutiveId || o.createdById || '').toLowerCase();
+        const oRep = String(o.salesperson || o.salesPerson || o.salesExecutiveId || o.createdById || o.salesExecutiveEmail || '').toLowerCase();
         const repEm = rep.email.toLowerCase();
         const repNm = rep.name.toLowerCase();
         return oRep.includes(repEm) || oRep.includes(repNm) || oRep === repEm;
@@ -625,47 +636,53 @@ export default function FinanceManagerDashboardView({ state: propState, payments
               <span style={{ fontSize: '11px', color: '#2563EB', fontWeight: '600' }}>Active Sales Force</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '190px', overflowY: 'auto', paddingRight: '4px' }}>
-              {allSalesReps.map((rep, idx) => (
-                <div key={idx} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  background: '#F8FAFC',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #E2E8F0'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      background: rep.role === 'SuperSales' ? '#EFF6FF' : '#F0FDF4',
-                      color: rep.role === 'SuperSales' ? '#2563EB' : '#16A34A',
-                      border: `1px solid ${rep.role === 'SuperSales' ? '#BFDBFE' : '#BBF7D0'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '11px',
-                      fontWeight: '800'
-                    }}>
-                      {rep.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block' }}>{rep.name}</span>
-                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '500' }}>{rep.email}</span>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: '800', color: rep.rawTotal > 0 ? '#16A34A' : '#475569', display: 'block' }}>
-                      {rep.salesValStr}
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '600' }}>
-                      {rep.orderCount} Orders • <span style={{ color: '#16A34A', fontWeight: '700' }}>Active</span>
-                    </span>
-                  </div>
+              {allSalesReps.length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#94A3B8', fontSize: '12px', background: '#F8FAFC', borderRadius: '8px', border: '1px dashed #CBD5E1' }}>
+                  No active sales representatives found in database.
                 </div>
-              ))}
+              ) : (
+                allSalesReps.map((rep, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: '#F8FAFC',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: rep.role === 'SuperSales' ? '#EFF6FF' : '#F0FDF4',
+                        color: rep.role === 'SuperSales' ? '#2563EB' : '#16A34A',
+                        border: `1px solid ${rep.role === 'SuperSales' ? '#BFDBFE' : '#BBF7D0'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        fontWeight: '800'
+                      }}>
+                        {rep.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block' }}>{rep.name}</span>
+                        <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '500' }}>{rep.email}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: rep.rawTotal > 0 ? '#16A34A' : '#475569', display: 'block' }}>
+                        {rep.salesValStr}
+                      </span>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '600' }}>
+                        {rep.orderCount} Orders • <span style={{ color: '#16A34A', fontWeight: '700' }}>Active</span>
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
