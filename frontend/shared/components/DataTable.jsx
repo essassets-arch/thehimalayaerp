@@ -1,3 +1,14 @@
+import React from 'react';
+
+const formatCellValue = (val) => {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') return val;
+  if (React.isValidElement(val)) return val;
+  if (typeof val === 'object') {
+    return val.name || val.label || val.title || val.code || String(val.id || '');
+  }
+  return String(val);
+};
 
 export default function DataTable({ 
   columns = [], 
@@ -9,7 +20,7 @@ export default function DataTable({
   className = ''
 }) {
   // Filter data by search query
-  const filteredData = data.filter(item => {
+  const filteredData = (data || []).filter(item => {
     if (!searchQuery) return true;
     if (!searchField) return true;
     
@@ -22,8 +33,9 @@ export default function DataTable({
         targetValue = '';
       }
     }
-    
-    return String(targetValue).toLowerCase().includes(searchQuery.toLowerCase());
+
+    const strVal = formatCellValue(targetValue);
+    return String(strVal).toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   return (
@@ -79,6 +91,9 @@ export default function DataTable({
                     }
                   }
                   
+                  const rawResult = col.render ? col.render(row) : (col.cell ? col.cell({ row: { original: row }, getValue: () => value }) : value);
+                  const renderedCell = formatCellValue(rawResult);
+
                   return (
                     <td 
                       key={colIdx} 
@@ -88,7 +103,7 @@ export default function DataTable({
                         whiteSpace: col.nowrap ? 'nowrap' : 'normal'
                       }}
                     >
-                      {col.render ? col.render(row) : (col.cell ? col.cell({ row: { original: row }, getValue: () => value }) : value)}
+                      {renderedCell}
                     </td>
                   );
                 })}

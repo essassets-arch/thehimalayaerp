@@ -19,6 +19,16 @@ const fireSwal = async (opts) => {
   const Swal = (await import('sweetalert2')).default;
   return Swal.fire(opts);
 };
+
+const safeText = (val, fallback = '—') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    return val.name || val.label || val.code || val.title || String(val.id || fallback);
+  }
+  return fallback;
+};
 import StatusBadge from '../../../shared/components/StatusBadge';
 import Timeline from '../../../shared/components/Timeline';
 import ApprovalHistory from '../../../shared/components/ApprovalHistory';
@@ -4835,13 +4845,13 @@ export default function SuperAdminPortal() {
 
           <DataTable
             columns={[
-              { header: 'Employee Code', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace' }}>{row.id}</span> },
-              { header: 'Full Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
-              { header: 'Login Email', accessor: 'email' },
-              { header: 'Department', accessor: 'department' },
-              { header: 'Designation / Role', accessor: 'role', render: (row) => row.role || row.designation || 'Staff' },
-              { header: 'Monthly Salary', accessor: 'salary', render: (row) => `₹${(row.salary || 30000).toLocaleString('en-IN')}` },
-              { header: 'Status', accessor: 'status', render: (row) => <span style={{ color: row.status === 'Active' ? '#10b981' : '#f43f5e', fontWeight: 'bold' }}>{row.status}</span> }
+              { header: 'Employee Code', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace' }}>{safeText(row.id || row.employeeCode)}</span> },
+              { header: 'Full Name', accessor: 'name', render: (row) => <strong>{safeText(row.name || row.fullName)}</strong> },
+              { header: 'Login Email', accessor: 'email', render: (row) => safeText(row.email) },
+              { header: 'Department', accessor: 'department', render: (row) => safeText(row.department, 'Sales') },
+              { header: 'Designation / Role', accessor: 'role', render: (row) => safeText(row.role || row.designation || row.jobTitle, 'Staff') },
+              { header: 'Monthly Salary', accessor: 'salary', render: (row) => `₹${(Number(row.salary) || 30000).toLocaleString('en-IN')}` },
+              { header: 'Status', accessor: 'status', render: (row) => <span style={{ color: safeText(row.status) === 'Active' ? '#10b981' : '#f43f5e', fontWeight: 'bold' }}>{safeText(row.status, 'Active')}</span> }
             ]}
             data={employees}
             searchQuery={globalSearch}

@@ -296,7 +296,7 @@ export default function HRPortal() {
           columns={[
             { header: 'Code', accessor: 'employeeCode' },
             { header: 'Full Name', accessor: 'fullName', render: (row) => <strong>{row.fullName}</strong> },
-            { header: 'Department', accessor: 'department', render: (row) => row.department?.name },
+            { header: 'Department', accessor: 'department', render: (row) => typeof row.department === 'object' ? (row.department?.name || 'Sales') : (row.department || 'Sales') },
             { header: 'Role', accessor: 'jobTitle' },
             { header: 'Working Days', accessor: 'payroll', render: (row) => row.payroll?.standardWorkingDays || '—' },
             { header: 'Paid Days', accessor: 'payroll', render: (row) => row.payroll?.payableDays || '—' },
