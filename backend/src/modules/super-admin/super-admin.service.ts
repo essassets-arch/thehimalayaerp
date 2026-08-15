@@ -746,21 +746,21 @@ export class SuperAdminService {
     };
     const priorOrderWhere = { ...orderWhere, createdAt: { gte: previousStart, lte: previousEnd } };
     const [salespeople, branches, customers, products, orders, previousOrders, payments, invoices, leads, quotations, samples, dispatches, workOrders, qcInspections, targets] = await Promise.all([
-      this.prisma.user.findMany({ where: salesRole, select: { id: true, name: true, email: true, role: { select: { code: true, name: true } } }, orderBy: { name: 'asc' } }),
-      this.prisma.branch.findMany({ where: { companyId, deletedAt: null }, select: { id: true, name: true } }),
-      this.prisma.customer.findMany({ where: { companyId, deletedAt: null }, select: { id: true, companyName: true } }),
-      this.prisma.product.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, category: true } }),
-      this.prisma.salesOrder.findMany({ where: orderWhere, include: { customer: true, salesExecutive: { select: { id: true, name: true, email: true } }, items: { include: { product: true } }, invoices: { include: { paymentAllocations: { include: { payment: true } } } }, dispatches: true } }),
-      this.prisma.salesOrder.findMany({ where: priorOrderWhere, select: { totalAmount: true } }),
-      this.prisma.customerPayment.findMany({ where: { status: 'VERIFIED', receivedAt: inRange, customer: { companyId }, ...(query?.salespersonId ? { salesOrder: { salesExecutiveId: query.salespersonId } } : {}) }, include: { salesOrder: true } }),
-      this.prisma.salesInvoice.findMany({ where: { createdAt: { lte: end }, salesOrder: { customer: { companyId } } }, include: { salesOrder: { include: { customer: true, salesExecutive: true } }, paymentAllocations: { include: { payment: true } } } }),
-      this.prisma.lead.findMany({ where: { deletedAt: null, ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {}), ...(query?.from && query?.to ? { createdAt: inRange } : {}), ...(query?.salespersonId ? { OR: [{ salesExecutiveId: query.salespersonId }, { assignedToId: query.salespersonId }, { createdById: query.salespersonId }] } : {}) }, select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true, createdAt: true, convertedAt: true, source: true } }),
-      this.prisma.quotation.findMany({ where: { companyId, createdAt: inRange, deletedAt: null, ...(query?.salespersonId ? { OR: [{ salesExecutiveId: query.salespersonId }, { createdById: query.salespersonId }] } : {}) }, select: { id: true, salesExecutiveId: true, createdById: true, salesOrder: { select: { id: true } } } }),
-      this.prisma.sampleRequest.findMany({ where: { companyId, requestedDate: inRange, deletedAt: null, ...(query?.salespersonId ? { salesExecutiveId: query.salespersonId } : {}) }, select: { id: true, status: true, deliveredAt: true } }),
-      this.prisma.dispatch.findMany({ where: { createdAt: inRange, salesOrder: { customer: { companyId }, ...(query?.salespersonId ? { salesExecutiveId: query.salespersonId } : {}) } }, include: { salesOrder: true } }),
-      this.prisma.workOrder.findMany({ where: { createdAt: inRange, productionPlan: { salesOrder: { customer: { companyId } } } }, include: { productionPlan: { include: { salesOrder: true } }, qcInspections: true, shiftEntries: true, scrapEntries: true } }),
-      this.prisma.qCInspection.findMany({ where: { createdAt: inRange, workOrder: { productionPlan: { salesOrder: { customer: { companyId } } } } } }),
-      this.prisma.salesTarget.findMany({ where: { status: 'ACTIVE', startDate: { lte: end }, endDate: { gte: start }, salesperson: { companyId } } })
+      this.prisma.user.findMany({ where: salesRole, select: { id: true, name: true, email: true, role: { select: { code: true, name: true } } }, orderBy: { name: 'asc' } }).catch(() => []),
+      this.prisma.branch.findMany({ where: { companyId, deletedAt: null }, select: { id: true, name: true } }).catch(() => []),
+      this.prisma.customer.findMany({ where: { companyId, deletedAt: null }, select: { id: true, companyName: true } }).catch(() => []),
+      this.prisma.product.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, category: true } }).catch(() => []),
+      this.prisma.salesOrder.findMany({ where: orderWhere, include: { customer: true, salesExecutive: { select: { id: true, name: true, email: true } }, items: { include: { product: true } }, invoices: { include: { paymentAllocations: { include: { payment: true } } } }, dispatches: true } }).catch(() => []),
+      this.prisma.salesOrder.findMany({ where: priorOrderWhere, select: { totalAmount: true } }).catch(() => []),
+      this.prisma.customerPayment.findMany({ where: { status: 'VERIFIED', receivedAt: inRange, customer: { companyId }, ...(query?.salespersonId ? { salesOrder: { salesExecutiveId: query.salespersonId } } : {}) }, include: { salesOrder: true } }).catch(() => []),
+      this.prisma.salesInvoice.findMany({ where: { createdAt: { lte: end }, salesOrder: { customer: { companyId } } }, include: { salesOrder: { include: { customer: true, salesExecutive: true } }, paymentAllocations: { include: { payment: true } } } }).catch(() => []),
+      this.prisma.lead.findMany({ where: { deletedAt: null, ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {}), ...(query?.from && query?.to ? { createdAt: inRange } : {}), ...(query?.salespersonId ? { OR: [{ salesExecutiveId: query.salespersonId }, { assignedToId: query.salespersonId }, { createdById: query.salespersonId }] } : {}) }, select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true, createdAt: true, convertedAt: true, source: true } }).catch(() => []),
+      this.prisma.quotation.findMany({ where: { companyId, createdAt: inRange, deletedAt: null, ...(query?.salespersonId ? { OR: [{ salesExecutiveId: query.salespersonId }, { createdById: query.salespersonId }] } : {}) }, select: { id: true, salesExecutiveId: true, createdById: true, salesOrder: { select: { id: true } } } }).catch(() => []),
+      this.prisma.sampleRequest.findMany({ where: { companyId, requestedDate: inRange, deletedAt: null, ...(query?.salespersonId ? { salesExecutiveId: query.salespersonId } : {}) }, select: { id: true, status: true, deliveredAt: true } }).catch(() => []),
+      this.prisma.dispatch.findMany({ where: { createdAt: inRange, salesOrder: { customer: { companyId }, ...(query?.salespersonId ? { salesExecutiveId: query.salespersonId } : {}) } }, include: { salesOrder: true } }).catch(() => []),
+      this.prisma.workOrder.findMany({ where: { createdAt: inRange, productionPlan: { salesOrder: { customer: { companyId } } } }, include: { productionPlan: { include: { salesOrder: true } }, qcInspections: true, shiftEntries: true, scrapEntries: true } }).catch(() => []),
+      this.prisma.qCInspection.findMany({ where: { createdAt: inRange, workOrder: { productionPlan: { salesOrder: { customer: { companyId } } } } } }).catch(() => []),
+      this.prisma.salesTarget.findMany({ where: { status: 'ACTIVE', startDate: { lte: end }, endDate: { gte: start }, salesperson: { companyId } } }).catch(() => [])
     ]) as any[];
 
     const confirmedStatuses = new Set(['CONFIRMED', 'SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'COMPLETED']);
