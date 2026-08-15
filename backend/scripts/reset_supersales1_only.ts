@@ -1,9 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 
-const dbUrls = [
-  "postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public",
-  process.env.DATABASE_URL || "postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public",
-];
+const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
+const dbUrls = isProd 
+  ? [
+      process.env.DATABASE_URL || "postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public"
+    ]
+  : [
+      "postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public",
+      process.env.DATABASE_URL || "postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public",
+    ];
 
 async function resetSuperSales1ForDb(url: string) {
   console.log(`\n=================================================`);

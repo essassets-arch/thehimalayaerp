@@ -2,10 +2,15 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const dbs = [
-  { name: 'Docker DB (Port 5433)', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public' },
-  { name: 'Standalone DB (Port 5432)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-];
+const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
+const dbs = isProd 
+  ? [
+      { name: 'Production DB', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public' }
+    ]
+  : [
+      { name: 'Docker DB (Port 5433)', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public' },
+      { name: 'Standalone DB (Port 5432)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+    ];
 
 function parseCSV(content: string): string[][] {
   const result: string[][] = [];
@@ -301,7 +306,13 @@ async function processDb(db: typeof dbs[0], groupedLeads: any[]) {
 }
 
 async function main() {
-  const csvPath = path.resolve('d:/prototype-next-main/hussain_sir(super_sales1) (2).csv');
+  let csvPath = path.resolve('d:/prototype-next-main/hussain_sir(super_sales1) (2).csv');
+  if (!fs.existsSync(csvPath)) {
+    csvPath = path.resolve(__dirname, '../../hussain_sir(super_sales1) (2).csv');
+  }
+  if (!fs.existsSync(csvPath)) {
+    csvPath = path.resolve('hussain_sir(super_sales1) (2).csv');
+  }
   if (!fs.existsSync(csvPath)) {
     console.error(`CSV file not found at: ${csvPath}`);
     process.exit(1);
