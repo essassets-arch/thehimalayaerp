@@ -374,16 +374,18 @@ const SalesAnalyticsContent = () => {
                   </tr>
                 ) : (
                   filteredEmployeePerformance.map((ex, idx) => {
-                    const rawRevenue = parseFloat(ex.revenue || 0);
+                    const executiveName = ex.executive || ex.name || 'Sales Executive';
+                    const leadCount = typeof ex.leads === 'object' ? (ex.leads?.total ?? ex.leads?.active ?? 0) : (ex.leads ?? 0);
+                    const rawRevenue = parseFloat(ex.revenue ?? ex.revenueGenerated ?? 0);
                     const achievementPct = ex.achievementPercent == null ? null : Math.round(ex.achievementPercent);
                     return (
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.background = '#F5FAFE'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <td style={{ padding: '12px 8px' }}>
-                          <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{ex.executive}</div>
+                          <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{executiveName}</div>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>{ex.email}</div>
                         </td>
                         <td style={{ padding: '12px 8px' }}>
-                          <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{ex.leads} Leads</span>
+                          <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{leadCount} Leads</span>
                         </td>
                         <td style={{ padding: '12px 8px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
