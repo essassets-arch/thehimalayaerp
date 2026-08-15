@@ -724,7 +724,16 @@ export class SuperAdminService {
     const previousEnd = new Date(start.getTime() - 1);
     const previousStart = new Date(previousEnd.getTime() - duration + 1);
     const inRange = { gte: start, lte: end };
-    const salesRole = { isActive: true, deletedAt: null, companyId, role: { code: { contains: 'SALES', mode: 'insensitive' as const } } };
+    const salesRole = {
+      isActive: true,
+      deletedAt: null,
+      companyId,
+      role: {
+        code: {
+          in: ['SALES_EXECUTIVE', 'SUPER_SALES', 'SALES_MANAGER', 'SALES_ADMIN']
+        }
+      }
+    };
     const orderWhere: any = {
       deletedAt: null,
       createdAt: inRange,
@@ -737,7 +746,7 @@ export class SuperAdminService {
     };
     const priorOrderWhere = { ...orderWhere, createdAt: { gte: previousStart, lte: previousEnd } };
     const [salespeople, branches, customers, products, orders, previousOrders, payments, invoices, leads, quotations, samples, dispatches, workOrders, qcInspections, targets] = await Promise.all([
-      this.prisma.user.findMany({ where: salesRole, select: { id: true, name: true, email: true, role: { select: { code: true, name: true } } } }),
+      this.prisma.user.findMany({ where: salesRole, select: { id: true, name: true, email: true, role: { select: { code: true, name: true } } }, orderBy: { name: 'asc' } }),
       this.prisma.branch.findMany({ where: { companyId, deletedAt: null }, select: { id: true, name: true } }),
       this.prisma.customer.findMany({ where: { companyId, deletedAt: null }, select: { id: true, companyName: true } }),
       this.prisma.product.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, category: true } }),
