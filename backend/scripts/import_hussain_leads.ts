@@ -91,10 +91,10 @@ function parseCsvDate(str: string): Date {
 }
 
 function findProduct(type: string, size: string, capacity: string, products: any[]): any {
-  let t = type.trim().toUpperCase();
+  let t = (type || '').trim().toUpperCase();
   if (t === 'D MHC') t = 'MHC';
   
-  let s = size.trim().toUpperCase().replace(/\s+/g, '');
+  let s = (size || '').trim().toUpperCase().replace(/\s+/g, '');
   if (s.includes('DAI')) s = s.replace('DAI', 'DIA');
   if (s.includes('DIA') && !s.includes('MM')) s = s.replace('DIA', 'MMDIA');
   if (s.match(/^\d+X\d+X\d+$/)) {
@@ -103,7 +103,7 @@ function findProduct(type: string, size: string, capacity: string, products: any
   if (s === '30X0') s = '30X30';
   if (s === '900X600') s = '600X900';
   
-  let c = capacity.trim().toUpperCase();
+  let c = (capacity || '').trim().toUpperCase();
   if (c === '3T') c = 'LD';
   
   if (s === '1200X900') s = '1200X1200';
@@ -120,8 +120,8 @@ function findProduct(type: string, size: string, capacity: string, products: any
   }
   
   let match = products.find(p => {
-    const sku = p.sku.toUpperCase();
-    const name = p.name.toUpperCase();
+    const sku = (p.sku || '').toUpperCase();
+    const name = (p.name || '').toUpperCase();
     return (sku.includes(t) || name.includes(t)) &&
            (sku.includes(s) || name.includes(s)) &&
            (sku.includes(c) || name.includes(c));
@@ -129,24 +129,24 @@ function findProduct(type: string, size: string, capacity: string, products: any
   if (match) return match;
   
   match = products.find(p => {
-    const sku = p.sku.toUpperCase();
-    const name = p.name.toUpperCase();
+    const sku = (p.sku || '').toUpperCase();
+    const name = (p.name || '').toUpperCase();
     return (sku.includes(t) || name.includes(t)) &&
            (sku.includes(s) || name.includes(s));
   });
   if (match) return match;
 
   match = products.find(p => {
-    const sku = p.sku.toUpperCase();
-    const name = p.name.toUpperCase();
+    const sku = (p.sku || '').toUpperCase();
+    const name = (p.name || '').toUpperCase();
     return (sku.includes(s) || name.includes(s)) &&
            (sku.includes(c) || name.includes(c));
   });
   if (match) return match;
 
   match = products.find(p => {
-    const sku = p.sku.toUpperCase();
-    const name = p.name.toUpperCase();
+    const sku = (p.sku || '').toUpperCase();
+    const name = (p.name || '').toUpperCase();
     return sku.includes(s) || name.includes(s);
   });
   return match || null;
