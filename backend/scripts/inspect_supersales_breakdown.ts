@@ -8,13 +8,30 @@ const SS2_ID = 'a0b5c364-0c8f-4933-98e2-a14d6c1be39a';
 async function main() {
   console.log('=== EXACT RECORD BREAKDOWN FOR SUPERSALES 1 & SUPERSALES 2 ===\n');
 
+  const ss1User = await prisma.user.findFirst({
+    where: { email: { equals: 'supersales1@himalayaerp.com', mode: 'insensitive' } },
+  });
+  const ss2User = await prisma.user.findFirst({
+    where: { email: { equals: 'supersales2@himalayaerp.com', mode: 'insensitive' } },
+  });
+
+  if (!ss1User) {
+    console.error('SuperSales 1 user not found in database.');
+    return;
+  }
+
+  const SS1_ID = ss1User.id;
+  const SS2_ID = ss2User?.id || 'N/A';
+
+  console.log(`Resolved SuperSales 1 ID: ${SS1_ID}`);
+  console.log(`Resolved SuperSales 2 ID: ${SS2_ID}\n`);
+
   const modelsToInspect = [
     { name: 'Lead', model: prisma.lead, fields: ['createdById', 'salesExecutiveId', 'assignedToId'] },
     { name: 'Quotation', model: prisma.quotation, fields: ['createdById', 'salesExecutiveId'] },
     { name: 'SalesOrder', model: prisma.salesOrder, fields: ['createdById', 'salesExecutiveId'] },
     { name: 'SampleRequest', model: prisma.sampleRequest, fields: ['createdById', 'salesExecutiveId'] },
     { name: 'CustomerComplaint', model: prisma.customerComplaint, fields: ['createdBy', 'salesExecutiveId', 'submittedBy'] },
-    { name: 'SalesReturn', model: (prisma as any).salesReturn, fields: ['createdById', 'salesExecutiveId', 'userId'] },
     { name: 'Customer', model: prisma.customer, fields: ['createdById', 'salesExecutiveId'] },
   ];
 
@@ -44,3 +61,4 @@ async function main() {
 main()
   .catch((e) => console.error(e))
   .finally(() => prisma.$disconnect());
+

@@ -896,7 +896,7 @@ export default function LeadsView({
 
                   return (
                     <tr key={lead.id}>
-                      <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{displayEntityId(lead.id)}</td>
+                      <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.leadNumber || displayEntityId(lead.id)}</td>
                       <td data-label="Date" style={{ fontSize: '13px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{leadDateStr}</td>
                       <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</td>
                       <td data-label="Phone / Email">
@@ -1146,7 +1146,7 @@ export default function LeadsView({
                 <div key={lead.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <span onClick={() => onOpenLead && onOpenLead(lead)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>{displayEntityId(lead.id)}</span>
+                      <span onClick={() => onOpenLead && onOpenLead(lead)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>{lead.leadNumber || displayEntityId(lead.id)}</span>
                       <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>· {formatLeadDate(lead.date || lead.createdAt || lead.created_at || lead.leadDate)}</span>
                     </div>
                     <button onClick={() => onOpenLead && onOpenLead(lead)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
@@ -1291,7 +1291,7 @@ export default function LeadsView({
           <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header-row">
               <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span>Lead Details {displayEntityId(currentDetailsLead.id)}</span>
+                <span>Lead Details {currentDetailsLead.leadNumber || displayEntityId(currentDetailsLead.id)}</span>
                 <span className={`badge badge-${currentDetailsStatus.toLowerCase().replace(' ', '-')}`}>
                   {currentDetailsStatus}
                 </span>

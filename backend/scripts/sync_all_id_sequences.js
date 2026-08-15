@@ -9,8 +9,8 @@ async function syncSequences() {
   let maxLeadNum = 0;
   for (const l of leads) {
     if (l.leadNumber) {
-      // Match standard format: LEAD-YYYY-XXXXX or similar sequential digits
-      const match = l.leadNumber.match(/LEAD-(?:\d{4}-)?(\d{1,6})$/i);
+      // Match standard format: LEAD-YYYY-XXXXX or HCCL/YYNY/XXXX sequential digits
+      const match = l.leadNumber.match(/(?:LEAD-(?:\d{4}-)?|HCCL\/\d{4}\/)(\d{1,6})$/i);
       if (match) {
         const num = parseInt(match[1], 10);
         if (num < 1000000 && num > maxLeadNum) maxLeadNum = num;

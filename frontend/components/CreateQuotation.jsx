@@ -633,7 +633,11 @@ export default function CreateQuotation({
             marginBottom: '20px'
           }}>
             <span style={{ fontSize: '16px' }}>ℹ️</span>
-            <span>Generated from Lead <strong>{displayEntityId(quotationDraft?.leadId || quotationDraft?.sourceId)}</strong>. Pre-filled from lead details — all fields are editable.</span>
+            <span>Generated from Lead <strong>{(() => {
+              const targetId = quotationDraft?.leadId || quotationDraft?.sourceId;
+              const leadObj = leads.find(l => l.id === targetId);
+              return leadObj?.leadNumber || displayEntityId(targetId);
+            })()}</strong>. Pre-filled from lead details — all fields are editable.</span>
           </div>
         )}
 

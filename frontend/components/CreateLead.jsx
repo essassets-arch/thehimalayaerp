@@ -574,7 +574,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#9a3412', letterSpacing: '0.5px' }}>Lead Reference</span>
-              <strong style={{ fontSize: '15px', color: '#ea580c' }}>Lead ID: {displayEntityId(editingLead.id)}</strong>
+              <strong style={{ fontSize: '15px', color: '#ea580c' }}>Lead ID: {editingLead.leadNumber || displayEntityId(editingLead.id)}</strong>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '1px solid #fed7aa', paddingLeft: '24px' }}>
               <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#9a3412', letterSpacing: '0.5px' }}>Registration Date</span>

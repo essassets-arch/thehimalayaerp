@@ -276,7 +276,7 @@ export default function CreateSample({ leads = [], defaultLeadId, onAddSample, o
               >
                 {activeLeads.map((l) => (
                   <option key={l.id} value={l.id}>
-                    Lead {displayEntityId(l.id)} — {l.companyName || l.projectName || 'Customer'} {l.contactPerson || l.siteInchargeName ? `(${l.contactPerson || l.siteInchargeName})` : ''}
+                    Lead {l.leadNumber || displayEntityId(l.id)} — {l.companyName || l.projectName || 'Customer'} {l.contactPerson || l.siteInchargeName ? `(${l.contactPerson || l.siteInchargeName})` : ''}
                   </option>
                 ))}
               </select>

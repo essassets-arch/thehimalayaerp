@@ -87,9 +87,14 @@ export class LeadsService {
       dto.companyId ||
       (await this.prisma.company.findFirst({ select: { id: true } }))?.id;
     if (!resolvedCompanyId) throw new NotFoundException('Company not found');
+    const year = new Date().getFullYear();
+    const yy = String(year).substring(2);
+    const ny = String(year + 1).substring(2);
+    const prefix = `HCCL/${yy}${ny}/`;
     const leadNumber = await this.sequenceService.generateNext(
       'lead_number',
-      `LEAD-${new Date().getFullYear()}-`,
+      prefix,
+      4,
     );
 
     const isManager = canAssignSalesOwner(role);
