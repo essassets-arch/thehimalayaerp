@@ -724,15 +724,15 @@ export class SuperAdminService {
     const previousEnd = new Date(start.getTime() - 1);
     const previousStart = new Date(previousEnd.getTime() - duration + 1);
     const inRange = { gte: start, lte: end };
-    const salesRole = {
-      isActive: true,
+    const salesRole: any = {
       deletedAt: null,
-      companyId,
-      role: {
-        code: {
-          in: ['SALES_EXECUTIVE', 'SUPER_SALES', 'SALES_MANAGER', 'SALES_ADMIN']
-        }
-      }
+      email: { not: { endsWith: '.test' } },
+      OR: [
+        { role: { code: { in: ['SALES_EXECUTIVE', 'SUPER_SALES', 'SALES_MANAGER', 'SALES_ADMIN'] } } },
+        { role: { code: { contains: 'SALES', mode: 'insensitive' } } },
+        { role: { name: { contains: 'Sales', mode: 'insensitive' } } },
+        { email: { contains: 'sales', mode: 'insensitive' } }
+      ]
     };
     const orderWhere: any = {
       deletedAt: null,
