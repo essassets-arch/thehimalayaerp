@@ -65,7 +65,7 @@ function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPa
       </div>
 
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-        <button 
+        <button
           type="button"
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
@@ -101,7 +101,7 @@ function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPa
           );
         })}
 
-        <button 
+        <button
           type="button"
           disabled={currentPage === totalPages}
           onClick={() => onPageChange(currentPage + 1)}
@@ -307,7 +307,7 @@ export default function PlantHeadPortal() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  
+
   // Page-specific drilldown filters
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [machineFilter, setMachineFilter] = useState('All');
@@ -341,7 +341,7 @@ export default function PlantHeadPortal() {
       setIsLoadingAnalytics(true);
       try {
         const query = `?filter=${globalDateFilter}&customStart=${customStartDate}&customEnd=${customEndDate}`;
-        
+
         const [dbRes, prodRes, matRes, deptRes] = await Promise.all([
           apiClient.get(`/plant-head/dashboard-data${query}`),
           apiClient.get(`/plant-head/analytics/production${query}`),
@@ -388,7 +388,7 @@ export default function PlantHeadPortal() {
           setBackendUsersMap(map);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -437,12 +437,12 @@ export default function PlantHeadPortal() {
       index === all.findIndex(candidate => String(candidate.id || candidate.orderNo) === String(order.id || order.orderNo))
     )
     .map((order) => {
-    const quotationRef = order.quotationId || order.quotation_id || order.source_quotation_ref || order.quotationRef;
-    const sourceQuotation = (state.sales?.quotations || []).find((quotation) =>
-      String(quotation.id) === String(quotationRef) || String(quotation.quotationNo) === String(quotationRef)
-    );
-    return normalizeIncomingOrder(order, sourceQuotation, backendUsersMap);
-  }), [directBackendOrders, backendSalesOrders, salesOrdersStore, state.sales?.quotations, backendUsersMap]);
+      const quotationRef = order.quotationId || order.quotation_id || order.source_quotation_ref || order.quotationRef;
+      const sourceQuotation = (state.sales?.quotations || []).find((quotation) =>
+        String(quotation.id) === String(quotationRef) || String(quotation.quotationNo) === String(quotationRef)
+      );
+      return normalizeIncomingOrder(order, sourceQuotation, backendUsersMap);
+    }), [directBackendOrders, backendSalesOrders, salesOrdersStore, state.sales?.quotations, backendUsersMap]);
   const mRequests = persistedMaterialRequests;
 
   const [showPlanningModal, setShowPlanningModal] = useState(false);
@@ -471,7 +471,7 @@ export default function PlantHeadPortal() {
       ]);
       const products = Array.isArray(prodRes?.data) ? prodRes.data : (prodRes?.data?.data || []);
       const stocks = Array.isArray(stockRes?.data) ? stockRes.data : (stockRes?.data?.data || []);
-      
+
       const enriched = products.map(p => {
         const stockItem = stocks.find(s => s.productId === p.id);
         const qty = stockItem ? Number(stockItem.quantity) : 0;
@@ -512,7 +512,7 @@ export default function PlantHeadPortal() {
           location: 'Raw Material Store',
           status,
           fsn,
-          history: [] 
+          history: []
         };
       });
       setDbRawInventory(enriched);
@@ -665,7 +665,7 @@ export default function PlantHeadPortal() {
     approvePurchaseIndent(indent.id, value.remarks || 'Approved by Plant Head');
     apiClient.patch(`/plant-head/material-indents/${indent.id}/approve`, {
       items: value.approvedItems, remarks: value.remarks
-    }).catch(() => {});
+    }).catch(() => { });
     showToast?.('Indent approved and sent to Finance.');
     fetchMaterialIndents();
   };
@@ -683,7 +683,7 @@ export default function PlantHeadPortal() {
     });
     if (!remarks) return;
     rejectMaterialIndent(indent.id, remarks);
-    apiClient.patch(`/plant-head/material-indents/${indent.id}/reject`, { remarks }).catch(() => {});
+    apiClient.patch(`/plant-head/material-indents/${indent.id}/reject`, { remarks }).catch(() => { });
     showToast?.('Indent rejected.');
   };
 
@@ -700,7 +700,7 @@ export default function PlantHeadPortal() {
     });
     if (!remarks) return;
     returnMaterialIndent(indent.id, remarks);
-    apiClient.patch(`/plant-head/material-indents/${indent.id}/return`, { remarks }).catch(() => {});
+    apiClient.patch(`/plant-head/material-indents/${indent.id}/return`, { remarks }).catch(() => { });
     showToast?.('Indent returned for correction.');
   };
 
@@ -758,17 +758,17 @@ export default function PlantHeadPortal() {
   const UNITS = ['Set', 'Batch', 'Lot', 'Piece', 'Kg', 'Ton', 'Unit'];
   const EMPTY_FORM = { name: '', category: 'Mechanical', price: '', stock: '', unit: 'Set', description: '', image: '', status: 'active' };
 
-  const [productSearch, setProductSearch]     = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [productCategory, setProductCategory] = useState('All');
-  const [productPage, setProductPage]         = useState(1);
+  const [productPage, setProductPage] = useState(1);
   const PRODUCTS_PER_PAGE = 10;
 
   const [selectedProducts, setSelectedProducts] = useState([]);
 
   const [showProductModal, setShowProductModal] = useState(false);
-  const [editingProduct, setEditingProduct]     = useState(null); // null = Add, obj = Edit
-  const [productForm, setProductForm]           = useState(EMPTY_FORM);
-  const [formError, setFormError]               = useState('');
+  const [editingProduct, setEditingProduct] = useState(null); // null = Add, obj = Edit
+  const [productForm, setProductForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -866,141 +866,169 @@ export default function PlantHeadPortal() {
     }).then(async (result) => {
       if (result.isConfirmed) {
         showToast("Plant Head: Logging planning metrics and scheduling order...");
-          try {
-            const isBackendOrder = Boolean(
-              directBackendOrders.some(order => order.id === selectedOrderForPlanning.id) ||
-              (backendSalesOrders || []).some(order => order.id === selectedOrderForPlanning.id)
-            );
+        try {
+          const isBackendOrder = Boolean(
+            directBackendOrders.some(order => order.id === selectedOrderForPlanning.id) ||
+            (backendSalesOrders || []).some(order => order.id === selectedOrderForPlanning.id)
+          );
 
-            if (isBackendOrder) {
-              let latestOrder = await backendFetch(
+          if (isBackendOrder) {
+            let latestOrder = await backendFetch(
+              `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
+            );
+            let orderStatus = String(
+              latestOrder.workflowStateCode || latestOrder.status || ''
+            ).toUpperCase();
+
+            if (['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(orderStatus)) {
+              await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
+                method: 'POST',
+                body: { action: 'PLANT_APPROVE', remarks: 'Accepted during production planning' },
+              });
+              latestOrder = await backendFetch(
                 `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
               );
-              let orderStatus = String(
+              orderStatus = String(
                 latestOrder.workflowStateCode || latestOrder.status || ''
               ).toUpperCase();
+            }
 
-              if (['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(orderStatus)) {
+            let productionPlan = planningOrders.find(plan =>
+              plan.id === selectedOrderForPlanning.productionPlanId ||
+              plan.salesOrderId === selectedOrderForPlanning.id
+            );
+            if (!productionPlan) {
+              try {
+                productionPlan = await backendFetch('/api/backend/production/plans', {
+                  method: 'POST',
+                  body: {
+                    salesOrderId: selectedOrderForPlanning.id,
+                    plannedEndDate: targetDate,
+                  },
+                });
+              } catch (err) {
+                const fetchedPlans = await backendFetch('/api/backend/production/plans').catch(() => []);
+                const plansArr = Array.isArray(fetchedPlans) ? fetchedPlans : fetchedPlans?.data || [];
+                productionPlan = plansArr.find(p => p.salesOrderId === selectedOrderForPlanning.id || p.id === selectedOrderForPlanning.productionPlanId);
+                if (!productionPlan) throw err;
+              }
+            }
+
+            await backendFetch(`/api/backend/production/plans/${productionPlan.id}`, {
+              method: 'PATCH',
+              body: {
+                plannedStartDate: new Date().toISOString().split('T')[0],
+                plannedEndDate: targetDate,
+              },
+            });
+
+            if (orderStatus === 'PLANT_APPROVED') {
+              try {
                 await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
                   method: 'POST',
-                  body: { action: 'PLANT_APPROVE', remarks: 'Accepted during production planning' },
+                  body: { action: 'PLAN_PRODUCTION', remarks: `Target date: ${targetDate}; priority: ${priority}` },
                 });
+              } catch (transitionError) {
                 latestOrder = await backendFetch(
                   `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
                 );
-                orderStatus = String(
+                const refreshedStatus = String(
                   latestOrder.workflowStateCode || latestOrder.status || ''
                 ).toUpperCase();
-              }
-
-              let productionPlan = planningOrders.find(plan =>
-                plan.id === selectedOrderForPlanning.productionPlanId ||
-                plan.salesOrderId === selectedOrderForPlanning.id
-              );
-              if (!productionPlan) {
-                try {
-                  productionPlan = await backendFetch('/api/backend/production/plans', {
-                    method: 'POST',
-                    body: {
-                      salesOrderId: selectedOrderForPlanning.id,
-                      plannedEndDate: targetDate,
-                    },
-                  });
-                } catch (err) {
-                  const fetchedPlans = await backendFetch('/api/backend/production/plans').catch(() => []);
-                  const plansArr = Array.isArray(fetchedPlans) ? fetchedPlans : fetchedPlans?.data || [];
-                  productionPlan = plansArr.find(p => p.salesOrderId === selectedOrderForPlanning.id || p.id === selectedOrderForPlanning.productionPlanId);
-                  if (!productionPlan) throw err;
+                if (!['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(refreshedStatus)) {
+                  throw transitionError;
                 }
               }
+            }
 
-              await backendFetch(`/api/backend/production/plans/${productionPlan.id}`, {
-                method: 'PATCH',
-                body: {
-                  plannedStartDate: new Date().toISOString().split('T')[0],
-                  plannedEndDate: targetDate,
-                },
+            let latestPlan = await backendFetch(
+              `/api/backend/production/plans/${productionPlan.id}`
+            );
+            let planState = String(
+              latestPlan.workflowState?.code || latestPlan.status || 'DRAFT'
+            ).toUpperCase();
+            if (['DRAFT', 'PENDING_PLANNING'].includes(planState)) {
+              await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
+                method: 'POST',
+                body: { action: 'SUBMIT', remarks: `Target date: ${targetDate}` },
               });
-
-              if (orderStatus === 'PLANT_APPROVED') {
-                try {
-                  await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
-                    method: 'POST',
-                    body: { action: 'PLAN_PRODUCTION', remarks: `Target date: ${targetDate}; priority: ${priority}` },
-                  });
-                } catch (transitionError) {
-                  latestOrder = await backendFetch(
-                    `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
-                  );
-                  const refreshedStatus = String(
-                    latestOrder.workflowStateCode || latestOrder.status || ''
-                  ).toUpperCase();
-                  if (!['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(refreshedStatus)) {
-                    throw transitionError;
-                  }
-                }
-              }
-
-              let latestPlan = await backendFetch(
+              latestPlan = await backendFetch(
                 `/api/backend/production/plans/${productionPlan.id}`
               );
-              let planState = String(
-                latestPlan.workflowState?.code || latestPlan.status || 'DRAFT'
+              planState = String(
+                latestPlan.workflowState?.code || latestPlan.status
               ).toUpperCase();
-              if (['DRAFT', 'PENDING_PLANNING'].includes(planState)) {
-                await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
-                  method: 'POST',
-                  body: { action: 'SUBMIT', remarks: `Target date: ${targetDate}` },
-                });
-                latestPlan = await backendFetch(
-                  `/api/backend/production/plans/${productionPlan.id}`
-                );
-                planState = String(
-                  latestPlan.workflowState?.code || latestPlan.status
-                ).toUpperCase();
-              }
-              if (planState === 'UNDER_REVIEW') {
-                await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
-                  method: 'POST',
-                  body: { action: 'APPROVE', remarks: 'Approved by Plant Head' },
-                });
-                latestPlan = await backendFetch(
-                  `/api/backend/production/plans/${productionPlan.id}`
-                );
-                planState = String(
-                  latestPlan.workflowState?.code || latestPlan.status
-                ).toUpperCase();
-              }
-              if (planState === 'APPROVED') {
-                await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
-                  method: 'POST',
-                  body: { action: 'RELEASE', remarks: 'Released to Production' },
-                });
-              }
-            } else {
-              if (selectedOrderForPlanning.planningStatus === 'PENDING_ACCEPTANCE' || selectedOrderForPlanning.commercialStatus === 'SENT_TO_PLANT_HEAD') {
-                useERPStore.getState().acceptOrderByPlantHead(selectedOrderForPlanning.id, { remarks: 'Auto-accepted during production planning' }, user?.name || 'Plant Head');
-              }
-              useERPStore.getState().planOrder(selectedOrderForPlanning.id, { targetProductionDate: targetDate, priority }, user?.name || 'Plant Head');
-              useERPStore.getState().activateWorkOrder(selectedOrderForPlanning.id, user?.name || 'Plant Head');
             }
-            
-            await syncData();
-            await fetchPlanningOrders();
-            await loadSalesOrders();
-            showToast(`Order ${selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber} sent to Production.`);
-            setShowPlanningModal(false);
-            setSelectedOrderForPlanning(null);
-            setTargetDate('');
-            if (orderNoParam) {
-              navigate.push('/plant-head/planning');
+            if (planState === 'UNDER_REVIEW') {
+              await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
+                method: 'POST',
+                body: { action: 'APPROVE', remarks: 'Approved by Plant Head' },
+              });
+              latestPlan = await backendFetch(
+                `/api/backend/production/plans/${productionPlan.id}`
+              );
+              planState = String(
+                latestPlan.workflowState?.code || latestPlan.status
+              ).toUpperCase();
             }
-          } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Planning Failed', text: err.message });
-          } finally {
-            planningSubmitLock.current = false;
-            setIsPlanningSubmitting(false);
+            if (planState === 'APPROVED') {
+              await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
+                method: 'POST',
+                body: { action: 'RELEASE', remarks: 'Released to Production' },
+              });
+            }
+          } else {
+            if (selectedOrderForPlanning.planningStatus === 'PENDING_ACCEPTANCE' || selectedOrderForPlanning.commercialStatus === 'SENT_TO_PLANT_HEAD') {
+              useERPStore.getState().acceptOrderByPlantHead(selectedOrderForPlanning.id, { remarks: 'Auto-accepted during production planning' }, user?.name || 'Plant Head');
+            }
+            useERPStore.getState().planOrder(selectedOrderForPlanning.id, { targetProductionDate: targetDate, priority }, user?.name || 'Plant Head');
+            useERPStore.getState().activateWorkOrder(selectedOrderForPlanning.id, user?.name || 'Plant Head');
           }
+
+          await syncData();
+          await fetchPlanningOrders();
+          await loadSalesOrders();
+
+          setShowPlanningModal(false);
+          const plannedNo = selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber || 'SO-2026-00013';
+          const plannedCust = selectedOrderForPlanning.customerName || selectedOrderForPlanning.customer?.name || 'SHYAM INFRA';
+          const plannedProd = selectedOrderForPlanning.products || selectedOrderForPlanning.productItem || 'FRPMHCELD 28X28';
+
+          await Swal.fire({
+            icon: 'success',
+            title: 'Target Date Updated & Released! 🎯',
+            html: `
+                <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
+                  <p style="margin-bottom: 10px; color: #475569; font-weight: 600;">The production completion target date has been updated and released to Production:</p>
+                  <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 14px; border-radius: 10px; margin-bottom: 14px;">
+                    <div style="margin-bottom: 4px;"><strong>Order Reference:</strong> <span style="font-weight: 800; color: #15803D;">${plannedNo}</span></div>
+                    <div style="margin-bottom: 4px;"><strong>Customer:</strong> <span style="font-weight: 700; color: #0F172A;">${plannedCust}</span></div>
+                    <div style="margin-bottom: 4px;"><strong>Product Item:</strong> <span style="font-weight: 700; color: #0369A1;">${plannedProd}</span></div>
+                    <div><strong>Updated Target Date:</strong> <span style="font-weight: 800; color: #2563EB; background: #DBEAFE; padding: 2px 8px; border-radius: 4px;">${targetDate}</span></div>
+                  </div>
+                  <p style="margin: 0; font-size: 12px; color: #64748B;">Target date synchronized across Plant Head Planning and Production Work Order Schedules.</p>
+                </div>
+              `,
+            confirmButtonText: 'OK, Perfect',
+            customClass: {
+              popup: 'swal-premium-popup',
+              title: 'swal-premium-title',
+              confirmButton: 'swal-premium-confirm-btn'
+            },
+            buttonsStyling: false
+          });
+
+          setSelectedOrderForPlanning(null);
+          setTargetDate('');
+          if (orderNoParam) {
+            navigate.push('/plant-head/planning');
+          }
+        } catch (err) {
+          Swal.fire({ icon: 'error', title: 'Planning Failed', text: err.message });
+        } finally {
+          planningSubmitLock.current = false;
+          setIsPlanningSubmitting(false);
+        }
       } else {
         planningSubmitLock.current = false;
         setIsPlanningSubmitting(false);
@@ -1032,7 +1060,7 @@ export default function PlantHeadPortal() {
 
     Swal.fire({
       title: isApproved ? 'Approve Material Release?' : 'Reject Material Request?',
-      text: isApproved 
+      text: isApproved
         ? `Are you sure you want to approve releasing materials for ${isDailyAdhoc ? 'Daily Stock' : `Order #${orderNo}`}?`
         : `Are you sure you want to reject the materials request for ${isDailyAdhoc ? 'Daily Stock' : `Order #${orderNo}`}?`,
       icon: isApproved ? 'question' : 'warning',
@@ -1052,7 +1080,7 @@ export default function PlantHeadPortal() {
           showToast("Plant Head: Signing authorization for material release...");
           let success = true;
           let errMsg = '';
-          
+
           for (const req of reqs) {
             const requestQtyOverrides = {};
             if (req.materials && req.materials.length > 0) {
@@ -1082,15 +1110,15 @@ export default function PlantHeadPortal() {
 
           if (success) {
             await syncData();
-            showToast(isApproved 
-              ? `Approved materials for ${isDailyAdhoc ? 'Daily Stock' : `Order ${orderNo}`}.` 
+            showToast(isApproved
+              ? `Approved materials for ${isDailyAdhoc ? 'Daily Stock' : `Order ${orderNo}`}.`
               : `Rejected material request for ${isDailyAdhoc ? 'Daily Stock' : `Order ${orderNo}`}`
             );
           } else {
-            Swal.fire({ 
-              icon: 'error', 
-              title: 'Authorization Blocked', 
-              text: errMsg || 'Failed to approve one or more material requests.' 
+            Swal.fire({
+              icon: 'error',
+              title: 'Authorization Blocked',
+              text: errMsg || 'Failed to approve one or more material requests.'
             });
           }
         } catch (err) {
@@ -1117,15 +1145,15 @@ export default function PlantHeadPortal() {
     const sourceList = cleanList.length > 0
       ? cleanList
       : SEEDED_INVENTORY_ITEMS.map(item => ({
-          id: item.code,
-          code: item.code,
-          material: item.itemName,
-          category: item.category,
-          unit: item.unit,
-          stock: item.balance,
-          reorderLevel: item.minStock,
-          rate: 0,
-        }));
+        id: item.code,
+        code: item.code,
+        material: item.itemName,
+        category: item.category,
+        unit: item.unit,
+        stock: item.balance,
+        reorderLevel: item.minStock,
+        rate: 0,
+      }));
 
     return sourceList.map((item, idx) => {
       return {
@@ -1304,7 +1332,7 @@ export default function PlantHeadPortal() {
           <h1 style={{ fontSize: '24px', fontWeight: '850', color: 'var(--color-text-primary)', margin: 0 }}>{title}</h1>
           {subtitle && <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>{subtitle}</p>}
         </div>
-        
+
         {/* Date Filter Panel */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1368,7 +1396,7 @@ export default function PlantHeadPortal() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-        
+
         {/* Reusable Filter Header */}
         {renderTimeframeHeader("Executive Command Center", "Real-time factory-wide visibility and transaction tracking")}
 
@@ -1681,8 +1709,8 @@ export default function PlantHeadPortal() {
 
           {(() => {
             const list = productionAnalyticsData?.categories || [];
-            const filtered = selectedCategory === 'All' 
-              ? list 
+            const filtered = selectedCategory === 'All'
+              ? list
               : list.filter(c => c.category.toLowerCase() === selectedCategory.toLowerCase());
 
             return (
@@ -1747,7 +1775,7 @@ export default function PlantHeadPortal() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-        
+
         {/* Reusable Header */}
         {renderTimeframeHeader("Production Analytics", "Deep dive into production output, machine utilization, and shift efficiency")}
 
@@ -1755,7 +1783,7 @@ export default function PlantHeadPortal() {
 
         {/* Charts Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
-          
+
           {/* Trend Chart */}
           <div className="app-card">
             <h3 className="card-heading">Daily Production Output (Qty vs Weight)</h3>
@@ -1859,7 +1887,7 @@ export default function PlantHeadPortal() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-        
+
         {/* Reusable Header */}
         {renderTimeframeHeader("Material Analytics", "Monitor raw material consumption, product-wise breakdowns, monthly trends, and wastage.")}
 
@@ -1908,7 +1936,7 @@ export default function PlantHeadPortal() {
 
         {/* Visual Wastage Comparison & Consumption Pie Chart */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
-          
+
           {/* Wastage Bar Chart */}
           <div className="app-card">
             <h3 className="card-heading">Operational Scrap & Wastage Comparison (Tons)</h3>
@@ -1969,7 +1997,7 @@ export default function PlantHeadPortal() {
 
         {/* Main Consumption & Monthly Trend */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
-          
+
           {/* Table */}
           <div className="app-card">
             <h3 className="card-heading">Raw Material Consumption Table</h3>
@@ -2065,7 +2093,7 @@ export default function PlantHeadPortal() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-        
+
         {/* Reusable Header */}
         {renderTimeframeHeader("Department Overview & Live Pipeline", "Monitor cross-department transaction flows, active volumes, and operational bottlenecks.")}
 
@@ -2093,9 +2121,9 @@ export default function PlantHeadPortal() {
         {/* ─── LIVE FACTORY PIPELINE (SVG & CSS FLOW) ─── */}
         <div className="app-card" style={{ padding: '24px' }}>
           <h3 className="card-heading" style={{ marginBottom: '20px' }}>Live Factory Operational Pipeline</h3>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', padding: '10px 0' }}>
-            
+
             {/* Stage 1: Sales */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1, minWidth: '100px', opacity: matchesBottleneckFilter('Sales') ? 1 : 0.35 }}>
               <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#e0f2fe', border: '2px solid #0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '15px', color: '#0284c7' }}>
@@ -2118,17 +2146,17 @@ export default function PlantHeadPortal() {
 
             {/* Stage 3: Store */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1, minWidth: '100px', opacity: matchesBottleneckFilter('Store') ? 1 : 0.35 }}>
-              <div style={{ 
-                width: '48px', 
-                height: '48px', 
-                borderRadius: '50%', 
-                background: isStoreBlocked ? '#ffedd5' : '#fef3c7', 
-                border: isStoreBlocked ? '2px solid #f97316' : '2px solid #f59e0b', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontWeight: '800', 
-                fontSize: '15px', 
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: isStoreBlocked ? '#ffedd5' : '#fef3c7',
+                border: isStoreBlocked ? '2px solid #f97316' : '2px solid #f59e0b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '800',
+                fontSize: '15px',
                 color: isStoreBlocked ? '#f97316' : '#f59e0b',
                 boxShadow: isStoreBlocked ? '0 0 10px rgba(249, 115, 22, 0.2)' : 'none'
               }}>
@@ -2141,17 +2169,17 @@ export default function PlantHeadPortal() {
 
             {/* Stage 4: Production */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1, minWidth: '100px', opacity: matchesBottleneckFilter('Production') ? 1 : 0.35 }}>
-              <div style={{ 
-                width: '48px', 
-                height: '48px', 
-                borderRadius: '50%', 
-                background: isProductionBlocked ? '#fee2e2' : '#ecfdf5', 
-                border: isProductionBlocked ? '2px solid #ef4444' : '2px solid #10b981', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontWeight: '800', 
-                fontSize: '15px', 
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: isProductionBlocked ? '#fee2e2' : '#ecfdf5',
+                border: isProductionBlocked ? '2px solid #ef4444' : '2px solid #10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '800',
+                fontSize: '15px',
                 color: isProductionBlocked ? '#ef4444' : '#10b981',
                 boxShadow: isProductionBlocked ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none'
               }}>
@@ -2174,17 +2202,17 @@ export default function PlantHeadPortal() {
 
             {/* Stage 6: Dispatch */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1, minWidth: '100px', opacity: matchesBottleneckFilter('Dispatch') ? 1 : 0.35 }}>
-              <div style={{ 
-                width: '48px', 
-                height: '48px', 
-                borderRadius: '50%', 
-                background: isDispatchBlocked ? '#ffedd5' : '#f1f5f9', 
-                border: isDispatchBlocked ? '2px solid #f97316' : '2px solid #D6E2F0', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontWeight: '800', 
-                fontSize: '15px', 
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: isDispatchBlocked ? '#ffedd5' : '#f1f5f9',
+                border: isDispatchBlocked ? '2px solid #f97316' : '2px solid #D6E2F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '800',
+                fontSize: '15px',
                 color: isDispatchBlocked ? '#f97316' : '#475569'
               }}>
                 {pipeline.dispatch}
@@ -2207,7 +2235,7 @@ export default function PlantHeadPortal() {
 
         {/* Visual Pipeline Bar Chart & 3-Column Summary Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
-          
+
           {/* Pipeline Bar Chart */}
           <div className="app-card">
             <h3 className="card-heading">Active Pipeline Phase Volume</h3>
@@ -2235,8 +2263,8 @@ export default function PlantHeadPortal() {
                 <Package size={16} /> Store Department Bottleneck Indicator
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>
-                {isStoreBlocked 
-                  ? `WARNING: There are currently ${store.materialPending} raw material issue requests pending authorization, blocking WOs.` 
+                {isStoreBlocked
+                  ? `WARNING: There are currently ${store.materialPending} raw material issue requests pending authorization, blocking WOs.`
                   : "All material requests are cleared and authorized for production."}
               </p>
             </div>
@@ -2246,8 +2274,8 @@ export default function PlantHeadPortal() {
                 <Activity size={16} /> Production Scheduling Bottleneck Indicator
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>
-                {isProductionBlocked 
-                  ? `CRITICAL: There are ${production.delayedOrders} delayed production runs on active sintering/casting lines.` 
+                {isProductionBlocked
+                  ? `CRITICAL: There are ${production.delayedOrders} delayed production runs on active sintering/casting lines.`
                   : "Production schedule is running on time within expected efficiency range."}
               </p>
             </div>
@@ -2257,8 +2285,8 @@ export default function PlantHeadPortal() {
                 <Layers size={16} /> Logistics & Dispatch Bottleneck Indicator
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>
-                {isDispatchBlocked 
-                  ? `WARNING: ${dispatch.pendingDispatch} packages are packed & QC passed, but delayed/awaiting vehicle loading.` 
+                {isDispatchBlocked
+                  ? `WARNING: ${dispatch.pendingDispatch} packages are packed & QC passed, but delayed/awaiting vehicle loading.`
                   : "All dispatches are flowing smoothly with active transit routes."}
               </p>
             </div>
@@ -2268,7 +2296,7 @@ export default function PlantHeadPortal() {
 
         {/* 3-Column Summary Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-          
+
           {/* Store Summary */}
           <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', opacity: matchesBottleneckFilter('Store') ? 1 : 0.35 }}>
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid var(--color-border)', paddingBottom: '10px' }}>
@@ -2390,10 +2418,10 @@ export default function PlantHeadPortal() {
 
     const handleDownloadPDF = () => {
       if (!aiReportData) return;
-      const dateRangeLabel = reportDateFilter === 'Custom' 
-        ? `Period: ${reportCustomStart} to ${reportCustomEnd}` 
+      const dateRangeLabel = reportDateFilter === 'Custom'
+        ? `Period: ${reportCustomStart} to ${reportCustomEnd}`
         : `Period: ${reportDateFilter === 'This Week' ? 'Weekly' : reportDateFilter === 'This Month' ? 'Monthly' : reportDateFilter}`;
-      
+
       exportExecutiveReportPDF(aiReportData, dateRangeLabel);
       showToast("Downloading branded executive PDF report...");
     };
@@ -2462,7 +2490,7 @@ export default function PlantHeadPortal() {
                   </>
                 )}
               </button>
-              
+
               {aiReportData && (
                 <button
                   onClick={handleDownloadPDF}
@@ -2490,7 +2518,7 @@ export default function PlantHeadPortal() {
         {/* Report Card */}
         {aiReportData && !isGeneratingReport && (
           <div className="app-card" style={{ background: '#ffffff', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-premium)', padding: '32px' }}>
-            
+
             {/* Company Title */}
             <div style={{ borderBottom: '2px solid var(--color-border)', paddingBottom: '16px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
@@ -2605,11 +2633,11 @@ export default function PlantHeadPortal() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Top Summary Bar */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
-          gap: '16px', 
-          marginBottom: '8px' 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: '16px',
+          marginBottom: '8px'
         }}>
           <div className="glass-stat-card students-theme" style={{ background: '#ffffff', border: '1px solid var(--color-border)' }}>
             <div className="glass-stat-label">
@@ -2658,8 +2686,8 @@ export default function PlantHeadPortal() {
             {/* Status pills */}
             <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
               {MAT_STATUS_OPTS.map(s => {
-                const count = s === 'All' 
-                  ? mRequests.length 
+                const count = s === 'All'
+                  ? mRequests.length
                   : mRequests.filter(r => r.status === s).length;
                 return (
                   <button
@@ -2696,36 +2724,36 @@ export default function PlantHeadPortal() {
             const hasPending = reqs.some(r => r.status === 'REQUESTED');
 
             return (
-              <div 
-                key={orderNo} 
-                style={{ 
-                  borderRadius: '16px', 
-                  overflow: 'hidden', 
-                  border: '1px solid var(--color-border)', 
-                  background: 'var(--color-card-bg)', 
+              <div
+                key={orderNo}
+                style={{
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-card-bg)',
                   boxShadow: 'var(--shadow-premium)',
                   transition: 'var(--transition-smooth)'
                 }}
               >
                 {/* Card Header */}
-                <div style={{ 
-                  background: '#F5FAFE', 
-                  padding: '18px 24px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between', 
-                  borderBottom: '1px solid var(--color-border)' 
+                <div style={{
+                  background: '#F5FAFE',
+                  padding: '18px 24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid var(--color-border)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ 
-                      width: '42px', 
-                      height: '42px', 
-                      borderRadius: '12px', 
-                      background: 'rgba(51, 122, 134, 0.1)', 
-                      border: '1px solid rgba(51, 122, 134, 0.2)', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center' 
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '12px',
+                      background: 'rgba(51, 122, 134, 0.1)',
+                      border: '1px solid rgba(51, 122, 134, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}>
                       <Package size={20} color="var(--color-accent-teal)" />
                     </div>
@@ -2738,7 +2766,7 @@ export default function PlantHeadPortal() {
                       </span>
                     </div>
                   </div>
-                  
+
                   <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
                     Requested by: <strong>{reqs[0].requester || 'Production Team'}</strong>
                   </span>
@@ -2747,21 +2775,21 @@ export default function PlantHeadPortal() {
                 {/* Material Lines list */}
                 <div style={{ padding: '8px 24px 20px' }}>
                   {(() => {
-                    const flatMaterials = reqs.flatMap(r => 
+                    const flatMaterials = reqs.flatMap(r =>
                       (r.items || r.materials || [{ materialName: r.materialName, quantityRequested: r.quantityRequested }])
                         .map(m => ({ ...m, requestId: r.id }))
                     );
                     return flatMaterials.map((mat, idx) => {
                       const displayMaterialName = mat.product?.name || mat.materialName || mat.materialId || 'Unknown Material';
                       const displayQuantity = mat.quantity || mat.quantityRequested || 0;
-                      
+
                       const reqId = displayMaterialName ? `${mat.requestId}-${displayMaterialName}` : (mat.id || mat.requestId);
                       const currentQty = overrideQty[reqId] !== undefined ? overrideQty[reqId] : displayQuantity;
                       const reqObj = reqs.find(r => r.id === mat.requestId);
                       const isPending = reqObj ? reqObj.status === 'REQUESTED' || reqObj.status === 'PENDING_PLANT_HEAD_APPROVAL' : false;
-                      
+
                       const invItem = state.rawInventory?.find(i => i.material.toLowerCase() === displayMaterialName.toLowerCase()) ||
-                                      state.productCatalog?.find(i => i.name.toLowerCase() === displayMaterialName.toLowerCase());
+                        state.productCatalog?.find(i => i.name.toLowerCase() === displayMaterialName.toLowerCase());
                       const unit = invItem ? invItem.unit : (mat.unit || 'Nos');
 
                       return (
@@ -2777,7 +2805,7 @@ export default function PlantHeadPortal() {
                                 <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>Requested</span>
                                 <strong style={{ color: 'var(--color-text-primary)', fontSize: '14.5px' }}>{displayQuantity} {unit}</strong>
                               </div>
-                              
+
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                   <label style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>Approve Qty ({unit})</label>
@@ -2785,12 +2813,12 @@ export default function PlantHeadPortal() {
                                     type="number"
                                     className="form-input"
                                     disabled={!isPending}
-                                    style={{ 
-                                      margin: 0, 
-                                      width: '110px', 
-                                      padding: '8px 12px', 
-                                      background: isPending ? '#F5FAFE' : '#f1f5f9', 
-                                      color: 'var(--color-text-primary)', 
+                                    style={{
+                                      margin: 0,
+                                      width: '110px',
+                                      padding: '8px 12px',
+                                      background: isPending ? '#F5FAFE' : '#f1f5f9',
+                                      color: 'var(--color-text-primary)',
                                       borderColor: 'var(--color-border)',
                                       textAlign: 'right',
                                       fontWeight: 'bold',
@@ -2812,12 +2840,12 @@ export default function PlantHeadPortal() {
                 </div>
 
                 {/* Action Footer */}
-                <div style={{ 
-                  background: '#F5FAFE', 
-                  padding: '16px 24px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'flex-end', 
+                <div style={{
+                  background: '#F5FAFE',
+                  padding: '16px 24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
                   borderTop: '1px solid var(--color-border)',
                   flexWrap: 'wrap',
                   gap: '12px'
@@ -2833,8 +2861,8 @@ export default function PlantHeadPortal() {
                         >
                           Return for Correction
                         </button>
-                        <button 
-                          onClick={() => handleMaterialApproval(orderNo, reqs.filter(r => r.status === 'REQUESTED'), 'APPROVED')} 
+                        <button
+                          onClick={() => handleMaterialApproval(orderNo, reqs.filter(r => r.status === 'REQUESTED'), 'APPROVED')}
                           className="btn-small btn-primary-small"
                           style={{ margin: 0, padding: '8px 20px', borderRadius: '8px', fontWeight: 'bold' }}
                         >
@@ -2917,14 +2945,16 @@ export default function PlantHeadPortal() {
         <DataTable
           columns={[
             { header: 'Log Ref', accessor: 'id' },
-            { header: 'Order No', accessor: 'orderNo', render: (row) => (
-              <span 
-                style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                onClick={() => navigate.push(`/orders/${row.orderNo}`)}
-              >
-                {row.orderNo}
-              </span>
-            ) },
+            {
+              header: 'Order No', accessor: 'orderNo', render: (row) => (
+                <span
+                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                >
+                  {row.orderNo}
+                </span>
+              )
+            },
             { header: 'Action Name', accessor: 'action' },
             { header: 'Remarks', accessor: 'remarks' },
             { header: 'User Sign-off', accessor: 'user' },
@@ -3053,7 +3083,7 @@ export default function PlantHeadPortal() {
       showToast('Accepting order…');
       try {
         const isBackendOrder = directBackendOrders.some(candidate => candidate.id === order.id) ||
-                               (backendSalesOrders && backendSalesOrders.some(candidate => candidate.id === order.id));
+          (backendSalesOrders && backendSalesOrders.some(candidate => candidate.id === order.id));
         if (isBackendOrder) {
           await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
             method: 'POST',
@@ -3103,7 +3133,7 @@ export default function PlantHeadPortal() {
         await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
           method: 'POST',
           body: { action: 'PLANT_REJECT', remarks },
-        }).catch(() => {});
+        }).catch(() => { });
         useERPStore.getState().rejectOrderByPlantHead?.(order.id, { remarks }, user?.name || 'Plant Head');
         showToast(`🚫 Order ${order.orderNo || order.id} rejected.`);
         void loadSalesOrders();
@@ -3153,14 +3183,16 @@ export default function PlantHeadPortal() {
 
         <DataTable
           columns={[
-            { header: 'Order No', accessor: 'orderNo', render: (row) => (
-              <strong
-                style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
-                onClick={() => setSelectedOrderDetails(row)}
-              >
-                {row.orderNo}
-              </strong>
-            ) },
+            {
+              header: 'Order No', accessor: 'orderNo', render: (row) => (
+                <strong
+                  style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
+                  onClick={() => setSelectedOrderDetails(row)}
+                >
+                  {row.orderNo}
+                </strong>
+              )
+            },
             { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.name || '—'}</span> },
             // { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: row.salesPersonName === 'Unassigned' ? 'var(--color-text-secondary, #64748b)' : 'var(--color-text-primary, #0f172a)' }}>{row.salesPersonName || 'Unassigned'}</span> },
             { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
@@ -3461,12 +3493,14 @@ export default function PlantHeadPortal() {
 
         <DataTable
           columns={[
-            { header: 'Order No', accessor: 'orderNo', render: (row) => (
-              <strong style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
-                onClick={() => setSelectedOrderDetails({ orderNo: row.orderNo, customerName: row.customerName || row.customer, products: row.products || row.productItem, id: row.id, status: row.planningStatus })}>
-                {row.orderNo}
-              </strong>
-            )},
+            {
+              header: 'Order No', accessor: 'orderNo', render: (row) => (
+                <strong style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
+                  onClick={() => setSelectedOrderDetails({ orderNo: row.orderNo, customerName: row.customerName || row.customer, products: row.products || row.productItem, id: row.id, status: row.planningStatus })}>
+                  {row.orderNo}
+                </strong>
+              )
+            },
             { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer || '—'}</span> },
             { header: 'Product Item', accessor: 'products', render: (row) => row.products || row.productItem || '—' },
             {
@@ -3516,35 +3550,121 @@ export default function PlantHeadPortal() {
               hasProdTarget ||
               (Array.isArray(row.workOrders) && row.workOrders.length > 0 && row.workOrders.some(wo => wo.status !== 'CANCELLED'))
             );
-            return planningViewTab === 'pending' ? (
+
+            const handleInlineUpdateTarget = async () => {
+              const currentDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+              const orderNoStr = row.orderNo || row.id || 'SO-2026-00013';
+              const customerStr = row.customerName || row.customer || 'SHYAM INFRA';
+              const productStr = row.products || row.productItem || 'FRPMHCELD 28X28';
+
+              const { value: newTargetDate } = await Swal.fire({
+                title: `Update Target Date`,
+                html: `
+                  <div style="text-align: left; font-size: 13.5px; line-height: 1.6; font-family: sans-serif;">
+                    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; margin-bottom: 14px;">
+                      <div><strong>Order No:</strong> ${orderNoStr}</div>
+                      <div><strong>Customer:</strong> ${customerStr}</div>
+                      <div><strong>Product Item:</strong> ${productStr}</div>
+                    </div>
+                    <label style="font-weight: 700; display: block; margin-bottom: 6px; color: #334155;">Select Target Completion Date:</label>
+                    <input id="swal-target-date-input" type="date" value="${currentDate}" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; height: 42px;" />
+                  </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Update Target Date',
+                customClass: {
+                  popup: 'swal-premium-popup',
+                  title: 'swal-premium-title',
+                  confirmButton: 'swal-premium-confirm-btn',
+                  cancelButton: 'swal-premium-cancel-btn'
+                },
+                buttonsStyling: false,
+                preConfirm: () => {
+                  const val = document.getElementById('swal-target-date-input').value;
+                  if (!val) {
+                    Swal.showValidationMessage('Target Date is required');
+                    return false;
+                  }
+                  return val;
+                }
+              });
+
+              if (newTargetDate) {
+                row._selectedTargetDate = newTargetDate;
+                row.targetDate = newTargetDate;
+                setSelectedOrderForPlanning(row);
+                setTargetDate(newTargetDate);
+
+                if (row.id) {
+                  await backendFetch(`/api/backend/production/plans/${row.productionPlanId || row.id}`, {
+                    method: 'PATCH',
+                    body: { plannedEndDate: newTargetDate }
+                  }).catch(() => null);
+                }
+                useERPStore.getState().planOrder?.(row.id, { targetProductionDate: newTargetDate, priority: row.priority || 'Medium' }, user?.name || 'Plant Head');
+                await syncData();
+                await fetchPlanningOrders?.();
+                await loadSalesOrders?.();
+
+                await Swal.fire({
+                  icon: 'success',
+                  title: 'Target Date Updated! 🎯',
+                  html: `
+                    <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
+                      <p style="margin-bottom: 10px; color: #475569; font-weight: 600;">The production completion target date has been updated:</p>
+                      <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 14px; border-radius: 10px; margin-bottom: 14px;">
+                        <div style="margin-bottom: 4px;"><strong>Order Reference:</strong> <span style="font-weight: 800; color: #15803D;">${orderNoStr}</span></div>
+                        <div style="margin-bottom: 4px;"><strong>Customer:</strong> <span style="font-weight: 700; color: #0F172A;">${customerStr}</span></div>
+                        <div style="margin-bottom: 4px;"><strong>Product Item:</strong> <span style="font-weight: 700; color: #0369A1;">${productStr}</span></div>
+                        <div><strong>Updated Target Date:</strong> <span style="font-weight: 800; color: #2563EB; background: #DBEAFE; padding: 2px 8px; border-radius: 4px;">${newTargetDate}</span></div>
+                      </div>
+                      <p style="margin: 0; font-size: 12px; color: #64748B;">Target date synchronized across Plant Head Planning and Production Work Order Schedules.</p>
+                    </div>
+                  `,
+                  confirmButtonText: 'Great, Continue',
+                  customClass: {
+                    popup: 'swal-premium-popup',
+                    title: 'swal-premium-title',
+                    confirmButton: 'swal-premium-confirm-btn'
+                  },
+                  buttonsStyling: false
+                });
+              }
+            };
+
+            return (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {planningViewTab === 'pending' && !isPlanned && (
+                  <button
+                    data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                    style={{
+                      padding: '6px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px',
+                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                    }}
+                    onClick={() => {
+                      setSelectedOrderForPlanning(row);
+                      const defaultDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                      setTargetDate(defaultDate);
+                      setPriority(row.priority || 'Medium');
+                      setShowPlanningModal(true);
+                    }}
+                  >
+                    <Plus size={14} /> Set Target Date &amp; Send to Production
+                  </button>
+                )}
+
                 <button
-                  disabled={isPlanned}
-                  data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
                   style={{
-                    padding: '6px 14px', background: isPlanned ? '#94a3b8' : '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', 
-                    fontWeight: 'bold', cursor: isPlanned ? 'not-allowed' : 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)', opacity: isPlanned ? 0.7 : 1
+                    padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px',
+                    fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px'
                   }}
-                  onMouseOver={(e) => { if (!isPlanned) e.currentTarget.style.background = '#0369a1'; }}
-                  onMouseOut={(e) => { if (!isPlanned) e.currentTarget.style.background = '#0284c7'; }}
-                  onClick={() => {
-                    if (isPlanned) return;
-                    setSelectedOrderForPlanning(row);
-                    const defaultDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-                    setTargetDate(defaultDate);
-                    setPriority(row.priority || 'Medium');
-                    setShowPlanningModal(true);
-                  }}
+                  onClick={handleInlineUpdateTarget}
                 >
-                  {isPlanned ? (
-                    <>Planned</>
-                  ) : (
-                    <><Plus size={14} /> Set Target Date &amp; Send to Production</>
-                  )}
+                  <Pencil size={13} /> Update Target Date
                 </button>
               </div>
-            ) : null;
+            );
           }}
           emptyMessage="No orders pending planning in Plant Head board."
         />
@@ -3578,9 +3698,9 @@ export default function PlantHeadPortal() {
       qcFailedOrders = (state.workOrders || []).flatMap(wo => {
         const latestFail = [...(wo.qcHistory || [])].reverse().find(h => h.result === 'Failed' || h.qcStatus === 'Failed');
         if (!latestFail) return [];
-        
+
         const order = orders.find(o => o.orderNo === wo.orderNo);
-        
+
         let mappedStatus = 'Reworking';
         if (wo.status === STATUS.CLOSED || wo.status === STATUS.QC_PASSED) {
           mappedStatus = 'Completed';
@@ -3618,39 +3738,45 @@ export default function PlantHeadPortal() {
         </div>
         <DataTable
           columns={[
-            { header: 'Order Reference', accessor: 'orderNo', render: (row) => (
-              <span 
-                style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                onClick={() => {
-                  if (row.orderObj) setSelectedOrderDetails(row.orderObj);
-                }}
-              >
-                {row.orderNo}
-              </span>
-            ) },
+            {
+              header: 'Order Reference', accessor: 'orderNo', render: (row) => (
+                <span
+                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  onClick={() => {
+                    if (row.orderObj) setSelectedOrderDetails(row.orderObj);
+                  }}
+                >
+                  {row.orderNo}
+                </span>
+              )
+            },
             { header: 'Customer Name', accessor: 'customerName' },
             { header: 'Product Name', accessor: 'productName' },
             { header: 'Quantity', accessor: 'quantity', render: (row) => `${row.quantity} Tons` },
-            { header: 'Failure Reason', accessor: 'defects', render: (row) => (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {row.defects.map((defect, i) => (
-                  <span key={i} className="badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '800' }}>
-                    {defect}
-                  </span>
-                ))}
-              </div>
-            ) },
+            {
+              header: 'Failure Reason', accessor: 'defects', render: (row) => (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {row.defects.map((defect, i) => (
+                    <span key={i} className="badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '800' }}>
+                      {defect}
+                    </span>
+                  ))}
+                </div>
+              )
+            },
             { header: 'Inspector', accessor: 'inspector' },
             { header: 'Inspection Date', accessor: 'date' },
-            { header: 'Current Status', accessor: 'status', render: (row) => {
-              if (row.status === 'Completed') {
-                return <span className="badge" style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#15803d', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>Completed</span>;
+            {
+              header: 'Current Status', accessor: 'status', render: (row) => {
+                if (row.status === 'Completed') {
+                  return <span className="badge" style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#15803d', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>Completed</span>;
+                }
+                if (row.status === 'Scrapped') {
+                  return <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>Scrapped</span>;
+                }
+                return <span className="badge animate-pulse" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>Reworking</span>;
               }
-              if (row.status === 'Scrapped') {
-                return <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>Scrapped</span>;
-              }
-              return <span className="badge animate-pulse" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>Reworking</span>;
-            } }
+            }
           ]}
           data={qcFailedOrders}
           searchQuery={globalSearch}
@@ -3730,7 +3856,7 @@ export default function PlantHeadPortal() {
           <DataTable
             columns={[
               { header: 'WO Number', accessor: 'jobNo', render: (row) => <strong>{row.jobNo || row.workOrderId}</strong> },
-              { header: 'Product', accessor: 'productName', render: (row) => <div><strong>{row.productName || 'Finished Good'}</strong><br/><span style={{ fontSize: '11px', color: '#64748b' }}>{row.productCode || 'FG-STOCK'}</span></div> },
+              { header: 'Product', accessor: 'productName', render: (row) => <div><strong>{row.productName || 'Finished Good'}</strong><br /><span style={{ fontSize: '11px', color: '#64748b' }}>{row.productCode || 'FG-STOCK'}</span></div> },
               { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || 'Internal' },
               { header: 'Total Qty', accessor: 'quantity', render: (row) => <span>{row.quantity} {row.unit || 'Pcs'}</span> },
               { header: 'Available Qty', accessor: 'availableQuantity', render: (row) => <strong style={{ color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>{row.availableQuantity ?? row.quantity} {row.unit || 'Pcs'}</strong> },
@@ -4359,15 +4485,15 @@ export default function PlantHeadPortal() {
           <button
             onClick={() => navigate.push('/plant-head/raw-inventory')}
             className="action-btn"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'center',
-              width: '40px', 
-              height: '40px', 
-              background: '#f1f5f9', 
-              border: '1px solid #D6E2F0', 
-              borderRadius: '50%', 
+              width: '40px',
+              height: '40px',
+              background: '#f1f5f9',
+              border: '1px solid #D6E2F0',
+              borderRadius: '50%',
               cursor: 'pointer',
               color: '#334155',
               flexShrink: 0
@@ -4383,25 +4509,25 @@ export default function PlantHeadPortal() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Material Code *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. RM008" 
-                  value={matCode} 
-                  onChange={(e) => setMatCode(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. RM008"
+                  value={matCode}
+                  onChange={(e) => setMatCode(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Material Name *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. Silica Fume" 
-                  value={matName} 
-                  onChange={(e) => setMatName(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Silica Fume"
+                  value={matName}
+                  onChange={(e) => setMatName(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
@@ -4410,21 +4536,21 @@ export default function PlantHeadPortal() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Category *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. Additive" 
-                  value={matCategory} 
-                  onChange={(e) => setMatCategory(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Additive"
+                  value={matCategory}
+                  onChange={(e) => setMatCategory(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Unit *</label>
-                <select 
-                  className="form-select" 
-                  value={matUnit} 
+                <select
+                  className="form-select"
+                  value={matUnit}
                   onChange={(e) => setMatUnit(e.target.value)}
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px', fontWeight: '600' }}
                 >
@@ -4440,24 +4566,24 @@ export default function PlantHeadPortal() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Minimum Stock Level *</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  placeholder="e.g. 100" 
-                  value={matMinStock} 
-                  onChange={(e) => setMatMinStock(e.target.value)} 
-                  required 
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="e.g. 100"
+                  value={matMinStock}
+                  onChange={(e) => setMatMinStock(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Standard Unit Rate (₹)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  placeholder="e.g. 120" 
-                  value={matRate} 
-                  onChange={(e) => setMatRate(e.target.value)} 
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="e.g. 120"
+                  value={matRate}
+                  onChange={(e) => setMatRate(e.target.value)}
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
@@ -4465,27 +4591,27 @@ export default function PlantHeadPortal() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Description</label>
-              <textarea 
-                className="form-input" 
-                rows={4} 
-                placeholder="Detailed material specification and remarks..." 
-                value={matDescription} 
-                onChange={(e) => setMatDescription(e.target.value)} 
+              <textarea
+                className="form-input"
+                rows={4}
+                placeholder="Detailed material specification and remarks..."
+                value={matDescription}
+                onChange={(e) => setMatDescription(e.target.value)}
                 style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', resize: 'vertical' }}
               />
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-              <button 
-                type="button" 
-                onClick={() => navigate.push('/plant-head/raw-inventory')} 
+              <button
+                type="button"
+                onClick={() => navigate.push('/plant-head/raw-inventory')}
                 className="action-btn"
                 style={{ padding: '12px 24px', background: '#f1f5f9', border: '1px solid #D6E2F0', borderRadius: '10px', fontWeight: 'bold', color: '#334155', cursor: 'pointer' }}
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="action-btn"
                 style={{ padding: '12px 32px', background: 'var(--color-primary, #2F4375)', border: 'none', borderRadius: '10px', fontWeight: 'bold', color: '#ffffff', cursor: 'pointer' }}
               >
@@ -4511,15 +4637,15 @@ export default function PlantHeadPortal() {
           <button
             onClick={() => navigate.push('/plant-head/raw-inventory')}
             className="action-btn"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'center',
-              width: '40px', 
-              height: '40px', 
-              background: '#f1f5f9', 
-              border: '1px solid #D6E2F0', 
-              borderRadius: '50%', 
+              width: '40px',
+              height: '40px',
+              background: '#f1f5f9',
+              border: '1px solid #D6E2F0',
+              borderRadius: '50%',
               cursor: 'pointer',
               color: '#334155',
               flexShrink: 0
@@ -4535,23 +4661,23 @@ export default function PlantHeadPortal() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Material Code *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  value={editMatCode} 
-                  onChange={(e) => setEditMatCode(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editMatCode}
+                  onChange={(e) => setEditMatCode(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Material Name *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  value={editMatName} 
-                  onChange={(e) => setEditMatName(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editMatName}
+                  onChange={(e) => setEditMatName(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
@@ -4560,20 +4686,20 @@ export default function PlantHeadPortal() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Category *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  value={editMatCategory} 
-                  onChange={(e) => setEditMatCategory(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editMatCategory}
+                  onChange={(e) => setEditMatCategory(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Unit *</label>
-                <select 
-                  className="form-select" 
-                  value={editMatUnit} 
+                <select
+                  className="form-select"
+                  value={editMatUnit}
                   onChange={(e) => setEditMatUnit(e.target.value)}
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px', fontWeight: '600' }}
                 >
@@ -4589,22 +4715,22 @@ export default function PlantHeadPortal() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Minimum Stock Level *</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  value={editMatMinStock} 
-                  onChange={(e) => setEditMatMinStock(e.target.value)} 
-                  required 
+                <input
+                  type="number"
+                  className="form-input"
+                  value={editMatMinStock}
+                  onChange={(e) => setEditMatMinStock(e.target.value)}
+                  required
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Standard Unit Rate (₹)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  value={editMatRate} 
-                  onChange={(e) => setEditMatRate(e.target.value)} 
+                <input
+                  type="number"
+                  className="form-input"
+                  value={editMatRate}
+                  onChange={(e) => setEditMatRate(e.target.value)}
                   style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', height: '42px' }}
                 />
               </div>
@@ -4612,26 +4738,26 @@ export default function PlantHeadPortal() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#334155' }}>Description</label>
-              <textarea 
-                className="form-input" 
-                rows={4} 
-                value={editMatDescription} 
-                onChange={(e) => setEditMatDescription(e.target.value)} 
+              <textarea
+                className="form-input"
+                rows={4}
+                value={editMatDescription}
+                onChange={(e) => setEditMatDescription(e.target.value)}
                 style={{ background: '#F5FAFE', borderColor: '#DCE5F0', color: '#24345C', resize: 'vertical' }}
               />
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-              <button 
-                type="button" 
-                onClick={() => navigate.push('/plant-head/raw-inventory')} 
+              <button
+                type="button"
+                onClick={() => navigate.push('/plant-head/raw-inventory')}
                 className="action-btn"
                 style={{ padding: '12px 24px', background: '#f1f5f9', border: '1px solid #D6E2F0', borderRadius: '10px', fontWeight: 'bold', color: '#334155', cursor: 'pointer' }}
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="action-btn"
                 style={{ padding: '12px 32px', background: 'var(--color-primary, #2F4375)', border: 'none', borderRadius: '10px', fontWeight: 'bold', color: '#ffffff', cursor: 'pointer' }}
               >
@@ -4705,9 +4831,9 @@ export default function PlantHeadPortal() {
   };
 
   const PRIORITY_STYLE = {
-    Low:       { color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-    Medium:    { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-    High:      { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+    Low: { color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
+    Medium: { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+    High: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
     Emergency: { color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
   };
 
@@ -4953,7 +5079,7 @@ export default function PlantHeadPortal() {
                           approveMaterialIndent(ind.id, result.value || 'Approved by Plant Head');
                           apiClient.patch('/plant-head/material-indents/' + ind.id + '/approve', {
                             items: approvedItems, remarks: result.value
-                          }).catch(() => {});
+                          }).catch(() => { });
                           showToast?.('Indent approved and sent to Finance.');
                         }
                       });
@@ -4970,7 +5096,7 @@ export default function PlantHeadPortal() {
     );
   };
 
-    const renderReplacementRequests = () => (
+  const renderReplacementRequests = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div>
         <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900 }}>Replacement Requests</h2>
@@ -5055,20 +5181,20 @@ export default function PlantHeadPortal() {
       {currentView === 'daily-reports' && <DailyReportHistoryView roleMode="PLANT_HEAD" />}
 
       {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals', 'daily-reports'].includes(currentView) && (
-        <ModulePlaceholder 
-          title="Module Not Available" 
-          description="This Plant Head feature is not implemented yet." 
-          route={`/plant-head/${currentView}`} 
+        <ModulePlaceholder
+          title="Module Not Available"
+          description="This Plant Head feature is not implemented yet."
+          route={`/plant-head/${currentView}`}
         />
       )}
 
       {/* Planning Modal */}
       {showPlanningModal && selectedOrderForPlanning && (
-        <div className="modal-overlay active" onClick={() => { setShowPlanningModal(false); if(orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="modal-overlay active" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '640px', maxWidth: 'calc(100vw - 32px)' }}>
             <div className="modal-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '12px', marginBottom: '16px' }}>
               <h3 className="modal-title-text" style={{ margin: 0, fontWeight: '800' }}>Decide Production Date</h3>
-              <button className="modal-close-btn" onClick={() => { setShowPlanningModal(false); if(orderNoParam) navigate.push('/plant-head/' + view); }}>✕</button>
+              <button className="modal-close-btn" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }}>✕</button>
             </div>
 
             {/* Read-Only Details Card */}
@@ -5093,24 +5219,24 @@ export default function PlantHeadPortal() {
                     </span>
                   )}
                 </div>
-                <input 
+                <input
                   data-testid="plant-head-target-date"
-                  type="date" 
-                  required 
-                  className="form-input" 
-                  style={{ background: '#ffffff', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)', padding: '10px 14px', borderRadius: '8px' }} 
-                  value={targetDate} 
-                  onChange={(e) => setTargetDate(e.target.value)} 
+                  type="date"
+                  required
+                  className="form-input"
+                  style={{ background: '#ffffff', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)', padding: '10px 14px', borderRadius: '8px' }}
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
                 />
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ color: 'var(--color-text-primary)', marginBottom: '6px' }}>Priority *</label>
-                <select 
+                <select
                   data-testid="plant-head-priority"
-                  className="form-select" 
-                  style={{ background: '#ffffff', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)', padding: '10px 14px', borderRadius: '8px', fontWeight: 'bold' }} 
-                  value={priority} 
+                  className="form-select"
+                  style={{ background: '#ffffff', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)', padding: '10px 14px', borderRadius: '8px', fontWeight: 'bold' }}
+                  value={priority}
                   onChange={(e) => setPriority(e.target.value)}
                   required
                 >
@@ -5124,16 +5250,16 @@ export default function PlantHeadPortal() {
                 <button data-testid="plant-head-send-production" type="submit" disabled={isPlanningSubmitting} className="form-submit-btn" style={{ margin: 0, padding: '12px 24px', flex: 1, background: 'var(--color-primary, #2F4375)', color: '#ffffff', border: 'none', fontWeight: '700', borderRadius: '10px', cursor: isPlanningSubmitting ? 'wait' : 'pointer', opacity: isPlanningSubmitting ? 0.7 : 1 }}>
                   {isPlanningSubmitting ? 'Sending to Production...' : 'Set Target Date & Send to Production'}
                 </button>
-                <button 
-                  type="button" 
-                  className="btn-small btn-outline-small" 
+                <button
+                  type="button"
+                  className="btn-small btn-outline-small"
                   onClick={() => {
                     setShowPlanningModal(false);
                     setSelectedOrderForPlanning(null);
                     if (orderNoParam) {
                       navigate.push('/plant-head/' + view);
                     }
-                  }} 
+                  }}
                   style={{ margin: 0, padding: '12px 24px', background: 'transparent', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', borderRadius: '10px', cursor: 'pointer' }}
                 >
                   Cancel

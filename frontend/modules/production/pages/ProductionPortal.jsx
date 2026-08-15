@@ -105,8 +105,9 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
   useEffect(() => {
     const calculateTime = () => {
       const accumulated = wo.accumulatedTime || 0;
-      if (isRunning && wo.lastStartedAt) {
-        const timeDiff = Date.now() - wo.lastStartedAt;
+      const startedAt = wo.lastStartedAt || (isRunning ? (wo.createdAt ? new Date(wo.createdAt).getTime() : Date.now()) : null);
+      if (isRunning && startedAt) {
+        const timeDiff = Math.max(0, Date.now() - startedAt);
         setElapsed(accumulated + timeDiff);
       } else {
         setElapsed(accumulated);
@@ -122,7 +123,7 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, wo.accumulatedTime, wo.lastStartedAt]);
+  }, [isRunning, wo.accumulatedTime, wo.lastStartedAt, wo.createdAt]);
 
   const formatDuration = (ms) => {
     const totalSec = Math.floor(ms / 1000);
@@ -2099,6 +2100,41 @@ export default function ProductionPortal() {
                     <span>{row.progress}%</span>
                   </div>
                 )
+              },
+              {
+                header: 'Work Order Duration',
+                accessor: 'duration',
+                render: (row) => {
+                  const accumulated = row.accumulatedTime || 0;
+                  const isActive = isRunningProductionStatus(row.status);
+                  const startedAt = row.lastStartedAt || (isActive ? (row.createdAt ? new Date(row.createdAt).getTime() : Date.now()) : null);
+                  const timeDiff = isActive && startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+                  const totalMs = accumulated + timeDiff;
+                  const totalSec = Math.floor(totalMs / 1000);
+                  const h = Math.floor(totalSec / 3600);
+                  const m = Math.floor((totalSec % 3600) / 60);
+                  const s = totalSec % 60;
+                  const durationStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                  
+                  return (
+                    <span style={{
+                      fontFamily: '"Courier New", monospace',
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      color: isActive ? '#059669' : '#d97706',
+                      background: isActive ? 'rgba(16,185,129,0.07)' : 'rgba(245,158,11,0.07)',
+                      border: `1px solid ${isActive ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}`,
+                      padding: '4px 9px',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      ⏱ {durationStr}
+                    </span>
+                  );
+                }
               }
             ]}
             data={runningWO}
