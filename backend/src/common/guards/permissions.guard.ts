@@ -60,7 +60,7 @@ export class PermissionsGuard implements CanActivate {
 
     // Normalized Role Check from JWT
     const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    if (['SUPER_ADMIN', 'ADMIN', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'SALES_MANAGER', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER'].includes(normalizedRole)) {
+    if (['SUPER_ADMIN', 'ADMIN', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'FINANCE_EXECUTIVE', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SALES', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER'].includes(normalizedRole)) {
       return true;
     }
 

@@ -43,7 +43,7 @@ async function bootstrap() {
   app.use((req, res, next) => {
     console.log(`[REQUEST] ${req.method} ${req.url} - Auth: ${req.headers.authorization ? 'Present' : 'Missing'}`);
     const originalSend = res.send;
-    res.send = function(body) {
+    res.send = function (body) {
       console.log(`[RESPONSE] ${req.method} ${req.url} - Status: ${res.statusCode}`);
       return originalSend.apply(this, arguments);
     };

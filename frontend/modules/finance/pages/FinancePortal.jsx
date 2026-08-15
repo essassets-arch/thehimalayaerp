@@ -16,8 +16,9 @@ import StatusBadge from '../../../shared/components/StatusBadge';
 import { FileText, ChevronRight, Edit2, CheckCircle2, XCircle, AlertTriangle, Check, X, Calendar, Download, RefreshCw, Trash2, Layers, Box } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { apiClient } from '../../../lib/apiClient';
-import { exportFinanceReportPDF, exportAgingReportPDF, exportToCSV, exportToExcel } from '../../../services/export.service';
+import { exportFinanceReportPDF, exportToCSV } from '../../../services/export.service';
 import PaymentVerificationView from '../../finance-executive/PaymentVerification/PaymentVerificationView';
+import FinanceExecutiveDashboardView from '../../finance-executive/Dashboard/DashboardView';
 import FinanceSalesConfirmationView from './FinanceSalesConfirmationView';
 import BrandAnalysisWidget from '../components/BrandAnalysisWidget';
 import ReceiptsView from '../../finance-executive/Receipts/ReceiptsView';
@@ -661,6 +662,10 @@ export default function FinancePortal({ initialView, forceView }) {
 
   // 1. Dashboard View
   const renderDashboard = () => {
+    const isExecutive = pathname?.includes('finance-executive') || user?.role === 'Finance Executive';
+    if (isExecutive) {
+      return <FinanceExecutiveDashboardView />;
+    }
     return (
       <FinanceManagerDashboardView 
         state={state} 
@@ -1204,15 +1209,7 @@ export default function FinancePortal({ initialView, forceView }) {
       }
     });
 
-    const exportFullExcel = () => {
-      const excelRows = chartData.map(item => ({
-        Month: item.month,
-        GrossInflow: `₹${item.inflow.toLocaleString('en-IN')}`,
-        Expenses: `₹${item.outflow.toLocaleString('en-IN')}`,
-        NetMargin: `₹${(item.inflow - item.outflow).toLocaleString('en-IN')}`
-      }));
-      exportToExcel(excelRows, `finance-statement-${finDateFrom}-to-${finDateTo}.xls`);
-    };
+
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', color: '#0F172A' }}>
@@ -1330,25 +1327,6 @@ export default function FinancePortal({ initialView, forceView }) {
               Export Finance PDF
             </button>
             <button
-              onClick={exportAgingReportPDF}
-              style={{
-                padding: '7px 14px',
-                borderRadius: '8px',
-                border: '1px solid #E9D5FF',
-                background: '#F3E8FF',
-                color: '#6B21A8',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Download size={14} color="#6B21A8" />
-              Export Aging PDF
-            </button>
-            <button
               onClick={() => {
                 const csvData = (cashFlowData && cashFlowData.summary) ? cashFlowData.summary.map(item => ({
                   Month: item.month,
@@ -1379,25 +1357,6 @@ export default function FinancePortal({ initialView, forceView }) {
             >
               <Download size={14} color="#92400E" />
               Export Cash CSV
-            </button>
-            <button
-              onClick={exportFullExcel}
-              style={{
-                padding: '7px 14px',
-                borderRadius: '8px',
-                border: '1px solid #BBF7D0',
-                background: '#DCFCE7',
-                color: '#166534',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Download size={14} color="#166534" />
-              Export Excel (.xlsx)
             </button>
           </div>
         </div>
@@ -1438,7 +1397,7 @@ export default function FinancePortal({ initialView, forceView }) {
             </div>
 
             {/* Charts Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
               
               {/* Financial Inflow vs Costs */}
               <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
