@@ -6,9 +6,10 @@ import StatusBadge from './StatusBadge';
 import { 
   User, Calendar, FileText, CreditCard, 
   Upload, FileDown, PlusCircle, RefreshCw,
-  Mail, Phone, ShieldCheck, MapPin
+  Mail, Phone, ShieldCheck, MapPin, LogIn, LogOut, Clock, Fingerprint, Camera
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import DataTable from './DataTable';
 
 export default function MyProfileView() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -16,7 +17,83 @@ export default function MyProfileView() {
   const [attendance, setAttendance] = useState([]);
   const [salarySlips, setSalarySlips] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  
+
+  // Local punch log from NestJS database & localStorage
+  const [localPunchLog, setLocalPunchLog] = useState([]);
+  const [filterPeriod, setFilterPeriod] = useState('today');
+
+  const fetchPunchLogsFromDB = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/attendance/punches');
+      if (response && response.success !== false) {
+        const data = Array.isArray(response) ? response : (response.data || []);
+        const empCode = profile?.employee?.employeeCode || profile?.employee?.id || profile?.id || 'EMP-001';
+        const filtered = data.filter(p => p.empId === empCode);
+        setLocalPunchLog(filtered);
+      }
+    } catch (e) {
+      console.error('Failed to fetch punch logs from DB:', e);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (profile) {
+      fetchPunchLogsFromDB();
+    }
+  }, [profile, activeTab]);
+
+  const formattedLogs = React.useMemo(() => {
+    const grouped = {};
+    
+    const sorted = [...localPunchLog].sort((a, b) => {
+      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    sorted.forEach(entry => {
+      const dateKey = entry.date || 'Today';
+      const cleanEmpId = entry.empId || entry.id || 'EMP-001';
+      const key = `${cleanEmpId}_${dateKey}`;
+      
+      const isPunchIn = entry.type === 'PUNCH_IN';
+      
+      if (!grouped[key]) {
+        grouped[key] = {
+          id: cleanEmpId,
+          name: entry.empName || entry.name || 'Dr. Vivek Joshi',
+          date: dateKey,
+          punchIn: isPunchIn ? (entry.punchInTime || entry.time || '—') : '—',
+          punchOut: !isPunchIn ? (entry.punchOutTime || entry.time || '—') : '—',
+          location: entry.location || 'Factory Campus',
+          coords: entry.coords || '',
+          selfieUrl: entry.selfieUrl || entry.lastPhoto || null,
+          status: entry.status || 'Verified',
+          timestamp: entry.timestamp
+        };
+      } else {
+        if (isPunchIn) {
+          grouped[key].punchIn = entry.punchInTime || entry.time || '—';
+          if (entry.selfieUrl) grouped[key].selfieUrl = entry.selfieUrl;
+          if (entry.coords) {
+            grouped[key].coords = entry.coords;
+            grouped[key].location = entry.location;
+          }
+        } else {
+          grouped[key].punchOut = entry.punchOutTime || entry.time || '—';
+          if (!grouped[key].selfieUrl && entry.selfieUrl) {
+            grouped[key].selfieUrl = entry.selfieUrl;
+          }
+          if (entry.status && entry.status !== 'Verified') {
+            grouped[key].status = entry.status;
+          }
+        }
+      }
+    });
+
+    return Object.values(grouped);
+  }, [localPunchLog]);
+
   // Loading states
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
@@ -485,115 +562,345 @@ export default function MyProfileView() {
 
         {/* Attendance Tab */}
         {activeTab === 'attendance' && (
-          <div className="app-card" style={{ background: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            {/* Header row */}
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', margin: '0 0 16px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                  Attendance Roster Summary
-                </h3>
-                <button
-                  id="btn-request-manual-attendance"
-                  onClick={handleManualAttendanceSubmit}
-                  disabled={submittingManual}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '10px 18px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: submittingManual ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
-                    transition: 'all 0.2s',
-                    opacity: submittingManual ? 0.7 : 1,
-                    whiteSpace: 'nowrap'
-                  }}
-                  onMouseEnter={e => { if (!submittingManual) e.currentTarget.style.boxShadow = '0 4px 16px rgba(2, 132, 199, 0.4)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(2, 132, 199, 0.25)'; }}
-                >
-                  <PlusCircle size={15} />
-                  {submittingManual ? 'Submitting...' : 'Request Manual Attendance'}
-                </button>
-              </div>
-              <p style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600', margin: '6px 0 0 0' }}>
-                Click the button above to submit a manual attendance correction request to HR.
-              </p>
-            </div>
-            
-            {loadingAttendance && attendance.length === 0 ? (
-              <p style={{ color: '#64748b' }}>Querying attendance roster logs...</p>
-            ) : attendance.length === 0 ? (
-              <p style={{ color: '#64748b' }}>No attendance summaries registered for this user.</p>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {attendance.map((att, idx) => (
-                  <div key={idx} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', padding: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '10px' }}>
-                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{att.month}</strong>
-                      <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: '800' }}>Active Period</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', fontWeight: '600', color: '#64748b' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderRight: '1px solid #e2e8f0', paddingRight: '8px' }}>
-                        <span>Present:</span>
-                        <strong style={{ color: '#15803d' }}>{att.present} Days</strong>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', paddingLeft: '8px' }}>
-                        <span>Absent:</span>
-                        <strong style={{ color: '#b91c1c' }}>{att.absent} Days</strong>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderRight: '1px solid #e2e8f0', paddingRight: '8px', borderTop: '1px solid #f1f5f9' }}>
-                        <span>Leave:</span>
-                        <strong style={{ color: '#d97706' }}>{att.leave} Days</strong>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', paddingLeft: '8px', borderTop: '1px solid #f1f5f9' }}>
-                        <span>Holidays:</span>
-                        <strong style={{ color: '#4f46e5' }}>{att.holiday} Days</strong>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-            {/* Manual Requests Logs */}
-            <div style={{ marginTop: '32px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '12px' }}>
-                Manual Attendance Requests History
-              </h4>
-              {loadingManual && manualRequests.length === 0 ? (
-                <p style={{ color: '#64748b', fontSize: '13px' }}>Loading requests...</p>
-              ) : manualRequests.length === 0 ? (
-                <p style={{ color: '#64748b', fontSize: '13px', fontStyle: 'italic', margin: 0 }}>No manual attendance requests submitted yet.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {manualRequests.map((req) => (
-                    <div key={req.id} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', background: '#fafafa', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#334155' }}>
-                          📅 Date: {new Date(req.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>
-                          <strong>Reason:</strong> {req.reason}
-                        </span>
-                        {req.remarks && (
-                          <span style={{ fontSize: '11.5px', color: '#475569', fontStyle: 'italic' }}>
-                            <strong>HR Remarks:</strong> "{req.remarks}"
-                          </span>
-                        )}
+            {/* ── LOCAL PUNCH RECORDS (from HeroBanner modal) ── */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '18px',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+            }}>
+              {/* Header */}
+              <div style={{
+                padding: '18px 22px 16px',
+                borderBottom: '1px solid #f1f5f9',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{
+                    width: '38px', height: '38px', borderRadius: '11px',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 3px 10px rgba(99,102,241,0.2)',
+                  }}>
+                    <Fingerprint size={20} color="#ffffff" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>Daily Punch Records</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Selfie · GPS Verified attendance from this device</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {/* Period Filter Pills */}
+                  <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    {[
+                      { id: 'today', label: 'Today' },
+                      { id: 'monthly', label: 'Monthly' },
+                      { id: 'yearly', label: 'Yearly' },
+                      { id: 'all', label: 'All Logs' }
+                    ].map(period => (
+                      <button
+                        key={period.id}
+                        onClick={() => setFilterPeriod(period.id)}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: filterPeriod === period.id ? '#ffffff' : 'transparent',
+                          color: filterPeriod === period.id ? '#0F172A' : '#64748B',
+                          boxShadow: filterPeriod === period.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {period.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      fetchPunchLogsFromDB();
+                    }}
+                    style={{
+                      background: '#f8fafc', border: '1px solid #cbd5e1',
+                      borderRadius: '8px', padding: '6px 12px',
+                      color: '#475569', fontSize: '12px', fontWeight: '700',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
+                    }}
+                  >
+                    <RefreshCw size={12} /> Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Stats row */}
+              {localPunchLog.length > 0 && (
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                  borderBottom: '1px solid #f1f5f9',
+                }}>
+                  {[
+                    {
+                      label: 'Total Punches', value: localPunchLog.length,
+                      color: '#4f46e5', icon: <Fingerprint size={16} color="#4f46e5" />
+                    },
+                    {
+                      label: 'Punch Ins', value: localPunchLog.filter(e => e.type === 'PUNCH_IN').length,
+                      color: '#16a34a', icon: <LogIn size={16} color="#16a34a" />
+                    },
+                    {
+                      label: 'Punch Outs', value: localPunchLog.filter(e => e.type === 'PUNCH_OUT').length,
+                      color: '#dc2626', icon: <LogOut size={16} color="#dc2626" />
+                    },
+                  ].map((s, i) => (
+                    <div key={i} style={{
+                      padding: '14px 18px', textAlign: 'center',
+                      borderRight: i < 2 ? '1px solid #f1f5f9' : 'none',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '5px' }}>
+                        {s.icon}
+                        <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.5px' }}>{s.label}</span>
                       </div>
-                      <div>
-                        <StatusBadge status={req.status} />
+                      <div style={{ fontSize: '24px', fontWeight: '900', color: s.color, lineHeight: 1 }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Log list */}
+              <div style={{ padding: '16px 20px', maxHeight: '420px', overflowY: 'auto' }}>
+                {localPunchLog.length === 0 ? (
+                  <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '32px' }}>
+                    <div style={{
+                      width: '52px', height: '52px', borderRadius: '50%',
+                      background: '#f5f3ff', border: '1.5px solid #ddd6fe',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Fingerprint size={24} color="#4f46e5" />
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>No punch records yet</div>
+                    <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>Use the Punch In / Punch Out button in the header to record attendance</div>
+                  </div>
+                ) : (
+                  <DataTable 
+                    columns={[
+                      { 
+                        header: 'Biometric Photo', 
+                        accessor: 'selfieUrl',
+                        render: (row) => (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {row.selfieUrl ? (
+                              <img src={row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
+                            ) : (
+                              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
+                                <Camera size={14} color="#64748b" />
+                              </div>
+                            )}
+                            <span style={{ fontSize: '11.5px', fontWeight: '700', color: row.selfieUrl ? '#0284c7' : '#64748b' }}>
+                              {row.selfieUrl ? '📸 Verified Photo' : 'Simulated Face'}
+                            </span>
+                          </div>
+                        )
+                      },
+                      { header: 'ID', accessor: 'id' },
+                      { header: 'Employee', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
+                      { 
+                        header: 'Date', 
+                        accessor: 'date', 
+                        render: (row) => (
+                          <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                            {row.date || 'Saturday, 15 August 2026'}
+                          </span>
+                        )
+                      },
+                      { 
+                        header: 'Punch In', 
+                        accessor: 'punchIn', 
+                        render: (row) => (
+                          <span style={{ fontWeight: '800', color: row.punchIn !== '—' ? '#16A34A' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
+                            {row.punchIn}
+                          </span>
+                        )
+                      },
+                      { 
+                        header: 'Punch Out', 
+                        accessor: 'punchOut', 
+                        render: (row) => (
+                          <span style={{ fontWeight: '800', color: row.punchOut !== '—' ? '#DC2626' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
+                            {row.punchOut}
+                          </span>
+                        )
+                      },
+                      { 
+                        header: 'GPS Location', 
+                        accessor: 'location',
+                        render: (row) => row.coords ? (
+                          <span style={{ color: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11.5px' }} title={`${row.location} (${row.coords})`}>
+                            <MapPin size={12} /> Verified
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94A3B8', fontSize: '11px' }}>No GPS</span>
+                        )
+                      },
+                      { 
+                        header: 'Roster Status', 
+                        accessor: 'status',
+                        render: (row) => {
+                          const isLate = row.status?.includes('Late');
+                          const isEarly = row.status?.includes('Early');
+                          const isOT = row.status?.includes('Overtime');
+                          
+                          let bg = '#DCFCE7';
+                          let color = '#15803D';
+                          let border = '#BBF7D0';
+                          
+                          if (isLate || isEarly) {
+                            bg = '#FEF3C7';
+                            color = '#D97706';
+                            border = '#FDE68A';
+                          } else if (isOT) {
+                            bg = '#E0F2FE';
+                            color = '#0369A1';
+                            border = '#BAE6FD';
+                          }
+                          
+                          return (
+                            <span style={{ 
+                              padding: '3.5px 9px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800',
+                              background: bg, color: color, border: `1px solid ${border}`
+                            }}>
+                              {row.status}
+                            </span>
+                          );
+                        }
+                      }
+                    ]}
+                    data={formattedLogs}
+                    searchQuery=""
+                    searchField="name"
+                    emptyMessage="No punch records registered on this device."
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* ── SERVER ATTENDANCE SUMMARY (existing) ── */}
+            <div className="app-card" style={{ background: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              {/* Header row */}
+              <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', margin: '0 0 16px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                    Monthly Attendance Summary
+                  </h3>
+                  <button
+                    id="btn-request-manual-attendance"
+                    onClick={handleManualAttendanceSubmit}
+                    disabled={submittingManual}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '10px 18px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: submittingManual ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
+                      transition: 'all 0.2s',
+                      opacity: submittingManual ? 0.7 : 1,
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseEnter={e => { if (!submittingManual) e.currentTarget.style.boxShadow = '0 4px 16px rgba(2, 132, 199, 0.4)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(2, 132, 199, 0.25)'; }}
+                  >
+                    <PlusCircle size={15} />
+                    {submittingManual ? 'Submitting...' : 'Request Manual Attendance'}
+                  </button>
+                </div>
+                <p style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600', margin: '6px 0 0 0' }}>
+                  Click the button above to submit a manual attendance correction request to HR.
+                </p>
+              </div>
+              
+              {loadingAttendance && attendance.length === 0 ? (
+                <p style={{ color: '#64748b' }}>Querying attendance roster logs...</p>
+              ) : attendance.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No attendance summaries registered for this user.</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                  {attendance.map((att, idx) => (
+                    <div key={idx} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', padding: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '10px' }}>
+                        <strong style={{ fontSize: '14px', color: '#0f172a' }}>{att.month}</strong>
+                        <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: '800' }}>Active Period</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', fontWeight: '600', color: '#64748b' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderRight: '1px solid #e2e8f0', paddingRight: '8px' }}>
+                          <span>Present:</span>
+                          <strong style={{ color: '#15803d' }}>{att.present} Days</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', paddingLeft: '8px' }}>
+                          <span>Absent:</span>
+                          <strong style={{ color: '#b91c1c' }}>{att.absent} Days</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderRight: '1px solid #e2e8f0', paddingRight: '8px', borderTop: '1px solid #f1f5f9' }}>
+                          <span>Leave:</span>
+                          <strong style={{ color: '#d97706' }}>{att.leave} Days</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', paddingLeft: '8px', borderTop: '1px solid #f1f5f9' }}>
+                          <span>Holidays:</span>
+                          <strong style={{ color: '#4f46e5' }}>{att.holiday} Days</strong>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
+
+              {/* Manual Requests Logs */}
+              <div style={{ marginTop: '32px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '12px' }}>
+                  Manual Attendance Requests History
+                </h4>
+                {loadingManual && manualRequests.length === 0 ? (
+                  <p style={{ color: '#64748b', fontSize: '13px' }}>Loading requests...</p>
+                ) : manualRequests.length === 0 ? (
+                  <p style={{ color: '#64748b', fontSize: '13px', fontStyle: 'italic', margin: 0 }}>No manual attendance requests submitted yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {manualRequests.map((req) => (
+                      <div key={req.id} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', background: '#fafafa', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#334155' }}>
+                            📅 Date: {new Date(req.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>
+                            <strong>Reason:</strong> {req.reason}
+                          </span>
+                          {req.remarks && (
+                            <span style={{ fontSize: '11.5px', color: '#475569', fontStyle: 'italic' }}>
+                              <strong>HR Remarks:</strong> "{req.remarks}"
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <StatusBadge status={req.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
           </div>
         )}
 

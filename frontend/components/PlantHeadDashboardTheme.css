@@ -125,7 +125,10 @@
 
 .role-plant-head .ph-production-charts {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
   gap: 24px;
+  width: 100%;
 }
 
 .role-plant-head .ph-production-charts .ph-command-card {

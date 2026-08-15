@@ -3373,3 +3373,32 @@ model ProductionDailyReportItem {
   @@index([productId])
 }
 
+model AttendancePunch {
+  id          String   @id @default(uuid())
+  empId       String
+  empName     String
+  type        String   // "PUNCH_IN" | "PUNCH_OUT"
+  time        String   // e.g. "09:22 AM"
+  date        String   // e.g. "2026-06-11"
+  location    String?
+  coords      String?
+  selfieUrl   String?  @db.Text
+  isRealPunch Boolean  @default(true)
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([empId])
+  @@index([date])
+}
+
+model ShiftPolicy {
+  id        String   @id @default(uuid())
+  deptName  String   @unique // e.g. "HR", "Sales", "Production", "Finance", "Default"
+  checkIn   String   // e.g. "09:00 AM"
+  checkOut  String   // e.g. "06:00 PM"
+  grace     Int      @default(15)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

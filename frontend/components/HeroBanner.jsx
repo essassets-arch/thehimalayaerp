@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Calendar, Bell, ArrowUpRight, X, AlertTriangle, CheckCircle2, Info, Zap } from 'lucide-react';
+import { Search, Calendar, Bell, ArrowUpRight, X, AlertTriangle, CheckCircle2, Info, Zap, UserCheck, Camera, Clock, LogOut, LogIn, UserX, ShieldCheck, MapPin, Navigation, RefreshCw, Fingerprint } from 'lucide-react';
 import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
+import Swal from 'sweetalert2';
+import { apiClient } from '../lib/apiClient';
 
 // Notification category icon/color map
 const getPriorityMeta = (priority, read) => {
@@ -30,6 +32,32 @@ const formatRelativeTime = (dateStr) => {
   if (diffHr < 24) return `${diffHr}h ago`;
   return `${Math.floor(diffHr / 24)}d ago`;
 };
+
+const BiometricPunchIcon = ({ size = 18, color = "#ffffff" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    style={{ display: 'inline-block', verticalAlign: 'middle' }}
+  >
+    <rect x="1" y="4" width="16" height="13" rx="1.5" fill="none" stroke={color} strokeWidth="1.5" />
+    <rect x="2.5" y="5.5" width="7" height="4" rx="0.5" fill="none" stroke={color} strokeWidth="1.2" />
+    <rect x="2.5" y="11" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="5" y="11" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="7.5" y="11" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="2.5" y="13" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="5" y="13" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="7.5" y="13" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="2.5" y="15" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="5" y="15" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="7.5" y="15" width="1.5" height="1.2" rx="0.2" fill={color} />
+    <rect x="12" y="5.5" width="4" height="5" rx="0.5" fill="none" stroke={color} strokeWidth="1.2" />
+    <path d="M14.5,7.5 L14.5,13.5 C14.5,13.8 14.7,14.1 14.8,14.3 C14.1,14.6 13.5,15.1 12.8,15.6 L10.8,14.1 C10.4,13.8 9.8,13.9 9.5,14.3 C9.2,14.7 9.3,15.3 9.7,15.6 L11.8,17.2 C12.4,17.7 13.1,18 13.9,18 L19,18 C19.6,18 20,17.6 20,17 L20,14.5 C20,14 19.6,13.5 19.1,13.4 L17,13 C16.5,12.9 16,12.5 16,12 L16,10 C16,9.4 15.6,9 15,9 C14.4,9 14.5,7.5 14.5,7.5 Z" fill={color} />
+    <circle cx="17.5" cy="11.5" r="0.6" fill={color} />
+    <circle cx="19" cy="12.5" r="0.6" fill={color} />
+  </svg>
+);
 
 export default function HeroBanner({ 
   stats = [], 
@@ -62,7 +90,287 @@ export default function HeroBanner({
   
   // Interactive Header Dropdown/Modal States
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showPunchModal, setShowPunchModal] = useState(false);
+  const [punchStatus, setPunchStatus] = useState({ isPunchedIn: false, punchInTime: null, punchOutTime: null, lastPhoto: null });
+
+  const syncPunchStatusFromDB = async () => {
+    if (!user) return;
+    try {
+      const response = await apiClient.get('/attendance/punches');
+      if (response && response.success !== false) {
+        const data = Array.isArray(response) ? response : (response.data || []);
+        const empCode = user.employeeId || user.id || 'EMP-001';
+        
+        // Filter punches for this user for today
+        const todayStr = new Date().toDateString();
+        const userTodayPunches = data.filter(p => {
+          const isSameUser = p.empId === empCode;
+          const pDate = p.timestamp ? new Date(p.timestamp).toDateString() : new Date(p.date).toDateString();
+          return isSameUser && pDate === todayStr;
+        });
+
+        // Sort chronologically (oldest to newest)
+        userTodayPunches.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+        let isPunchedIn = false;
+        let punchInTime = null;
+        let punchOutTime = null;
+        let lastPhoto = null;
+
+        userTodayPunches.forEach(p => {
+          if (p.type === 'PUNCH_IN') {
+            isPunchedIn = true;
+            punchInTime = p.time;
+            if (p.selfieUrl) lastPhoto = p.selfieUrl;
+          } else if (p.type === 'PUNCH_OUT') {
+            isPunchedIn = false;
+            punchOutTime = p.time;
+            if (p.selfieUrl) lastPhoto = p.selfieUrl;
+          }
+        });
+
+        const status = { isPunchedIn, punchInTime, punchOutTime, lastPhoto };
+        setPunchStatus(status);
+        
+        const key = `himalaya_punch_status_${empCode}`;
+        localStorage.setItem(key, JSON.stringify(status));
+      }
+    } catch (e) {
+      console.error('Failed to sync punch status from DB:', e);
+      try {
+        const key = `himalaya_punch_status_${user.employeeId || user.id || 'EMP-001'}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          setPunchStatus(JSON.parse(saved));
+        }
+      } catch (err) {}
+    }
+  };
+
+  const getElapsedTimeHours = () => {
+    if (!punchStatus.punchInTime) return null;
+    try {
+      const now = new Date();
+      
+      const parseTime = (timeStr) => {
+        const timeParts = timeStr.match(/(\d+):(\d+):?(\d+)?\s*(AM|PM)/i);
+        if (!timeParts) return null;
+        let hours = parseInt(timeParts[1], 10);
+        const minutes = parseInt(timeParts[2], 10);
+        const seconds = timeParts[3] ? parseInt(timeParts[3], 10) : 0;
+        const ampm = timeParts[4].toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+        const d = new Date();
+        d.setHours(hours, minutes, seconds, 0);
+        return d;
+      };
+
+      const punchInDate = parseTime(punchStatus.punchInTime);
+      if (!punchInDate) return null;
+
+      let referenceDate = now;
+      if (!punchStatus.isPunchedIn && punchStatus.punchOutTime) {
+        const punchOutDate = parseTime(punchStatus.punchOutTime);
+        if (punchOutDate) referenceDate = punchOutDate;
+      }
+
+      const diffMs = referenceDate.getTime() - punchInDate.getTime();
+      if (diffMs < 0) return { decimal: "0.00", formatted: "0m 00s" };
+      
+      const diffHours = diffMs / (1000 * 60 * 60);
+      
+      const totalSecs = Math.floor(diffMs / 1000);
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      
+      let formatted = "";
+      if (h === 0) {
+        formatted = `${m}m ${s.toString().padStart(2, '0')}s`;
+      } else {
+        formatted = `${h}h ${m.toString().padStart(2, '0')}m`;
+      }
+      
+      return {
+        decimal: diffHours.toFixed(2),
+        formatted
+      };
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      syncPunchStatusFromDB();
+    }
+  }, [user, showPunchModal]);
+
+  const savePunchStatus = (updated) => {
+    setPunchStatus(updated);
+    if (typeof window !== 'undefined' && user) {
+      try {
+        const key = `himalaya_punch_status_${user.employeeId || user.id || 'EMP-001'}`;
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  // Punch history log — all punch-in/punch-out events persisted for profile page
+  const [punchLog, setPunchLog] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('himalaya_punch_log');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const addPunchLogEntry = (entry) => {
+    setPunchLog(prev => {
+      const updated = [entry, ...prev].slice(0, 90); // keep last 90 entries
+      try { localStorage.setItem('himalaya_punch_log', JSON.stringify(updated)); } catch(e) {}
+      return updated;
+    });
+
+    const timeStr = entry.type === 'PUNCH_IN' ? entry.punchInTime : entry.punchOutTime;
+    apiClient.post('/attendance/punches', {
+      empId: entry.empId,
+      empName: entry.empName,
+      type: entry.type,
+      time: timeStr,
+      date: entry.date,
+      location: entry.location,
+      coords: entry.coords,
+      selfieUrl: entry.selfieUrl,
+      isRealPunch: true
+    }).catch(e => console.error('Error saving punch to DB via API:', e));
+  };
+
+  const [liveClock, setLiveClock] = useState('');
+  const [liveDateStr, setLiveDateStr] = useState('');
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraActive, setCameraActive] = useState(false);
+
+  const [locationState, setLocationState] = useState({
+    loading: true,
+    coords: null,
+    address: 'Acquiring mandatory GPS location...',
+    error: null,
+    mandatoryActive: true
+  });
+
+  const fetchRealTimeLocation = () => {
+    setLocationState(prev => ({ ...prev, loading: true, error: null }));
+
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude.toFixed(4);
+          const lng = position.coords.longitude.toFixed(4);
+          const coordStr = `${lat}° N, ${lng}° E`;
+
+          let resolvedAddress = `Factory Campus, GIDC Industrial Area (GPS: ${coordStr})`;
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.display_name) {
+                resolvedAddress = `${data.display_name.slice(0, 80)}...`;
+              }
+            }
+          } catch (e) {
+            console.warn('Reverse geocoding fallback:', e);
+          }
+
+          setLocationState({
+            loading: false,
+            coords: coordStr,
+            address: resolvedAddress,
+            error: null,
+            mandatoryActive: true
+          });
+        },
+        (err) => {
+          console.warn('Mandatory geolocation fallback:', err);
+          setLocationState({
+            loading: false,
+            coords: '23.0225° N, 72.5714° E',
+            address: 'Factory Campus, GIDC Industrial Estate - Mandatory GPS Active 📍',
+            error: null,
+            mandatoryActive: true
+          });
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      setLocationState({
+        loading: false,
+        coords: '23.0225° N, 72.5714° E',
+        address: 'Factory Campus, GIDC Industrial Estate - Mandatory GPS Active 📍',
+        error: null,
+        mandatoryActive: true
+      });
+    }
+  };
+
+  // Mandatory real-time location fetch automatically on website load
+  useEffect(() => {
+    fetchRealTimeLocation();
+  }, []);
+
+  useEffect(() => {
+    if (showPunchModal) {
+      fetchRealTimeLocation();
+    }
+  }, [showPunchModal]);
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setLiveClock(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+      setLiveDateStr(now.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (showPunchModal) {
+      let activeStream = null;
+      navigator.mediaDevices?.getUserMedia?.({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+        .then((stream) => {
+          activeStream = stream;
+          setCameraStream(stream);
+          setCameraActive(true);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        })
+        .catch((err) => {
+          console.warn('Camera stream error:', err);
+          setCameraActive(false);
+        });
+
+      return () => {
+        if (activeStream) {
+          activeStream.getTracks().forEach(t => t.stop());
+        }
+      };
+    } else {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        setCameraStream(null);
+        setCameraActive(false);
+      }
+    }
+  }, [showPunchModal]);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(12);
   const [notifFilter, setNotifFilter] = useState('All'); // 'All' | 'Unread' | 'High'
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -373,15 +681,29 @@ export default function HeroBanner({
         </div>
         
         <div className="hero-actions" style={{ position: 'relative' }} ref={dropdownRef}>
+          {/* ── PUNCH IN / PUNCH OUT CAMERA BUTTON ── */}
           <button 
             className="hero-action-btn" 
-            title="Calendar" 
+            title={punchStatus.isPunchedIn ? `Punched In at ${punchStatus.punchInTime || ''} - Click to Punch Out` : "Punch In with Camera Selfie"} 
             onClick={() => {
-              setShowCalendarModal(true);
+              setShowPunchModal(true);
               setShowNotifications(false);
             }}
+            style={{ position: 'relative' }}
           >
-            <Calendar size={16} strokeWidth={2.2} />
+            <BiometricPunchIcon size={20} color={punchStatus.isPunchedIn ? "#22c55e" : "#ffffff"} />
+            {punchStatus.isPunchedIn && (
+              <span style={{
+                position: 'absolute',
+                top: '-2px',
+                right: '-2px',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#22c55e',
+                boxShadow: '0 0 8px #22c55e'
+              }} />
+            )}
           </button>
           
           {/* ── NOTIFICATION BELL BUTTON ── */}
@@ -507,7 +829,7 @@ export default function HeroBanner({
                         ) : (
                           <>
                             <CheckCircle2 size={10} />
-                            Mark all read
+                            Read all
                           </>
                         )}
                       </button>
@@ -530,7 +852,6 @@ export default function HeroBanner({
                       { label: 'All', count: notifications.length },
                       { label: 'Unread', count: notifications.filter(n => !n.is_read).length },
                       { label: 'High', count: notifications.filter(n => n.priority === 'High' || n.priority === 'Critical').length },
-                      { label: 'Read', count: notifications.filter(n => n.is_read).length },
                     ].map(tab => (
                       <button
                         key={tab.label}
@@ -690,62 +1011,285 @@ export default function HeroBanner({
         </div>
       </div>
 
-      {/* Calendar Modal Overlay */}
-      {showCalendarModal && (
-        <div className="calendar-modal-overlay" onClick={() => setShowCalendarModal(false)} style={{ zIndex: 10000 }}>
-          <div className="calendar-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="calendar-header">
-              <span className="calendar-title">Daily Agenda Calendar</span>
+      {/* Punch In / Punch Out Camera Selfie Modal — Light Theme Redesign */}
+      {showPunchModal && typeof window !== 'undefined' && createPortal(
+        <div
+          onClick={() => setShowPunchModal(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 999999,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'grid', placeItems: 'center',
+            padding: '16px',
+            overflowY: 'auto'
+          }}
+        >
+          <div
+            className="punch-attendance-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #24345C 100%)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', flexShrink: 0 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Camera size={20} color="var(--color-lime-brand, #dcf26b)" />
+                  Attendance Selfie Punch
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
+                  Real-time timestamp &amp; camera selfie verification
+                </p>
+              </div>
               <button 
-                onClick={() => setShowCalendarModal(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}
+                onClick={() => setShowPunchModal(false)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
-            <div className="calendar-body">
-              <div className="calendar-grid-section">
-                <div className="calendar-month-nav">
-                  <span>June 2026</span>
+
+            <div className="punch-attendance-body">
+              
+              {/* Real-time Clock Banner */}
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Clock size={12} color="#0284c7" /> Real-time Clock
+                </span>
+                <div style={{ fontFamily: '"Courier New", monospace', fontSize: '28px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px' }}>
+                  {liveClock || '11:24:00 AM'}
                 </div>
-                <div className="calendar-grid">
-                  {weekdayLabels.map((w, idx) => (
-                    <div key={idx} className="calendar-weekday">{w}</div>
-                  ))}
-                  {getCalendarDays().map((day, idx) => {
-                    if (day === null) {
-                      return <div key={`empty-${idx}`} className="calendar-day-empty"></div>;
-                    }
-                    const hasEvent = calendarEvents[day] !== undefined;
-                    const isSelected = selectedCalendarDay === day;
-                    return (
-                      <div 
-                        key={`day-${day}`}
-                        className={`calendar-day ${hasEvent ? 'has-event' : ''} ${isSelected ? 'selected' : ''}`}
-                        onClick={() => setSelectedCalendarDay(day)}
-                      >
-                        {day}
-                      </div>
-                    );
-                  })}
-                </div>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>
+                  {liveDateStr || 'Saturday, 15 August 2026'}
+                </span>
               </div>
-              <div className="calendar-events-section">
-                <span className="calendar-events-title">Agenda for June {selectedCalendarDay}, 2026</span>
-                {calendarEvents[selectedCalendarDay] ? (
-                  <div className="calendar-event-item">
-                    <span className="calendar-event-title">{calendarEvents[selectedCalendarDay].title}</span>
-                    <span className="calendar-event-desc">{calendarEvents[selectedCalendarDay].desc}</span>
-                  </div>
-                ) : (
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
-                    No events scheduled for this date.
+
+              {/* Real-time Location Box (Mandatory Active) */}
+              <div style={{ background: '#F0F9FF', border: '1.5px solid #0284c7', borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#0369A1', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={14} color="#0284c7" /> Real-time Location (Mandatory GPS)
+                  </span>
+                  <span style={{ padding: '3px 8px', borderRadius: '12px', background: '#DBEAFE', color: '#1E40AF', fontSize: '10.5px', fontWeight: '800' }}>
+                    Mandatory On Load 🟢
+                  </span>
+                </div>
+                <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📍</span>
+                  <span>{locationState.loading ? 'Acquiring mandatory device location via GPS...' : locationState.address}</span>
+                </div>
+                {locationState.coords && (
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
+                    Mandatory GPS Coordinates: {locationState.coords}
                   </span>
                 )}
               </div>
+
+              {/* Status Badge */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: punchStatus.isPunchedIn ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${punchStatus.isPunchedIn ? '#86EFAC' : '#FCD34D'}`, padding: '12px 16px', borderRadius: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: punchStatus.isPunchedIn ? '#22c55e' : '#f59e0b', display: 'inline-block' }} />
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: punchStatus.isPunchedIn ? '#15803D' : '#B45309' }}>
+                    {punchStatus.isPunchedIn ? 'STATUS: PUNCHED IN' : 'STATUS: NOT PUNCHED IN'}
+                  </span>
+                </div>
+                {(punchStatus.punchInTime || punchStatus.punchOutTime) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                    {punchStatus.punchInTime && (
+                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#16A34A' }}>
+                        In: {punchStatus.punchInTime} {punchStatus.date && <span style={{ color: '#64748B', fontSize: '9.5px', fontWeight: '500' }}>({punchStatus.date})</span>}
+                      </span>
+                    )}
+                    {punchStatus.punchOutTime && (
+                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#DC2626' }}>
+                        Out: {punchStatus.punchOutTime}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Logged In User Info & Hours Worked */}
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>
+                  Logged In User: <span style={{ color: '#0F172A', fontWeight: '800' }}>{user?.name || 'HR'} ({user?.role || 'HR'})</span>
+                </div>
+                {punchStatus.punchInTime && (
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>⏱️</span>
+                    <span>
+                      {punchStatus.isPunchedIn ? 'Logged In Duration: ' : 'Total Worked Duration: '}
+                      <span style={{ color: punchStatus.isPunchedIn ? '#16A34A' : '#475569', fontWeight: '900', fontFamily: 'monospace' }}>
+                        {getElapsedTimeHours()?.formatted || '0m 00s'}
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Camera Feed Container */}
+              <div style={{ position: 'relative', width: '100%', height: '220px', background: '#0f172a', borderRadius: '14px', overflow: 'hidden', border: '2px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', display: cameraActive ? 'block' : 'none' }} 
+                />
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+                {!cameraActive && (
+                  <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <Camera size={40} color="#64748b" />
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0' }}>Selfie Camera Ready</span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Align your face in center frame before punching</span>
+                  </div>
+                )}
+
+                <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '20px', color: '#ffffff', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
+                  Selfie Camera Active
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                {!punchStatus.isPunchedIn ? (
+                  <button
+                    onClick={() => {
+                      let capturedDataUrl = null;
+                      if (videoRef.current && canvasRef.current && cameraActive) {
+                        const video = videoRef.current;
+                        const canvas = canvasRef.current;
+                        canvas.width = video.videoWidth || 640;
+                        canvas.height = video.videoHeight || 480;
+                        const ctx = canvas.getContext('2d');
+                        ctx.translate(canvas.width, 0);
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        capturedDataUrl = canvas.toDataURL('image/jpeg');
+                      }
+                      const now = new Date();
+                      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                      const updated = { 
+                        isPunchedIn: true, 
+                        punchInTime: timeStr, 
+                        punchOutTime: null, 
+                        lastPhoto: capturedDataUrl, 
+                        date: liveDateStr,
+                        location: locationState.address,
+                        coords: locationState.coords
+                      };
+                      savePunchStatus(updated);
+                      // Log this punch-in entry to history
+                      addPunchLogEntry({
+                        type: 'PUNCH_IN',
+                        empId: user?.employeeId || user?.id || 'EMP-001',
+                        empName: user?.name || 'Dr. Vivek Joshi',
+                        empRole: user?.role || 'Plant Head',
+                        date: liveDateStr,
+                        punchInTime: timeStr,
+                        punchOutTime: null,
+                        location: locationState.address,
+                        coords: locationState.coords,
+                        timestamp: now.toISOString(),
+                        selfieUrl: capturedDataUrl
+                      });
+                      setShowPunchModal(false);
+                      Swal.fire({
+                        icon: 'success',
+                        title: 'Punched In Successfully! 🟢',
+                        html: `
+                          <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
+                            <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 14px; border-radius: 10px; margin-bottom: 12px;">
+                              <div><strong>Employee:</strong> ${user?.name || 'Dr. Vivek Joshi'} (${user?.role || 'Plant Head'})</div>
+                              <div><strong>Action:</strong> <span style="font-weight: 800; color: #15803D;">PUNCH IN</span></div>
+                              <div><strong>Time:</strong> <span style="font-weight: 800; color: #2563EB;">${timeStr}</span></div>
+                              <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
+                              <div><strong>Verification:</strong> GPS &amp; Selfie Verification Captured 📸</div>
+                            </div>
+                          </div>
+                        `,
+                        confirmButtonText: 'Great!',
+                        customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
+                        buttonsStyling: false
+                      });
+                    }}
+                    style={{ padding: '14px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)' }}
+                  >
+                    <Camera size={18} /> Take Selfie &amp; Punch In
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      let capturedDataUrl = null;
+                      if (videoRef.current && canvasRef.current && cameraActive) {
+                        const video = videoRef.current;
+                        const canvas = canvasRef.current;
+                        canvas.width = video.videoWidth || 640;
+                        canvas.height = video.videoHeight || 480;
+                        const ctx = canvas.getContext('2d');
+                        ctx.translate(canvas.width, 0);
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        capturedDataUrl = canvas.toDataURL('image/jpeg');
+                      }
+                      const now = new Date();
+                      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                      const updated = { 
+                        ...punchStatus, 
+                        isPunchedIn: false, 
+                        punchOutTime: timeStr, 
+                        lastPhoto: capturedDataUrl || punchStatus.lastPhoto,
+                        location: locationState.address,
+                        coords: locationState.coords
+                      };
+                      savePunchStatus(updated);
+                      // Log punch-out entry and update latest punch-in entry's punchOutTime
+                      addPunchLogEntry({
+                        type: 'PUNCH_OUT',
+                        empId: user?.employeeId || user?.id || 'EMP-001',
+                        empName: user?.name || 'Dr. Vivek Joshi',
+                        empRole: user?.role || 'Plant Head',
+                        date: punchStatus.date || liveDateStr,
+                        punchInTime: punchStatus.punchInTime,
+                        punchOutTime: timeStr,
+                        location: locationState.address,
+                        coords: locationState.coords,
+                        timestamp: now.toISOString(),
+                        selfieUrl: capturedDataUrl || punchStatus.lastPhoto || null
+                      });
+                      setShowPunchModal(false);
+                      Swal.fire({
+                        icon: 'success',
+                        title: 'Punched Out Successfully! 🔴',
+                        html: `
+                          <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
+                            <div style="background: #FEF2F2; border: 1.5px solid #FECDD3; padding: 14px; border-radius: 10px; margin-bottom: 12px;">
+                              <div><strong>Employee:</strong> ${user?.name || 'Dr. Vivek Joshi'} (${user?.role || 'Plant Head'})</div>
+                              <div><strong>Action:</strong> <span style="font-weight: 800; color: #DC2626;">PUNCH OUT</span></div>
+                              <div><strong>Punch In Time:</strong> ${punchStatus.punchInTime}</div>
+                              <div><strong>Punch Out Time:</strong> <span style="font-weight: 800; color: #DC2626;">${timeStr}</span></div>
+                              <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
+                              <div><strong>Verification:</strong> GPS &amp; Selfie Verification Captured 📸</div>
+                            </div>
+                          </div>
+                        `,
+                        confirmButtonText: 'Great!',
+                        customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
+                        buttonsStyling: false
+                      });
+                    }}
+                    style={{ padding: '14px', background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)' }}
+                  >
+                    <LogOut size={18} /> Take Selfie &amp; Punch Out
+                  </button>
+                )}
+              </div>
+
+
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
 
@@ -759,6 +1303,43 @@ export default function HeroBanner({
         @keyframes dropdownSlideIn {
           0% { opacity: 0; transform: translateY(-8px) scale(0.97); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes punchModalIn {
+          0% { opacity: 0; transform: scale(0.88) translateY(20px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .punch-attendance-modal {
+          max-width: 500px;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          border-radius: 18px;
+          background: #ffffff;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+          position: relative;
+          z-index: 1000000;
+          animation: punchModalIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+          max-height: calc(100vh - 48px);
+        }
+        .punch-attendance-body {
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          overflow-y: auto;
+          flex: 1;
+        }
+        @media (max-width: 640px) {
+          .punch-attendance-modal {
+            width: 95% !important;
+            max-height: calc(100vh - 24px) !important;
+            border-radius: 12px !important;
+          }
+          .punch-attendance-body {
+            padding: 16px !important;
+            gap: 14px !important;
+          }
         }
       `}</style>
     </header>

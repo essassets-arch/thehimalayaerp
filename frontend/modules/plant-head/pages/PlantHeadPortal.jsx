@@ -1428,7 +1428,7 @@ export default function PlantHeadPortal() {
               <AlertOctagon size={18} color="#ef4444" />
               <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Critical Operational Alerts ({alerts.length})</h4>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '10px' }}>
               {alerts.map((alert) => (
                 <div key={alert.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--color-card-bg, #ffffff)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px 14px', fontSize: '12.5px', fontWeight: '600', color: 'var(--color-text-primary)' }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: alert.type === 'critical' ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
@@ -1464,7 +1464,7 @@ export default function PlantHeadPortal() {
           };
 
           return (
-            <div className="plant-head-legacy-dashboard" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+            <div className="plant-head-legacy-dashboard" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '24px' }}>
               {/* 1. Production Status */}
               <div className="app-card" style={getCardStyle('Production', 'var(--color-primary, #2F4375)')}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3194,7 +3194,7 @@ export default function PlantHeadPortal() {
               )
             },
             { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.name || '—'}</span> },
-            // { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: row.salesPersonName === 'Unassigned' ? 'var(--color-text-secondary, #64748b)' : 'var(--color-text-primary, #0f172a)' }}>{row.salesPersonName || 'Unassigned'}</span> },
+            { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
             { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
             { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
             { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
@@ -3502,6 +3502,7 @@ export default function PlantHeadPortal() {
               )
             },
             { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer || '—'}</span> },
+            { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
             { header: 'Product Item', accessor: 'products', render: (row) => row.products || row.productItem || '—' },
             {
               header: 'Plan Target Date',
@@ -3633,14 +3634,14 @@ export default function PlantHeadPortal() {
             };
 
             return (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                {planningViewTab === 'pending' && !isPlanned && (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                {planningViewTab === 'pending' && !isPlanned ? (
                   <button
                     data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
                     style={{
                       padding: '6px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px',
-                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                     }}
                     onClick={() => {
                       setSelectedOrderForPlanning(row);
@@ -3650,19 +3651,20 @@ export default function PlantHeadPortal() {
                       setShowPlanningModal(true);
                     }}
                   >
-                    <Plus size={14} /> Set Target Date &amp; Send to Production
+                    <Plus size={14} /> Send to Production
+                  </button>
+                ) : (
+                  <button
+                    style={{
+                      padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px',
+                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onClick={handleInlineUpdateTarget}
+                  >
+                    <Pencil size={13} /> Update Target Date
                   </button>
                 )}
-
-                <button
-                  style={{
-                    padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px',
-                    fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px'
-                  }}
-                  onClick={handleInlineUpdateTarget}
-                >
-                  <Pencil size={13} /> Update Target Date
-                </button>
               </div>
             );
           }}

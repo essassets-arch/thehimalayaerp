@@ -52,7 +52,7 @@ export default function ReminderModal({
   };
 
   return (
-    <div className="modal-overlay active" onClick={onClose}>
+    <div className="modal-overlay active" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)' }}>
       <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '480px', maxWidth: '95vw' }}>
         <div className="modal-header-row">
           <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

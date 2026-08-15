@@ -57,6 +57,7 @@ import { ProfileModule } from './modules/profile/profile.module';
 import { ExpenseModule } from './modules/expense/expense.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { AttendanceRequestModule } from './modules/attendance-request/attendance-request.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 
 @Module({
   imports: [
@@ -118,6 +119,7 @@ import { AttendanceRequestModule } from './modules/attendance-request/attendance
     ExpenseModule,
     LeaveModule,
     AttendanceRequestModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [
