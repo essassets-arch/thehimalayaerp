@@ -309,11 +309,15 @@ async function main() {
   let csvPath = '';
   const candidates = [
     'd:/prototype-next-main/hussain_sir(super_sales1) (4).csv',
+    path.resolve(__dirname, '../hussain_sir(super_sales1) (4).csv'),
     path.resolve(__dirname, '../../hussain_sir(super_sales1) (4).csv'),
     path.resolve('hussain_sir(super_sales1) (4).csv'),
+    '/app/hussain_sir(super_sales1) (4).csv',
     'd:/prototype-next-main/hussain_sir(super_sales1) (2).csv',
+    path.resolve(__dirname, '../hussain_sir(super_sales1) (2).csv'),
     path.resolve(__dirname, '../../hussain_sir(super_sales1) (2).csv'),
     path.resolve('hussain_sir(super_sales1) (2).csv'),
+    '/app/hussain_sir(super_sales1) (2).csv',
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) {
