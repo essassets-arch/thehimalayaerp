@@ -17,7 +17,8 @@ export default function SuperAdminAnalyticsFilter({
   showMonth = false,
   onExportPDF = null,
   onExportExcel = null,
-  customActions = null
+  customActions = null,
+  filterOptions = {}
 }) {
   const {
     period,
@@ -115,9 +116,7 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Branch: All Branches</option>
-            <option value="Dehradun Plant">Dehradun Plant</option>
-            <option value="Haridwar Unit 1">Haridwar Unit 1</option>
-            <option value="Roorkee Works">Roorkee Works</option>
+            {(filterOptions.branches || []).map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         )}
 
@@ -145,11 +144,7 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Customer: All Clients</option>
-            <option value="ABC Infrastructure Ltd">ABC Infrastructure Ltd</option>
-            <option value="Urban Construction Corp">Urban Construction Corp</option>
-            <option value="Metro Projects India">Metro Projects India</option>
-            <option value="Apex Builders & Engineers">Apex Builders & Engineers</option>
-            <option value="Smart City Development Group">Smart City Development Group</option>
+            {(filterOptions.customers || []).map(customer => <option key={customer.id} value={customer.id}>{customer.companyName}</option>)}
           </select>
         )}
 
@@ -174,11 +169,7 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Product: All Products</option>
-            <option value="FRP Manhole Covers">FRP Manhole Covers</option>
-            <option value="RCC Hume Pipes">RCC Hume Pipes</option>
-            <option value="FRP Chambers">FRP Chambers</option>
-            <option value="FRP Gratings">FRP Gratings</option>
-            <option value="Telecom Covers">Telecom Covers</option>
+            {(filterOptions.products || []).map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
           </select>
         )}
 
@@ -189,10 +180,7 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Category: All Categories</option>
-            <option value="FRP Composites">FRP Composites</option>
-            <option value="Precast Concrete">Precast Concrete</option>
-            <option value="Drainage & Utility">Drainage & Utility</option>
-            <option value="Telecom Infra">Telecom Infra</option>
+            {(filterOptions.categories || []).map(category => <option key={category} value={category}>{category}</option>)}
           </select>
         )}
 
@@ -203,15 +191,7 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Salesperson: All Representatives</option>
-            <option value="SuperSales 1">SuperSales 1 (supersales1@himalayaerp.com)</option>
-            <option value="SuperSales 2">SuperSales 2 (supersales2@himalayaerp.com)</option>
-            <option value="Sales Executive 1">Sales Executive 1 (sales1@himalayaerp.com)</option>
-            <option value="Sales Executive 2">Sales Executive 2 (sales2@himalayaerp.com)</option>
-            <option value="Sales Executive 3">Sales Executive 3 (sales3@himalayaerp.com)</option>
-            <option value="Sales Executive 4">Sales Executive 4 (sales4@himalayaerp.com)</option>
-            <option value="Sales Executive 5">Sales Executive 5 (sales5@himalayaerp.com)</option>
-            <option value="Sales Executive 6">Sales Executive 6 (sales6@himalayaerp.com)</option>
-            <option value="Sales Executive 7">Sales Executive 7 (sales7@himalayaerp.com)</option>
+            {(filterOptions.salespersons || []).map(salesperson => <option key={salesperson.id} value={salesperson.id}>{salesperson.name} ({salesperson.email})</option>)}
           </select>
         )}
 
@@ -222,10 +202,7 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Status: All Statuses</option>
-            <option value="Completed">Completed / Delivered</option>
-            <option value="Pending">Pending / In Progress</option>
-            <option value="Overdue">Overdue / Delayed</option>
-            <option value="Approved">Approved</option>
+            {(filterOptions.statuses || []).map(status => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}
           </select>
         )}
 

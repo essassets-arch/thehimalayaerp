@@ -28,7 +28,6 @@ export const MobileMenu = ({ isSuperAdmin = false }) => {
 
   const adminItems = [
     { path: '/admin', icon: Shield, label: 'Admin Dashboard' },
-    { path: '/admin/companies', icon: Building2, label: 'Companies' },
     { path: '/admin/users', icon: Users, label: 'Users' },
   ];
 

@@ -58,14 +58,14 @@ import DashboardView from '../components/DashboardView';
 import ProfitabilityAnalyticsPage from './ProfitabilityAnalyticsPage.jsx';
 import PurchaseOrderApproval from '../../procurement/super-admin/PurchaseOrderApproval';
 import DispatchCostAnalyticsPage from './DispatchCostAnalyticsPage.jsx';
-import InventoryCostAnalyticsPage from './InventoryCostAnalyticsPage.jsx';
+import InventoryAnalyticsPage from './InventoryAnalyticsPage.jsx';
 import FinanceAnalyticsPage from './FinanceAnalyticsPage.jsx';
 import ProductionAnalyticsPage from './ProductionAnalyticsPage.jsx';
 import HRAnalyticsPage from './HRAnalyticsPage.jsx';
+import BusinessReportsPage from './BusinessReportsPage.jsx';
 import { SuperAdminFilterProvider } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import BrandAnalysisPage from './BrandAnalysisPage';
-import BusinessReportsPage from './BusinessReportsPage.jsx';
 
 
 // Department Views
@@ -3702,98 +3702,11 @@ export default function SuperAdminPortal() {
               { header: 'Employee Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
               { header: 'Login Email', accessor: 'email', render: (row) => <span style={{ color: '#475569' }}>{row.email}</span> },
               { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || row.department?.code || 'Executive') : (row.department || 'Executive')) },
-              { header: 'Role Level', accessor: 'role', render: (row) => {
-                const roleName = row.role || 'Staff';
-                const cat = row.dispatchCategory;
-                return (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ color: roleName.includes('Super Admin') ? '#84cc16' : '#0ea5e9', fontWeight: 'bold' }}>{roleName}</span>
-                    {cat && <span style={{ background: cat === 'D1' ? '#0284c7' : '#8b5cf6', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '800' }}>{cat}</span>}
-                  </span>
-                );
-              } },
-              { header: 'Status', accessor: 'status', render: (row) => (
-                <button
-                  onClick={() => toggleUserStatus(row)}
-                  style={{
-                    background: row.isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                    color: row.isActive ? '#10b981' : '#f59e0b',
-                    border: `1px solid ${row.isActive ? '#10b981' : '#f59e0b'}`,
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {row.isActive ? '● Active' : '○ Disabled'}
-                </button>
-              ) },
-              { header: 'Created By', accessor: 'createdById', render: (row) => (row.createdById ? 'Admin' : 'System Seed') },
-              { header: 'Last Login', accessor: 'updatedAt', render: (row) => (row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active Session') },
-              { header: 'Access Level', accessor: 'role', render: (row) => {
-                if (row.role?.includes('Super Admin') || row.roleCode === 'SUPER_ADMIN') return 'Root Override';
-                if (row.dispatchCategory === 'D1') return 'Dispatch 1 Scoped';
-                if (row.dispatchCategory === 'D2') return 'Dispatch 2 Scoped';
-                if (row.role?.includes('Sales')) return 'Salesperson Scoped';
-                return 'Role Restricted';
-              } }
+              { header: 'Last Login', accessor: 'updatedAt', render: (row) => (row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active Session') }
             ]}
             data={filteredUsers}
             searchQuery={globalSearch}
             searchField="name"
-            actions={(row) => (
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <button
-                  title="Edit User"
-                  className="action-btn"
-                  style={{ background: 'rgba(6, 182, 212, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#22d3ee', cursor: 'pointer' }}
-                  onClick={() => {
-                    setUserForm({
-                      ...row,
-                      password: '',
-                      subRole: row.roleCode || row.role,
-                      dispatchCategory: row.dispatchCategory || (row.role?.includes('2') ? 'D2' : 'D1'),
-                    });
-                    setUserModalMode('edit');
-                    setShowUserModal(true);
-                  }}
-                >
-                  <Edit3 size={12} />
-                </button>
-                <button
-                  title="Reset Password"
-                  className="action-btn"
-                  style={{ background: 'rgba(168, 85, 247, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#c084fc', cursor: 'pointer' }}
-                  onClick={() => resetUserPassword(row)}
-                >
-                  <RefreshCw size={12} />
-                </button>
-                <button
-                  title={row.isActive ? 'Disable User' : 'Enable User'}
-                  className="action-btn"
-                  style={{
-                    background: row.isActive ? 'rgba(245, 158, 11, 0.15)' : 'rgba(74, 222, 128, 0.15)',
-                    border: 'none',
-                    padding: '6px',
-                    borderRadius: '4px',
-                    color: row.isActive ? '#f59e0b' : '#4ade80',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => toggleUserStatus(row)}
-                >
-                  <UserX size={12} />
-                </button>
-                <button
-                  title="Delete User"
-                  className="action-btn"
-                  style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#f87171', cursor: 'pointer' }}
-                  onClick={() => deleteUser(row.id, row.name)}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            )}
             emptyMessage="No matching credentials accounts found."
           />
         </div>
@@ -7931,7 +7844,7 @@ export default function SuperAdminPortal() {
         if (subView === 'sales') return <SalesAnalyticsPage />;
         if (subView === 'finance') return <FinanceAnalyticsPage />;
         if (subView === 'production') return <ProductionAnalyticsPage />;
-        if (subView === 'inventory') return <InventoryCostAnalyticsPage />;
+        if (subView === 'inventory') return <InventoryAnalyticsPage />;
         if (subView === 'hr') return <HRAnalyticsPage />;
         if (subView === 'dispatch') return <DispatchCostAnalyticsPage />;
         return (
@@ -7959,8 +7872,8 @@ export default function SuperAdminPortal() {
         return renderAdmins();
       case 'users':
         return renderUsers();
-      case 'companies':
-        return renderCompanies();
+      case 'reports':
+        return <BusinessReportsPage />;
       case 'sales-target':
         return renderSalesTarget();
       case 'production-target':

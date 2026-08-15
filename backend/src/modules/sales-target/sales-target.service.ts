@@ -66,7 +66,7 @@ export class SalesTargetService {
   async dashboard(userId: string) {
     const today = new Date();
 
-    const target = await this.prisma.salesTarget.findFirst({
+    let target = await this.prisma.salesTarget.findFirst({
       where: {
         salespersonId: userId,
         status: 'ACTIVE',
@@ -75,6 +75,26 @@ export class SalesTargetService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (!target) {
+      target = await this.prisma.salesTarget.findFirst({
+        where: {
+          status: 'ACTIVE',
+          startDate: { lte: today },
+          endDate: { gte: today },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    if (!target) {
+      target = await this.prisma.salesTarget.findFirst({
+        where: {
+          status: 'ACTIVE',
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
     if (!target) {
       return {
@@ -89,13 +109,12 @@ export class SalesTargetService {
       };
     }
 
+    const targetSalespersonId = target.salespersonId;
     const achieved = await this.prisma.salesOrder.aggregate({
       _sum: { totalAmount: true },
       where: {
         AND: [
-          // If orders have createdById matching salespersonId. In standard schema, orders often lack salespersonId unless customer mapping implies it.
-          // We will query salesOrders based on createdById = userId
-          { createdById: userId },
+          targetSalespersonId ? { OR: [{ createdById: targetSalespersonId }, { salesExecutiveId: targetSalespersonId }] } : {},
           {
             status: {
               in: [
@@ -106,7 +125,7 @@ export class SalesTargetService {
                 'READY_FOR_PRODUCTION',
                 'IN_PRODUCTION',
                 'READY_FOR_DISPATCH',
-                'COMPLETED',
+                'COMPLETED'
               ],
             },
           },
@@ -120,7 +139,7 @@ export class SalesTargetService {
       },
     });
 
-    const achievedSales = Number(achieved._sum.totalAmount ?? 0);
+    const achievedSales = Number(achieved?._sum?.totalAmount ?? 0);
     const targetAmount = Number(target.revenueTarget);
 
     const achievement =

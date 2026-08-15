@@ -26,7 +26,29 @@ export function formatPercent(val) {
   return `${Number(val).toFixed(1)}%`;
 }
 
-export function calculatePeriodDates(period, customStart = '2026-07-01', customEnd = '2026-07-31') {
+export function calculatePeriodDates(period, customStart = '', customEnd = '') {
+  const today = new Date();
+  const dateOnly = (date) => date.toISOString().slice(0, 10);
+  const label = (from, to) => `${from.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} – ${to.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+  const range = (from, to, compareLabel = 'vs Equivalent Previous Period') => ({ label: `${period}: ${label(from, to)}`, compareLabel, dateFrom: dateOnly(from), dateTo: dateOnly(to) });
+  const startOfWeek = (date) => { const result = new Date(date); result.setDate(result.getDate() - ((result.getDay() + 6) % 7)); result.setHours(0, 0, 0, 0); return result; };
+  const startOfFinancialYear = (date) => new Date(date.getFullYear() - (date.getMonth() < 3 ? 1 : 0), 3, 1);
+  const endOfDay = (date) => { const result = new Date(date); result.setHours(23, 59, 59, 999); return result; };
+  switch (period) {
+    case 'Today': return range(today, today, 'vs Yesterday');
+    case 'Yesterday': { const day = new Date(today); day.setDate(day.getDate() - 1); return range(day, day, 'vs Previous Day'); }
+    case 'This Week': { const from = startOfWeek(today); return range(from, today, 'vs Previous Week'); }
+    case 'Last Week': { const to = new Date(startOfWeek(today)); to.setDate(to.getDate() - 1); const from = startOfWeek(to); return range(from, endOfDay(to), 'vs Previous Week'); }
+    case 'This Month': return range(new Date(today.getFullYear(), today.getMonth(), 1), today, 'vs Previous Month');
+    case 'Last Month': return range(new Date(today.getFullYear(), today.getMonth() - 1, 1), new Date(today.getFullYear(), today.getMonth(), 0), 'vs Previous Month');
+    case 'This Quarter': { const firstMonth = Math.floor(today.getMonth() / 3) * 3; return range(new Date(today.getFullYear(), firstMonth, 1), new Date(today.getFullYear(), firstMonth + 3, 0), 'vs Previous Quarter'); }
+    case 'Last Quarter': { const firstMonth = Math.floor(today.getMonth() / 3) * 3 - 3; return range(new Date(today.getFullYear(), firstMonth, 1), new Date(today.getFullYear(), firstMonth + 3, 0), 'vs Previous Quarter'); }
+    case 'This Financial Year': { const from = startOfFinancialYear(today); return range(from, new Date(from.getFullYear() + 1, 2, 31), `FY ${from.getFullYear()}-${String(from.getFullYear() + 1).slice(-2)}`); }
+    case 'Last Financial Year': { const thisFy = startOfFinancialYear(today); const from = new Date(thisFy.getFullYear() - 1, 3, 1); return range(from, new Date(thisFy.getFullYear(), 2, 31), `FY ${from.getFullYear()}-${String(thisFy.getFullYear()).slice(-2)}`); }
+    case 'Custom Date Range': { const from = new Date(`${customStart}T00:00:00`); const to = new Date(`${customEnd}T00:00:00`); return range(from, to); }
+    default: return range(new Date(today.getFullYear(), today.getMonth(), 1), today);
+  }
+  /* legacy static ranges retained below only for source-history context
   switch (period) {
     case 'Today':
       return {
@@ -136,7 +158,7 @@ export function calculatePeriodDates(period, customStart = '2026-07-01', customE
         prevDateFrom: '2026-06-01',
         prevDateTo: '2026-06-30'
       };
-  }
+  } */
 }
 
 export function getDateRangeLabel(period, customStart, customEnd) {
@@ -239,71 +261,68 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
 
   // Base Sales
   const stateSalesVal = filteredOrders.reduce((sum, o) => sum + (Number(o.totalValue || o.amount || o.totalAmount || (o.price * o.quantity)) || 0), 0);
-  const totalSalesVal = stateSalesVal > 0 ? Math.round(stateSalesVal * periodScale) : Math.round(8240000 * scale);
-  const totalOrdersCount = filteredOrders.length > 0 ? Math.round(filteredOrders.length * periodScale) : Math.max(1, Math.round(28 * scale));
+  const totalSalesVal = stateSalesVal;
+  const totalOrdersCount = filteredOrders.length;
 
   // Realized Revenue Collections (Finance Verified Payments)
   const statePaymentsVal = rawPayments.reduce((sum, p) => sum + (Number(p.paidAmount || p.totalAmount || p.amount) || 0), 0);
-  const revenueCollected = statePaymentsVal > 0 ? Math.round(statePaymentsVal * periodScale) : Math.round(6420000 * scale);
+  const revenueCollected = statePaymentsVal;
 
   // Outstanding Receivables
-  const totalInvoiced = Math.round(totalSalesVal * 1.0);
-  const outstandingReceivables = Math.max(0, totalInvoiced - revenueCollected);
-  const overdueAmount = Math.min(outstandingReceivables, Math.round(outstandingReceivables * 0.45));
-  const pendingInvoicesCount = filteredOrders.filter(o => o.status !== 'Paid' && o.status !== 'COMPLETED').length || Math.max(1, Math.round(14 * scale));
-  const activeCustomersCount = rawCustomers.length > 0 ? Math.round(rawCustomers.length * branchScale) : Math.max(1, Math.round(18 * branchScale));
+  const outstandingReceivables = Math.max(0, totalSalesVal - revenueCollected);
+  const overdueAmount = 0;
+  const pendingInvoicesCount = filteredOrders.filter(o => o.status !== 'Paid' && o.status !== 'COMPLETED').length;
+  const activeCustomersCount = rawCustomers.length;
 
   // Costs Breakdown from purchase orders, production, dispatches, payroll
   const statePOVal = rawPurchaseOrders.reduce((sum, po) => sum + (Number(po.totalAmount || po.grandTotal || po.value) || 0), 0);
-  const poCommitmentVal = statePOVal > 0 ? Math.round(statePOVal * periodScale) : Math.round(2850000 * scale);
-  const rawMaterialCost = statePOVal > 0 ? Math.round(statePOVal * 0.86 * periodScale) : Math.round(2450000 * scale);
+  const poCommitmentVal = statePOVal;
+  const rawMaterialCost = Math.round(statePOVal * 0.86);
 
   const prodMaterialConsumables = Math.round(rawMaterialCost * 0.24);
   const prodLabourPower = Math.round(rawMaterialCost * 0.11);
   const productionCost = prodMaterialConsumables + prodLabourPower;
 
-  const dispatchCost = Math.round(totalSalesVal * 0.034);
-  const totalDispatchesCount = Math.max(1, Math.round(42 * scale));
-  const avgCostPerDispatch = Math.round(dispatchCost / totalDispatchesCount);
-  const costPerDeliveredUnit = 412;
+  const dispatchCost = filteredOrders.reduce((sum, o) => sum + (Number(o.freightAmount || o.freightCost || 0) || 0), 0);
+  const totalDispatchesCount = (Array.isArray(state.dispatches) ? state.dispatches.length : 0);
+  const avgCostPerDispatch = totalDispatchesCount > 0 ? Math.round(dispatchCost / totalDispatchesCount) : 0;
+  const costPerDeliveredUnit = 0;
 
   const stateSalaryVal = rawEmployees.reduce((sum, e) => sum + (Number(e.salary || e.grossSalary || e.baseSalary) || 0), 0);
-  const grossPayroll = stateSalaryVal > 0 ? Math.round(stateSalaryVal * periodScale) : Math.round(650000 * scale);
-  const overtimeBonus = Math.round(grossPayroll * 0.11);
-  const salaryCost = grossPayroll + overtimeBonus;
+  const grossPayroll = stateSalaryVal;
+  const overtimeBonus = 0;
+  const salaryCost = grossPayroll;
 
-  const reworkMaterialKg = Math.round(430 * scale);
-  const reworkMaterialCost = Math.round(52000 * scale);
-  const reworkLabourCost = Math.round(33000 * scale);
-  const reworkCost = reworkMaterialCost + reworkLabourCost;
+  const reworkMaterialKg = 0;
+  const reworkMaterialCost = 0;
+  const reworkLabourCost = 0;
+  const reworkCost = 0;
 
-  const scrapKg = Math.round(350 * scale);
-  const scrapValue = Math.round(42000 * scale);
-  const scrapCost = scrapValue;
-  const wastageRate = 2.4;
+  const scrapKg = 0;
+  const scrapValue = 0;
+  const scrapCost = 0;
+  const wastageRate = 0;
 
-  const returnedValue = Math.round(45000 * scale);
-  const replacementLogisticsCost = Math.round(20000 * scale);
-  const salesReturnCost = returnedValue + replacementLogisticsCost;
+  const returnedValue = 0;
+  const replacementLogisticsCost = 0;
+  const salesReturnCost = 0;
 
-  const vendorReturnVal = Math.round(120000 * scale);
-  const vendorCreditExpected = Math.round(120000 * scale);
-  const replacementPendingBatches = Math.max(1, Math.round(2 * scale));
+  const vendorReturnVal = 0;
+  const vendorCreditExpected = 0;
+  const replacementPendingBatches = 0;
 
-  const otherExpenses = Math.round(110000 * scale) + totalApprovedExpenses;
+  const otherExpenses = totalApprovedExpenses;
 
-  // Total Business Expenses (avoiding double counting)
-  const totalBusinessExpense = rawMaterialCost + productionCost + dispatchCost + salaryCost + reworkCost + scrapCost + salesReturnCost + otherExpenses;
+  // Total Business Expenses
+  const totalBusinessExpense = rawMaterialCost + productionCost + dispatchCost + salaryCost + otherExpenses;
 
-  // Gross Profit = Recognized Sales - Direct COGS (Material + Production + Direct Dispatch)
+  // Gross Profit & Net Profit
   const directCOGS = rawMaterialCost + productionCost + dispatchCost;
   const grossProfit = Math.max(0, totalSalesVal - directCOGS);
-  
-  // Net Profit = Recognized Revenue - Total Business Expense
   const estimatedNetProfit = totalSalesVal - totalBusinessExpense;
   const profitMarginPercent = totalSalesVal > 0 ? (estimatedNetProfit / totalSalesVal) * 100 : 0;
 
-  // Operational KPIs derived dynamically from state when available
+  // Operational KPIs
   const rawWorkOrders = Array.isArray(state.workOrders) ? state.workOrders : [];
   const rawDispatches = Array.isArray(state.dispatches) ? state.dispatches : [];
   const rawInventoryList = Array.isArray(state.rawInventory) ? state.rawInventory : [];
@@ -311,28 +330,28 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   const stateProductionTarget = rawWorkOrders.reduce((sum, w) => sum + (Number(w.targetQty || w.plannedQty || w.quantity) || 0), 0);
   const stateProductionVal = rawWorkOrders.reduce((sum, w) => sum + (Number(w.completedQty || w.producedQty || w.quantity) || 0), 0);
 
-  const dailyProductionTarget = stateProductionTarget > 0 ? Math.round(stateProductionTarget * periodScale) : (period === 'Today' || period === 'Yesterday' ? 800 : Math.round(800 * periodScale * 30));
-  const dailyProductionVal = stateProductionVal > 0 ? Math.round(stateProductionVal * periodScale) : (period === 'Today' || period === 'Yesterday' ? 735 : Math.round(735 * periodScale * 30));
-  const dailyProductionProgress = Math.min(100, Math.round((dailyProductionVal / Math.max(1, dailyProductionTarget)) * 100));
+  const dailyProductionTarget = stateProductionTarget;
+  const dailyProductionVal = stateProductionVal;
+  const dailyProductionProgress = dailyProductionTarget > 0 ? Math.min(100, Math.round((dailyProductionVal / dailyProductionTarget) * 100)) : 0;
 
   const stateDispatchUnits = rawDispatches.reduce((sum, d) => sum + (Number(d.quantity || d.units) || 0), 0);
-  const dailyDispatchCount = rawDispatches.length > 0 ? Math.round(rawDispatches.length * periodScale) : (period === 'Today' || period === 'Yesterday' ? 12 : Math.round(12 * periodScale * 30));
-  const dailyUnitsDispatched = stateDispatchUnits > 0 ? Math.round(stateDispatchUnits * periodScale) : (period === 'Today' || period === 'Yesterday' ? 680 : Math.round(680 * periodScale * 30));
-  const dailyDispatchPending = Math.max(1, Math.round(12 * branchScale));
+  const dailyDispatchCount = rawDispatches.length;
+  const dailyUnitsDispatched = stateDispatchUnits;
+  const dailyDispatchPending = 0;
 
-  const dailySalesVal = period === 'Today' || period === 'Yesterday' ? 840000 : Math.round(840000 * periodScale * 30);
-  const dailySalesOrders = period === 'Today' || period === 'Yesterday' ? 14 : Math.round(14 * periodScale * 30);
+  const dailySalesVal = 0;
+  const dailySalesOrders = 0;
 
-  const pendingOrdersCount = rawOrders.filter(o => o.status === 'Pending' || o.status === 'Processing').length || Math.max(1, Math.round(28 * branchScale));
-  const urgentOrdersCount = rawOrders.filter(o => o.priority === 'High' || o.urgent).length || Math.max(1, Math.round(12 * branchScale));
+  const pendingOrdersCount = rawOrders.filter(o => o.status === 'Pending' || o.status === 'Processing').length;
+  const urgentOrdersCount = rawOrders.filter(o => o.priority === 'High' || o.urgent).length;
 
   const stateLowStock = rawInventoryList.filter(i => (Number(i.stock) || 0) <= (Number(i.reorderLevel || i.min_stock) || 10)).length;
   const stateCriticalStock = rawInventoryList.filter(i => (Number(i.stock) || 0) === 0).length;
 
-  const lowStockCount = stateLowStock > 0 ? stateLowStock : Math.max(1, Math.round(12 * branchScale));
-  const criticalStockCount = stateCriticalStock > 0 ? stateCriticalStock : Math.max(1, Math.round(3 * branchScale));
+  const lowStockCount = stateLowStock;
+  const criticalStockCount = stateCriticalStock;
 
-  // Expense breakdown calculation: dynamically from approved HR claims if available, else standard tracked categories
+  // Expense breakdown
   let expenseBreakdown = [];
   if (approvedExpenses.length > 0) {
     const catMap = approvedExpenses.reduce((acc, ex) => {
@@ -350,172 +369,55 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
       percent: Number(((val / catTotal) * 100).toFixed(1)),
       color: colors[idx % colors.length]
     }));
-  } else {
-    const expTotal = Math.max(1, totalBusinessExpense);
-    expenseBreakdown = [
-      { name: 'Raw Material / COGS', value: Number((rawMaterialCost / 100000).toFixed(2)), percent: Number(((rawMaterialCost / expTotal) * 100).toFixed(1)), color: '#3b82f6' },
-      { name: 'Production', value: Number(((productionCost + (approvedByDept.prod || 0)) / 100000).toFixed(2)), percent: Number((((productionCost + (approvedByDept.prod || 0)) / expTotal) * 100).toFixed(1)), color: '#10b981' },
-      { name: 'Salary & Payroll', value: Number(((salaryCost + (approvedByDept.hr || 0)) / 100000).toFixed(2)), percent: Number((((salaryCost + (approvedByDept.hr || 0)) / expTotal) * 100).toFixed(1)), color: '#8b5cf6' },
-      { name: 'Dispatch & Transport', value: Number(((dispatchCost + (approvedByDept.dispatch || 0)) / 100000).toFixed(2)), percent: Number((((dispatchCost + (approvedByDept.dispatch || 0)) / expTotal) * 100).toFixed(1)), color: '#f59e0b' },
-      { name: 'Rework Cost', value: Number((reworkCost / 100000).toFixed(2)), percent: Number(((reworkCost / expTotal) * 100).toFixed(1)), color: '#ef4444' },
-      { name: 'Scrap & Wastage', value: Number((scrapCost / 100000).toFixed(2)), percent: Number(((scrapCost / expTotal) * 100).toFixed(1)), color: '#ea580c' },
-      { name: 'Sales Returns', value: Number((salesReturnCost / 100000).toFixed(2)), percent: Number(((salesReturnCost / expTotal) * 100).toFixed(1)), color: '#ec4899' },
-      { name: 'Other Tracked Costs', value: Number(((otherExpenses) / 100000).toFixed(2)), percent: Number(((otherExpenses / expTotal) * 100).toFixed(1)), color: '#5E6B82' }
-    ];
   }
 
-  // Monthly Performance (P&L Trend)
-  const baseMonthly = [
-    { month: 'Apr', revRatio: 0.75, colRatio: 0.70, expRatio: 0.53 },
-    { month: 'May', revRatio: 0.86, colRatio: 0.78, expRatio: 0.59 },
-    { month: 'Jun', revRatio: 0.92, colRatio: 0.85, expRatio: 0.63 },
-    { month: 'Jul', revRatio: 1.00, colRatio: 0.78, expRatio: 0.58 }
-  ];
-  const monthlyPerformance = baseMonthly.map(m => {
-    const revL = Number(((totalSalesVal / 100000) * m.revRatio).toFixed(1));
-    const colL = Number(((revenueCollected / 100000) * m.colRatio).toFixed(1));
-    const expL = Number(((totalBusinessExpense / 100000) * m.expRatio).toFixed(1));
-    const grossL = Number((revL - (expL * 0.65)).toFixed(1));
-    const netL = Number((revL - expL).toFixed(1));
-    return {
-      month: m.month,
-      revenue: revL,
-      collected: colL,
-      expense: expL,
-      grossProfit: grossL,
-      estimatedProfit: netL
-    };
-  });
+  // Monthly Performance
+  const monthlyPerformance = [];
 
-  // Department-Wise Costs driven by HR Expense Management approved claims
+  // Department-Wise Costs
   const departmentCosts = [
-    { name: 'Store / Procurement', costVal: approvedByDept.store > 0 ? formatCurrency(approvedByDept.store) : formatCurrency(poCommitmentVal), purchaseVal: formatCurrency(poCommitmentVal + (approvedByDept.store || 0)), materialReceived: formatCurrency(rawMaterialCost), consumed: formatCurrency(rawMaterialCost * 0.9), vendorReturns: formatCurrency(vendorReturnVal), inventoryVal: formatCurrency(rawMaterialCost * 0.75), accent: '#3b82f6' },
-    { name: 'Production', costVal: approvedByDept.prod > 0 ? formatCurrency(approvedByDept.prod) : formatCurrency(productionCost), productionCost: formatCurrency(productionCost), costPerUnit: `₹${formatNumber(Math.round(productionCost / Math.max(1, dailyProductionVal)))} / Unit`, reworkCost: formatCurrency(reworkCost), scrapCost: formatCurrency(scrapCost), efficiency: `${dailyProductionProgress}% Yield`, accent: '#10b981' },
-    { name: 'Quality Control (QC)', costVal: approvedByDept.qc > 0 ? formatCurrency(approvedByDept.qc) : `${formatNumber(Math.round(dailyProductionVal * 1.02))} Units`, inspectedQty: `${formatNumber(Math.round(dailyProductionVal * 1.02))} Units`, rejectedQty: `${Math.round(15 * scale)} Units`, reworkQty: `${Math.round(18 * scale)} Batches`, rejectionRate: '1.8%', qualityLoss: formatCurrency(reworkCost + scrapCost), accent: '#ef4444' },
-    { name: 'Dispatch & Logistics', costVal: approvedByDept.dispatch > 0 ? formatCurrency(approvedByDept.dispatch) : formatCurrency(dispatchCost), transportCost: formatCurrency(dispatchCost), totalDispatches: totalDispatchesCount, avgCostPerDispatch: formatCurrency(avgCostPerDispatch), costPerUnit: `₹${costPerDeliveredUnit}`, delayedCost: formatCurrency(12500 * scale), accent: '#f59e0b' },
-    { name: 'HR & Payroll', costVal: approvedByDept.hr > 0 ? formatCurrency(approvedByDept.hr) : formatCurrency(salaryCost), salaryCost: formatCurrency(salaryCost), overtime: formatCurrency(overtimeBonus * 0.64), bonus: formatCurrency(overtimeBonus * 0.36), perEmployeeAvg: formatCurrency(Math.round(salaryCost / 22)), activeStaff: '22 Staff', accent: '#8b5cf6' },
-    { name: 'Sales & Marketing', costVal: approvedByDept.sales > 0 ? formatCurrency(approvedByDept.sales) : formatCurrency(totalSalesVal), salesValue: formatCurrency(totalSalesVal), discounts: formatCurrency(145000 * scale), salesReturns: formatCurrency(salesReturnCost), committedTransport: formatCurrency(dispatchCost * 0.85), orderConversion: '68%', accent: '#06b6d4' },
-    { name: 'Finance & Accounts', costVal: approvedByDept.finance > 0 ? formatCurrency(approvedByDept.finance) : formatCurrency(totalSalesVal), revenue: formatCurrency(totalSalesVal), collections: formatCurrency(revenueCollected), outstanding: formatCurrency(outstandingReceivables), vendorPayments: formatCurrency(poCommitmentVal * 0.77), cashOutflow: formatCurrency(totalBusinessExpense * 0.94), accent: '#6366f1' }
+    { name: 'Store / Procurement', costVal: formatCurrency(approvedByDept.store || 0), accent: '#3b82f6' },
+    { name: 'Production', costVal: formatCurrency(approvedByDept.prod || 0), accent: '#10b981' },
+    { name: 'Quality Control (QC)', costVal: formatCurrency(approvedByDept.qc || 0), accent: '#ef4444' },
+    { name: 'Dispatch & Logistics', costVal: formatCurrency(approvedByDept.dispatch || 0), accent: '#f59e0b' },
+    { name: 'HR & Payroll', costVal: formatCurrency(approvedByDept.hr || 0), accent: '#8b5cf6' },
+    { name: 'Sales & Marketing', costVal: formatCurrency(approvedByDept.sales || 0), accent: '#06b6d4' },
+    { name: 'Finance & Accounts', costVal: formatCurrency(approvedByDept.finance || 0), accent: '#6366f1' }
   ];
 
-  // Order Profitability List - Map from rawOrders if available, else fallback list
-  const baseOrderProfitability = rawOrders.length >= 3 ? rawOrders.map(o => ({
-    id: o.id || o.orderNumber || 'ORD-RAW',
-    cust: o.customerName || o.client || 'Client Account',
-    prod: o.productName || o.item || 'ERP Product Spec',
-    qty: Number(o.quantity) || 50,
-    sales: Number(o.totalValue || o.amount) || 150000,
-    materialCost: Math.round((Number(o.totalValue || o.amount) || 150000) * 0.45),
-    prodCost: Math.round((Number(o.totalValue || o.amount) || 150000) * 0.20),
-    reworkCost: 1000,
-    dispatchCost: Math.round((Number(o.totalValue || o.amount) || 150000) * 0.05),
-    totalCost: Math.round((Number(o.totalValue || o.amount) || 150000) * 0.70),
-    grossProfit: Math.round((Number(o.totalValue || o.amount) || 150000) * 0.30),
-    margin: 30.0,
-    category: 'Normal'
-  })) : [
-    { id: 'ORD-001', cust: 'ABC Infrastructure Ltd', prod: 'FRP Manhole Covers (Heavy Duty)', qty: 120, sales: 250000, materialCost: 110000, prodCost: 35000, reworkCost: 2000, dispatchCost: 8000, totalCost: 155000, grossProfit: 95000, margin: 38.0, category: 'High Margin' },
-    { id: 'ORD-002', cust: 'Urban Construction Corp', prod: 'RCC Hume Pipes (NP3 Class)', qty: 65, sales: 210000, materialCost: 98000, prodCost: 42000, reworkCost: 5000, dispatchCost: 9500, totalCost: 154500, grossProfit: 55500, margin: 26.4, category: 'Normal' },
-    { id: 'ORD-003', cust: 'Metro Projects India', prod: 'FRP Chambers (Telecom Spec)', qty: 80, sales: 180000, materialCost: 75000, prodCost: 28000, reworkCost: 1200, dispatchCost: 6500, totalCost: 110700, grossProfit: 69300, margin: 38.5, category: 'High Margin' },
-    { id: 'ORD-004', cust: 'Apex Builders & Engineers', prod: 'FRP Gratings (Anti-Slip)', qty: 150, sales: 95000, materialCost: 48000, prodCost: 26000, reworkCost: 8500, dispatchCost: 7200, totalCost: 89700, grossProfit: 5300, margin: 5.6, category: 'Low Margin' },
-    { id: 'ORD-005', cust: 'Smart City Development Group', prod: 'FRP Manhole Covers (Medium)', qty: 200, sales: 240000, materialCost: 112000, prodCost: 38000, reworkCost: 0, dispatchCost: 14500, totalCost: 164500, grossProfit: 75500, margin: 31.5, category: 'High Transport' },
-    { id: 'ORD-101', cust: 'Hindustan Builders', prod: 'Precast Drain Covers', qty: 90, sales: 135000, materialCost: 62000, prodCost: 24000, reworkCost: 14000, dispatchCost: 12500, totalCost: 112500, grossProfit: 22500, margin: 16.7, category: 'High Rework' },
-    { id: 'ORD-104', cust: 'Delta Infra Tech', prod: 'FRP Water Tank Slabs', qty: 40, sales: 110000, materialCost: 68000, prodCost: 28000, reworkCost: 6000, dispatchCost: 8500, totalCost: 110500, grossProfit: -500, margin: -0.5, category: 'Loss Making' }
-  ];
-
-  const orderProfitability = baseOrderProfitability.map(ord => {
-    const s = Math.round(ord.sales * scale);
-    const tc = Math.round(ord.totalCost * scale);
-    const gp = s - tc;
+  // Order Profitability List
+  const orderProfitability = rawOrders.map(o => {
+    const s = Number(o.totalValue || o.amount || 0);
+    const directCost = Number(o.freightCost || o.freightAmount || 0);
+    const gp = s - directCost;
     const m = s > 0 ? Number(((gp / s) * 100).toFixed(1)) : 0;
     return {
-      ...ord,
-      qty: Math.max(1, Math.round(ord.qty * scale)),
+      id: o.id || o.orderNumber || 'ORD-1',
+      cust: o.customerName || o.client || 'Client',
+      prod: o.productName || o.item || 'Standard Product',
+      qty: Number(o.quantity) || 0,
       sales: s,
-      totalCost: tc,
+      directCost,
+      totalCost: directCost,
       grossProfit: gp,
-      margin: m
+      margin: m,
+      category: m >= 30 ? 'Most Profitable' : (m < 0 ? 'Loss-Making' : (directCost > 10000 ? 'High Transport' : 'Normal'))
     };
   });
 
-  // Dynamic Chart Datasets
   const productionData = [
     { name: "Target", value: dailyProductionTarget, fill: "#D6E2F0" },
     { name: "Produced", value: dailyProductionVal, fill: "#10b981" }
   ];
 
-  const salesDispatchTrendData = [
-    { name: '17 May', sales: Number((6.2 * scale).toFixed(1)), dispatch: Math.round(450 * scale), orders: Math.max(1, Math.round(8 * scale)) },
-    { name: '20 May', sales: Number((11.4 * scale).toFixed(1)), dispatch: Math.round(520 * scale), orders: Math.max(1, Math.round(10 * scale)) },
-    { name: '23 May', sales: Number((8.1 * scale).toFixed(1)), dispatch: Math.round(380 * scale), orders: Math.max(1, Math.round(7 * scale)) },
-    { name: '26 May', sales: Number((10.5 * scale).toFixed(1)), dispatch: Math.round(490 * scale), orders: Math.max(1, Math.round(9 * scale)) },
-    { name: '29 May', sales: Number((7.8 * scale).toFixed(1)), dispatch: Math.round(560 * scale), orders: Math.max(1, Math.round(11 * scale)) },
-    { name: '30 May', sales: Number((9.6 * scale).toFixed(1)), dispatch: Math.round(680 * scale), orders: Math.max(1, Math.round(12 * scale)) }
-  ];
-
-  const monthlyRevenueData = [
-    { name: 'Jun', revenue: Number(((totalSalesVal / 100000) * 0.79).toFixed(1)), collection: Number(((revenueCollected / 100000) * 0.85).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.55).toFixed(1)) },
-    { name: 'Jul', revenue: Number(((totalSalesVal / 100000) * 0.85).toFixed(1)), collection: Number(((revenueCollected / 100000) * 0.93).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.55).toFixed(1)) },
-    { name: 'Aug', revenue: Number(((totalSalesVal / 100000) * 0.82).toFixed(1)), collection: Number(((revenueCollected / 100000) * 0.78).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.98).toFixed(1)) },
-    { name: 'Sep', revenue: Number(((totalSalesVal / 100000) * 0.91).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.01).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.55).toFixed(1)) },
-    { name: 'Oct', revenue: Number(((totalSalesVal / 100000) * 0.97).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.09).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.55).toFixed(1)) },
-    { name: 'Nov', revenue: Number(((totalSalesVal / 100000) * 1.03).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.25).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.27).toFixed(1)) },
-    { name: 'Dec', revenue: Number(((totalSalesVal / 100000) * 1.09).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.32).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.27).toFixed(1)) },
-    { name: 'Jan', revenue: Number(((totalSalesVal / 100000) * 1.07).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.21).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.55).toFixed(1)) },
-    { name: 'Feb', revenue: Number(((totalSalesVal / 100000) * 0.91).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.09).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.27).toFixed(1)) },
-    { name: 'Mar', revenue: Number(((totalSalesVal / 100000) * 0.97).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.17).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.27).toFixed(1)) },
-    { name: 'Apr', revenue: Number(((totalSalesVal / 100000) * 1.00).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.25).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.11).toFixed(1)) },
-    { name: 'May', revenue: Number(((totalSalesVal / 100000) * 1.03).toFixed(1)), collection: Number(((revenueCollected / 100000) * 1.17).toFixed(1)), outstanding: Number(((outstandingReceivables / 100000) * 0.55).toFixed(1)) }
-  ];
-
-  const monthlyProductionData = [
-    { name: 'Week 1', target: Math.round(750 * scale), produced: Math.round(700 * scale), rejected: Math.round(10 * scale) },
-    { name: 'Week 2', target: Math.round(750 * scale), produced: Math.round(720 * scale), rejected: Math.round(15 * scale) },
-    { name: 'Week 3', target: Math.round(750 * scale), produced: Math.round(710 * scale), rejected: Math.round(12 * scale) },
-    { name: 'Week 4', target: Math.round(750 * scale), produced: Math.round(740 * scale), rejected: Math.round(8 * scale) },
-    { name: 'Week 5', target: Math.round(750 * scale), produced: Math.round(735 * scale), rejected: Math.round(5 * scale) }
-  ];
-
-  const topProductsData = [
-    { name: 'FRP Manhole Covers', value: Number(((totalSalesVal / 100000) * 0.34).toFixed(1)), percent: 34, color: '#3B82F6' },
-    { name: 'RCC Hume Pipes', value: Number(((totalSalesVal / 100000) * 0.25).toFixed(1)), percent: 25, color: '#10B981' },
-    { name: 'FRP Chambers', value: Number(((totalSalesVal / 100000) * 0.18).toFixed(1)), percent: 18, color: '#F59E0B' },
-    { name: 'FRP Gratings', value: Number(((totalSalesVal / 100000) * 0.12).toFixed(1)), percent: 12, color: '#EF4444' },
-    { name: 'Telecom Covers', value: Number(((totalSalesVal / 100000) * 0.11).toFixed(1)), percent: 11, color: '#8B5CF6' }
-  ];
-
-  const ageingData = [
-    { name: '0 - 30 Days', value: Number(((outstandingReceivables / 100000) * 0.687).toFixed(1)), count: Math.max(1, Math.round(8 * scale)), color: '#10B981' },
-    { name: '31 - 60 Days', value: Number(((outstandingReceivables / 100000) * 0.374).toFixed(1)), count: Math.max(1, Math.round(5 * scale)), color: '#F59E0B' },
-    { name: '61 - 90 Days', value: Number(((outstandingReceivables / 100000) * 0.176).toFixed(1)), count: Math.max(1, Math.round(3 * scale)), color: '#EF4444' },
-    { name: '90+ Days Critical', value: Number(((outstandingReceivables / 100000) * 0.082).toFixed(1)), count: Math.max(1, Math.round(2 * scale)), color: '#8B5CF6' }
-  ];
-
-  const topCustomers = [
-    { name: 'ABC Infrastructure Ltd', revenue: formatCurrency(totalSalesVal * 0.172), orders: Math.max(1, Math.round(12 * scale)), growth: '+18%' },
-    { name: 'Urban Construction Corp', revenue: formatCurrency(totalSalesVal * 0.143), orders: Math.max(1, Math.round(9 * scale)), growth: '+12%' },
-    { name: 'Metro Projects India', revenue: formatCurrency(totalSalesVal * 0.115), orders: Math.max(1, Math.round(8 * scale)), growth: '+25%' },
-    { name: 'Apex Builders & Engineers', revenue: formatCurrency(totalSalesVal * 0.092), orders: Math.max(1, Math.round(6 * scale)), growth: '-4%' },
-    { name: 'Smart City Development Group', revenue: formatCurrency(totalSalesVal * 0.078), orders: Math.max(1, Math.round(5 * scale)), growth: '+15%' }
-  ];
-
-  const recentOrders = [
-    { id: 'ORD-001', cust: 'ABC Infrastructure Ltd', prod: 'FRP Manhole Covers (Heavy Duty)', qty: `${Math.round(120 * scale)} Units`, stage: 'Production', amount: formatCurrency(144000 * scale), priority: 'Urgent' },
-    { id: 'ORD-002', cust: 'Urban Construction Corp', prod: 'RCC Hume Pipes (NP3 Class)', qty: `${Math.round(65 * scale)} Units`, stage: 'QC', amount: formatCurrency(210000 * scale), priority: 'High' },
-    { id: 'ORD-003', cust: 'Metro Projects India', prod: 'FRP Chambers (Telecom Spec)', qty: `${Math.round(80 * scale)} Units`, stage: 'Dispatch', amount: formatCurrency(180000 * scale), priority: 'Normal' },
-    { id: 'ORD-004', cust: 'Apex Builders & Engineers', prod: 'FRP Gratings (Anti-Slip)', qty: `${Math.round(150 * scale)} Units`, stage: 'Delivered', amount: formatCurrency(95000 * scale), priority: 'Normal' },
-    { id: 'ORD-005', cust: 'Smart City Development Group', prod: 'FRP Manhole Covers (Medium)', qty: `${Math.round(200 * scale)} Units`, stage: 'Production', amount: formatCurrency(240000 * scale), priority: 'High' }
-  ];
-
-  const executiveAlerts = [
-    { id: 1, type: 'danger', icon: 'Truck', title: 'High Transportation Cost', message: `ORD-101 transportation cost exceeded quotation estimate by ${formatCurrency(12500 * scale)}.`, time: '2 hrs ago' },
-    { id: 2, type: 'warning', icon: 'TrendingUp', title: 'Low Margin Order', message: 'ORD-104 estimated margin dropped below 10% (Actual: -0.5%).', time: '4 hrs ago' },
-    { id: 3, type: 'danger', icon: 'ShoppingBag', title: 'Purchase Price Increase', message: 'Cement OPC 53 purchase price increased by 7.9% (₹380 → ₹410 / Bag).', time: 'Yesterday' },
-    { id: 4, type: 'warning', icon: 'AlertTriangle', title: 'High Scrap / Wastage', message: 'FRP Manhole Cover wastage reached 6.4% this month.', time: '1 day ago' },
-    { id: 5, type: 'info', icon: 'Wrench', title: 'High Rework Alert', message: `${Math.round(12 * scale)} production batches required rework this period.`, time: '2 days ago' },
-    { id: 6, type: 'danger', icon: 'FileText', title: 'Overdue Customer Payment', message: `${formatCurrency(overdueAmount)} customer payments are overdue across ${pendingInvoicesCount} invoices.`, time: '3 days ago' },
-    { id: 7, type: 'info', icon: 'Users', title: 'Salary Cost Increase', message: 'Payroll cost increased 11% compared with last month.', time: '4 days ago' }
-  ];
+  const salesDispatchTrendData = [];
+  const monthlyRevenueData = [];
+  const monthlyProductionData = [];
+  const topProductsData = [];
+  const ageingData = [];
+  const topCustomers = [];
+  const recentOrders = [];
+  const executiveAlerts = [];
 
   // Dispatch Variance Analytics - 100% Dynamic calculation from live state
   const dispatchesList = Array.isArray(state.dispatches) ? state.dispatches : [];
@@ -593,6 +495,13 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
     ]
   };
 
+  const customerProfitability = (Array.isArray(rawCustomers) ? rawCustomers : []).map(c => ({
+    name: c.name || c.companyName || c.clientName || 'Customer',
+    totalSales: Number(c.totalSales || c.totalRevenue || 0),
+    collected: Number(c.collected || c.totalPaid || 0),
+    outstanding: Number(c.outstanding || c.balance || 0)
+  }));
+
   return {
     totalSalesVal,
     totalOrdersCount,
@@ -649,6 +558,7 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
     expenseBreakdown,
     departmentCosts,
     orderProfitability,
+    customerProfitability,
     productionData,
     salesDispatchTrendData,
     monthlyRevenueData,

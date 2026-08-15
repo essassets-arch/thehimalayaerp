@@ -5,6 +5,7 @@ import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import { computeFinancialData, formatCurrency, formatNumber, formatPercent } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import FinancePortal from '../../finance/pages/FinancePortal.jsx';
+import { useCommandCenter } from '../hooks/useCommandCenter';
 import "../components/dashboard.css";
 
 const PORTAL_TABS = [
@@ -30,6 +31,7 @@ export default function FinanceAnalyticsPage() {
   const { state } = useERP();
   const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
   const fin = computeFinancialData(state, period, startDate, endDate);
+  const { data: commandData } = useCommandCenter(filters, activeDates);
 
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -67,11 +69,11 @@ export default function FinanceAnalyticsPage() {
             <Lucide.FileText size={18} color="#2563eb" />
           </div>
           <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.totalSalesVal)}</span>
+            <span className="sa-card-val">{commandData?.overview?.kpis?.[0]?.value || formatCurrency(fin.totalSalesVal)}</span>
           </div>
-          <div className="sa-card-subtext">{fin.totalOrdersCount} Verified Invoices</div>
+          <div className="sa-card-subtext">{commandData?.overview?.kpis?.[3]?.value || `${fin.totalOrdersCount} Verified Invoices`}</div>
           <div className="sa-card-footer">
-            <span className="kpi-success">↑ 14% {activeDates.compareLabel}</span>
+            <span className="kpi-success">{commandData?.overview?.kpis?.[0]?.change ? `${commandData.overview.kpis[0].change} ${activeDates.compareLabel}` : activeDates.compareLabel}</span>
           </div>
         </div>
 
@@ -81,11 +83,11 @@ export default function FinanceAnalyticsPage() {
             <Lucide.CheckCircle size={18} color="#10b981" />
           </div>
           <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.revenueCollected)}</span>
+            <span className="sa-card-val">{commandData?.overview?.kpis?.[1]?.value || formatCurrency(fin.revenueCollected)}</span>
           </div>
           <div className="sa-card-subtext">Finance Verified Payments</div>
           <div className="sa-card-footer">
-            <span className="kpi-success">Bank Cleared Cash Inflow</span>
+            <span className="kpi-success">{commandData?.overview?.kpis?.[1]?.change ? `${commandData.overview.kpis[1].change} Cash Inflow` : 'Bank Cleared Cash Inflow'}</span>
           </div>
         </div>
 
@@ -95,7 +97,7 @@ export default function FinanceAnalyticsPage() {
             <Lucide.AlertTriangle size={18} color="#ef4444" />
           </div>
           <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.outstandingReceivables)}</span>
+            <span className="sa-card-val">{commandData?.overview?.kpis?.[2]?.value || formatCurrency(fin.outstandingReceivables)}</span>
           </div>
           <div className="sa-card-subtext">{fin.pendingInvoicesCount} Active Accounts</div>
           <div className="sa-card-footer">
@@ -225,7 +227,7 @@ export default function FinanceAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {fin.customerProfitability.map((cust, idx) => (
+                  {(fin.customerProfitability || []).map((cust, idx) => (
                     <tr key={idx}>
                       <td style={{ fontWeight: 750, color: '#24345C' }}>{cust.name}</td>
                       <td style={{ fontWeight: 750, color: '#2563eb' }}>{formatCurrency(cust.totalSales)}</td>

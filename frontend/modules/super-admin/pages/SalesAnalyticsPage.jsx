@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, TrendingDown, RefreshCw, FileSpreadsheet, Printer, Download,
   Activity, FileText, Users, CheckCircle, AlertCircle, Calendar, MapPin, 
@@ -17,6 +17,7 @@ import { useSalesExport } from '../hooks/useSalesExport.js';
 import DataTable from '../components/sales-analytics/explorer/DataTable.jsx';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import { SuperAdminFilterProvider, useSuperAdminFilter } from '../context/SuperAdminFilterContext.jsx';
+import './SalesAnalyticsPage.css';
 
 const DEPT_COLORS = ["#7C3AED", "#4F46E5", "#06B6D4", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#8B5CF6"];
 
@@ -36,10 +37,15 @@ const getKPIBorder = (title) => {
 
 const SalesAnalyticsContent = () => {
   const [globalSearch, setGlobalSearch] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   // Custom BI & Filter Hooks
   const { period, startDate, endDate, activeDates, filters, setFilter, clearAllFilters } = useSuperAdminFilter();
-  const { data, loading, refreshAll } = useCommandCenter(filters, activeDates);
+  const { data, loading, error, refreshAll } = useCommandCenter(filters, activeDates);
   const { exportCSV, exportExcel, exportPDF } = useSalesExport(data, 'overview');
 
   const [drilldownEntity, setDrilldownEntity] = useState(null);
@@ -79,7 +85,7 @@ const SalesAnalyticsContent = () => {
     }
   };
 
-  const filteredExplorerRows = useMemo(() => {
+  const filteredExplorerRows = (() => {
     if (!globalSearch) return rawExplorerRows;
     const lower = globalSearch.toLowerCase();
     return rawExplorerRows.filter(r => 
@@ -88,36 +94,44 @@ const SalesAnalyticsContent = () => {
       String(r.salesExecutive || '').toLowerCase().includes(lower) ||
       String(r.product || '').toLowerCase().includes(lower)
     );
-  }, [rawExplorerRows, globalSearch]);
+  })();
 
-  const filteredEmployeePerformance = useMemo(() => {
+  const filteredEmployeePerformance = (() => {
     if (!globalSearch) return employeePerformance;
     const lower = globalSearch.toLowerCase();
     return employeePerformance.filter(e => 
       String(e.executive || '').toLowerCase().includes(lower) ||
       String(e.email || '').toLowerCase().includes(lower)
     );
-  }, [employeePerformance, globalSearch]);
+  })();
+
+  if (error) {
+    return <div style={{ padding: '32px', color: '#b91c1c', fontFamily: 'Outfit, sans-serif' }}>
+      <h2>Unable to load Executive Command Center.</h2>
+      <p>{error.message}</p>
+      <button onClick={refreshAll} style={{ padding: '8px 14px', border: 'none', borderRadius: '6px', background: '#2563eb', color: '#fff', cursor: 'pointer' }}>Retry</button>
+    </div>;
+  }
 
   return (
-    <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '24px', fontFamily: 'Outfit, sans-serif', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="sales-analytics-container">
       
       {/* ── 1. COMPACT HEADER TOOLBAR ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid #DCE5F0', paddingBottom: '16px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#24345C', margin: 0 }}>Executive Command Center</h1>
-          <p style={{ fontSize: '12px', color: '#5E6B82', margin: '2px 0 0' }}>Real-time aggregated corporate health and risk matrices • Last Updated: 2 sec ago</p>
+      <div className="sales-analytics-header">
+        <div className="sales-analytics-header-title">
+          <h1 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: '900', color: '#24345C', margin: 0 }}>Executive Command Center</h1>
+          <p style={{ fontSize: '12px', color: '#5E6B82', margin: '2px 0 0' }}>Real-time aggregated corporate health and risk matrices • Last Updated: {safeData.generatedAt ? new Date(safeData.generatedAt).toLocaleString() : 'Loading…'}</p>
         </div>
         
         {/* Global Search and Actions */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', borderRadius: '8px', padding: '6px 12px', border: '1px solid #D6E2F0' }}>
+        <div className="sales-analytics-header-actions">
+          <div className="sales-analytics-search-box">
             <Search size={14} color="#5E6B82" />
             <input 
               value={globalSearch} 
               onChange={e => setGlobalSearch(e.target.value)} 
               placeholder="Search customers, orders, executives..." 
-              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', width: '240px', color: '#24345C' }} 
+              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', width: '100%', color: '#24345C' }} 
             />
           </div>
 
@@ -142,18 +156,19 @@ const SalesAnalyticsContent = () => {
         showProduct={true}
         showCategory={true}
         showStatus={true}
+        filterOptions={safeData.filters || {}}
         onExportPDF={() => exportPDF()}
         onExportExcel={() => exportExcel()}
       />
 
       {/* ── 3. EXECUTIVE KPI STRIP ── */}
       {kpisList && kpisList.length > 0 && (
-        <div style={{ overflowX: 'auto', paddingBottom: '8px' }}>
-          <div style={{ display: 'flex', gap: '12px', width: 'max-content' }}>
+        <div className="sales-kpi-container">
+          <div className="sales-kpi-grid">
             {kpisList.map((kpi, idx) => (
-              <div key={idx} onClick={() => handleKPISelect(kpi)} style={{ background: '#fff', border: '1px solid #D6E2F0', borderTop: getKPIBorder(kpi.title), borderRadius: '8px', padding: '14px 18px', minWidth: '200px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05)' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#5E6B82', textTransform: 'uppercase', marginBottom: '4px' }}>{kpi.title}</div>
-                <div style={{ fontSize: '20px', fontWeight: '950', color: '#24345C' }}>{kpi.value}</div>
+              <div key={idx} className="sales-kpi-card" onClick={() => handleKPISelect(kpi)} style={{ borderTop: getKPIBorder(kpi.title) }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#5E6B82', textTransform: 'uppercase', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{kpi.title}</div>
+                <div style={{ fontSize: 'clamp(18px, 2vw, 22px)', fontWeight: '950', color: '#24345C' }}>{kpi.value}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: '#8893A7', marginTop: '6px' }}>
                   <span>Achieved: {kpi.achievement}%</span>
                   <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{kpi.change}</span>
@@ -165,135 +180,183 @@ const SalesAnalyticsContent = () => {
       )}
 
       {/* ── 4. COMPANY HEALTH / ALERTS / LIVE FEED GRID ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+      <div className="sales-health-grid">
         
         {/* Company Health Block */}
-        <div style={{ background: '#fff', border: '1px solid #D6E2F0', borderRadius: '12px', padding: '18px' }}>
+        <div className="sales-health-card">
           <h3 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '900', color: '#24345C', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Activity size={16} color="#0284c7" /> Company Health Indexes
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {healthData.map((idxItem, idx) => (
-              <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
-                  <span style={{ fontWeight: 'bold', color: '#475569' }}>{idxItem.status} {idxItem.name}</span>
-                  <strong style={{ color: '#24345C' }}>{idxItem.rating}%</strong>
-                </div>
-                <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
-                  <div style={{ width: `${idxItem.rating}%`, background: idxItem.color, height: '100%' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Operational Exceptions / Alerts */}
-        <div style={{ background: '#fff', border: '1px solid #D6E2F0', borderRadius: '12px', padding: '18px' }}>
-          <h3 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '900', color: '#24345C', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <AlertTriangle size={16} color="#f59e0b" /> Critical Exceptions Control Feed
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-            {exceptionsList.map((ex, idx) => {
-              const colors = getSeverityColor(ex.severity);
+            {healthData.map((idxItem, idx) => {
+              const HEALTH_LABELS = {
+                salesPipeline: 'Sales Pipeline',
+                productionRuntimes: 'Production Runtimes',
+                qcYields: 'QC Yields',
+                dispatchLogistics: 'Dispatch & Logistics',
+                collectionsEfficiency: 'Collections Efficiency',
+                financeCashFlows: 'Finance Cash Flows'
+              };
+              const label = HEALTH_LABELS[idxItem.name] || idxItem.name;
               return (
-                <div key={idx} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 14px', background: colors.bg, border: `1px solid ${colors.color}`, borderLeft: `6px solid ${colors.color}`, borderRadius: '6px', color: '#1e293b' }}>
-                  <AlertCircle size={15} color={colors.color} style={{ minWidth: '15px' }} />
-                  <span style={{ fontSize: '12.5px', fontWeight: 'bold' }}>{ex.alert}</span>
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                    <span style={{ fontWeight: 'bold', color: '#475569' }}>{label}</span>
+                    <strong style={{ color: '#24345C' }}>{idxItem.rating}%</strong>
+                  </div>
+                  <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                    <div style={{ width: `${idxItem.rating}%`, background: idxItem.color || '#2563eb', height: '100%' }} />
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
 
+        {/* Operational Exceptions / Alerts */}
+        <div className="sales-health-card">
+          <h3 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '900', color: '#24345C', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AlertTriangle size={16} color="#f59e0b" /> Critical Exceptions Control Feed
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+            {exceptionsList.length === 0 ? (
+              <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
+                No active critical exceptions reported.
+              </div>
+            ) : (
+              exceptionsList.map((ex, idx) => {
+                const colors = getSeverityColor(ex.severity);
+                return (
+                  <div key={idx} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 14px', background: colors.bg, border: `1px solid ${colors.color}`, borderLeft: `6px solid ${colors.color}`, borderRadius: '6px', color: '#1e293b' }}>
+                    <AlertCircle size={15} color={colors.color} style={{ minWidth: '15px' }} />
+                    <span style={{ fontSize: '12.5px', fontWeight: 'bold' }}>{ex.alert}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
         {/* Live Business Event feed */}
-        <div style={{ background: '#fff', border: '1px solid #D6E2F0', borderRadius: '12px', padding: '18px' }}>
+        <div className="sales-health-card">
           <h3 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '900', color: '#24345C', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Activity size={16} color="#8b5cf6" /> Live Business Feed
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
-            {eventsList.map((feed, idx) => (
-              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
-                <span style={{ fontWeight: 'bold', color: '#334155' }}>{feed.type}</span>
-                <span style={{ color: '#5E6B82' }}>{feed.details}</span>
-                <span style={{ color: '#8893A7' }}>{feed.time}</span>
+            {eventsList.length === 0 ? (
+              <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
+                No recent business events logged.
               </div>
-            ))}
+            ) : (
+              eventsList.map((feed, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
+                  <span style={{ fontWeight: 'bold', color: '#334155' }}>{feed.type}</span>
+                  <span style={{ color: '#5E6B82' }}>{feed.details}</span>
+                  <span style={{ color: '#8893A7' }}>{feed.time}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
       </div>
 
       {/* ── 5. CHARTS ROW ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+      <div className="command-center-charts">
         
         {/* Revenue & Profit Trend Curve */}
-        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px', minWidth: 0 }}>
+        <div className="command-center-chart-card">
           <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>Gross Billings & Receipts Curve</h3>
-          <div style={{ height: '200px', minHeight: '200px', width: '100%', minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <AreaChart data={revenueTrends}>
-                <defs>
-                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="revenue" stroke="#4f46e5" fillOpacity={1} fill="url(#colorRev)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="command-center-chart-frame">
+            {revenueTrends.length === 0 ? (
+              <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>
+                No gross billings & receipts recorded for the selected period.
+              </div>
+            ) : (
+              mounted && (
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart data={revenueTrends}>
+                    <defs>
+                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} minTickGap={20} />
+                    <YAxis width={40} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="revenue" name="Billings" stroke="#4f46e5" fillOpacity={1} fill="url(#colorRev)" />
+                    <Area type="monotone" dataKey="receipts" name="Receipts" stroke="#10b981" fillOpacity={0} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )
+            )}
           </div>
         </div>
 
         {/* Target vs Actual output */}
-        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px', minWidth: 0 }}>
+        <div className="command-center-chart-card">
           <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>Planned Target vs Produced Output</h3>
-          <div style={{ height: '200px', minHeight: '200px', width: '100%', minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <BarChart data={[
-                { name: 'Planned', qty: productionData.metrics?.planned_qty || 45000 },
-                { name: 'Actual', qty: productionData.metrics?.produced_qty || 42000 }
-              ]}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="qty" fill="#10B981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="command-center-chart-frame">
+            {(productionData.metrics?.planned_qty === 0 && productionData.metrics?.produced_qty === 0) ? (
+              <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>
+                No production output logged for the selected period.
+              </div>
+            ) : (
+              mounted && (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={[
+                    { name: 'Planned', qty: productionData.metrics?.planned_qty ?? 0 },
+                    { name: 'Actual', qty: productionData.metrics?.produced_qty ?? 0 }
+                  ]}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis width={40} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="qty" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )
+            )}
           </div>
         </div>
 
         {/* Lead acquisition share */}
-        <div style={{ background: '#fff', border: '1px solid #DCE5F0', borderRadius: '12px', padding: '18px', minWidth: 0 }}>
+        <div className="command-center-chart-card">
           <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>CRM Lead Source Distribution Share</h3>
-          <div style={{ height: '200px', minHeight: '200px', width: '100%', minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <PieChart>
-                <Pie data={crmSources} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="count" nameKey="source">
-                  {crmSources.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={DEPT_COLORS[index % DEPT_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="command-center-chart-frame">
+            {crmSources.length === 0 ? (
+              <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>
+                No CRM lead sources recorded for the selected period.
+              </div>
+            ) : (
+              mounted && (
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={crmSources} cx="50%" cy="45%" innerRadius="25%" outerRadius="50%" paddingAngle={4} dataKey="count" nameKey="source">
+                      {crmSources.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={DEPT_COLORS[index % DEPT_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: '11px', bottom: 0 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )
+            )}
           </div>
         </div>
 
       </div>
 
       {/* ── 6. DRILLDOWN TABLES ROW ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '20px' }}>
+      <div className="sales-drilldown-grid">
         
         {/* Executive Leaderboard Ledger */}
-        <div style={{ background: '#fff', border: '1px solid #D6E2F0', borderRadius: '12px', padding: '18px' }}>
+        <div className="sales-drilldown-card">
           <h3 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: '900', color: '#24345C' }}>Executive Performance Ledger</h3>
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
                 <tr style={{ background: '#F5FAFE', borderBottom: '2px solid #D6E2F0' }}>
@@ -303,52 +366,78 @@ const SalesAnalyticsContent = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredEmployeePerformance.map((ex, idx) => {
-                  const target = 50000000;
-                  const rawRevenue = parseFloat(ex.revenue || 0);
-                  const achievementPct = Math.min(Math.round((rawRevenue / target) * 100), 100);
-                  return (
-                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.background = '#F5FAFE'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <td style={{ padding: '12px 8px' }}>
-                        <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{ex.executive}</div>
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>{ex.email}</div>
-                      </td>
-                      <td style={{ padding: '12px 8px' }}>
-                        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{ex.leads} Leads</span>
-                      </td>
-                      <td style={{ padding: '12px 8px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
-                            <span style={{ color: '#16a34a', fontWeight: 'bold' }}>₹{rawRevenue.toLocaleString('en-IN')}</span>
-                            <span style={{ color: '#5E6B82' }}>{achievementPct}%</span>
+                {filteredEmployeePerformance.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic', fontSize: '12.5px' }}>
+                      No sales executive performance records found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredEmployeePerformance.map((ex, idx) => {
+                    const rawRevenue = parseFloat(ex.revenue || 0);
+                    const achievementPct = ex.achievementPercent == null ? null : Math.round(ex.achievementPercent);
+                    return (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.background = '#F5FAFE'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ padding: '12px 8px' }}>
+                          <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{ex.executive}</div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{ex.email}</div>
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{ex.leads} Leads</span>
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
+                              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>₹{rawRevenue.toLocaleString('en-IN')}</span>
+                              <span style={{ color: '#5E6B82' }}>{achievementPct == null ? 'Target Not Configured' : `${achievementPct}%`}</span>
+                            </div>
+                            <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '3px', height: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${achievementPct ?? 0}%`, background: '#4f46e5', height: '100%' }} />
+                            </div>
                           </div>
-                          <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '3px', height: '4px', overflow: 'hidden' }}>
-                            <div style={{ width: `${achievementPct}%`, background: '#4f46e5', height: '100%' }} />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
         {/* Receivables aging buckets */}
-        <div style={{ background: '#fff', border: '1px solid #D6E2F0', borderRadius: '12px', padding: '18px' }}>
+        <div className="sales-drilldown-card">
           <h3 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: '900', color: '#24345C' }}>Finance Receivables Ageing Buckets</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {(() => {
+              const BUCKET_LABELS = {
+                '0_30': '0 - 30 Days',
+                '31_60': '31 - 60 Days',
+                '61_90': '61 - 90 Days',
+                '90_plus': '90+ Days Critical',
+                '0-30': '0 - 30 Days',
+                '31-60': '31 - 60 Days',
+                '61-90': '61 - 90 Days',
+                '90+': '90+ Days Critical'
+              };
               const buckets = Object.keys(agingBuckets || {});
-              const totalOutstanding = buckets.reduce((sum, b) => sum + parseFloat(agingBuckets[b] || 0), 0) || 1;
-              return buckets.map((bucket, idx) => {
-                const val = parseFloat(agingBuckets[bucket] || 0);
-                const sharePct = Math.round((val / totalOutstanding) * 100);
+              const getBucketVal = (b) => {
+                const item = agingBuckets[b];
+                if (typeof item === 'number') return item;
+                if (typeof item === 'object' && item !== null) return parseFloat(item.amount || 0) || 0;
+                return parseFloat(item || 0) || 0;
+              };
+              const totalOutstanding = buckets.reduce((sum, b) => sum + getBucketVal(b), 0) || 1;
+              const activeBuckets = buckets.length > 0 ? buckets : ['0_30', '31_60', '61_90', '90_plus'];
+
+              return activeBuckets.map((bucket, idx) => {
+                const val = getBucketVal(bucket);
+                const sharePct = totalOutstanding > 0 ? Math.round((val / totalOutstanding) * 100) : 0;
+                const label = BUCKET_LABELS[bucket] || String(bucket).replace('_', ' ');
                 return (
                   <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px 14px', background: '#F5FAFE', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155' }}>{bucket}</span>
+                      <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155' }}>{label}</span>
                       <span style={{ fontSize: '13px', fontWeight: '950', color: '#ef4444' }}>₹{Math.round(val).toLocaleString('en-IN')}</span>
                     </div>
                     <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '3px', height: '4px', overflow: 'hidden' }}>
@@ -399,8 +488,8 @@ const SalesAnalyticsContent = () => {
 
       {/* ── 8. KPI DRILLDOWN MODAL ── */}
       {drilldownEntity && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDrilldownEntity(null)}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '540px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+        <div className="sales-modal-overlay" onClick={() => setDrilldownEntity(null)}>
+          <div className="sales-modal-card" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Executive KPI Telemetry</span>
@@ -409,7 +498,7 @@ const SalesAnalyticsContent = () => {
               <button onClick={() => setDrilldownEntity(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', color: '#64748b' }}>✕</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '16px' }}>
               <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '11px', color: '#64748b' }}>Current Value</div>
                 <div style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>{drilldownEntity.details?.value}</div>

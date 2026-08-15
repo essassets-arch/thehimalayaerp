@@ -19,8 +19,9 @@ const initialFilters = {
 
 export function SuperAdminFilterProvider({ children }) {
   const [period, setPeriodState] = useState('This Month');
-  const [startDate, setStartDate] = useState('2026-07-01');
-  const [endDate, setEndDate] = useState('2026-07-31');
+  const initialDates = calculatePeriodDates('This Month');
+  const [startDate, setStartDate] = useState(initialDates.dateFrom);
+  const [endDate, setEndDate] = useState(initialDates.dateTo);
   const [filters, setFilters] = useState(initialFilters);
 
   const activeDates = calculatePeriodDates(period, startDate, endDate);
@@ -80,8 +81,8 @@ export function useSuperAdminFilter() {
     const activeDates = calculatePeriodDates('This Month');
     return {
       period: 'This Month',
-      startDate: '2026-07-01',
-      endDate: '2026-07-31',
+      startDate: activeDates.dateFrom,
+      endDate: activeDates.dateTo,
       activeDates,
       filters: initialFilters,
       setPeriod: () => {},

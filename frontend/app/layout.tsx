@@ -12,13 +12,14 @@ import '../components/payroll/PayrollWorkflowView.css'
 import { cn } from "@/lib/utils";
 import Providers from './providers';
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans', fallback: ['system-ui', 'sans-serif'] });
 
 const poppins = Poppins({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700', '800'],
   variable: '--font-main',
-})
+  fallback: ['system-ui', 'sans-serif'],
+});
 
 export const metadata: Metadata = {
   title: 'Himalaya ERP V2',

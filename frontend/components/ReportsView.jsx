@@ -35,10 +35,10 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
 
-  // Real reports data
   const [salesSummaryData, setSalesSummaryData] = useState([]);
   const [topProductsData, setTopProductsData] = useState([]);
   const [customerPerformanceData, setCustomerPerformanceData] = useState([]);
+  const [targetData, setTargetData] = useState(null);
   const [isReportsLoading, setIsReportsLoading] = useState(false);
 
   const fetchReports = async () => {
@@ -47,10 +47,14 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       const summaryRes = await apiClient.get(`/reports/sales/summary?date_from=${dateFrom}&date_to=${dateTo}`);
       const productsRes = await apiClient.get(`/reports/sales/top-products?date_from=${dateFrom}&date_to=${dateTo}&limit=10`);
       const customersRes = await apiClient.get(`/reports/sales/customer-performance?date_from=${dateFrom}&date_to=${dateTo}`);
+      const targetRes = await apiClient.get('/backend/sales-targets/dashboard').catch(() => null);
       
       setSalesSummaryData(summaryRes.data || []);
       setTopProductsData(productsRes.data || []);
       setCustomerPerformanceData(customersRes.data || []);
+      if (targetRes) {
+        setTargetData(targetRes.data || targetRes);
+      }
     } catch (err) {
       console.error('Failed to fetch reports data', err);
     } finally {
@@ -123,9 +127,11 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     ? salesSummaryData.reduce((sum, item) => sum + parseFloat(item.total_revenue || 0), 0) 
     : totalSalesVal;
 
-  // Targets logic
-  // Map target to logged-in user if employee, or sum of all if admin
+  // Targets logic from dynamic backend API or settings fallback
   const getAssignedTarget = () => {
+    if (targetData?.monthlyTarget || targetData?.target?.revenueTarget) {
+      return Number(targetData.monthlyTarget || targetData.target.revenueTarget);
+    }
     if (isSalesAdmin) {
       return Object.values(settings.salesTargets || {}).reduce((a, b) => a + b, 0) || 60000000;
     }
@@ -133,8 +139,9 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   };
 
   const assignedTarget = getAssignedTarget();
-  const targetPct = Math.min(100, Math.round((displaySalesVal / assignedTarget) * 100));
-  const targetRemaining = Math.max(0, assignedTarget - displaySalesVal);
+  const achievedVal = targetData?.achievedSales !== undefined ? Number(targetData.achievedSales) : displaySalesVal;
+  const targetPct = assignedTarget > 0 ? Math.min(100, Math.round((achievedVal / assignedTarget) * 100)) : 0;
+  const targetRemaining = Math.max(0, assignedTarget - achievedVal);
 
   // Tab configurations
   const tabs = [
@@ -523,7 +530,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     <div className="report-bar-fill" style={{ width: `${targetPct}%`, background: 'var(--color-accent-teal)' }}></div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginTop: '4px', color: 'var(--color-text-secondary)' }}>
-                    <span>Achieved: {formatINR(displaySalesVal)}</span>
+                    <span>Achieved: {formatINR(achievedVal)}</span>
                     <span>Remaining: {formatINR(targetRemaining)}</span>
                   </div>
                 </div>
@@ -1078,7 +1085,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     Revenue Achieved
                   </span>
                   <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-accent-teal)', marginTop: '4px' }}>
-                    {formatINR(displaySalesVal)}
+                    {formatINR(achievedVal)}
                   </div>
                 </div>
 

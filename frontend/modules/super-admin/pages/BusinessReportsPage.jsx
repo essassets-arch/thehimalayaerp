@@ -1,10 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import * as Lucide from 'lucide-react';
-import { useERP } from '@/shared/context/ERPContext';
-import { SuperAdminFilterProvider, useSuperAdminFilter } from '../context/SuperAdminFilterContext';
-import { useCommandCenter } from '../hooks/useCommandCenter';
-import { computeFinancialData, formatCurrency } from '../utils/financialCalculations';
-import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
+import { backendFetch } from '@/lib/backendFetch';
+import { useAuthStore } from '@/store/authStore';
 import { 
   exportSalesReportPDF, 
   exportFinanceReportPDF, 
@@ -13,420 +10,746 @@ import {
 } from '@/services/export.service';
 import "../components/dashboard.css";
 
-function BusinessReportsContent() {
-  const { state } = useERP();
-  const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
-  const { data: commandData, loading } = useCommandCenter(filters, activeDates);
-  const fin = computeFinancialData(state, period, startDate, endDate);
+// Helper for Indian Currency Formatting
+function formatCurrencyCompact(amount) {
+  const val = Number(amount || 0);
+  if (isNaN(val) || val === 0) return '₹0';
+  const absVal = Math.abs(val);
+  const sign = val < 0 ? '-' : '';
+  if (absVal >= 10000000) return `${sign}₹${(absVal / 10000000).toFixed(2)} Cr`;
+  if (absVal >= 100000) return `${sign}₹${(absVal / 100000).toFixed(2)} L`;
+  return `${sign}₹${absVal.toLocaleString('en-IN')}`;
+}
 
-  // Safe multi-key extractions from ERP state & Command Center
-  const orders = Array.isArray(state.sales?.orders) ? state.sales.orders :
-    (Array.isArray(state.orders) ? state.orders :
-    (Array.isArray(commandData?.explorer?.rows) ? commandData.explorer.rows : []));
+function formatPercent(val) {
+  const num = Number(val || 0);
+  return `${num.toFixed(1)}%`;
+}
 
-  const leads = Array.isArray(state.sales?.leads) ? state.sales.leads :
-    (Array.isArray(state.leads) ? state.leads : []);
+const PRESET_OPTIONS = [
+  { value: 'THIS_MONTH', label: 'This Month' },
+  { value: 'TODAY', label: 'Today' },
+  { value: 'YESTERDAY', label: 'Yesterday' },
+  { value: 'THIS_WEEK', label: 'This Week' },
+  { value: 'LAST_WEEK', label: 'Last Week' },
+  { value: 'LAST_MONTH', label: 'Last Month' },
+  { value: 'THIS_QUARTER', label: 'This Quarter' },
+  { value: 'THIS_FINANCIAL_YEAR', label: 'This Financial Year' },
+  { value: 'LAST_FINANCIAL_YEAR', label: 'Last Financial Year' },
+  { value: 'CUSTOM', label: 'Custom Date Range' },
+];
 
-  const quotations = Array.isArray(state.sales?.quotations) ? state.sales.quotations :
-    (Array.isArray(state.quotations) ? state.quotations : []);
+const DEPARTMENT_OPTIONS = [
+  { value: '', label: 'All Departments' },
+  { value: 'Sales & CRM', label: 'Sales & CRM' },
+  { value: 'Production Floor', label: 'Production Floor' },
+  { value: 'Plant Head', label: 'Plant Head Approvals' },
+  { value: 'Store / Procurement', label: 'Store & Procurement' },
+  { value: 'Quality Control', label: 'Quality Control (QC)' },
+  { value: 'Dispatch & Logistics', label: 'Dispatch & Logistics' },
+  { value: 'Finance & Accounts', label: 'Finance & Accounts' },
+  { value: 'HR & Payroll', label: 'HR & Payroll' },
+];
 
-  const samples = Array.isArray(state.sales?.samples) ? state.sales.samples :
-    (Array.isArray(state.samples) ? state.samples :
-    (Array.isArray(state.qcRecords) ? state.qcRecords : []));
-
-  const workOrders = Array.isArray(state.workOrders) ? state.workOrders :
-    (Array.isArray(state.productionWorkOrders) ? state.productionWorkOrders :
-    (Array.isArray(state.production?.workOrders) ? state.production.workOrders : []));
-
-  const materialRequests = Array.isArray(state.materialRequests) ? state.materialRequests :
-    (Array.isArray(state.store?.materialRequests) ? state.store.materialRequests : []);
-
-  const purchaseOrders = Array.isArray(state.purchaseOrders) ? state.purchaseOrders :
-    (Array.isArray(state.procurement?.purchaseOrders) ? state.procurement.purchaseOrders : []);
-
-  const rawInventory = Array.isArray(state.rawInventory) ? state.rawInventory :
-    (Array.isArray(state.store?.rawInventory) ? state.store.rawInventory : []);
-
-  const qcRecords = Array.isArray(state.qcRecords) ? state.qcRecords :
-    (Array.isArray(state.qcInspections) ? state.qcInspections :
-    (Array.isArray(state.production?.qcRecords) ? state.production.qcRecords : []));
-
-  const payments = Array.isArray(state.payments) ? state.payments :
-    (Array.isArray(state.finance?.payments) ? state.finance.payments : []);
-
-  const employees = Array.isArray(state.employees) ? state.employees :
-    (Array.isArray(state.hr?.employees) ? state.hr.employees : []);
-
-  const usersList = Array.isArray(state.usersList) ? state.usersList :
-    (Array.isArray(state.users) ? state.users : []);
-
-  const dispatchesList = Array.isArray(state.dispatches) ? state.dispatches :
-    (Array.isArray(state.dispatch?.dispatches) ? state.dispatch.dispatches : []);
-
-  // Filter application helper
-  const branchFilter = filters?.branch;
-  const deptFilter = filters?.department;
-  const customerFilter = filters?.customer;
-  const vendorFilter = filters?.vendor;
-  const productFilter = filters?.product;
-  const statusFilter = filters?.status;
-
-  // Filtered datasets
-  const filteredOrders = orders.filter(o => {
-    if (branchFilter && branchFilter !== 'All' && o.branch && o.branch !== branchFilter) return false;
-    if (customerFilter && customerFilter !== 'All' && o.customer !== customerFilter && o.customerName !== customerFilter) return false;
-    if (productFilter && productFilter !== 'All' && !String(o.product || '').toLowerCase().includes(String(productFilter).toLowerCase())) return false;
-    if (statusFilter && statusFilter !== 'All' && o.status !== statusFilter && o.paymentStatus !== statusFilter) return false;
-    return true;
+export default function BusinessReportsPage() {
+  const [filters, setFilters] = useState({
+    rangePreset: 'THIS_MONTH',
+    startDate: '',
+    endDate: '',
+    branchId: '',
+    department: '',
+    customerId: '',
+    vendorId: '',
+    productId: '',
+    status: '',
   });
 
-  // Departmental Metrics Calculations
-  // 1. Sales Performance
-  const totalOrdersCount = filteredOrders.length || orders.length || 28;
-  const grossRevenueCollected = fin.revenueCollected || 6420000;
-  const leadsInFunnelCount = leads.length || 78;
-  const activeQuotationsCount = quotations.filter(q => q.status === 'Pending' || q.status === 'Sent' || q.status === 'Active').length || 14;
-  const pendingSamplesCount = samples.filter(s => s.status === 'Pending' || s.status === 'Testing').length || 6;
-  const closedDispatchedOrdersCount = filteredOrders.filter(o => o.status === 'Dispatched' || o.status === 'Delivered').length || 22;
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
-  // 2. Production Floor
-  const workOrdersCount = workOrders.length || 18;
-  const currentlyRunningCount = workOrders.filter(w => w.status === 'IN_PRODUCTION' || w.status === 'Running' || w.status === 'Active').length || 6;
-  const batchesCompletedCount = workOrders.filter(w => w.status === 'Completed' || w.status === 'PRODUCTION_COMPLETED').length || 12;
-  const qcFailuresReworkCount = qcRecords.filter(q => q.status === 'QC_REJECTED' || q.result === 'FAIL' || q.reworkRequired).length || (state.reproductions?.length || 2);
-  const avgBatchDelay = '0.8 Days';
-  const shopFloorYield = '92.8%';
+  const buildReportParams = useCallback(() => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value && value !== 'All') params.set(key, value);
+    });
+    return params;
+  }, [filters]);
 
-  // 3. Plant Head Approvals
-  const pendingMatReqsCount = materialRequests.filter(mr => mr.status === 'Pending' || mr.status === 'AWAITING_PLANT_HEAD').length || 4;
-  const approvedMatReqsCount = materialRequests.filter(mr => mr.status === 'Approved' || mr.status === 'Issued').length || 16;
-  const pendingPOsCount = purchaseOrders.filter(po => po.status === 'PENDING' || po.status === 'REQUESTED' || po.status === 'PENDING_SUPER_ADMIN_APPROVAL' || po.status === 'AWAITING_FINANCE_CONFIRMATION').length || 3;
-  const totalClearancesCount = materialRequests.filter(mr => mr.status === 'Issued').length || 14;
-  const scheduleAdherence = '96.2% On-time';
-  const avgApprovalTAT = '1.2 Days';
+  const loadReports = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = buildReportParams();
+      const payload = await backendFetch(`/api/backend/super-admin/reports?${params}`, { cacheTtlMs: 0 });
+      setReport(payload);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Failed to load centralized reports:', err);
+      setError(err || new Error('Failed to load reports'));
+      setReport(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildReportParams]);
 
-  // 4. Store Inventory
-  const rawStockCount = rawInventory.length || 136;
-  const totalRawValue = rawInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.unitPrice) || 350)), 0) || 3627750;
-  const lowStockCount = rawInventory.filter(i => (Number(i.stock) || 0) <= (Number(i.reorderLevel) || 10)).length || 43;
-  const poRequestsCount = purchaseOrders.length || 1;
-  const materialIssuancesCount = materialRequests.filter(mr => mr.status === 'Issued').length || 12;
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
 
-  // Most requested materials calculation
-  const matCount = {};
-  materialRequests.forEach(mr => {
-    const k = mr.materialName || mr.material || 'FRP Resin / Cement';
-    matCount[k] = (matCount[k] || 0) + 1;
-  });
-  const topMats = Object.entries(matCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const downloadCsv = async () => {
+    try {
+      setExporting(true);
+      const params = buildReportParams();
+      const token = useAuthStore.getState().accessToken;
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-  // 5. QC Quality Control - Dynamic calculation across all QC sources
-  const totalSamplesCount = Math.max(samples.length, 24);
-  const underTestingCount = samples.filter(s => s.status === 'Testing' || s.status === 'Under Test' || s.status === 'PENDING').length || 5;
-  const approvedPassedSamples = samples.filter(s => s.status === 'Approved' || s.status === 'Passed' || s.status === 'QC_APPROVED').length || 17;
-  const rejectedFailedSamples = samples.filter(s => s.status === 'Rejected' || s.status === 'Failed' || s.status === 'QC_REJECTED').length || 2;
-  const firstPassYield = totalSamplesCount > 0 ? `${((approvedPassedSamples / totalSamplesCount) * 100).toFixed(1)}%` : '94.3%';
-  const defectRate = totalSamplesCount > 0 ? `${((rejectedFailedSamples / totalSamplesCount) * 100).toFixed(1)}% Flagged` : '5.7% Flagged';
+      const response = await fetch(`/api/backend/super-admin/reports/export/csv?${params}`, {
+        headers,
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to download CSV');
 
-  // 6. Dispatch Logistics - Dynamic calculation across all Dispatch sources
-  const dispatchedOrders = filteredOrders.filter(o => o.status === 'Dispatched' || o.status === 'Delivered' || o.status === 'In Transit' || o.deliveryStatus === 'Delivered' || o.deliveryStatus === 'In Transit');
-  const inTransitOrders = filteredOrders.filter(o => o.status === 'In Transit' || o.deliveryStatus === 'In Transit');
-  const totalDispatchedCount = Math.max(dispatchedOrders.length, dispatchesList.length || 18);
-  const inTransitCount = inTransitOrders.length || 4;
-  const totalDeliveredValue = dispatchedOrders.reduce((sum, o) => sum + (Number(o.totalAmount || o.revenue || o.amount) || 0), 0) || 4850000;
-  const totalFreightCost = dispatchedOrders.reduce((sum, o) => sum + (Number(o.freightCost || o.freight || o.transportCost) || 0), 0) || 280000;
-  const onTimeDeliveryRate = fin.dispatchVarianceAnalytics.onTimeDeliveryRate || '91.4%';
-  const podConfirmationsCount = dispatchedOrders.filter(o => o.status === 'Delivered' || o.deliveryStatus === 'Delivered').length || 14;
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition');
+      const match = disposition?.match(/filename="?([^"]+)"?/i);
+      const filename = match?.[1] || `centralized-business-report.csv`;
 
-  // 7. Finance Receivables
-  const totalOutstanding = fin.outstandingReceivables || 1820000;
-  const advancePayments = payments.reduce((sum, p) => sum + (Number(p.advancePayment) || 0), 0) || 450000;
-  const verifiedInvoicesCount = payments.filter(p => p.verified === 'Approved' || p.status === 'Paid').length || 22;
-  const pendingVerificationInvoicesCount = payments.filter(p => p.verified !== 'Approved' && p.status !== 'Paid').length || 6;
-  const collectionEfficiency = payments.length > 0 ? Math.round((verifiedInvoicesCount / payments.length) * 100) : 84;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('CSV export failed:', err);
+      alert('Failed to export CSV report. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
-  // 8. HR Workforce Summary
-  const totalEmpCount = employees.length || 24;
-  const activeEmpCount = employees.filter(e => e.status === 'Active' || e.status === 'ACTIVE' || !e.status).length || 22;
-  const onLeaveEmpCount = employees.filter(e => e.status === 'On Leave' || e.status === 'ON_LEAVE').length || 2;
-  const activeDeptsCount = [...new Set(employees.map(e => e.department).filter(Boolean))].length || 8;
-  const totalPayrollOutflow = employees.reduce((sum, e) => sum + (Number(e.salary) || 0), 0) || 720000;
-  const systemUsersCount = usersList.length || 37;
+  const handleDocumentExport = async (type) => {
+    try {
+      setExporting(true);
+      if (type === 'sales') {
+        await exportSalesReportPDF({ title: 'Centralized Sales Report', period: report?.period?.label });
+      } else if (type === 'finance') {
+        await exportFinanceReportPDF({ title: 'Centralized Finance Report', period: report?.period?.label });
+      } else if (type === 'inventory') {
+        await exportInventoryReportPDF({ title: 'Centralized Raw Inventory Report' });
+      } else if (type === 'aging') {
+        await exportAgingReportPDF({ title: 'Centralized Receivables Aging Report' });
+      }
+    } catch (err) {
+      console.error('PDF Export Error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
 
-  const cardHead = (icon, label, color) => (
-    <h3 style={{ fontSize: '14px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', color, borderBottom: '1px solid var(--color-border)', paddingBottom: '10px', marginBottom: '12px' }}>
-      {icon} {label}
-    </h3>
-  );
+  const handleFilterChange = (field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+  };
 
-  const row = (label, value, color) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
-      <span style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>{label}</span>
-      <strong style={{ fontSize: '13px', color: color || 'var(--color-text-primary)' }}>{value}</strong>
-    </div>
-  );
+  const clearFilters = () => {
+    setFilters({
+      rangePreset: 'THIS_MONTH',
+      startDate: '',
+      endDate: '',
+      branchId: '',
+      department: '',
+      customerId: '',
+      vendorId: '',
+      productId: '',
+      status: '',
+    });
+  };
+
+  const filterOptions = report?.filters || {};
+  const period = report?.period || {};
+  const isDeptMatch = (deptName) => {
+    if (!filters.department || filters.department === '' || filters.department === 'All') return true;
+    return deptName.toLowerCase().includes(filters.department.toLowerCase()) || filters.department.toLowerCase().includes(deptName.toLowerCase());
+  };
 
   return (
-    <div className="super-dashboard">
-      <header className="dashboard-header" style={{ marginBottom: '16px' }}>
+    <div className="super-dashboard" style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Page Header */}
+      <header className="dashboard-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div className="dashboard-header-left">
-          <div className="dashboard-header-icon" style={{ background: '#e0e7ff', color: '#4338ca' }}>
-            <Lucide.FileBarChart size={26} />
+          <div className="dashboard-header-icon" style={{ background: '#3b82f6', color: '#fff', borderRadius: '12px', padding: '10px' }}>
+            <Lucide.FileSpreadsheet size={28} />
           </div>
           <div className="dashboard-heading">
-            <div className="dashboard-heading-row">
-              <h1>Centralized Business Reports</h1>
-              <span className="dashboard-badge badge-info">Real-Time 8-Department Telemetry</span>
+            <div className="dashboard-heading-row" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#1e293b', margin: 0 }}>Centralized Business Reports</h1>
+              <span className="dashboard-badge badge-info" style={{ background: '#dbeafe', color: '#1e40af', fontWeight: 600, padding: '4px 10px', borderRadius: '20px' }}>
+                Real-Time 8-Department Telemetry
+              </span>
             </div>
-            <p>Live consolidated analytics across all 8 departments — Sales · Production · Plant · Store · QC · Dispatch · Finance · HR</p>
+            <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13px' }}>
+              Live consolidated analytics across Sales · Production · Plant · Store · QC · Dispatch · Finance · HR
+            </p>
           </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {lastUpdated && (
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginRight: '8px' }}>
+              Last Updated: <strong>{lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>
+            </span>
+          )}
+
+          <button
+            onClick={loadReports}
+            disabled={loading}
+            className="btn btn-secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #cbd5e1', fontWeight: 600, cursor: 'pointer' }}
+          >
+            <Lucide.RefreshCw size={16} className={loading ? 'spin' : ''} /> Refresh
+          </button>
+
+          <button
+            onClick={downloadCsv}
+            disabled={loading || exporting}
+            className="btn btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', borderRadius: '8px', background: '#2563eb', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,235,0.2)' }}
+          >
+            <Lucide.Download size={16} /> {exporting ? 'Exporting...' : 'Download CSV'}
+          </button>
         </div>
       </header>
 
-      {/* Shared Analytics Filter Bar */}
-      <SuperAdminAnalyticsFilter
-        title="Executive Reports Comprehensive Filter"
-        showBranch={true}
-        showDepartment={true}
-        showCustomer={true}
-        showVendor={true}
-        showProduct={true}
-        showStatus={true}
-        onExportPDF={() => exportSalesReportPDF()}
-        onExportExcel={() => exportFinanceReportPDF()}
-      />
-
-      {/* Executive Document Export Center */}
-      <div className="dashboard-card" style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '16px',
-        padding: '18px 20px',
-        marginBottom: '24px',
-        background: 'var(--color-surface, #fff)',
-        borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-      }}>
-        <div>
-          <h4 style={{ fontSize: '15px', fontWeight: '800', margin: 0, color: '#1e293b' }}>Executive Document Export Center</h4>
-          <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
-            Download official company aggregates and cross-departmental balance sheets.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => exportSalesReportPDF()}
-            className="action-btn"
-            style={{
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: 'none',
-              background: '#4338ca',
-              color: '#fff',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Lucide.Download size={14} />
-            Sales PDF
-          </button>
-          <button
-            onClick={() => exportFinanceReportPDF()}
-            className="action-btn"
-            style={{
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: 'none',
-              background: '#2563eb',
-              color: '#fff',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Lucide.Download size={14} />
-            Finance PDF
-          </button>
-          <button
-            onClick={() => exportAgingReportPDF()}
-            className="action-btn"
-            style={{
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: 'none',
-              background: '#059669',
-              color: '#fff',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Lucide.Download size={14} />
-            Aging AR PDF
-          </button>
-          <button
-            onClick={() => exportInventoryReportPDF()}
-            className="action-btn"
-            style={{
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: 'none',
-              background: '#d97706',
-              color: '#fff',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Lucide.Download size={14} />
-            Stock levels PDF
-          </button>
-        </div>
-      </div>
-
-      {/* 8 Department Dynamic Telemetry Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-
-        {/* 1. SALES PERFORMANCE */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.BarChart3 size={16} />, 'Sales Performance', '#10b981')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Total Orders', `${totalOrdersCount} Orders`)}
-            {row('Gross Revenue Collected', formatCurrency(grossRevenueCollected), '#10b981')}
-            {row('Leads in Funnel', `${leadsInFunnelCount} Leads`)}
-            {row('Active Quotations', `${activeQuotationsCount} Quotes`)}
-            {row('Samples Pending', `${pendingSamplesCount} Items`, '#f59e0b')}
-            {row('Orders Closed / Dispatched', `${closedDispatchedOrdersCount} Done`, '#10b981')}
-          </div>
-        </div>
-
-        {/* 2. PRODUCTION FLOOR */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.Wrench size={16} />, 'Production Floor', '#8b5cf6')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Work Orders Released', `${workOrdersCount} Batches`)}
-            {row('Currently Running', `${currentlyRunningCount} Active`, '#8b5cf6')}
-            {row('Batches Completed', `${batchesCompletedCount} Done`, '#10b981')}
-            {row('QC Failures / Rework', `${qcFailuresReworkCount} Items`, '#ef4444')}
-            {row('Avg. Batch Delay', avgBatchDelay)}
-            {row('Shop Floor Yield', shopFloorYield, '#10b981')}
-          </div>
-        </div>
-
-        {/* 3. PLANT HEAD APPROVALS */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.Shield size={16} />, 'Plant Head Approvals', '#f59e0b')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Material Requests Pending', `${pendingMatReqsCount} Awaiting`, '#f59e0b')}
-            {row('Material Requests Approved', `${approvedMatReqsCount} Cleared`, '#10b981')}
-            {row('PO Approvals Pending', `${pendingPOsCount} POs`, '#ef4444')}
-            {row('Total Clearances Issued', `${totalClearancesCount} Issued`)}
-            {row('Schedule Adherence', scheduleAdherence, '#10b981')}
-            {row('Avg. Approval TAT', avgApprovalTAT)}
-          </div>
-        </div>
-
-        {/* 4. STORE INVENTORY */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.Layers size={16} />, 'Store Inventory', '#eab308')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Total Raw Stock Items', `${rawStockCount} Categories`)}
-            {row('Raw Inventory Value', formatCurrency(totalRawValue))}
-            {row('Low Stock Alerts', `${lowStockCount} Items`, lowStockCount > 0 ? '#ef4444' : '#10b981')}
-            {row('PO Requests Raised', `${poRequestsCount} POs`)}
-            {row('Material Issuances', `${materialIssuancesCount} Released`, '#10b981')}
-            {topMats.length > 0 && (
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '4px' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                  Most Requested Materials
-                </div>
-                {topMats.map(([mat, cnt]) => (
-                  <div key={mat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px' }}>
-                    <span style={{ color: '#334155' }}>{mat}</span>
-                    <strong style={{ color: '#d97706' }}>{cnt}× Requests</strong>
-                  </div>
-                ))}
-              </div>
+      {/* Filter Control Bar */}
+      <div 
+        className="dashboard-card" 
+        style={{ 
+          padding: '16px 20px', 
+          marginBottom: '24px', 
+          background: '#ffffff', 
+          borderRadius: '12px', 
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          border: '1px solid #e2e8f0' 
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Lucide.Filter size={18} color="#3b82f6" />
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>
+              Executive Reports Comprehensive Filter
+            </h3>
+            {period.label && (
+              <span style={{ fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                Period: {period.label}
+              </span>
             )}
           </div>
+          <button 
+            onClick={clearFilters}
+            style={{ fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Clear All Filters
+          </button>
         </div>
 
-        {/* 5. QC QUALITY CONTROL */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.FlaskConical size={16} />, 'QC Quality Control', '#06b6d4')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Total Samples Logged', `${totalSamplesCount} Samples`)}
-            {row('Under Testing', `${underTestingCount} Items`, '#06b6d4')}
-            {row('Approved / Passed', `${approvedPassedSamples} Passed`, '#10b981')}
-            {row('Rejected / Failed', `${rejectedFailedSamples} Failed`, '#ef4444')}
-            {row('First Pass Yield', firstPassYield, '#10b981')}
-            {row('Defect Rate', defectRate, '#f59e0b')}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+          {/* Preset selector */}
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>Date Range</label>
+            <select
+              value={filters.rangePreset}
+              onChange={(e) => handleFilterChange('rangePreset', e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+            >
+              {PRESET_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Custom Date Range inputs */}
+          {filters.rangePreset === 'CUSTOM' && (
+            <>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>From Date</label>
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>To Date</label>
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Department Filter */}
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>Department Focus</label>
+            <select
+              value={filters.department}
+              onChange={(e) => handleFilterChange('department', e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+            >
+              {DEPARTMENT_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Branch Filter */}
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>Branch</label>
+            <select
+              value={filters.branchId}
+              onChange={(e) => handleFilterChange('branchId', e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+            >
+              <option value="">All Branches</option>
+              {(filterOptions.branches || []).map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Customer Filter */}
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>Customer</label>
+            <select
+              value={filters.customerId}
+              onChange={(e) => handleFilterChange('customerId', e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+            >
+              <option value="">All Customers</option>
+              {(filterOptions.customers || []).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Vendor Filter */}
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>Vendor</label>
+            <select
+              value={filters.vendorId}
+              onChange={(e) => handleFilterChange('vendorId', e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+            >
+              <option value="">All Vendors</option>
+              {(filterOptions.vendors || []).map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Product Filter */}
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>Product</label>
+            <select
+              value={filters.productId}
+              onChange={(e) => handleFilterChange('productId', e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+            >
+              <option value="">All Products</option>
+              {(filterOptions.products || []).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
           </div>
         </div>
+      </div>
 
-        {/* 6. DISPATCH LOGISTICS */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.Truck size={16} />, 'Dispatch Logistics', '#f97316')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Shipments Dispatched', `${totalDispatchedCount} Deliveries`)}
-            {row('Currently In Transit', `${inTransitCount} Orders`, inTransitCount > 0 ? '#f59e0b' : undefined)}
-            {row('Total Delivered Value', formatCurrency(totalDeliveredValue))}
-            {row('Total Freight Cost', totalFreightCost > 0 ? formatCurrency(totalFreightCost) : '—', '#f97316')}
-            {row('On-Time Delivery Rate', onTimeDeliveryRate, '#10b981')}
-            {row('POD Confirmations', `${podConfirmationsCount} Confirmed`)}
-          </div>
+      {/* Loading Skeleton */}
+      {loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(idx => (
+            <div key={idx} style={{ background: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', minHeight: '200px' }}>
+              <div style={{ width: '50%', height: '20px', background: '#e2e8f0', borderRadius: '4px', marginBottom: '16px' }} />
+              <div style={{ width: '80%', height: '14px', background: '#f1f5f9', borderRadius: '4px', marginBottom: '10px' }} />
+              <div style={{ width: '65%', height: '14px', background: '#f1f5f9', borderRadius: '4px', marginBottom: '10px' }} />
+              <div style={{ width: '90%', height: '14px', background: '#f1f5f9', borderRadius: '4px' }} />
+            </div>
+          ))}
         </div>
+      )}
 
-        {/* 7. FINANCE RECEIVABLES */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.DollarSign size={16} />, 'Finance Receivables', '#0ea5e9')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Revenue Collected', formatCurrency(grossRevenueCollected), '#10b981')}
-            {row('Outstanding Receivables', formatCurrency(totalOutstanding), totalOutstanding > 0 ? '#ef4444' : '#10b981')}
-            {row('Advance Payments Held', formatCurrency(advancePayments))}
-            {row('Invoices Verified', `${verifiedInvoicesCount} Cleared`, '#10b981')}
-            {row('Pending Verification', `${pendingVerificationInvoicesCount} Pending`, '#f59e0b')}
-            {row('Collection Efficiency', `${collectionEfficiency}%`, collectionEfficiency >= 70 ? '#10b981' : '#ef4444')}
-          </div>
+      {/* Error View */}
+      {error && !loading && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecdd3', borderRadius: '12px', padding: '30px', textAlign: 'center', color: '#991b1b' }}>
+          <Lucide.AlertTriangle size={36} style={{ margin: '0 auto 12px' }} />
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Unable to load centralized reports</h3>
+          <p style={{ margin: '6px 0 16px', fontSize: '13px', color: '#b91c1c' }}>{error.message || 'Please check your connection and try again.'}</p>
+          <button onClick={loadReports} className="btn btn-primary" style={{ padding: '8px 18px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
+            Retry
+          </button>
         </div>
+      )}
 
-        {/* 8. HR WORKFORCE SUMMARY */}
-        <div className="dashboard-card" style={{ padding: '18px' }}>
-          {cardHead(<Lucide.Users size={16} />, 'HR Workforce Summary', '#ec4899')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {row('Total Employees', `${totalEmpCount} Staff`)}
-            {row('Currently Active', `${activeEmpCount} Present`, '#10b981')}
-            {row('On Leave', `${onLeaveEmpCount} Absent`, onLeaveEmpCount > 0 ? '#f59e0b' : undefined)}
-            {row('Active Departments', `${activeDeptsCount} Depts`)}
-            {row('Monthly Payroll Outflow', formatCurrency(totalPayrollOutflow))}
-            {row('ERP System Users', `${systemUsersCount} Accounts`)}
-          </div>
+      {/* Main 8-Department Report Cards Grid */}
+      {!loading && !error && report && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+          
+          {/* 1. Sales & CRM */}
+          {isDeptMatch('Sales & CRM') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.TrendingUp size={18} /> Sales & CRM Performance
+                </h3>
+                <span style={{ fontSize: '11px', color: report.sales?.totalOrdersChangePercent >= 0 ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
+                  {report.sales?.totalOrdersChangePercent >= 0 ? '↑' : '↓'} {Math.abs(report.sales?.totalOrdersChangePercent || 0)}% vs Prior
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Total Confirmed Orders</span>
+                  <strong style={{ color: '#1e293b' }}>{report.sales?.totalOrders ?? 0} Orders</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Gross Revenue Collected</span>
+                  <strong style={{ color: '#16a34a' }}>{formatCurrencyCompact(report.sales?.revenueCollected)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Leads in Funnel</span>
+                  <strong style={{ color: '#1e293b' }}>{report.sales?.leadsInFunnel ?? 0} Leads</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Active Quotations</span>
+                  <strong style={{ color: '#2563eb' }}>{report.sales?.activeQuotations ?? 0} Quotes</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Samples Pending</span>
+                  <strong style={{ color: '#d97706' }}>{report.sales?.samplesPending ?? 0} Samples</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Orders Closed / Dispatched</span>
+                  <strong style={{ color: '#9333ea' }}>{report.sales?.ordersClosedOrDispatched ?? 0} Orders</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. Production Floor */}
+          {isDeptMatch('Production Floor') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.Factory size={18} /> Production Floor Telemetry
+                </h3>
+                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>Yield: {formatPercent(report.production?.shopFloorYield)}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Work Orders Released</span>
+                  <strong style={{ color: '#1e293b' }}>{report.production?.workOrdersReleased ?? 0} Batches</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Currently Running</span>
+                  <strong style={{ color: '#2563eb' }}>{report.production?.currentlyRunning ?? 0} Active</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Batches Completed</span>
+                  <strong style={{ color: '#16a34a' }}>{report.production?.batchesCompleted ?? 0} Completed</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>QC Failures / Rework</span>
+                  <strong style={{ color: '#dc2626' }}>{report.production?.qcFailuresOrRework ?? 0} Batches</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Avg. Batch Delay</span>
+                  <strong style={{ color: report.production?.avgBatchDelayDays > 0 ? '#dc2626' : '#16a34a' }}>{report.production?.avgBatchDelayDays ?? 0} Days</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Shop Floor Yield</span>
+                  <strong style={{ color: '#16a34a' }}>{formatPercent(report.production?.shopFloorYield)}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Plant Head Approvals */}
+          {isDeptMatch('Plant Head') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#4338ca', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.ShieldCheck size={18} /> Plant Head Approvals
+                </h3>
+                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>Adherence: {formatPercent(report.plantHead?.scheduleAdherence)}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Material Requests Pending</span>
+                  <strong style={{ color: '#d97706' }}>{report.plantHead?.materialRequestsPending ?? 0} Pending</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Material Requests Approved</span>
+                  <strong style={{ color: '#16a34a' }}>{report.plantHead?.materialRequestsApproved ?? 0} Approved</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>PO Approvals Pending</span>
+                  <strong style={{ color: '#d97706' }}>{report.plantHead?.poApprovalsPending ?? 0} POs</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Total Clearances Issued</span>
+                  <strong style={{ color: '#4338ca' }}>{report.plantHead?.totalClearancesIssued ?? 0} Issued</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Schedule Adherence</span>
+                  <strong style={{ color: '#16a34a' }}>{formatPercent(report.plantHead?.scheduleAdherence)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Avg. Approval TAT</span>
+                  <strong style={{ color: '#1e293b' }}>{report.plantHead?.avgApprovalTatDays ?? 0} Days</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. Store Inventory */}
+          {isDeptMatch('Store / Procurement') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#059669', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.Boxes size={18} /> Store Raw Inventory
+                </h3>
+                <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>Reconciled with /store</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Total Raw Stock Items</span>
+                  <strong style={{ color: '#1e293b' }}>{report.store?.totalRawStockItems ?? 0} Materials</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Raw Inventory Valuation</span>
+                  <strong style={{ color: '#059669' }}>{formatCurrencyCompact(report.store?.rawInventoryValue)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Low Stock Alerts</span>
+                  <strong style={{ color: report.store?.lowStockAlerts > 0 ? '#dc2626' : '#16a34a' }}>{report.store?.lowStockAlerts ?? 0} Items</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>PO Requests Raised</span>
+                  <strong style={{ color: '#2563eb' }}>{report.store?.poRequestsRaised ?? 0} Requests</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Material Issuances</span>
+                  <strong style={{ color: '#9333ea' }}>{report.store?.materialIssuances ?? 0} Outflows</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. Quality Control (QC) */}
+          {isDeptMatch('Quality Control') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.FlaskConical size={18} /> Quality Control (QC)
+                </h3>
+                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>Pass Rate: {formatPercent(report.qc?.firstPassYield)}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Total Samples Logged</span>
+                  <strong style={{ color: '#1e293b' }}>{report.qc?.totalSamplesLogged ?? 0} Samples</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Under Testing</span>
+                  <strong style={{ color: '#d97706' }}>{report.qc?.underTesting ?? 0} Testing</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Approved / Passed</span>
+                  <strong style={{ color: '#16a34a' }}>{report.qc?.approvedPassed ?? 0} Passed</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Rejected / Failed</span>
+                  <strong style={{ color: '#dc2626' }}>{report.qc?.rejectedFailed ?? 0} Failed</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>First Pass Yield</span>
+                  <strong style={{ color: '#16a34a' }}>{formatPercent(report.qc?.firstPassYield)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Defect Rate</span>
+                  <strong style={{ color: report.qc?.defectRate > 5 ? '#dc2626' : '#16a34a' }}>{formatPercent(report.qc?.defectRate)}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. Dispatch & Logistics */}
+          {isDeptMatch('Dispatch & Logistics') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.Truck size={18} /> Dispatch & Logistics
+                </h3>
+                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>On-Time: {formatPercent(report.dispatch?.onTimeDeliveryRate)}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Shipments Dispatched</span>
+                  <strong style={{ color: '#1e293b' }}>{report.dispatch?.shipmentsDispatched ?? 0} Shipments</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Currently In Transit</span>
+                  <strong style={{ color: '#0284c7' }}>{report.dispatch?.currentlyInTransit ?? 0} Active</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Total Delivered Value</span>
+                  <strong style={{ color: '#16a34a' }}>{formatCurrencyCompact(report.dispatch?.totalDeliveredValue)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Total Freight Cost</span>
+                  <strong style={{ color: '#d97706' }}>{formatCurrencyCompact(report.dispatch?.totalFreightCost)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>On-Time Delivery Rate</span>
+                  <strong style={{ color: '#16a34a' }}>{formatPercent(report.dispatch?.onTimeDeliveryRate)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>POD Confirmations</span>
+                  <strong style={{ color: '#16a34a' }}>{report.dispatch?.podConfirmations ?? 0} Confirmed</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 7. Finance Receivables */}
+          {isDeptMatch('Finance & Accounts') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#4338ca', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.Landmark size={18} /> Finance Receivables & Inflows
+                </h3>
+                <span style={{ fontSize: '11px', color: '#4338ca', fontWeight: 600 }}>Reconciled with /finance</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Revenue Collected</span>
+                  <strong style={{ color: '#16a34a' }}>{formatCurrencyCompact(report.finance?.revenueCollected)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Outstanding Receivables</span>
+                  <strong style={{ color: '#dc2626' }}>{formatCurrencyCompact(report.finance?.outstandingReceivables)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Advance Payments Held</span>
+                  <strong style={{ color: '#2563eb' }}>{formatCurrencyCompact(report.finance?.advancePaymentsHeld)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Invoices Verified</span>
+                  <strong style={{ color: '#16a34a' }}>{report.finance?.invoicesVerified ?? 0} Invoices</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Pending Verification</span>
+                  <strong style={{ color: '#d97706' }}>{report.finance?.pendingVerification ?? 0} Pending</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Collection Efficiency</span>
+                  <strong style={{ color: '#16a34a' }}>{formatPercent(report.finance?.collectionEfficiency)}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 8. HR Workforce Summary */}
+          {isDeptMatch('HR & Payroll') && (
+            <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lucide.Users size={18} /> HR Workforce Summary
+                </h3>
+                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>Users: {report.hr?.erpSystemUsers ?? 0}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Total Employees</span>
+                  <strong style={{ color: '#1e293b' }}>{report.hr?.totalEmployees ?? 0} Staff</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Currently Active</span>
+                  <strong style={{ color: '#16a34a' }}>{report.hr?.currentlyActive ?? 0} Active</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>On Leave</span>
+                  <strong style={{ color: '#d97706' }}>{report.hr?.onLeave ?? 0} On Leave</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Active Departments</span>
+                  <strong style={{ color: '#7c3aed' }}>{report.hr?.activeDepartments ?? 0} Depts</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Monthly Payroll Outflow</span>
+                  <strong style={{ color: '#1e293b' }}>{formatCurrencyCompact(report.hr?.monthlyPayrollOutflow)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>ERP System Users</span>
+                  <strong style={{ color: '#2563eb' }}>{report.hr?.erpSystemUsers ?? 0} Accounts</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
+      )}
 
+      {/* Executive Document Export Center */}
+      <div className="dashboard-card" style={{ padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+        <h3 style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: 750, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Lucide.Printer size={18} color="#2563eb" /> Executive Document Export Center
+        </h3>
+        <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px' }}>
+          Generate formatted PDF executive documentation using active company filters and live reporting metrics.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          <button
+            onClick={() => handleDocumentExport('sales')}
+            disabled={exporting}
+            style={{ padding: '12px 14px', borderRadius: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <Lucide.FileText size={16} /> Sales Performance PDF
+          </button>
+
+          <button
+            onClick={() => handleDocumentExport('finance')}
+            disabled={exporting}
+            style={{ padding: '12px 14px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <Lucide.Landmark size={16} /> Finance & Inflows PDF
+          </button>
+
+          <button
+            onClick={() => handleDocumentExport('aging')}
+            disabled={exporting}
+            style={{ padding: '12px 14px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fecdd3', color: '#b91c1c', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <Lucide.Clock size={16} /> Aging AR Receivables PDF
+          </button>
+
+          <button
+            onClick={() => handleDocumentExport('inventory')}
+            disabled={exporting}
+            style={{ padding: '12px 14px', borderRadius: '8px', background: '#faf5ff', border: '1px solid #e9d5ff', color: '#6b21a8', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <Lucide.Boxes size={16} /> Stock Levels & Store PDF
+          </button>
+        </div>
       </div>
     </div>
-  );
-}
-
-export default function BusinessReportsPage() {
-  return (
-    <SuperAdminFilterProvider>
-      <BusinessReportsContent />
-    </SuperAdminFilterProvider>
   );
 }

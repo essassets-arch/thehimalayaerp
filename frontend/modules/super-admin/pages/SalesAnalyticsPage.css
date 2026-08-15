@@ -1,0 +1,259 @@
+/* SalesAnalyticsPage.css - Fully Responsive Multi-Device Styles */
+
+.sales-analytics-container {
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+  padding: clamp(12px, 2vw, 24px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2vw, 24px);
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Header & Toolbar */
+.sales-analytics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  border-bottom: 1px solid #DCE5F0;
+  padding-bottom: 16px;
+}
+
+.sales-analytics-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sales-analytics-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sales-analytics-search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 6px 12px;
+  border: 1px solid #D6E2F0;
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
+/* KPI Strip Grid */
+.sales-kpi-container {
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sales-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.sales-kpi-card {
+  background: #fff;
+  border: 1px solid #D6E2F0;
+  border-radius: 8px;
+  padding: 14px 18px;
+  min-width: 180px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04);
+}
+
+.sales-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 12px -2px rgba(0,0,0,0.08);
+}
+
+/* Health / Alerts / Live Feed Section */
+.sales-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.sales-health-card {
+  background: #fff;
+  border: 1px solid #D6E2F0;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Command Center Charts Grid */
+.command-center-charts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.command-center-chart-card {
+  background: #fff;
+  border: 1px solid #DCE5F0;
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.command-center-chart-frame {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  height: 280px;
+  min-height: 240px;
+}
+
+.command-center-chart-frame .recharts-responsive-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.command-center-chart-frame .recharts-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.command-center-chart-frame svg.recharts-surface {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Drilldown Row */
+.sales-drilldown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.sales-drilldown-card {
+  background: #fff;
+  border: 1px solid #D6E2F0;
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 0;
+}
+
+/* Modal Responsiveness */
+.sales-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sales-modal-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: clamp(16px, 3vw, 24px);
+  max-width: 540px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Media Queries for Viewports */
+
+/* Large Monitors (> 1440px) */
+@media (min-width: 1440px) {
+  .command-center-chart-frame {
+    height: 300px;
+  }
+}
+
+/* Standard Tablets & Small Desktops (769px - 1100px) */
+@media (max-width: 1100px) {
+  .command-center-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .command-center-chart-card:last-child {
+    grid-column: span 2;
+  }
+}
+
+/* Mobile Devices & Small Tablets (<= 768px) */
+@media (max-width: 768px) {
+  .sales-analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sales-analytics-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .sales-analytics-search-box {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .command-center-charts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .command-center-chart-card:last-child {
+    grid-column: span 1;
+  }
+  .sales-health-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .sales-drilldown-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .command-center-chart-frame {
+    height: 240px;
+    min-height: 200px;
+  }
+}
+
+/* Ultra Small Mobile Devices (<= 480px) */
+@media (max-width: 480px) {
+  .sales-analytics-container {
+    padding: 10px;
+    gap: 12px;
+  }
+  .sales-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .sales-kpi-card {
+    padding: 10px 12px;
+    min-width: 0;
+  }
+  .sales-kpi-card > div:nth-child(2) {
+    font-size: 16px !important;
+  }
+  .command-center-chart-frame {
+    height: 220px;
+    min-height: 180px;
+  }
+}

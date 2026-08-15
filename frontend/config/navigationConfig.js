@@ -355,6 +355,7 @@ export const navigationConfig = {
 
   'Super Admin': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
+    { id: 'reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
 
     { type: 'badge', label: 'APPROVALS' },
     { id: 'daily-reports', label: 'Daily Production Reports', icon: FileText, path: '/super-admin/daily-reports' },
@@ -368,7 +369,6 @@ export const navigationConfig = {
     { type: 'badge', label: 'BUSINESS MANAGEMENT' },
     { id: 'users', label: 'Users & Roles', icon: Users, path: '/super-admin/users' },
     { id: 'employees', label: 'Employees', icon: UserCheck, path: '/super-admin/employees' },
-    { id: 'companies', label: 'Companies', icon: Building, path: '/super-admin/companies' },
     { id: 'sales-target', label: 'Sales Targets', icon: Target, path: '/super-admin/sales-target' },
     { id: 'production-target', label: 'Production Targets', icon: Target, path: '/super-admin/production-target' },
 
@@ -377,7 +377,6 @@ export const navigationConfig = {
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
 
     { type: 'badge', label: 'ANALYTICS & REPORTS' },
-    { id: 'analytics-business', label: 'Business Analytics', icon: BarChart3, path: '/super-admin/analytics/business' },
     { id: 'analytics-sales', label: 'Sales Analytics', icon: TrendingUp, path: '/super-admin/analytics/sales' },
     { id: 'analytics-finance', label: 'Finance Analytics', icon: Landmark, path: '/super-admin/analytics/finance' },
     { id: 'analytics-production', label: 'Production Analytics', icon: Cpu, path: '/super-admin/analytics/production' },

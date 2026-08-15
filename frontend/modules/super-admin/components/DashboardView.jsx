@@ -84,11 +84,14 @@ export default function DashboardView({
   const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
   const [mounted, setMounted] = useState(false);
   const [fetchedExpenses, setFetchedExpenses] = useState([]);
+  const [backendStats, setBackendStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     if (typeof window === 'undefined') return;
     let isCancelled = false;
+
     async function loadExpenses() {
       try {
         const res = await backendFetch('/api/backend/expenses/all');
@@ -100,9 +103,43 @@ export default function DashboardView({
         // Silently fall back to ERPContext state
       }
     }
+
     loadExpenses();
     return () => { isCancelled = true; };
   }, []);
+
+  // Real-time backend API synchronization with active filter parameters
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let isCancelled = false;
+
+    async function fetchDashboardStats() {
+      setLoadingStats(true);
+      try {
+        const queryParams = new URLSearchParams();
+        if (period) queryParams.append('period', period);
+        if (filters?.branch) queryParams.append('branch', filters.branch);
+        if (startDate) queryParams.append('startDate', startDate);
+        if (endDate) queryParams.append('endDate', endDate);
+
+        const url = `/api/backend/super-admin/dashboard-stats?${queryParams.toString()}`;
+        const res = await backendFetch(url);
+        if (!isCancelled && res) {
+          const data = res.data || res;
+          if (data && (data.kpis || data.monthlyPerformance)) {
+            setBackendStats(data);
+          }
+        }
+      } catch (err) {
+        console.warn('[DashboardView] Backend stats fetch warning:', err);
+      } finally {
+        if (!isCancelled) setLoadingStats(false);
+      }
+    }
+
+    fetchDashboardStats();
+    return () => { isCancelled = true; };
+  }, [period, startDate, endDate, filters?.branch]);
 
   const safeState = state || {};
   const mergedState = {
@@ -111,7 +148,70 @@ export default function DashboardView({
   };
 
   // Compute ERP Financial Data using active filter context
-  const fin = computeFinancialData(mergedState, period || 'This Month', startDate, endDate, filters || {});
+  const clientFin = computeFinancialData(mergedState, period || 'This Month', startDate, endDate, filters || {});
+
+  // Unified Dynamic Telemetry Engine
+  const fin = React.useMemo(() => {
+    if (!backendStats) return clientFin;
+    const bk = backendStats.kpis || {};
+    return {
+      ...clientFin,
+      totalSalesVal: bk.totalSalesVal ?? clientFin.totalSalesVal,
+      totalOrdersCount: bk.totalOrdersCount ?? clientFin.totalOrdersCount,
+      revenueCollected: bk.revenueCollected ?? clientFin.revenueCollected,
+      outstandingReceivables: bk.outstandingReceivables ?? clientFin.outstandingReceivables,
+      overdueAmount: bk.overdueAmount ?? clientFin.overdueAmount,
+      pendingInvoicesCount: bk.pendingInvoicesCount ?? clientFin.pendingInvoicesCount,
+      activeCustomersCount: bk.activeCustomersCount ?? clientFin.activeCustomersCount,
+      poCommitmentVal: bk.poCommitmentVal ?? clientFin.poCommitmentVal,
+      rawMaterialCost: bk.rawMaterialCost ?? clientFin.rawMaterialCost,
+      productionCost: bk.productionCost ?? clientFin.productionCost,
+      dispatchCost: bk.dispatchCost ?? clientFin.dispatchCost,
+      totalDispatchesCount: bk.dailyDispatchCount ?? clientFin.totalDispatchesCount,
+      salaryCost: bk.salaryCost ?? clientFin.salaryCost,
+      grossPayroll: bk.grossPayroll ?? clientFin.grossPayroll,
+      overtimeBonus: bk.overtimeBonus ?? clientFin.overtimeBonus,
+      reworkCost: bk.reworkCost ?? clientFin.reworkCost,
+      reworkMaterialKg: bk.reworkMaterialKg ?? clientFin.reworkMaterialKg,
+      reworkMaterialCost: bk.reworkMaterialCost ?? clientFin.reworkMaterialCost,
+      reworkLabourCost: bk.reworkLabourCost ?? clientFin.reworkLabourCost,
+      scrapCost: bk.scrapCost ?? clientFin.scrapCost,
+      scrapKg: bk.scrapKg ?? clientFin.scrapKg,
+      scrapValue: bk.scrapValue ?? clientFin.scrapValue,
+      salesReturnCost: bk.salesReturnCost ?? clientFin.salesReturnCost,
+      returnedValue: bk.returnedValue ?? clientFin.returnedValue,
+      replacementLogisticsCost: bk.replacementLogisticsCost ?? clientFin.replacementLogisticsCost,
+      totalBusinessExpense: bk.totalBusinessExpense ?? clientFin.totalBusinessExpense,
+      grossProfit: bk.grossProfit ?? clientFin.grossProfit,
+      estimatedNetProfit: bk.estimatedNetProfit ?? clientFin.estimatedNetProfit,
+      profitMarginPercent: bk.profitMarginPercent ?? clientFin.profitMarginPercent,
+      dailyProductionTarget: bk.dailyProductionTarget ?? clientFin.dailyProductionTarget,
+      dailyProductionVal: bk.dailyProductionVal ?? clientFin.dailyProductionVal,
+      dailyProductionProgress: bk.dailyProductionProgress ?? clientFin.dailyProductionProgress,
+      dailyDispatchCount: bk.dailyDispatchCount ?? clientFin.dailyDispatchCount,
+      dailyUnitsDispatched: bk.dailyUnitsDispatched ?? clientFin.dailyUnitsDispatched,
+      dailyDispatchPending: bk.dailyDispatchPending ?? clientFin.dailyDispatchPending,
+      dailySalesVal: bk.dailySalesVal ?? clientFin.dailySalesVal,
+      dailySalesOrders: bk.dailySalesOrders ?? clientFin.dailySalesOrders,
+      pendingOrdersCount: bk.pendingOrdersCount ?? clientFin.pendingOrdersCount,
+      urgentOrdersCount: bk.urgentOrdersCount ?? clientFin.urgentOrdersCount,
+      lowStockCount: bk.lowStockCount ?? clientFin.lowStockCount,
+      criticalStockCount: bk.criticalStockCount ?? clientFin.criticalStockCount,
+      monthlyPerformance: backendStats.monthlyPerformance?.length > 0 ? backendStats.monthlyPerformance : clientFin.monthlyPerformance,
+      expenseBreakdown: backendStats.expenseBreakdown?.length > 0 ? backendStats.expenseBreakdown : clientFin.expenseBreakdown,
+      departmentCosts: backendStats.departmentCosts?.length > 0 ? backendStats.departmentCosts : clientFin.departmentCosts,
+      orderProfitability: backendStats.orderProfitability?.length > 0 ? backendStats.orderProfitability : clientFin.orderProfitability,
+      executiveAlerts: backendStats.executiveAlerts?.length > 0 ? backendStats.executiveAlerts : clientFin.executiveAlerts,
+      productionData: backendStats.productionData?.length > 0 ? backendStats.productionData : clientFin.productionData,
+      salesDispatchTrendData: backendStats.salesDispatchTrendData?.length > 0 ? backendStats.salesDispatchTrendData : clientFin.salesDispatchTrendData,
+      monthlyRevenueData: backendStats.monthlyRevenueData?.length > 0 ? backendStats.monthlyRevenueData : clientFin.monthlyRevenueData,
+      monthlyProductionData: backendStats.monthlyProductionData?.length > 0 ? backendStats.monthlyProductionData : clientFin.monthlyProductionData,
+      topProductsData: backendStats.topProductsData?.length > 0 ? backendStats.topProductsData : clientFin.topProductsData,
+      ageingData: backendStats.ageingData?.length > 0 ? backendStats.ageingData : clientFin.ageingData,
+      topCustomers: backendStats.topCustomers?.length > 0 ? backendStats.topCustomers : clientFin.topCustomers,
+      recentOrders: backendStats.recentOrders?.length > 0 ? backendStats.recentOrders : clientFin.recentOrders
+    };
+  }, [backendStats, clientFin]);
 
   // UI Interactive States
   const [selectedOrderStage, setSelectedOrderStage] = useState('All');
@@ -232,12 +332,11 @@ export default function DashboardView({
     return matchesSearch && matchesStage;
   });
 
-  const filteredProfitabilityList = fin.orderProfitability.filter(item => {
+  const filteredProfitabilityList = (fin.orderProfitability || []).filter(item => {
     if (profitabilityTab === 'All') return true;
     if (profitabilityTab === 'Most Profitable') return item.margin >= 30;
     if (profitabilityTab === 'Loss-Making') return item.margin < 0 || item.grossProfit < 0;
-    if (profitabilityTab === 'High Transport') return item.category === 'High Transport';
-    if (profitabilityTab === 'High Rework') return item.category === 'High Rework';
+    if (profitabilityTab === 'High Transport') return item.category === 'High Transport' || (Number(item.directCost) > 10000);
     return true;
   });
 
@@ -477,27 +576,6 @@ export default function DashboardView({
           <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>HR Approved Payroll</span>
         </div>
 
-        {/* Rework Material */}
-        <div className="sa-cost-card">
-          <div className="sa-cost-card-header">
-            <span className="sa-cost-title">Rework Material</span>
-            <Lucide.Wrench size={18} color="#ef4444" />
-          </div>
-          <div className="sa-cost-amount">{formatNumber(fin.reworkMaterialKg)} Kg</div>
-          <div className="sa-cost-rows">
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Material Cost</span>
-              <strong>{formatCurrency(fin.reworkMaterialCost)}</strong>
-            </div>
-            <div className="sa-cost-row">
-              <span style={{ color: '#5E6B82' }}>Labour & Prod Cost</span>
-              <strong>{formatCurrency(fin.reworkLabourCost)}</strong>
-            </div>
-          </div>
-          <span style={{ fontSize: '11px', color: '#5E6B82', marginTop: 'auto' }}>QC Failures Material Consumption</span>
-        </div>
-
-
 
         {/* Sales Return Cost */}
         <div className="sa-cost-card">
@@ -648,14 +726,22 @@ export default function DashboardView({
                   </tr>
                 </thead>
                 <tbody>
-                  {fin.departmentCosts.map((d, idx) => (
-                    <tr key={idx}>
-                      <td data-label="Department" style={{ fontWeight: 750, color: d.accent }}>{d.name}</td>
-                      <td data-label="Cost" style={{ textAlign: 'right', fontWeight: 750, color: '#24345C' }}>
-                        {d.costVal || d.purchaseVal || d.productionCost || d.transportCost || d.salaryCost || d.salesValue || d.revenue || d.inspectedQty}
+                  {(fin.departmentCosts || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={2} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        No department expenses recorded for the selected period.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    fin.departmentCosts.map((d, idx) => (
+                      <tr key={idx}>
+                        <td data-label="Department" style={{ fontWeight: 750, color: d.accent }}>{d.name}</td>
+                        <td data-label="Cost" style={{ textAlign: 'right', fontWeight: 750, color: '#24345C' }}>
+                          {d.cost || (typeof d.costVal === 'string' ? d.costVal : formatCurrency(d.costVal || 0))}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -680,7 +766,7 @@ export default function DashboardView({
             </div>
 
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {['All', 'Most Profitable', 'Loss-Making', 'High Transport', 'High Rework'].map(tab => (
+              {['All', 'Most Profitable', 'Loss-Making', 'High Transport'].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setProfitabilityTab(tab)}
@@ -709,27 +795,35 @@ export default function DashboardView({
                 </tr>
               </thead>
               <tbody>
-                {filteredProfitabilityList.map((ord, idx) => (
-                  <tr key={idx}>
-                    <td data-label="Order ID" style={{ fontWeight: 750, color: '#2563eb' }}>{ord.id}</td>
-                    <td data-label="Customer" style={{ fontWeight: 700, color: '#24345C' }}>{ord.cust}</td>
-                    <td data-label="Product" style={{ color: '#475569', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ord.prod}</td>
-                    <td data-label="Qty" style={{ fontWeight: 650 }}>{ord.qty}</td>
-                    <td data-label="Sales Value" style={{ fontWeight: 750, color: '#24345C' }}>₹{formatNumber(ord.sales)}</td>
-                    <td data-label="Direct Cost" style={{ fontWeight: 650, color: '#475569' }}>₹{formatNumber(ord.totalCost)}</td>
-                    <td data-label="Gross Profit" style={{ fontWeight: 800, color: ord.grossProfit < 0 ? '#ef4444' : '#10b981' }}>
-                      ₹{formatNumber(ord.grossProfit)}
-                    </td>
-                    <td data-label="Margin %">
-                      <span className={`dashboard-badge ${ord.margin < 0 ? 'badge-danger' : ord.margin >= 30 ? 'badge-success' : 'badge-warning'}`}>
-                        {formatPercent(ord.margin)}
-                      </span>
-                    </td>
-                    <td data-label="Category Tag">
-                      <span className="dashboard-badge badge-info">{ord.category}</span>
+                {filteredProfitabilityList.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                      No order profitability data available for the selected period.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredProfitabilityList.map((ord, idx) => (
+                    <tr key={idx}>
+                      <td data-label="Order ID" style={{ fontWeight: 750, color: '#2563eb' }}>{ord.id}</td>
+                      <td data-label="Customer" style={{ fontWeight: 700, color: '#24345C' }}>{ord.cust}</td>
+                      <td data-label="Product" style={{ color: '#475569', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ord.prod}</td>
+                      <td data-label="Qty" style={{ fontWeight: 650 }}>{ord.qty}</td>
+                      <td data-label="Sales Value" style={{ fontWeight: 750, color: '#24345C' }}>₹{formatNumber(ord.sales)}</td>
+                      <td data-label="Direct Cost" style={{ fontWeight: 650, color: '#475569' }}>₹{formatNumber(ord.directCost || ord.totalCost || 0)}</td>
+                      <td data-label="Gross Profit" style={{ fontWeight: 800, color: ord.grossProfit < 0 ? '#ef4444' : '#10b981' }}>
+                        ₹{formatNumber(ord.grossProfit)}
+                      </td>
+                      <td data-label="Margin %">
+                        <span className={`dashboard-badge ${ord.margin < 0 ? 'badge-danger' : ord.margin >= 30 ? 'badge-success' : 'badge-warning'}`}>
+                          {formatPercent(ord.margin)}
+                        </span>
+                      </td>
+                      <td data-label="Category Tag">
+                        <span className="dashboard-badge badge-info">{ord.category}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -984,21 +1078,29 @@ export default function DashboardView({
           </div>
 
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {topCustomers.map((cust, idx) => (
-              <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#24345C' }}>{cust.name}</span>
-                  <span style={{ fontSize: '13px', fontWeight: 750, color: '#2563eb' }}>{cust.revenue}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', color: '#5E6B82' }}>{cust.orders} Orders Confirmed</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: cust.growth.startsWith('+') ? '#047857' : '#dc2626' }}>{cust.growth} YoY</span>
-                </div>
-                <div className="kpi-progress" style={{ height: '4px', marginTop: '2px' }}>
-                  <div className="kpi-progress-value" style={{ '--progress': `${Math.max(35, 100 - idx * 16)}%`, background: '#2563eb' }} />
-                </div>
+            {(topCustomers || []).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b', fontSize: '13px' }}>
+                No customer sales found for the selected period.
               </div>
-            ))}
+            ) : (
+              topCustomers.map((cust, idx) => (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#24345C' }}>{cust.name}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 750, color: '#2563eb' }}>{cust.revenue}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#5E6B82' }}>{cust.orders} Orders Confirmed</span>
+                    {cust.growth && (
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: cust.growth.startsWith('+') ? '#047857' : '#dc2626' }}>{cust.growth} YoY</span>
+                    )}
+                  </div>
+                  <div className="kpi-progress" style={{ height: '4px', marginTop: '2px' }}>
+                    <div className="kpi-progress-value" style={{ '--progress': `${Math.max(35, 100 - idx * 16)}%`, background: '#2563eb' }} />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
