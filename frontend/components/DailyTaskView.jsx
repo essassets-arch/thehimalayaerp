@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { generateTasks, getTodayDateString } from '../utils/taskEngine';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getTodayDateString } from '../utils/taskEngine';
 import TaskCard from './tasks/TaskCard';
 import { 
   ClipboardList, 
@@ -15,15 +15,42 @@ import {
   Plus
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { remindersService } from '../modules/sales/services/reminders.service.js';
 
 export default function DailyTaskView({ state, dispatch, navigate, showToast, module = 'Sales', completeReminder, updateReminder }) {
   const [targetDate, setTargetDate] = useState(() => getTodayDateString());
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All'); // Today, Upcoming, Overdue, Completed, All
   
   // Modals state
   const [rescheduleTask, setRescheduleTask] = useState(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
+
+  const [dailyData, setDailyData] = useState({ items: [], summary: { total: 0, pending: 0, completed: 0, overdue: 0, upcoming: 0 } });
+  const [loading, setLoading] = useState(false);
+
+  const fetchDailyTasks = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch all reminders without date/status restrictions to build consistent frontend categories
+      const res = await remindersService.getDaily({});
+      if (res.success && res.data) {
+        setDailyData({
+          items: res.data.items || [],
+          summary: res.data.summary || { total: 0, pending: 0, completed: 0, overdue: 0, upcoming: 0 }
+        });
+      }
+    } catch (err) {
+      console.error('Error loading daily tasks:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDailyTasks();
+  }, [fetchDailyTasks, state?.reminders]);
 
   const leads = state?.leads || [];
   const quotations = state?.quotations || [];
@@ -41,59 +68,92 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
     return expiry <= baseDateTime + (86400000 * 2) && q.status !== 'Approved' && q.status !== 'Closed';
   });
 
-  // 1. Generate tasks
-  let rawTasks = generateTasks(state, targetDate);
+  // Helper to convert date object or ISO string to standard YYYY-MM-DD comparison key
+  const toDateKey = (dateVal) => {
+    if (!dateVal) return '';
+    if (dateVal instanceof Date) return dateVal.toISOString().split('T')[0];
+    if (typeof dateVal === 'string') return dateVal.split('T')[0];
+    return '';
+  };
 
-  // Filter based on module before counting stats
-  if (module === 'Finance') {
-    rawTasks = rawTasks.filter(t => ['Payment', 'Order', 'Production'].includes(t.type) || t.isExplicitReminder);
-  } else if (module === 'Sales') {
-    rawTasks = rawTasks.filter(t => ['Lead', 'Quotation', 'Sample', 'Payment', 'Order'].includes(t.type) || t.isExplicitReminder);
-  }
+  const selectedDateKey = toDateKey(targetDate);
+  const now = new Date();
 
-  // 2. Count metrics for the selected target date
-  const totalTasks = rawTasks.length;
-  const overdueTasksCount = rawTasks.filter(t => t.status === 'Overdue').length;
-  
-  // Calculate completed tasks from raw data
-  // Completed leads have status 'Converted' or status 'Lost' or their followUpDate is cleared
-  // Let's also fetch completed samples/orders. To make it dynamic, let's keep a local mock/real counter of completed tasks during this session.
-  const [completedSessionTasks, setCompletedSessionTasks] = useState([]);
-  
-  const activeTasks = rawTasks.filter(t => !completedSessionTasks.includes(t.id));
-  const completedCount = completedSessionTasks.length;
-  
-  const highPriorityCount = activeTasks.filter(t => t.status === 'Overdue' || t.type === 'Payment').length;
+  // 1. Filter reminders by active module tab (Leads, Quotations, Samples, Payments)
+  const sourceFilteredTasks = (dailyData.items || []).filter(task => {
+    if (activeTab === 'All') return true;
+    const sType = String(task.sourceType).toUpperCase();
+    if (activeTab === 'Leads') return sType === 'LEAD';
+    if (activeTab === 'Quotations') return sType === 'QUOTATION';
+    if (activeTab === 'Samples') return sType === 'SAMPLE' || sType === 'SAMPLEREQUEST';
+    if (activeTab === 'Payments') return sType === 'PAYMENT' || sType === 'PAYMENT_FOLLOWUP' || sType === 'SALESORDER';
+    return true;
+  });
 
-  // Filter tasks based on Search Query and Tab selection
-  const filteredTasks = activeTasks.filter(task => {
-    const sq = (searchQuery || '').toLowerCase();
-    const matchesSearch = (task.clientName?.toLowerCase().includes(sq) || false) || 
-                          (task.notes?.toLowerCase().includes(sq) || false);
-    
-    let matchesTab = false;
-    if (activeTab === 'All') {
-      matchesTab = true;
-    } else if (activeTab === 'Leads' && task.type === 'Lead') {
-      matchesTab = true;
-    } else if (activeTab === 'Quotations' && task.type === 'Quotation') {
-      matchesTab = true;
-    } else if (activeTab === 'Payments' && task.type === 'Payment') {
-      matchesTab = true;
-    } else if (activeTab === 'Orders' && (task.type === 'Order' || task.type === 'Production')) {
-      matchesTab = true;
-    } else if (activeTab === 'Samples' && task.type === 'Sample') {
-      matchesTab = true;
+  // 2. Compute dynamic counters for metrics cards based on sourceFilteredTasks
+  const pendingTasks = sourceFilteredTasks.filter(t => t.status === 'Pending');
+  const todayTasks = pendingTasks.filter(t => toDateKey(t.reminderAt) === selectedDateKey);
+  const overdueTasks = pendingTasks.filter(t => toDateKey(t.reminderAt) < selectedDateKey);
+  const completedTasks = sourceFilteredTasks.filter(t => t.status === 'Completed');
+
+  // 3. Filter displayed list by active status tab and search queries
+  const filteredTasks = sourceFilteredTasks.filter(task => {
+    if (searchQuery) {
+      const sq = searchQuery.toLowerCase();
+      const matches = (task.customerName?.toLowerCase().includes(sq) || false) ||
+                      (task.description?.toLowerCase().includes(sq) || false) ||
+                      (task.title?.toLowerCase().includes(sq) || false);
+      if (!matches) return false;
     }
-    
-    return matchesSearch && matchesTab;
+
+    const taskDateKey = toDateKey(task.reminderAt);
+    const isPending = task.status === 'Pending';
+
+    switch (filterStatus) {
+      case 'Today':
+        return isPending && taskDateKey === selectedDateKey;
+      case 'Upcoming':
+        return isPending && taskDateKey > selectedDateKey;
+      case 'Overdue':
+        return isPending && taskDateKey < selectedDateKey;
+      case 'Completed':
+        return task.status === 'Completed';
+      case 'All':
+      default:
+        return true;
+    }
+  });
+
+  // 4. Map filtered list to expected TaskCard schema
+  const mappedTasks = filteredTasks.map(item => {
+    let type = 'Lead';
+    const sType = String(item.sourceType).toUpperCase();
+    if (sType === 'LEAD') type = 'Lead';
+    else if (sType === 'SAMPLE' || sType === 'SAMPLEREQUEST') type = 'Sample';
+    else if (sType === 'QUOTATION') type = 'Quotation';
+    else if (sType === 'PAYMENT' || sType === 'PAYMENT_FOLLOWUP' || sType === 'SALESORDER') type = 'Payment';
+
+    const itemDate = new Date(item.reminderAt);
+    const isOverdue = item.status === 'Pending' && item.reminderAt && itemDate < now && toDateKey(item.reminderAt) !== toDateKey(now);
+
+    return {
+      id: `REM-${item.id}`,
+      sourceId: item.id,
+      clientName: item.customerName || 'N/A',
+      type,
+      status: isOverdue ? 'Overdue' : (item.status === 'Completed' ? 'Completed' : 'Pending'),
+      followUpDate: item.reminderAt ? toDateKey(item.reminderAt) : targetDate,
+      notes: `${item.title}: ${item.description || 'No notes'}`,
+      amount: 0,
+      rawEntity: item
+    };
   });
 
   // Action: Mark task completed
   const handleDone = (task) => {
     Swal.fire({
       title: 'Complete Task?',
-      text: `Mark this ${task.type} task for "${task.clientName}" as resolved?`,
+      text: `Mark this task for "${task.clientName}" as resolved?`,
       icon: 'success',
       showCancelButton: true,
       confirmButtonText: 'Yes, Complete',
@@ -113,75 +173,16 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
     });
   };
 
-  const executeCompleteAction = (taskId, notes) => {
+  const executeCompleteAction = async (taskId, notes) => {
     const prefix = taskId.split('-')[0];
     const sourceId = taskId.replace(`${prefix}-`, '');
 
-    if (prefix === 'LD') {
-      // Clear lead follow-up date and log completion in timeline
-      const lead = (state.sales?.leads || []).find(l => String(l.id) === sourceId);
-      if (lead) {
-        const updatedTimeline = [
-          ...(lead.timeline || []),
-          { stage: 'Follow-up Completed', text: notes, date: targetDate, timestamp: Date.now() }
-        ];
-        dispatch({
-          type: 'UPDATE_LEAD',
-          payload: { id: Number(sourceId), followUpDate: null, timeline: updatedTimeline }
-        });
+    if (prefix === 'REM' && completeReminder) {
+      const res = await completeReminder(sourceId);
+      if (res && res.success) {
+        await fetchDailyTasks();
       }
-    } else if (prefix === 'SMP') {
-      // Clear sample follow-up
-      dispatch({
-        type: 'UPDATE_SAMPLE',
-        payload: { id: Number(sourceId), followUpDate: null, status: 'Approved' }
-      });
-    } else if (prefix === 'QT') {
-      // Clear quotation follow-up
-      dispatch({
-        type: 'UPDATE_QUOTATION',
-        payload: { id: Number(sourceId), followUpDate: null, status: 'Sent' }
-      });
-    } else if (prefix === 'ORD') {
-      // Confirm the order
-      dispatch({
-        type: 'UPDATE_ORDER',
-        payload: { 
-          orderNo: sourceId, 
-          status: 'Created', 
-          salesStatus: 'Confirmed',
-          overallStage: 'Created',
-          currentDepartment: 'Plant Head',
-          timeline: [
-            { stage: 'Created', timestamp: Date.now(), remarks: 'Purchase order confirmed by Sales via Daily Tasks' }
-          ]
-        }
-      });
-    } else if (prefix === 'PROD') {
-      // Clear delivery date (marked completed)
-      dispatch({
-        type: 'UPDATE_ORDER',
-        payload: { orderNo: sourceId, deliveryDate: null, productionStatus: 'Completed', overallStage: 'Production Completed' }
-      });
-    } else if (prefix === 'PM') {
-      // Set payment status as paid
-      dispatch({
-        type: 'RECEIVE_PAYMENT',
-        payload: { 
-          paymentUpdate: { 
-            id: Number(sourceId), 
-            status: 'Paid',
-            verified: 'Verified',
-            paidAmount: state.payments.find(p => String(p.id) === String(sourceId))?.totalAmount || 0
-          } 
-        }
-      });
-    } else if (prefix === 'REM' && completeReminder) {
-      completeReminder(sourceId);
     }
-
-    setCompletedSessionTasks([...completedSessionTasks, taskId]);
-    showToast(`Task ${taskId} completed successfully!`);
   };
 
   // Action: Reschedule task
@@ -190,7 +191,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
     setRescheduleDate(task.followUpDate || targetDate);
   };
 
-  const handleRescheduleSubmit = (e) => {
+  const handleRescheduleSubmit = async (e) => {
     e.preventDefault();
     if (!rescheduleDate || !rescheduleTask) return;
 
@@ -198,41 +199,13 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
     const prefix = taskId.split('-')[0];
     const sourceId = taskId.replace(`${prefix}-`, '');
 
-    if (prefix === 'LD') {
-      dispatch({
-        type: 'UPDATE_LEAD',
-        payload: { id: Number(sourceId), followUpDate: rescheduleDate }
-      });
-    } else if (prefix === 'SMP') {
-      dispatch({
-        type: 'UPDATE_SAMPLE',
-        payload: { id: Number(sourceId), followUpDate: rescheduleDate }
-      });
-    } else if (prefix === 'QT') {
-      dispatch({
-        type: 'UPDATE_QUOTATION',
-        payload: { id: Number(sourceId), followUpDate: rescheduleDate }
-      });
-    } else if (prefix === 'ORD') {
-      dispatch({
-        type: 'UPDATE_ORDER',
-        payload: { orderNo: sourceId, date: rescheduleDate }
-      });
-    } else if (prefix === 'PROD') {
-      dispatch({
-        type: 'UPDATE_ORDER',
-        payload: { orderNo: sourceId, deliveryDate: rescheduleDate }
-      });
-    } else if (prefix === 'PM') {
-      dispatch({
-        type: 'RECEIVE_PAYMENT',
-        payload: { paymentUpdate: { id: Number(sourceId), dueDate: rescheduleDate } }
-      });
-    } else if (prefix === 'REM' && updateReminder) {
-      updateReminder(sourceId, { date: rescheduleDate });
+    if (prefix === 'REM' && updateReminder) {
+      const res = await updateReminder(sourceId, { reminderDate: rescheduleDate });
+      if (res && res.success) {
+        await fetchDailyTasks();
+        showToast(`Task rescheduled to ${rescheduleDate}`);
+      }
     }
-
-    showToast(`Task rescheduled to ${rescheduleDate}`);
     setRescheduleTask(null);
   };
 
@@ -481,21 +454,21 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           </div>
           <div style={{ marginTop: '12px' }}>
             <span style={{ fontSize: '28px', fontWeight: '800', color: 'var(--color-text-primary)', letterSpacing: '-1px' }}>
-              {totalTasks}
+              {todayTasks.length}
             </span>
           </div>
         </div>
 
         <div className="app-card stats-card" style={{ padding: '16px 20px', borderRadius: '20px', background: '#ffffff', border: '1px solid var(--color-border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>High Priority</span>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Pending Tasks</span>
             <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', padding: '6px', borderRadius: '50%' }}>
               <TrendingUp size={16} />
             </div>
           </div>
           <div style={{ marginTop: '12px' }}>
             <span style={{ fontSize: '28px', fontWeight: '800', color: '#dc2626', letterSpacing: '-1px' }}>
-              {highPriorityCount}
+              {pendingTasks.length}
             </span>
           </div>
         </div>
@@ -504,12 +477,12 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Overdue Action</span>
             <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '6px', borderRadius: '50%' }}>
-              <Clock size={16} className={overdueTasksCount > 0 ? 'animate-pulse' : ''} />
+              <Clock size={16} className={dailyData.summary.overdue > 0 ? 'animate-pulse' : ''} />
             </div>
           </div>
           <div style={{ marginTop: '12px' }}>
             <span style={{ fontSize: '28px', fontWeight: '800', color: '#ef4444', letterSpacing: '-1px' }}>
-              {overdueTasksCount}
+              {overdueTasks.length}
             </span>
           </div>
         </div>
@@ -523,7 +496,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           </div>
           <div style={{ marginTop: '12px' }}>
             <span style={{ fontSize: '28px', fontWeight: '800', color: '#166534', letterSpacing: '-1px' }}>
-              {completedCount}
+              {completedTasks.length}
             </span>
           </div>
         </div>
@@ -572,6 +545,39 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
             })}
           </div>
 
+          {/* Status filter bar */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'All', label: 'All Reminders' },
+              { id: 'Today', label: 'Due Today' },
+              { id: 'Upcoming', label: 'Upcoming' },
+              { id: 'Overdue', label: 'Overdue' },
+              { id: 'Completed', label: 'Completed' }
+            ].map(f => {
+              const isActive = filterStatus === f.id;
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => setFilterStatus(f.id)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '11.5px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    border: '1px solid var(--color-border)',
+                    background: isActive ? 'var(--color-text-primary)' : '#ffffff',
+                    color: isActive ? '#ffffff' : 'var(--color-text-secondary)',
+                    transition: 'all 0.2s ease',
+                    boxShadow: isActive ? '0 2px 6px rgba(0,0,0,0.1)' : 'none'
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Search bar row */}
           <div style={{ position: 'relative', marginBottom: '16px' }}>
             <input 
@@ -604,7 +610,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
 
           {/* Tasks listing cards */}
           <div className="task-grid-container">
-            {filteredTasks.length === 0 ? (
+            {mappedTasks.length === 0 ? (
               <div 
                 className="app-card"
                 style={{ 
@@ -631,7 +637,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
                 </div>
               </div>
             ) : (
-              filteredTasks.map(task => (
+              mappedTasks.map(task => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -722,7 +728,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
 
 {/* ── RESCHEDULE MODAL DIALOG ── */}
       {rescheduleTask && (
-        <div className="modal-overlay active" onClick={() => setRescheduleTask(null)}>
+        <div className="modal-overlay active" onClick={() => setRescheduleTask(null)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '420px', borderRadius: '20px', padding: '24px' }}>
             <div className="modal-header-row" style={{ borderBottom: '1px solid #eaeaea', paddingBottom: '12px', marginBottom: '16px' }}>
               <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: '800' }}>

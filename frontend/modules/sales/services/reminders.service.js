@@ -38,12 +38,30 @@ export const remindersService = {
     }
   },
 
+  dismiss: async (id) => {
+    try {
+      const data = await remindersRepository.dismiss(id);
+      return ERPSuccess(data);
+    } catch (err) {
+      return ERPError(err.message, 'DISMISS_ERROR');
+    }
+  },
+
   cancel: async (id) => {
     try {
       const data = await remindersRepository.cancel(id);
       return ERPSuccess(data);
     } catch (err) {
       return ERPError(err.message, 'CANCEL_ERROR');
+    }
+  },
+
+  getDaily: async (params = {}) => {
+    try {
+      const data = await remindersRepository.getDaily(params);
+      return ERPSuccess(data);
+    } catch (err) {
+      return ERPError(err.message, 'GET_DAILY_ERROR');
     }
   }
 };

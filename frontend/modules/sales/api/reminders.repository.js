@@ -13,9 +13,21 @@ export const remindersRepository = {
 
   create: (data) => client.post(ENDPOINTS.SALES.REMINDERS, data),
 
-  update: (id, data) => client.put(`${ENDPOINTS.SALES.REMINDERS}/${id}`, data),
+  update: (id, data) => client.patch(`${ENDPOINTS.SALES.REMINDERS}/${id}`, data),
 
   complete: (id) => client.patch(`${ENDPOINTS.SALES.REMINDERS}/${id}/complete`),
 
-  cancel: (id) => client.delete(`${ENDPOINTS.SALES.REMINDERS}/${id}`)
+  dismiss: (id) => client.patch(`${ENDPOINTS.SALES.REMINDERS}/${id}/dismiss`),
+
+  cancel: (id) => client.delete(`${ENDPOINTS.SALES.REMINDERS}/${id}`),
+
+  getDaily: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.date) query.set('date', params.date);
+    if (params.status) query.set('status', params.status);
+    if (params.sourceType) query.set('sourceType', params.sourceType);
+    if (params.search) query.set('search', params.search);
+    const qs = query.toString();
+    return client.get(`${ENDPOINTS.SALES.REMINDERS}/daily${qs ? `?${qs}` : ''}`);
+  }
 };

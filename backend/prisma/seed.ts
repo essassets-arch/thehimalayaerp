@@ -32,6 +32,12 @@ interface ProductSeedData {
   dispatchCategory?: string;
   sku?: string;
   minimumStock?: number;
+  size?: string;
+  capacity?: string;
+  type?: string;
+  coversPerSet?: number;
+  framesPerSet?: number;
+  gstRate?: number;
 }
 
 // Manufacturing Products - FRP Covers
@@ -361,42 +367,78 @@ const manufacturingProducts: ProductSeedData[] = [
   { name: 'HIMALAYA FRP WGC 300X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - C250 Class' },
   { name: 'HIMALAYA FRP WGC 300X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'With Grate Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP With Grate Cover 300x700mm - D400 Class' },
 
-  // FRP ONGC (Oil and Natural Gas Corporation)
-  { name: 'HIMALAYA FRPONGC 300X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Extra Light Duty' },
-  { name: 'HIMALAYA FRPONGC 300X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - Light Duty' },
-  { name: 'HIMALAYA FRPONGC 300X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - B125 Class' },
-  { name: 'HIMALAYA FRPONGC 300X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - C250 Class' },
-  { name: 'HIMALAYA FRPONGC 300X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 300x700mm - D400 Class' },
+  // FRP ONGC (Oil and Natural Gas Corporation - 9 Sizes x 7 Classes SINGLE)
+  { name: 'HIMALAYA FRP ONGC 300X700 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '300X700', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 300x700mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 300X700 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '300X700', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 300x700mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 300X700 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '300X700', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 300x700mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 300X700 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '300X700', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 300x700mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 300X700 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '300X700', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 300x700mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 300X700 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '300X700', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 300x700mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 300X700 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '300X700', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 300x700mm - F900 Class (Single Piece)' },
 
-  { name: 'HIMALAYA FRPONGC 385X700 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - Extra Light Duty' },
-  { name: 'HIMALAYA FRPONGC 385X700 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - Light Duty' },
-  { name: 'HIMALAYA FRPONGC 385X700 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - B125 Class' },
-  { name: 'HIMALAYA FRPONGC 385X700 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - C250 Class' },
-  { name: 'HIMALAYA FRPONGC 385X700 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 385x700mm - D400 Class' },
+  { name: 'HIMALAYA FRP ONGC 385X700 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '385X700', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 385x700mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 385X700 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '385X700', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 385x700mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 385X700 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '385X700', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 385x700mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 385X700 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '385X700', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 385x700mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 385X700 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '385X700', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 385x700mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 385X700 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '385X700', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 385x700mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 385X700 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '385X700', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 385x700mm - F900 Class (Single Piece)' },
 
-  { name: 'HIMALAYA FRPONGC 450X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - Extra Light Duty' },
-  { name: 'HIMALAYA FRPONGC 450X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - Light Duty' },
-  { name: 'HIMALAYA FRPONGC 450X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - B125 Class' },
-  { name: 'HIMALAYA FRPONGC 450X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - C250 Class' },
-  { name: 'HIMALAYA FRPONGC 450X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 450x600mm - D400 Class' },
+  { name: 'HIMALAYA FRP ONGC 450X600 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X600', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 450x600mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X600 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X600', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 450x600mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X600 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X600', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 450x600mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X600 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X600', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 450x600mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X600 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X600', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 450x600mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X600 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X600', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 450x600mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X600 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X600', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 450x600mm - F900 Class (Single Piece)' },
 
-  { name: 'HIMALAYA FRPONGC 600X900 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - Extra Light Duty' },
-  { name: 'HIMALAYA FRPONGC 600X900 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - Light Duty' },
-  { name: 'HIMALAYA FRPONGC 600X900 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - B125 Class' },
-  { name: 'HIMALAYA FRPONGC 600X900 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - C250 Class' },
-  { name: 'HIMALAYA FRPONGC 600X900 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x900mm - D400 Class' },
+  { name: 'HIMALAYA FRP ONGC 600X600 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X600', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 600x600mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X600 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X600', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 600x600mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X600 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X600', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 600x600mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X600 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X600', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 600x600mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X600 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X600', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 600x600mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X600 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X600', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 600x600mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X600 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X600', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 600x600mm - F900 Class (Single Piece)' },
 
-  { name: 'HIMALAYA FRPONGC 600X600 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x600mm - Extra Light Duty' },
-  { name: 'HIMALAYA FRPONGC 600X600 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x600mm - Light Duty' },
-  { name: 'HIMALAYA FRPONGC 600X600 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x600mm - B125 Class' },
-  { name: 'HIMALAYA FRPONGC 600X600 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x600mm - C250 Class' },
-  { name: 'HIMALAYA FRPONGC 600X600 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 600x600mm - D400 Class' },
+  { name: 'HIMALAYA FRP ONGC 350X1000 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '350X1000', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 350x1000mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 350X1000 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '350X1000', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 350x1000mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 350X1000 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '350X1000', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 350x1000mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 350X1000 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '350X1000', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 350x1000mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 350X1000 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '350X1000', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 350x1000mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 350X1000 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '350X1000', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 350x1000mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 350X1000 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '350X1000', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 350x1000mm - F900 Class (Single Piece)' },
 
-  { name: 'HIMALAYA FRPONGC 350X1000 ELD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 350x1000mm - Extra Light Duty' },
-  { name: 'HIMALAYA FRPONGC 350X1000 LD', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 350x1000mm - Light Duty' },
-  { name: 'HIMALAYA FRPONGC 350X1000 B125', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 350x1000mm - B125 Class' },
-  { name: 'HIMALAYA FRPONGC 350X1000 C250', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 350x1000mm - C250 Class' },
-  { name: 'HIMALAYA FRPONGC 350X1000 D400', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, description: 'FRP ONGC Cover 350x1000mm - D400 Class' },
+  { name: 'HIMALAYA FRP ONGC 450X1000 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X1000', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 450x1000mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X1000 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X1000', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 450x1000mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X1000 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X1000', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 450x1000mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X1000 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X1000', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 450x1000mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X1000 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X1000', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 450x1000mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X1000 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X1000', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 450x1000mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 450X1000 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '450X1000', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 450x1000mm - F900 Class (Single Piece)' },
+
+  { name: 'HIMALAYA FRP ONGC 600X1000 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X1000', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 600x1000mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X1000 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X1000', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 600x1000mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X1000 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X1000', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 600x1000mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X1000 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X1000', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 600x1000mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X1000 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X1000', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 600x1000mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X1000 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X1000', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 600x1000mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X1000 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X1000', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 600x1000mm - F900 Class (Single Piece)' },
+
+  { name: 'HIMALAYA FRP ONGC 600X720 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X720', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 600x720mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X720 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X720', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 600x720mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X720 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X720', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 600x720mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X720 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X720', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 600x720mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X720 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X720', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 600x720mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X720 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X720', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 600x720mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X720 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X720', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 600x720mm - F900 Class (Single Piece)' },
+
+  { name: 'HIMALAYA FRP ONGC 600X900 ELD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X900', capacity: 'ELD', type: 'SINGLE', description: 'FRP ONGC Cover 600x900mm - Extra Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X900 LD SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X900', capacity: 'LD', type: 'SINGLE', description: 'FRP ONGC Cover 600x900mm - Light Duty (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X900 B125 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X900', capacity: 'B125', type: 'SINGLE', description: 'FRP ONGC Cover 600x900mm - B125 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X900 C250 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X900', capacity: 'C250', type: 'SINGLE', description: 'FRP ONGC Cover 600x900mm - C250 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X900 D400 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X900', capacity: 'D400', type: 'SINGLE', description: 'FRP ONGC Cover 600x900mm - D400 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X900 E600 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X900', capacity: 'E600', type: 'SINGLE', description: 'FRP ONGC Cover 600x900mm - E600 Class (Single Piece)' },
+  { name: 'HIMALAYA FRP ONGC 600X900 F900 SINGLE', brand: 'HIMALAYA', category: 'FRP COVERS', subCategory: 'ONGC Cover', hsnCode: '39259090', unit: 'SET', unitPrice: 0, size: '600X900', capacity: 'F900', type: 'SINGLE', description: 'FRP ONGC Cover 600x900mm - F900 Class (Single Piece)' },
 
   // FRP Moulded Grating
   { name: 'FRP MOULDED GRATING 25MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', unitPrice: 0, description: 'FRP Moulded Grating 25mm thickness' },
@@ -1657,6 +1699,14 @@ async function main() {
               unit: productData.unit,
               unitPrice: productData.unitPrice,
               minimumStock: productData.minimumStock ?? 0,
+              dispatchCategory: productData.dispatchCategory || 'D1',
+              hsnCode: productData.hsnCode || '39259090',
+              gstRate: productData.gstRate ?? 18,
+              size: productData.size,
+              capacity: productData.capacity,
+              type: productData.type,
+              coversPerSet: productData.coversPerSet,
+              framesPerSet: productData.framesPerSet,
               isActive: true,
             },
           });
@@ -1668,6 +1718,14 @@ async function main() {
               category: productData.category,
               productType: pType,
               brand: productData.brand || existing.brand || 'HIMALAYA',
+              size: productData.size || existing.size,
+              capacity: productData.capacity || existing.capacity,
+              type: productData.type || existing.type,
+              dispatchCategory: productData.dispatchCategory || existing.dispatchCategory || 'D1',
+              hsnCode: productData.hsnCode || existing.hsnCode || '39259090',
+              gstRate: productData.gstRate ?? existing.gstRate ?? 18,
+              coversPerSet: productData.coversPerSet || existing.coversPerSet,
+              framesPerSet: productData.framesPerSet || existing.framesPerSet,
               isActive: true,
             },
           });

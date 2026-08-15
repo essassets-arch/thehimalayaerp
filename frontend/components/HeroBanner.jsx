@@ -601,7 +601,9 @@ export default function HeroBanner({
               )}
 
               {/* Grouped Results — one section per entity type */}
-              {!searchLoading && Object.entries(searchGrouped).map(([sectionKey, items]) => {
+              {!searchLoading && Object.entries(searchGrouped).map(([sectionKey, rawItems]) => {
+                const items = Array.isArray(rawItems) ? rawItems : [];
+                if (items.length === 0) return null;
                 const palette = ENTITY_PALETTE[sectionKey] || { color: '#8893A7', label: sectionKey.toUpperCase() };
                 return (
                   <div key={sectionKey}>

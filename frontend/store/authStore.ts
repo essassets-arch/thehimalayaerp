@@ -51,6 +51,8 @@ export const useAuthStore = create<AuthState>()(
           sessionStorage.setItem('token', accessToken);
           sessionStorage.setItem('himalaya_token', accessToken);
           sessionStorage.setItem('erpUser', JSON.stringify(user));
+          localStorage.setItem('token', accessToken);
+          localStorage.setItem('himalaya_token', accessToken);
         }
         set({ role, user, accessToken, isAuthenticated: true });
       },
@@ -59,9 +61,13 @@ export const useAuthStore = create<AuthState>()(
           if (token) {
             sessionStorage.setItem('token', token);
             sessionStorage.setItem('himalaya_token', token);
+            localStorage.setItem('token', token);
+            localStorage.setItem('himalaya_token', token);
           } else {
             sessionStorage.removeItem('token');
             sessionStorage.removeItem('himalaya_token');
+            localStorage.removeItem('token');
+            localStorage.removeItem('himalaya_token');
           }
         }
         set({ accessToken: token, isAuthenticated: !!token });
@@ -70,6 +76,8 @@ export const useAuthStore = create<AuthState>()(
         if (typeof window !== 'undefined') {
           try {
             sessionStorage.clear();
+            localStorage.removeItem('token');
+            localStorage.removeItem('himalaya_token');
             localStorage.removeItem('auth-storage');
             localStorage.removeItem('sales-store');
             localStorage.removeItem('supersales-store');

@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -58,18 +59,72 @@ export class CreateEmployeeDto {
 }
 
 export class EmployeeQueryDto {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) pageSize = 20;
-  @IsOptional() @IsString() search?: string;
-  @IsOptional() @IsString() departmentId?: string;
-  @IsOptional() @IsString() locationId?: string;
-  @IsOptional() @IsEnum(EmploymentType) employmentType?: EmploymentType;
-  @IsOptional() @IsEnum(EmployeeStatus) status?: EmployeeStatus;
-  @IsOptional() @IsString() reportingManagerId?: string;
-  @IsOptional() @IsDateString() joiningDateFrom?: string;
-  @IsOptional() @IsDateString() joiningDateTo?: string;
-  @IsOptional() @IsString() sortBy = 'createdAt';
-  @IsOptional() @Matches(/^(asc|desc)$/) sortOrder: 'asc' | 'desc' = 'desc';
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = undefined;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  take?: number = undefined;
+
+  @IsOptional()
+  @IsString()
+  search?: string = undefined;
+
+  @IsOptional()
+  @IsString()
+  departmentId?: string = undefined;
+
+  @IsOptional()
+  @IsString()
+  locationId?: string = undefined;
+
+  @IsOptional()
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType = undefined;
+
+  @IsOptional()
+  @IsEnum(EmployeeStatus)
+  status?: EmployeeStatus = undefined;
+
+  @IsOptional()
+  @IsString()
+  reportingManagerId?: string = undefined;
+
+  @IsOptional()
+  @IsDateString()
+  joiningDateFrom?: string = undefined;
+
+  @IsOptional()
+  @IsDateString()
+  joiningDateTo?: string = undefined;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string = 'createdAt';
+
+  @IsOptional()
+  @Matches(/^(asc|desc)$/i)
+  sortOrder?: 'asc' | 'desc' = 'desc';
 }
 
 export class UpdateEmployeeDto {

@@ -1,61 +1,92 @@
 import { useCallback } from 'react';
 import Swal from 'sweetalert2';
-import { useERP } from '../../../shared/context/ERPContext.jsx';
+import { useERP, useSalesBackend } from '../../../shared/context/ERPContext.jsx';
 import { remindersService } from '../services/reminders.service.js';
+
+const getErrorText = (err) => {
+  if (!err) return 'Unknown error';
+  if (typeof err === 'object') {
+    return err.message || err.error || JSON.stringify(err);
+  }
+  return String(err);
+};
 
 export function useReminders(showToast) {
   const { state, syncData } = useERP();
+  const salesBackend = useSalesBackend();
   const reminders = Array.isArray(state?.reminders) ? state.reminders : [];
+
+  const triggerRefresh = useCallback(async () => {
+    await syncData();
+    if (salesBackend) {
+      if (salesBackend.refreshLeads) salesBackend.refreshLeads().catch(() => {});
+      if (salesBackend.refreshSamples) salesBackend.refreshSamples().catch(() => {});
+      if (salesBackend.refreshQuotations) salesBackend.refreshQuotations().catch(() => {});
+      if (salesBackend.refreshSalesOrders) salesBackend.refreshSalesOrders().catch(() => {});
+    }
+  }, [syncData, salesBackend]);
 
   const createReminder = useCallback(async (payload) => {
     const res = await remindersService.create(payload);
     if (res.success) {
       showToast?.('Reminder saved.');
-      await syncData();
+      await triggerRefresh();
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      Swal.fire({ icon: 'error', title: 'Error', text: getErrorText(res.error) });
     }
     return res;
-  }, [showToast, syncData]);
+  }, [showToast, triggerRefresh]);
 
   const updateReminder = useCallback(async (id, payload) => {
     const res = await remindersService.update(id, payload);
     if (res.success) {
       showToast?.('Reminder updated.');
-      await syncData();
+      await triggerRefresh();
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      Swal.fire({ icon: 'error', title: 'Error', text: getErrorText(res.error) });
     }
     return res;
-  }, [showToast, syncData]);
+  }, [showToast, triggerRefresh]);
 
   const completeReminder = useCallback(async (id) => {
     const res = await remindersService.complete(id);
     if (res.success) {
       showToast?.('Reminder marked complete.');
-      await syncData();
+      await triggerRefresh();
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      Swal.fire({ icon: 'error', title: 'Error', text: getErrorText(res.error) });
     }
     return res;
-  }, [showToast, syncData]);
+  }, [showToast, triggerRefresh]);
 
   const cancelReminder = useCallback(async (id) => {
     const res = await remindersService.cancel(id);
     if (res.success) {
       showToast?.('Reminder cancelled.');
-      await syncData();
+      await triggerRefresh();
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: res.error?.message || res.error });
+      Swal.fire({ icon: 'error', title: 'Error', text: getErrorText(res.error) });
     }
     return res;
-  }, [showToast, syncData]);
+  }, [showToast, triggerRefresh]);
+
+  const dismissReminder = useCallback(async (id) => {
+    const res = await remindersService.dismiss(id);
+    if (res.success) {
+      showToast?.('Reminder dismissed.');
+      await triggerRefresh();
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: getErrorText(res.error) });
+    }
+    return res;
+  }, [showToast, triggerRefresh]);
 
   return {
     reminders,
     createReminder,
     updateReminder,
     completeReminder,
-    cancelReminder
+    cancelReminder,
+    dismissReminder
   };
 }

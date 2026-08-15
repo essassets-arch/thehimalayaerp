@@ -159,7 +159,7 @@ export class LeadsService {
       'estimatedQuantity',
       'unit',
       'assignedToId',
-      'nextReminderAt',
+      'nextReminder',
       'lostReason',
       'remarks',
     ];
@@ -169,8 +169,8 @@ export class LeadsService {
       Object.entries(dto).filter(([key, val]) => allowed.includes(key) && val !== undefined),
     ) as any;
 
-    if (data.nextReminderAt) {
-      data.nextReminderAt = new Date(data.nextReminderAt);
+    if (data.nextReminder) {
+      data.nextReminder = new Date(data.nextReminder);
     }
 
     if (data.leadDate) {

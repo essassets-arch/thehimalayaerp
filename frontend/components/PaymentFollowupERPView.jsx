@@ -7,6 +7,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '../store/erpStore';
 import { backendFetch } from '../lib/backendFetch';
+import { remindersService } from '../modules/sales/services/reminders.service.js';
 
 const PAYMENT_LABELS = {
   PAYMENT_PENDING: 'Awaiting Payment',
@@ -90,7 +91,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const refreshFollowups = async () => {
     setLoadingFollowups(true);
     try {
-      const res = await apiClient.get('/sales/payment-followups');
+      const res = await remindersService.list({ moduleType: 'Payment' });
       setFollowups(res?.success ? res.data : []);
     } catch (err) {
       console.error(err);
@@ -162,11 +163,16 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
     if (!formValues) return;
     try {
-      const status = computeReminderStatus(formValues.nextDate, 'Upcoming');
-      await apiClient.post(`/sales/orders/${order.id}/payment-followups`, {
-        followup_note: formValues.note,
-        next_reminder_date: formValues.nextDate,
-        status
+      await remindersService.create({
+        moduleType: 'Payment',
+        moduleId: String(order.id),
+        title: 'Payment Follow-up',
+        description: formValues.note,
+        reminderDate: formValues.nextDate,
+        reminderTime: '10:00',
+        reminderType: 'Payment Follow-up',
+        priority: 'Medium',
+        remarks: formValues.note
       });
       await Promise.all([refreshFollowups(), refreshPending()]);
       Swal.fire({ icon: 'success', title: 'Follow-up saved', timer: 1200, showConfirmButton: false });
@@ -382,11 +388,23 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   };
 
   const remindersWithComputed = useMemo(() => {
-    return (followups || []).map(f => ({
-      ...f,
-      reminder_date: f.next_reminder_date ? isoDate(f.next_reminder_date) : null,
-      computed_status: computeReminderStatus(isoDate(f.next_reminder_date), f.status),
-    }));
+    return (followups || []).map(f => {
+      const next_reminder_date = f.next_reminder_date || f.reminderDate || null;
+      const status = f.status || 'Pending';
+      const order_id = f.order_id || f.moduleId || '';
+      const notes = f.followup_note || f.remarks || f.description || '';
+
+      return {
+        ...f,
+        id: f.id,
+        order_id,
+        followup_note: notes,
+        next_reminder_date,
+        status,
+        reminder_date: next_reminder_date ? isoDate(next_reminder_date) : null,
+        computed_status: computeReminderStatus(isoDate(next_reminder_date), status),
+      };
+    });
   }, [followups]);
 
   const filteredReminders = useMemo(() => {
@@ -422,7 +440,15 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
   const updateReminder = async (followupId, updates, successText = 'Reminder updated') => {
     try {
-      await apiClient.patch(`/sales/payment-followups/${followupId}`, updates);
+      const mappedUpdates = {
+        remarks: updates.followup_note,
+        description: updates.followup_note,
+        reminderDate: updates.next_reminder_date || updates.reminderDate,
+        status: updates.status
+      };
+      Object.keys(mappedUpdates).forEach(key => mappedUpdates[key] === undefined && delete mappedUpdates[key]);
+
+      await remindersService.update(followupId, mappedUpdates);
       await Promise.all([refreshFollowups(), refreshPending()]);
       Swal.fire({ icon: 'success', title: successText, timer: 1100, showConfirmButton: false });
     } catch (err) {
@@ -440,7 +466,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     });
     if (!confirm.isConfirmed) return;
     try {
-      await apiClient.delete(`/sales/payment-followups/${followupId}`);
+      await remindersService.cancel(followupId);
       await Promise.all([refreshFollowups(), refreshPending()]);
       Swal.fire({ icon: 'success', title: 'Deleted', timer: 1000, showConfirmButton: false });
     } catch (err) {
@@ -460,10 +486,13 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       cancelButtonText: 'Cancel'
     });
     if (note === undefined) return;
-    await updateReminder(r.id, {
-      followup_note: String(note || '').trim() || r.followup_note,
-      status: computeReminderStatus(r.reminder_date, 'Upcoming')
-    }, 'Call update saved');
+    try {
+      await remindersService.complete(r.id);
+      await Promise.all([refreshFollowups(), refreshPending()]);
+      Swal.fire({ icon: 'success', title: 'Call completed', timer: 1100, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Update failed', text: err?.message || 'Could not complete reminder.' });
+    }
   };
 
   const pendingRows = useMemo(() => {

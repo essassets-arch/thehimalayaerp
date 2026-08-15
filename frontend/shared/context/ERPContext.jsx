@@ -539,6 +539,35 @@ export const useERP = () => {
   };
 };
 
+const statusLabel = (code) => {
+  const value = String(code || 'DRAFT').toUpperCase();
+  if (value === 'CONVERTED_TO_SO') return 'Converted';
+  return value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' ');
+};
+
+const normalizeQuotation = (quotation) => ({
+  ...quotation,
+  id: quotation.id,
+  quotationNo: quotation.quotationNumber,
+  customerName: quotation.lead?.companyName || quotation.customer?.companyName || '',
+  groupName: quotation.lead?.groupName || '',
+  gstName: quotation.lead?.gstName || quotation.lead?.companyName || '',
+  gstNumber: quotation.lead?.gstNumber || '',
+  status: statusLabel(quotation.workflowState?.code),
+  validTill: quotation.validUntil,
+  totalAmount: Number(quotation.total || 0),
+  grandTotal: Number(quotation.total || 0),
+  detailedItems: (quotation.items || []).map((item) => ({
+    productId: item.productId,
+    productName: item.product?.name || item.description || 'Product',
+    productDetails: item.description || item.product?.description || '',
+    quantity: Number(item.quantity || 0),
+    unitPrice: Number(item.unitPrice || 0),
+    discountAmount: Number(item.discount || 0),
+    taxAmount: Number(item.tax || 0),
+  })),
+});
+
 export const SalesBackendContext = React.createContext(null);
 
 export const useSalesBackend = () => {
@@ -567,6 +596,10 @@ export const ERPProvider = ({ children }) => {
   });
   const [salesOrdersLoading, setSalesOrdersLoading] = React.useState(false);
   const [salesOrdersError, setSalesOrdersError] = React.useState(null);
+
+  const [quotations, setQuotations] = React.useState([]);
+  const [quotationsLoading, setQuotationsLoading] = React.useState(false);
+  const [quotationsError, setQuotationsError] = React.useState(null);
 
   const [leads, setLeads] = React.useState([]);
   const [leadsPagination, setLeadsPagination] = React.useState({
@@ -683,6 +716,21 @@ export const ERPProvider = ({ children }) => {
     }
   }, []);
 
+  const loadQuotations = useCallback(async () => {
+    setQuotationsLoading(true);
+    setQuotationsError(null);
+    try {
+      const result = await backendFetch('/api/backend/crm/quotations');
+      setQuotations((Array.isArray(result) ? result : result?.data || []).map(normalizeQuotation));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setQuotationsError(message);
+      console.warn('Unable to Load Quotations:', message);
+    } finally {
+      setQuotationsLoading(false);
+    }
+  }, []);
+
   const callWriteMethod = useCallback(async (methodName, ...args) => {
     const { getSalesWriteRepository } = await import('../../services/sales/salesRepositoryFactory');
     const repo = getSalesWriteRepository();
@@ -758,17 +806,20 @@ export const ERPProvider = ({ children }) => {
     customersPagination,
     samples,
     samplesPagination,
+    quotations,
     loading: {
       salesOrders: salesOrdersLoading,
       leads: leadsLoading,
       customers: customersLoading,
       samples: samplesLoading,
+      quotations: quotationsLoading,
     },
     errors: {
       salesOrders: salesOrdersError,
       leads: leadsError,
       customers: customersError,
       samples: samplesError,
+      quotations: quotationsError,
     },
     loadSalesOrders,
     refreshSalesOrders: loadSalesOrders,
@@ -778,7 +829,7 @@ export const ERPProvider = ({ children }) => {
     refreshCustomers: loadCustomers,
     createOrder,
     convertQuotationToOrder,
-    attachCustomerPo,
+    attachCustomerPo, 
     runCreditCheck,
     approveCreditException,
     confirmOrder,
@@ -803,14 +854,16 @@ export const ERPProvider = ({ children }) => {
     createSample,
     updateSample,
     updateSampleStatus,
+    loadQuotations,
+    refreshQuotations: loadQuotations,
   }), [
-    salesOrders, salesOrdersPagination, leads, leadsPagination, customers, customersPagination, samples, samplesPagination,
-    salesOrdersLoading, leadsLoading, customersLoading, samplesLoading, salesOrdersError, leadsError, customersError, samplesError,
+    salesOrders, salesOrdersPagination, leads, leadsPagination, customers, customersPagination, samples, samplesPagination, quotations,
+    salesOrdersLoading, leadsLoading, customersLoading, samplesLoading, quotationsLoading, salesOrdersError, leadsError, customersError, samplesError, quotationsError,
     loadSalesOrders, loadLeads, loadCustomers, loadSamples, createOrder, convertQuotationToOrder, attachCustomerPo, 
     runCreditCheck, approveCreditException, confirmOrder, sendToPlantHead, cancelOrder, raiseCustomerComplaint, 
     requestReturn, requestReplacement, createLead, updateLead, qualifyLead, addLeadFollowup, addLeadReminder, 
     markLeadLost, restoreLead, createCustomer, updateCustomer, deactivateCustomer, restoreCustomer,
-    createSample, updateSample, updateSampleStatus
+    createSample, updateSample, updateSampleStatus, loadQuotations
   ]);
 
   useEffect(() => {
@@ -822,13 +875,16 @@ export const ERPProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const shouldLoadQuotations = Boolean(currentUser) && (isSalesOrAdmin || hasPermission(currentUser, 'crm.quotations.read'));
+
   useEffect(() => {
     if (shouldLoadSalesOrders && salesOrders.length === 0) loadSalesOrders().catch(e => console.warn('Skipping salesOrders:', e.message));
     if (shouldLoadLeads && leads.length === 0) loadLeads().catch(e => console.warn('Skipping leads:', e.message));
     if (shouldLoadCustomers && customers.length === 0) loadCustomers().catch(e => console.warn('Skipping customers:', e.message));
     if (isSalesOrAdmin && samples.length === 0) loadSamples().catch(e => console.warn('Skipping samples:', e.message));
+    if (shouldLoadQuotations && quotations.length === 0) loadQuotations().catch(e => console.warn('Skipping quotations:', e.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldLoadSalesOrders, shouldLoadLeads, shouldLoadCustomers, isSalesOrAdmin]);
+  }, [shouldLoadSalesOrders, shouldLoadLeads, shouldLoadCustomers, isSalesOrAdmin, shouldLoadQuotations]);
 
   return (
     <SalesBackendContext.Provider value={salesContextValue}>

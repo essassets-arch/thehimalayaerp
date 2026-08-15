@@ -59,8 +59,14 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // Normalized Role Check from JWT
-    const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    if (['SUPER_ADMIN', 'ADMIN', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'FINANCE_EXECUTIVE', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SALES', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER'].includes(normalizedRole)) {
+    let normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    if (normalizedRole.startsWith('SUPER_SALES') || normalizedRole.startsWith('SUPERSALES')) {
+      normalizedRole = 'SUPER_SALES';
+    } else if (normalizedRole.startsWith('SALES_EXEC') || normalizedRole === 'SALES') {
+      normalizedRole = 'SALES_EXECUTIVE';
+    }
+
+    if (['SUPER_ADMIN', 'ADMIN', 'HR', 'HR_MANAGER', 'HR_EXECUTIVE', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'FINANCE_EXECUTIVE', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SALES', 'SUPER_SALES', 'SUPERSALES', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH', 'QC_INSPECTOR'].includes(normalizedRole)) {
       return true;
     }
 
@@ -110,8 +116,14 @@ export class PermissionsGuard implements CanActivate {
       }
 
       if (dbRole) {
-        const dbRoleCode = String(dbRole.code || '').toUpperCase().replace(/[\s-]+/g, '_');
-        if (['SUPER_ADMIN', 'ADMIN', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'SALES_MANAGER', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER'].includes(dbRoleCode)) {
+        let dbRoleCode = String(dbRole.code || '').toUpperCase().replace(/[\s-]+/g, '_');
+        if (dbRoleCode.startsWith('SUPER_SALES') || dbRoleCode.startsWith('SUPERSALES')) {
+          dbRoleCode = 'SUPER_SALES';
+        } else if (dbRoleCode.startsWith('SALES_EXEC') || dbRoleCode === 'SALES') {
+          dbRoleCode = 'SALES_EXECUTIVE';
+        }
+
+        if (['SUPER_ADMIN', 'ADMIN', 'HR', 'HR_MANAGER', 'HR_EXECUTIVE', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SUPER_SALES', 'SUPERSALES', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH', 'QC_INSPECTOR'].includes(dbRoleCode)) {
           return true;
         }
         for (const rp of dbRole.rolePermissions || []) {

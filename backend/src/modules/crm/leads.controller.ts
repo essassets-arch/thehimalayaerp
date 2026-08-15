@@ -155,7 +155,7 @@ export class LeadsController {
     return this.leadsService.updateLead(
       id,
       {
-        nextReminderAt: dto.reminderAt || dto.nextReminderAt,
+        nextReminder: dto.reminderAt || dto.nextReminderAt || dto.nextReminder,
       },
       req.user?.sub || 'SYSTEM',
       req.user?.companyId,

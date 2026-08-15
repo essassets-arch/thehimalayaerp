@@ -75,7 +75,8 @@ export class EmployeesService {
   }
 
   async list(query: EmployeeQueryDto, user: any) {
-    const pageSize = Math.min(query.pageSize || 20, 100);
+    const rawPageSize = query.pageSize || query.limit || query.take || 20;
+    const pageSize = Math.min(rawPageSize, 1000);
     const page = query.page || 1;
     const where: Prisma.EmployeeWhereInput = {
       companyId: this.companyId(user),
@@ -108,7 +109,7 @@ export class EmployeesService {
       'joiningDate',
       'createdAt',
     ]);
-    const sortBy = allowedSort.has(query.sortBy) ? query.sortBy : 'createdAt';
+    const sortBy = (query.sortBy && allowedSort.has(query.sortBy)) ? query.sortBy : 'createdAt';
     const [items, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
         where,

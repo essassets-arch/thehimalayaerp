@@ -5,18 +5,16 @@ import { forwardBackendRequest } from '@/lib/server/backendApiClient';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
   const authHeader = request.headers.get('Authorization');
   const token = authHeader ? authHeader.split(' ')[1] : undefined;
 
   return forwardBackendRequest({
     token,
-    path: `/sales/reminders/${id}/complete`,
-    method: 'PATCH',
+    path: '/sales/reminders/daily',
+    method: 'GET',
+    query: url.searchParams,
     requestId: request.headers.get('x-request-id') ?? undefined,
   });
 }

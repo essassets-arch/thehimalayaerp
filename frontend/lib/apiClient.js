@@ -1026,17 +1026,27 @@ async function proxyRequest(method, path, body = null) {
   const targetPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
   const url = `${baseUrl}${targetPath}`;
   
-  const authStorageStr = typeof window !== 'undefined' ? window.localStorage.getItem('auth-storage') : null;
-  let token = typeof window !== 'undefined' ? (window.localStorage.getItem('token') || window.localStorage.getItem('himalaya_token')) : null;
-  
-  if (!token && authStorageStr) {
-    try {
-      const parsed = JSON.parse(authStorageStr);
-      if (parsed?.state?.accessToken) {
-        token = parsed.state.accessToken;
+  let token = null;
+  if (typeof window !== 'undefined') {
+    // 1. Try parsing from auth-storage (Zustand store in localStorage)
+    const authStorageStr = window.localStorage.getItem('auth-storage');
+    if (authStorageStr) {
+      try {
+        const parsed = JSON.parse(authStorageStr);
+        if (parsed?.state?.accessToken) {
+          token = parsed.state.accessToken;
+        }
+      } catch (e) {
+        console.error('Failed to parse auth token from auth-storage', e);
       }
-    } catch (e) {
-      console.error('Failed to parse auth token', e);
+    }
+    // 2. Fall back to sessionStorage (where authStore writes explicitly)
+    if (!token) {
+      token = window.sessionStorage.getItem('token') || window.sessionStorage.getItem('himalaya_token');
+    }
+    // 3. Fall back to direct localStorage keys (legacy/tests)
+    if (!token) {
+      token = window.localStorage.getItem('token') || window.localStorage.getItem('himalaya_token');
     }
   }
 

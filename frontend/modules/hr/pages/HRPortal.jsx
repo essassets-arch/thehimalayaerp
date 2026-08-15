@@ -41,7 +41,7 @@ export default function HRPortal() {
 
   const loadEmployees = async () => {
     try {
-      const res = await employeesService.listEmployees({ limit: 1000 });
+      const res = await employeesService.listEmployees({ page: 1, limit: 50 });
       if (res && res.items) {
         setDbEmployees(res.items);
       }

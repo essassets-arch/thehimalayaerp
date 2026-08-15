@@ -15,7 +15,7 @@ export async function PATCH(
 
   return forwardBackendRequest({
     token,
-    path: `/sales/reminders/${id}/complete`,
+    path: `/sales/reminders/${id}/dismiss`,
     method: 'PATCH',
     requestId: request.headers.get('x-request-id') ?? undefined,
   });

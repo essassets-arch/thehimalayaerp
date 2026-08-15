@@ -5,7 +5,7 @@ import { forwardBackendRequest } from '@/lib/server/backendApiClient';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function PUT(
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -19,7 +19,7 @@ export async function PUT(
   return forwardBackendRequest({
     token,
     path: `/sales/reminders/${id}`,
-    method: 'PUT',
+    method: 'PATCH',
     body,
     headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     requestId: request.headers.get('x-request-id') ?? undefined,

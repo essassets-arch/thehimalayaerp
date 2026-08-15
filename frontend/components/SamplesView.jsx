@@ -83,11 +83,14 @@ export default function SamplesView({
   const isRemindersView = filter === 'Reminders';
 
   const renderSampleReminder = (sample) => {
-    const next = getNextPendingReminder(sampleReminders, 'Sample', sample.id);
-    if (!next) return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
+    const nextVal = sample.nextReminder;
+    if (!nextVal) return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
+    const date = new Date(nextVal);
+    const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
     return (
       <span style={{ fontSize: '12px', fontWeight: '700' }}>
-        {formatReminderDate(next.reminderDate)}
+        {dateStr} · {timeStr}
       </span>
     );
   };

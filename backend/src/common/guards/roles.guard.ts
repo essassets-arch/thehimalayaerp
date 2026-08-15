@@ -33,12 +33,23 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Insufficient role privileges');
     }
 
-    const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    let normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    if (normalizedRole.startsWith('SUPER_SALES') || normalizedRole.startsWith('SUPERSALES')) {
+      normalizedRole = 'SUPER_SALES';
+    } else if (normalizedRole.startsWith('SALES_EXEC') || normalizedRole === 'SALES') {
+      normalizedRole = 'SALES_EXECUTIVE';
+    }
+
     if (['SUPER_ADMIN', 'ADMIN'].includes(normalizedRole)) {
       return true;
     }
 
-    const normalizedRequired = requiredRoles.map(r => String(r || '').toUpperCase().replace(/[\s-]+/g, '_'));
+    const normalizedRequired = requiredRoles.map(r => {
+      let nr = String(r || '').toUpperCase().replace(/[\s-]+/g, '_');
+      if (nr.startsWith('SUPER_SALES') || nr.startsWith('SUPERSALES')) return 'SUPER_SALES';
+      if (nr.startsWith('SALES_EXEC') || nr === 'SALES') return 'SALES_EXECUTIVE';
+      return nr;
+    });
     const hasRole = normalizedRequired.includes(normalizedRole);
     if (!hasRole) {
       throw new ForbiddenException('Insufficient role privileges');

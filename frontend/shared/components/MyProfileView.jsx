@@ -91,8 +91,26 @@ export default function MyProfileView() {
       }
     });
 
-    return Object.values(grouped);
-  }, [localPunchLog]);
+    const rawLogs = Object.values(grouped);
+    const now = new Date();
+    
+    return rawLogs.filter(log => {
+      if (filterPeriod === 'all') return true;
+      
+      const logDate = log.timestamp ? new Date(log.timestamp) : new Date(log.date || now);
+      const diffTime = Math.abs(now.getTime() - logDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (filterPeriod === 'today') {
+        return logDate.toDateString() === now.toDateString();
+      } else if (filterPeriod === 'monthly') {
+        return diffDays <= 30;
+      } else if (filterPeriod === 'yearly') {
+        return diffDays <= 365;
+      }
+      return true;
+    });
+  }, [localPunchLog, filterPeriod]);
 
   // Loading states
   const [loadingProfile, setLoadingProfile] = useState(false);

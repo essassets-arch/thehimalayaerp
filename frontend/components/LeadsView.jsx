@@ -500,25 +500,28 @@ export default function LeadsView({
   );
 
   const renderNextReminder = (lead) => {
-    const next = getNextPendingReminder(leadReminders, 'Lead', lead.id);
-    if (!next) return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
-    const timing = getReminderTimingLabel(next);
+    const nextVal = lead.nextReminder;
+    if (!nextVal) return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
+    const date = new Date(nextVal);
+    const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    const now = new Date();
+    const isOverdue = date < now && date.toDateString() !== now.toDateString();
+    const isToday = date.toDateString() === now.toDateString();
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
         <span style={{ fontSize: '12px', fontWeight: '700' }}>
-          {formatReminderDate(next.reminderDate)}
-          {next.reminderTime ? ` · ${formatReminderTime(next.reminderTime)}` : ''}
+          {dateStr} · {timeStr}
         </span>
-        {timing && (
-          <span style={{
-            fontSize: '11px',
-            fontWeight: '700',
-            color: timing.tone === 'overdue' ? '#dc2626' : timing.tone === 'today' ? '#dc2626' : '#ca8a04'
-          }}>
-            {timing.tone === 'overdue' ? '🔴 ' : timing.tone === 'today' ? '🔴 ' : '🟡 '}
-            {timing.label}
-          </span>
-        )}
+        <span style={{
+          fontSize: '11px',
+          fontWeight: '700',
+          color: isOverdue ? '#dc2626' : isToday ? '#dc2626' : '#ca8a04'
+        }}>
+          {isOverdue ? '🔴 Overdue' : isToday ? '🔴 Today' : '🟡 Upcoming'}
+        </span>
       </div>
     );
   };

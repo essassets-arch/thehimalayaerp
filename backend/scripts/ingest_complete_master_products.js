@@ -77,34 +77,40 @@ const MASTER_PRODUCT_CATALOG = [
   { name: 'FRPMHCELD 1800X1800', category: 'FRP COVER', subCategory: 'Manhole Cover Basic ELD', dispatchCategory: 'D1', unit: 'SET', productType: 'MANUFACTURING', description: 'FRP Manhole Cover Extra Light Duty 1800x1800' },
 
   // ---------------------------------------------------------------------------
-  // SECTION 3 & 4: FRP MHC (Square, Rectangular & Round with Load Classes)
+  // SECTION 3 & 4: FRP MHC (Square, Rectangular & Round with 7 Load Classes)
   // ---------------------------------------------------------------------------
   ...generateFRPCovers('MHC', 'Manhole Cover', [
-    '300X300', '450X450', '600X600', '750X750', '900X900', '1000X1000', '1200X1200', '1500X1500', '1800X1800',
-    '450X600', '450X900', '600X900', '600X1200', '900X1200',
+    '300X300', '450X450', '450X600', '450X900', '450X1200',
+    '600X600', '600X900', '600X1200', '750X450', '750X750', '750X1200',
+    '900X900', '900X1200', '1000X1000', '1200X1200', '1500X1500', '1800X1800',
     '560MM DIA', '600MM DIA', '900MM DIA'
-  ]),
+  ], true),
 
   // ---------------------------------------------------------------------------
-  // SECTION 5: FRP RCS (Recessed Covers)
+  // SECTION 5: FRP RCS (Recessed Covers & Round Cover Square Frame)
   // ---------------------------------------------------------------------------
   ...generateFRPCovers('RCS', 'Round Cover Square Frame', [
-    '300X300', '450X450', '600X600', '750X750', '900X900', '600X450'
-  ]),
+    '300X300', '450X450', '450X600', '450X900', '450X1200',
+    '600X600', '600X900', '600X1200', '750X450', '750X750', '750X1200',
+    '900X900', '900X1200', '1000X1000', '1200X1200', '1500X1500', '1800X1800',
+    '560MM DIA', '600MM DIA', '900MM DIA'
+  ], true),
 
   // ---------------------------------------------------------------------------
   // SECTION 6: FRP WGC (Water/Gas Covers with Grate)
   // ---------------------------------------------------------------------------
   ...generateFRPCovers('WGC', 'With Grate Cover', [
-    '300X300', '450X450', '600X600', '750X750', '900X900', '600X900'
-  ]),
+    '300X300', '450X450', '450X600', '450X900', '450X1200',
+    '600X600', '600X900', '600X1200', '750X750',
+    '900X900', '900X1200', '1000X1000', '1200X1200'
+  ], true),
 
   // ---------------------------------------------------------------------------
   // SECTION 7: FRP ONGC (Oil & Natural Gas Corporation Covers)
   // ---------------------------------------------------------------------------
   ...generateFRPCovers('ONGC', 'ONGC Cover', [
-    '300X700', '385X700', '450X600', '600X900'
-  ]),
+    '300X700', '385X700', '450X600', '600X600', '350X1000', '450X1000', '600X1000', '600X720', '600X900'
+  ], true),
 
   // ---------------------------------------------------------------------------
   // SECTIONS 8-13: FRC COVERS D2 (Fiber Reinforced Concrete Covers)
@@ -238,19 +244,26 @@ const MASTER_PRODUCT_CATALOG = [
 ];
 
 /** Helper generator for standard FRP load classes */
-function generateFRPCovers(prefix, subCategory, sizes) {
+function generateFRPCovers(prefix, subCategory, sizes, includeHeavyClasses = false) {
   const classes = [
     { code: 'ELD', label: 'Extra Light Duty' },
     { code: 'LD', label: 'Light Duty' },
     { code: 'B125', label: 'B125 Class' },
     { code: 'C250', label: 'C250 Class' },
     { code: 'D400', label: 'D400 Class' },
+    ...(includeHeavyClasses
+      ? [
+          { code: 'E600', label: 'E600 Class' },
+          { code: 'F900', label: 'F900 Class' },
+        ]
+      : []),
   ];
 
   const items = [];
   sizes.forEach(size => {
     classes.forEach(cls => {
-      const name = `HIMALAYA FRP ${prefix} ${size} ${cls.code}`;
+      const suffix = prefix === 'ONGC' ? ' SINGLE' : '';
+      const name = `HIMALAYA FRP ${prefix} ${size} ${cls.code}${suffix}`;
       const sku = generateSku(name);
       items.push({
         name,
@@ -261,9 +274,13 @@ function generateFRPCovers(prefix, subCategory, sizes) {
         hsnCode: '39259090',
         unit: 'SET',
         unitPrice: 0,
+        gstRate: 18,
         productType: 'MANUFACTURING',
         dispatchCategory: 'D1',
-        description: `FRP ${subCategory} ${size} - ${cls.label}`
+        size,
+        capacity: cls.code,
+        type: prefix === 'ONGC' ? 'SINGLE' : undefined,
+        description: `FRP ${subCategory} ${size} - ${cls.label}${suffix ? ' (Single Piece)' : ''}`
       });
     });
   });

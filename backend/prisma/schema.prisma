@@ -258,7 +258,7 @@ model Lead {
   convertedAt         DateTime?
   convertedById       String?
 
-  nextReminderAt DateTime?
+  nextReminder DateTime?
   lostReason     String?
   remarks        String?
 
@@ -1000,6 +1000,7 @@ model Quotation {
   id              String    @id @default(uuid())
   quotationNumber String    @unique
   companyId       String?
+  nextReminder    DateTime?
   workflowStateId String?
   leadId          String?
   customerId      String?
@@ -1060,6 +1061,7 @@ model SalesOrder {
   id                           String           @id @default(uuid())
   orderNumber                  String           @unique
   customerId                   String
+  nextReminder                 DateTime?
   quotationId                  String?          @unique
   sourceQuotationId            String?          @unique
   quotation                    Quotation?       @relation("SalesOrderQuotation", fields: [quotationId], references: [id])
@@ -1629,6 +1631,7 @@ model SampleRequest {
   id           String @id @default(uuid())
   sampleNumber String @unique
   companyId    String
+  nextReminder DateTime?
 
   leadId     String?
   customerId String?
@@ -2258,6 +2261,7 @@ model LeadActivity {
 
 model FollowUp {
   id           String    @id @default(uuid())
+  companyId    String?
   leadId       String?
   entityType   String?
   entityId     String?
@@ -2274,6 +2278,8 @@ model FollowUp {
   priority     String?   @default("Medium")
   status       String?   @default("Pending")
   remarks      String?
+  completedAt  DateTime?
+  dismissedAt  DateTime?
   lead         Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 }
 

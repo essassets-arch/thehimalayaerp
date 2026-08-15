@@ -15,6 +15,8 @@ export interface FrontendLead {
   notes: string;
   createdAt: string;
   salesperson: string;
+  nextReminder?: any;
+  timeline?: any;
 }
 
 const BACKEND_STATUS_TO_LEGACY: Record<string, string> = {
@@ -55,5 +57,7 @@ export function mapBackendLeadToFrontend(backend: any): FrontendLead {
     notes: backend.remarks || '',
     createdAt: backend.createdAt || new Date().toISOString(),
     salesperson: backend.salesperson || 'Sales User',
+    nextReminder: backend.nextReminder || backend.nextReminderAt,
+    timeline: backend.timeline,
   };
 }
