@@ -1,11 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, FlaskConical, Package, Check, ArrowRight, Send, Edit, Eye, ArrowLeft, Truck, MapPin, Calendar, Clock, AlertTriangle, Plus, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Search, FlaskConical, Package, Check, ArrowRight, Send, Edit, Eye, ArrowLeft, Truck, MapPin, Calendar, Clock, AlertTriangle, Plus, ChevronLeft, ChevronRight, Download, Bell } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useERP } from '../shared/context/ERPContext';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
+import ReminderModal from '../shared/components/ReminderModal.jsx';
+import {
+  formatReminderDate,
+  formatReminderTime,
+  getNextPendingReminder,
+  filterRemindersByBucket
+} from '../shared/utils/reminderUtils.js';
 
 export function getSampleDaysLeft(evaluationEndDate) {
   if (!evaluationEndDate) return null;
@@ -26,7 +33,11 @@ export default function SamplesView({
   onMoveToQuotation,
   onCreateQuotationClick,
   onCreateReplacementSample,
-  flat = false
+  flat = false,
+  reminders = [],
+  onSaveReminder,
+  onUpdateReminder,
+  onCompleteReminder
 }) {
   const navigate = useRouter();
   const { state } = useERP();
@@ -35,6 +46,51 @@ export default function SamplesView({
   const [filter, setFilter] = useState('All');
   const [selectedSample, setSelectedSample] = useState(null);
   const [currentTick, setCurrentTick] = useState(() => new Date());
+
+  const [reminderBucket, setReminderBucket] = useState('Today');
+  const [reminderModal, setReminderModal] = useState(null);
+
+  const sampleReminders = useMemo(
+    () => (reminders || []).filter((r) => r.moduleType === 'Sample'),
+    [reminders]
+  );
+
+  const handleSaveReminder = async (formData) => {
+    if (!reminderModal) return;
+    if (reminderModal.reminder && onUpdateReminder) {
+      await onUpdateReminder(reminderModal.reminder.id, formData);
+    } else if (onSaveReminder) {
+      await onSaveReminder({
+        moduleId: reminderModal.sample.id,
+        customerName: reminderModal.sample.leadName,
+        moduleType: 'Sample',
+        ...formData
+      });
+    }
+    setReminderModal(null);
+  };
+
+  const filteredSampleReminders = useMemo(() => {
+    let list = sampleReminders.filter((r) => {
+      const searchString = search || '';
+      return (r.customerName || '').toLowerCase().includes(searchString.toLowerCase()) ||
+        (r.remarks || '').toLowerCase().includes(searchString.toLowerCase()) ||
+        (r.reminderType || '').toLowerCase().includes(searchString.toLowerCase());
+    });
+    return filterRemindersByBucket(list, reminderBucket);
+  }, [sampleReminders, samples, search, reminderBucket]);
+
+  const isRemindersView = filter === 'Reminders';
+
+  const renderSampleReminder = (sample) => {
+    const next = getNextPendingReminder(sampleReminders, 'Sample', sample.id);
+    if (!next) return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
+    return (
+      <span style={{ fontSize: '12px', fontWeight: '700' }}>
+        {formatReminderDate(next.reminderDate)}
+      </span>
+    );
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTick(new Date()), 60000);
@@ -479,8 +535,13 @@ export default function SamplesView({
   });
 
   const ITEMS_PER_PAGE = 25;
-  const totalPages = Math.ceil(filteredSamples.length / ITEMS_PER_PAGE) || 1;
+  const totalItems = isRemindersView ? filteredSampleReminders.length : filteredSamples.length;
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
   const displayedSamples = flat ? filteredSamples : filteredSamples.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+  const displayedSampleReminders = flat ? filteredSampleReminders : filteredSampleReminders.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
@@ -1397,153 +1458,262 @@ export default function SamplesView({
       </div>
 
       {/* Table */}
+      {/* Reminder Bucket Filters */}
+      {isRemindersView && (
+        <div className="tab-filters-row" style={{ background: '#f8fafc', padding: '4px', borderRadius: '8px', width: 'fit-content', marginBottom: '16px', display: 'flex', gap: '4px' }}>
+          {['Today', 'Tomorrow', 'This Week', 'Overdue', 'Upcoming', 'All'].map(bucket => (
+            <button
+              key={bucket}
+              className={`filter-pill ${reminderBucket === bucket ? 'active' : ''}`}
+              onClick={() => setReminderBucket(bucket)}
+              style={{ padding: '6px 12px', fontSize: '11.5px', background: reminderBucket === bucket ? '#fff' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: '6px' }}
+            >
+              {bucket}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Table */}
       <div className="crm-table-container">
-        <table className="crm-table responsive-table flat-table">
-          <colgroup>
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '25%' }} />
-            <col style={{ width: '25%' }} />
-            <col style={{ width: '15%' }} />
-            <col style={{ width: '13%' }} />
-            <col style={{ width: '12%' }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Customer</th>
-              <th>Product</th>
-              <th>Days Left</th>
-              <th>Status</th>
-              <th style={{ textAlign: 'center' }}>Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {filteredSamples.length === 0 ? (
+        {isRemindersView ? (
+          <table className="crm-table responsive-table flat-table">
+            <thead>
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
-                  No matching sample requests logged.
-                </td>
+                <th>Sample</th>
+                <th>Customer</th>
+                <th>Reminder</th>
+                <th>Date</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Action</th>
               </tr>
-            ) : (
-              displayedSamples.map((sample) => {
-                const exactInfo = getExactCountdown(sample);
-                const ds = getDispatchStatus(sample);
-                const isDeliveredOrActive = ds === 'Delivered' || ['Evaluation Active', 'Client Testing', 'Testing', 'Returned', 'Approved'].includes(sample.status);
+            </thead>
+            <tbody>
+              {filteredSampleReminders.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                    No reminders found.
+                  </td>
+                </tr>
+              ) : (
+                displayedSampleReminders.map((reminder) => {
+                  const s = samples.find((item) => String(item.id) === String(reminder.moduleId));
+                  return (
+                    <tr key={reminder.id}>
+                      <td data-label="Sample">#SMP-{reminder.moduleId}</td>
+                      <td data-label="Customer">{s?.leadName || reminder.customerName}</td>
+                      <td data-label="Reminder">{reminder.reminderType}</td>
+                      <td data-label="Date">
+                        {formatReminderDate(reminder.reminderDate)}
+                        {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
+                      </td>
+                      <td data-label="Priority">{reminder.priority}</td>
+                      <td data-label="Status">{reminder.status}</td>
+                      <td data-label="Action">
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {reminder.status === 'Pending' && onCompleteReminder && (
+                            <button className="btn-small btn-outline-small" onClick={() => onCompleteReminder(reminder.id)}>Complete</button>
+                          )}
+                          <button className="btn-small btn-outline-small" onClick={() => setReminderModal({ sample: s, reminder })}>Edit</button>
+                          {s && <button className="btn-small btn-outline-small" onClick={() => setSelectedSample(s)}>View</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        ) : (
+          <table className="crm-table responsive-table flat-table">
+            <colgroup>
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '12%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Customer</th>
+                <th>Product</th>
+                <th>Days Left</th>
+                <th>Status</th>
+                <th>Reminder</th>
+                <th style={{ textAlign: 'center' }}>Actions</th>
+              </tr>
+            </thead>
 
-                return (
-                  <tr key={sample.id}>
-                    <td data-label="ID" style={{ fontWeight: '700' }}>
-                      {formatSampleId(sample.id)}
-                    </td>
-                    <td data-label="Customer">
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{sample.leadName}</span>
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Lead: {formatLeadId(sample.leadId)}</span>
-                      </div>
-                    </td>
-                    <td data-label="Product">
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span style={{ fontWeight: '600', color: 'var(--color-text-primary)' }}>{sample.product}</span>
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Qty: {sample.quantity} Pcs</span>
-                      </div>
-                    </td>
-                    <td data-label="Days Left">
-                      {(() => {
-                        if (sample.status === 'RETURNED' || sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
+            <tbody>
+              {filteredSamples.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                    No matching sample requests logged.
+                  </td>
+                </tr>
+              ) : (
+                displayedSamples.map((sample) => {
+                  const exactInfo = getExactCountdown(sample);
+                  const ds = getDispatchStatus(sample);
+                  const isDeliveredOrActive = ds === 'Delivered' || ['Evaluation Active', 'Client Testing', 'Testing', 'Returned', 'Approved'].includes(sample.status);
+
+                  return (
+                    <tr key={sample.id}>
+                      <td data-label="ID" style={{ fontWeight: '700' }}>
+                        {formatSampleId(sample.id)}
+                      </td>
+                      <td data-label="Customer">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{sample.leadName}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Lead: {formatLeadId(sample.leadId)}</span>
+                        </div>
+                      </td>
+                      <td data-label="Product">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontWeight: '600', color: 'var(--color-text-primary)' }}>{sample.product}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Qty: {sample.quantity} Pcs</span>
+                        </div>
+                      </td>
+                      <td data-label="Days Left">
+                        {(() => {
+                          if (sample.status === 'RETURNED' || sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontWeight: '700', color: '#166534' }}>Evaluation Completed</span>
+                                <span style={{ fontSize: '11px', color: '#15803d' }}>Returned on {sample.returnedDate ? sample.returnedDate.split('T')[0] : formatDateClean(sample.updatedAt || new Date().toISOString())}</span>
+                              </div>
+                            );
+                          }
+                          if (sample.status === 'RETURN_REQUESTED' || sample.status === 'RETURN_IN_TRANSIT') {
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontWeight: '700', color: '#b91c1c' }}>↩ Return {sample.status === 'RETURN_IN_TRANSIT' ? 'In Transit' : 'Requested'}</span>
+                                <span style={{ fontSize: '11px', color: '#dc2626' }}>Pick-up {sample.status === 'RETURN_IN_TRANSIT' ? 'underway' : 'pending logistics'}</span>
+                              </div>
+                            );
+                          }
+                          if (isDeliveredOrActive) {
+                            if (exactInfo.isExpired) {
+                              return <span className="badge badge-danger" style={{ padding: '4px 10px', borderRadius: '999px', fontWeight: '700', display: 'inline-block' }}>Return Due (0d Left)</span>;
+                            }
+                            if (exactInfo.days > 5) {
+                              return <span className="badge badge-success" style={{ padding: '4px 10px', borderRadius: '999px', fontWeight: '700', display: 'inline-block' }}>{exactInfo.days} Days Left ({exactInfo.hours}h)</span>;
+                            }
+                            return <span className="badge badge-warning" style={{ padding: '4px 10px', borderRadius: '999px', fontWeight: '700', display: 'inline-block' }}>{exactInfo.days} Days Left ({exactInfo.hours}h)</span>;
+                          }
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontWeight: '700', color: '#166534' }}>Evaluation Completed</span>
-                              <span style={{ fontSize: '11px', color: '#15803d' }}>Returned on {sample.returnedDate ? sample.returnedDate.split('T')[0] : formatDateClean(sample.updatedAt || new Date().toISOString())}</span>
+                              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-secondary)' }}>20 Days Window</span>
+                              <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '700' }}>⏳ Starts on Delivery</span>
                             </div>
                           );
-                        }
-                        if (sample.status === 'RETURN_REQUESTED' || sample.status === 'RETURN_IN_TRANSIT') {
-                          return (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontWeight: '700', color: '#b91c1c' }}>↩ Return {sample.status === 'RETURN_IN_TRANSIT' ? 'In Transit' : 'Requested'}</span>
-                              <span style={{ fontSize: '11px', color: '#dc2626' }}>Pick-up {sample.status === 'RETURN_IN_TRANSIT' ? 'underway' : 'pending logistics'}</span>
-                            </div>
-                          );
-                        }
-                        if (isDeliveredOrActive) {
-                          if (exactInfo.isExpired) {
-                            return <span className="badge badge-danger" style={{ padding: '4px 10px', borderRadius: '999px', fontWeight: '700', display: 'inline-block' }}>Return Due (0d Left)</span>;
+                        })()}
+                      </td>
+                      <td data-label="Status">
+                        {(() => {
+                          if (sample.status === 'RETURNED' || sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
+                            return <span className="badge badge-returned">✓ Sample Returned</span>;
                           }
-                          if (exactInfo.days > 5) {
-                            return <span className="badge badge-success" style={{ padding: '4px 10px', borderRadius: '999px', fontWeight: '700', display: 'inline-block' }}>{exactInfo.days} Days Left ({exactInfo.hours}h)</span>;
+                          if (sample.status === 'RETURN_IN_TRANSIT') {
+                            return <span style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 6, padding: '3px 8px', fontWeight: 800, fontSize: 11 }}>↩ Return In Transit</span>;
                           }
-                          return <span className="badge badge-warning" style={{ padding: '4px 10px', borderRadius: '999px', fontWeight: '700', display: 'inline-block' }}>{exactInfo.days} Days Left ({exactInfo.hours}h)</span>;
-                        }
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-secondary)' }}>20 Days Window</span>
-                            <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '700' }}>⏳ Starts on Delivery</span>
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td data-label="Status">
-                      {(() => {
-                        if (sample.status === 'RETURNED' || sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') {
-                          return <span className="badge badge-returned">✓ Sample Returned</span>;
-                        }
-                        if (sample.status === 'RETURN_IN_TRANSIT') {
-                          return <span style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 6, padding: '3px 8px', fontWeight: 800, fontSize: 11 }}>↩ Return In Transit</span>;
-                        }
-                        if (sample.status === 'RETURN_REQUESTED' || sample.status === 'Sample Back Requested' || sample.status === 'Return Requested' || sample.retrievalStatus === 'Requested') {
-                          return <span className="badge badge-sample-back">↩ Return Requested</span>;
-                        }
-                        if (isDeliveredOrActive) {
-                          if (exactInfo.isExpired) {
-                            return <span className="badge badge-danger">Return Due</span>;
+                          if (sample.status === 'RETURN_REQUESTED' || sample.status === 'Sample Back Requested' || sample.status === 'Return Requested' || sample.retrievalStatus === 'Requested') {
+                            return <span className="badge badge-sample-back">↩ Return Requested</span>;
                           }
-                          return <span className="badge badge-success" style={{ padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold' }}>Delivered ({exactInfo.days}d Left)</span>;
-                        }
-                        const displayStatus = sample.status || ds;
-                        return <span className={getStatusBadge(displayStatus)}>{displayStatus}</span>;
-                      })()}
-                    </td>
-                    <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                        <button 
-                          title="View Details"
-                          onClick={() => setSelectedSample(sample)}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: '32px', height: '32px',
-                            background: '#ffffff', border: '1px solid #D6E2F0',
-                            borderRadius: '8px', cursor: 'pointer',
-                            color: '#475569', flexShrink: 0
-                          }}
-                        >
-                          <Eye size={14} />
-                        </button>
+                          if (isDeliveredOrActive) {
+                            if (exactInfo.isExpired) {
+                              return <span className="badge badge-danger">Return Due</span>;
+                            }
+                            return <span className="badge badge-success" style={{ padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold' }}>Delivered ({exactInfo.days}d Left)</span>;
+                          }
+                          const displayStatus = sample.status || ds;
+                          return <span className={getStatusBadge(displayStatus)}>{displayStatus}</span>;
+                        })()}
+                      </td>
+                      <td data-label="Reminder">
+                        {renderSampleReminder(sample)}
+                      </td>
+                      <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                          <button 
+                            title="View Details"
+                            onClick={() => setSelectedSample(sample)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: '#ffffff', border: '1px solid #D6E2F0',
+                              borderRadius: '8px', cursor: 'pointer',
+                              color: '#475569', flexShrink: 0
+                            }}
+                          >
+                            <Eye size={14} />
+                          </button>
 
-                        <button 
-                          title="Edit Sample"
-                          onClick={() => navigate.push(`/sales/edit-sample/${sample.id}`)}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: '32px', height: '32px',
-                            background: '#ffffff', border: '1px solid #D6E2F0',
-                            borderRadius: '8px', cursor: 'pointer',
-                            color: '#475569', flexShrink: 0
-                          }}
-                        >
-                          <Edit size={14} />
-                        </button>
+                          <button 
+                            title="Edit Sample"
+                            onClick={() => navigate.push(`/sales/edit-sample/${sample.id}`)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: '#ffffff', border: '1px solid #D6E2F0',
+                              borderRadius: '8px', cursor: 'pointer',
+                              color: '#475569', flexShrink: 0
+                            }}
+                          >
+                            <Edit size={14} />
+                          </button>
 
-                        {isDeliveredOrActive && sample.status !== 'RETURN_REQUESTED' && sample.status !== 'RETURN_IN_TRANSIT' && sample.status !== 'RETURNED' && sample.status !== 'Sample Back Requested' && sample.status !== 'Return Requested' && sample.status !== 'Return In Transit' && sample.status !== 'Returned' && (
+                          <button 
+                            title="Add Reminder"
+                            onClick={() => setReminderModal({ sample })}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: '#ffffff', border: '1px solid #D6E2F0',
+                              borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
+                            }}
+                          >
+                            <Bell size={14} />
+                          </button>
+
+                          {isDeliveredOrActive && sample.status !== 'RETURN_REQUESTED' && sample.status !== 'RETURN_IN_TRANSIT' && sample.status !== 'RETURNED' && sample.status !== 'Sample Back Requested' && sample.status !== 'Return Requested' && sample.status !== 'Return In Transit' && sample.status !== 'Returned' && (
+                            <button
+                              type="button"
+                              onClick={() => handleRequestReturn(sample.id)}
+                              style={{
+                                background: '#ea580c',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '6px 12px',
+                                borderRadius: '7px',
+                                fontWeight: '800',
+                                fontSize: '11.5px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                boxShadow: '0 1px 2px rgba(234,88,12,0.2)'
+                              }}
+                            >
+                              ↩ Return Sample
+                            </button>
+                          )}
+
                           <button
                             type="button"
-                            onClick={() => handleRequestReturn(sample.id)}
+                            onClick={() => handleCreateQuotation(sample)}
                             style={{
-                              background: '#ea580c',
-                              color: '#fff',
-                              border: 'none',
+                              background: '#2F4375',
+                              color: '#ffffff',
+                              border: '1px solid #2F4375',
                               padding: '6px 12px',
-                              borderRadius: '7px',
+                              borderRadius: '8px',
                               fontWeight: '800',
                               fontSize: '11.5px',
                               cursor: 'pointer',
@@ -1552,53 +1722,30 @@ export default function SamplesView({
                               gap: '4px',
                               whiteSpace: 'nowrap',
                               flexShrink: 0,
-                              boxShadow: '0 1px 2px rgba(234,88,12,0.2)'
+                              boxShadow: '0 1px 4px rgba(47,67,117,0.3)'
                             }}
                           >
-                            ↩ Return Sample
+                            Create Quotation →
                           </button>
-                        )}
 
-                        <button
-                          type="button"
-                          onClick={() => handleCreateQuotation(sample)}
-                          style={{
-                            background: '#2F4375',
-                            color: '#ffffff',
-                            border: '1px solid #2F4375',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            fontWeight: '800',
-                            fontSize: '11.5px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            boxShadow: '0 1px 4px rgba(47,67,117,0.3)'
-                          }}
-                        >
-                          Create Quotation →
-                        </button>
-
-                        {(sample.status === 'Sample Back Requested' || sample.status === 'Return Requested') && (
-                          <span className="badge badge-sample-back" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>↩ Sample Back</span>
-                        )}
-                        {sample.status === 'Return In Transit' && (
-                          <span style={{ fontSize: '11px', color: '#7e22ce', fontWeight: 'bold', background: '#f3e8ff', border: '1px solid #d8b4fe', padding: '4px 8px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>Return In Transit</span>
-                        )}
-                        {(sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') && (
-                          <span className="badge badge-returned" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>✓ Returned</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                          {(sample.status === 'Sample Back Requested' || sample.status === 'Return Requested') && (
+                            <span className="badge badge-sample-back" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>↩ Sample Back</span>
+                          )}
+                          {sample.status === 'Return In Transit' && (
+                            <span style={{ fontSize: '11px', color: '#7e22ce', fontWeight: 'bold', background: '#f3e8ff', border: '1px solid #d8b4fe', padding: '4px 8px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>Return In Transit</span>
+                          )}
+                          {(sample.status === 'Returned' || sample.retrievalStatus === 'Retrieved') && (
+                            <span className="badge badge-returned" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>✓ Returned</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Pagination controls */}
@@ -1685,6 +1832,16 @@ export default function SamplesView({
           </div>
         </div>
       )}
+
+      {/* Reminder Modal */}
+      <ReminderModal
+        open={Boolean(reminderModal)}
+        onClose={() => setReminderModal(null)}
+        onSave={handleSaveReminder}
+        customerName={reminderModal?.sample?.leadName || reminderModal?.reminder?.customerName || ''}
+        initialValues={reminderModal?.reminder}
+        title={reminderModal?.reminder ? 'Edit Reminder' : 'Create Reminder'}
+      />
     </div>
   );
 }

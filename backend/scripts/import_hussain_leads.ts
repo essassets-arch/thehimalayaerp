@@ -306,17 +306,26 @@ async function processDb(db: typeof dbs[0], groupedLeads: any[]) {
 }
 
 async function main() {
-  let csvPath = path.resolve('d:/prototype-next-main/hussain_sir(super_sales1) (2).csv');
-  if (!fs.existsSync(csvPath)) {
-    csvPath = path.resolve(__dirname, '../../hussain_sir(super_sales1) (2).csv');
+  let csvPath = '';
+  const candidates = [
+    'd:/prototype-next-main/hussain_sir(super_sales1) (4).csv',
+    path.resolve(__dirname, '../../hussain_sir(super_sales1) (4).csv'),
+    path.resolve('hussain_sir(super_sales1) (4).csv'),
+    'd:/prototype-next-main/hussain_sir(super_sales1) (2).csv',
+    path.resolve(__dirname, '../../hussain_sir(super_sales1) (2).csv'),
+    path.resolve('hussain_sir(super_sales1) (2).csv'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      csvPath = c;
+      break;
+    }
   }
-  if (!fs.existsSync(csvPath)) {
-    csvPath = path.resolve('hussain_sir(super_sales1) (2).csv');
-  }
-  if (!fs.existsSync(csvPath)) {
-    console.error(`CSV file not found at: ${csvPath}`);
+  if (!csvPath) {
+    console.error('CSV file not found in any expected location.');
     process.exit(1);
   }
+  console.log(`Using CSV file at: ${csvPath}`);
 
   const content = fs.readFileSync(csvPath, 'utf8');
   const rows = parseCSV(content);

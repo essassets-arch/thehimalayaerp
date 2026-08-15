@@ -1070,6 +1070,10 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             onUpdateSample={updateSample}
             onMoveToQuotation={onMoveToQuotation}
             onCreateReplacementSample={createReplacementSample}
+            reminders={reminders}
+            onSaveReminder={createReminder}
+            onUpdateReminder={updateReminder}
+            onCompleteReminder={completeReminder}
           />
         </div>
       );

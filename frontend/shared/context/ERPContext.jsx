@@ -196,7 +196,13 @@ export const useERP = () => {
             auditLogs = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
           }
           
-          if (authUserLog?.role === 'Sales Executive' || authUserLog?.role === 'Super Admin' || authUserLog?.role === 'Admin') {
+          if (
+            authUserLog?.role === 'Sales Executive' ||
+            authUserLog?.role === 'SuperSales' ||
+            authUserLog?.role === 'Sales Manager' ||
+            authUserLog?.role === 'Super Admin' ||
+            authUserLog?.role === 'Admin'
+          ) {
             const remindersRaw = await backendFetch('/api/backend/sales/reminders').catch(() => []);
             fetchedReminders = Array.isArray(remindersRaw) ? remindersRaw : (remindersRaw?.data || []);
           }

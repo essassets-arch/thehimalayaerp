@@ -1,18 +1,31 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 
-async function main() {
-  console.log('Deleting all sales-related data...');
+const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
+const dbs = isProd 
+  ? [
+      { name: 'Production DB', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public' }
+    ]
+  : [
+      { name: 'Docker DB (Port 5433)', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public' },
+      { name: 'Standalone DB (Port 5432)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+    ];
+
+async function clearSalesForDb(db) {
+  console.log(`\n=================================================`);
+  console.log(` WIPING SALES DATA FOR: ${db.name}`);
+  console.log(`=================================================`);
+
+  const prisma = new PrismaClient({ datasources: { db: { url: db.url } } });
 
   try {
     // 1. Ledgers and Financials
     await prisma.customerLedger.deleteMany({
-        where: {
-            OR: [
-                { referenceType: 'SalesInvoice' },
-                { referenceType: 'CustomerPayment' }
-            ]
-        }
+      where: {
+        OR: [
+          { referenceType: 'SalesInvoice' },
+          { referenceType: 'CustomerPayment' }
+        ]
+      }
     });
     console.log('Deleted Customer Ledgers for invoices/payments.');
     await prisma.paymentAllocation.deleteMany({});
@@ -102,12 +115,19 @@ async function main() {
     await prisma.lead.deleteMany({});
     console.log('Deleted Leads.');
 
-    console.log('Successfully wiped all sales data.');
+    console.log(`✅ Successfully wiped all sales data for ${db.name}.`);
   } catch (err) {
-    console.error('Error wiping data:', err);
+    console.error(`❌ Error wiping data for ${db.name}:`, err.message);
   } finally {
     await prisma.$disconnect();
   }
+}
+
+async function main() {
+  for (const db of dbs) {
+    await clearSalesForDb(db);
+  }
+  console.log('\n🌟 ALL TARGET DATABASES WIPED SUCCESSFULLY');
 }
 
 main();

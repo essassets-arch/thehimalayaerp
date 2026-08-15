@@ -2257,15 +2257,24 @@ model LeadActivity {
 }
 
 model FollowUp {
-  id          String    @id @default(uuid())
-  leadId      String?
-  entityType  String?
-  entityId    String?
-  notes       String?
-  reminderAt  DateTime?
-  createdAt   DateTime  @default(now())
-  createdById String
-  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid())
+  leadId       String?
+  entityType   String?
+  entityId     String?
+  notes        String?
+  reminderAt   DateTime?
+  createdAt    DateTime  @default(now())
+  createdById  String
+  customerName String?
+  moduleType   String?
+  moduleId     String?
+  reminderDate String?
+  reminderTime String?
+  reminderType String?   @default("Follow-up")
+  priority     String?   @default("Medium")
+  status       String?   @default("Pending")
+  remarks      String?
+  lead         Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 }
 
 model ProductionPlan {
