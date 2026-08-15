@@ -37,7 +37,33 @@ export default function HRPortal() {
   const navigate = useRouter();
 
   // Roster states
-  const employees = state.employees || [];
+  const [dbEmployees, setDbEmployees] = useState([]);
+
+  const loadEmployees = async () => {
+    try {
+      const res = await employeesService.listEmployees({ limit: 1000 });
+      if (res && res.items) {
+        setDbEmployees(res.items);
+      }
+    } catch (e) {
+      console.error('Error loading employees in HR portal:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadEmployees();
+  }, []);
+
+  const employees = dbEmployees.length > 0
+    ? dbEmployees.map(emp => ({
+        id: emp.employeeCode || emp.id,
+        name: emp.fullName || `${emp.firstName} ${emp.lastName}`.trim(),
+        department: typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations'),
+        designation: emp.jobTitle || 'Staff Member',
+        status: emp.status || 'ACTIVE'
+      }))
+    : [];
+
   const [directoryEmployees, setDirectoryEmployees] = useState([]);
   const [directoryError, setDirectoryError] = useState('');
   useEffect(() => {
@@ -57,7 +83,14 @@ export default function HRPortal() {
   // Legacy register staff form state removed — handled by EmployeeRegistrationForm component
 
   // Attendance simulator states
-  const [selectedStaffSim, setSelectedStaffSim] = useState(employees[1]?.id || 'EMP-002');
+  const [selectedStaffSim, setSelectedStaffSim] = useState('');
+
+  useEffect(() => {
+    if (employees.length > 0 && !selectedStaffSim) {
+      setSelectedStaffSim(employees[0].id);
+    }
+  }, [employees, selectedStaffSim]);
+
   const [simTime, setSimTime] = useState('09:22');
   const [simDate, setSimDate] = useState('2026-06-11');
   const [selectedLogPreview, setSelectedLogPreview] = useState(null);
@@ -65,15 +98,7 @@ export default function HRPortal() {
   const [customFilterDate, setCustomFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [rosterInspectDate, setRosterInspectDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [simLogs, setSimLogs] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('himalaya_sim_logs');
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
+  const [simLogs, setSimLogs] = useState([]);
 
   const [shiftPolicies, setShiftPolicies] = useState({
     'HR': { checkIn: '09:00 AM', checkOut: '06:00 PM', grace: 15 },
@@ -1199,10 +1224,39 @@ export default function HRPortal() {
 
   // 5. SHIFT SCHEDULES BOARD & MONITOR
   const renderShifts = () => {
+    const generalPolicy = shiftPolicies['Default'] || { checkIn: '09:00 AM', checkOut: '06:00 PM' };
+    const salesPolicy = shiftPolicies['Sales'] || { checkIn: '09:30 AM', checkOut: '06:30 PM' };
+    const prodPolicy = shiftPolicies['Production'] || { checkIn: '08:00 AM', checkOut: '05:00 PM' };
+
+    const totalRegistered = employees.length;
+    const presentToday = formattedLogs.filter(l => l.punchIn !== '—').length;
+    const lateToday = formattedLogs.filter(l => l.status?.includes('Late')).length;
+
     const shiftSummaryData = [
-      { shift: 'General', employees: 142, present: 136, late: 6, timing: '09:00 AM - 06:00 PM', status: 'Optimal' },
-      { shift: 'Morning', employees: 61, present: 58, late: 3, timing: '06:00 AM - 02:00 PM', status: 'Optimal' },
-      { shift: 'Night', employees: 45, present: 37, late: 8, timing: '10:00 PM - 06:00 AM', status: 'Attention' }
+      {
+        shift: 'General Shift (HR/Finance/Other)',
+        employees: employees.filter(e => e.department === 'HR' || e.department === 'Finance').length || Math.max(0, totalRegistered - employees.filter(e => e.department === 'Sales' || e.department === 'Production').length),
+        present: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('On Time')).length,
+        late: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Late')).length,
+        timing: `${generalPolicy.checkIn} - ${generalPolicy.checkOut}`,
+        status: lateToday > 3 ? 'Attention' : 'Optimal'
+      },
+      {
+        shift: 'Sales Shift',
+        employees: employees.filter(e => e.department === 'Sales').length,
+        present: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Sales')).length,
+        late: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Sales') && l.status?.includes('Late')).length,
+        timing: `${salesPolicy.checkIn} - ${salesPolicy.checkOut}`,
+        status: 'Optimal'
+      },
+      {
+        shift: 'Production Shift',
+        employees: employees.filter(e => e.department === 'Production').length,
+        present: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Production')).length,
+        late: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Production') && l.status?.includes('Late')).length,
+        timing: `${prodPolicy.checkIn} - ${prodPolicy.checkOut}`,
+        status: 'Optimal'
+      }
     ];
 
     return (
@@ -1226,7 +1280,7 @@ export default function HRPortal() {
         <div className="app-card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 className="card-heading" style={{ margin: 0 }}>Current Workforce Distribution by Shift</h3>
-            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Total Staff: 248 Employees</span>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Total Staff: {totalRegistered} Employees</span>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
