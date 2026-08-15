@@ -4,14 +4,38 @@ echo "============================================="
 echo "   Himalaya ERP - VPS Database Migration"
 echo "============================================="
 
-# Detect workspace folder
+# Detect where .env is located
+ENV_PATH=""
+if [ -f ".env" ]; then
+  ENV_PATH="$(pwd)/.env"
+elif [ -f "backend/.env" ]; then
+  ENV_PATH="$(pwd)/backend/.env"
+fi
+
+if [ -z "$ENV_PATH" ]; then
+  # If already inside backend folder, check parent
+  if [ -f "../.env" ]; then
+    ENV_PATH="$(pwd)/../.env"
+  elif [ -f "prisma/schema.prisma" ] && [ -f ".env" ]; then
+    ENV_PATH="$(pwd)/.env"
+  else
+    echo "❌ Error: .env file not found in current directory, parent directory, or backend directory."
+    exit 1
+  fi
+fi
+
+echo "ℹ️ Using environment config from: $ENV_PATH"
+
+# Go to backend folder where prisma/schema is located
 if [ -d "backend" ]; then
   cd backend
 fi
 
-# Check for .env file
-if [ ! -f ".env" ]; then
-  echo "❌ Error: .env file not found in $(pwd)"
+# Load DATABASE_URL from found .env
+export DATABASE_URL=$(grep -E "^DATABASE_URL=" "$ENV_PATH" | cut -d'=' -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
+
+if [ -z "$DATABASE_URL" ]; then
+  echo "❌ Error: DATABASE_URL not found or empty in $ENV_PATH"
   exit 1
 fi
 
