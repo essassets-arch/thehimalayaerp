@@ -207,10 +207,15 @@ export class SalesService {
 
     return this.prisma.$transaction(async (tx) => {
       const { processedItems, ...totals } = this.calculateTotals(dto.items);
+      const year = new Date().getFullYear();
+      const yy = String(year).substring(2);
+      const ny = String(year + 1).substring(2);
+      const prefix = `HCCL/${yy}${ny}/`;
       const orderNumber = await this.sequenceService.generateNextWithTx(
         tx,
         'sales_order_number',
-        `SO-${new Date().getFullYear()}-`,
+        prefix,
+        4,
       );
 
       const products = await tx.product.findMany({

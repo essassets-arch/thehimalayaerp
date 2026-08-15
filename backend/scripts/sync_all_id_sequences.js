@@ -30,7 +30,7 @@ async function syncSequences() {
   let maxQuotationNum = 0;
   for (const q of quotations) {
     if (q.quotationNumber) {
-      const match = q.quotationNumber.match(/(?:\d{4}-)?(\d{1,6})$/i);
+      const match = q.quotationNumber.match(/(?:\d{4}[-\/])?(\d{1,6})$/i);
       if (match) {
         const num = parseInt(match[1], 10);
         if (num < 1000000 && num > maxQuotationNum) maxQuotationNum = num;
@@ -50,7 +50,7 @@ async function syncSequences() {
   let maxOrderNum = 0;
   for (const o of orders) {
     if (o.orderNumber) {
-      const match = o.orderNumber.match(/(?:\d{4}-)?(\d{1,6})$/i);
+      const match = o.orderNumber.match(/(?:\d{4}[-\/])?(\d{1,6})$/i);
       if (match) {
         const num = parseInt(match[1], 10);
         if (num < 1000000 && num > maxOrderNum) maxOrderNum = num;

@@ -604,7 +604,7 @@ export default function QuotationsView({
             </button>
             <h2 className="module-title">Edit Quotation Proposal</h2>
           </div>
-          <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Ref: QTN-{editingQuotation.id}</span>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Ref: {editingQuotation.quotationNumber || `QTN-${editingQuotation.id}`}</span>
         </div>
 
         <form onSubmit={handleEditQuotationSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -1097,7 +1097,7 @@ export default function QuotationsView({
               ) : (
                 displayedQuotations.map((q) => (
                   <tr key={q.id}>
-                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`}</td>
+                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{q.quotationNumber || (String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`)}</td>
                     <td data-label="Customer Name" style={{ fontWeight: '600' }}>{q.customerName}</td>
                     <td data-label="Product / Items">{quotationItemsText(q)}</td>
                     <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
@@ -1226,7 +1226,7 @@ export default function QuotationsView({
                   {/* Header Row */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span onClick={() => setSelectedQuotation(q)} style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>
-                      #{String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`}
+                      #{q.quotationNumber || (String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`)}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {canConvertQuotation(q.status) ? (
