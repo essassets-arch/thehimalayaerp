@@ -989,33 +989,6 @@ export const PlantHeadDailySummary = () => {
         )}
       </div>
 
-      {/* ── SECTION 12 — TODAY'S ACTIVITY TIMELINE ── */}
-      <div id="activity-timeline" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', border: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => toggleSection('activity')}>
-            {collapsedSections.activity ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-            <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', margin: 0 }}>⏱️ Today's Activity Timeline</h3>
-          </div>
-        </div>
-
-        {!collapsedSections.activity && (
-          <div style={{ marginTop: '16px' }}>
-            {data?.activityTimeline && data.activityTimeline.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {data.activityTimeline.map((act, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ background: '#e0f2fe', color: '#0284c7', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '900', whiteSpace: 'nowrap' }}>{act.time}</span>
-                    <span style={{ fontSize: '13px', color: '#334155', fontWeight: '600', marginTop: '2px' }}>{act.description}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>No recorded plant activities today.</div>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* ── SECTION 13 — TODAY VS YESTERDAY COMPARISON ── */}
       <div id="comparison" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', border: '1px solid #e2e8f0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
