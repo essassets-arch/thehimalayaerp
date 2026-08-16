@@ -167,9 +167,27 @@ const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
 
   const execObj = order.salesExecutive || order.createdBy || sourceQuotation?.salesExecutive || sourceQuotation?.createdBy || order.customer?.salesExecutive;
   if (execObj && typeof execObj === 'object') {
-    if (execObj.name && execObj.name !== 'SuperSales 1' && execObj.name !== 'Sales Executive' && execObj.name !== 'Sales Manager' && !execObj.name.includes('@') && !execObj.name.includes('-')) {
-      return execObj.name;
+    const name = execObj.name ? String(execObj.name).trim() : '';
+    const email = execObj.email ? String(execObj.email).trim() : '';
+    
+    const isPlaceholderName = !name || 
+      name === 'SuperSales 1' || 
+      name === 'Sales Executive' || 
+      name === 'Sales Manager' || 
+      name.toLowerCase().includes('executive') ||
+      name.toLowerCase().includes('manager') ||
+      name.includes('@') || 
+      name.includes('-') || 
+      name.startsWith('usr_');
+
+    if (name && !isPlaceholderName) {
+      return name;
     }
+    
+    if (email) {
+      return email;
+    }
+
     if (execObj.email && SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()]) {
       return SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()];
     }
@@ -198,22 +216,32 @@ const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
     const valStr = String(c).trim();
     const valLower = valStr.toLowerCase();
 
-    if (valStr !== 'SuperSales 1' && valStr !== 'Sales Executive' && valStr !== 'Sales Manager') {
+    if (valStr.includes('@')) {
+      return valStr;
+    }
+
+    const isPlaceholder = 
+      valStr === 'SuperSales 1' || 
+      valStr === 'Sales Executive' || 
+      valStr === 'Sales Manager' ||
+      valLower.includes('executive') ||
+      valLower.includes('manager') ||
+      valStr.includes('-') ||
+      valStr.startsWith('usr_') ||
+      valStr.startsWith('user_') ||
+      valStr.startsWith('USR-');
+
+    if (!isPlaceholder) {
       if (SEEDED_SALES_USER_MAP[valStr]) return SEEDED_SALES_USER_MAP[valStr];
       if (SEEDED_SALES_USER_MAP[valLower]) return SEEDED_SALES_USER_MAP[valLower];
       if (userMap[valStr]) return userMap[valStr];
       if (userMap[valLower]) return userMap[valLower];
-
-      if (
-        !valStr.includes('-') &&
-        !valStr.includes('@') &&
-        !valStr.startsWith('usr_') &&
-        !valStr.startsWith('user_') &&
-        !valStr.startsWith('USR-')
-      ) {
-        return valStr;
-      }
+      return valStr;
     }
+  }
+
+  if (execObj && typeof execObj === 'object' && execObj.email) {
+    return execObj.email;
   }
 
   const str = String(order.orderNo || order.orderNumber || order.id || order.customerName || '1');
