@@ -345,23 +345,19 @@ export class SalesService {
       }
 
       let nextStateId = order.workflowStateId!;
-      try {
-        const result = await this.workflowService.processAction(
-          {
-            entityId: order.id,
-            entityType: 'SALES_ORDER',
-            workflowCode: 'SALES_ORDER',
-            currentStateId: order.workflowStateId!,
-            actionName: dto.action,
-            userId,
-            remarks: dto.remarks,
-          },
-          tx,
-        );
-        if (result?.nextStateId) nextStateId = result.nextStateId;
-      } catch (err: any) {
-        console.warn(`[SalesService] Workflow processAction warning:`, err?.message);
-      }
+      const result = await this.workflowService.processAction(
+        {
+          entityId: order.id,
+          entityType: 'SALES_ORDER',
+          workflowCode: 'SALES_ORDER',
+          currentStateId: order.workflowStateId!,
+          actionName: dto.action,
+          userId,
+          remarks: dto.remarks,
+        },
+        tx,
+      );
+      if (result?.nextStateId) nextStateId = result.nextStateId;
 
       const statusByAction: Partial<Record<string, SalesOrderStatus>> = {
         SUBMIT: SalesOrderStatus.PENDING_APPROVAL,
