@@ -3015,7 +3015,11 @@ export default function PlantHeadPortal() {
     const planStatus = String(row.productionPlan?.workflowState?.code || row.productionPlan?.status || '').toUpperCase();
     const woStatus = String(row.workOrder?.productionStatus || row.workOrder?.status || '').toUpperCase();
 
-    if (['COMPLETED', 'PAYMENT_DONE', 'VERIFIED', 'DISPATCH_CLOSED'].includes(rawStatus) || rawStatus === 'COMPLETED') {
+    if (
+      ['COMPLETED', 'PAYMENT_DONE', 'VERIFIED', 'DISPATCH_CLOSED'].includes(rawStatus) || 
+      rawStatus === 'COMPLETED' || 
+      row.paymentStatus === 'FULLY_PAID'
+    ) {
       return <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✅ Payment Done & Completed</span>;
     }
     if (['DELIVERED', 'POD_RECEIVED', 'PAYMENT_PENDING'].includes(rawStatus) || ['DELIVERED', 'POD_RECEIVED'].includes(woStatus)) {
