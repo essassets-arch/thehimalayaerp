@@ -160,12 +160,23 @@ export class NotificationsService {
     return createdNotifications;
   }
 
-  async getNotifications(userId: string, companyId: string, limit = 20, offset = 0) {
+  private async resolveCompanyId(userId: string, companyId?: string): Promise<string> {
+    if (companyId) return companyId;
+    if (!userId) return '';
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true },
+    });
+    return user?.companyId || '';
+  }
+
+  async getNotifications(userId: string, companyId?: string, limit = 20, offset = 0) {
+    const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     const [items, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where: {
           userId,
-          companyId,
+          companyId: resolvedCompanyId,
         },
         orderBy: {
           createdAt: 'desc',
@@ -173,7 +184,7 @@ export class NotificationsService {
         take: limit,
         skip: offset,
       }),
-      this.getUnreadCount(userId, companyId),
+      this.getUnreadCount(userId, resolvedCompanyId),
     ]);
 
     return {
@@ -182,22 +193,24 @@ export class NotificationsService {
     };
   }
 
-  async getUnreadCount(userId: string, companyId: string): Promise<number> {
+  async getUnreadCount(userId: string, companyId?: string): Promise<number> {
+    const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     return this.prisma.notification.count({
       where: {
         userId,
-        companyId,
+        companyId: resolvedCompanyId,
         isRead: false,
       },
     });
   }
 
-  async markAsRead(id: string, userId: string, companyId: string) {
+  async markAsRead(id: string, userId: string, companyId?: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     const result = await this.prisma.notification.updateMany({
       where: {
         id,
         userId,
-        companyId,
+        companyId: resolvedCompanyId,
       },
       data: {
         isRead: true,
@@ -211,11 +224,12 @@ export class NotificationsService {
     return result;
   }
 
-  async markAllAsRead(userId: string, companyId: string) {
+  async markAllAsRead(userId: string, companyId?: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     return this.prisma.notification.updateMany({
       where: {
         userId,
-        companyId,
+        companyId: resolvedCompanyId,
         isRead: false,
       },
       data: {
@@ -228,15 +242,16 @@ export class NotificationsService {
 
   async registerDeviceToken(
     userId: string,
-    companyId: string,
+    companyId: string | undefined,
     token: string,
     deviceType = 'web',
     userAgent?: string,
   ) {
+    const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     return this.prisma.fcmDeviceToken.upsert({
       where: { token },
       create: {
-        companyId,
+        companyId: resolvedCompanyId,
         userId,
         token,
         deviceType,
@@ -244,7 +259,7 @@ export class NotificationsService {
         lastSeenAt: new Date(),
       },
       update: {
-        companyId,
+        companyId: resolvedCompanyId,
         userId,
         deviceType,
         userAgent,
@@ -253,12 +268,13 @@ export class NotificationsService {
     });
   }
 
-  async removeDeviceToken(userId: string, companyId: string, token: string) {
+  async removeDeviceToken(userId: string, companyId: string | undefined, token: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     return this.prisma.fcmDeviceToken.deleteMany({
       where: {
         token,
         userId,
-        companyId,
+        companyId: resolvedCompanyId,
       },
     });
   }
