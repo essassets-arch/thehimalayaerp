@@ -3620,6 +3620,26 @@ export default function PlantHeadPortal() {
               (Array.isArray(row.workOrders) && row.workOrders.length > 0 && row.workOrders.some(wo => wo.status !== 'CANCELLED'))
             );
 
+            const rawStatus = String(row.status || row.planningStatus || row.productionStatus || row.workflowStatus || row.workflowStateCode || '').toUpperCase();
+            const woStatus = String(row.workOrder?.productionStatus || row.workOrder?.status || '').toUpperCase();
+            
+            const doneStatuses = [
+              'COMPLETED', 'QC_PENDING', 'PENDING_QC', 'READY_FOR_QC',
+              'QC_PASSED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCH_PENDING',
+              'DISPATCHED', 'IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY',
+              'DELIVERED', 'POD_RECEIVED', 'PAYMENT_PENDING', 'PAYMENT_DONE',
+              'VERIFIED', 'DISPATCH_CLOSED'
+            ];
+
+            const isProductionDone = 
+              doneStatuses.includes(rawStatus) || 
+              doneStatuses.includes(woStatus) ||
+              planStatus === 'COMPLETED' ||
+              (Array.isArray(row.workOrders) && row.workOrders.length > 0 && row.workOrders.every(wo => {
+                const statusUpper = String(wo.status || wo.productionStatus || '').toUpperCase();
+                return ['COMPLETED', 'QC_PENDING', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'].includes(statusUpper);
+              }));
+
             const handleInlineUpdateTarget = async () => {
               const currentDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
               const orderNoStr = row.orderNo || row.id || 'SO-2026-00013';
@@ -3704,7 +3724,9 @@ export default function PlantHeadPortal() {
 
             return (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                {planningViewTab === 'pending' && !isPlanned ? (
+                {isProductionDone ? (
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>—</span>
+                ) : planningViewTab === 'pending' && !isPlanned ? (
                   <button
                     data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
                     style={{
