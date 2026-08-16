@@ -3015,14 +3015,13 @@ export default function PlantHeadPortal() {
     const planStatus = String(row.productionPlan?.workflowState?.code || row.productionPlan?.status || '').toUpperCase();
     const woStatus = String(row.workOrder?.productionStatus || row.workOrder?.status || '').toUpperCase();
 
-    if (
-      ['COMPLETED', 'PAYMENT_DONE', 'VERIFIED', 'DISPATCH_CLOSED'].includes(rawStatus) || 
-      rawStatus === 'COMPLETED' || 
-      row.paymentStatus === 'FULLY_PAID'
-    ) {
+    if (row.paymentStatus === 'FULLY_PAID') {
       return <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✅ Payment Done & Completed</span>;
     }
-    if (['DELIVERED', 'POD_RECEIVED', 'PAYMENT_PENDING'].includes(rawStatus) || ['DELIVERED', 'POD_RECEIVED'].includes(woStatus)) {
+    if (
+      ['DELIVERED', 'POD_RECEIVED', 'PAYMENT_PENDING', 'COMPLETED', 'PAYMENT_DONE', 'VERIFIED', 'DISPATCH_CLOSED'].includes(rawStatus) || 
+      ['DELIVERED', 'POD_RECEIVED'].includes(woStatus)
+    ) {
       return <span style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #ffedd5', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>💳 Payment Pending</span>;
     }
     if (['DISPATCHED', 'IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(rawStatus) || ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT'].includes(woStatus)) {
