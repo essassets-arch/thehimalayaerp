@@ -246,54 +246,79 @@ export default function SuperAdminPortal() {
   // Sync real-time punches and simulated logs for Super Admin
   const loadPunches = async () => {
     try {
-      const employeesList = state.employees || [];
+      // 1. Fetch real punches from centralized DB
       let dbPunches = [];
       try {
-        const dbResponse = await apiClient.get('/attendance/punches');
-        if (dbResponse && dbResponse.success !== false) {
-          dbPunches = Array.isArray(dbResponse) ? dbResponse : (dbResponse.data || []);
+        const response = await apiClient.get('/attendance');
+        if (response && response.success !== false) {
+          dbPunches = response.data || response;
         }
       } catch (e) {
-        console.error('Error fetching punches from DB:', e);
+        console.error('Error fetching punches from DB in Super Admin:', e);
       }
 
-      const mappedPunches = dbPunches.map((item) => {
-        const isCheckIn = item.type === 'PUNCH_IN' || item.action === 'Check In';
-        const empCode = item.empId || item.id || 'EMP-001';
-        
-        const matchingEmp = employeesList.find(emp => 
-          emp.id === empCode ||
-          (emp.userId && emp.userId === empCode) ||
-          (emp.employeeCode && emp.employeeCode === empCode) ||
-          (emp.fullName && emp.fullName.toLowerCase() === item.empName?.toLowerCase()) ||
-          (emp.name && emp.name.toLowerCase() === item.empName?.toLowerCase())
-        );
+      const mappedDbPunches = dbPunches.map(p => ({
+        id: p.employeeCode,
+        name: p.employeeName,
+        email: p.email,
+        department: p.department,
+        role: p.role,
+        action: p.punchOut !== '—' ? 'Check Out' : 'Check In',
+        time: p.punchOut !== '—' ? p.punchOut : p.punchIn,
+        punchIn: p.punchIn,
+        punchOut: p.punchOut,
+        date: p.date,
+        location: p.punchOutLocation !== '—' ? p.punchOutLocation : p.punchInLocation,
+        coords: p.coords,
+        selfieUrl: p.selfieUrl,
+        status: p.status,
+        timestamp: p.timestamp,
+        isRealPunch: true
+      }));
 
-        let cleanId = empCode;
-        if (matchingEmp) {
-          cleanId = matchingEmp.employeeCode || matchingEmp.id || cleanId;
-        } else if (cleanId.includes('-') && cleanId.length > 15) {
-          cleanId = `EMP-${cleanId.split('-')[0].toUpperCase()}`;
-        }
+      // 2. Load simulated punches from localStorage
+      let simPunches = [];
+      try {
+        const saved = localStorage.getItem('himalaya_sim_logs');
+        if (saved) simPunches = JSON.parse(saved);
+      } catch (err) {}
 
-        const timeStr = item.time || (isCheckIn ? item.punchInTime : item.punchOutTime);
+      // 3. Merge sources prioritizing database records
+      const mergedMap = new Map();
 
-        return {
-          id: cleanId,
-          name: item.empName || item.name || 'Dr. Vivek Joshi',
-          action: isCheckIn ? 'Check In' : 'Check Out',
+      simPunches.forEach(item => {
+        const timeStr = item.time || '';
+        const key = `${item.id}_${item.date}`;
+        mergedMap.set(key, {
+          id: item.id,
+          name: item.name,
+          action: item.action,
           time: timeStr,
+          punchIn: item.action === 'Check In' ? timeStr : '—',
+          punchOut: item.action === 'Check Out' ? timeStr : '—',
           date: item.date,
           location: item.location || 'Factory Campus',
           coords: item.coords || '23.0229° N, 72.5566° E',
-          status: getPunchStatus(timeStr, isCheckIn, matchingEmp?.department || 'Default'),
-          selfieUrl: item.selfieUrl || item.lastPhoto || null,
-          isRealPunch: item.isRealPunch !== false,
+          selfieUrl: item.selfieUrl || null,
+          isRealPunch: false,
+          status: item.status || 'On Time',
           timestamp: item.timestamp
-        };
+        });
       });
 
-      setSimLogs(mappedPunches);
+      mappedDbPunches.forEach(p => {
+        const key = `${p.id}_${p.date}`;
+        mergedMap.set(key, p);
+      });
+
+      const mergedList = Array.from(mergedMap.values());
+      mergedList.sort((a, b) => {
+        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      setSimLogs(mergedList);
     } catch (e) {
       console.error('Error loading punches in Super Admin:', e);
     }
@@ -302,9 +327,11 @@ export default function SuperAdminPortal() {
   useEffect(() => {
     loadPunches();
     window.addEventListener('storage', loadPunches);
+    window.addEventListener('himalaya:punch', loadPunches);
     const interval = setInterval(loadPunches, 4000);
     return () => {
       window.removeEventListener('storage', loadPunches);
+      window.removeEventListener('himalaya:punch', loadPunches);
       clearInterval(interval);
     };
   }, [state.employees, currentUser]);

@@ -24,86 +24,32 @@ export default function MyProfileView() {
 
   const fetchPunchLogsFromDB = useCallback(async () => {
     try {
-      const response = await apiClient.get('/attendance/punches');
+      const response = await apiClient.get('/attendance/me');
       if (response && response.success !== false) {
-        const data = Array.isArray(response) ? response : (response.data || []);
-        const empCode = profile?.employee?.employeeCode || profile?.employee?.id || profile?.id || 'EMP-001';
-        const userId = profile?.userId;
-        const employeeId = profile?.employeeId;
-        const filtered = data.filter(p => 
-          p.empId === empCode ||
-          (userId && p.empId === userId) ||
-          (employeeId && p.empId === employeeId) ||
-          p.empId === 'EMP-001'
-        );
-        setLocalPunchLog(filtered);
+        setLocalPunchLog(response.data?.data || response.data || []);
       }
     } catch (e) {
-      console.error('Failed to fetch punch logs from DB:', e);
+      console.error('Failed to fetch punch logs:', e);
     }
-  }, [profile]);
-
-  useEffect(() => {
-    if (profile) {
-      fetchPunchLogsFromDB();
-    }
-  }, [profile, activeTab]);
+  }, []);
 
   const formattedLogs = React.useMemo(() => {
-    const grouped = {};
-    
-    const sorted = [...localPunchLog].sort((a, b) => {
-      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return aTime - bTime;
-    });
+    const mapped = localPunchLog.map(item => ({
+      id: profile?.employee?.employeeCode || profile?.employeeId || 'EMP-MOCK-001',
+      name: profile?.name || 'Employee',
+      date: item.date,
+      punchIn: item.punchInTime || '—',
+      punchOut: item.punchOutTime || '—',
+      location: item.location || '—',
+      coords: item.coords || '',
+      selfieUrl: item.selfieUrl,
+      status: item.status,
+      timestamp: item.timestamp
+    }));
 
-    sorted.forEach(entry => {
-      const dateKey = entry.date || 'Today';
-      const cleanEmpId = entry.empId || entry.id || 'EMP-001';
-      const key = `${cleanEmpId}_${dateKey}`;
-      
-      const isPunchIn = entry.type === 'PUNCH_IN';
-      
-      if (!grouped[key]) {
-        grouped[key] = {
-          id: profile?.employeeId || cleanEmpId,
-          name: entry.empName || entry.name || 'Dr. Vivek Joshi',
-          date: dateKey,
-          punchIn: isPunchIn ? (entry.punchInTime || entry.time || '—') : '—',
-          punchOut: !isPunchIn ? (entry.punchOutTime || entry.time || '—') : '—',
-          location: entry.location || 'Factory Campus',
-          coords: entry.coords || '',
-          selfieUrl: entry.selfieUrl || entry.lastPhoto || null,
-          status: entry.status || 'Verified',
-          timestamp: entry.timestamp
-        };
-      } else {
-        if (isPunchIn) {
-          grouped[key].punchIn = entry.punchInTime || entry.time || '—';
-          if (entry.selfieUrl) grouped[key].selfieUrl = entry.selfieUrl;
-          if (entry.coords) {
-            grouped[key].coords = entry.coords;
-            grouped[key].location = entry.location;
-          }
-        } else {
-          grouped[key].punchOut = entry.punchOutTime || entry.time || '—';
-          if (!grouped[key].selfieUrl && entry.selfieUrl) {
-            grouped[key].selfieUrl = entry.selfieUrl;
-          }
-          if (entry.status && entry.status !== 'Verified') {
-            grouped[key].status = entry.status;
-          }
-        }
-      }
-    });
-
-    const rawLogs = Object.values(grouped);
     const now = new Date();
-    
-    return rawLogs.filter(log => {
+    return mapped.filter(log => {
       if (filterPeriod === 'all') return true;
-      
       const logDate = log.timestamp ? new Date(log.timestamp) : new Date(log.date || now);
       const diffTime = Math.abs(now.getTime() - logDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -117,7 +63,23 @@ export default function MyProfileView() {
       }
       return true;
     });
-  }, [localPunchLog, filterPeriod, profile]);
+  }, [localPunchLog, profile, filterPeriod]);
+
+  useEffect(() => {
+    if (profile) {
+      fetchPunchLogsFromDB();
+    }
+  }, [profile, activeTab]);
+
+  useEffect(() => {
+    const handlePunchUpdate = () => {
+      fetchPunchLogsFromDB();
+    };
+    window.addEventListener('himalaya:punch', handlePunchUpdate);
+    return () => {
+      window.removeEventListener('himalaya:punch', handlePunchUpdate);
+    };
+  }, [fetchPunchLogsFromDB]);
 
   // Loading states
   const [loadingProfile, setLoadingProfile] = useState(false);
