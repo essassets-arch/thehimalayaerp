@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import styles from './qc-pending.module.css';
 import { backendFetch } from '@/lib/backendFetch';
 
-const LOAD_CLASSES = ['5T', '12.5T', 'B125', 'C250', 'D400', 'E600', 'F900'];
+const LOAD_CLASSES = ['5T', '12.5T', 'B125', 'C250', 'D400', 'E600', 'F900', 'ELD', 'LD', 'MD', 'HD', 'EHD', 'A15'];
 
 const CHECKLIST_ITEMS = [
   { id: 'surfaceFinish', label: 'Surface Finish OK' },
@@ -130,12 +130,47 @@ export default function QCPendingPage() {
   const openInspectModal = (job: any) => {
     setInspectJob(job);
     const qty = Number(job.quantity || 1);
-    setOrderedQty(qty);
+    const orderQty = job.salesOrderItem?.quantity 
+      ? Number(job.salesOrderItem.quantity)
+      : qty;
+
+    setOrderedQty(orderQty);
     setProducedQty(qty);
     setInspectedQty(qty);
     setApprovedQty(qty);
     setRejectedQty(0);
     setBatchNo(`BATCH-${job.workOrderNumber || '2026-001'}`);
+
+    // Parse product details dynamically
+    const productName = job.salesOrderItem?.product?.name || job.productName || '';
+    const sizeMatch = productName.match(/(\d+\s*[xX]\s*\d+)/);
+    const size = sizeMatch ? sizeMatch[1] : '600x600 mm';
+    setProductSize(size);
+
+    let matchedClass = 'B125';
+    const nameUpper = productName.toUpperCase();
+    for (const cls of LOAD_CLASSES) {
+      if (nameUpper.includes(cls)) {
+        matchedClass = cls;
+        break;
+      }
+    }
+    if (matchedClass === 'B125') {
+      if (nameUpper.includes('ELD')) matchedClass = 'ELD';
+      else if (nameUpper.includes('EHD')) matchedClass = 'EHD';
+      else if (nameUpper.includes('HD')) matchedClass = 'HD';
+      else if (nameUpper.includes('MD')) matchedClass = 'MD';
+      else if (nameUpper.includes('LD')) matchedClass = 'LD';
+      else if (nameUpper.includes('A15')) matchedClass = 'A15';
+    }
+    setLoadClass(matchedClass);
+
+    const prodDate = job.productionEndTime 
+      ? new Date(job.productionEndTime).toISOString().split('T')[0]
+      : new Date(job.updatedAt || job.createdAt || new Date()).toISOString().split('T')[0];
+    setProductionDate(prodDate);
+    setInspectionDate(new Date().toISOString().split('T')[0]);
+
     setChecklist(CHECKLIST_ITEMS.reduce((acc, item) => ({ ...acc, [item.id]: true }), {}));
     setDefectFlags([]);
     setInspectorRemarks('');
