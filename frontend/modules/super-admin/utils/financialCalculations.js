@@ -423,9 +423,17 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   const dispatchesList = Array.isArray(state.dispatches) ? state.dispatches : [];
   const dispatchedOrdersList = rawOrders.filter(o => o.status === 'Dispatched' || o.status === 'Delivered' || o.status === 'In Transit');
   
-  const totalDispatchesCountVal = dispatchedOrdersList.length || dispatchesList.length || totalDispatchesCount;
-  const actualTransportCostVal = dispatchedOrdersList.reduce((sum, o) => sum + (Number(o.freightCost || o.freight || o.transportCost) || 0), 0) || dispatchCost;
-  const expectedTransportCostVal = Math.round(actualTransportCostVal * 0.857);
+  const totalDispatchesCountVal = dispatchesList.length || dispatchedOrdersList.length || totalDispatchesCount;
+  
+  const actualTransportCostVal = dispatchesList.reduce((sum, d) => sum + (Number(d.freightAmount) || 0), 0) ||
+    dispatchedOrdersList.reduce((sum, o) => sum + (Number(o.freightCost || o.freight || o.transportCost) || 0), 0) || 
+    dispatchCost;
+
+  const expectedTransportCostVal = dispatchesList.reduce((sum, d) => {
+    const quoteCost = Number(d.salesOrder?.sourceQuotation?.expectedTransportationCost ?? d.salesOrder?.freightAmount ?? 0);
+    return sum + quoteCost;
+  }, 0) || Math.round(actualTransportCostVal * 0.857);
+
   const varianceAmountVal = Math.max(0, actualTransportCostVal - expectedTransportCostVal);
   const lastMonthTransportCostVal = Math.round(actualTransportCostVal * 0.907);
   const costChangePercentVal = lastMonthTransportCostVal > 0 ? Number(((actualTransportCostVal - lastMonthTransportCostVal) / lastMonthTransportCostVal * 100).toFixed(1)) : 0;
@@ -434,20 +442,36 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   const avgTransportCostVal = totalDispatchesCountVal > 0 ? Math.round(actualTransportCostVal / totalDispatchesCountVal) : avgCostPerDispatch;
   const costPerUnitVal = totalUnitsDispatchedVal > 0 ? Math.round(actualTransportCostVal / totalUnitsDispatchedVal) : costPerDeliveredUnit;
 
-  const d1DispatchesCountVal = dispatchedOrdersList.filter(o => !o.branch || String(o.branch).includes('Haridwar') || String(o.branch).includes('Dehradun')).length || Math.round(totalDispatchesCountVal * 0.6);
+  const d1DispatchesCountVal = dispatchesList.filter(d => d.dispatchCategory === 'D1').length || 
+    dispatchedOrdersList.filter(o => !o.branch || String(o.branch).includes('Haridwar') || String(o.branch).includes('Dehradun')).length || 
+    Math.round(totalDispatchesCountVal * 0.6);
   const d2DispatchesCountVal = Math.max(0, totalDispatchesCountVal - d1DispatchesCountVal);
 
   const routeGroupMap = new Map();
-  dispatchedOrdersList.forEach(o => {
-    const routeName = o.destination || o.route || (o.branch ? `${o.branch} -> Customer Site` : 'Haridwar -> Regional Hub');
-    const actualCost = Number(o.freightCost || o.freight || 0);
-    const expectedCost = Math.round(actualCost * 0.85);
-    const curr = routeGroupMap.get(routeName) || { route: routeName, dispatches: 0, actualCost: 0, expectedCost: 0 };
-    curr.dispatches += 1;
-    curr.actualCost += actualCost;
-    curr.expectedCost += expectedCost;
-    routeGroupMap.set(routeName, curr);
-  });
+  if (dispatchesList.length > 0) {
+    dispatchesList.forEach(d => {
+      const rawRoute = d.deliveryAddress || (d.salesOrder?.customer?.billingAddress ? `${d.salesOrder.customer.billingAddress}` : 'Haridwar -> Customer Site');
+      const routeName = String(rawRoute).split(',').slice(-2).join(',').trim() || 'Haridwar -> NCR Site';
+      const actualCost = Number(d.freightAmount || 0);
+      const expectedCost = Number(d.salesOrder?.sourceQuotation?.expectedTransportationCost ?? d.salesOrder?.freightAmount ?? 0) || Math.round(actualCost * 0.85);
+      const curr = routeGroupMap.get(routeName) || { route: routeName, dispatches: 0, actualCost: 0, expectedCost: 0 };
+      curr.dispatches += 1;
+      curr.actualCost += actualCost;
+      curr.expectedCost += expectedCost;
+      routeGroupMap.set(routeName, curr);
+    });
+  } else {
+    dispatchedOrdersList.forEach(o => {
+      const routeName = o.destination || o.route || (o.branch ? `${o.branch} -> Customer Site` : 'Haridwar -> Regional Hub');
+      const actualCost = Number(o.freightCost || o.freight || 0);
+      const expectedCost = Math.round(actualCost * 0.85);
+      const curr = routeGroupMap.get(routeName) || { route: routeName, dispatches: 0, actualCost: 0, expectedCost: 0 };
+      curr.dispatches += 1;
+      curr.actualCost += actualCost;
+      curr.expectedCost += expectedCost;
+      routeGroupMap.set(routeName, curr);
+    });
+  }
 
   let computedRouteCostList = Array.from(routeGroupMap.values()).map(r => ({
     ...r,

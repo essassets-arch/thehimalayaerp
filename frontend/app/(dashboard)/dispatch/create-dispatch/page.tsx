@@ -725,12 +725,13 @@ export default function CreateDispatchPage() {
             invoiceNumber: invoiceNumber.trim(),
             challanNumber: challanNumber.trim(),
             ewayBillNumber,
-            freightAmount:
-              transportationCost > 0
-                ? (actualFreightPaidAmount *
-                    Number(group.salesOrder.freightAmount || 0)) /
-                  transportationCost
-                : actualFreightPaidAmount / orderGroups.size,
+            freightAmount: (() => {
+              const individualCost = Number(group.salesOrder.sourceQuotation?.expectedTransportationCost ?? group.salesOrder.freightAmount ?? 0);
+              if (transportationCost > 0 && individualCost > 0) {
+                return (actualFreightPaidAmount * individualCost) / transportationCost;
+              }
+              return actualFreightPaidAmount / orderGroups.size;
+            })(),
             items: consolidatedItems,
           };
           
