@@ -21,7 +21,7 @@ COPY prisma ./prisma/
 RUN npx prisma generate
 
 # Copy application source code
-COPY tsconfig*.json nest-cli.json ./
+COPY tsconfig*.json nest-cli.json firebase-service-account.json* ./
 COPY src ./src
 COPY scripts ./scripts
 
@@ -56,6 +56,7 @@ COPY --from=builder --chown=nestjs:nestjs /app/dist-seed ./dist-seed
 COPY --from=builder --chown=nestjs:nestjs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nestjs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nestjs /app/package.json ./package.json
+COPY --from=builder --chown=nestjs:nestjs /app/firebase-service-account.json* ./
 
 USER nestjs
 

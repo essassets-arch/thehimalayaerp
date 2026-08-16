@@ -9,12 +9,15 @@ import { SequenceService } from '../../common/sequence/sequence.service';
 import { Prisma, SalesOrderStatus } from '@prisma/client';
 import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
 
+import { NotificationsService } from '../notifications/notifications.service';
+
 @Injectable()
 export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
     private readonly sequenceService: SequenceService,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async listPayments(userId?: string, role?: string) {
@@ -252,14 +255,40 @@ export class PaymentsService {
   }
 
   async submitForVerification(id: string, userId?: string) {
-    return this.transitionPayment(id, 'SUBMIT_VERIFICATION', userId);
+    const res = await this.transitionPayment(id, 'SUBMIT_VERIFICATION', userId);
+    if (res?.customerId && this.notificationsService) {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: res.customerId },
+        select: { companyId: true },
+      });
+      const paymentWithOrder = await this.prisma.customerPayment.findUnique({
+        where: { id: res.id },
+        include: { salesOrder: true },
+      });
+      const ref = paymentWithOrder?.salesOrder?.orderNumber || 'Order';
+
+      if (customer?.companyId) {
+        await this.notificationsService.notifyRole({
+          companyId: customer.companyId,
+          role: 'FINANCE_MANAGER',
+          type: 'PAYMENT_VERIFICATION_REQUIRED',
+          title: 'Payment Verification Required',
+          message: `${res.paymentNo} — Payment proof for ${ref} is awaiting Finance verification.`,
+          route: '/finance/payment-verification',
+          entityType: 'CustomerPayment',
+          entityId: id,
+          eventKeyPrefix: `PAYMENT:${id}:SUBMITTED`,
+        }).catch(() => {});
+      }
+    }
+    return res;
   }
 
   async verifyPayment(id: string, userId?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const verifiedPayment = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.customerPayment.findUnique({
         where: { id },
-        include: { workflowState: true },
+        include: { workflowState: true, customer: true },
       });
       if (!payment) throw new NotFoundException('Payment not found');
       const result = await this.workflowService.processAction(
@@ -303,9 +332,25 @@ export class PaymentsService {
           verifiedAt: new Date(),
           verifiedById: userId || 'SYSTEM',
         },
-        include: { workflowState: true },
+        include: { workflowState: true, customer: true },
       });
     });
+
+    if (verifiedPayment?.createdById && verifiedPayment?.customer?.companyId && this.notificationsService) {
+      await this.notificationsService.notifyUser({
+        companyId: verifiedPayment.customer.companyId,
+        userId: verifiedPayment.createdById,
+        type: 'PAYMENT_VERIFIED',
+        title: 'Payment Verified',
+        message: `${verifiedPayment.paymentNo} — Payment of ₹${verifiedPayment.amount} has been verified by Finance.`,
+        route: '/supersales/payment-followup',
+        entityType: 'CustomerPayment',
+        entityId: id,
+        eventKey: `PAYMENT:${id}:VERIFIED`,
+      }).catch(() => {});
+    }
+
+    return verifiedPayment;
   }
 
   private async transitionPayment(
@@ -622,6 +667,21 @@ export class PaymentsService {
       });
     }
 
-    return this.getPayment(id);
+    const updated = await this.getPayment(id);
+    if (updated.createdById && updated.customer?.companyId && this.notificationsService) {
+      this.notificationsService.notifyUser({
+        companyId: updated.customer.companyId,
+        userId: updated.createdById,
+        type: 'PAYMENT_REJECTED',
+        title: 'Payment Rejected',
+        message: `${updated.paymentNo} — Finance rejected the payment proof. Action required.`,
+        route: '/supersales/payment-followup',
+        entityType: 'CustomerPayment',
+        entityId: id,
+        eventKey: `PAYMENT:${id}:REJECTED`,
+      }).catch(() => {});
+    }
+
+    return updated;
   }
 }

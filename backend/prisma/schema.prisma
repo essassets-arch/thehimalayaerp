@@ -70,6 +70,8 @@ model Company {
   workLocations                  WorkLocation[]
   leaveRequests                  LeaveRequest[]
   dailyReports                   ProductionDailyReport[]
+  notifications                  Notification[]
+  fcmDeviceTokens                FcmDeviceToken[]
 }
 
 model Branch {
@@ -170,6 +172,8 @@ model User {
   salesExecutiveSamples         SampleRequest[]        @relation("SalesExecutiveSamples")
   dailyReportsCreated           ProductionDailyReport[] @relation("DailyReportCreatedBy")
   dailyReportsApproved          ProductionDailyReport[] @relation("DailyReportApprovedBy")
+  notifications                 Notification[]
+  fcmDeviceTokens               FcmDeviceToken[]
 }
 
 model RefreshSession {
@@ -2691,17 +2695,46 @@ model Notification {
   id         String             @id @default(uuid())
   companyId  String
   userId     String // Recipient
+  type       String             @default("GENERAL")
   title      String
   message    String
+  route      String?
   entityType String? // Optional — links notification to a document
   entityId   String?
+  eventKey   String?            @unique
+  isRead     Boolean            @default(false)
   status     NotificationStatus @default(UNREAD)
   readAt     DateTime?
   createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @default(now()) @updatedAt
 
+  company    Company            @relation(fields: [companyId], references: [id])
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, userId, isRead, createdAt])
   @@index([userId, status])
+  @@index([userId, createdAt])
   @@index([companyId])
   @@index([entityType, entityId])
+  @@index([eventKey])
+}
+
+model FcmDeviceToken {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String
+  token      String   @unique
+  deviceType String   @default("web")
+  userAgent  String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company    Company  @relation(fields: [companyId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId, userId])
 }
 
 enum ApprovalStatus {
@@ -3416,4 +3449,6 @@ model ShiftPolicy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+
 

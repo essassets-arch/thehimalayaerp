@@ -112,8 +112,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:4000/api/v1/health/readiness || exit 1"]
       interval: 10s

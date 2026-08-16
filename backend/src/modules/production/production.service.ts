@@ -7,6 +7,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ProductionService {
@@ -14,6 +15,7 @@ export class ProductionService {
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
     private readonly sequenceService: SequenceService,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async listPlans(userId?: string, role?: string) {
@@ -82,7 +84,7 @@ export class ProductionService {
       'PP-',
     );
 
-    return this.prisma.productionPlan.create({
+    const plan = await this.prisma.productionPlan.create({
       data: {
         planNumber,
         salesOrderId: dto.salesOrderId,
@@ -97,7 +99,28 @@ export class ProductionService {
         workflowStateId: initialState.id,
         assignedToId: userId,
       },
+      include: {
+        salesOrder: { include: { customer: true } }
+      }
     });
+
+    if (this.notificationsService && plan.salesOrder?.customer?.companyId) {
+      this.notificationsService.notifyRole({
+        companyId: plan.salesOrder.customer.companyId,
+        role: 'PRODUCTION_MANAGER',
+        type: 'PRODUCTION_PLAN_CREATED',
+        title: 'Production Plan Created',
+        message: `${plan.planNumber} — Production plan for ${plan.salesOrder.orderNumber} has been created.`,
+        route: '/production/incoming-orders',
+        entityType: 'ProductionPlan',
+        entityId: plan.id,
+        eventKeyPrefix: `PRODUCTION_PLAN:${plan.id}:CREATED`
+      }).catch((err) =>
+        console.warn('[ProductionService Notification] Failed to notify PRODUCTION_MANAGER:', err.message)
+      );
+    }
+
+    return plan;
   }
 
   async updatePlan(
@@ -148,8 +171,8 @@ export class ProductionService {
     role?: string,
   ) {
     const plan = await this.getPlan(id, userId, role);
-    return this.prisma.$transaction(async (tx) => {
-      const result = await this.workflowService.processAction(
+    const result = await this.prisma.$transaction(async (tx) => {
+      const workflowResult = await this.workflowService.processAction(
         {
           entityId: id,
           entityType: 'PRODUCTION_PLAN',
@@ -165,7 +188,7 @@ export class ProductionService {
       const updated = await tx.productionPlan.update({
         where: { id },
         data: {
-          workflowStateId: result.nextStateId,
+          workflowStateId: workflowResult.nextStateId,
           status: {
             SUBMIT: 'UNDER_REVIEW',
             APPROVE: 'APPROVED',
@@ -208,5 +231,35 @@ export class ProductionService {
 
       return updated;
     });
+
+    if (this.notificationsService && result && actionName === 'RELEASE') {
+      const planWithOrder = await this.prisma.productionPlan.findUnique({
+        where: { id: result.id },
+        include: {
+          salesOrder: { include: { customer: true } },
+          workOrders: true,
+        },
+      });
+      if (planWithOrder?.salesOrder?.customer?.companyId) {
+        const companyId = planWithOrder.salesOrder.customer.companyId;
+        for (const wo of planWithOrder.workOrders) {
+          this.notificationsService.notifyRole({
+            companyId,
+            role: 'PRODUCTION_MANAGER',
+            type: 'WORK_ORDER_CREATED',
+            title: 'New Work Order',
+            message: `${wo.workOrderNumber} — Work Order for ${planWithOrder.salesOrder.orderNumber} is ready for production.`,
+            route: '/production/work-orders',
+            entityType: 'WorkOrder',
+            entityId: wo.id,
+            eventKeyPrefix: `WORK_ORDER:${wo.id}:CREATED`,
+          }).catch((err) =>
+            console.warn('[ProductionService Notification] Failed to notify WORK_ORDER_CREATED:', err.message),
+          );
+        }
+      }
+    }
+
+    return result;
   }
 }

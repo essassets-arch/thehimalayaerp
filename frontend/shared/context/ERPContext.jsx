@@ -19,7 +19,7 @@ import {
 export { useERPStore } from '../../store/erpStore';
 import { apiClient } from '../../lib/apiClient';
 import { deepEqual } from '../../lib/deepEqual';
-import { useNotifications } from './NotificationContext';
+import { useNotificationStore } from '../../store/notificationStore';
 import { customersReadRepository } from '../../services/customers/customersReadRepository';
 import { leadsReadRepository } from '../../services/leads/leadsReadRepository';
 import { useAuthStore } from '../../store/authStore';
@@ -38,12 +38,12 @@ let lastSyncStartedAt = 0;
 
 export const useERP = () => {
   const store = useERPStore();
-  const notificationStore = useNotifications();
+  const addNotification = useNotificationStore(state => state.addNotification);
   const currentUser = useAuthStore(auth => auth.user);
 
-  const notify = (title, message, role) => {
-    if (notificationStore?.addNotification) {
-      notificationStore.addNotification({
+  const notify = useCallback((title, message, role) => {
+    if (addNotification) {
+      addNotification({
         title,
         message,
         targetRole: role,
@@ -51,7 +51,7 @@ export const useERP = () => {
         timestamp: new Date().toISOString()
       });
     }
-  };
+  }, [addNotification]);
 
   const customersReadEnabled =
     process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_READ === 'true' &&

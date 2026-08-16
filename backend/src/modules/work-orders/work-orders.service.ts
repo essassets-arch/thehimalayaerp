@@ -6,12 +6,14 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { getSalesScope } from '../../common/utils/rbac.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class WorkOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async listWorkOrders(statuses?: string[], userId?: string, role?: string) {
@@ -82,7 +84,7 @@ export class WorkOrdersService {
     remarks?: string,
     userId?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const wo = await tx.workOrder.findUnique({
         where: { id },
         include: { workflowState: true },
@@ -215,6 +217,56 @@ export class WorkOrdersService {
 
       return updated;
     });
+
+    if (this.notificationsService && result) {
+      const woWithDetails = await this.prisma.workOrder.findUnique({
+        where: { id: result.id },
+        include: {
+          productionPlan: {
+            include: {
+              salesOrder: { include: { customer: true } },
+            },
+          },
+        },
+      });
+
+      const companyId = woWithDetails?.productionPlan?.salesOrder?.customer?.companyId;
+      const orderNumber = woWithDetails?.productionPlan?.salesOrder?.orderNumber || 'SO';
+
+      if (companyId) {
+        if (actionName === 'START') {
+          this.notificationsService.notifyRole({
+            companyId,
+            role: 'PLANT_HEAD',
+            type: 'PRODUCTION_STARTED',
+            title: 'Production Started',
+            message: `${woWithDetails.workOrderNumber} — Production has started for ${orderNumber}.`,
+            route: '/plant-head/planning',
+            entityType: 'WorkOrder',
+            entityId: woWithDetails.id,
+            eventKeyPrefix: `WORK_ORDER:${woWithDetails.id}:STARTED`,
+          }).catch((err) =>
+            console.warn('[WorkOrdersService Notification] Failed to notify PLANT_HEAD:', err.message),
+          );
+        } else if (actionName === 'COMPLETE') {
+          this.notificationsService.notifyRole({
+            companyId,
+            role: 'QC_INSPECTOR',
+            type: 'QC_REQUIRED',
+            title: 'QC Inspection Required',
+            message: `${woWithDetails.workOrderNumber} — Production is complete and ready for QC inspection.`,
+            route: '/qc/pending',
+            entityType: 'WorkOrder',
+            entityId: woWithDetails.id,
+            eventKeyPrefix: `WORK_ORDER:${woWithDetails.id}:QC_REQUIRED`,
+          }).catch((err) =>
+            console.warn('[WorkOrdersService Notification] Failed to notify QC_INSPECTOR:', err.message),
+          );
+        }
+      }
+    }
+
+    return result;
   }
 
   async sendToDispatch(id: string, userId: string) {

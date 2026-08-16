@@ -6,7 +6,11 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
     items: true;
     customer: true;
     workflowState: true;
-    productionPlans: true;
+    productionPlans: {
+      include: {
+        workOrders: true;
+      };
+    };
   };
 }> & {
   salesExecutive?: { id: string; name?: string; email?: string } | any;
@@ -22,6 +26,28 @@ export function mapSalesOrder(
   order: SalesOrderWithRelations,
 ): SalesOrderResponseDto {
   const productionPlan = order.productionPlans[0];
+  
+  const workOrders = productionPlan?.workOrders ?? [];
+  let calculatedProductionStatus: string | null = productionPlan?.status ?? null;
+  let calculatedQcStatus = 'NOT_READY';
+
+  if (workOrders.length > 0) {
+    const statuses = workOrders.map((wo) => String(wo.status).toUpperCase());
+    if (statuses.some(s => ['DISPATCHED', 'READY_FOR_DISPATCH', 'QC_APPROVED'].includes(s))) {
+      calculatedProductionStatus = 'QC_APPROVED';
+      calculatedQcStatus = 'QC_APPROVED';
+    } else if (statuses.some(s => ['QC_PENDING', 'COMPLETED'].includes(s))) {
+      calculatedProductionStatus = 'QC';
+      calculatedQcStatus = 'QC_PENDING';
+    } else if (statuses.some(s => ['STARTED', 'PARTIALLY_COMPLETED'].includes(s))) {
+      calculatedProductionStatus = 'IN_PRODUCTION';
+      calculatedQcStatus = 'PENDING';
+    } else if (statuses.some(s => ['CREATED', 'MATERIAL_PENDING', 'READY'].includes(s))) {
+      calculatedProductionStatus = 'PLANNED';
+      calculatedQcStatus = 'PENDING';
+    }
+  }
+
   const workflowStatus = order.workflowState?.code as
     typeof order.status | undefined;
   const effectiveStatus =
@@ -191,8 +217,9 @@ export function mapSalesOrder(
     returnStatus,
     replacementStatus,
     productionPlanId: productionPlan?.id ?? null,
-    productionStatus: productionPlan?.status ?? null,
+    productionStatus: calculatedProductionStatus,
     productionAssignedToId: productionPlan?.assignedToId ?? null,
+    qcStatus: calculatedQcStatus,
 
     workflowStateId: order.workflowStateId,
     workflowStateCode: order.workflowState?.code,

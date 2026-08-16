@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { getAdvancedScope } from '../../common/utils/rbac.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class MaterialRequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService?: NotificationsService,
+  ) {}
 
   private map(request: any) {
     return {
@@ -115,6 +119,22 @@ export class MaterialRequestsService {
       },
       include: { items: { include: { product: true } }, requestedBy: true },
     });
+
+    // Notify Plant Head of new Material Request awaiting approval
+    if (this.notificationsService) {
+      await this.notificationsService.notifyRole({
+        companyId,
+        role: 'PLANT_HEAD',
+        type: 'MATERIAL_REQUEST_PENDING_APPROVAL',
+        title: 'Material Request Awaiting Approval',
+        message: `${publicId} — Production has requested material for ${row.workOrderNo || 'Work Order'}.`,
+        route: '/plant-head/material-approvals',
+        entityType: 'MaterialRequest',
+        entityId: row.id,
+        eventKeyPrefix: `MATERIAL_REQUEST:${row.id}:PENDING_APPROVAL`,
+      }).catch(() => {});
+    }
+
     return this.map(row);
   }
 
@@ -164,6 +184,38 @@ export class MaterialRequestsService {
         include: { items: { include: { product: true } }, requestedBy: true },
       });
     });
+
+    // Notify Store / Production when Plant Head approves/rejects Material Request
+    if (this.notificationsService) {
+      if (status === 'PLANT_HEAD_APPROVED') {
+        await this.notificationsService.notifyRole({
+          companyId,
+          role: 'STORE_MANAGER',
+          type: 'MATERIAL_REQUEST_APPROVED',
+          title: 'Material Request Approved',
+          message: `${current.publicId} — Approved material request is ready for Store processing.`,
+          route: '/store/material-requests',
+          entityType: 'MaterialRequest',
+          entityId: current.id,
+          eventKeyPrefix: `MATERIAL_REQUEST:${current.id}:APPROVED`,
+        }).catch(() => {});
+      } else if (status === 'PLANT_HEAD_REJECTED' || status === 'REJECTED' || status.includes('REJECT')) {
+        if (current.requestedById) {
+          await this.notificationsService.notifyUser({
+            companyId,
+            userId: current.requestedById,
+            type: 'MATERIAL_REQUEST_REJECTED',
+            title: 'Material Request Rejected',
+            message: `${current.publicId} — Plant Head rejected the material request.`,
+            route: '/production/material-requests',
+            entityType: 'MaterialRequest',
+            entityId: current.id,
+            eventKey: `MATERIAL_REQUEST:${current.id}:REJECTED`,
+          }).catch(() => {});
+        }
+      }
+    }
+
     return this.map(row);
   }
 
@@ -232,6 +284,27 @@ export class MaterialRequestsService {
         include: { items: { include: { product: true } }, requestedBy: true },
       });
     });
+
+    if (this.notificationsService && row) {
+      if (dto.status === 'ISSUED_TO_PRODUCTION') {
+        if (row.requestedById) {
+          this.notificationsService.notifyUser({
+            companyId,
+            userId: row.requestedById,
+            type: 'MATERIAL_RELEASED',
+            title: 'Material Released',
+            message: `${row.publicId} — Store has released the requested material for ${row.workOrderNo || 'Work Order'}.`,
+            route: '/production/material-requests',
+            entityType: 'MaterialRequest',
+            entityId: row.id,
+            eventKey: `MATERIAL_REQUEST:${row.id}:RELEASED`,
+          }).catch((err) =>
+            console.warn('[MaterialRequestsService Notification] Failed to notify Material Released:', err.message)
+          );
+        }
+      }
+    }
+
     return this.map(row);
   }
 }

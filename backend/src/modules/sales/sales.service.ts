@@ -18,6 +18,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { WorkflowService } from '../workflow/workflow.service';
 import { CreditService } from '../finance/credit.service';
 import { getOrderSalesScope, getQuotationSalesScope, getSalesScope, isSalespersonScopedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SalesService {
@@ -26,6 +27,7 @@ export class SalesService {
     private readonly sequenceService: SequenceService,
     private readonly workflowService: WorkflowService,
     private readonly creditService: CreditService,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async listOrders(
@@ -72,7 +74,11 @@ export class SalesService {
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: true,
           workflowState: true,
-          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+          productionPlans: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { workOrders: true },
+          },
           dispatches: {
             include: { items: true },
             orderBy: { updatedAt: 'desc' },
@@ -126,7 +132,11 @@ export class SalesService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: true,
         workflowState: true,
-        productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+        productionPlans: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { workOrders: true },
+        },
         dispatches: {
           include: { items: true },
           orderBy: { updatedAt: 'desc' },
@@ -281,7 +291,11 @@ export class SalesService {
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: true,
           workflowState: true,
-          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+          productionPlans: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { workOrders: true },
+          },
         },
       });
 
@@ -305,7 +319,7 @@ export class SalesService {
     role?: string,
   ) {
     const scope = getSalesScope(userId, role, 'SalesOrder');
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
         where: { id, ...scope },
         include: { items: true },
@@ -375,7 +389,11 @@ export class SalesService {
           customer: true,
           items: true,
           workflowState: true,
-          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+          productionPlans: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { workOrders: true },
+          },
         },
       });
 
@@ -449,7 +467,11 @@ export class SalesService {
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: true,
           workflowState: true,
-          productionPlans: { orderBy: { createdAt: 'desc' }, take: 1 },
+          productionPlans: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { workOrders: true },
+          },
         },
       });
 
@@ -457,8 +479,116 @@ export class SalesService {
         success: true,
         message: `Action ${dto.action} processed successfully. New state: ${updated.workflowState?.name || updated.status}`,
         order: mapSalesOrder(orderWithPlan),
+        originalOrder: orderWithPlan,
       };
     });
+
+    const notificationsService = this.notificationsService;
+    if (notificationsService && result?.originalOrder) {
+      const order = result.originalOrder;
+      const companyId = order.customer.companyId;
+
+      if (dto.action === 'SEND_TO_PLANT') {
+        notificationsService.notifyRole({
+          companyId,
+          role: 'PLANT_HEAD',
+          type: 'SALES_ORDER_PENDING_PLANT_HEAD',
+          title: 'New Order Awaiting Review',
+          message: `${order.orderNumber} — ${order.customer.companyName} is awaiting Plant Head acceptance.`,
+          route: '/plant-head/incoming-orders',
+          entityType: 'SalesOrder',
+          entityId: order.id,
+          eventKeyPrefix: `SALES_ORDER:${order.id}:PENDING_PLANT_HEAD`,
+        }).catch((err) =>
+          console.warn('[SalesService Notification] Failed to notify PLANT_HEAD:', err.message),
+        );
+      } else if (dto.action === 'PLANT_APPROVE') {
+        const recipientId = order.salesExecutiveId || order.createdById;
+        if (recipientId) {
+          this.prisma.user.findUnique({
+            where: { id: recipientId },
+            include: { role: true },
+          }).then((recipient) => {
+            if (recipient) {
+              const isSuperSales = recipient.role?.code === 'SUPER_SALES';
+              const route = isSuperSales
+                ? `/supersales/orders/${order.id}`
+                : `/sales/orders/${order.id}`;
+
+              notificationsService.notifyUser({
+                companyId,
+                userId: recipient.id,
+                type: 'SALES_ORDER_PLANT_ACCEPTED',
+                title: 'Order Accepted by Plant Head',
+                message: `${order.orderNumber} — Plant Head has accepted the order.`,
+                route,
+                entityType: 'SalesOrder',
+                entityId: order.id,
+                eventKey: `SALES_ORDER:${order.id}:PLANT_ACCEPTED`,
+              }).catch((err) =>
+                console.warn('[SalesService Notification] Failed to notify Sales Executive/Owner:', err.message),
+              );
+            }
+          }).catch((err) => {
+            console.warn('[SalesService Notification] Failed to fetch recipient details:', err.message);
+          });
+        }
+      } else if (dto.action === 'PLANT_REJECT') {
+        const recipientId = order.salesExecutiveId || order.createdById;
+        if (recipientId) {
+          this.prisma.user.findUnique({
+            where: { id: recipientId },
+            include: { role: true },
+          }).then((recipient) => {
+            if (recipient) {
+              const isSuperSales = recipient.role?.code === 'SUPER_SALES';
+              const route = isSuperSales
+                ? `/supersales/orders/${order.id}`
+                : `/sales/orders/${order.id}`;
+
+              notificationsService.notifyUser({
+                companyId,
+                userId: recipient.id,
+                type: 'SALES_ORDER_RETURNED',
+                title: 'Order Requires Sales Action',
+                message: `${order.orderNumber} — Plant Head returned the order for correction/review.`,
+                route,
+                entityType: 'SalesOrder',
+                entityId: order.id,
+                eventKey: `SALES_ORDER:${order.id}:RETURNED`,
+              }).catch((err) =>
+                console.warn('[SalesService Notification] Failed to notify Sales Executive/Owner:', err.message),
+              );
+            }
+          }).catch((err) => {
+            console.warn('[SalesService Notification] Failed to fetch recipient details:', err.message);
+          });
+        }
+      } else if (dto.action === 'PLAN_PRODUCTION') {
+        const targetDateStr = order.productionPlans?.[0]?.plannedEndDate
+          ? new Date(order.productionPlans[0].plannedEndDate).toLocaleDateString('en-GB')
+          : 'not set';
+        notificationsService.notifyRole({
+          companyId,
+          role: 'PRODUCTION_MANAGER',
+          type: 'ORDER_RELEASED_TO_PRODUCTION',
+          title: 'Order Released to Production',
+          message: `${order.orderNumber} — Production target date is ${targetDateStr} and the order is ready for planning/execution.`,
+          route: '/production/incoming-orders',
+          entityType: 'SalesOrder',
+          entityId: order.id,
+          eventKeyPrefix: `SALES_ORDER:${order.id}:RELEASED_TO_PRODUCTION`,
+        }).catch((err) =>
+          console.warn('[SalesService Notification] Failed to notify PRODUCTION_MANAGER:', err.message),
+        );
+      }
+    }
+
+    return {
+      success: result.success,
+      message: result.message,
+      order: result.order,
+    };
   }
 
   async convertQuotationToOrder(

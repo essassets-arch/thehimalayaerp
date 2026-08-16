@@ -424,9 +424,21 @@ export default function PlantHeadPortal() {
     }
   }, [currentView]);
 
+  const [backendWorkOrders, setBackendWorkOrders] = useState([]);
+
+  const fetchWorkOrders = async () => {
+    try {
+      const result = await backendFetch('/api/backend/production/work-orders');
+      setBackendWorkOrders(Array.isArray(result) ? result : result?.data || []);
+    } catch (err) {
+      console.error('Failed to fetch work orders', err);
+    }
+  };
+
   useEffect(() => {
     if (canReadSalesOrders && (currentView === 'incoming-orders' || currentView === 'planning')) {
       void loadSalesOrders();
+      void fetchWorkOrders();
     } else if (!canReadSalesOrders) {
       setDirectBackendOrders([]);
     }
@@ -551,7 +563,7 @@ export default function PlantHeadPortal() {
 
   // ── FILTER STATE ──
   const [incomingSearch, setIncomingSearch] = useState('');
-  const [incomingStatusFilter, setIncomingStatusFilter] = useState('All');
+  const [incomingStatusFilter, setIncomingStatusFilter] = useState('PENDING');
   const [incomingPage, setIncomingPage] = useState(1);
   const [incomingPageSize, setIncomingPageSize] = useState(25);
 
@@ -2969,9 +2981,48 @@ export default function PlantHeadPortal() {
     );
   };
 
+  const getAccurateOrderStatusBadge = (row) => {
+    if (!row) return null;
+    const rawStatus = String(row.status || row.planningStatus || row.productionStatus || row.workflowStatus || row.workflowStateCode || '').toUpperCase();
+    const planStatus = String(row.productionPlan?.workflowState?.code || row.productionPlan?.status || '').toUpperCase();
+    const woStatus = String(row.workOrder?.productionStatus || row.workOrder?.status || '').toUpperCase();
+
+    if (['COMPLETED', 'PAYMENT_DONE', 'VERIFIED', 'DISPATCH_CLOSED'].includes(rawStatus) || rawStatus === 'COMPLETED') {
+      return <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✅ Payment Done & Completed</span>;
+    }
+    if (['DELIVERED', 'POD_RECEIVED', 'PAYMENT_PENDING'].includes(rawStatus) || ['DELIVERED', 'POD_RECEIVED'].includes(woStatus)) {
+      return <span style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #ffedd5', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>💳 Payment Pending</span>;
+    }
+    if (['DISPATCHED', 'IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(rawStatus) || ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT'].includes(woStatus)) {
+      return <span style={{ background: '#e0f2fe', color: '#0284c7', border: '1px solid #7dd3fc', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>🚚 In Transit</span>;
+    }
+    if (['READY_FOR_DISPATCH', 'QC_PASSED', 'DISPATCH_PENDING'].includes(rawStatus) || woStatus === 'QC_APPROVED' || woStatus === 'READY_FOR_DISPATCH') {
+      return <span style={{ background: '#ecfeff', color: '#0891b2', border: '1px solid #a5f3fc', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>📦 Dispatch Pending</span>;
+    }
+    if (['QC_FAILED', 'REJECTED', 'REWORK'].includes(rawStatus) || woStatus === 'QC_FAILED') {
+      return <span style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚠️ QC Failed (Rework)</span>;
+    }
+    if (['QC_PENDING', 'PENDING_QC', 'READY_FOR_QC'].includes(rawStatus) || woStatus === 'PENDING_QC' || woStatus === 'QC_PENDING') {
+      return <span style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>🔍 QC Pending</span>;
+    }
+    if (['IN_PRODUCTION', 'IN_PROGRESS', 'WORK_ORDER_CREATED', 'PRODUCTION_STARTED'].includes(rawStatus) || ['IN_PRODUCTION', 'IN_PROGRESS'].includes(planStatus) || ['IN_PRODUCTION', 'STARTED'].includes(woStatus)) {
+      return <span style={{ background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙️ In Production</span>;
+    }
+    if (['PRODUCTION_PLANNED', 'PLANNED', 'RELEASED', 'READY_FOR_PRODUCTION'].includes(rawStatus) || planStatus === 'RELEASED' || Boolean(row.targetDate || row.productionTargetDate || row.planTargetDate)) {
+      return <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>📋 Planning Completed</span>;
+    }
+    if (['PLANT_APPROVED', 'PLANT_HEAD_ACCEPTED', 'ACCEPTED'].includes(rawStatus) || Boolean(row.acceptedByPlantHeadAt)) {
+      return <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>🕒 Planning</span>;
+    }
+    return <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⏳ Pending Acceptance</span>;
+  };
+
   const renderIncomingOrders = () => {
     const allIncomingOrders = orders.map(order => {
-      const workOrder = canonicalWorkOrders.find(wo =>
+      const workOrder = backendWorkOrders.find(wo =>
+        String(wo.productionPlan?.salesOrderId) === String(order.id) ||
+        String(wo.productionPlan?.salesOrder?.orderNumber) === String(order.orderNumber || order.orderNo)
+      ) || canonicalWorkOrders.find(wo =>
         String(wo.orderId || wo.orderNo) === String(order.id || order.orderNo)
       );
       const backendPlan = planningOrders.find(plan =>
@@ -3057,16 +3108,7 @@ export default function PlantHeadPortal() {
       );
     };
 
-    const statusBadge = (row) => {
-      const planning = normalizeStatus(row.planningStatus || row.status);
-      if (planning === 'PENDING_ACCEPTANCE' || row.planningStatus === 'PENDING_ACCEPTANCE' || row.status === 'SENT_TO_PLANT' || row.status === 'SENT_TO_PLANT_HEAD') {
-        return <span style={{ background: '#fef3c7', color: '#d97706', border: '1px solid #fcd34d', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Pending Acceptance</span>;
-      }
-      if (planning === 'PRODUCTION_PLANNED' || row.workOrder) {
-        return <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Production Planned</span>;
-      }
-      return <span style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Accepted — Pending Planning</span>;
-    };
+    const statusBadge = (row) => getAccurateOrderStatusBadge(row);
 
     const handleAcceptOrder = async (order) => {
       const { value: remarks } = await Swal.fire({
@@ -3378,7 +3420,10 @@ export default function PlantHeadPortal() {
     ];
     const allPlanningOrders = orders
       .map(order => {
-        const workOrder = canonicalWorkOrders.find(wo =>
+        const workOrder = backendWorkOrders.find(wo =>
+          String(wo.productionPlan?.salesOrderId) === String(order.id) ||
+          String(wo.productionPlan?.salesOrder?.orderNumber) === String(order.orderNumber || order.orderNo)
+        ) || canonicalWorkOrders.find(wo =>
           String(wo.orderId || wo.orderNo) === String(order.id || order.orderNo)
         );
         const backendPlan = planningOrders.find(plan =>
@@ -3449,11 +3494,7 @@ export default function PlantHeadPortal() {
       return <span style={{ background: c.bg, color: c.color, border: `1px solid ${c.border}`, padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>{priority || 'Medium'}</span>;
     };
 
-    const statusBadge = (status) => {
-      if (status === 'Pending Planning' || status === 'PLANT_HEAD_ACCEPTED' || status === 'PLANT_APPROVED') return <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Awaiting Target Date</span>;
-      if (status === 'PRODUCTION_PLANNED') return <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>Production Planned</span>;
-      return <span style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #93c5fd', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>{status}</span>;
-    };
+    const statusBadge = (row) => getAccurateOrderStatusBadge(row);
 
     return (
       <div className="app-card">
@@ -3531,8 +3572,7 @@ export default function PlantHeadPortal() {
                 );
               }
             },
-            { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
-            { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row.planningStatus || row.status) },
+            { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) },
           ]}
           data={filtered}
           searchQuery={''}
@@ -3596,8 +3636,9 @@ export default function PlantHeadPortal() {
                 setSelectedOrderForPlanning(row);
                 setTargetDate(newTargetDate);
 
+                const targetPlanId = row.productionPlan?.id || row.productionPlanId || row.id;
                 if (row.id) {
-                  await backendFetch(`/api/backend/production/plans/${row.productionPlanId || row.id}`, {
+                  await backendFetch(`/api/backend/production/plans/${targetPlanId}`, {
                     method: 'PATCH',
                     body: { plannedEndDate: newTargetDate }
                   }).catch(() => null);

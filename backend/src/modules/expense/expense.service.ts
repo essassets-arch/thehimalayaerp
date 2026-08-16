@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ExpenseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService?: NotificationsService,
+  ) {}
 
   private async getActiveCompanyId(companyId: string): Promise<string> {
     const companyExists = await this.prisma.company.findUnique({
@@ -59,44 +63,28 @@ export class ExpenseService {
       }
     });
 
-    if (status === 'PENDING_HR') {
-      const hrUsers = await this.prisma.user.findMany({
-        where: {
-          companyId: activeCompanyId,
-          role: { code: 'HR' },
-          isActive: true
-        }
+    if (status === 'PENDING_HR' && this.notificationsService) {
+      await this.notificationsService.notifyRole({
+        companyId: activeCompanyId,
+        role: 'HR',
+        type: 'EXPENSE_SUBMITTED',
+        title: 'New Expense Claim Submitted',
+        message: `${employeeName} submitted an expense claim of ₹${body.amount} for approval.`,
+        route: '/hr/expenses',
+        entityType: 'Expense',
+        entityId: expense.id,
       });
-      if (hrUsers.length > 0) {
-        await this.prisma.notification.createMany({
-          data: hrUsers.map(hu => ({
-            companyId: activeCompanyId,
-            userId: hu.id,
-            title: 'New Expense Claim Submitted',
-            message: `${employeeName} submitted an expense claim of ₹${body.amount} for approval.`,
-            status: 'UNREAD'
-          }))
-        });
-      }
-    } else {
-      const adminUsers = await this.prisma.user.findMany({
-        where: {
-          companyId: activeCompanyId,
-          role: { code: 'SUPER_ADMIN' },
-          isActive: true
-        }
+    } else if (this.notificationsService) {
+      await this.notificationsService.notifyRole({
+        companyId: activeCompanyId,
+        role: 'SUPER_ADMIN',
+        type: 'EXPENSE_SUBMITTED',
+        title: 'HR Expense Claim Submitted',
+        message: `${employeeName} (HR) submitted an expense claim of ₹${body.amount} directly to Super Admin.`,
+        route: '/super-admin/expenses',
+        entityType: 'Expense',
+        entityId: expense.id,
       });
-      if (adminUsers.length > 0) {
-        await this.prisma.notification.createMany({
-          data: adminUsers.map(au => ({
-            companyId: activeCompanyId,
-            userId: au.id,
-            title: 'HR Expense Claim Submitted',
-            message: `${employeeName} (HR) submitted an expense claim of ₹${body.amount} directly to Super Admin.`,
-            status: 'UNREAD'
-          }))
-        });
-      }
     }
 
     return { success: true, data: expense };

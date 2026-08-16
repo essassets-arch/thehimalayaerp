@@ -1,64 +1,47 @@
-import { getToken } from 'firebase/messaging';
-import { messaging, isFirebaseSupported } from './firebase';
+import { getToken, onMessage, isSupported, getMessaging } from 'firebase/messaging';
+import { app } from './firebase';
+import { useNotificationStore } from '@/store/notificationStore';
 
-// Helper to generate a stable, pseudo-random UUID per browser session or browser storage
-const getDeviceUuid = () => {
-  let uuid = localStorage.getItem('erp_device_uuid');
-  if (!uuid) {
-    uuid = 'device_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('erp_device_uuid', uuid);
+const VAPID_KEY =
+  process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+  'BFcUKdC5mGzG-Tyy1z-X1PxTrlY3nPJ-GZc9PhokyE1-g7xfnMUb24gzb3kGLCvsnVftzjIJ9sJpljR8cR1Yl2s';
+
+const getAuthToken = () => {
+  if (typeof window === 'undefined') return null;
+  const hasAuthStorage = localStorage.getItem('auth-storage');
+  let token = localStorage.getItem('token');
+  if (!token && hasAuthStorage) {
+    try {
+      const auth = JSON.parse(hasAuthStorage);
+      token = auth?.state?.token;
+    } catch (e) {}
   }
-  return uuid;
-};
-
-// Parse basic browser / OS environment details for the device list UI
-const getDeviceInfo = () => {
-  const ua = navigator.userAgent;
-  let browser = 'Unknown Browser';
-  let platform = 'Unknown OS';
-
-  if (ua.includes('Chrome')) browser = 'Chrome';
-  else if (ua.includes('Firefox')) browser = 'Firefox';
-  else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
-  else if (ua.includes('Edge')) browser = 'Edge';
-
-  if (ua.includes('Windows')) platform = 'Windows';
-  else if (ua.includes('Macintosh')) platform = 'macOS';
-  else if (ua.includes('Android')) platform = 'Android';
-  else if (ua.includes('iPhone') || ua.includes('iPad')) platform = 'iOS';
-  else if (ua.includes('Linux')) platform = 'Linux';
-
-  return {
-    browser,
-    platform,
-    deviceName: `${platform} ${browser}`,
-    deviceUuid: getDeviceUuid(),
-  };
+  return token;
 };
 
 /**
- * Send the FCM token to the backend server.
+ * Register FCM device token on backend.
  */
 const sendTokenToServer = async (fcmToken) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) return;
 
-    const deviceInfo = getDeviceInfo();
-    const res = await fetch('/api/firebase/tokens', {
+    const res = await fetch('/api/backend/notifications/device-token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        fcmToken,
-        ...deviceInfo,
+        token: fcmToken,
+        deviceType: 'web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       }),
     });
 
     const data = await res.json();
-    if (data.success) {
+    if (res.ok || data.success) {
       console.log('[Firebase Client] Token registered successfully on backend.');
       localStorage.setItem('registered_fcm_token', fcmToken);
     }
@@ -68,23 +51,23 @@ const sendTokenToServer = async (fcmToken) => {
 };
 
 /**
- * Remove/Deactivate FCM token on backend.
+ * Remove/Deactivate FCM token on logout.
  */
 export const deactivateFCMToken = async () => {
   const currentToken = localStorage.getItem('registered_fcm_token');
   if (!currentToken) return;
 
   try {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) return;
 
-    await fetch('/api/firebase/tokens', {
+    await fetch('/api/backend/notifications/device-token', {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ fcmToken: currentToken }),
+      body: JSON.stringify({ token: currentToken }),
     });
 
     console.log('[Firebase Client] Token deactivated on backend.');
@@ -98,42 +81,59 @@ export const deactivateFCMToken = async () => {
  * Main permission requesting and token registration flow.
  */
 export const initializePushNotifications = async () => {
-  if (!isFirebaseSupported || !messaging) {
-    console.log('[Firebase Client] Messaging not supported or configured on this browser — skipping push setup.');
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return;
   }
 
   try {
-    // 1. Request notification permission
-    const permission = await Notification.requestPermission();
-    console.log(`[Firebase Client] Notification permission: ${permission}`);
+    const supported = await isSupported();
+    if (!supported || !app) {
+      console.log('[Firebase Client] Messaging not supported or configured — skipping push setup.');
+      return;
+    }
 
+    const messagingInstance = getMessaging(app);
+
+    // 1. Register background service worker
+    const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    await navigator.serviceWorker.ready;
+
+    // 2. Request notification permission
+    const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
       console.log('[Firebase Client] Notification permission denied by user.');
       return;
     }
 
-    // 2. Fetch the registration token
-    // We register the background service worker file name explicitly
-    const swRegistration = await navigator.serviceWorker.ready;
-    const fcmToken = await getToken(messaging, {
+    // 3. Fetch FCM token
+    const fcmToken = await getToken(messagingInstance, {
       serviceWorkerRegistration: swRegistration,
-      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || '',
+      vapidKey: VAPID_KEY,
     });
 
     if (fcmToken) {
       console.log('[Firebase Client] FCM token obtained.');
-      
-      // 3. Register token on backend if it has changed
       const savedToken = localStorage.getItem('registered_fcm_token');
       if (savedToken !== fcmToken) {
         await sendTokenToServer(fcmToken);
-      } else {
-        console.log('[Firebase Client] Token is up to date.');
       }
-    } else {
-      console.warn('[Firebase Client] No FCM token retrieved. User may need to regrant permissions.');
     }
+
+    // 4. Foreground FCM Listener: Refetches Bell unread list/count and shows toast
+    onMessage(messagingInstance, (payload) => {
+      console.log('[Firebase Client] Foreground push received:', payload);
+      const title = payload.notification?.title || payload.data?.title || 'New Notification';
+      const body = payload.notification?.body || payload.data?.message || '';
+
+      // Trigger store refetch and toast
+      const store = useNotificationStore.getState();
+      if (store.fetchNotifications) {
+        store.fetchNotifications();
+      }
+      if (store.showToast && body) {
+        store.showToast(`${title}: ${body}`);
+      }
+    });
   } catch (err) {
     console.warn('[Firebase Client] Error setting up push notifications:', err.message);
   }

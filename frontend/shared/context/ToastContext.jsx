@@ -1,13 +1,14 @@
 import { useNotificationStore } from '@/store/notificationStore';
+import { useShallow } from 'zustand/react/shallow';
 
 export const useToast = () => {
-  const store = useNotificationStore();
-  
-  return {
-    addToast: store.showToast,
-    removeToast: store.dismissToast,
-    showToast: store.showToast
-  };
+  return useNotificationStore(
+    useShallow((state) => ({
+      addToast: state.showToast,
+      removeToast: state.dismissToast,
+      showToast: state.showToast
+    }))
+  );
 };
 
 export const ToastProvider = ({ children }) => {

@@ -12,6 +12,8 @@ import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
 import { CreateDispatchDto } from './dto/create-dispatch.dto';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 
+import { NotificationsService } from '../notifications/notifications.service';
+
 @Injectable()
 export class DispatchService {
   constructor(
@@ -19,6 +21,7 @@ export class DispatchService {
     private readonly workflowService: WorkflowService,
     private readonly creditService: CreditService,
     private readonly sequenceService: SequenceService,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async listDispatches(userId?: string, role?: string, status?: string) {
@@ -93,7 +96,7 @@ export class DispatchService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const so = await tx.salesOrder.findUnique({
         where: { id: dto.salesOrderId },
         include: {
@@ -427,6 +430,54 @@ export class DispatchService {
 
       return dispatch;
     });
+
+    if (this.notificationsService && result) {
+      // Query salesOrder customer & salesExecutiveId
+      const dispatchWithDetails = await this.prisma.dispatch.findUnique({
+        where: { id: result.id },
+        include: {
+          salesOrder: { include: { customer: true } },
+        },
+      });
+
+      if (dispatchWithDetails?.salesOrder?.salesExecutiveId) {
+        const companyId = dispatchWithDetails.salesOrder.customer.companyId;
+        const executiveId = dispatchWithDetails.salesOrder.salesExecutiveId;
+        const soNo = dispatchWithDetails.salesOrder.orderNumber;
+
+        // 1. Dispatch Created Notification
+        this.notificationsService.notifyUser({
+          companyId,
+          userId: executiveId,
+          type: 'DISPATCH_CREATED',
+          title: 'Dispatch Created',
+          message: `${dispatchWithDetails.dispatchNo} — Dispatch has been created for ${soNo}.`,
+          route: `/sales/orders/${dispatchWithDetails.salesOrderId}`,
+          entityType: 'Dispatch',
+          entityId: dispatchWithDetails.id,
+          eventKey: `DISPATCH:${dispatchWithDetails.id}:CREATED`,
+        }).catch((err) =>
+          console.warn('[DispatchService Notification] Failed to notify DISPATCH_CREATED:', err.message),
+        );
+
+        // 2. Dispatch In Transit Notification
+        this.notificationsService.notifyUser({
+          companyId,
+          userId: executiveId,
+          type: 'DISPATCH_IN_TRANSIT',
+          title: 'Shipment In Transit',
+          message: `${dispatchWithDetails.dispatchNo} — Shipment for ${soNo} is now in transit.`,
+          route: `/sales/orders/${dispatchWithDetails.salesOrderId}`,
+          entityType: 'Dispatch',
+          entityId: dispatchWithDetails.id,
+          eventKey: `DISPATCH:${dispatchWithDetails.id}:IN_TRANSIT`,
+        }).catch((err) =>
+          console.warn('[DispatchService Notification] Failed to notify DISPATCH_IN_TRANSIT:', err.message),
+        );
+      }
+    }
+
+    return result;
   }
 
   async startDelivery(id: string) {
@@ -484,7 +535,7 @@ export class DispatchService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const deliveryResult = await this.prisma.$transaction(async (tx) => {
       // 1. Inventory OUT transaction
       for (const item of dispatch.items) {
         let warehouse = await tx.warehouse.findFirst({
@@ -600,6 +651,23 @@ export class DispatchService {
 
       return updatedDispatch;
     });
+
+    // Notify Salesperson / Super Sales owner post-commit
+    if (dispatch.salesOrder?.salesExecutiveId && this.notificationsService) {
+      await this.notificationsService.notifyUser({
+        companyId: dispatch.salesOrder.customer.companyId,
+        userId: dispatch.salesOrder.salesExecutiveId,
+        type: 'DISPATCH_DELIVERED',
+        title: 'Order Delivered',
+        message: `${dispatch.salesOrder.orderNumber} — Delivery to ${dispatch.salesOrder.customer.companyName} has been completed.`,
+        route: `/sales/orders/${dispatch.salesOrderId}`,
+        entityType: 'Dispatch',
+        entityId: dispatch.id,
+        eventKey: `DISPATCH:${dispatch.id}:DELIVERED`,
+      }).catch(() => {});
+    }
+
+    return deliveryResult;
   }
 
   async getFinishedGoodsHistory() {

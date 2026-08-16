@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Calendar, Bell, ArrowUpRight, X, AlertTriangle, CheckCircle2, Info, Zap, UserCheck, Camera, Clock, LogOut, LogIn, UserX, ShieldCheck, MapPin, Navigation, RefreshCw, Fingerprint } from 'lucide-react';
+import { Search, Calendar, Bell, BellOff, ArrowUpRight, X, AlertTriangle, CheckCircle2, Info, Zap, UserCheck, Camera, Clock, LogOut, LogIn, UserX, ShieldCheck, MapPin, Navigation, RefreshCw, Fingerprint } from 'lucide-react';
 import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
 import Swal from 'sweetalert2';
@@ -72,7 +72,7 @@ export default function HeroBanner({
   onMenuToggle,
 }) {
   const { user } = useAuth();
-  const { notifications, unreadCount, totalCount, markAllAsRead, isMarkingAllRead } = useNotifications();
+  const { notifications, unreadCount, totalCount, markAllAsRead, isMarkingAllRead, markAsRead, fetchNotifications } = useNotifications();
   
   const searchInputRef = useRef(null);
   const navigate = useRouter();
@@ -80,9 +80,12 @@ export default function HeroBanner({
   // Treat root-level paths (e.g. "/", "/sales", "/admin") as dashboard — show full banner + stats
   const isDashboard = propIsDashboard ?? /^\/[^/]*$/.test(location.pathname);
 
+  const [showAllNotificationsModal, setShowAllNotificationsModal] = useState(false);
+  const [modalNotifFilter, setModalNotifFilter] = useState('All');
+
   const handleViewAll = () => {
     setShowNotifications(false);
-    navigate.push('/notifications');
+    setShowAllNotificationsModal(true);
   };
   const dropdownRef = useRef(null);
   const searchContainerRef = useRef(null);
@@ -372,6 +375,7 @@ export default function HeroBanner({
     }
   }, [showPunchModal]);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(12);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [notifFilter, setNotifFilter] = useState('All'); // 'All' | 'Unread' | 'High'
   const isMobile = useMediaQuery('(max-width: 768px)');
 
@@ -442,7 +446,6 @@ export default function HeroBanner({
   // Filtered notifications based on tab
   const filteredNotifications = notifications.filter(n => {
     if (notifFilter === 'Unread') return !n.is_read;
-    if (notifFilter === 'High') return n.priority === 'High' || n.priority === 'Critical';
     if (notifFilter === 'Read') return n.is_read;
     return true;
   });
@@ -887,7 +890,7 @@ export default function HeroBanner({
                     {[
                       { label: 'All', count: notifications.length },
                       { label: 'Unread', count: notifications.filter(n => !n.is_read).length },
-                      { label: 'High', count: notifications.filter(n => n.priority === 'High' || n.priority === 'Critical').length },
+                      { label: 'Read', count: notifications.filter(n => n.is_read).length },
                     ].map(tab => (
                       <button
                         key={tab.label}
@@ -939,7 +942,6 @@ export default function HeroBanner({
                       </div>
                       <span style={{ fontSize: '12px', color: '#8893A7', fontWeight: '600', textAlign: 'center' }}>
                         {notifFilter === 'Unread' ? 'All caught up! No unread alerts.' :
-                         notifFilter === 'High' ? 'No high priority alerts.' :
                          notifFilter === 'Read' ? 'No read alerts yet.' :
                          'No notifications yet.'}
                       </span>
@@ -952,15 +954,20 @@ export default function HeroBanner({
                           key={n.id || idx}
                           style={{
                             display: 'flex', gap: '10px', padding: '10px 10px',
-                            borderRadius: '12px', cursor: 'default',
-                            background: n.is_read ? 'transparent' : 'rgba(248,250,252,0.8)',
-                            border: n.is_read ? '1px solid transparent' : '1px solid rgba(226,232,240,0.6)',
+                            borderRadius: '12px', cursor: 'pointer',
+                            background: (n.isRead || n.is_read) ? 'transparent' : 'rgba(248,250,252,0.8)',
+                            border: (n.isRead || n.is_read) ? '1px solid transparent' : '1px solid rgba(226,232,240,0.6)',
                             marginBottom: '4px',
                             transition: 'background 0.15s ease',
-                            opacity: n.is_read ? 0.65 : 1,
+                            opacity: (n.isRead || n.is_read) ? 0.65 : 1,
+                          }}
+                          onClick={() => {
+                            if (n.id) markAsRead(n.id);
+                            setShowNotifications(false);
+                            if (n.route) navigate.push(n.route);
                           }}
                           onMouseEnter={e => { e.currentTarget.style.background = '#F5FAFE'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = n.is_read ? 'transparent' : 'rgba(248,250,252,0.8)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = (n.isRead || n.is_read) ? 'transparent' : 'rgba(248,250,252,0.8)'; }}
                         >
                           {/* Icon dot */}
                           <div style={{
@@ -1328,7 +1335,176 @@ export default function HeroBanner({
         document.body
       )}
 
+      {showAllNotificationsModal && typeof window !== 'undefined' && createPortal(
+        <div
+          onClick={() => setShowAllNotificationsModal(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 999999,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'grid', placeItems: 'center',
+            padding: '16px',
+            overflowY: 'auto'
+          }}
+        >
+          <div
+            className="punch-attendance-modal"
+            style={{ maxWidth: '650px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #24345C 100%)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', flexShrink: 0 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Bell size={20} color="var(--color-lime-brand, #dcf26b)" />
+                  Himalaya ERP Notifications Portal
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
+                  Total: {totalCount} notifications ({unreadCount} unread)
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={() => markAllAsRead()}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button 
+                  onClick={() => setShowAllNotificationsModal(false)}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
 
+            {/* Modal Filters */}
+            <div style={{ display: 'flex', gap: '8px', padding: '16px 24px 8px 24px', borderBottom: '1px solid #e2e8f0', background: '#fafbfc' }}>
+              {['All', 'Unread', 'Read'].map(filter => {
+                const isActive = modalNotifFilter === filter;
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => setModalNotifFilter(filter)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      border: isActive ? '1px solid #2F4375' : '1px solid #e2e8f0',
+                      background: isActive ? '#2F4375' : '#ffffff',
+                      color: isActive ? '#ffffff' : '#64748B',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {filter}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Modal Body */}
+            <div className="punch-attendance-body" style={{ maxHeight: '450px', overflowY: 'auto' }}>
+              {(() => {
+                const filtered = notifications.filter(n => {
+                  if (modalNotifFilter === 'Unread') return !n.isRead && !n.is_read;
+                  if (modalNotifFilter === 'Read') return n.isRead || n.is_read;
+                  return true;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: '8px', color: '#64748B' }}>
+                      <BellOff size={32} color="#94a3b8" />
+                      <span style={{ fontSize: '13px', fontWeight: '800' }}>No notifications found</span>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>You are all caught up!</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {filtered.map(n => {
+                      const isUnread = !n.isRead && !n.is_read;
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            if (isUnread) markAsRead(n.id);
+                            if (n.route) {
+                              setShowAllNotificationsModal(false);
+                              navigate.push(n.route);
+                            }
+                          }}
+                          style={{
+                            background: isUnread ? '#eff6ff' : '#ffffff',
+                            border: isUnread ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                            borderRadius: '10px',
+                            padding: '14px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            gap: '12px',
+                            alignItems: 'flex-start',
+                            transition: 'all 0.15s ease',
+                            position: 'relative',
+                            textAlign: 'left',
+                          }}
+                        >
+                          {/* Dot indicator */}
+                          {isUnread && (
+                            <div style={{
+                              position: 'absolute', top: '14px', right: '14px',
+                              width: '8px', height: '8px', borderRadius: '50%',
+                              background: '#2563eb',
+                            }} />
+                          )}
+                          <div style={{
+                            background: isUnread ? '#dbeafe' : '#f1f5f9',
+                            color: isUnread ? '#2563eb' : '#64748B',
+                            borderRadius: '50%',
+                            width: '32px', height: '32px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                          }}>
+                            <Bell size={16} />
+                          </div>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginRight: isUnread ? '16px' : '0' }}>
+                              <span style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>
+                                {n.title || 'System Notification'}
+                              </span>
+                              <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700' }}>
+                                {n.createdAt ? new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '12px', color: '#475569', lineHeight: '1.4' }}>
+                              {n.message}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       <style>{`
         @keyframes notifPop {

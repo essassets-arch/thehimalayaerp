@@ -658,7 +658,7 @@ export class PlantHeadService {
       where: {
         customer: { companyId },
         workflowState: {
-          code: { in: ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'] },
+          code: { in: ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'SEND_TO_PLANT'] },
         },
       },
       include: {

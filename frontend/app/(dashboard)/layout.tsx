@@ -11,6 +11,7 @@ import { useERPStore } from '@/store/erpStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useBadgeStore } from '@/store/badgeStore';
 import { ERPProvider } from '@/shared/context/ERPContext';
+import { NotificationProvider } from '@/shared/context/NotificationContext';
 import MockDataSeeder from '@/components/MockDataSeeder';
 import { getNavigationForPath, getModuleKeyFromPath } from '@/config/navigationHelpers';
 import AuthGuard from '@/shared/components/AuthGuard';
@@ -118,6 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <AuthGuard>
     <ERPProvider>
+    <NotificationProvider>
       <div className={`app-container ${roleClass}`}>
       <MockDataSeeder />
       {/* Sidebar Navigation */}
@@ -165,6 +167,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
     </div>
+    </NotificationProvider>
     </ERPProvider>
     </AuthGuard>
   );

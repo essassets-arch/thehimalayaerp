@@ -1,74 +1,285 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { FirebasePushService } from './firebase-push.service';
+
+export interface CreateNotificationDto {
+  companyId: string;
+  userId: string;
+  type?: string;
+  title: string;
+  message: string;
+  route?: string;
+  entityType?: string;
+  entityId?: string;
+  eventKey?: string;
+}
+
+export interface NotifyRoleDto {
+  companyId: string;
+  role?: string;
+  roles?: string[];
+  type?: string;
+  title: string;
+  message: string;
+  route?: string;
+  entityType?: string;
+  entityId?: string;
+  eventKeyPrefix?: string;
+}
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
 
-  async getUnread(userId: string) {
-    return this.prisma.notification.findMany({
-      where: {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly firebasePushService: FirebasePushService,
+  ) {}
+
+  /**
+   * Primary method to notify a single specific user.
+   * Creates PostgreSQL Notification record first (Source of Truth),
+   * then attempts asynchronous FCM push post-commit.
+   */
+  async notifyUser(dto: CreateNotificationDto): Promise<any> {
+    const {
+      companyId,
+      userId,
+      type = 'GENERAL',
+      title,
+      message,
+      route,
+      entityType,
+      entityId,
+      eventKey,
+    } = dto;
+
+    if (eventKey) {
+      const existing = await this.prisma.notification.findUnique({
+        where: { eventKey },
+      });
+      if (existing) {
+        this.logger.log(`Notification with eventKey "${eventKey}" already exists. Skipping duplicate creation.`);
+        return existing;
+      }
+    }
+
+    const notification = await this.prisma.notification.create({
+      data: {
+        companyId,
         userId,
+        type,
+        title,
+        message,
+        route,
+        entityType,
+        entityId,
+        eventKey,
+        isRead: false,
         status: 'UNREAD',
       },
-      orderBy: {
-        createdAt: 'desc',
+    });
+
+    setImmediate(async () => {
+      try {
+        await this.firebasePushService.sendPushToUser(
+          userId,
+          companyId,
+          title,
+          message,
+          {
+            notificationId: notification.id,
+            type,
+            route: route || '',
+            entityType: entityType || '',
+            entityId: entityId || '',
+          },
+        );
+      } catch (err: any) {
+        this.logger.error(`Async FCM dispatch failed for notification ${notification.id}: ${err?.message || err}`);
+      }
+    });
+
+    return notification;
+  }
+
+  /**
+   * Primary method to notify all active users matching target role(s) within a specific company.
+   */
+  async notifyRole(dto: NotifyRoleDto): Promise<any[]> {
+    const {
+      companyId,
+      role,
+      roles,
+      type = 'GENERAL',
+      title,
+      message,
+      route,
+      entityType,
+      entityId,
+      eventKeyPrefix,
+    } = dto;
+
+    const targetRoles = roles || (role ? [role] : []);
+    if (targetRoles.length === 0) {
+      return [];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId,
+        isActive: true,
+        role: {
+          code: { in: targetRoles },
+        },
       },
-      take: 20,
+      select: { id: true },
+    });
+
+    if (users.length === 0) {
+      return [];
+    }
+
+    const createdNotifications: any[] = [];
+    for (const u of users) {
+      const eventKey = eventKeyPrefix ? `${eventKeyPrefix}:${u.id}` : undefined;
+      const notif = await this.notifyUser({
+        companyId,
+        userId: u.id,
+        type,
+        title,
+        message,
+        route,
+        entityType,
+        entityId,
+        eventKey,
+      });
+      createdNotifications.push(notif);
+    }
+
+    return createdNotifications;
+  }
+
+  async getNotifications(userId: string, companyId: string, limit = 20, offset = 0) {
+    const [items, unreadCount] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: {
+          userId,
+          companyId,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      }),
+      this.getUnreadCount(userId, companyId),
+    ]);
+
+    return {
+      items,
+      unreadCount,
+    };
+  }
+
+  async getUnreadCount(userId: string, companyId: string): Promise<number> {
+    return this.prisma.notification.count({
+      where: {
+        userId,
+        companyId,
+        isRead: false,
+      },
     });
   }
 
-  async markAsRead(id: string, userId: string) {
-    return this.prisma.notification.updateMany({
+  async markAsRead(id: string, userId: string, companyId: string) {
+    const result = await this.prisma.notification.updateMany({
       where: {
         id,
         userId,
+        companyId,
       },
       data: {
+        isRead: true,
+        status: 'READ',
+        readAt: new Date(),
+      },
+    });
+    if (result.count === 0) {
+      throw new NotFoundException('Notification not found or access denied');
+    }
+    return result;
+  }
+
+  async markAllAsRead(userId: string, companyId: string) {
+    return this.prisma.notification.updateMany({
+      where: {
+        userId,
+        companyId,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
         status: 'READ',
         readAt: new Date(),
       },
     });
   }
 
-  async markAllAsRead(userId: string) {
-    return this.prisma.notification.updateMany({
-      where: {
+  async registerDeviceToken(
+    userId: string,
+    companyId: string,
+    token: string,
+    deviceType = 'web',
+    userAgent?: string,
+  ) {
+    return this.prisma.fcmDeviceToken.upsert({
+      where: { token },
+      create: {
+        companyId,
         userId,
-        status: 'UNREAD',
+        token,
+        deviceType,
+        userAgent,
+        lastSeenAt: new Date(),
       },
-      data: {
-        status: 'READ',
-        readAt: new Date(),
+      update: {
+        companyId,
+        userId,
+        deviceType,
+        userAgent,
+        lastSeenAt: new Date(),
+      },
+    });
+  }
+
+  async removeDeviceToken(userId: string, companyId: string, token: string) {
+    return this.prisma.fcmDeviceToken.deleteMany({
+      where: {
+        token,
+        userId,
+        companyId,
       },
     });
   }
 
   async broadcast(body: any, companyId: string) {
-    const { roleCodes, title, message } = body;
+    const { roleCodes, title, message, route } = body;
     const targetRoles = Array.isArray(roleCodes) ? roleCodes : [roleCodes];
-
-    let activeCompanyId = companyId;
-    const companyExists = await this.prisma.company.findUnique({
-      where: { id: companyId }
-    });
-    if (!companyExists) {
-      const firstCompany = await this.prisma.company.findFirst();
-      if (firstCompany) {
-        activeCompanyId = firstCompany.id;
-      }
-    }
 
     const users = await this.prisma.user.findMany({
       where: {
-        companyId: activeCompanyId,
+        companyId,
         isActive: true,
-        ...(targetRoles.includes('ALL') ? {} : {
-          role: {
-            code: { in: targetRoles },
-          },
-        }),
+        ...(targetRoles.includes('ALL')
+          ? {}
+          : {
+              role: {
+                code: { in: targetRoles },
+              },
+            }),
       },
+      select: { id: true },
     });
 
     if (users.length === 0) {
@@ -79,40 +290,28 @@ export class NotificationsService {
       };
     }
 
-    const notificationsData = users.map((user) => ({
-      companyId: activeCompanyId,
-      userId: user.id,
-      title: title || 'Broadcast Notification',
-      message: message || '',
-      status: 'UNREAD' as const,
-    }));
-
-    await this.prisma.notification.createMany({
-      data: notificationsData,
-    });
+    for (const u of users) {
+      await this.notifyUser({
+        companyId,
+        userId: u.id,
+        type: 'BROADCAST',
+        title: title || 'System Announcement',
+        message: message || '',
+        route,
+      });
+    }
 
     return {
       success: true,
       count: users.length,
-      message: `Successfully broadcasted notification to ${users.length} users.`,
+      message: `Successfully broadcasted notification to ${users.length} user(s).`,
     };
   }
 
   async getBroadcastHistory(companyId: string) {
-    let activeCompanyId = companyId;
-    const companyExists = await this.prisma.company.findUnique({
-      where: { id: companyId }
-    });
-    if (!companyExists) {
-      const firstCompany = await this.prisma.company.findFirst();
-      if (firstCompany) {
-        activeCompanyId = firstCompany.id;
-      }
-    }
-
     const notifications = await this.prisma.notification.findMany({
       where: {
-        companyId: activeCompanyId,
+        companyId,
       },
       orderBy: {
         createdAt: 'desc',
@@ -120,14 +319,14 @@ export class NotificationsService {
       take: 100,
     });
 
-    const userIds = notifications.map(n => n.userId);
+    const userIds = Array.from(new Set(notifications.map((n) => n.userId)));
     const users = await this.prisma.user.findMany({
       where: {
-        id: { in: userIds }
+        id: { in: userIds },
       },
       include: {
-        role: true
-      }
+        role: true,
+      },
     });
 
     const userMap = new Map<string, any>();
@@ -135,18 +334,45 @@ export class NotificationsService {
       userMap.set(u.id, {
         name: u.name,
         email: u.email,
-        roleName: u.role?.name || 'User'
+        roleName: u.role?.name || 'User',
       });
     }
 
-    return notifications.map(notif => {
+    return notifications.map((notif) => {
       const u = userMap.get(notif.userId);
       return {
         ...notif,
         recipientName: u?.name || 'Unknown Recipient',
         recipientEmail: u?.email || 'N/A',
-        recipientRole: u?.roleName || 'N/A'
+        recipientRole: u?.roleName || 'N/A',
       };
     });
+  }
+
+  async sendTestPushToUser(userId: string, companyId: string) {
+    const tokens = await this.prisma.fcmDeviceToken.findMany({
+      where: { userId, companyId }
+    });
+
+    if (tokens.length === 0) {
+      return { success: false, message: 'No registered FCM device tokens found for this user.' };
+    }
+
+    const payload = {
+      title: 'FCM Verification 🚀',
+      message: 'Dual-channel push notifications are fully configured and functional!',
+      route: '/plant-head/incoming-orders',
+      type: 'TEST'
+    };
+
+    try {
+      await this.firebasePushService.sendPushToUser(userId, companyId, payload.title, payload.message, {
+        route: payload.route,
+        type: payload.type
+      });
+      return { success: true, message: 'Test push notification triggered successfully.', tokensCount: tokens.length };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
   }
 }

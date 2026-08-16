@@ -56,3 +56,6 @@ frontend/playwright-report/
 playwright-report/
 
 .setup.txt
+
+# Firebase credentials
+backend/firebase-service-account.json
