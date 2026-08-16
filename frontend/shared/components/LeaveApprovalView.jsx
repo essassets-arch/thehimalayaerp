@@ -43,7 +43,7 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
 
   useEffect(() => {
     fetchPending();
-    if (roleMode === 'SUPER_ADMIN') {
+    if (roleMode === 'SUPER_ADMIN' || roleMode === 'HR') {
       fetchAudit();
     }
   }, [fetchPending, fetchAudit, roleMode]);
@@ -86,7 +86,7 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
           });
           setRemarksInput(prev => ({ ...prev, [id]: '' }));
           await fetchPending();
-          if (roleMode === 'SUPER_ADMIN') {
+          if (roleMode === 'SUPER_ADMIN' || roleMode === 'HR') {
             await fetchAudit();
           }
         } else {
@@ -115,7 +115,7 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
         });
         setRemarksInput(prev => ({ ...prev, [id]: '' }));
         await fetchPending();
-        if (roleMode === 'SUPER_ADMIN') {
+        if (roleMode === 'SUPER_ADMIN' || roleMode === 'HR') {
           await fetchAudit();
         }
       } else {
@@ -147,7 +147,7 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
           <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0', fontWeight: '600' }}>{getSubTitle()}</p>
         </div>
         <button
-          onClick={() => { fetchPending(); if (roleMode === 'SUPER_ADMIN') fetchAudit(); }}
+          onClick={() => { fetchPending(); if (roleMode === 'SUPER_ADMIN' || roleMode === 'HR') fetchAudit(); }}
           disabled={loading}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#ffffff', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '12.5px', cursor: 'pointer', transition: 'all 0.2s' }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
@@ -157,14 +157,14 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
         </button>
       </div>
 
-      {/* Tabs configuration for Super Admin */}
-      {roleMode === 'SUPER_ADMIN' && (
+      {/* Tabs configuration for HR and Super Admin */}
+      {(roleMode === 'SUPER_ADMIN' || roleMode === 'HR') && (
         <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '6px' }}>
           <button
             onClick={() => setActiveSubTab('pending')}
             style={{ padding: '10px 20px', border: 'none', background: 'transparent', borderBottom: activeSubTab === 'pending' ? '3px solid #0284c7' : '3px solid transparent', color: activeSubTab === 'pending' ? '#0284c7' : '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.15s' }}
           >
-            Pending Final Review ({requests.length})
+            Pending Approvals ({requests.length})
           </button>
           <button
             onClick={() => setActiveSubTab('audit')}

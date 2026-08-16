@@ -1925,7 +1925,7 @@ export default function HRPortal() {
       case 'attendance':
         return renderAttendance();
       case 'leaves':
-        return renderLeaves();
+        return <LeaveApprovalView roleMode="HR" />;
       case 'exit-clearance':
         return renderExitClearance();
       case 'payroll':

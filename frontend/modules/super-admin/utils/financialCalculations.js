@@ -244,18 +244,18 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   });
 
   const approvedByDept = approvedExpenses.reduce((acc, ex) => {
-    const deptKey = String(ex.department || ex.dept || '').toLowerCase();
-    const amount = Number(ex.amount) || 0;
-    if (deptKey.includes('store') || deptKey.includes('procurement')) acc.store = (acc.store || 0) + amount;
-    else if (deptKey.includes('prod') || deptKey.includes('plant')) acc.prod = (acc.prod || 0) + amount;
-    else if (deptKey.includes('qc') || deptKey.includes('quality')) acc.qc = (acc.qc || 0) + amount;
-    else if (deptKey.includes('dispatch') || deptKey.includes('logistics')) acc.dispatch = (acc.dispatch || 0) + amount;
-    else if (deptKey.includes('hr') || deptKey.includes('payroll')) acc.hr = (acc.hr || 0) + amount;
-    else if (deptKey.includes('sales') || deptKey.includes('market')) acc.sales = (acc.sales || 0) + amount;
-    else if (deptKey.includes('finance') || deptKey.includes('account')) acc.finance = (acc.finance || 0) + amount;
-    else acc.other = (acc.other || 0) + amount;
+    const deptName = ex.department || ex.dept || 'General';
+    acc[deptName] = (acc[deptName] || 0) + (Number(ex.amount) || 0);
     return acc;
   }, {});
+
+  // Collect unique department names from rawEmployees to populate 0 cost items
+  rawEmployees.forEach(emp => {
+    const deptName = emp.department?.name || emp.department || 'General';
+    if (deptName && !approvedByDept[deptName]) {
+      approvedByDept[deptName] = 0;
+    }
+  });
 
   const totalApprovedExpenses = approvedExpenses.reduce((sum, ex) => sum + (Number(ex.amount) || 0), 0);
 
@@ -374,16 +374,13 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   // Monthly Performance
   const monthlyPerformance = [];
 
-  // Department-Wise Costs
-  const departmentCosts = [
-    { name: 'Store / Procurement', costVal: formatCurrency(approvedByDept.store || 0), accent: '#3b82f6' },
-    { name: 'Production', costVal: formatCurrency(approvedByDept.prod || 0), accent: '#10b981' },
-    { name: 'Quality Control (QC)', costVal: formatCurrency(approvedByDept.qc || 0), accent: '#ef4444' },
-    { name: 'Dispatch & Logistics', costVal: formatCurrency(approvedByDept.dispatch || 0), accent: '#f59e0b' },
-    { name: 'HR & Payroll', costVal: formatCurrency(approvedByDept.hr || 0), accent: '#8b5cf6' },
-    { name: 'Sales & Marketing', costVal: formatCurrency(approvedByDept.sales || 0), accent: '#06b6d4' },
-    { name: 'Finance & Accounts', costVal: formatCurrency(approvedByDept.finance || 0), accent: '#6366f1' }
-  ];
+  // Department-Wise Costs (dynamically generated from actual active company departments)
+  const colors = ['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#6366f1', '#ec4899', '#14b8a6', '#f43f5e'];
+  const departmentCosts = Object.entries(approvedByDept).map(([name, val], idx) => ({
+    name,
+    costVal: formatCurrency(val),
+    accent: colors[idx % colors.length]
+  }));
 
   // Order Profitability List
   const orderProfitability = rawOrders.map(o => {

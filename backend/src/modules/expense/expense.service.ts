@@ -41,15 +41,27 @@ export class ExpenseService {
           { userId: effectiveUserId },
           { id: effectiveUserId }
         ]
-      }
+      },
+      include: { department: true }
     });
 
     const employeeId = employee?.id || effectiveUserId;
     const employeeName = employee?.fullName || user?.name || 'Employee';
     const userRoleCode = String(user?.role?.code || '').toUpperCase();
 
-    const isHr = userRoleCode === 'HR';
-    const status = isHr ? 'PENDING_SUPER_ADMIN' : 'PENDING_HR';
+    const deptName = String(employee?.department?.name || '').toLowerCase();
+    const jobTitle = String(employee?.jobTitle || '').toLowerCase();
+    const isHrOrPlantHead =
+      userRoleCode === 'HR' ||
+      userRoleCode === 'PLANT_HEAD' ||
+      deptName.includes('hr') ||
+      deptName.includes('human resources') ||
+      deptName.includes('plant head') ||
+      jobTitle.includes('hr') ||
+      jobTitle.includes('human resources') ||
+      jobTitle.includes('plant head');
+
+    const status = isHrOrPlantHead ? 'PENDING_SUPER_ADMIN' : 'PENDING_HR';
 
     const expense = await this.prisma.expense.create({
       data: {
@@ -79,15 +91,15 @@ export class ExpenseService {
         companyId: activeCompanyId,
         role: 'SUPER_ADMIN',
         type: 'EXPENSE_SUBMITTED',
-        title: 'HR Expense Claim Submitted',
-        message: `${employeeName} (HR) submitted an expense claim of ₹${body.amount} directly to Super Admin.`,
-        route: '/super-admin/expenses',
+        title: 'Direct Expense Claim Submitted',
+        message: `${employeeName} submitted an expense claim of ₹${body.amount} directly to Super Admin.`,
+        route: '/super-admin/expense-management',
         entityType: 'Expense',
         entityId: expense.id,
       });
     }
 
-    return { success: true, data: expense };
+    return expense;
   }
 
   async getMyExpenses(userId: string, companyId: string) {
@@ -123,14 +135,7 @@ export class ExpenseService {
       orderBy: { createdAt: 'desc' }
     });
 
-    if (expenses.length === 0) {
-      expenses = await this.prisma.expense.findMany({
-        take: 20,
-        orderBy: { createdAt: 'desc' }
-      });
-    }
-
-    return { success: true, data: expenses };
+    return expenses;
   }
 
   async getPendingExpenses(userId: string, companyId: string) {
@@ -172,10 +177,12 @@ export class ExpenseService {
 
     const profileMap = new Map<string, any>();
     for (const emp of employees) {
+      const correspondingUser = users.find(u => u.id === emp.userId || u.id === emp.id);
       profileMap.set(emp.id, {
         name: emp.fullName,
         department: emp.department?.name || 'Operations',
-        designation: emp.jobTitle || 'Staff Member'
+        designation: emp.jobTitle || 'Staff Member',
+        roleCode: correspondingUser?.role?.code || ''
       });
     }
     for (const u of users) {
@@ -183,27 +190,52 @@ export class ExpenseService {
         profileMap.set(u.id, {
           name: u.name,
           department: 'Operations',
-          designation: u.role?.name || 'User'
+          designation: u.role?.name || 'User',
+          roleCode: u.role?.code || ''
         });
       }
     }
 
-    return {
-      success: true,
-      data: expenses.map(e => {
-        const prof = profileMap.get(e.employeeId) || { name: 'Staff Member', department: 'Operations', designation: 'Staff' };
-        return {
-          ...e,
-          employeeName: prof.name,
-          department: prof.department,
-          designation: prof.designation
-        };
-      })
-    };
+    const mapped = expenses.map(e => {
+      const prof = profileMap.get(e.employeeId) || { name: 'Staff Member', department: 'Operations', designation: 'Staff', roleCode: '' };
+      return {
+        ...e,
+        employeeName: prof.name,
+        department: prof.department,
+        designation: prof.designation,
+        roleCode: prof.roleCode
+      };
+    });
+
+    if (userRoleCode === 'HR') {
+      return mapped.filter(e => {
+        const dept = String(e.department || '').toLowerCase();
+        const desig = String(e.designation || '').toLowerCase();
+        const rCode = String(e.roleCode || '').toLowerCase();
+        return !(
+          dept.includes('hr') || dept.includes('human resources') ||
+          dept.includes('plant head') ||
+          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('plant head') ||
+          rCode.includes('hr') || rCode.includes('plant_head')
+        );
+      });
+    }
+
+    return mapped;
   }
 
-  async getAllExpenses(companyId: string) {
+  async getAllExpenses(companyId: string, userId?: string) {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
+
+    let requesterRole = '';
+    if (userId) {
+      const reqUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { role: true }
+      });
+      requesterRole = String(reqUser?.role?.code || '').toUpperCase();
+    }
 
     const expenses = await this.prisma.expense.findMany({
       where: { companyId: activeCompanyId },
@@ -222,10 +254,12 @@ export class ExpenseService {
 
     const profileMap = new Map<string, any>();
     for (const emp of employees) {
+      const correspondingUser = users.find(u => u.id === emp.userId || u.id === emp.id);
       profileMap.set(emp.id, {
         name: emp.fullName,
         department: emp.department?.name || 'Operations',
-        designation: emp.jobTitle || 'Staff Member'
+        designation: emp.jobTitle || 'Staff Member',
+        roleCode: correspondingUser?.role?.code || ''
       });
     }
     for (const u of users) {
@@ -233,23 +267,39 @@ export class ExpenseService {
         profileMap.set(u.id, {
           name: u.name,
           department: 'Operations',
-          designation: u.role?.name || 'User'
+          designation: u.role?.name || 'User',
+          roleCode: u.role?.code || ''
         });
       }
     }
 
-    return {
-      success: true,
-      data: expenses.map(e => {
-        const prof = profileMap.get(e.employeeId) || { name: 'Staff Member', department: 'Operations', designation: 'Staff' };
-        return {
-          ...e,
-          employeeName: prof.name,
-          department: prof.department,
-          designation: prof.designation
-        };
-      })
-    };
+    const mapped = expenses.map(e => {
+      const prof = profileMap.get(e.employeeId) || { name: 'Staff Member', department: 'Operations', designation: 'Staff', roleCode: '' };
+      return {
+        ...e,
+        employeeName: prof.name,
+        department: prof.department,
+        designation: prof.designation,
+        roleCode: prof.roleCode
+      };
+    });
+
+    if (requesterRole === 'HR') {
+      return mapped.filter(e => {
+        const dept = String(e.department || '').toLowerCase();
+        const desig = String(e.designation || '').toLowerCase();
+        const rCode = String(e.roleCode || '').toLowerCase();
+        return !(
+          dept.includes('hr') || dept.includes('human resources') ||
+          dept.includes('plant head') ||
+          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('plant head') ||
+          rCode.includes('hr') || rCode.includes('plant_head')
+        );
+      });
+    }
+
+    return mapped;
   }
 
   async approveExpense(id: string, body: any, userId: string, companyId: string) {
@@ -276,30 +326,18 @@ export class ExpenseService {
 
     if (reviewerRole === 'HR' && expense.status === 'PENDING_HR') {
       updateData = {
-        status: 'PENDING_SUPER_ADMIN',
+        status: 'APPROVED',
         hrApprovedBy: reviewerName,
         hrApprovedAt: new Date(),
         remarks: body.remarks || expense.remarks
       };
 
-      const adminUsers = await this.prisma.user.findMany({
-        where: {
-          companyId: activeCompanyId,
-          role: { code: 'SUPER_ADMIN' },
-          isActive: true
-        }
+      const emp = await this.prisma.employee.findUnique({
+        where: { id: expense.employeeId }
       });
-      if (adminUsers.length > 0) {
-        await this.prisma.notification.createMany({
-          data: adminUsers.map(au => ({
-            companyId: activeCompanyId,
-            userId: au.id,
-            title: 'Expense Claim Pending Admin Approval',
-            message: `An expense claim of ₹${expense.amount} has been cleared by HR and is pending final Admin approval.`,
-            status: 'UNREAD'
-          }))
-        });
-      }
+      notificationRecipientId = emp?.userId || expense.employeeId;
+      notificationTitle = 'Expense Claim Approved';
+      notificationMessage = `Your expense claim of ₹${expense.amount} has been approved by HR.`;
     } else if (reviewerRole === 'SUPER_ADMIN' && expense.status === 'PENDING_SUPER_ADMIN') {
       updateData = {
         status: 'APPROVED',
@@ -338,7 +376,7 @@ export class ExpenseService {
       }
     }
 
-    return { success: true, data: updated };
+    return updated;
   }
 
   async rejectExpense(id: string, body: any, userId: string, companyId: string) {
@@ -388,7 +426,7 @@ export class ExpenseService {
         });
       }
 
-      return { success: true, data: updated };
+      return updated;
     } else {
       throw new ForbiddenException('You do not have permission to decline this claim at its current state.');
     }

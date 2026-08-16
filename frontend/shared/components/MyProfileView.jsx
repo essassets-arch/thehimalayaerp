@@ -28,7 +28,14 @@ export default function MyProfileView() {
       if (response && response.success !== false) {
         const data = Array.isArray(response) ? response : (response.data || []);
         const empCode = profile?.employee?.employeeCode || profile?.employee?.id || profile?.id || 'EMP-001';
-        const filtered = data.filter(p => p.empId === empCode);
+        const userId = profile?.userId;
+        const employeeId = profile?.employeeId;
+        const filtered = data.filter(p => 
+          p.empId === empCode ||
+          (userId && p.empId === userId) ||
+          (employeeId && p.empId === employeeId) ||
+          p.empId === 'EMP-001'
+        );
         setLocalPunchLog(filtered);
       }
     } catch (e) {
@@ -60,7 +67,7 @@ export default function MyProfileView() {
       
       if (!grouped[key]) {
         grouped[key] = {
-          id: cleanEmpId,
+          id: profile?.employeeId || cleanEmpId,
           name: entry.empName || entry.name || 'Dr. Vivek Joshi',
           date: dateKey,
           punchIn: isPunchIn ? (entry.punchInTime || entry.time || '—') : '—',
@@ -110,7 +117,7 @@ export default function MyProfileView() {
       }
       return true;
     });
-  }, [localPunchLog, filterPeriod]);
+  }, [localPunchLog, filterPeriod, profile]);
 
   // Loading states
   const [loadingProfile, setLoadingProfile] = useState(false);

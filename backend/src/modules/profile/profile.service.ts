@@ -31,6 +31,7 @@ export class ProfileService {
       success: true,
       data: {
         id: employee?.id || user.id,
+        userId: user.id,
         employeeId: employee?.employeeCode || 'EMP-MOCK-001',
         name: employee?.fullName || user.name,
         email: employee?.workEmail || user.email,

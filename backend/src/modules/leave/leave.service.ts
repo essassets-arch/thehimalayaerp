@@ -57,6 +57,19 @@ export class LeaveService {
       });
     }
 
+    let loc = await this.prisma.workLocation.findFirst({
+      where: { companyId }
+    });
+    if (!loc) {
+      loc = await this.prisma.workLocation.create({
+        data: {
+          companyId,
+          code: 'LOC-GEN',
+          name: 'Main Plant Location'
+        }
+      });
+    }
+
     const unlinkedEmp = await this.prisma.employee.findFirst({
       where: { companyId, userId: null },
       include: { department: true }
@@ -85,8 +98,8 @@ export class LeaveService {
           gender: 'MALE',
           jobTitle: 'Staff Executive',
           departmentId: dept.id,
-          workLocationId: dept.id,
-          employmentType: 'FULL_TIME' as any,
+          workLocationId: loc.id,
+          employmentType: 'PERMANENT' as any,
           joiningDate: dateNow,
           workEmail: user.email || `${shortId}@company.local`,
           phoneNumber: '9999999999',
@@ -167,10 +180,32 @@ export class LeaveService {
     });
     const deptCode = String(dept?.code || dept?.name || '').toUpperCase();
 
-    let status: 'PENDING_HR' | 'PENDING_PLANT_HEAD' = 'PENDING_HR';
+    const userRoleCode = String(user?.role?.code || '').toUpperCase();
+    const deptName = String(employee?.department?.name || dept?.name || '').toLowerCase();
+    const jobTitle = String(employee?.jobTitle || '').toLowerCase();
+    const isHrOrPlantHead =
+      userRoleCode === 'HR' ||
+      userRoleCode === 'PLANT_HEAD' ||
+      deptName.includes('hr') ||
+      deptName.includes('human resources') ||
+      deptName.includes('plant head') ||
+      jobTitle.includes('hr') ||
+      jobTitle.includes('human resources') ||
+      jobTitle.includes('plant head');
+
+    let status: 'PENDING_HR' | 'PENDING_PLANT_HEAD' | 'PENDING_SUPER_ADMIN' = 'PENDING_HR';
     let currentApprover = 'HR';
 
-    if (deptCode.includes('DISPATCH') || deptCode.includes('PRODUCTION') || deptCode.includes('STORE_DISPATCH') || deptCode.includes('OPERA')) {
+    const deptCodeUpper = deptCode.toUpperCase();
+    const deptNameUpper = String(deptName || '').toUpperCase();
+    const isProductionOrStoreOrDispatch =
+      deptCodeUpper.includes('PRODUCTION') || deptCodeUpper.includes('STORE') || deptCodeUpper.includes('DISPATCH') || deptCodeUpper.includes('OPERA') ||
+      deptNameUpper.includes('PRODUCTION') || deptNameUpper.includes('STORE') || deptNameUpper.includes('DISPATCH') || deptNameUpper.includes('OPERA');
+
+    if (isHrOrPlantHead) {
+      status = 'PENDING_SUPER_ADMIN';
+      currentApprover = 'SUPER_ADMIN';
+    } else if (isProductionOrStoreOrDispatch) {
       status = 'PENDING_PLANT_HEAD';
       currentApprover = 'PLANT_HEAD';
     }
@@ -260,7 +295,7 @@ export class LeaveService {
     } else if (roleCode.includes('PLANT_HEAD') || roleCode.includes('PLANT')) {
       statusFilter = 'PENDING_PLANT_HEAD';
     } else if (roleCode.includes('SUPER_ADMIN') || roleCode.includes('ADMIN')) {
-      statusFilter = ['PENDING_HR', 'PENDING_PLANT_HEAD', 'PENDING_SUPER_ADMIN'];
+      statusFilter = 'PENDING_SUPER_ADMIN';
     } else {
       statusFilter = 'PENDING_HR';
     }
@@ -271,12 +306,61 @@ export class LeaveService {
         ...(Array.isArray(statusFilter) ? { status: { in: statusFilter } } : { status: statusFilter })
       },
       include: {
-        employee: { select: { fullName: true, employeeCode: true, workEmail: true, user: { select: { name: true, email: true } } } },
+        employee: {
+          select: {
+            fullName: true,
+            employeeCode: true,
+            workEmail: true,
+            jobTitle: true,
+            department: { select: { name: true } },
+            user: {
+              select: {
+                name: true,
+                email: true,
+                role: { select: { code: true } }
+              }
+            }
+          }
+        },
         department: { select: { name: true, code: true } },
         approvals: true
       },
       orderBy: { createdAt: 'desc' }
     });
+
+    if (roleCode.includes('HR')) {
+      return leaves.filter(l => {
+        const emp = l.employee;
+        const dept = String(emp?.department?.name || '').toLowerCase();
+        const desig = String(emp?.jobTitle || '').toLowerCase();
+        const rCode = String(emp?.user?.role?.code || '').toLowerCase();
+        return !(
+          dept.includes('hr') || dept.includes('human resources') ||
+          dept.includes('plant head') ||
+          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('plant head') ||
+          rCode.includes('hr') || rCode.includes('plant_head')
+        );
+      });
+    }
+
+    if (roleCode.includes('PLANT')) {
+      return leaves.filter(l => {
+        const emp = l.employee;
+        const dept = String(emp?.department?.name || l.department?.name || '').toLowerCase();
+        const isProdStoreDisp = dept.includes('production') || dept.includes('store') || dept.includes('dispatch') || dept.includes('opera');
+        const deptName = String(emp?.department?.name || '').toLowerCase();
+        const desig = String(emp?.jobTitle || '').toLowerCase();
+        const rCode = String(emp?.user?.role?.code || '').toLowerCase();
+        const isHrOrPH =
+          deptName.includes('hr') || deptName.includes('human resources') ||
+          deptName.includes('plant head') ||
+          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('plant head') ||
+          rCode.includes('hr') || rCode.includes('plant_head');
+        return isProdStoreDisp && !isHrOrPH;
+      });
+    }
 
     return leaves;
   }
@@ -296,8 +380,8 @@ export class LeaveService {
     });
     if (!leave) throw new NotFoundException('Leave request not found');
 
-    let nextStatus: 'PENDING_SUPER_ADMIN' | 'APPROVED' = 'PENDING_SUPER_ADMIN';
-    let nextApprover: string | null = 'SUPER_ADMIN';
+    const nextStatus = 'APPROVED';
+    const nextApprover = null;
 
     if (roleCode.includes('HR')) {
       if (leave.status !== 'PENDING_HR') {
@@ -311,8 +395,6 @@ export class LeaveService {
       if (leave.status !== 'PENDING_SUPER_ADMIN') {
         throw new BadRequestException('Request is not pending Super Admin approval.');
       }
-      nextStatus = 'APPROVED';
-      nextApprover = null;
     } else {
       throw new ForbiddenException('You do not have permission to approve leaves.');
     }
@@ -334,8 +416,8 @@ export class LeaveService {
       data: {
         status: nextStatus,
         currentApprover: nextApprover,
-        approvedBy: nextStatus === 'APPROVED' ? user.name : leave.approvedBy,
-        approvedAt: nextStatus === 'APPROVED' ? new Date() : leave.approvedAt,
+        approvedBy: user.name,
+        approvedAt: new Date(),
         remarks: body.remarks || leave.remarks
       }
     });
@@ -382,15 +464,72 @@ export class LeaveService {
 
   async getAllLeaves(userId: string, companyId: string) {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
+    
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+    const roleCode = String(user?.role?.code || '').toUpperCase();
+
     const leaves = await this.prisma.leaveRequest.findMany({
       where: { companyId: activeCompanyId },
       include: {
-        employee: { select: { fullName: true, employeeCode: true, workEmail: true } },
+        employee: {
+          select: {
+            fullName: true,
+            employeeCode: true,
+            workEmail: true,
+            jobTitle: true,
+            department: { select: { name: true } },
+            user: {
+              select: {
+                name: true,
+                email: true,
+                role: { select: { code: true } }
+              }
+            }
+          }
+        },
         department: { select: { name: true, code: true } },
         approvals: true
       },
       orderBy: { createdAt: 'desc' }
     });
+
+    if (roleCode.includes('HR')) {
+      return leaves.filter(l => {
+        const emp = l.employee;
+        const dept = String(emp?.department?.name || '').toLowerCase();
+        const desig = String(emp?.jobTitle || '').toLowerCase();
+        const rCode = String(emp?.user?.role?.code || '').toLowerCase();
+        return !(
+          dept.includes('hr') || dept.includes('human resources') ||
+          dept.includes('plant head') ||
+          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('plant head') ||
+          rCode.includes('hr') || rCode.includes('plant_head')
+        );
+      });
+    }
+
+    if (roleCode.includes('PLANT')) {
+      return leaves.filter(l => {
+        const emp = l.employee;
+        const dept = String(emp?.department?.name || l.department?.name || '').toLowerCase();
+        const isProdStoreDisp = dept.includes('production') || dept.includes('store') || dept.includes('dispatch') || dept.includes('opera');
+        const deptName = String(emp?.department?.name || '').toLowerCase();
+        const desig = String(emp?.jobTitle || '').toLowerCase();
+        const rCode = String(emp?.user?.role?.code || '').toLowerCase();
+        const isHrOrPH =
+          deptName.includes('hr') || deptName.includes('human resources') ||
+          deptName.includes('plant head') ||
+          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('plant head') ||
+          rCode.includes('hr') || rCode.includes('plant_head');
+        return isProdStoreDisp && !isHrOrPH;
+      });
+    }
+
     return leaves;
   }
 }

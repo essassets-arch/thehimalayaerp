@@ -37,8 +37,9 @@ export class ExpenseController {
 
   @Get('all')
   getAllExpenses(@Req() req: any) {
+    const userId = req.user?.sub || req.user?.id;
     const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
-    return this.expenseService.getAllExpenses(companyId);
+    return this.expenseService.getAllExpenses(companyId, userId);
   }
 
   @Patch(':id/approve')
