@@ -5,8 +5,8 @@ import StatusBadge from '../shared/components/StatusBadge';
 
 export default function SalesProductionStatusView({ orders = [], searchQuery = '' }) {
   const [filter, setFilter] = useState('All');
-  const [localSearch, setLocalSearch] = useState('');
-  const search = searchQuery || localSearch;
+  const [localSearch, setLocalSearch] = useState(searchQuery || '');
+  const search = localSearch;
 
   // Filter orders by search query and active pipeline stage
   const filteredOrders = orders.filter(o => {
@@ -210,19 +210,16 @@ export default function SalesProductionStatusView({ orders = [], searchQuery = '
               ))}
             </div>
 
-            {/* Search */}
-            {!searchQuery && (
-              <div className="search-box" style={{ background: '#f1f3f5', border: '1px solid #D6E2F0' }}>
-                <Search size={14} style={{ color: 'var(--color-text-secondary)' }} />
-                <input 
-                  type="text" 
-                  placeholder="Search pipeline..." 
-                  value={localSearch}
-                  onChange={(e) => setLocalSearch(e.target.value)}
-                  style={{ color: 'var(--color-text-primary)' }}
-                />
-              </div>
-            )}
+            <div className="search-box" style={{ background: '#f1f3f5', border: '1px solid #D6E2F0' }}>
+              <Search size={14} style={{ color: 'var(--color-text-secondary)' }} />
+              <input 
+                type="text" 
+                placeholder="Search pipeline..." 
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                style={{ color: 'var(--color-text-primary)' }}
+              />
+            </div>
           </div>
         </div>
 

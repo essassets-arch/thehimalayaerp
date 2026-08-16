@@ -485,13 +485,35 @@ export default function HeroBanner({
       setSearchLoading(true);
       try {
         const token = localStorage.getItem('token') || '';
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val.trim())}`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const currentPanel = (location.pathname || '').split('/')[1] || 'sales';
+        const res = await fetch(`/api/backend/search/global?q=${encodeURIComponent(val.trim())}&panel=${encodeURIComponent(currentPanel)}`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
         const data = await res.json();
-        if (data.success) {
+
+        // Support both direct response and wrapped response formats
+        const payload = data?.data || data;
+        if (payload && Array.isArray(payload.groups)) {
+          const groupedObj = {};
+          const flatResults = [];
+          payload.groups.forEach((g) => {
+            const key = g.type.toLowerCase();
+            groupedObj[key] = g.results || [];
+            flatResults.push(...(g.results || []));
+          });
+          setSearchResults(flatResults);
+          setSearchGrouped(groupedObj);
+          setShowSearchDropdown(true);
+        } else if (data.success && data.results) {
           setSearchResults(data.results || []);
           setSearchGrouped(data.grouped || {});
+          setShowSearchDropdown(true);
+        } else {
+          setSearchResults([]);
+          setSearchGrouped({});
           setShowSearchDropdown(true);
         }
       } catch (err) {
@@ -513,17 +535,29 @@ export default function HeroBanner({
 
   // Color palette per entity section header
   const ENTITY_PALETTE = {
+    lead:               { color: '#a78bfa', label: 'LEADS' },
     leads:              { color: '#a78bfa', label: 'LEADS' },
+    quotation:          { color: '#f43f5e', label: 'QUOTATIONS' },
+    quotations:         { color: '#f43f5e', label: 'QUOTATIONS' },
+    sales_order:        { color: '#60a5fa', label: 'ORDERS' },
     orders:             { color: '#60a5fa', label: 'ORDERS' },
+    customer:           { color: '#fbbf24', label: 'CUSTOMERS' },
     customers:          { color: '#fbbf24', label: 'CUSTOMERS' },
+    sample:             { color: '#34d399', label: 'SAMPLES' },
     samples:            { color: '#34d399', label: 'SAMPLES' },
+    invoice:            { color: '#6ee7b7', label: 'INVOICES' },
     invoices:           { color: '#6ee7b7', label: 'INVOICES' },
+    work_order:         { color: '#f472b6', label: 'WORK ORDERS' },
     'work-orders':      { color: '#f472b6', label: 'WORK ORDERS' },
+    dispatch:           { color: '#fb923c', label: 'DISPATCHES' },
     dispatches:         { color: '#fb923c', label: 'DISPATCHES' },
+    material_request:   { color: '#a3e635', label: 'MATERIAL REQUESTS' },
     'material-requests':{ color: '#a3e635', label: 'MATERIAL REQUESTS' },
+    purchase_order:     { color: '#38bdf8', label: 'PURCHASE ORDERS' },
     'purchase-orders':  { color: '#38bdf8', label: 'PURCHASE ORDERS' },
-    products:           { color: '#c084fc', label: 'PRODUCTS' },
-    vendors:            { color: '#facc15', label: 'VENDORS' },
+    product:            { color: '#c084fc', label: 'PRODUCTS & MATERIALS' },
+    products:           { color: '#c084fc', label: 'PRODUCTS & MATERIALS' },
+    employee:           { color: '#8893A7', label: 'EMPLOYEES' },
     employees:          { color: '#8893A7', label: 'EMPLOYEES' },
   };
 

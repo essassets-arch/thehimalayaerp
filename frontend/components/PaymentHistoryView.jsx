@@ -22,9 +22,14 @@ export default function PaymentHistoryView({
   const localConfirmations = useMemo(() => storeState?.sales?.paymentConfirmations || [], [storeState?.sales?.paymentConfirmations]);
 
   // Local UI Filter States
-  const [localSearch, setLocalSearch] = useState('');
-  const search = searchQuery !== undefined && setSearchQuery ? searchQuery : localSearch;
-  const setSearch = setSearchQuery !== undefined && setSearchQuery ? setSearchQuery : setLocalSearch;
+  const [localSearch, setLocalSearch] = useState(searchQuery || '');
+  const search = localSearch;
+  const setSearch = (val) => {
+    setLocalSearch(val);
+    if (typeof setSearchQuery === 'function') {
+      setSearchQuery(val);
+    }
+  };
 
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [methodFilter, setMethodFilter] = useState('ALL');

@@ -533,14 +533,14 @@ export default function ProductMasterUI({ role }) {
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
         
         {/* Search Input Container */}
-        <div style={{ flex: '1 1 280px', minWidth: '240px', position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Search size={18} style={{ position: 'absolute', left: '14px', color: '#94A3B8', pointerEvents: 'none', zIndex: 2 }} />
+        <div className="search-box" style={{ flex: '1 1 280px', minWidth: '240px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Search size={18} style={{ color: '#94A3B8', flexShrink: 0 }} />
           <input 
             type="text" 
             placeholder="Search by code, name, category, or brand..." 
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', paddingLeft: '44px', paddingRight: '14px', paddingTop: '10px', paddingBottom: '10px', boxSizing: 'border-box', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', transition: 'all 0.15s ease' }}
+            style={{ width: '100%', border: 'none', background: 'transparent', color: '#0F172A', fontSize: '13.5px', outline: 'none', padding: 0 }}
           />
         </div>
 

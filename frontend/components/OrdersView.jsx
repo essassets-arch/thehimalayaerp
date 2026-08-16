@@ -35,9 +35,14 @@ export default function OrdersView({
   const navigate = useRouter();
   const { user } = useAuth();
   const isProductionUser = user?.role === 'Production';
-  const [localSearch, setLocalSearch] = useState('');
-  const search = searchQuery !== undefined ? searchQuery : localSearch;
-  const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
+  const [localSearch, setLocalSearch] = useState(searchQuery || '');
+  const search = localSearch;
+  const setSearch = (val) => {
+    setLocalSearch(val);
+    if (typeof setSearchQuery === 'function') {
+      setSearchQuery(val);
+    }
+  };
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedDeliveryModal, setSelectedDeliveryModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
@@ -364,12 +369,14 @@ export default function OrdersView({
     }
 
     const orderNoStr = String(o.orderNo || o.orderNumber || o.orderId || o.id || '');
+    const poNoStr = String(o.customerPurchaseOrderNo || o.customerPoNo || o.poNumber || o.poNo || '');
     const qStr = search.trim().toLowerCase();
 
     const matchesSearch = !qStr ||
       custName.toLowerCase().includes(qStr) || 
       itemsStr.toLowerCase().includes(qStr) ||
-      orderNoStr.toLowerCase().includes(qStr);
+      orderNoStr.toLowerCase().includes(qStr) ||
+      poNoStr.toLowerCase().includes(qStr);
     
     const stage = String(o.status || o.overallStage || o.order_stage || o.productionStatus || 'Draft');
     const stageUpper = stage.toUpperCase();

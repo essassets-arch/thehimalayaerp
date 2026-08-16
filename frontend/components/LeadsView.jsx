@@ -210,9 +210,14 @@ export default function LeadsView({
 }) {
   const router = useRouter();
   const erpStore = useERPStore();
-  const [localSearch, setLocalSearch] = useState('');
-  const search = searchQuery !== undefined ? searchQuery : localSearch;
-  const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
+  const [localSearch, setLocalSearch] = useState(searchQuery || '');
+  const search = localSearch;
+  const setSearch = (val) => {
+    setLocalSearch(val);
+    if (typeof setSearchQuery === 'function') {
+      setSearchQuery(val);
+    }
+  };
   const [selectedLead, setSelectedLead] = useState(null);
   const [followupText, setFollowupText] = useState('');
   const [filter, setFilter] = useState('All');
@@ -455,12 +460,28 @@ export default function LeadsView({
   }, [search, filter, reminderBucket, selectedMonth, fromDate, toDate]);
 
   const filteredLeads = leads.filter(lead => {
-    const companyName = lead.companyName || '';
-    const contactPerson = lead.contactPerson || '';
-    const salesperson = lead.salesperson || '';
-    const matchesSearch = companyName.toLowerCase().includes(search.toLowerCase()) ||
-      contactPerson.toLowerCase().includes(search.toLowerCase()) ||
-      salesperson.toLowerCase().includes(search.toLowerCase());
+    const q = search.trim().toLowerCase();
+    const companyName = (lead.companyName || '').toLowerCase();
+    const contactPerson = (lead.contactPerson || '').toLowerCase();
+    const salesperson = (lead.salesperson || lead.salesExecutive?.name || '').toLowerCase();
+    const leadNumber = (lead.leadNumber || lead.id || lead.reference || '').toLowerCase();
+    const projectName = (lead.projectName || '').toLowerCase();
+    const groupName = (lead.groupName || '').toLowerCase();
+    const phone = (lead.phone || lead.mobile || '').toLowerCase();
+    const email = (lead.email || '').toLowerCase();
+    const gstNumber = (lead.gstNumber || lead.gstin || lead.gstName || '').toLowerCase();
+
+    const matchesSearch = !q ||
+      companyName.includes(q) ||
+      contactPerson.includes(q) ||
+      salesperson.includes(q) ||
+      leadNumber.includes(q) ||
+      projectName.includes(q) ||
+      groupName.includes(q) ||
+      phone.includes(q) ||
+      email.includes(q) ||
+      gstNumber.includes(q);
+
     if (filter === 'Reminders') return false;
     const matchesFilter = filter === 'All' ? (lead.status !== 'Lost' && lead.status !== 'Converted') : lead.status === filter;
 
@@ -886,9 +907,9 @@ export default function LeadsView({
               {filteredLeads.length === 0 ? (
                 <tr>
                   <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
-                    <strong>No leads found.</strong>
+                    <strong>{search.trim() ? `No leads found for "${search.trim()}"` : 'No leads available'}</strong>
                     <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
-                      Create your first lead to begin the sales workflow.
+                      {search.trim() ? 'Try a different search term or clear active filters.' : 'Create your first lead to begin the sales workflow.'}
                     </div>
                   </td>
                 </tr>

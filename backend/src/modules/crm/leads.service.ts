@@ -30,6 +30,11 @@ export class LeadsService {
                 { leadNumber: { contains: search, mode: 'insensitive' } },
                 { companyName: { contains: search, mode: 'insensitive' } },
                 { contactPerson: { contains: search, mode: 'insensitive' } },
+                { projectName: { contains: search, mode: 'insensitive' } },
+                { groupName: { contains: search, mode: 'insensitive' } },
+                { phone: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { gstNumber: { contains: search, mode: 'insensitive' } },
               ],
             }
           : {}),
