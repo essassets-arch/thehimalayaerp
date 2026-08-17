@@ -19,7 +19,7 @@ import { DataTable } from "@/components/erp/data-table/DataTable";
 import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import responsive from "../dispatch-responsive.module.css";
 import pageStyles from "../orders/orders.module.css";
 import styles from "./delivery.module.css";
@@ -72,6 +72,10 @@ interface Dispatch {
 export default function DeliveryRunPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const pathname = usePathname();
+  const isDispatch2 = pathname?.startsWith("/dispatch-2");
+  const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
+
   const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(
     null,
   );
@@ -185,7 +189,7 @@ export default function DeliveryRunPage() {
       );
       setSelectedDispatch(null);
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
-      router.push("/dispatch/history");
+      router.push(`${basePath}/history`);
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Failed to confirm delivery",

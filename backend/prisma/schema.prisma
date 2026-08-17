@@ -2297,6 +2297,7 @@ model ProductionPlan {
   plannedStartDate DateTime?
   plannedEndDate   DateTime?
   productionLine   String?
+  priority         String?
   workflowStateId  String?
   version       Int      @default(1)
   createdAt     DateTime @default(now())
@@ -3490,6 +3491,36 @@ enum AttendanceStatus {
   ABSENT
   LEAVE
 }
+
+enum StockHistoryEvent {
+  STOCK_IN
+  RESERVE
+  UNRESERVE
+  DISPATCH_OUT
+  QC_RECEIPT
+  ADJUSTMENT
+  RETURN_IN
+}
+
+model StockHistory {
+  id               String            @id @default(uuid())
+  companyId        String
+  productId        String
+  quantity         Decimal           @db.Decimal(18, 3)
+  salesOrderId     String?
+  salesOrderItemId String?
+  allocationId     String?
+  dispatchId       String?
+  event            StockHistoryEvent
+  actor            String?
+  createdAt        DateTime          @default(now())
+
+  @@index([companyId, productId, createdAt])
+  @@index([salesOrderId])
+  @@index([allocationId])
+  @@index([dispatchId])
+}
+
 
 
 

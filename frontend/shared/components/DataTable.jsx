@@ -109,7 +109,7 @@ export default function DataTable({
                 })}
                 {actions && (
                   <td data-label="Actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <div className="action-btn-group">
+                    <div className="action-btn-group" style={{ flexWrap: 'nowrap' }}>
                       {actions(row)}
                     </div>
                   </td>

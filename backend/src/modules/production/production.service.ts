@@ -216,16 +216,41 @@ export class ProductionService {
 
         for (let i = 0; i < updated.salesOrder.items.length; i++) {
           const item = updated.salesOrder.items[i];
-          await tx.workOrder.create({
-            data: {
-              workOrderNumber: `WO-${new Date().getFullYear()}-${String(count + i + 1).padStart(5, '0')}`,
-              productionPlanId: id,
+
+          // Calculate reservations of type FINISHED_GOODS_RESERVATION for this item
+          const reservations = await tx.salesOrderAllocation.findMany({
+            where: {
               salesOrderItemId: item.id,
-              quantity: item.orderedQuantity,
-              workflowStateId: initialWOState.id,
-              status: 'CREATED',
+              allocationType: 'FINISHED_GOODS_RESERVATION',
             },
           });
+          const reservedQty = reservations.reduce((sum, r) => sum + Number(r.reservedQuantity), 0);
+          const workOrderQty = Math.max(0, Number(item.orderedQuantity) - reservedQty);
+
+          if (workOrderQty > 0) {
+            const wo = await tx.workOrder.create({
+              data: {
+                workOrderNumber: `WO-${new Date().getFullYear()}-${String(count + i + 1).padStart(5, '0')}`,
+                productionPlanId: id,
+                salesOrderItemId: item.id,
+                quantity: workOrderQty,
+                workflowStateId: initialWOState.id,
+                status: 'CREATED',
+              },
+            });
+
+            // Create SalesOrderAllocation of type PRODUCTION_REQUIRED
+            await tx.salesOrderAllocation.create({
+              data: {
+                salesOrderId: updated.salesOrderId,
+                salesOrderItemId: item.id,
+                allocationType: 'PRODUCTION_REQUIRED',
+                requiredQuantity: workOrderQty,
+                productionQuantity: workOrderQty,
+                workOrderId: wo.id,
+              },
+            });
+          }
         }
       }
 

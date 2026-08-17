@@ -13,6 +13,7 @@ import { ProductionDailyReportController } from './production-daily-report.contr
 import { ProductionDailyReportService } from './production-daily-report.service';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { SequenceModule } from '../../common/sequence/sequence.module';
+import { FinishedGoodsStockService } from './finished-goods-stock.service';
 
 @Module({
   imports: [WorkflowModule, SequenceModule],
@@ -31,7 +32,9 @@ import { SequenceModule } from '../../common/sequence/sequence.module';
     MachineService,
     MachineStatusService,
     ProductionDailyReportService,
+    FinishedGoodsStockService,
   ],
+  exports: [FinishedGoodsStockService],
 })
 export class ProductionModule {}
 

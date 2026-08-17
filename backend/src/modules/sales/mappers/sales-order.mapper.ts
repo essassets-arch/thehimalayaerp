@@ -24,6 +24,11 @@ type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
 
 export function mapSalesOrder(
   order: SalesOrderWithRelations,
+  fulfillmentData?: {
+    fgMap: Map<string, number>;
+    dispatchMap: Map<string, number>;
+    allocationMap: Map<string, { reserved: number; production: number }>;
+  },
 ): SalesOrderResponseDto {
   const productionPlan = order.productionPlans[0];
   
@@ -104,7 +109,7 @@ export function mapSalesOrder(
           : 'NOT_DUE';
   const returnStatus = latestReturn
     ? latestReturn.status === 'CLOSED'
-      ? 'COMPLETED'
+    ? 'COMPLETED'
       : latestReturn.status
     : undefined;
   const replacementStatus = latestReplacement
@@ -167,6 +172,49 @@ export function mapSalesOrder(
         deliveredQuantity - returnedQuantity - replacedQuantity,
       );
 
+      const fgMap = fulfillmentData?.fgMap;
+      const dispatchMap = fulfillmentData?.dispatchMap;
+      const allocationMap = fulfillmentData?.allocationMap;
+
+      const orderedQty = Number(item.orderedQuantity);
+      const alreadyDispatchedQty = dispatchMap ? (dispatchMap.get(item.id) || 0) : 0;
+      const activeReservedQty = allocationMap ? (allocationMap.get(item.id)?.reserved || 0) : 0;
+      const activeProductionCommittedQty = allocationMap ? (allocationMap.get(item.id)?.production || 0) : 0;
+
+      const remainingUnallocatedQty = Math.max(0, orderedQty - alreadyDispatchedQty - activeReservedQty - activeProductionCommittedQty);
+      const availableFG = fgMap ? (fgMap.get(item.productId) || 0) : 0;
+      const fgAllocatableQty = Math.min(availableFG, remainingUnallocatedQty);
+      const productionRequiredQty = Math.max(0, remainingUnallocatedQty - fgAllocatableQty);
+
+      const pendingDirectDispatchQty = fgAllocatableQty;
+      const pendingProductionQty = productionRequiredQty;
+
+      let fulfillmentState = 'PENDING_DECISION';
+      if (pendingDirectDispatchQty === 0 && pendingProductionQty === 0) {
+        if (alreadyDispatchedQty >= orderedQty) {
+          fulfillmentState = 'FULFILLED';
+        } else if (activeReservedQty > 0) {
+          fulfillmentState = 'READY_FOR_DISPATCH';
+        } else if (activeProductionCommittedQty > 0) {
+          fulfillmentState = 'FULFILLED';
+        } else {
+          fulfillmentState = 'FULFILLED';
+        }
+      }
+
+      const fulfillment = {
+        orderedQty,
+        availableFG,
+        fgAllocatableQty,
+        productionRequiredQty,
+        activeReservedQty,
+        productionCommittedQty: activeProductionCommittedQty,
+        alreadyDispatchedQty,
+        pendingDirectDispatchQty,
+        pendingProductionQty,
+        fulfillmentState,
+      };
+
       return {
         id: item.id,
         productId: item.productId,
@@ -181,6 +229,7 @@ export function mapSalesOrder(
         unit: item.unit,
         unitPrice: Number(item.unitPrice),
         lineTotal: Number(item.lineTotal),
+        fulfillment,
       };
     }),
 
@@ -220,6 +269,8 @@ export function mapSalesOrder(
     productionStatus: calculatedProductionStatus,
     productionAssignedToId: productionPlan?.assignedToId ?? null,
     qcStatus: calculatedQcStatus,
+    targetDate: productionPlan?.plannedEndDate?.toISOString().split('T')[0] ?? null,
+    priority: (productionPlan as any)?.priority ?? null,
 
     workflowStateId: order.workflowStateId,
     workflowStateCode: order.workflowState?.code,

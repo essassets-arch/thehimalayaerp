@@ -18,9 +18,14 @@ export interface StockRow {
   productName: string;
   productCode: string;
   category: string;
+  productType?: string;
+  brand?: string;
+  gstRate?: string;
+  dispatchCategory?: string;
   customerName: string;
   quantity: number;
   availableQuantity: number;
+  reservedQuantity: number;
   unit: string;
   status: string;
   receivedAt: string;
@@ -68,7 +73,7 @@ export default function FinishedGoodsStockView({
   const [isCustomUnitActive, setIsCustomUnitActive] = useState(false);
 
   // Pagination State
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Modal Form State (Only used when readOnly === false)
@@ -108,23 +113,64 @@ export default function FinishedGoodsStockView({
 
   const allItems: StockRow[] = useMemo(() => {
     if (!Array.isArray(data)) return [];
-    return data.map((item: any) => ({
-      id: item.id || `fg-${Math.random()}`,
-      workOrderId: item.workOrderId || item.workOrder?.id || "",
-      jobNo: item.workOrder?.workOrderNumber || item.jobNo || item.workOrderId || "WO-STOCK",
-      productId: item.productId || item.product?.id || "",
-      productName: item.product?.name || item.productName || "Finished Goods Item",
-      productCode: item.product?.sku || item.productCode || item.product?.publicId || "FG-ITEM",
-      category: item.product?.category || item.category || "Hardware",
-      customerName: item.workOrder?.productionPlan?.salesOrder?.customer?.companyName || item.customerName || "Internal Stock",
-      quantity: Number(item.quantity ?? 0),
-      availableQuantity: Number(item.availableQuantity ?? item.quantity ?? 0),
-      unit: (item.unit || item.product?.unit || "PCS").toUpperCase(),
-      status: item.status || "AVAILABLE",
-      receivedAt: item.receivedAt || item.date || item.createdAt || new Date().toISOString(),
-      receivedById: item.receivedById || null,
-      workOrder: item.workOrder,
-    }));
+    return data
+      .map((item: any) => {
+        const quantity = Number(item.quantity ?? 0);
+        const availableQuantity = Number(item.availableQuantity ?? item.quantity ?? 0);
+        const reservedQuantity = Math.max(0, quantity - availableQuantity);
+
+        const productObj = item.product || item.workOrder?.salesOrderItem?.product;
+        const productType = productObj?.productType || item.productType || "MANUFACTURING";
+        const brand = productObj?.brand || item.brand || "HIMALAYA";
+        const gstRate = productObj?.gstRate ? `${Number(productObj.gstRate)}%` : item.gstRate ? `${Number(item.gstRate)}%` : "18%";
+        
+        let rawDispatchCategory = productObj?.dispatchCategory || item.dispatchCategory || "D1";
+        if (rawDispatchCategory === "DISPATCH 1" || rawDispatchCategory === "DISPATCH_1") {
+          rawDispatchCategory = "D1";
+        } else if (rawDispatchCategory === "DISPATCH 2" || rawDispatchCategory === "DISPATCH_2") {
+          rawDispatchCategory = "D2";
+        }
+        
+        const dispatchCategory = rawDispatchCategory === "D1" 
+          ? "D1 (Dispatch 1)" 
+          : rawDispatchCategory === "D2" 
+          ? "D2 (Dispatch 2)" 
+          : rawDispatchCategory;
+
+        return {
+          id: item.id || `fg-${Math.random()}`,
+          workOrderId: item.workOrderId || item.workOrder?.id || "",
+          jobNo: item.workOrder?.workOrderNumber || item.jobNo || item.workOrderId || "WO-STOCK",
+          productId: item.productId || item.product?.id || "",
+          productName: item.product?.name || item.productName || "Finished Goods Item",
+          productCode: item.product?.sku || item.productCode || item.product?.publicId || "FG-ITEM",
+          category: item.product?.category || item.category || "Hardware",
+          productType,
+          brand,
+          gstRate,
+          dispatchCategory,
+          customerName: item.workOrder?.productionPlan?.salesOrder?.customer?.companyName || item.customerName || "Internal Stock",
+          quantity,
+          availableQuantity,
+          reservedQuantity,
+          unit: (item.unit || item.product?.unit || "PCS").toUpperCase(),
+          status: item.status || "AVAILABLE",
+          receivedAt: item.receivedAt || item.date || item.createdAt || new Date().toISOString(),
+          receivedById: item.receivedById || null,
+          workOrder: item.workOrder,
+        };
+      })
+      .filter((row: StockRow) => {
+        const type = String(row.productType || '').toUpperCase();
+        const family = String(row.category || '').toLowerCase();
+        if (type === 'RAW_MATERIAL' || type === 'HARDWARE') {
+          return false;
+        }
+        if (['raw material', 'hardware', 'electric'].includes(family)) {
+          return false;
+        }
+        return true;
+      });
   }, [data]);
 
   const filteredData = useMemo(() => {
@@ -134,7 +180,10 @@ export default function FinishedGoodsStockView({
       i.jobNo?.toLowerCase().includes(lower) ||
       i.productName?.toLowerCase().includes(lower) ||
       i.productCode?.toLowerCase().includes(lower) ||
-      i.category?.toLowerCase().includes(lower)
+      i.category?.toLowerCase().includes(lower) ||
+      i.productType?.toLowerCase().includes(lower) ||
+      i.brand?.toLowerCase().includes(lower) ||
+      i.dispatchCategory?.toLowerCase().includes(lower)
     );
   }, [allItems, search]);
 
@@ -530,11 +579,11 @@ export default function FinishedGoodsStockView({
                 <tr>
                   <th>Item Code</th>
                   <th>Item / Description Name</th>
-                  <th>Category</th>
-                  <th>Date</th>
-                  <th>UOM</th>
+                  <th>Product Type</th>
+                  <th>Dispatch Category</th>
                   <th>Total Stock</th>
                   <th>Avail Qty</th>
+                  <th>Reserved Qty</th>
                   <th>Stock Status</th>
                   {!readOnly && <th className={styles.actionsHeader}>Actions</th>}
                 </tr>
@@ -555,15 +604,6 @@ export default function FinishedGoodsStockView({
                 ) : (
                   paginatedData.map((row) => {
                     const isOut = Number(row.quantity) <= 0;
-                    const dateFormatted = row.receivedAt
-                      ? row.receivedAt.includes("T")
-                        ? new Date(row.receivedAt).toLocaleDateString("en-GB", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })
-                        : row.receivedAt.split("-").reverse().join("/")
-                      : "-";
                     return (
                       <tr key={row.id}>
                         <td data-label="Item Code">
@@ -572,13 +612,15 @@ export default function FinishedGoodsStockView({
                         <td data-label="Item / Description Name" className={styles.productName}>
                           {row.productName}
                         </td>
-                        <td data-label="Category">{row.category}</td>
-                        <td data-label="Date">{dateFormatted}</td>
-                        <td data-label="UOM">{row.unit}</td>
+                        <td data-label="Product Type">{row.productType}</td>
+                        <td data-label="Dispatch Category">{row.dispatchCategory}</td>
                         <td data-label="Total Stock">
                           <strong>{Number(row.quantity).toLocaleString()}</strong>
                         </td>
                         <td data-label="Avail Qty">{Number(row.availableQuantity).toLocaleString()}</td>
+                        <td data-label="Reserved Qty" style={{ color: "#64748b" }}>
+                          {Number(row.reservedQuantity).toLocaleString()}
+                        </td>
                         <td data-label="Stock Status">
                           <span className={`${styles.status} ${isOut ? styles.outOfStock : styles.inStock}`}>
                             {isOut ? "OUT OF STOCK" : "IN STOCK"}
@@ -724,8 +766,9 @@ export default function FinishedGoodsStockView({
               }}
             >
               <option value={10}>10</option>
-              <option value={20}>20</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
           </div>
 

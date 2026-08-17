@@ -48,6 +48,21 @@ export class DispatchController {
     return dispatches;
   }
 
+  @Get('queue')
+  @RequirePermissions('logistics.dispatches.read')
+  async getDispatchQueue(
+    @Req() req: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    const { userId, companyId } = this.extractAuthData(req, headers);
+    const queue = await this.dispatchService.getDispatchQueue(
+      userId,
+      req.user?.role,
+      companyId,
+    );
+    return queue;
+  }
+
   @Get('finished-goods-history')
   @RequirePermissions('logistics.dispatches.read')
   async getFinishedGoodsHistory() {

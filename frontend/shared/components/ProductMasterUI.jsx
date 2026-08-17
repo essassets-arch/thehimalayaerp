@@ -27,7 +27,7 @@ export default function ProductMasterUI({ role }) {
 
   // Pagination & Filtering State
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(25);
   const [filterFamily, setFilterFamily] = useState('All');
   const [filterDispatch, setFilterDispatch] = useState('All');
 
@@ -87,7 +87,20 @@ export default function ProductMasterUI({ role }) {
         };
       });
 
-      setRawProducts(normalizedList);
+      // Exclude raw materials/materials (RAW_MATERIAL, HARDWARE, raw material, hardware, electric)
+      const productsOnly = normalizedList.filter(p => {
+        const type = String(p.product_type || '').toUpperCase();
+        const family = String(p.product_family || '').toLowerCase();
+        if (type === 'RAW_MATERIAL' || type === 'HARDWARE') {
+          return false;
+        }
+        if (['raw material', 'hardware', 'electric'].includes(family)) {
+          return false;
+        }
+        return true;
+      });
+
+      setRawProducts(productsOnly);
     } catch (err) {
       showToast('Failed to fetch products catalog.');
     } finally {
@@ -570,7 +583,7 @@ export default function ProductMasterUI({ role }) {
               style={{ padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
             >
               <option value={10}>10</option>
-              <option value={20}>20</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>

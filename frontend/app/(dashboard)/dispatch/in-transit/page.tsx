@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Truck,
   Navigation,
@@ -50,6 +50,10 @@ interface Dispatch {
 
 export default function InTransitPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isDispatch2 = pathname?.startsWith("/dispatch-2");
+  const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
+
   const queryClient = useQueryClient();
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
@@ -83,7 +87,7 @@ export default function InTransitPage() {
       );
       toast.success("Delivery run started — redirecting to delivery board");
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
-      router.push("/dispatch/delivery");
+      router.push(`${basePath}/delivery`);
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Failed to start delivery",
@@ -194,7 +198,7 @@ export default function InTransitPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push("/dispatch/orders")}
+                onClick={() => router.push(`${basePath}/orders`)}
               >
                 Go to Pending Queue
               </Button>

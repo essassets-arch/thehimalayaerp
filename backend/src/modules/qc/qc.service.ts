@@ -14,7 +14,7 @@ export class QcService {
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
     private readonly notificationsService?: NotificationsService,
-  ) {}
+  ) { }
 
   async listInspections(companyId: string) {
     return this.prisma.qCInspection.findMany({
@@ -213,6 +213,11 @@ export class QcService {
             data: { companyId, name: 'Finished Goods', location: 'Production' },
           });
         }
+        const product = await tx.product.findUnique({
+          where: { id: orderItem.productId },
+        });
+        const productUnit = product?.unit || 'PCS';
+
         const existingReceipt = await tx.inventoryTransaction.findFirst({
           where: { referenceType: 'QCInspection', referenceId: id, type: 'IN' },
         });
@@ -237,7 +242,7 @@ export class QcService {
             salesOrderId: inspection.workOrder.productionPlan?.salesOrderId || '',
             quantity: inspection.workOrder.quantity,
             availableQuantity: inspection.workOrder.quantity,
-            unit: 'Units',
+            unit: productUnit,
             status: 'AVAILABLE',
             receivedAt: new Date(),
             receivedById: userId || 'SYSTEM',
@@ -245,9 +250,22 @@ export class QcService {
           update: {
             quantity: inspection.workOrder.quantity,
             availableQuantity: inspection.workOrder.quantity,
+            unit: productUnit,
             status: 'AVAILABLE',
             receivedAt: new Date(),
             receivedById: userId || 'SYSTEM',
+          },
+        });
+
+        // Log StockHistory event for QC_RECEIPT
+        await tx.stockHistory.create({
+          data: {
+            companyId,
+            productId: orderItem.productId,
+            quantity: inspection.workOrder.quantity,
+            salesOrderId: inspection.workOrder.productionPlan?.salesOrderId,
+            event: 'QC_RECEIPT',
+            actor: userId,
           },
         });
         const planId = inspection.workOrder.productionPlanId;
@@ -323,7 +341,7 @@ export class QcService {
           entityType: 'QCInspection',
           entityId: id,
           eventKeyPrefix: `QC_INSPECTION:${id}:PASSED_PM`,
-        }).catch(() => {});
+        }).catch(() => { });
 
         // Notify Plant Head
         await this.notificationsService.notifyRole({
@@ -336,7 +354,7 @@ export class QcService {
           entityType: 'QCInspection',
           entityId: id,
           eventKeyPrefix: `QC_INSPECTION:${id}:PASSED_PH`,
-        }).catch(() => {});
+        }).catch(() => { });
       } else if (actionName === 'REJECT') {
         // Notify Production Manager/Planner
         await this.notificationsService.notifyRole({
@@ -349,7 +367,7 @@ export class QcService {
           entityType: 'QCInspection',
           entityId: id,
           eventKeyPrefix: `QC_INSPECTION:${id}:FAILED_PM`,
-        }).catch(() => {});
+        }).catch(() => { });
 
         // Notify Plant Head
         await this.notificationsService.notifyRole({
@@ -362,7 +380,7 @@ export class QcService {
           entityType: 'QCInspection',
           entityId: id,
           eventKeyPrefix: `QC_INSPECTION:${id}:FAILED_PH`,
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
 

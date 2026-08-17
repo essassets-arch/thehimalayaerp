@@ -355,7 +355,7 @@ export const navigationConfig = {
 
   'Super Admin': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
-    { id: 'reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
+    { id: 'business-reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
 
     { type: 'badge', label: 'APPROVALS' },
     { id: 'daily-reports', label: 'Daily Production Reports', icon: FileText, path: '/super-admin/daily-reports' },

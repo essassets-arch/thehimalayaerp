@@ -60,6 +60,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const [backendReadyWorkOrders, setBackendReadyWorkOrders] = useState([]);
   const [backendFinishedGoods, setBackendFinishedGoods] = useState([]);
   const [backendReturns, setBackendReturns] = useState([]);
+  const [backendDispatchQueue, setBackendDispatchQueue] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [fgStockTab, setFgStockTab] = useState('all');
 
@@ -146,12 +147,13 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const fetchDashboardData = async () => {
     setDashboardLoading(true);
     try {
-      const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes, finishedGoodsRes] = await Promise.allSettled([
+      const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
         backendFetch('/api/backend/logistics/dispatches'),
         backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH'),
         backendFetch('/api/backend/sales-returns'),
         backendFetch('/api/backend/replacements'),
         backendFetch('/api/backend/production/finished-goods'),
+        backendFetch('/api/backend/logistics/dispatches/queue'),
       ]);
 
       if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
@@ -162,6 +164,9 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       }
       if (returnsRes.status === 'fulfilled' && Array.isArray(returnsRes.value)) {
         setBackendReturns(returnsRes.value);
+      }
+      if (queueRes.status === 'fulfilled' && Array.isArray(queueRes.value)) {
+        setBackendDispatchQueue(queueRes.value);
       }
       if (finishedGoodsRes.status === 'fulfilled') {
         const val = finishedGoodsRes.value;
@@ -340,29 +345,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const storeDispatchQueueOrders = useERPStore(s => s.dispatch?.dispatchOrders || s.state?.dispatch?.dispatchOrders) || [];
 
   const dispatchQueueOrders = useMemo(() => {
-    const list = [...storeDispatchQueueOrders];
-    (backendFinishedGoods || []).forEach((fg) => {
-      const fgId = fg.id || fg.workOrderId;
-      const orderId = fg.jobNo || fg.workOrder?.workOrderNumber || `WO-${String(fgId).slice(-4)}`;
-      if (!list.some(item => item.id === fgId || item.orderId === orderId)) {
-        list.push({
-          id: fgId,
-          orderId,
-          batchId: fg.productCode || 'FG-STOCK',
-          customerName: fg.customerName || fg.workOrder?.productionPlan?.salesOrder?.customer?.companyName || 'Factory Staging Area',
-          items: [{
-            productName: fg.productName || 'Finished Good Product',
-            approvedQuantity: fg.quantity || 1,
-            dispatchableQuantity: fg.availableQuantity ?? fg.quantity ?? 1,
-            unit: fg.unit || 'Pcs',
-          }],
-          status: fg.status === 'READY_FOR_DISPATCH' || fg.status === 'AVAILABLE' ? 'READY_FOR_DISPATCH' : fg.status,
-          workOrderId: fg.workOrderId || fg.id,
-        });
-      }
-    });
-    return list;
-  }, [storeDispatchQueueOrders, backendFinishedGoods]);
+    return backendDispatchQueue || [];
+  }, [backendDispatchQueue]);
 
   // Legacy selector-based orders (for existing QC-passed records compatibility)
   const orders = useERPStore(selectDispatchOrders);
@@ -1757,7 +1741,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     // ΓöÇΓöÇΓöÇ Handle Create Dispatch for queue record ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const handleCreateDispatchFromQueue = async (queueRecord) => {
       const { value: formValues } = await Swal.fire({
-        title: `Create Dispatch ΓÇö ${queueRecord.orderId}`,
+        title: `Create Dispatch — ${queueRecord.orderId}`,
         html: `
           <div style="text-align:left;display:flex;flex-direction:column;gap:12px;padding:8px 0">
             <label style="font-size:13px;font-weight:700;color:#475569">Vehicle Number</label>
@@ -1784,10 +1768,27 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       });
       if (!formValues) return;
       try {
-        useERPStore.getState().createDispatch(queueRecord.id, formValues);
-        await Swal.fire({ icon: 'success', title: 'Dispatch Created', text: `Consignment created for Order ${queueRecord.orderId}.`, timer: 1500, showConfirmButton: false });
+        const payload = {
+          salesOrderId: queueRecord.salesOrderId,
+          vehicleNumber: formValues.vehicleNumber,
+          driverName: formValues.driverName,
+          driverMobile: formValues.driverMobile,
+          items: (queueRecord.items || []).map((item) => ({
+            salesOrderItemId: item.salesOrderItemId,
+            quantity: Number(item.dispatchableQuantity || item.approvedQuantity),
+          })),
+        };
+
+        await backendFetch('/api/backend/logistics/dispatches', {
+          method: 'POST',
+          body: payload,
+        });
+
+        await fetchDashboardData();
+
+        await Swal.fire({ icon: 'success', title: 'Dispatch Created', text: `Consignment created for Order ${queueRecord.orderId || queueRecord.orderNo || 'Stock'}.`, timer: 1500, showConfirmButton: false });
       } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Error', text: err.message });
+        Swal.fire({ icon: 'error', title: 'Error', text: err.message || String(err) });
       }
     };
 
@@ -1823,8 +1824,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                 {row.status === 'READY_FOR_DISPATCH' ? (
                   <button
                     className="action-btn"
-                    style={{ background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => handleCreateDispatchFromQueue(row)}
+                    style={{ background: 'var(--color-primary)', color: '#ffffff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    onClick={() => navigate.push(row.salesOrderId ? `${basePath}/create-dispatch?salesOrderId=${row.salesOrderId}` : `${basePath}/create-dispatch`)}
                   >
                     <Truck size={14} /> Create Dispatch
                   </button>
@@ -1849,7 +1850,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                     className="action-btn"
                     style={{
                       background: 'var(--color-primary)',
-                      color: '#000',
+                      color: '#ffffff',
                       border: 'none',
                       padding: '8px 16px',
                       borderRadius: '8px',
@@ -1962,7 +1963,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     className="action-btn"
-                    style={{ background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{ background: 'var(--color-primary)', color: '#ffffff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                     onClick={() => {
                       setSelectedOrderForDispatch(row);
                       setSelectedOrderNos([row.orderNo]);

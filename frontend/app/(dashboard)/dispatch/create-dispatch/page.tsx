@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Truck, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
@@ -107,6 +107,8 @@ function availableQuantity(workOrder: WorkOrder): number {
   return Math.min(approved, remainingOrder);
 }
 
+const EMPTY_ARRAY: any[] = [];
+
 export default function CreateDispatchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -136,7 +138,7 @@ export default function CreateDispatchPage() {
   const initialSelectionSet = React.useRef(false);
 
   // Fetch existing dispatches for duplicate Invoice + Challan validation
-  const { data: existingDispatches = [] } = useQuery<any[]>({
+  const { data: existingDispatches = EMPTY_ARRAY } = useQuery<any[]>({
     queryKey: ["dispatches-duplicate-check"],
     queryFn: async () => {
       const res = await backendFetch<any>("/api/backend/logistics/dispatches").catch(() => []);
@@ -144,10 +146,28 @@ export default function CreateDispatchPage() {
     },
   });
 
+  // Fetch products to retrieve correct dispatchCategory for synthetic items
+  const { data: products = EMPTY_ARRAY } = useQuery<any[]>({
+    queryKey: ["products-list-create-dispatch"],
+    queryFn: async () => {
+      const res = await backendFetch<any>("/api/backend/products?limit=1000").catch(() => []);
+      return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+    },
+  });
+
+  const productsMap = React.useMemo(() => {
+    const map = new Map<string, any>();
+    products.forEach((p) => {
+      if (p.id) map.set(p.id, p);
+      if (p.sku) map.set(p.sku, p);
+    });
+    return map;
+  }, [products]);
+
   // Fetch the complete pending queue so multiple compatible lines can be
   // consolidated into one dispatch.
   const {
-    data: workOrders = [],
+    data: workOrders = EMPTY_ARRAY,
     isLoading,
     error,
   } = useQuery<WorkOrder[]>({
@@ -316,18 +336,47 @@ export default function CreateDispatchPage() {
     },
   });
 
+  const pathname = usePathname();
+  const isDispatch2 = pathname?.startsWith("/dispatch-2");
+  const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
+  const userDispatchCat = isDispatch2 ? "D2" : "D1";
+
+  const filteredWorkOrders = React.useMemo(() => {
+    return workOrders.filter((wo) => {
+      // Find matching product
+      const productObj = productsMap.get(wo.salesOrderItem?.productId) || 
+                         productsMap.get(wo.salesOrderItem?.product?.id) ||
+                         wo.salesOrderItem?.product;
+      // Get the product dispatch category
+      const productCat = productObj?.dispatchCategory || 
+                         productObj?.dispatch_category ||
+                         wo.salesOrderItem?.product?.dispatchCategory ||
+                         wo.salesOrderItem?.product?.dispatch_category ||
+                         "D1"; // default to D1 if not specified
+      
+      const c1 = String(productCat).trim().toUpperCase();
+      const c2 = String(userDispatchCat).trim().toUpperCase();
+      
+      if (c1 === c2) return true;
+      if ((c1 === 'D1' || c1 === 'DISPATCH 1' || c1 === 'DISPATCH_1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) return true;
+      if ((c1 === 'D2' || c1 === 'DISPATCH 2' || c1 === 'DISPATCH_2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) return true;
+      
+      return false;
+    });
+  }, [workOrders, userDispatchCat, productsMap]);
+
   useEffect(() => {
-    if (!workOrders.length || initialSelectionSet.current) return;
+    if (!filteredWorkOrders.length || initialSelectionSet.current) return;
     const initial =
-      workOrders.find((row) => row.id === workOrderId || row.productionPlan?.salesOrder?.id === salesOrderId) || workOrders[0];
+      filteredWorkOrders.find((row) => row.id === workOrderId || row.productionPlan?.salesOrder?.id === salesOrderId) || filteredWorkOrders[0];
     setSelectedIds([initial.id]);
     setDispatchQuantities({ [initial.id]: availableQuantity(initial) });
     initialSelectionSet.current = true;
-  }, [workOrders, searchParams]);
+  }, [filteredWorkOrders, searchParams]);
 
   const selectedWorkOrders = React.useMemo(
-    () => workOrders.filter((row) => selectedIds.includes(row.id)),
-    [workOrders, selectedIds]
+    () => filteredWorkOrders.filter((row) => selectedIds.includes(row.id)),
+    [filteredWorkOrders, selectedIds]
   );
   const selectedSalesOrders = React.useMemo(
     () =>
@@ -777,13 +826,13 @@ export default function CreateDispatchPage() {
     );
   }
 
-  if (error || (!isLoading && workOrders.length === 0)) {
+  if (error || (!isLoading && filteredWorkOrders.length === 0)) {
     return (
       <div className={styles.page}>
         <div style={{ maxWidth: 480, margin: "40px auto", padding: 24, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 14 }}>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#991b1b", margin: "0 0 8px" }}>Error loading work order</h1>
           <p style={{ fontSize: 13, color: "#b91c1c", margin: "0 0 16px" }}>No work orders are currently ready for dispatch.</p>
-          <button onClick={() => router.push("/dispatch/orders")} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", color: "#b91c1c", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+          <button onClick={() => router.push(`${basePath}/orders`)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", color: "#b91c1c", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
             Back to Queue
           </button>
         </div>
@@ -796,7 +845,7 @@ export default function CreateDispatchPage() {
       {/* ── Top Header ── */}
       <div className={styles.topBar}>
         <h1 className={styles.pageTitle}>Schedule Outgoing Shipment (Fulfillment Booking)</h1>
-        <button type="button" className={styles.cancelBtn} onClick={() => router.push("/dispatch/orders")}>
+        <button type="button" className={styles.cancelBtn} onClick={() => router.push(`${basePath}/orders`)}>
           Cancel
         </button>
       </div>
@@ -809,7 +858,7 @@ export default function CreateDispatchPage() {
           <div className={styles.orderListPanel}>
             <p className={styles.panelLabel}>Select Active Order Reference</p>
             <div className={styles.orderList}>
-              {workOrders.map((candidate) => {
+              {filteredWorkOrders.map((candidate) => {
                 const candidateSalesOrder = candidate.productionPlan?.salesOrder;
                 const selected = selectedIds.includes(candidate.id);
                 const maximum = availableQuantity(candidate);

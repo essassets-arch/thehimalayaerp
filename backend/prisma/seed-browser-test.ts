@@ -126,8 +126,7 @@ async function main() {
     'sales.orders.approve', 'sales.orders.create', 'sales.orders.read', 'sales.orders.update',
     'sales.salesreports.read',
     'sales.salesreturns.approve', 'sales.salesreturns.create', 'sales.salesreturns.read', 'sales.salesreturns.reject', 'sales.salesreturns.update',
-    'sales.targets.create', 'sales.targets.delete', 'sales.targets.read', 'sales.targets.update',
-    'finance.payment.read', 'finance.payment.create'
+    'sales.targets.create', 'sales.targets.delete', 'sales.targets.read', 'sales.targets.update'
   ];
 
   for (const code of permissionsList) {
@@ -168,12 +167,14 @@ async function main() {
     const existingPerms = await prisma.rolePermission.findMany({ where: { roleId: role.id } });
     const existingPermIds = new Set(existingPerms.map(ep => ep.permissionId));
     
-    for (const pcode of rd.perms) {
+    const uniquePerms = Array.from(new Set(rd.perms));
+    for (const pcode of uniquePerms) {
       const pid = permMap[pcode];
       if (pid && !existingPermIds.has(pid)) {
         await prisma.rolePermission.create({
           data: { roleId: role.id, permissionId: pid }
         });
+        existingPermIds.add(pid);
       }
     }
   }

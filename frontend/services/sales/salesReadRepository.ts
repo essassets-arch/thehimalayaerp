@@ -10,6 +10,13 @@ export interface SalesOrderItem {
   deliveredQuantity: number;
   returnedQuantity: number;
   replacedQuantity: number;
+  fulfillment?: {
+    orderedQty: number;
+    availableFG: number;
+    fgAllocatableQty: number;
+    productionRequiredQty: number;
+    activeReservedQty: number;
+  };
 }
 
 export interface SalesOrder {

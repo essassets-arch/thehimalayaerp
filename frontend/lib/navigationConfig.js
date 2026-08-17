@@ -232,7 +232,7 @@ export const navigationConfig = {
   ],
   'Super Admin': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
-    { id: 'reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
+    { id: 'business-reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
     { id: 'exit-clearance', label: 'Exit Clearance (Read-Only)', icon: PackageCheck, path: '/super-admin/exit-clearance' },
     { id: 'salary-approvals', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approvals' },
     { id: 'workflow', label: 'Workflow Monitor', icon: Activity, path: '/super-admin/workflow' },

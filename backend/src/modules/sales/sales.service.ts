@@ -98,8 +98,10 @@ export class SalesService {
         take,
       }),
     ]);
+    const resolvedCompanyId = (await this.prisma.company.findFirst())?.id || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const mapped = await this.mapSalesOrdersWithFulfillment(records, resolvedCompanyId);
     return {
-      data: records.map(mapSalesOrder),
+      data: mapped,
       pagination: {
         page: Number(page),
         pageSize: Number(pageSize),
@@ -160,8 +162,9 @@ export class SalesService {
       );
     }
 
+    const mappedOrder = await this.mapSalesOrderWithFulfillment(order, order.customer.companyId);
     return {
-      ...mapSalesOrder(order),
+      ...mappedOrder,
       availableActions,
     };
   }
@@ -308,7 +311,9 @@ export class SalesService {
           after: JSON.parse(JSON.stringify(order)),
         },
       });
-      return mapSalesOrder(order);
+      const mappedOrder = await this.mapSalesOrderWithFulfillment(order, order.customer.companyId);
+      if (!mappedOrder) throw new BadRequestException('Failed to map created order.');
+      return mappedOrder;
     });
   }
 
@@ -471,10 +476,11 @@ export class SalesService {
         },
       });
 
+      const mappedOrder = await this.mapSalesOrderWithFulfillment(orderWithPlan, orderWithPlan.customer.companyId);
       return {
         success: true,
         message: `Action ${dto.action} processed successfully. New state: ${updated.workflowState?.name || updated.status}`,
-        order: mapSalesOrder(orderWithPlan),
+        order: mappedOrder,
         originalOrder: orderWithPlan,
       };
     });
@@ -600,5 +606,63 @@ export class SalesService {
       code: DomainErrorCodes.QUOTATION_NOT_ACCEPTED,
       message: 'Quotations not implemented in prototype',
     });
+  }
+
+  private async getFulfillmentData(orders: any[], companyId: string) {
+    const allItemIds = orders.flatMap(o => o.items?.map(i => i.id) || []);
+    const allProductIds = Array.from(new Set(orders.flatMap(o => o.items?.map(i => i.productId) || [])));
+
+    const fgRecords = await this.prisma.finishedGoods.findMany({
+      where: {
+        productId: { in: allProductIds },
+      },
+    });
+
+    const dispatchItems = await this.prisma.dispatchItem.findMany({
+      where: {
+        salesOrderItemId: { in: allItemIds },
+      },
+    });
+
+    const allocations = await this.prisma.salesOrderAllocation.findMany({
+      where: {
+        salesOrderItemId: { in: allItemIds },
+      },
+    });
+
+    const fgMap = new Map<string, number>();
+    for (const fg of fgRecords) {
+      fgMap.set(fg.productId, (fgMap.get(fg.productId) || 0) + Number(fg.availableQuantity));
+    }
+
+    const dispatchMap = new Map<string, number>();
+    for (const d of dispatchItems) {
+      dispatchMap.set(d.salesOrderItemId, (dispatchMap.get(d.salesOrderItemId) || 0) + Number(d.quantity));
+    }
+
+    const allocationMap = new Map<string, { reserved: number; production: number }>();
+    for (const a of allocations) {
+      const current = allocationMap.get(a.salesOrderItemId) || { reserved: 0, production: 0 };
+      if (a.allocationType === 'FINISHED_GOODS_RESERVATION') {
+        current.reserved += Number(a.reservedQuantity);
+      } else if (a.allocationType === 'PRODUCTION_REQUIRED') {
+        current.production += Number(a.productionQuantity);
+      }
+      allocationMap.set(a.salesOrderItemId, current);
+    }
+
+    return { fgMap, dispatchMap, allocationMap };
+  }
+
+  private async mapSalesOrdersWithFulfillment(orders: any[], companyId: string) {
+    if (!orders || orders.length === 0) return [];
+    const fulfillmentData = await this.getFulfillmentData(orders, companyId);
+    return orders.map(order => mapSalesOrder(order, fulfillmentData));
+  }
+
+  private async mapSalesOrderWithFulfillment(order: any, companyId: string) {
+    if (!order) return null;
+    const fulfillmentData = await this.getFulfillmentData([order], companyId);
+    return mapSalesOrder(order, fulfillmentData);
   }
 }

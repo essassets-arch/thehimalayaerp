@@ -204,51 +204,131 @@ export class DispatchService {
           }
         }
 
-        const totalFgAvailable = fgRecords.reduce(
-          (sum, r) => sum + Number(r.availableQuantity || 0),
-          0,
-        );
+        const allocations = await tx.salesOrderAllocation.findMany({
+          where: {
+            salesOrderItemId: item.salesOrderItemId,
+            allocationType: 'FINISHED_GOODS_RESERVATION',
+            reservedQuantity: { gt: 0 },
+          },
+        });
+        const reservedQty = allocations.reduce((sum, r) => sum + Number(r.reservedQuantity), 0);
 
-        if (requestedQty > totalFgAvailable) {
-          throw new BadRequestException(
-            `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}. Available: ${totalFgAvailable} ${(soItem as any).product?.unit || 'PCS'}, Requested: ${requestedQty} ${(soItem as any).product?.unit || 'PCS'}.`,
-          );
-        }
+        const fromRes = Math.min(requestedQty, reservedQty);
+        const fromAvail = Math.max(0, requestedQty - reservedQty);
 
-        // Atomically Deduct stock from FinishedGoods using atomic conditional updates
-        let remainingToDeduct = requestedQty;
-        for (const fg of fgRecords) {
-          if (remainingToDeduct <= 0) break;
-          const currentAvail = Number(fg.availableQuantity || 0);
-          if (currentAvail <= 0) continue;
+        // Deduct from reserves (physical stock only)
+        if (fromRes > 0) {
+          let remainingFromRes = fromRes;
+          for (const fg of fgRecords) {
+            if (remainingFromRes <= 0) break;
+            const currentQty = Number(fg.quantity || 0);
+            if (currentQty <= 0) continue;
 
-          const deduct = Math.min(currentAvail, remainingToDeduct);
+            const deduct = Math.min(currentQty, remainingFromRes);
 
-          const updated = await tx.finishedGoods.updateMany({
-            where: {
-              id: fg.id,
-              availableQuantity: { gte: deduct },
-            },
-            data: {
-              availableQuantity: { decrement: deduct },
-              quantity: { decrement: deduct },
-            },
-          });
+            const updated = await tx.finishedGoods.updateMany({
+              where: {
+                id: fg.id,
+                quantity: { gte: deduct },
+              },
+              data: {
+                quantity: { decrement: deduct },
+              },
+            });
 
-          if (updated.count === 0) {
+            if (updated.count === 0) {
+              throw new BadRequestException(
+                `Insufficient finished goods physical stock due to concurrent updates. Please retry.`,
+              );
+            }
+
+            remainingFromRes -= deduct;
+          }
+
+          if (remainingFromRes > 0) {
             throw new BadRequestException(
-              `Insufficient finished goods stock due to concurrent allocation. Please retry.`,
+              `Insufficient finished goods physical stock for reserves.`,
             );
           }
 
-          remainingToDeduct -= deduct;
+          // Decrement reservedQuantity on allocations
+          let remainingAllocationToDeduct = fromRes;
+          for (const alloc of allocations) {
+            if (remainingAllocationToDeduct <= 0) break;
+            const currentReserved = Number(alloc.reservedQuantity || 0);
+            const deduct = Math.min(currentReserved, remainingAllocationToDeduct);
+
+            await tx.salesOrderAllocation.update({
+              where: { id: alloc.id },
+              data: {
+                reservedQuantity: { decrement: deduct },
+              },
+            });
+
+            remainingAllocationToDeduct -= deduct;
+          }
         }
 
-        if (remainingToDeduct > 0) {
-          throw new BadRequestException(
-            `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}.`,
+        // Deduct from available stock (both physical and available)
+        if (fromAvail > 0) {
+          const totalFgAvailable = fgRecords.reduce(
+            (sum, r) => sum + Number(r.availableQuantity || 0),
+            0,
           );
+
+          if (fromAvail > totalFgAvailable) {
+            throw new BadRequestException(
+              `Insufficient finished goods available stock for ${soItem.productNameSnapshot || 'product'}. Available: ${totalFgAvailable} ${(soItem as any).product?.unit || 'PCS'}, Requested: ${fromAvail} ${(soItem as any).product?.unit || 'PCS'}.`,
+            );
+          }
+
+          let remainingFromAvail = fromAvail;
+          for (const fg of fgRecords) {
+            if (remainingFromAvail <= 0) break;
+            const currentAvail = Number(fg.availableQuantity || 0);
+            if (currentAvail <= 0) continue;
+
+            const deduct = Math.min(currentAvail, remainingFromAvail);
+
+            const updated = await tx.finishedGoods.updateMany({
+              where: {
+                id: fg.id,
+                availableQuantity: { gte: deduct },
+              },
+              data: {
+                availableQuantity: { decrement: deduct },
+                quantity: { decrement: deduct },
+              },
+            });
+
+            if (updated.count === 0) {
+              throw new BadRequestException(
+                `Insufficient finished goods stock due to concurrent updates. Please retry.`,
+              );
+            }
+
+            remainingFromAvail -= deduct;
+          }
+
+          if (remainingFromAvail > 0) {
+            throw new BadRequestException(
+              `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}.`,
+            );
+          }
         }
+
+        // Record StockHistory event for DISPATCH_OUT
+        await tx.stockHistory.create({
+          data: {
+            companyId: so.customer.companyId,
+            productId: soItem.productId,
+            quantity: requestedQty,
+            salesOrderId: so.id,
+            salesOrderItemId: item.salesOrderItemId,
+            event: 'DISPATCH_OUT',
+            actor: userId,
+          },
+        });
 
         // Record Inventory Transaction for Audit Trail
         let warehouse = await tx.warehouse.findFirst({
@@ -726,5 +806,86 @@ export class DispatchService {
     }
 
     return history;
+  }
+
+  async getDispatchQueue(userId: string, role: string, companyId: string) {
+    // 1. Resolve category filter for the Dispatch Executive user
+    let userCategory: string | null = null;
+    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+      const u: any = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (u?.dispatchCategory) {
+        userCategory = u.dispatchCategory;
+      }
+    }
+
+    // 2. Fetch all allocations of type FINISHED_GOODS_RESERVATION where reservedQuantity > 0
+    const allocations = await this.prisma.salesOrderAllocation.findMany({
+      where: {
+        allocationType: 'FINISHED_GOODS_RESERVATION',
+        reservedQuantity: { gt: 0 },
+        salesOrder: {
+          customer: { companyId },
+        },
+      },
+      include: {
+        salesOrder: {
+          include: {
+            customer: true,
+            items: { include: { product: true } },
+          },
+        },
+      },
+    });
+
+    const ordersMap = new Map<string, any>();
+    for (const alloc of allocations) {
+      const salesOrderItem = alloc.salesOrder.items.find(i => i.id === alloc.salesOrderItemId);
+      if (!salesOrderItem) continue;
+
+      const product = salesOrderItem.product;
+      const dispatchCat = product?.dispatchCategory || 'D1';
+
+      // Apply category context filtering
+      if (userCategory) {
+        const c1 = String(dispatchCat).trim().toUpperCase();
+        const c2 = String(userCategory).trim().toUpperCase();
+        let matches = c1 === c2;
+        if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) matches = true;
+        if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) matches = true;
+        if (!matches) continue;
+      }
+
+      const key = alloc.salesOrderId;
+      if (!ordersMap.has(key)) {
+        ordersMap.set(key, {
+          id: alloc.id, // allocationId
+          orderId: alloc.salesOrder.orderNumber,
+          orderNo: alloc.salesOrder.orderNumber,
+          salesOrderId: alloc.salesOrderId,
+          batchId: product?.sku || 'FG-STOCK',
+          customerName: alloc.salesOrder.customer.companyName,
+          deliveryAddress: typeof alloc.salesOrder.shippingAddress === 'string'
+            ? alloc.salesOrder.shippingAddress
+            : (alloc.salesOrder.shippingAddress ? JSON.stringify(alloc.salesOrder.shippingAddress) : 'Factory Staging Area'),
+          status: 'READY_FOR_DISPATCH',
+          items: [],
+        });
+      }
+
+      const orderRow = ordersMap.get(key);
+      orderRow.items.push({
+        allocationId: alloc.id,
+        salesOrderItemId: alloc.salesOrderItemId,
+        productId: salesOrderItem.productId,
+        productCode: salesOrderItem.productCodeSnapshot || product?.sku || '',
+        productName: salesOrderItem.productNameSnapshot || product?.name || '',
+        approvedQuantity: Number(alloc.reservedQuantity),
+        dispatchableQuantity: Number(alloc.reservedQuantity),
+        unit: salesOrderItem.unit || 'PCS',
+        dispatchCategory: dispatchCat,
+      });
+    }
+
+    return Array.from(ordersMap.values());
   }
 }

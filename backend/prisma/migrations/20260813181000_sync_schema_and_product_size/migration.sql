@@ -19,6 +19,61 @@ END $$;
 -- 2. Drop constraints safely if exist
 ALTER TABLE "InventoryTransaction" DROP CONSTRAINT IF EXISTS "InventoryTransaction_productId_fkey";
 
+-- Pre-create tables that will be altered or referenced below
+CREATE TABLE IF NOT EXISTS "ProductionDailyReport" (
+    "id" TEXT NOT NULL,
+    "companyId" TEXT NOT NULL,
+    "reportNo" TEXT NOT NULL,
+    "reportDate" TIMESTAMP(3) NOT NULL,
+    "shift" TEXT NOT NULL,
+    "supervisorName" TEXT NOT NULL,
+    "lineInCharge" TEXT NOT NULL,
+    "manpowerCount" INTEGER NOT NULL DEFAULT 0,
+    "totalSetQty" INTEGER NOT NULL DEFAULT 0,
+    "totalCoverQty" INTEGER NOT NULL DEFAULT 0,
+    "totalFrameQty" INTEGER NOT NULL DEFAULT 0,
+    "totalWeightKg" DECIMAL(14,3) NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'DRAFT',
+    "createdById" TEXT NOT NULL,
+    "approvedById" TEXT,
+    "approvedAt" TIMESTAMP(3),
+    "remarks" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ProductionDailyReport_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "ProductionDailyReportItem" (
+    "id" TEXT NOT NULL,
+    "reportId" TEXT NOT NULL,
+    "productId" TEXT,
+    "customProductName" TEXT,
+    "srNo" INTEGER NOT NULL,
+    "size" TEXT,
+    "type" TEXT,
+    "capacity" TEXT,
+    "coverQty" INTEGER NOT NULL DEFAULT 0,
+    "coverUnitWeight" DECIMAL(10,3) NOT NULL DEFAULT 0,
+    "coverWeight" DECIMAL(14,3) NOT NULL DEFAULT 0,
+    "actualCoverWeight" DECIMAL(14,3),
+    "frameQty" INTEGER NOT NULL DEFAULT 0,
+    "frameUnitWeight" DECIMAL(10,3) NOT NULL DEFAULT 0,
+    "frameWeight" DECIMAL(14,3) NOT NULL DEFAULT 0,
+    "actualFrameWeight" DECIMAL(14,3),
+    "weightOverrideReason" TEXT,
+    "setQty" INTEGER NOT NULL DEFAULT 0,
+    "totalWeight" DECIMAL(14,3) NOT NULL DEFAULT 0,
+    "workOrderId" TEXT,
+    "productionPlanId" TEXT,
+    "salesOrderId" TEXT,
+    "remarks" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ProductionDailyReportItem_pkey" PRIMARY KEY ("id")
+);
+
 -- 3. Add columns safely with IF NOT EXISTS
 ALTER TABLE "CustomerComplaint" ADD COLUMN IF NOT EXISTS "salesExecutiveId" TEXT;
 ALTER TABLE "Dispatch" ADD COLUMN IF NOT EXISTS "dispatchCategory" TEXT;
@@ -42,6 +97,32 @@ ADD COLUMN IF NOT EXISTS "salesExecutiveId" TEXT;
 ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "salesExecutiveId" TEXT;
 ALTER TABLE "SampleRequest" ADD COLUMN IF NOT EXISTS "salesExecutiveId" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dispatchCategory" TEXT;
+
+-- Reconcile and add missing nextReminder columns to match schema.prisma
+ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "nextReminder" TIMESTAMP(3);
+ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "nextReminder" TIMESTAMP(3);
+ALTER TABLE "SampleRequest" ADD COLUMN IF NOT EXISTS "nextReminder" TIMESTAMP(3);
+ALTER TABLE "ProductionPlan" ADD COLUMN IF NOT EXISTS "priority" TEXT;
+ALTER TABLE "FollowUp" ADD COLUMN IF NOT EXISTS "companyId" TEXT,
+ADD COLUMN IF NOT EXISTS "customerName" TEXT,
+ADD COLUMN IF NOT EXISTS "moduleType" TEXT,
+ADD COLUMN IF NOT EXISTS "moduleId" TEXT,
+ADD COLUMN IF NOT EXISTS "reminderDate" TEXT,
+ADD COLUMN IF NOT EXISTS "reminderTime" TEXT,
+ADD COLUMN IF NOT EXISTS "reminderType" TEXT DEFAULT 'Follow-up',
+ADD COLUMN IF NOT EXISTS "priority" TEXT DEFAULT 'Medium',
+ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'Pending',
+ADD COLUMN IF NOT EXISTS "remarks" TEXT,
+ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "dismissedAt" TIMESTAMP(3);
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='SalesOrder' AND column_name='nextReminderAt') THEN
+        ALTER TABLE "SalesOrder" RENAME COLUMN "nextReminderAt" TO "nextReminder";
+    ELSE
+        ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "nextReminder" TIMESTAMP(3);
+    END IF;
+END $$;
 
 ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "reportNo" TEXT;
 ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "shift" TEXT;
@@ -86,29 +167,30 @@ CREATE TABLE IF NOT EXISTS "inventory_items" (
 );
 
 CREATE TABLE IF NOT EXISTS "machines" (
-    "id" TEXT NOT NULL,
-    "machine_id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "department" TEXT NOT NULL,
-    "line" TEXT NOT NULL,
-    "status" "MachineStatus" NOT NULL DEFAULT 'USE',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "id" BIGSERIAL NOT NULL,
+    "machine_id" VARCHAR(30) NOT NULL,
+    "machine_name" VARCHAR(150) NOT NULL,
+    "machine_type" VARCHAR(100) NOT NULL,
+    "serial_number" VARCHAR(100),
+    "location" VARCHAR(100),
+    "plant_id" BIGINT NOT NULL DEFAULT 1,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "machines_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE IF NOT EXISTS "machine_daily_status" (
-    "id" TEXT NOT NULL,
-    "machine_id" TEXT NOT NULL,
-    "work_date" TIMESTAMP(3) NOT NULL,
-    "shift" TEXT NOT NULL DEFAULT 'Shift A',
-    "status" "MachineStatus" NOT NULL DEFAULT 'USE',
-    "running_hours" DECIMAL(5,2) NOT NULL DEFAULT 0.0,
-    "downtime_hours" DECIMAL(5,2) NOT NULL DEFAULT 0.0,
-    "remarks" TEXT,
+    "id" BIGSERIAL NOT NULL,
+    "machine_id" BIGINT NOT NULL,
+    "plant_id" BIGINT NOT NULL DEFAULT 1,
+    "work_date" DATE NOT NULL,
+    "status" "MachineStatus" NOT NULL,
+    "remarks" VARCHAR(300),
     "updated_by_id" TEXT,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "machine_daily_status_pkey" PRIMARY KEY ("id")
 );
@@ -187,6 +269,123 @@ CREATE TABLE IF NOT EXISTS "ManualAttendanceRequest" (
     CONSTRAINT "ManualAttendanceRequest_pkey" PRIMARY KEY ("id")
 );
 
+-- Reconcile and add missing Attendance, AttendancePunch, ShiftPolicy, and StockHistory schemas
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AttendanceStatus') THEN
+        CREATE TYPE "AttendanceStatus" AS ENUM ('NOT_PUNCHED', 'PRESENT', 'PUNCHED_IN', 'PUNCHED_OUT', 'LATE', 'HALF_DAY', 'ABSENT', 'LEAVE');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StockHistoryEvent') THEN
+        CREATE TYPE "StockHistoryEvent" AS ENUM ('STOCK_IN', 'RESERVE', 'UNRESERVE', 'DISPATCH_OUT', 'QC_RECEIPT', 'ADJUSTMENT', 'RETURN_IN');
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "AttendancePunch" (
+    "id" TEXT NOT NULL,
+    "empId" TEXT NOT NULL,
+    "empName" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "time" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "location" TEXT,
+    "coords" TEXT,
+    "selfieUrl" TEXT,
+    "isRealPunch" BOOLEAN NOT NULL DEFAULT true,
+    "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "AttendancePunch_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "ShiftPolicy" (
+    "id" TEXT NOT NULL,
+    "deptName" TEXT NOT NULL,
+    "checkIn" TEXT NOT NULL,
+    "checkOut" TEXT NOT NULL,
+    "grace" INTEGER NOT NULL DEFAULT 15,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ShiftPolicy_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "Attendance" (
+    "id" TEXT NOT NULL,
+    "companyId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "attendanceDate" TIMESTAMP(3) NOT NULL,
+    "punchInAt" TIMESTAMP(3),
+    "punchOutAt" TIMESTAMP(3),
+    "punchInLatitude" DECIMAL(65,30),
+    "punchInLongitude" DECIMAL(65,30),
+    "punchInAddress" TEXT,
+    "punchInAccuracy" DOUBLE PRECISION,
+    "punchOutLatitude" DECIMAL(65,30),
+    "punchOutLongitude" DECIMAL(65,30),
+    "punchOutAddress" TEXT,
+    "punchOutAccuracy" DOUBLE PRECISION,
+    "punchInSelfieUrl" TEXT,
+    "punchOutSelfieUrl" TEXT,
+    "workedSeconds" INTEGER NOT NULL DEFAULT 0,
+    "status" "AttendanceStatus" NOT NULL DEFAULT 'NOT_PUNCHED',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Attendance_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "StockHistory" (
+    "id" TEXT NOT NULL,
+    "companyId" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "quantity" DECIMAL(18,3) NOT NULL,
+    "salesOrderId" TEXT,
+    "salesOrderItemId" TEXT,
+    "allocationId" TEXT,
+    "dispatchId" TEXT,
+    "event" "StockHistoryEvent" NOT NULL,
+    "actor" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "StockHistory_pkey" PRIMARY KEY ("id")
+);
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'AttendancePunch_empId_idx') THEN
+        CREATE INDEX "AttendancePunch_empId_idx" ON "AttendancePunch"("empId");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'AttendancePunch_date_idx') THEN
+        CREATE INDEX "AttendancePunch_date_idx" ON "AttendancePunch"("date");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ShiftPolicy_deptName_key') THEN
+        CREATE UNIQUE INDEX "ShiftPolicy_deptName_key" ON "ShiftPolicy"("deptName");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Attendance_companyId_idx') THEN
+        CREATE INDEX "Attendance_companyId_idx" ON "Attendance"("companyId");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Attendance_userId_idx') THEN
+        CREATE INDEX "Attendance_userId_idx" ON "Attendance"("userId");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Attendance_attendanceDate_idx') THEN
+        CREATE INDEX "Attendance_attendanceDate_idx" ON "Attendance"("attendanceDate");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'StockHistory_companyId_productId_createdAt_idx') THEN
+        CREATE INDEX "StockHistory_companyId_productId_createdAt_idx" ON "StockHistory"("companyId", "productId", "createdAt");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'StockHistory_salesOrderId_idx') THEN
+        CREATE INDEX "StockHistory_salesOrderId_idx" ON "StockHistory"("salesOrderId");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'StockHistory_allocationId_idx') THEN
+        CREATE INDEX "StockHistory_allocationId_idx" ON "StockHistory"("allocationId");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'StockHistory_dispatchId_idx') THEN
+        CREATE INDEX "StockHistory_dispatchId_idx" ON "StockHistory"("dispatchId");
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Attendance_userId_fkey') THEN
+        ALTER TABLE "Attendance" ADD CONSTRAINT "Attendance_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS "RawMaterial" (
     "id" TEXT NOT NULL,
     "publicId" TEXT NOT NULL,
@@ -197,65 +396,15 @@ CREATE TABLE IF NOT EXISTS "RawMaterial" (
     "unit" TEXT NOT NULL,
     "minimumStock" DECIMAL(14,2) NOT NULL DEFAULT 0,
     "storageLocation" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "RawMaterial_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "ProductionDailyReport" (
-    "id" TEXT NOT NULL,
-    "companyId" TEXT NOT NULL,
-    "reportNo" TEXT NOT NULL,
-    "reportDate" TIMESTAMP(3) NOT NULL,
-    "shift" TEXT NOT NULL,
-    "supervisorName" TEXT NOT NULL,
-    "lineInCharge" TEXT NOT NULL,
-    "manpowerCount" INTEGER NOT NULL DEFAULT 0,
-    "totalSetQty" INTEGER NOT NULL DEFAULT 0,
-    "totalCoverQty" INTEGER NOT NULL DEFAULT 0,
-    "totalFrameQty" INTEGER NOT NULL DEFAULT 0,
-    "totalWeightKg" DECIMAL(14,3) NOT NULL DEFAULT 0,
-    "status" TEXT NOT NULL DEFAULT 'DRAFT',
-    "createdById" TEXT NOT NULL,
-    "approvedById" TEXT,
-    "approvedAt" TIMESTAMP(3),
-    "remarks" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "ProductionDailyReport_pkey" PRIMARY KEY ("id")
-);
-
-CREATE TABLE IF NOT EXISTS "ProductionDailyReportItem" (
-    "id" TEXT NOT NULL,
-    "reportId" TEXT NOT NULL,
-    "productId" TEXT,
-    "customProductName" TEXT,
-    "srNo" INTEGER NOT NULL,
-    "size" TEXT,
-    "type" TEXT,
-    "capacity" TEXT,
-    "coverQty" INTEGER NOT NULL DEFAULT 0,
-    "coverUnitWeight" DECIMAL(10,3) NOT NULL DEFAULT 0,
-    "coverWeight" DECIMAL(14,3) NOT NULL DEFAULT 0,
-    "actualCoverWeight" DECIMAL(14,3),
-    "frameQty" INTEGER NOT NULL DEFAULT 0,
-    "frameUnitWeight" DECIMAL(10,3) NOT NULL DEFAULT 0,
-    "frameWeight" DECIMAL(14,3) NOT NULL DEFAULT 0,
-    "actualFrameWeight" DECIMAL(14,3),
-    "weightOverrideReason" TEXT,
-    "setQty" INTEGER NOT NULL DEFAULT 0,
-    "totalWeight" DECIMAL(14,3) NOT NULL DEFAULT 0,
-    "workOrderId" TEXT,
-    "productionPlanId" TEXT,
-    "salesOrderId" TEXT,
-    "remarks" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "ProductionDailyReportItem_pkey" PRIMARY KEY ("id")
-);
+-- ProductionDailyReport and ProductionDailyReportItem moved to the top of this migration script
 
 -- 5. Create Indexes safely if not exist
 DO $$ BEGIN

@@ -323,7 +323,7 @@ export default function PlantHeadPortal() {
   const { data: persistedMaterialRequests = [] } = useMaterialRequests();
   const { salesOrders: backendSalesOrders, loadSalesOrders } = useSalesBackend();
   const { user } = useAuth();
-  const canReadSalesOrders = hasPermission(user, 'sales.orders.read');
+  const canReadSalesOrders = hasPermission(user, 'sales.orders.read') || hasPermission(user, 'planthead.read') || hasPermission(user, 'plant-head.read') || hasPermission(user, 'admin.planthead.read');
   const showToast = useNotificationStore(s => s.showToast);
   const globalSearch = useSearchStore(s => s.globalSearch);
   const o2p = useO2PWorkflow();
@@ -474,7 +474,7 @@ export default function PlantHeadPortal() {
 
   const orders = useMemo(() => [...directBackendOrders, ...(backendSalesOrders || []), ...salesOrdersStore]
     .filter((order, index, all) =>
-      index === all.findIndex(candidate => String(candidate.id || candidate.orderNo) === String(order.id || order.orderNo))
+      index === all.findIndex(candidate => String(candidate.orderNo || candidate.orderNumber || candidate.id) === String(order.orderNo || order.orderNumber || order.id))
     )
     .map((order) => {
       const quotationRef = order.quotationId || order.quotation_id || order.source_quotation_ref || order.quotationRef;
@@ -489,6 +489,26 @@ export default function PlantHeadPortal() {
   const [selectedOrderForPlanning, setSelectedOrderForPlanning] = useState(null);
   const [targetDate, setTargetDate] = useState('');
   const [priority, setPriority] = useState('Medium');
+  const [itemFulfillmentPlans, setItemFulfillmentPlans] = useState({});
+
+  useEffect(() => {
+    if (showPlanningModal && selectedOrderForPlanning) {
+      const items = selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || [];
+      const plans = {};
+      const defaultDate = selectedOrderForPlanning._selectedTargetDate || (selectedOrderForPlanning.targetDate ? selectedOrderForPlanning.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+      const defaultPriority = selectedOrderForPlanning.priority || 'Medium';
+
+      items.forEach(item => {
+        plans[item.id] = {
+          salesOrderItemId: item.id,
+          targetDate: defaultDate,
+          priority: defaultPriority,
+        };
+      });
+      setItemFulfillmentPlans(plans);
+    }
+  }, [showPlanningModal, selectedOrderForPlanning]);
+
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
   const [isPlanningSubmitting, setIsPlanningSubmitting] = useState(false);
   const planningSubmitLock = useRef(false);
@@ -879,22 +899,59 @@ export default function PlantHeadPortal() {
     }
   }, [orderNoParam, orders, targetDate]);
 
-  const handlePlanningSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedOrderForPlanning || planningSubmitLock.current) return;
-    if (!targetDate) {
-      showToast('Please select a Target Date.');
+  const handleFulfillmentPlanSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedOrderForPlanning || isPlanningSubmitting) return;
+
+    const items = selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || [];
+    const planItems = [];
+
+    // Validate that all production items have targetDate and priority
+    for (const item of items) {
+      const f = item.fulfillment || {
+        orderedQty: item.quantity || 0,
+        availableFG: 0,
+        fgAllocatableQty: 0,
+        productionRequiredQty: item.quantity || 0,
+        pendingDirectDispatchQty: item.quantity || 0,
+        pendingProductionQty: 0,
+      };
+      const directDispatchQty = Number(f.pendingDirectDispatchQty || 0);
+      const productionQty = Number(f.pendingProductionQty || 0);
+
+      if (directDispatchQty <= 0 && productionQty <= 0) continue;
+
+      const planForItem = itemFulfillmentPlans[item.id] || {};
+      if (productionQty > 0) {
+        if (!planForItem.targetDate) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Missing Date',
+            text: `Target Date is required for production item: ${item.productName || item.productCode || 'Item'}.`
+          });
+          return;
+        }
+      }
+
+      planItems.push({
+        salesOrderItemId: item.id,
+        directDispatchQty,
+        productionQty,
+        targetDate: productionQty > 0 ? planForItem.targetDate : undefined,
+      });
+    }
+
+    if (planItems.length === 0) {
+      showToast('No actions defined for any items in this order.');
       return;
     }
-    planningSubmitLock.current = true;
-    setIsPlanningSubmitting(true);
 
     Swal.fire({
-      title: 'Send Order to Production?',
-      text: `Set ${targetDate} as the target date for Order #${selectedOrderForPlanning.orderNo} and release its work order to Production?`,
+      title: 'Submit Fulfillment Plan?',
+      text: `Are you sure you want to submit the fulfillment plan for Order #${selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber}?`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Send to Production',
+      confirmButtonText: 'Yes, Submit Plan',
       cancelButtonText: 'Cancel',
       customClass: {
         popup: 'swal-premium-popup',
@@ -905,173 +962,47 @@ export default function PlantHeadPortal() {
       buttonsStyling: false
     }).then(async (result) => {
       if (result.isConfirmed) {
-        showToast("Plant Head: Logging planning metrics and scheduling order...");
+        setIsPlanningSubmitting(true);
         try {
-          const isBackendOrder = Boolean(
-            directBackendOrders.some(order => order.id === selectedOrderForPlanning.id) ||
-            (backendSalesOrders || []).some(order => order.id === selectedOrderForPlanning.id)
-          );
-
-          if (isBackendOrder) {
-            let latestOrder = await backendFetch(
-              `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
-            );
-            let orderStatus = String(
-              latestOrder.workflowStateCode || latestOrder.status || ''
-            ).toUpperCase();
-
-            if (['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(orderStatus)) {
-              await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
-                method: 'POST',
-                body: { action: 'PLANT_APPROVE', remarks: 'Accepted during production planning' },
-              });
-              latestOrder = await backendFetch(
-                `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
-              );
-              orderStatus = String(
-                latestOrder.workflowStateCode || latestOrder.status || ''
-              ).toUpperCase();
-            }
-
-            let productionPlan = planningOrders.find(plan =>
-              plan.id === selectedOrderForPlanning.productionPlanId ||
-              plan.salesOrderId === selectedOrderForPlanning.id
-            );
-            if (!productionPlan) {
-              try {
-                productionPlan = await backendFetch('/api/backend/production/plans', {
-                  method: 'POST',
-                  body: {
-                    salesOrderId: selectedOrderForPlanning.id,
-                    plannedEndDate: targetDate,
-                  },
-                });
-              } catch (err) {
-                const fetchedPlans = await backendFetch('/api/backend/production/plans').catch(() => []);
-                const plansArr = Array.isArray(fetchedPlans) ? fetchedPlans : fetchedPlans?.data || [];
-                productionPlan = plansArr.find(p => p.salesOrderId === selectedOrderForPlanning.id || p.id === selectedOrderForPlanning.productionPlanId);
-                if (!productionPlan) throw err;
-              }
-            }
-
-            await backendFetch(`/api/backend/production/plans/${productionPlan.id}`, {
-              method: 'PATCH',
-              body: {
-                plannedStartDate: new Date().toISOString().split('T')[0],
-                plannedEndDate: targetDate,
-              },
-            });
-
-            if (orderStatus === 'PLANT_APPROVED') {
-              try {
-                await backendFetch(`/api/backend/sales/orders/${selectedOrderForPlanning.id}/action`, {
-                  method: 'POST',
-                  body: { action: 'PLAN_PRODUCTION', remarks: `Target date: ${targetDate}; priority: ${priority}` },
-                });
-              } catch (transitionError) {
-                latestOrder = await backendFetch(
-                  `/api/backend/sales/orders/${selectedOrderForPlanning.id}`
-                );
-                const refreshedStatus = String(
-                  latestOrder.workflowStateCode || latestOrder.status || ''
-                ).toUpperCase();
-                if (!['READY_FOR_PRODUCTION', 'IN_PRODUCTION'].includes(refreshedStatus)) {
-                  throw transitionError;
-                }
-              }
-            }
-
-            let latestPlan = await backendFetch(
-              `/api/backend/production/plans/${productionPlan.id}`
-            );
-            let planState = String(
-              latestPlan.workflowState?.code || latestPlan.status || 'DRAFT'
-            ).toUpperCase();
-            if (['DRAFT', 'PENDING_PLANNING'].includes(planState)) {
-              await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
-                method: 'POST',
-                body: { action: 'SUBMIT', remarks: `Target date: ${targetDate}` },
-              });
-              latestPlan = await backendFetch(
-                `/api/backend/production/plans/${productionPlan.id}`
-              );
-              planState = String(
-                latestPlan.workflowState?.code || latestPlan.status
-              ).toUpperCase();
-            }
-            if (planState === 'UNDER_REVIEW') {
-              await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
-                method: 'POST',
-                body: { action: 'APPROVE', remarks: 'Approved by Plant Head' },
-              });
-              latestPlan = await backendFetch(
-                `/api/backend/production/plans/${productionPlan.id}`
-              );
-              planState = String(
-                latestPlan.workflowState?.code || latestPlan.status
-              ).toUpperCase();
-            }
-            if (planState === 'APPROVED') {
-              await backendFetch(`/api/backend/production/plans/${productionPlan.id}/action`, {
-                method: 'POST',
-                body: { action: 'RELEASE', remarks: 'Released to Production' },
-              });
-            }
-          } else {
-            if (selectedOrderForPlanning.planningStatus === 'PENDING_ACCEPTANCE' || selectedOrderForPlanning.commercialStatus === 'SENT_TO_PLANT_HEAD') {
-              useERPStore.getState().acceptOrderByPlantHead(selectedOrderForPlanning.id, { remarks: 'Auto-accepted during production planning' }, user?.name || 'Plant Head');
-            }
-            useERPStore.getState().planOrder(selectedOrderForPlanning.id, { targetProductionDate: targetDate, priority }, user?.name || 'Plant Head');
-            useERPStore.getState().activateWorkOrder(selectedOrderForPlanning.id, user?.name || 'Plant Head');
-          }
+          await backendFetch(`/api/backend/plant-head/orders/${selectedOrderForPlanning.id}/fulfillment-plan`, {
+            method: 'POST',
+            body: { items: planItems },
+          });
 
           await syncData();
           await fetchPlanningOrders();
           await loadSalesOrders();
 
           setShowPlanningModal(false);
-          const plannedNo = selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber || 'SO-2026-00013';
-          const plannedCust = selectedOrderForPlanning.customerName || selectedOrderForPlanning.customer?.name || 'SHYAM INFRA';
-          const plannedProd = selectedOrderForPlanning.products || selectedOrderForPlanning.productItem || 'FRPMHCELD 28X28';
+          setSelectedOrderForPlanning(null);
 
-          await Swal.fire({
-            icon: 'success',
-            title: 'Target Date Updated & Released! 🎯',
-            html: `
-                <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
-                  <p style="margin-bottom: 10px; color: #475569; font-weight: 600;">The production completion target date has been updated and released to Production:</p>
-                  <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 14px; border-radius: 10px; margin-bottom: 14px;">
-                    <div style="margin-bottom: 4px;"><strong>Order Reference:</strong> <span style="font-weight: 800; color: #15803D;">${plannedNo}</span></div>
-                    <div style="margin-bottom: 4px;"><strong>Customer:</strong> <span style="font-weight: 700; color: #0F172A;">${plannedCust}</span></div>
-                    <div style="margin-bottom: 4px;"><strong>Product Item:</strong> <span style="font-weight: 700; color: #0369A1;">${plannedProd}</span></div>
-                    <div><strong>Updated Target Date:</strong> <span style="font-weight: 800; color: #2563EB; background: #DBEAFE; padding: 2px 8px; border-radius: 4px;">${targetDate}</span></div>
-                  </div>
-                  <p style="margin: 0; font-size: 12px; color: #64748B;">Target date synchronized across Plant Head Planning and Production Work Order Schedules.</p>
-                </div>
-              `,
-            confirmButtonText: 'OK, Perfect',
-            customClass: {
-              popup: 'swal-premium-popup',
-              title: 'swal-premium-title',
-              confirmButton: 'swal-premium-confirm-btn'
-            },
-            buttonsStyling: false
+          let dispatchCount = 0;
+          let productionCount = 0;
+          planItems.forEach(pi => {
+            if (pi.directDispatchQty > 0) dispatchCount++;
+            if (pi.productionQty > 0) productionCount++;
           });
 
-          setSelectedOrderForPlanning(null);
-          setTargetDate('');
+          Swal.fire({
+            icon: 'success',
+            title: 'Fulfillment Plan Submitted! 🎯',
+            text: `Fulfillment plan submitted successfully. ${dispatchCount} item(s) reserved for dispatch, ${productionCount} item(s) sent to production.`,
+            timer: 3000,
+            showConfirmButton: true
+          });
+
           if (orderNoParam) {
             navigate.push('/plant-head/planning');
           }
         } catch (err) {
-          Swal.fire({ icon: 'error', title: 'Planning Failed', text: err.message });
+          Swal.fire({
+            icon: 'error',
+            title: 'Submission Failed',
+            text: err.message || String(err)
+          });
         } finally {
-          planningSubmitLock.current = false;
           setIsPlanningSubmitting(false);
         }
-      } else {
-        planningSubmitLock.current = false;
-        setIsPlanningSubmitting(false);
       }
     });
   };
@@ -2952,7 +2883,29 @@ export default function PlantHeadPortal() {
             { header: 'Order No', accessor: 'orderNo' },
             { header: 'Customer Name', accessor: 'customer.name', render: (row) => row.customerName || row.customer?.name || 'Unknown' },
             { header: 'Product Item', accessor: 'products' },
-            { header: 'Quantity Value', accessor: 'quantity', render: (row) => `${row.quantity} Units` },
+            {
+              header: 'Quantity Value',
+              accessor: 'quantity',
+              render: (row) => {
+                const items = row.detailedItems || [];
+                if (items.length === 0) return `${row.quantity} Units`;
+                const firstUnit = items[0].unit || 'Units';
+                const allSameUnit = items.every(i => (i.unit || 'Units') === firstUnit);
+                if (allSameUnit) {
+                  const total = items.reduce((sum, i) => sum + Number(i.quantity), 0);
+                  return `${total} ${firstUnit}`;
+                }
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px' }}>
+                    {items.map((item, idx) => (
+                      <div key={idx} style={{ whiteSpace: 'nowrap' }}>
+                        {item.productName.replace('HIMALAYA FRP MHC ', '').replace('HIMALAYA FRP ', '')} — {item.quantity} {item.unit || 'UNITS'}
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+            },
             { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> }
           ]}
           data={createdOrders}
@@ -3477,19 +3430,12 @@ export default function PlantHeadPortal() {
         };
       })
       .filter(order => {
-        const planning = normalizeStatus(order.planningStatus);
-        const planStatus = String(order.productionPlan?.workflowState?.code || order.productionPlan?.status || '').toUpperCase();
-        const hasProdTarget = Boolean(order.productionTargetDate || (order.productionPlan?.plannedEndDate && planStatus !== 'PENDING_PLANNING' && planStatus !== 'DRAFT') || order.planTargetDate);
-        const isPlanned = Boolean(
-          planning === 'PRODUCTION_PLANNED' ||
-          order.status === 'PLANNED' ||
-          order.productionStatus === 'PLANNED' ||
-          order.productionStatus === 'IN_PRODUCTION' ||
-          order.productionStatus === 'WORK_ORDER_CREATED' ||
-          ['RELEASED', 'APPROVED', 'IN_PRODUCTION', 'COMPLETED'].includes(planStatus) ||
-          hasProdTarget ||
-          (Array.isArray(order.workOrders) && order.workOrders.length > 0 && order.workOrders.some(wo => wo.status !== 'CANCELLED'))
-        );
+        const hasPendingFulfillment = Array.isArray(order.items) && order.items.some(item => {
+          const f = item.fulfillment || {};
+          return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||
+                 Number(f.pendingProductionQty || f.productionRequiredQty || 0) > 0;
+        });
+        const isPlanned = !hasPendingFulfillment;
 
         if (planningViewTab === 'history') return isPlanningHistoryOrder(order);
         if (planningViewTab === 'active') {
@@ -3575,32 +3521,55 @@ export default function PlantHeadPortal() {
             },
             { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer || '—'}</span> },
             { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
-            { header: 'Product Item', accessor: 'products', render: (row) => row.products || row.productItem || '—' },
             {
-              header: 'Plan Target Date',
-              accessor: 'targetDate',
+              header: 'Products',
+              accessor: 'products',
               render: (row) => {
-                const defaultDate = row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                const items = row.detailedItems || row.items || [];
+                if (items.length === 0) return row.products || '—';
                 return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <input
-                      type="date"
-                      defaultValue={defaultDate}
-                      onChange={(e) => {
-                        row._selectedTargetDate = e.target.value;
-                      }}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        border: '1px solid #D6E2F0',
-                        borderRadius: '6px',
-                        background: '#ffffff',
-                        color: '#1e293b'
-                      }}
-                    />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px' }}>
+                    {items.map((item, idx) => (
+                      <div key={idx} style={{ whiteSpace: 'nowrap', fontWeight: '500' }}>
+                        {item.productName.replace('HIMALAYA FRP MHC ', '').replace('HIMALAYA FRP ', '')} — {item.quantity || item.orderedQuantity} {item.unit || 'UNITS'}
+                      </div>
+                    ))}
                   </div>
                 );
+              }
+            },
+            {
+              header: 'Fulfillment',
+              accessor: 'fulfillment',
+              render: (row) => {
+                const items = row.detailedItems || row.items || [];
+                let fgCount = 0;
+                let prodCount = 0;
+                items.forEach(item => {
+                  const fgAlloc = Number(item.fulfillment?.pendingDirectDispatchQty || item.fulfillment?.fgAllocatableQty || 0) || Number(item.fulfillment?.activeReservedQty || 0);
+                  const prodReq = Number(item.fulfillment?.pendingProductionQty || item.fulfillment?.productionRequiredQty || 0) || Number(item.fulfillment?.productionCommittedQty || item.fulfillment?.activeProductionCommittedQty || 0);
+                  if (fgAlloc > 0) fgCount++;
+                  if (prodReq > 0) prodCount++;
+                });
+
+                if (fgCount > 0 && prodCount === 0) {
+                  return <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✓ All Ready from FG</span>;
+                } else if (fgCount === 0 && prodCount > 0) {
+                  return <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙ Production Required</span>;
+                } else if (fgCount > 0 && prodCount > 0) {
+                  return <span style={{ background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>◐ Mixed Fulfillment</span>;
+                }
+                return <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>;
+              }
+            },
+            {
+              header: 'Target Date',
+              accessor: 'targetDate',
+              render: (row) => {
+                if (row.targetDate) {
+                  return new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+                return <span style={{ color: '#94a3b8' }}>—</span>;
               }
             },
             { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) },
@@ -3609,127 +3578,16 @@ export default function PlantHeadPortal() {
           searchQuery={''}
           searchField="customerName"
           actions={(row) => {
-            const planning = normalizeStatus(row.planningStatus);
-            const planStatus = String(row.productionPlan?.workflowState?.code || row.productionPlan?.status || '').toUpperCase();
-            const hasProdTarget = Boolean(row.productionTargetDate || (row.productionPlan?.plannedEndDate && planStatus !== 'PENDING_PLANNING' && planStatus !== 'DRAFT') || row.planTargetDate);
-            const isPlanned = Boolean(
-              planning === 'PRODUCTION_PLANNED' ||
-              row.status === 'PLANNED' ||
-              row.productionStatus === 'PLANNED' ||
-              row.productionStatus === 'IN_PRODUCTION' ||
-              row.productionStatus === 'WORK_ORDER_CREATED' ||
-              ['RELEASED', 'APPROVED', 'IN_PRODUCTION', 'COMPLETED'].includes(planStatus) ||
-              hasProdTarget ||
-              (Array.isArray(row.workOrders) && row.workOrders.length > 0 && row.workOrders.some(wo => wo.status !== 'CANCELLED'))
-            );
-
-            const rawStatus = String(row.status || row.planningStatus || row.productionStatus || row.workflowStatus || row.workflowStateCode || '').toUpperCase();
-            const woStatus = String(row.workOrder?.productionStatus || row.workOrder?.status || '').toUpperCase();
-            
-            const doneStatuses = [
-              'COMPLETED', 'QC_PENDING', 'PENDING_QC', 'READY_FOR_QC',
-              'QC_PASSED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCH_PENDING',
-              'DISPATCHED', 'IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY',
-              'DELIVERED', 'POD_RECEIVED', 'PAYMENT_PENDING', 'PAYMENT_DONE',
-              'VERIFIED', 'DISPATCH_CLOSED'
-            ];
-
-            const isProductionDone = 
-              doneStatuses.includes(rawStatus) || 
-              doneStatuses.includes(woStatus) ||
-              planStatus === 'COMPLETED' ||
-              (Array.isArray(row.workOrders) && row.workOrders.length > 0 && row.workOrders.every(wo => {
-                const statusUpper = String(wo.status || wo.productionStatus || '').toUpperCase();
-                return ['COMPLETED', 'QC_PENDING', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'].includes(statusUpper);
-              }));
-
-            const handleInlineUpdateTarget = async () => {
-              const currentDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-              const orderNoStr = row.orderNo || row.id || 'SO-2026-00013';
-              const customerStr = row.customerName || row.customer || 'SHYAM INFRA';
-              const productStr = row.products || row.productItem || 'FRPMHCELD 28X28';
-
-              const { value: newTargetDate } = await Swal.fire({
-                title: `Update Target Date`,
-                html: `
-                  <div style="text-align: left; font-size: 13.5px; line-height: 1.6; font-family: sans-serif;">
-                    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; margin-bottom: 14px;">
-                      <div><strong>Order No:</strong> ${orderNoStr}</div>
-                      <div><strong>Customer:</strong> ${customerStr}</div>
-                      <div><strong>Product Item:</strong> ${productStr}</div>
-                    </div>
-                    <label style="font-weight: 700; display: block; margin-bottom: 6px; color: #334155;">Select Target Completion Date:</label>
-                    <input id="swal-target-date-input" type="date" value="${currentDate}" class="swal2-input" style="margin: 0; width: 100%; box-sizing: border-box; height: 42px;" />
-                  </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Update Target Date',
-                customClass: {
-                  popup: 'swal-premium-popup',
-                  title: 'swal-premium-title',
-                  confirmButton: 'swal-premium-confirm-btn',
-                  cancelButton: 'swal-premium-cancel-btn'
-                },
-                buttonsStyling: false,
-                preConfirm: () => {
-                  const val = document.getElementById('swal-target-date-input').value;
-                  if (!val) {
-                    Swal.showValidationMessage('Target Date is required');
-                    return false;
-                  }
-                  return val;
-                }
-              });
-
-              if (newTargetDate) {
-                row._selectedTargetDate = newTargetDate;
-                row.targetDate = newTargetDate;
-                setSelectedOrderForPlanning(row);
-                setTargetDate(newTargetDate);
-
-                const targetPlanId = row.productionPlan?.id || row.productionPlanId || row.id;
-                if (row.id) {
-                  await backendFetch(`/api/backend/production/plans/${targetPlanId}`, {
-                    method: 'PATCH',
-                    body: { plannedEndDate: newTargetDate }
-                  }).catch(() => null);
-                }
-                useERPStore.getState().planOrder?.(row.id, { targetProductionDate: newTargetDate, priority: row.priority || 'Medium' }, user?.name || 'Plant Head');
-                await syncData();
-                await fetchPlanningOrders?.();
-                await loadSalesOrders?.();
-
-                await Swal.fire({
-                  icon: 'success',
-                  title: 'Target Date Updated! 🎯',
-                  html: `
-                    <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
-                      <p style="margin-bottom: 10px; color: #475569; font-weight: 600;">The production completion target date has been updated:</p>
-                      <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 14px; border-radius: 10px; margin-bottom: 14px;">
-                        <div style="margin-bottom: 4px;"><strong>Order Reference:</strong> <span style="font-weight: 800; color: #15803D;">${orderNoStr}</span></div>
-                        <div style="margin-bottom: 4px;"><strong>Customer:</strong> <span style="font-weight: 700; color: #0F172A;">${customerStr}</span></div>
-                        <div style="margin-bottom: 4px;"><strong>Product Item:</strong> <span style="font-weight: 700; color: #0369A1;">${productStr}</span></div>
-                        <div><strong>Updated Target Date:</strong> <span style="font-weight: 800; color: #2563EB; background: #DBEAFE; padding: 2px 8px; border-radius: 4px;">${newTargetDate}</span></div>
-                      </div>
-                      <p style="margin: 0; font-size: 12px; color: #64748B;">Target date synchronized across Plant Head Planning and Production Work Order Schedules.</p>
-                    </div>
-                  `,
-                  confirmButtonText: 'Great, Continue',
-                  customClass: {
-                    popup: 'swal-premium-popup',
-                    title: 'swal-premium-title',
-                    confirmButton: 'swal-premium-confirm-btn'
-                  },
-                  buttonsStyling: false
-                });
-              }
-            };
+            const hasPendingFulfillment = Array.isArray(row.items) && row.items.some(item => {
+              const f = item.fulfillment || {};
+              return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||
+                     Number(f.pendingProductionQty || f.productionRequiredQty || 0) > 0;
+            });
+            const isPlanned = !hasPendingFulfillment;
 
             return (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                {isProductionDone ? (
-                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>—</span>
-                ) : planningViewTab === 'pending' && !isPlanned ? (
+                {planningViewTab === 'pending' && !isPlanned ? (
                   <button
                     data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
                     style={{
@@ -3745,18 +3603,24 @@ export default function PlantHeadPortal() {
                       setShowPlanningModal(true);
                     }}
                   >
-                    <Plus size={14} /> Send to Production
+                    <Plus size={14} /> View & Plan
                   </button>
                 ) : (
                   <button
                     style={{
-                      padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px',
-                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                      whiteSpace: 'nowrap'
+                      padding: '6px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px',
+                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                     }}
-                    onClick={handleInlineUpdateTarget}
+                    onClick={() => {
+                      setSelectedOrderForPlanning(row);
+                      const defaultDate = row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                      setTargetDate(defaultDate);
+                      setPriority(row.priority || 'Medium');
+                      setShowPlanningModal(true);
+                    }}
                   >
-                    <Pencil size={13} /> Update Target Date
+                    <ClipboardCheck size={14} /> View
                   </button>
                 )}
               </div>
@@ -3951,12 +3815,14 @@ export default function PlantHeadPortal() {
 
           <DataTable
             columns={[
-              { header: 'WO Number', accessor: 'jobNo', render: (row) => <strong>{row.jobNo || row.workOrderId}</strong> },
-              { header: 'Product', accessor: 'productName', render: (row) => <div><strong>{row.productName || 'Finished Good'}</strong><br /><span style={{ fontSize: '11px', color: '#64748b' }}>{row.productCode || 'FG-STOCK'}</span></div> },
-              { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || 'Internal' },
-              { header: 'Total Qty', accessor: 'quantity', render: (row) => <span>{row.quantity} {row.unit || 'Pcs'}</span> },
-              { header: 'Available Qty', accessor: 'availableQuantity', render: (row) => <strong style={{ color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>{row.availableQuantity ?? row.quantity} {row.unit || 'Pcs'}</strong> },
-              { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || 'AVAILABLE'} /> },
+              { header: 'Item Code', accessor: 'productCode', render: (row) => <strong>{row.productCode || 'FG-ITEM'}</strong> },
+              { header: 'Item Name', accessor: 'productName', render: (row) => <strong>{row.productName || 'Finished Good'}</strong> },
+              { header: 'Category', accessor: 'category', render: (row) => row.category || 'Hardware' },
+              { header: 'UOM', accessor: 'unit', render: (row) => row.unit || 'PCS' },
+              { header: 'Total Stock', accessor: 'quantity', render: (row) => <span>{row.quantity}</span> },
+              { header: 'Available Qty', accessor: 'availableQuantity', render: (row) => <strong style={{ color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>{row.availableQuantity ?? row.quantity}</strong> },
+              { header: 'Reserved Qty', accessor: 'reservedQuantity', render: (row) => <span style={{ color: '#64748b', background: '#f1f5f9', padding: '3px 8px', borderRadius: '999px', border: '1px solid #cbd5e1' }}>{row.quantity - (row.availableQuantity ?? row.quantity)}</span> },
+              { header: 'Stock Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || 'AVAILABLE'} /> },
             ]}
             data={directFinishedGoods}
             searchQuery={globalSearch}
@@ -5285,88 +5151,317 @@ export default function PlantHeadPortal() {
       )}
 
       {/* Planning Modal */}
-      {showPlanningModal && selectedOrderForPlanning && (
-        <div className="modal-overlay active" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '640px', maxWidth: 'calc(100vw - 32px)' }}>
-            <div className="modal-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '12px', marginBottom: '16px' }}>
-              <h3 className="modal-title-text" style={{ margin: 0, fontWeight: '800' }}>Decide Production Date</h3>
-              <button className="modal-close-btn" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }}>✕</button>
-            </div>
+      {/* Fulfillment Decision Modal */}
+      {showPlanningModal && selectedOrderForPlanning && (() => {
+        const detailedItems = selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || [];
+        const hasPendingFulfillment = detailedItems.some(item => {
+          const f = item.fulfillment || {};
+          return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||
+                 Number(f.pendingProductionQty || f.productionRequiredQty || 0) > 0;
+        });
+        const isReadOnly = !hasPendingFulfillment;
 
-            {/* Read-Only Details Card */}
-            <div style={{ background: '#F5FAFE', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '18px 24px', marginBottom: '20px' }}>
-              <h4 style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-accent-teal, #337a86)', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>Order Details (Read-Only)</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '12px 24px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                <div>Order ID: <strong style={{ color: 'var(--color-text-primary)', fontFamily: 'monospace' }}>{selectedOrderForPlanning.orderNo}</strong></div>
-                <div>Customer: <strong style={{ color: 'var(--color-text-primary)' }}>{selectedOrderForPlanning.customerName || selectedOrderForPlanning.customer?.name || 'Unknown'}</strong></div>
-                <div>Product: <strong style={{ color: 'var(--color-text-primary)' }}>{selectedOrderForPlanning.products}</strong></div>
-                <div>Quantity: <strong style={{ color: 'var(--color-text-primary)' }}>{selectedOrderForPlanning.quantity} Tons</strong></div>
-                <div style={{ gridColumn: 'span 2' }}>Created Date: <strong style={{ color: 'var(--color-text-primary)' }}>{selectedOrderForPlanning.date || '15 June 2026'}</strong></div>
-              </div>
-            </div>
+        const directDispatchItems = hasPendingFulfillment
+          ? detailedItems.filter(item => Number(item.fulfillment?.pendingDirectDispatchQty || 0) > 0)
+          : detailedItems.filter(item => Number(item.fulfillment?.activeReservedQty || 0) > 0);
 
-            <form onSubmit={handlePlanningSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="form-label" style={{ margin: 0, color: 'var(--color-text-primary)' }}>Target Date *</label>
-                  {targetDate && targetDate < new Date().toISOString().split('T')[0] && (
-                    <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#dc2626', border: '1px solid #dc2626', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                      ⚠️ Late Decision
-                    </span>
-                  )}
+        const fulfilledProductionItems = hasPendingFulfillment
+          ? detailedItems.filter(item => {
+              const f = item.fulfillment || {};
+              return Number(f.pendingDirectDispatchQty || 0) === 0 && Number(f.pendingProductionQty || 0) === 0;
+            })
+          : detailedItems.filter(item => {
+              const f = item.fulfillment || {};
+              return Number(f.productionCommittedQty || f.activeProductionCommittedQty || 0) > 0;
+            });
+
+        return (
+          <div className="modal-overlay active" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)' }}>
+            <div className="modal-box bg-white shadow-2xl border border-slate-100/80" onClick={(e) => e.stopPropagation()} style={{ width: '900px', maxWidth: 'calc(100vw - 32px)', padding: '24px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '20px' }}>
+              
+              {/* Modal Header */}
+              <div className="modal-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
+                    PLANT HEAD FULFILLMENT PLANNING
+                  </span>
+                  <h3 style={{ margin: 0, fontWeight: '900', fontSize: '24px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber}
+                    {isReadOnly && (
+                      <span style={{ fontSize: '11px', fontWeight: '850', letterSpacing: '0.05em', background: '#f1f5f9', color: '#64748b', padding: '3px 10px', borderRadius: '20px', border: '1px solid #e2e8f0', marginLeft: '6px' }}>
+                        READ-ONLY
+                      </span>
+                    )}
+                  </h3>
                 </div>
-                <input
-                  data-testid="plant-head-target-date"
-                  type="date"
-                  required
-                  className="form-input"
-                  style={{ background: '#ffffff', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)', padding: '10px 14px', borderRadius: '8px' }}
-                  value={targetDate}
-                  onChange={(e) => setTargetDate(e.target.value)}
-                />
+                <div 
+                  role="button"
+                  tabIndex={0}
+                  style={{ padding: '6px 16px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#1e293b', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}
+                  className="hover:bg-slate-50 transition-all"
+                  onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); } }}
+                >
+                  Close
+                </div>
               </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ color: 'var(--color-text-primary)', marginBottom: '6px' }}>Priority *</label>
-                <select
-                  data-testid="plant-head-priority"
-                  className="form-select"
-                  style={{ background: '#ffffff', color: 'var(--color-text-primary)', borderColor: 'var(--color-border)', padding: '10px 14px', borderRadius: '8px', fontWeight: 'bold' }}
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  required
-                >
-                  <option value="Low">Low 🟢</option>
-                  <option value="Medium">Medium 🟡</option>
-                  <option value="High">High 🔴</option>
-                </select>
+              {/* Order Info Details Card (Styled Metadata Bar) */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: '16px 24px', fontSize: '13px', color: '#475569', marginBottom: '24px' }}>
+                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Customer: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.customerName || selectedOrderForPlanning.customer?.name || 'Unknown'}</strong></div>
+                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Sales Person: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.salesPersonName || selectedOrderForPlanning.salesperson || 'Sales Executive'}</strong></div>
+                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Created Date: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.createdAt ? new Date(selectedOrderForPlanning.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Aug 2026'}</strong></div>
+                <div style={{ flex: '1 1 120px', minWidth: '100px' }}>Status: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.status}</strong></div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                <button data-testid="plant-head-send-production" type="submit" disabled={isPlanningSubmitting} className="form-submit-btn" style={{ margin: 0, padding: '12px 24px', flex: 1, background: 'var(--color-primary, #2F4375)', color: '#ffffff', border: 'none', fontWeight: '700', borderRadius: '10px', cursor: isPlanningSubmitting ? 'wait' : 'pointer', opacity: isPlanningSubmitting ? 0.7 : 1 }}>
-                  {isPlanningSubmitting ? 'Sending to Production...' : 'Set Target Date & Send to Production'}
-                </button>
-                <button
-                  type="button"
-                  className="btn-small btn-outline-small"
-                  onClick={() => {
-                    setShowPlanningModal(false);
-                    setSelectedOrderForPlanning(null);
-                    if (orderNoParam) {
-                      navigate.push('/plant-head/' + view);
-                    }
-                  }}
-                  style={{ margin: 0, padding: '12px 24px', background: 'transparent', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', borderRadius: '10px', cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              {/* Product cards form */}
+              <form onSubmit={handleFulfillmentPlanSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div>
+                  <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', margin: '0 0 16px 0' }}>
+                    Authorize Fulfillment Stock Flow (FG Stock vs Production)
+                  </h4>
+                  
+                  <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                    <table style={{ minWidth: '780px', width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Material Item</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Ordered</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Available FG</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>To Dispatch</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>To Produce</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Target Date</th>
+                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Unit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailedItems.map((item, idx) => {
+                          const f = item.fulfillment || {
+                            orderedQty: item.quantity || 0,
+                            availableFG: 0,
+                            fgAllocatableQty: 0,
+                            productionRequiredQty: item.quantity || 0,
+                            activeReservedQty: 0,
+                            activeProductionCommittedQty: 0
+                          };
+
+                          const pendingDirectDispatchQty = Number(f.pendingDirectDispatchQty || 0);
+                          const pendingProductionQty = Number(f.pendingProductionQty || 0);
+                          const activeReservedQty = Number(f.activeReservedQty || 0);
+                          const productionCommittedQty = Number(f.productionCommittedQty || f.activeProductionCommittedQty || 0);
+
+                          const isItemPending = pendingDirectDispatchQty > 0 || pendingProductionQty > 0;
+
+                          const directDispatchQty = isReadOnly
+                            ? activeReservedQty
+                            : (isItemPending ? pendingDirectDispatchQty : 0);
+
+                          const productionQty = isReadOnly
+                            ? productionCommittedQty
+                            : (isItemPending ? pendingProductionQty : 0);
+
+                          const itemPlan = itemFulfillmentPlans[item.id] || {
+                            targetDate: selectedOrderForPlanning.targetDate || '',
+                            priority: selectedOrderForPlanning.priority || 'Medium'
+                          };
+
+                          let badgeText = "READY FROM FG";
+                          let badgeBg = "#ECFDF5";
+                          let badgeColor = "#047857";
+                          let badgeIcon = <CheckCircle2 size={12} />;
+                          let descriptionText = "";
+
+                          if (!isItemPending) {
+                            if (activeReservedQty > 0) {
+                              badgeText = "READY FOR DISPATCH";
+                              badgeBg = "#ECFDF5";
+                              badgeColor = "#047857";
+                              badgeIcon = <Truck size={12} />;
+                              descriptionText = `Reserved Qty: ${activeReservedQty} ${item.unit || 'UNITS'}`;
+                            } else {
+                              badgeText = "FULFILLED";
+                              badgeBg = "#F3F4F6";
+                              badgeColor = "#4B5563";
+                              badgeIcon = <CheckCircle2 size={12} />;
+                              descriptionText = "No pending actions.";
+                            }
+                          } else {
+                            if (pendingDirectDispatchQty > 0 && pendingProductionQty === 0) {
+                              badgeText = "READY FROM FG";
+                              badgeBg = "#ECFDF5";
+                              badgeColor = "#047857";
+                              badgeIcon = <CheckCircle2 size={12} />;
+                              descriptionText = `${pendingDirectDispatchQty} ${item.unit || 'UNITS'} will be reserved from Finished Goods and routed directly to Dispatch.`;
+                            } else if (pendingDirectDispatchQty === 0 && pendingProductionQty > 0) {
+                              badgeText = "PRODUCTION REQUIRED";
+                              badgeBg = "#EFF6FF";
+                              badgeColor = "#1D4ED8";
+                              badgeIcon = <Settings size={12} />;
+                              descriptionText = `No stock is available in Finished Goods. Full quantity of ${pendingProductionQty} ${item.unit || 'UNITS'} must be scheduled for Production.`;
+                            } else {
+                              badgeText = "PARTIAL FG / PRODUCTION";
+                              badgeBg = "#FFFBEB";
+                              badgeColor = "#B45309";
+                              badgeIcon = <AlertCircle size={12} />;
+                              descriptionText = `Allocate available Finished Goods stock of ${pendingDirectDispatchQty} ${item.unit || 'UNITS'} and plan remaining shortage of ${pendingProductionQty} ${item.unit || 'UNITS'} for Production.`;
+                            }
+                          }
+
+                          return (
+                            <tr key={item.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <span style={{ fontWeight: 'bold', color: '#1e293b', fontSize: '13.5px' }}>
+                                      {item.productName || item.productCode || 'Product Item'}
+                                    </span>
+                                    <span style={{ background: badgeBg, color: badgeColor, border: `1px solid ${badgeColor}20`, padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      {badgeIcon}
+                                      {badgeText}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                                    SKU: {item.productCode || '—'}
+                                  </div>
+                                  {descriptionText && (
+                                    <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', background: `${badgeBg}40`, padding: '4px 8px', borderRadius: '4px', borderLeft: `3px solid ${badgeColor}` }}>
+                                      <AlertCircle size={12} style={{ color: badgeColor }} />
+                                      <span>{descriptionText}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 'bold', color: '#0f172a', verticalAlign: 'middle' }}>
+                                {item.quantity || f.orderedQty || 0}
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 'bold', color: '#475569', verticalAlign: 'middle' }}>
+                                {f.availableFG || 0}
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'center', verticalAlign: 'middle' }}>
+                                <div style={{
+                                  border: '1px solid #10b981',
+                                  borderRadius: '6px',
+                                  padding: '5px 12px',
+                                  color: '#10b981',
+                                  fontWeight: 'bold',
+                                  background: '#ffffff',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minWidth: '60px',
+                                  fontSize: '13px'
+                                }}>
+                                  {directDispatchQty}
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'center', verticalAlign: 'middle' }}>
+                                <div style={{
+                                  border: productionQty > 0 ? '1px solid #f97316' : '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  padding: '5px 12px',
+                                  color: productionQty > 0 ? '#f97316' : '#64748b',
+                                  fontWeight: 'bold',
+                                  background: '#ffffff',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minWidth: '60px',
+                                  fontSize: '13px'
+                                }}>
+                                  {productionQty}
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
+                                {productionQty > 0 ? (
+                                  isReadOnly ? (
+                                    <strong style={{ color: '#0f172a' }}>
+                                      {selectedOrderForPlanning.targetDate ? new Date(selectedOrderForPlanning.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                    </strong>
+                                  ) : (
+                                    <input
+                                      type="date"
+                                      required
+                                      disabled={isPlanningSubmitting}
+                                      className="form-input shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-[#2F4375]"
+                                      style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', color: '#334155', outline: 'none', transition: 'all 0.15s ease-in-out', maxWidth: '140px' }}
+                                      value={itemPlan.targetDate || ''}
+                                      onChange={(e) => {
+                                        setItemFulfillmentPlans(prev => ({
+                                          ...prev,
+                                          [item.id]: {
+                                            ...prev[item.id],
+                                            targetDate: e.target.value
+                                          }
+                                        }));
+                                      }}
+                                    />
+                                  )
+                                ) : (
+                                  <span style={{ color: '#94a3b8' }}>—</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'center', color: '#475569', verticalAlign: 'middle' }}>
+                                {item.unit || 'UNITS'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+
+
+                {/* Footer Buttons */}
+                {isReadOnly ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '24px' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }}
+                      style={{ padding: '10px 32px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#1e293b', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', margin: 0, fontSize: '13.5px', transition: 'all 0.15s ease' }}
+                      className="hover:bg-slate-50 shadow-sm"
+                    >
+                      Close
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '24px' }}>
+                    <button
+                      type="button"
+                      disabled={isPlanningSubmitting}
+                      onClick={() => { setShowPlanningModal(false); setSelectedOrderForPlanning(null); }}
+                      style={{ padding: '10px 24px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '8px', fontWeight: 'bold', cursor: isPlanningSubmitting ? 'not-allowed' : 'pointer', margin: 0, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.15s ease' }}
+                      className="hover:bg-red-100/50"
+                    >
+                      <X size={15} />
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isPlanningSubmitting}
+                      style={{ padding: '10px 24px', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isPlanningSubmitting ? 'wait' : 'pointer', margin: 0, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s ease' }}
+                      className="hover:bg-emerald-600 active:scale-[0.98]"
+                    >
+                      {isPlanningSubmitting ? (
+                        <>
+                          <Loader2 className="animate-spin" size={14} />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={15} />
+                          Submit Fulfillment Plan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-
-
+        );
+      })()}
 
       {selectedOrderDetails && (
         <OrderDetailsModal

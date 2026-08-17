@@ -49,6 +49,8 @@ export interface SalesOrderResponseDto {
   productionStatus?: string | null;
   productionAssignedToId?: string | null;
   qcStatus?: string | null;
+  targetDate?: string | null;
+  priority?: string | null;
 
   workflowStateId: string | null;
   workflowStateCode?: string;

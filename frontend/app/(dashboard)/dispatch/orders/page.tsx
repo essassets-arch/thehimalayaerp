@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Truck,
   FileText,
@@ -136,10 +136,32 @@ interface UnifiedPendingDispatchItem {
   salesOrderId?: string;
   salesOrderItemId?: string;
   workOrderNumber?: string;
+  productId?: string;
 }
 
 export default function DispatchOrdersPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isDispatch2 = pathname?.startsWith("/dispatch-2");
+  const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
+  const userDispatchCat = isDispatch2 ? "D2" : "D1";
+
+  const { data: products = [] } = useQuery<any[]>({
+    queryKey: ["products-list-orders-page"],
+    queryFn: async () => {
+      const res = await backendFetch<any>("/api/backend/products?limit=1000").catch(() => []);
+      return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+    },
+  });
+
+  const productsMap = React.useMemo(() => {
+    const map = new Map<string, any>();
+    products.forEach((p) => {
+      if (p.id) map.set(p.id, p);
+      if (p.sku) map.set(p.sku, p);
+    });
+    return map;
+  }, [products]);
 
   const {
     data: pendingItems = [],
@@ -212,6 +234,7 @@ export default function DispatchOrdersPage() {
             workOrderId: fg.workOrderId || fg.id,
             salesOrderId: salesOrder?.id,
             workOrderNumber: fg.jobNo,
+            productId: fg.productId || wo?.salesOrderItem?.productId || fg.workOrder?.salesOrderItem?.productId,
           };
         });
 
@@ -246,6 +269,7 @@ export default function DispatchOrdersPage() {
             workOrderId: wo.id,
             salesOrderId: salesOrder?.id,
             workOrderNumber: wo.workOrderNumber,
+            productId: wo.salesOrderItem?.productId,
           };
         });
 
@@ -286,6 +310,7 @@ export default function DispatchOrdersPage() {
               approvedQuantity: remaining,
               salesOrderId: so.id,
               salesOrderItemId: item.id,
+              productId: item.productId,
             });
           });
         }
@@ -306,6 +331,25 @@ export default function DispatchOrdersPage() {
       return combined;
     },
   });
+
+  const filteredPendingItems = React.useMemo(() => {
+    return pendingItems.filter((item) => {
+      // Get the product dispatch category
+      const productObj = productsMap.get(item.productId);
+      const productCat = productObj?.dispatchCategory || 
+                         productObj?.dispatch_category ||
+                         "D1"; // default to D1 if not specified
+      
+      const c1 = String(productCat).trim().toUpperCase();
+      const c2 = String(userDispatchCat).trim().toUpperCase();
+      
+      if (c1 === c2) return true;
+      if ((c1 === 'D1' || c1 === 'DISPATCH 1' || c1 === 'DISPATCH_1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) return true;
+      if ((c1 === 'D2' || c1 === 'DISPATCH 2' || c1 === 'DISPATCH_2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) return true;
+      
+      return false;
+    });
+  }, [pendingItems, userDispatchCat, productsMap]);
 
   return (
     <div className={styles.page}>
@@ -333,7 +377,7 @@ export default function DispatchOrdersPage() {
 
               <div className={styles.summary}>
                 <div className={styles.summaryCount}>
-                  <strong>{pendingItems.length}</strong>
+                  <strong>{filteredPendingItems.length}</strong>
                   <span>Awaiting Dispatch</span>
                 </div>
                 <div className={styles.divider} />
@@ -347,8 +391,8 @@ export default function DispatchOrdersPage() {
 
           <div className={styles.headerFooter}>
             <p>
-              Showing {pendingItems.length} order
-              {pendingItems.length !== 1 ? "s" : ""} ready for dispatch
+              Showing {filteredPendingItems.length} order
+              {filteredPendingItems.length !== 1 ? "s" : ""} ready for dispatch
               &nbsp;·&nbsp; Manufacturing & Trading orders
             </p>
           </div>
@@ -383,7 +427,7 @@ export default function DispatchOrdersPage() {
         )}
 
         {/* ── Empty ── */}
-        {!isLoading && !error && pendingItems.length === 0 && (
+        {!isLoading && !error && filteredPendingItems.length === 0 && (
           <div className={styles.stateCard}>
             <div className={styles.stateContent}>
               <div className={styles.stateIcon}>
@@ -399,7 +443,7 @@ export default function DispatchOrdersPage() {
         )}
 
         {/* ── Desktop Table ── */}
-        {!isLoading && !error && pendingItems.length > 0 && (
+        {!isLoading && !error && filteredPendingItems.length > 0 && (
           <>
             <div className={styles.desktopTable}>
               <div className={styles.tableScroll}>
@@ -430,7 +474,7 @@ export default function DispatchOrdersPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {pendingItems.map((item) => {
+                    {filteredPendingItems.map((item) => {
                       const isTrading = item.itemType === 'TRADING_SALES_ORDER';
                       return (
                         <tr
@@ -476,9 +520,9 @@ export default function DispatchOrdersPage() {
                               size="sm"
                               onClick={() => {
                                 if (item.itemType === 'WORK_ORDER' && item.workOrderId) {
-                                  router.push(`/dispatch/create-dispatch?workOrderId=${item.workOrderId}`);
+                                  router.push(`${basePath}/create-dispatch?workOrderId=${item.workOrderId}`);
                                 } else if (item.salesOrderId) {
-                                  router.push(`/dispatch/create-dispatch?salesOrderId=${item.salesOrderId}`);
+                                  router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
                                 }
                               }}
                               className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold"
@@ -497,7 +541,7 @@ export default function DispatchOrdersPage() {
 
             {/* ── Mobile & Tablet: Card View ── */}
             <div className={styles.mobileCards}>
-              {pendingItems.map((item) => {
+              {filteredPendingItems.map((item) => {
                 const isTrading = item.itemType === 'TRADING_SALES_ORDER';
                 return (
                   <div
@@ -578,9 +622,9 @@ export default function DispatchOrdersPage() {
                           size="sm"
                           onClick={() => {
                             if (item.itemType === 'WORK_ORDER' && item.workOrderId) {
-                              router.push(`/dispatch/create-dispatch?workOrderId=${item.workOrderId}`);
+                              router.push(`${basePath}/create-dispatch?workOrderId=${item.workOrderId}`);
                             } else if (item.salesOrderId) {
-                              router.push(`/dispatch/create-dispatch?salesOrderId=${item.salesOrderId}`);
+                              router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
                             }
                           }}
                           className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold"

@@ -8,10 +8,12 @@ import {
   Query,
   Req,
   Body,
+  Param,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PlantHeadService } from './plant-head.service';
 import type { Request } from 'express';
+import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
 
 @Controller('plant-head')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -159,5 +161,35 @@ export class PlantHeadController {
       customStart,
       customEnd,
     );
+  }
+
+  @RequirePermissions('admin.planthead.create', 'planthead.create')
+  @Post('orders/:orderId/direct-dispatch')
+  async directDispatch(
+    @Param('orderId') orderId: string,
+    @Body('items') items: { salesOrderItemId: string; productId: string; quantity: number }[],
+    @Req() req: Request,
+  ) {
+    const companyId =
+      (req.headers['x-company-id'] as string) ||
+      (req as any).user?.['companyId'] ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const userId = (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
+    return this.plantHeadService.directDispatch(orderId, items, companyId, userId);
+  }
+
+  @RequirePermissions('admin.planthead.create', 'planthead.create')
+  @Post('orders/:orderId/fulfillment-plan')
+  async submitFulfillmentPlan(
+    @Param('orderId') orderId: string,
+    @Body() planDto: SubmitFulfillmentPlanDto,
+    @Req() req: Request,
+  ) {
+    const companyId =
+      (req.headers['x-company-id'] as string) ||
+      (req as any).user?.['companyId'] ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const userId = (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
+    return this.plantHeadService.submitFulfillmentPlan(orderId, planDto, companyId, userId);
   }
 }

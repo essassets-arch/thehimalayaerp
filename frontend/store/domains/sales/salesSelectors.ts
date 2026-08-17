@@ -460,8 +460,8 @@ function toPlantHeadSafeView(order: SalesOrder) {
     dispatchStatus: order.dispatchStatus,
     replacementStatus: order.replacementStatus,
     returnStatus: order.returnStatus,
-    products: (order as any).products || (safeItems.length > 0 ? safeItems.map(i => `${i?.productName || (i as any)?.name || 'Item'} (${i?.quantity || 1} Qty)`).join(', ') : 'Items'),
-    detailedItems: safeItems,
+    products: (order as any).products || (safeItems.length > 0 ? safeItems.map(i => `${i?.productName || (i as any)?.name || 'Item'} (${i?.quantity || 1} ${i?.unit || 'PCS'})`).join(', ') : 'Items'),
+    detailedItems: safeItems.map(toOperationalItem),
     items: safeItems.map(toOperationalItem),
     createdAt: order.createdAt,
   };
@@ -520,10 +520,10 @@ function toOperationalItem(item: QuotationLineItem) {
     productId: item.productId,
     productName: item.productName || (item as any).name || '',
     specifications: item.specifications || (item as any).specification || '',
-    quantity: item.quantity,
+    quantity: item.quantity ?? (item as any).orderedQuantity ?? 0,
     unit: item.unit,
     hsnCode: item.hsnCode,
-    // unitPrice, gstPercentage, taxableValue, gstValue, totalAmount — excluded
+    fulfillment: (item as any).fulfillment || undefined,
   };
 }
 

@@ -2192,29 +2192,32 @@ export default function ProductionPortal() {
           actions={(row) => {
             if (row.hasBackendWorkOrder) {
               return (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <>
                   <button
                     type="button"
                     onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
-                    style={{ minHeight: '36px', padding: '7px 13px', border: 0, borderRadius: '8px', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                    className="btn-small"
+                    style={{ margin: 0, background: '#16a34a', color: '#fff', cursor: 'pointer' }}
                   >
                     Accept
                   </button>
                   <button
                     type="button"
                     onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
-                    style={{ minHeight: '36px', padding: '7px 13px', border: '1px solid #fecaca', borderRadius: '8px', background: '#fff5f5', color: '#dc2626', fontWeight: 800, cursor: 'pointer' }}
+                    className="btn-small btn-danger-small"
+                    style={{ margin: 0, border: '1px solid #fecaca', cursor: 'pointer' }}
                   >
                     Reject
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedOrderDetails(row)}
-                    style={{ minHeight: '36px', padding: '7px 13px', border: '1px solid #d5e0ea', borderRadius: '8px', background: '#fff', color: '#334155', fontWeight: 750, cursor: 'pointer' }}
+                    className="btn-small btn-outline-small"
+                    style={{ margin: 0, cursor: 'pointer' }}
                   >
                     View
                   </button>
-                </div>
+                </>
               );
             }
             // Check if this order already has work orders
@@ -2222,7 +2225,7 @@ export default function ProductionPortal() {
               (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
             const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
             return (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <>
                 <button
                   className="btn-small btn-primary-small"
                   style={{ margin: 0, padding: '6px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
@@ -2232,7 +2235,7 @@ export default function ProductionPortal() {
                 </button>
                 {!hasWO && !isActiveProduction ? (
                   <button
-                    className="action-btn"
+                    className="action-btn btn-small"
                     style={{ margin: 0, background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                     onClick={() => handleCreateWorkOrder(row)}
                   >
@@ -2240,13 +2243,14 @@ export default function ProductionPortal() {
                   </button>
                 ) : (
                   <button
+                    className="btn-small"
                     style={{ margin: 0, background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
                     onClick={() => navigate.push('/production/work-orders')}
                   >
                     <CheckCircle2 size={12} /> Open Work Orders
                   </button>
                 )}
-              </div>
+              </>
             );
           }}
           emptyMessage="No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here."
@@ -3023,7 +3027,7 @@ export default function ProductionPortal() {
           searchQuery={globalSearch}
           searchField="productName"
           actions={(row) => (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+            <>
               {isInProduction(row.status) ? (
                 <>
                   <button
@@ -3056,7 +3060,7 @@ export default function ProductionPortal() {
                   {row.status === STATUS.PAUSED || row.status === 'PAUSED' ? 'Resume Work' : 'Start Work'}
                 </button>
               )}
-            </div>
+            </>
           )}
           emptyMessage="No work orders found."
         />

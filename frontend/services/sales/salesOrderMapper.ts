@@ -59,6 +59,9 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     verifiedPaidAmount: toFiniteNumber(source.verifiedPaidAmount),
     balanceAmount: toFiniteNumber(source.balanceAmount),
     closureStatus: typeof source.closureStatus === 'string' ? source.closureStatus : 'OPEN',
+    planningStatus: typeof source.planningStatus === 'string' ? source.planningStatus : undefined,
+    targetDate: typeof source.targetDate === 'string' ? source.targetDate : null,
+    priority: typeof source.priority === 'string' ? source.priority : undefined,
     replacementStatus: typeof source.replacementStatus === 'string' ? source.replacementStatus : undefined,
     returnStatus: typeof source.returnStatus === 'string' ? source.returnStatus : undefined,
     remarks: typeof source.remarks === 'string' ? source.remarks : undefined,
@@ -82,6 +85,18 @@ export function normalizeSalesOrderItem(item: unknown): SalesOrderItem {
     deliveredQuantity: toFiniteNumber(source.deliveredQuantity),
     returnedQuantity: toFiniteNumber(source.returnedQuantity),
     replacedQuantity: toFiniteNumber(source.replacedQuantity),
+    fulfillment: isRecord(source.fulfillment) ? {
+      orderedQty: toFiniteNumber(source.fulfillment.orderedQty),
+      availableFG: toFiniteNumber(source.fulfillment.availableFG),
+      fgAllocatableQty: toFiniteNumber(source.fulfillment.fgAllocatableQty),
+      productionRequiredQty: toFiniteNumber(source.fulfillment.productionRequiredQty),
+      activeReservedQty: toFiniteNumber(source.fulfillment.activeReservedQty),
+      productionCommittedQty: toFiniteNumber(source.fulfillment.productionCommittedQty),
+      alreadyDispatchedQty: toFiniteNumber(source.fulfillment.alreadyDispatchedQty),
+      pendingDirectDispatchQty: toFiniteNumber(source.fulfillment.pendingDirectDispatchQty),
+      pendingProductionQty: toFiniteNumber(source.fulfillment.pendingProductionQty),
+      fulfillmentState: typeof source.fulfillment.fulfillmentState === 'string' ? source.fulfillment.fulfillmentState : 'PENDING_DECISION',
+    } : undefined,
   };
 }
 

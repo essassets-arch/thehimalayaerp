@@ -504,7 +504,7 @@ export default function OrdersView({
     <div className="app-card" style={{ flex: 1 }}>
       {/* Header */}
       <div className="module-header-row">
-        <h2 className="module-title">Purchase Orders Tracker</h2>
+        <h2 className="module-title">Sales Orders Tracker</h2>
         <div className="module-actions">
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
