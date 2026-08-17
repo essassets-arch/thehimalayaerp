@@ -32,6 +32,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS "FcmDeviceToken_token_key" ON "FcmDeviceToken"
 CREATE INDEX IF NOT EXISTS "FcmDeviceToken_userId_idx" ON "FcmDeviceToken"("userId");
 CREATE INDEX IF NOT EXISTS "FcmDeviceToken_companyId_idx" ON "FcmDeviceToken"("companyId");
 
--- AddForeignKey
-ALTER TABLE "FcmDeviceToken" ADD CONSTRAINT "FcmDeviceToken_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "FcmDeviceToken" ADD CONSTRAINT "FcmDeviceToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey (idempotent for databases where a previous attempt applied it)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FcmDeviceToken_companyId_fkey') THEN
+    ALTER TABLE "FcmDeviceToken" ADD CONSTRAINT "FcmDeviceToken_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FcmDeviceToken_userId_fkey') THEN
+    ALTER TABLE "FcmDeviceToken" ADD CONSTRAINT "FcmDeviceToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;

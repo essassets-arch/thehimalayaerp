@@ -63,6 +63,8 @@ export async function syncProcurementData() {
     materialId: rej.items?.[0]?.productId || rej.materialId,
     materialName: rej.items?.[0]?.product?.name || rej.materialName,
     rejectedQty: rej.items?.[0]?.quantity || rej.rejectedQty,
+    remainingResolutionQty: rej.items?.[0]?.quantity || rej.rejectedQty || 0,
+    expectedDeliveryDate: rej.expectedResolutionDate || rej.expectedDeliveryDate,
   }));
 
   // Use backendFetch (auto-injects Authorization header from authStore)
@@ -231,7 +233,9 @@ export async function createMaterialIndent(data: any, actorName: string) {
   }
 
   const res: any = await purchaseIndentService.create(payload);
-  if (res && res.id) {
+  // The backend currently creates low-stock indents directly in the Plant Head
+  // queue. Only draft indents need the separate submit transition.
+  if (res && res.id && res.status === 'DRAFT') {
     await purchaseIndentService.action(res.id, 'submit', {}, res.version || 1);
   }
   await syncProcurementData();
@@ -378,22 +382,10 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
     await syncProcurementData();
     return res;
   } catch (err: any) {
-    console.warn(`[createPurchaseOrder] Backend createFromIndent failed for ${indentId}: ${err?.message || err}. Saving PO locally.`);
-    useERPStore.setState((prev: any) => {
-      const existingPOs = prev.state?.procurement?.purchaseOrders || prev.state?.purchaseOrders || [];
-      const updatedPOs = [newPO, ...existingPOs.filter((p: any) => p.id !== poId)];
-      return {
-        state: {
-          ...prev.state,
-          purchaseOrders: updatedPOs,
-          procurement: {
-            ...(prev.state?.procurement || {}),
-            purchaseOrders: updatedPOs
-          }
-        }
-      };
-    });
-    return newPO;
+    // A real indent must never turn into a browser-only PO when the server
+    // rejects it. That bypasses Plant Head/Super Admin workflow controls.
+    console.warn(`[createPurchaseOrder] Backend createFromIndent failed for ${indentId}: ${err?.message || err}.`);
+    throw err;
   }
 }
 
@@ -418,9 +410,7 @@ export async function submitPurchaseOrder(poId: string, actorName: string) {
     return { success: true, id: poId, status: 'PENDING_SUPER_ADMIN_APPROVAL' };
   };
 
-  if (isLocalId(poId)) {
-    return updateLocal();
-  }
+  if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
 
   const store = useERPStore.getState();
   const po = store.state.purchaseOrders?.find((p: any) => p.id === poId);
@@ -430,8 +420,7 @@ export async function submitPurchaseOrder(poId: string, actorName: string) {
     await syncProcurementData();
     return res;
   } catch (err: any) {
-    console.warn(`[submitPurchaseOrder] Backend action failed for ${poId}: ${err?.message || err}. Updating status locally.`);
-    return updateLocal();
+    throw err;
   }
 }
 
@@ -454,9 +443,7 @@ export async function approvePurchaseOrder(poId: string, remarks: string, actorN
     return { success: true, id: poId, status: 'SUPER_ADMIN_APPROVED' };
   };
 
-  if (isLocalId(poId)) {
-    return updateLocal();
-  }
+  if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
 
   const store = useERPStore.getState();
   const po = store.state.purchaseOrders?.find((p: any) => p.id === poId);
@@ -466,15 +453,12 @@ export async function approvePurchaseOrder(poId: string, remarks: string, actorN
     await syncProcurementData();
     return res;
   } catch (err: any) {
-    console.warn(`[approvePurchaseOrder] Backend action failed for ${poId}: ${err?.message || err}. Updating status locally.`);
-    return updateLocal();
+    throw err;
   }
 }
 
 export async function returnPurchaseOrderForCorrection(poId: string, remarks: string, actorName: string) {
-  if (isLocalId(poId)) {
-    return { success: true, id: poId, status: 'DRAFT' };
-  }
+  if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
   const store = useERPStore.getState();
   const po = store.state.purchaseOrders?.find((p: any) => p.id === poId);
   const version = po?.version;
@@ -482,9 +466,7 @@ export async function returnPurchaseOrderForCorrection(poId: string, remarks: st
     const res = await purchaseOrderService.action(poId, 'return', { remarks }, version);
     await syncProcurementData();
     return res;
-  } catch (err: any) {
-    return { success: true, id: poId, status: 'DRAFT' };
-  }
+  } catch (err: any) { throw err; }
 }
 
 export async function rejectPurchaseOrder(poId: string, remarks: string, actorName: string) {
@@ -506,9 +488,7 @@ export async function rejectPurchaseOrder(poId: string, remarks: string, actorNa
     return { success: true, id: poId, status: 'SUPER_ADMIN_REJECTED' };
   };
 
-  if (isLocalId(poId)) {
-    return updateLocal();
-  }
+  if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
 
   const store = useERPStore.getState();
   const po = store.state.purchaseOrders?.find((p: any) => p.id === poId);
@@ -517,16 +497,14 @@ export async function rejectPurchaseOrder(poId: string, remarks: string, actorNa
     const res = await purchaseOrderService.action(poId, 'reject', { remarks }, version);
     await syncProcurementData();
     return res;
-  } catch (err: any) {
-    return updateLocal();
-  }
+  } catch (err: any) { throw err; }
 }
 
-export async function issuePurchaseOrder(poId: string, actorName: string) {
+export async function issuePurchaseOrder(poId: string, payload: any = {}) {
   const updateLocal = () => {
     useERPStore.setState((prev: any) => {
       const pos = prev.state?.purchaseOrders || prev.state?.procurement?.purchaseOrders || [];
-      const updated = pos.map((p: any) => (p.id === poId || p.poNumber === poId || p.publicId === poId) ? { ...p, status: 'PO_ISSUED' } : p);
+      const updated = pos.map((p: any) => (p.id === poId || p.poNumber === poId || p.publicId === poId) ? { ...p, status: 'ORDERED' } : p);
       return {
         state: {
           ...prev.state,
@@ -538,22 +516,22 @@ export async function issuePurchaseOrder(poId: string, actorName: string) {
         }
       };
     });
-    return { success: true, id: poId, status: 'PO_ISSUED' };
+    return { success: true, id: poId, status: 'ORDERED' };
   };
 
-  if (isLocalId(poId)) {
-    return updateLocal();
-  }
+  if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
 
   const store = useERPStore.getState();
   const po = store.state.purchaseOrders?.find((p: any) => p.id === poId);
   const version = po?.version;
   try {
-    const res = await purchaseOrderService.action(poId, 'issue', {}, version);
+    const res = await purchaseOrderService.action(poId, 'issue', payload, version);
     await syncProcurementData();
     return res;
   } catch (err: any) {
-    return updateLocal();
+    // Real POs must be issued by the backend so Store only receives an
+    // authoritative ORDERED record after Finance confirms placement.
+    throw err;
   }
 }
 
@@ -809,13 +787,22 @@ export async function approveVendorReplacement(data: any) {
 }
 
 export async function createReplacementGRN(rejectionId: string, grnData: any, actorName: string) {
-  // Pass the rejection metadata in the snapshot so the backend can link it
-  grnData.snapshot = {
-    ...(grnData.snapshot || {}),
+  const state = useERPStore.getState().state;
+  const rejection = (state.materialRejections || []).find((item: any) => item.id === rejectionId);
+  const purchaseOrderId = grnData.purchaseOrderId || rejection?.purchaseOrderId || rejection?.poId;
+  if (!purchaseOrderId) {
+    throw new Error('This material rejection is not linked to a Purchase Order. Refresh and try again.');
+  }
+
+  // A replacement is a real Store delivery, not a draft GRN.  Using the delivery
+  // endpoint guarantees a PENDING_FINANCE_AUDIT GRN and a durable PO/rejection link.
+  const res = await procurementRequest<any>('store/deliveries/verify', 'POST', {
+    ...grnData,
+    purchaseOrderId,
     isReplacement: true,
     materialRejectionId: rejectionId,
-  };
-  const res = await procurementRequest<any>('grns', 'POST', grnData);
+    remarks: grnData.remarks || 'Replacement delivery inspection',
+  });
   await syncProcurementData();
   return res;
 }
@@ -895,6 +882,8 @@ export async function verifyPODelivery(poId: string, grnData: any, actorName: st
     invoiceNumber: grnData.invoiceNumber || grnData.vendorInvoiceNo || 'INV-44',
     remarks: grnData.remarks || grnData.snapshot?.remarks || '',
     attachments: grnData.snapshot?.attachments || grnData.attachments || [],
+    isReplacement: Boolean(grnData.isReplacement),
+    materialRejectionId: grnData.materialRejectionId || null,
     items: grnData.items.map((i: any) => ({
       productId: i.productId,
       deliveredQuantity: Number(i.receivedQuantity ?? i.deliveredQty ?? 0),

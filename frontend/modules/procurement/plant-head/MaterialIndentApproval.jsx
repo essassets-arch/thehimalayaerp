@@ -5,6 +5,7 @@ import { ProcurementStatusBadge } from '../components/ProcurementStatusBadge';
 import { Package, CheckCircle, XCircle, ArrowLeft, Clock, AlertCircle, ShieldCheck, FileText } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { backendFetch } from '../../../lib/backendFetch';
+import { purchaseIndentService } from '../../../services/procurement/purchaseIndentService';
 
 const EMPTY_INDENTS = [];
 
@@ -28,6 +29,7 @@ export default function MaterialIndentApproval() {
   const [approvedItemsMap, setApprovedItemsMap] = useState({});
   const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [viewTab, setViewTab] = useState('pending'); // 'pending' | 'history'
+  const [serverIndents, setServerIndents] = useState([]);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -42,21 +44,42 @@ export default function MaterialIndentApproval() {
     (state) => state.procurement?.materialIndents ?? state.state?.procurement?.materialIndents ?? state.materialIndents ?? state.state?.materialIndents ?? EMPTY_INDENTS
   );
 
+  // Load from the authoritative API as well as the shared client store. The store
+  // can be empty after a refresh or when Store and Plant Head use different sessions.
+  useEffect(() => {
+    let active = true;
+    purchaseIndentService.list({ limit: 100 })
+      .then((response) => {
+        const data = Array.isArray(response) ? response : (response?.data || []);
+        if (active) setServerIndents(data);
+      })
+      .catch((error) => console.warn('Unable to load material indents:', error));
+    return () => { active = false; };
+  }, []);
+
+  const allMaterialIndents = useMemo(() => {
+    const unique = new Map();
+    [...materialIndents, ...serverIndents].forEach(indent => {
+      if (indent) unique.set(indent.id || indent.publicId || indent.indentNo, indent);
+    });
+    return Array.from(unique.values());
+  }, [materialIndents, serverIndents]);
+
   // Filter pending indents
   const pendingIndents = useMemo(() => {
-    return materialIndents.filter(ind => ind.status === 'PENDING_PLANT_HEAD_APPROVAL' || ind.status === 'PENDING_PLANT_HEAD');
-  }, [materialIndents]);
+    return allMaterialIndents.filter(ind => ['PENDING_PLANT_HEAD_APPROVAL', 'PENDING_PLANT_HEAD', 'PENDING'].includes(ind.status));
+  }, [allMaterialIndents]);
 
   const historyIndents = useMemo(() => {
-    return materialIndents.filter(ind => ind.status !== 'PENDING_PLANT_HEAD_APPROVAL' && ind.status !== 'PENDING_PLANT_HEAD' && ind.status !== 'DRAFT');
-  }, [materialIndents]);
+    return allMaterialIndents.filter(ind => !['PENDING_PLANT_HEAD_APPROVAL', 'PENDING_PLANT_HEAD', 'PENDING', 'DRAFT'].includes(ind.status));
+  }, [allMaterialIndents]);
 
   const displayedIndents = viewTab === 'history' ? historyIndents : pendingIndents;
 
   const selectedIndent = useMemo(() => {
     if (!selectedIndentId) return null;
-    return materialIndents.find(i => i.id === selectedIndentId) || null;
-  }, [selectedIndentId, materialIndents]);
+    return allMaterialIndents.find(i => i.id === selectedIndentId) || null;
+  }, [selectedIndentId, allMaterialIndents]);
 
   const handleSelectIndent = (indent) => {
     setSelectedIndentId(indent.id);
@@ -414,7 +437,7 @@ export default function MaterialIndentApproval() {
                   Total Recorded Indents
                 </span>
                 <span style={{ fontSize: '24px', fontWeight: 950, color: '#4F46E5', marginTop: '2px', display: 'block', lineHeight: 1 }}>
-                  {materialIndents.length}
+                  {allMaterialIndents.length}
                 </span>
               </div>
               <FileText style={{ width: 28, height: 28, color: '#818CF8', opacity: 0.8 }} />

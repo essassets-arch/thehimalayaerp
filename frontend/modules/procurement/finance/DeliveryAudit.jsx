@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useERPStore } from '../../../store/erpStore';
-import { approveGoodsReceiptNote, returnGRN, closePurchaseOrder } from '../../../store/procurementActions';
+import { approveGoodsReceiptNote, returnGRN } from '../../../store/procurementActions';
 import { ProcurementStatusBadge } from '../components/ProcurementStatusBadge';
 import DataTable from '../../../shared/components/DataTable';
 import { FileCheck, ShieldCheck, CornerUpLeft, FileText } from 'lucide-react';
@@ -475,8 +475,8 @@ const formatDate = (value) => {
 };
 
 export default function DeliveryAudit() {
-  const goodsReceipts = useERPStore(state => state.state?.goodsReceipts) || [];
-  const purchaseOrders = useERPStore(state => state.state?.procurement?.purchaseOrders) || [];
+  const goodsReceipts = useERPStore(state => state.state?.goodsReceipts || state.state?.procurement?.goodsReceipts || []) || [];
+  const purchaseOrders = useERPStore(state => state.state?.procurement?.purchaseOrders || state.state?.purchaseOrders || []) || [];
 
   const pendingGRNs = goodsReceipts.filter(g =>
     g.status === 'PENDING_FINANCE_AUDIT' || g.status === 'SUBMITTED_FOR_FINANCE_AUDIT'
@@ -503,16 +503,15 @@ export default function DeliveryAudit() {
     try {
       setIsSubmitting(true);
       await approveGoodsReceiptNote(selectedGRN.id, remarks || 'Approved by Finance Audit', 'Finance Auditor');
-      
-      if (associatedPO) {
-        try {
-          await closePurchaseOrder(associatedPO.id, 'Closed automatically after Delivery Audit');
-        } catch (closeErr) {
-          console.warn('Auto-close skipped:', closeErr);
-        }
-      }
 
-      await Swal.fire('Approved', 'GRN has been approved and inventory updated.', 'success');
+      const replacement = Boolean(selectedGRN.snapshot?.isReplacement);
+      await Swal.fire(
+        'Approved',
+        replacement
+          ? 'Replacement GRN approved. Inventory is updated and the material rejection is closed.'
+          : 'GRN has been approved and inventory updated.',
+        'success',
+      );
       setSelectedGRNId(null);
     } catch (err) {
       Swal.fire('Error', err.message || 'Failed to approve GRN', 'error');
@@ -712,7 +711,7 @@ export default function DeliveryAudit() {
                   <div className="da-info">
                     <h3>
                       {grn.grnNumber || grn.id}
-                      {grn.grnType === 'REPLACEMENT' && (
+                      {(grn.grnType === 'REPLACEMENT' || grn.snapshot?.isReplacement) && (
                         <span style={{ marginLeft: 10, fontSize: 11, background: '#F3E8FF', color: '#7C3AED', padding: '3px 10px', borderRadius: 50, fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block', verticalAlign: 'middle' }}>
                           REPLACEMENT
                         </span>

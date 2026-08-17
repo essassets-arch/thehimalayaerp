@@ -5,8 +5,8 @@ import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import { useToast } from '../../../shared/context/ToastContext';
 import { useAuth } from '../../../shared/context/AuthContext';
-import { useERPStore } from '@/store/erpStore';
-import { syncProcurementData } from '../../../store/procurementActions';
+import { approvePurchaseOrder, rejectPurchaseOrder } from '../../../store/procurementActions';
+import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
 import styles from './PurchaseIndentsView.module.css';
 
 const EMPTY_PURCHASE_ORDERS = [];
@@ -16,118 +16,44 @@ export default function PurchaseIndentsView() {
   const { showToast } = useToast();
   const { user } = useAuth();
 
-  useEffect(() => {
-    void syncProcurementData();
-  }, []);
-
-  const purchaseOrders = useERPStore(s =>
-    s.purchaseOrders ||
-    s.procurement?.purchaseOrders ||
-    s.state?.purchaseOrders ||
-    s.state?.procurement?.purchaseOrders ||
-    EMPTY_PURCHASE_ORDERS
-  );
-  const approvePurchaseOrder = useERPStore(s => s.approvePurchaseOrder);
-  const rejectPurchaseOrder = useERPStore(s => s.rejectPurchaseOrder);
-
   const [selectedPO, setSelectedPO] = useState(null);
   const [directBackendPOs, setDirectBackendPOs] = useState([]);
+  const [historyPOs, setHistoryPOs] = useState([]);
+  const [queueLoaded, setQueueLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const refreshQueue = async () => {
+    const [pendingResponse, historyResponse] = await Promise.all([
+      purchaseOrderService.superAdminQueue({ limit: 100 }),
+      purchaseOrderService.superAdminHistory({ limit: 100 }),
+    ]);
+    const rows = Array.isArray(pendingResponse) ? pendingResponse : (pendingResponse?.data || []);
+    const historyRows = Array.isArray(historyResponse) ? historyResponse : (historyResponse?.data || []);
+    setDirectBackendPOs(rows);
+    setHistoryPOs(historyRows);
+    setQueueLoaded(true);
+    return rows;
+  };
 
   useEffect(() => {
     async function fetchPOs() {
       try {
-        const res = await apiClient.get('/procurement/purchase-orders?limit=100').catch(() => null);
-        if (res?.data && Array.isArray(res.data)) {
-          setDirectBackendPOs(res.data);
-        }
-      } catch (_) { }
+        await refreshQueue();
+      } catch (error) {
+        console.warn('[PurchaseIndentsView] Unable to load Super Admin PO queue:', error);
+        setQueueLoaded(true);
+      }
     }
-    fetchPOs();
+    void fetchPOs();
   }, []);
 
-  const DEFAULT_DEMO_POS = React.useMemo(() => [
-    {
-      id: 'PO-DRAFT-109',
-      poNumber: 'PO-DRAFT-109',
-      publicId: 'PO-DRAFT-109',
-      indentId: 'INDENT-WO-109',
-      purchaseIndentId: 'INDENT-WO-109',
-      vendorName: 'Himalaya Steel Corp',
-      vendorId: 'SUP-001',
-      supplierId: 'SUP-001',
-      status: 'PENDING_SUPER_ADMIN_APPROVAL',
-      paymentTerms: '30 Days Net',
-      expectedDeliveryDate: '2026-08-20',
-      totalAmount: 25000,
-      subtotal: 21186,
-      gstAmount: 3814,
-      freight: 0,
-      createdAt: new Date().toISOString(),
-      items: [
-        {
-          name: 'Steel Plates',
-          quantity: 100,
-          unitPrice: 250,
-          unit: 'Units',
-          gstPercent: 18
-        }
-      ]
-    },
-    {
-      id: 'PO-DRAFT-100',
-      poNumber: 'PO-DRAFT-100',
-      publicId: 'PO-DRAFT-100',
-      indentId: 'INDENT-CMT-053',
-      purchaseIndentId: 'INDENT-CMT-053',
-      vendorName: 'Global Aggregates Suppliers',
-      vendorId: 'SUP-002',
-      supplierId: 'SUP-002',
-      status: 'PENDING_SUPER_ADMIN_APPROVAL',
-      paymentTerms: '15 Days Net',
-      expectedDeliveryDate: '2026-08-25',
-      totalAmount: 50000,
-      subtotal: 42372,
-      gstAmount: 7628,
-      freight: 0,
-      createdAt: new Date().toISOString(),
-      items: [
-        {
-          name: 'Cement Grade 53',
-          quantity: 100,
-          unitPrice: 500,
-          unit: 'Bags',
-          gstPercent: 18
-        }
-      ]
-    }
-  ], []);
+  // Database queue only: persisted browser state must never create a pending
+  // approval row, including while this page is initially loading.
+  const combinedPOs = queueLoaded ? directBackendPOs : EMPTY_PURCHASE_ORDERS;
 
-  const combinedPOs = React.useMemo(() => {
-    const map = new Map();
-    DEFAULT_DEMO_POS.forEach(p => map.set(p.id, p));
-    (directBackendPOs || []).forEach(p => {
-      const key = p.id || p.publicId || p.poNumber;
-      if (key) map.set(key, p);
-    });
-    (purchaseOrders || []).forEach(p => {
-      const key = p.id || p.publicId || p.poNumber;
-      if (key) map.set(key, p);
-    });
-    return Array.from(map.values());
-  }, [purchaseOrders, directBackendPOs, DEFAULT_DEMO_POS]);
-
-  const pendingPOs = combinedPOs.filter(i =>
-    !i.status ||
-    i.status === 'PENDING_SUPER_ADMIN_APPROVAL' ||
-    i.status === 'PENDING_FINANCE_APPROVAL' ||
-    i.status === 'PENDING_APPROVAL' ||
-    i.status === 'SUBMITTED' ||
-    i.status === 'PLANT_HEAD_APPROVED' ||
-    i.status === 'DRAFT' ||
-    i.status === 'DRAFT_PO_CREATED'
-  );
-  const approvedPOs = combinedPOs.filter(i => ['SUPER_ADMIN_APPROVED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'PURCHASE_COMPLETED', 'PO_CLOSED', 'APPROVED', 'CLOSED'].includes(i.status));
-  const rejectedPOs = combinedPOs.filter(i => ['SUPER_ADMIN_REJECTED', 'REJECTED', 'RETURNED', 'VENDOR_REJECTED'].includes(i.status));
+  const pendingPOs = combinedPOs.filter(i => i.status === 'PENDING_SUPER_ADMIN_APPROVAL');
+  const approvedPOs = historyPOs.filter(i => ['SUPER_ADMIN_APPROVED', 'ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'PURCHASE_COMPLETED', 'PO_CLOSED', 'CLOSED'].includes(i.status));
+  const rejectedPOs = historyPOs.filter(i => ['SUPER_ADMIN_REJECTED', 'REJECTED', 'RETURNED', 'VENDOR_REJECTED'].includes(i.status));
 
   const handleApprove = (po) => {
     Swal.fire({
@@ -141,10 +67,17 @@ export default function PurchaseIndentsView() {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await approvePurchaseOrder(po.id, 'Approved by Super Admin after review.', user?.name || 'Super Admin');
+          setIsSaving(true);
+          const updated = await approvePurchaseOrder(po.id, 'Approved by Super Admin after review.', user?.name || 'Super Admin');
+          if (updated?.status !== 'SUPER_ADMIN_APPROVED') {
+            throw new Error('Approval was not persisted. The purchase order is still pending.');
+          }
+          await refreshQueue();
           showToast('Purchase Order approved successfully and sent to Finance for final issuance.', 'success');
         } catch (error) {
           showToast(`Error approving PO: ${error.message || 'Unknown error'}`, 'error');
+        } finally {
+          setIsSaving(false);
         }
       }
     });
@@ -162,10 +95,17 @@ export default function PurchaseIndentsView() {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await rejectPurchaseOrder(po.id, 'Rejected by Super Admin during review. Please revise.', user?.name || 'Super Admin');
+          setIsSaving(true);
+          const updated = await rejectPurchaseOrder(po.id, 'Rejected by Super Admin during review. Please revise.', user?.name || 'Super Admin');
+          if (updated?.status !== 'SUPER_ADMIN_REJECTED') {
+            throw new Error('Rejection was not persisted. The purchase order is still pending.');
+          }
+          await refreshQueue();
           showToast('Purchase Order rejected and returned to Finance with remarks.', 'success');
         } catch (error) {
           showToast(`Error rejecting PO: ${error.message || 'Unknown error'}`, 'error');
+        } finally {
+          setIsSaving(false);
         }
       }
     });
@@ -348,6 +288,7 @@ export default function PurchaseIndentsView() {
                   <>
                     <button
                       onClick={() => handleApprove(row)}
+                      disabled={isSaving}
                       className={`${styles.actionButton} ${styles.approveButton}`}
                       title="Approve Draft PO"
                     >
@@ -356,6 +297,7 @@ export default function PurchaseIndentsView() {
 
                     <button
                       onClick={() => handleReject(row)}
+                      disabled={isSaving}
                       className={`${styles.actionButton} ${styles.rejectButton}`}
                       title="Reject Draft PO"
                     >

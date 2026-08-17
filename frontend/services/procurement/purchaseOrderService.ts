@@ -2,6 +2,9 @@ import { procurementRequest } from './procurementClient';
 
 export const purchaseOrderService = {
   list: (query?: Record<string, any>) => procurementRequest('purchase-orders', 'GET', undefined, { query }),
+  financeQueue: (query?: Record<string, any>) => procurementRequest('finance/po-requests', 'GET', undefined, { query }),
+  superAdminQueue: (query?: Record<string, any>) => procurementRequest('super-admin/po-requests', 'GET', undefined, { query }),
+  superAdminHistory: (query?: Record<string, any>) => procurementRequest('super-admin/po-history', 'GET', undefined, { query }),
   createFromIndent: (indentId: string, data: unknown) => {
     const isLocal = !indentId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(indentId);
     if (isLocal) {

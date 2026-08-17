@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { SequenceService } from '../../common/sequence/sequence.service';
 import {
   getProcurementScope,
   getAdvancedScope,
@@ -23,10 +24,10 @@ const PO: Record<string, string[]> = {
   approve: ['PENDING_SUPER_ADMIN_APPROVAL'],
   return: ['PENDING_SUPER_ADMIN_APPROVAL'],
   reject: ['PENDING_SUPER_ADMIN_APPROVAL'],
-  issue: ['SUPER_ADMIN_APPROVED'],
-  'vendor-accept': ['PO_ISSUED'],
-  'vendor-reject': ['PO_ISSUED'],
-  dispatch: ['PO_ISSUED', 'VENDOR_ACCEPTED'],
+  issue: ['SUPER_ADMIN_APPROVED', 'ORDERED', 'PO_ISSUED'],
+  'vendor-accept': ['ORDERED', 'PO_ISSUED'],
+  'vendor-reject': ['ORDERED', 'PO_ISSUED'],
+  dispatch: ['ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED'],
 };
 const GRN: Record<string, string[]> = {
   submit: ['DRAFT', 'RETURNED_TO_STORE'],
@@ -38,7 +39,10 @@ const MONEY = (v: unknown) =>
 
 @Injectable()
 export class ProcurementService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceService: SequenceService,
+  ) {}
   private id(prefix: string) {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   }
@@ -183,7 +187,10 @@ export class ProcurementService {
         items: { include: { product: true } },
         supplier: { select: { id: true, name: true } },
       },
-      goodsReceiptNote: { items: { include: { product: true } } },
+      goodsReceiptNote: {
+        items: { include: { product: true } },
+        purchaseOrder: { include: { supplier: { select: { id: true, name: true } } } },
+      },
     };
     const include = ENTITY_INCLUDES[entity] ?? { items: true };
 
@@ -294,13 +301,18 @@ export class ProcurementService {
   async purchaseOrderQueue(companyId: string | undefined, query: any) {
     const { page, limit, skip } = this.page(query);
     const tab = String(query.tab || '');
-    const status =
-      query.status ||
-      (tab === 'Draft POs'
-        ? 'DRAFT'
-        : tab === 'Approved POs'
-          ? 'SUPER_ADMIN_APPROVED'
-          : undefined);
+    let status = query.status;
+    if (!status) {
+      if (tab === 'Draft POs' || tab === 'Drafts') {
+        status = { in: ['DRAFT', 'PENDING_SUPER_ADMIN_APPROVAL', 'SUPER_ADMIN_REJECTED'] };
+      } else if (tab === 'Approved POs') {
+        // Finance's placement queue is strictly for orders awaiting placement.
+        // Once issued as ORDERED, they belong to Store delivery tracking/history.
+        status = 'SUPER_ADMIN_APPROVED';
+      } else if (tab === 'Closed POs') {
+        status = 'CLOSED';
+      }
+    }
     const where: any = {
       ...(companyId && { companyId }),
       ...(status && { status }),
@@ -311,6 +323,64 @@ export class ProcurementService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
+        include: {
+          supplier: true,
+          items: { include: { product: true } },
+          purchaseIndent: true,
+        },
+      }),
+      this.prisma.purchaseOrder.count({ where }),
+    ]);
+    return { data, meta: { page, limit, total } };
+  }
+
+  async financeEligibleIndents(companyId: string | undefined, query: any) {
+    const { page, limit, skip } = this.page(query);
+    const where: any = {
+      ...(companyId && { companyId }),
+      status: 'PLANT_HEAD_APPROVED',
+      // PurchaseIndent has one PO relation; a rejected/cancelled PO is still
+      // blocked by the schema's unique indent reference and the create guard.
+      purchaseOrder: { is: null },
+    };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.purchaseIndent.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { items: { include: { product: true } } },
+      }),
+      this.prisma.purchaseIndent.count({ where }),
+    ]);
+    return { data, meta: { page, limit, total } };
+  }
+
+  async superAdminPurchaseOrderHistory(companyId: string | undefined, query: any) {
+    const { page, limit, skip } = this.page(query);
+    const where: any = {
+      ...(companyId && { companyId }),
+      // These are records on which Super Admin has made a final decision.
+      status: {
+        in: [
+          'SUPER_ADMIN_APPROVED',
+          'ORDERED',
+          'VENDOR_ACCEPTED',
+          'VENDOR_REJECTED',
+          'IN_TRANSIT',
+          'PARTIALLY_RECEIVED',
+          'CLOSED',
+          'PO_CLOSED',
+          'SUPER_ADMIN_REJECTED',
+        ],
+      },
+    };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.purchaseOrder.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
         include: {
           supplier: true,
           items: { include: { product: true } },
@@ -456,6 +526,7 @@ export class ProcurementService {
 
           grnItems.push({
             productId,
+            purchaseOrderItemId: poItem?.id || null,
             receivedQuantity: delivered,
             acceptedQuantity: accepted,
             rejectedQuantity: rejected,
@@ -463,10 +534,20 @@ export class ProcurementService {
           });
         }
 
+        const currentYear = new Date().getFullYear();
+        const seqKey = `${po.companyId}_GOODS_RECEIPT_${currentYear}`;
+        const prefix = `GRN-${currentYear}-`;
+        const grnNo = await this.sequenceService.generateNextWithTx(
+          tx,
+          seqKey,
+          prefix,
+          6,
+        );
+
         const grn = await tx.goodsReceiptNote.create({
           data: {
-            publicId: this.id('GRN'),
-            grnNumber: this.id('GRN'),
+            publicId: grnNo,
+            grnNumber: grnNo,
             companyId: po.companyId,
             purchaseOrderId: po.id,
             warehouseId,
@@ -480,11 +561,25 @@ export class ProcurementService {
               deliveryChallanNumber: dto.deliveryChallanNumber,
               remarks: dto.remarks,
               attachments: dto.attachments || [],
+              isReplacement: Boolean(dto.isReplacement),
+              materialRejectionId: dto.materialRejectionId || null,
             },
             items: { create: grnItems },
           },
           include: { items: true },
         });
+        // Store has physically received the replacement.  Move the rejection
+        // out of the Store delivery queue before Finance performs the audit.
+        if (dto.isReplacement && dto.materialRejectionId) {
+          await tx.materialRejection.updateMany({
+            where: {
+              id: dto.materialRejectionId,
+              purchaseOrderId: po.id,
+              status: 'REPLACEMENT_EXPECTED',
+            },
+            data: { status: 'REPLACEMENT_RECEIVED' },
+          });
+        }
         for (const item of grn.items) {
           await tx.purchaseOrderItem.updateMany({
             where: { purchaseOrderId: po.id, productId: item.productId },
@@ -500,11 +595,17 @@ export class ProcurementService {
         const complete = latestItems.every((i) =>
           MONEY(i.receivedQuantity).gte(i.quantity),
         );
-        const status = complete ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
+        const status = complete ? 'DELIVERY_PENDING_FINANCE_AUDIT' : 'PARTIALLY_DELIVERED_PENDING_AUDIT';
         const updated = await tx.purchaseOrder.update({
           where: { id: po.id },
           data: { status, version: { increment: 1 } },
         });
+        if (po.purchaseIndentId) {
+          await tx.purchaseIndent.update({
+            where: { id: po.purchaseIndentId },
+            data: { status, version: { increment: 1 } },
+          });
+        }
         await tx.gRNStatusHistory.create({
           data: {
             goodsReceiptNoteId: grn.id,
@@ -627,12 +728,108 @@ export class ProcurementService {
     const warehouseId = dto.warehouseId || null;
 
     return this.prisma.$transaction(async (tx) => {
+      const currentYear = new Date().getFullYear();
+      const seqKey = `${companyId}_PURCHASE_INDENT_${currentYear}`;
+      const prefix = `IND-${currentYear}-`;
+      const indentNo = await this.sequenceService.generateNextWithTx(
+        tx,
+        seqKey,
+        prefix,
+        6,
+      );
+
+      const itemsToCreate: any[] = [];
+      for (const i of dto.items) {
+        // Store inventory is maintained in RawMaterial, while purchase-indent
+        // lines historically reference Product. Resolve the Store item to its
+        // purchasing product here instead of inserting the RawMaterial UUID into
+        // PurchaseIndentItem.productId (which causes a foreign-key violation).
+        let product = await tx.product.findFirst({
+          where: { id: i.productId, companyId },
+        });
+        let rawMaterial: any = null;
+
+        if (!product) {
+          rawMaterial = await tx.rawMaterial.findFirst({
+            where: { id: i.productId, companyId },
+          });
+
+          if (!rawMaterial) {
+            throw new BadRequestException(
+              'The selected material no longer exists. Refresh Low Stock Alerts and try again.',
+            );
+          }
+
+          product = await tx.product.findFirst({
+            where: {
+              companyId,
+              OR: [
+                ...(rawMaterial.sku ? [{ sku: rawMaterial.sku }] : []),
+                { name: { equals: rawMaterial.name, mode: 'insensitive' } },
+              ],
+            },
+          });
+
+          // Raw materials created through the Store module do not necessarily
+          // have a Product counterpart. Create that purchasing reference once,
+          // then reuse it for all subsequent indents.
+          if (!product) {
+            product = await tx.product.create({
+              data: {
+                publicId: `PRD-RM-${rawMaterial.id}`,
+                companyId,
+                name: rawMaterial.name,
+                sku: rawMaterial.sku,
+                category: rawMaterial.category || 'Raw Material',
+                productType: 'RAW_MATERIAL',
+                unit: rawMaterial.unit || 'PCS',
+                unitPrice: MONEY(0),
+                minimumStock: rawMaterial.minimumStock || MONEY(0),
+              },
+            });
+          }
+        }
+        
+        // Calculate current stock levels from the ledger transactions
+        const grouped = await tx.inventoryTransaction.groupBy({
+          by: ['productId', 'rawMaterialId', 'type'],
+          _sum: { quantity: true },
+          where: rawMaterial
+            ? { companyId, rawMaterialId: rawMaterial.id }
+            : { companyId, productId: product.id },
+        });
+        let currentStock = 0;
+        for (const r of grouped) {
+          const qty = Number(r._sum.quantity || 0);
+          const typeUpper = (r.type || '').toUpperCase().trim();
+          if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'ADJUSTMENT'].includes(typeUpper)) {
+            currentStock += qty;
+          } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)) {
+            currentStock -= qty;
+          }
+        }
+
+        itemsToCreate.push({
+          productId: product.id,
+          quantity: MONEY(i.quantity),
+          approvedQuantity: i.approvedQuantity == null ? null : MONEY(i.approvedQuantity),
+          estimatedUnitRate: i.estimatedUnitRate == null ? null : MONEY(i.estimatedUnitRate),
+          lineRemarks: i.lineRemarks,
+          materialCode: product?.sku || '',
+          materialName: product?.name || '',
+          uom: product?.unit || '',
+          currentStockSnapshot: MONEY(currentStock),
+          minimumStockSnapshot: product?.minimumStock || MONEY(0),
+        });
+      }
+
       const row = await tx.purchaseIndent.create({
         data: {
-          publicId: this.id('PI'),
+          publicId: indentNo,
+          indentNo,
           companyId,
           requestedById,
-          status: 'DRAFT',
+          status: 'PENDING_PLANT_HEAD_APPROVAL',
           department: dto.department,
           warehouseId,
           requiredDate: dto.requiredDate ? new Date(dto.requiredDate) : null,
@@ -640,15 +837,7 @@ export class ProcurementService {
           businessReason: dto.businessReason,
           remarks: dto.remarks,
           items: {
-            create: dto.items.map((i: any) => ({
-              productId: i.productId,
-              quantity: MONEY(i.quantity),
-              approvedQuantity:
-                i.approvedQuantity == null ? null : MONEY(i.approvedQuantity),
-              estimatedUnitRate:
-                i.estimatedUnitRate == null ? null : MONEY(i.estimatedUnitRate),
-              lineRemarks: i.lineRemarks,
-            })),
+            create: itemsToCreate,
           },
         },
       });
@@ -746,14 +935,37 @@ export class ProcurementService {
         reject: 'PLANT_HEAD_REJECTED',
         cancel: 'INDENT_CANCELLED',
       }[action];
+
+      const updateData: any = {
+        status,
+        version: { increment: 1 },
+        ...(action === 'cancel' && { cancellationReason: dto.remarks }),
+        ...(action === 'approve' && {
+          plantHeadApprovedById: actorId || null,
+          plantHeadApprovedAt: new Date(),
+        }),
+        ...(action === 'reject' && {
+          plantHeadRejectedById: actorId || null,
+          plantHeadRejectedAt: new Date(),
+          plantHeadRejectionReason: dto.remarks,
+        }),
+      };
+
       const updated = await tx.purchaseIndent.update({
         where: { id, version: row.version },
-        data: {
-          status,
-          version: { increment: 1 },
-          ...(action === 'cancel' && { cancellationReason: dto.remarks }),
-        },
+        data: updateData,
       });
+
+      if (action === 'approve') {
+        const lines = dto.items || [];
+        for (const i of lines) {
+          await tx.purchaseIndentItem.updateMany({
+            where: { purchaseIndentId: id, productId: i.productId },
+            data: { approvedQuantity: MONEY(i.approvedQuantity) },
+          });
+        }
+      }
+
       await tx.purchaseIndentStatusHistory.create({
         data: {
           purchaseIndentId: id,
@@ -776,7 +988,18 @@ export class ProcurementService {
           after: { status: updated.status, remarks: dto.remarks },
         },
       });
-      if (action === 'approve')
+      if (action === 'submit') {
+        await this.notifyRole(
+          tx,
+          row.companyId,
+          'PLANT_HEAD',
+          'Material indent submitted',
+          `${row.publicId} is ready for review.`,
+          'PurchaseIndent',
+          id,
+        );
+      }
+      if (action === 'approve') {
         await this.notifyRole(
           tx,
           row.companyId,
@@ -786,6 +1009,7 @@ export class ProcurementService {
           'PurchaseIndent',
           id,
         );
+      }
       return updated;
     });
   }
@@ -793,12 +1017,17 @@ export class ProcurementService {
     return this.prisma.$transaction(async (tx) => {
       const indent = await this.entity(tx, 'purchaseIndent', indentId);
       if (indent.status !== 'PLANT_HEAD_APPROVED')
-        throw new ConflictException('Only approved indents may create a PO');
-      if (
-        await tx.purchaseOrder.findUnique({
-          where: { purchaseIndentId: indentId },
-        })
-      )
+        throw new BadRequestException(
+          'Only Plant Head approved indents can be converted to a Draft PO',
+        );
+      const existingPO = await tx.purchaseOrder.findFirst({
+        where: {
+          companyId: indent.companyId,
+          purchaseIndentId: indent.id,
+          status: { notIn: ['SUPER_ADMIN_REJECTED', 'CANCELLED'] },
+        },
+      });
+      if (existingPO)
         throw new ConflictException(
           'An active PO already exists for this indent',
         );
@@ -837,27 +1066,92 @@ export class ProcurementService {
         supplierId = defaultSupplier.id;
       }
 
+      const currentYear = new Date().getFullYear();
+      const seqKey = `${indent.companyId}_PURCHASE_ORDER_DRAFT_${currentYear}`;
+      const prefix = `PO-DRAFT-${currentYear}-`;
+      const draftPoNo = await this.sequenceService.generateNextWithTx(
+        tx,
+        seqKey,
+        prefix,
+        6,
+      );
+
+      let subtotal = new Prisma.Decimal(0);
+      let gstAmount = new Prisma.Decimal(0);
+      const itemsToCreate: any[] = [];
+
+      for (const i of dto.items || []) {
+        const product = await tx.product.findUnique({
+          where: { id: i.productId || i.materialId },
+        });
+
+        const qty = new Prisma.Decimal(i.quantity || 0);
+        const rate = new Prisma.Decimal(i.unitPrice || i.rate || 0);
+        const gstPct = new Prisma.Decimal(i.gstPercent || i.tax || 18);
+
+        const lineSub = qty.mul(rate);
+        const lineGst = lineSub.mul(gstPct).div(100);
+        const lineTot = lineSub.add(lineGst);
+
+        subtotal = subtotal.add(lineSub);
+        gstAmount = gstAmount.add(lineGst);
+
+        const indentItem = await tx.purchaseIndentItem.findFirst({
+          where: { purchaseIndentId: indentId, productId: i.productId || i.materialId },
+        });
+
+        itemsToCreate.push({
+          productId: i.productId || i.materialId,
+          indentItemId: indentItem?.id || null,
+          materialCodeSnapshot: product?.sku || '',
+          materialNameSnapshot: product?.name || '',
+          uomSnapshot: product?.unit || '',
+          quantity: qty,
+          unitPrice: rate,
+          discountPercent: new Prisma.Decimal(i.discountPercent || 0),
+          gstPercent: gstPct,
+          lineSubtotal: lineSub,
+          gstAmount: lineGst,
+          lineTotal: lineTot,
+        });
+      }
+
+      const freight = new Prisma.Decimal(dto.freight || 0);
+      const otherCharges = new Prisma.Decimal(dto.otherCharges || 0);
+      const grandTotal = subtotal.add(gstAmount).add(freight).add(otherCharges);
+
+      const snapshot = {
+        subtotal: subtotal.toNumber(),
+        gstAmount: gstAmount.toNumber(),
+        gstPercent: dto.items?.[0]?.gstPercent || 18,
+        freight: freight.toNumber(),
+        grandTotal: grandTotal.toNumber(),
+        vendorName: supplierExists?.name || 'Default Vendor',
+        ...(dto.snapshot || {}),
+      };
+
       const po = await tx.purchaseOrder.create({
         data: {
-          publicId: this.id('PO'),
+          publicId: draftPoNo,
+          draftPoNo,
+          poNumber: draftPoNo,
           companyId: indent.companyId,
           supplierId,
           purchaseIndentId: indentId,
-          totalAmount: MONEY(dto.totalAmount),
-          freight: MONEY(dto.freight || 0),
-          otherCharges: MONEY(dto.otherCharges || 0),
+          // Finance first saves an editable draft. The separate submit action
+          // is the only step that sends it to Super Admin for approval.
+          status: 'DRAFT',
+          freight,
+          otherCharges,
           paymentTerms: dto.paymentTerms || '',
           expectedDeliveryDate: dto.expectedDeliveryDate
             ? new Date(dto.expectedDeliveryDate)
             : null,
+          totalAmount: grandTotal,
+          gstAmount,
+          snapshot,
           items: {
-            create: (dto.items || []).map((i: any) => ({
-              productId: i.productId || i.materialId,
-              quantity: MONEY(i.quantity),
-              unitPrice: MONEY(i.unitPrice || i.rate || 0),
-              discountPercent: MONEY(i.discountPercent || 0),
-              gstPercent: MONEY(i.gstPercent || i.tax || 18),
-            })),
+            create: itemsToCreate,
           },
         },
       });
@@ -883,7 +1177,7 @@ export class ProcurementService {
         indent.companyId,
         ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
         'Draft PO created',
-        `${po.publicId} is available in Draft POs.`,
+        `${po.publicId} is ready to send for Super Admin approval.`,
         'PurchaseOrder',
         po.id,
       );
@@ -934,27 +1228,85 @@ export class ProcurementService {
         approve: 'SUPER_ADMIN_APPROVED',
         return: 'CORRECTION_REQUIRED',
         reject: 'SUPER_ADMIN_REJECTED',
-        issue: 'PO_ISSUED',
+        issue: 'ORDERED',
         'vendor-accept': 'VENDOR_ACCEPTED',
         'vendor-reject': 'VENDOR_REJECTED',
         dispatch: 'IN_TRANSIT',
       }[action];
+
+      let finalPoNo: string | undefined = undefined;
+      if (action === 'issue') {
+        const currentYear = new Date().getFullYear();
+        const seqKey = `${row.companyId}_PURCHASE_ORDER_${currentYear}`;
+        const prefix = `PO-${currentYear}-`;
+        finalPoNo = await this.sequenceService.generateNextWithTx(
+          tx,
+          seqKey,
+          prefix,
+          6,
+        );
+      }
+
+      const updateData: any = {
+        status,
+        version: { increment: 1 },
+        ...(action === 'approve' && {
+          superAdminApprovedById: actorId || null,
+          superAdminApprovedAt: new Date(),
+        }),
+        ...(action === 'reject' && {
+          superAdminRejectedById: actorId || null,
+          superAdminRejectedAt: new Date(),
+          superAdminRejectionReason: dto.remarks,
+        }),
+        ...(action === 'issue' && {
+          poNo: finalPoNo,
+          poNumber: finalPoNo,
+          orderedById: actorId || null,
+          orderedAt: new Date(),
+          expectedDeliveryDate: dto.expectedDeliveryDate
+            ? new Date(dto.expectedDeliveryDate)
+            : row.expectedDeliveryDate,
+          vendorOrderReference: dto.vendorOrderReference || dto.vendorAcknowledgementNumber || null,
+          orderRemarks: dto.remarks || dto.financeRemarks || null,
+        }),
+      };
+
       const updated = await tx.purchaseOrder.update({
         where: { id, version: row.version },
-        data: {
-          status,
-          version: { increment: 1 },
-          ...(action === 'issue' && {
-            poNumber: this.id('FINAL-PO'),
-            issuedAt: new Date(),
-            issuedById: actorId,
-            expectedDeliveryDate: dto.expectedDeliveryDate
-              ? new Date(dto.expectedDeliveryDate)
-              : row.expectedDeliveryDate,
-            snapshot: dto.snapshot || {},
-          }),
-        },
+        data: updateData,
       });
+
+      if (updated.purchaseIndentId) {
+        const linkedIndent = await tx.purchaseIndent.findFirst({
+          where: { id: updated.purchaseIndentId, companyId: row.companyId },
+          select: { status: true, version: true },
+        });
+        const newIndentStatus = ({
+          submit: 'PENDING_SUPER_ADMIN_APPROVAL',
+          approve: 'SUPER_ADMIN_APPROVED',
+          reject: 'DRAFT_PO_CREATED',
+          issue: 'ORDERED',
+        } as Record<string, string>)[action] || linkedIndent?.status;
+        if (!linkedIndent || !newIndentStatus) {
+          throw new NotFoundException('Linked purchase indent was not found');
+        }
+        await tx.purchaseIndent.update({
+          where: { id: updated.purchaseIndentId },
+          data: { status: newIndentStatus, version: { increment: 1 } },
+        });
+        await tx.purchaseIndentStatusHistory.create({
+          data: {
+            purchaseIndentId: updated.purchaseIndentId,
+            oldStatus: linkedIndent.status,
+            newStatus: newIndentStatus,
+            remarks: dto.remarks,
+            actorId,
+            versionBefore: linkedIndent.version,
+            versionAfter: linkedIndent.version + 1,
+          },
+        });
+      }
       await tx.purchaseOrderStatusHistory.create({
         data: {
           purchaseOrderId: id,
@@ -1100,34 +1452,75 @@ export class ProcurementService {
         }
       }
 
+      if (action === 'audit-approve' && row.status !== 'PENDING_FINANCE_AUDIT') {
+        throw new BadRequestException('GRN has already been audited or is not in PENDING_FINANCE_AUDIT status');
+      }
+
       if (action === 'audit-approve' && row.inventoryPostedAt) return row;
+
       const status: any = {
         submit: 'PENDING_FINANCE_AUDIT',
         return: 'RETURNED_TO_STORE',
         'audit-approve': 'FINANCE_AUDIT_APPROVED',
       }[action];
+
       const updated = await tx.goodsReceiptNote.update({
         where: { id, version: row.version },
         data: {
           status,
           version: { increment: 1 },
-          ...(action === 'audit-approve' && { inventoryPostedAt: new Date() }),
+          ...(action === 'audit-approve' && {
+            inventoryPostedAt: new Date(),
+            financeAuditedById: actorId || null,
+            financeAuditedAt: new Date(),
+          }),
         },
         include: { items: true },
       });
+
       if (action === 'audit-approve') {
-        for (const i of updated.items)
+        const poId = updated.purchaseOrderId;
+        const po = await tx.purchaseOrder.findUnique({
+          where: { id: poId },
+          include: { items: true },
+        });
+
+        for (const i of updated.items) {
+          if (MONEY(i.acceptedQuantity).lte(0)) continue;
+
+          const product = await tx.product.findUnique({
+            where: { id: i.productId },
+          });
+          let rawMaterialId: string | null = null;
+          if (product?.sku) {
+            const rm = await tx.rawMaterial.findFirst({
+              where: { sku: product.sku },
+            });
+            if (rm) {
+              rawMaterialId = rm.id;
+            }
+          }
+
+          // Create InventoryTransaction IN ledger movement
           await tx.inventoryTransaction.create({
             data: {
               companyId: updated.companyId,
               warehouseId: updated.warehouseId,
               productId: i.productId,
-              type: 'PURCHASE_RECEIPT',
-              quantity: i.acceptedQuantity,
-              referenceId: updated.id,
-              referenceType: 'GRN',
+              rawMaterialId,
+              type: 'IN',
+              quantity: MONEY(i.acceptedQuantity),
+              referenceId: poId,
+              referenceType: 'PURCHASE_ORDER',
             },
           });
+
+          // Update GoodsReceiptNoteItem with financeApprovedQuantity
+          await tx.goodsReceiptNoteItem.update({
+            where: { id: i.id },
+            data: { financeApprovedQuantity: MONEY(i.acceptedQuantity) },
+          });
+        }
 
         // Handle Material Rejection resolution if it's a replacement GRN
         const snapshot = (updated.snapshot as any) || {};
@@ -1137,7 +1530,6 @@ export class ProcurementService {
             include: { items: true },
           });
           if (rej) {
-            // Find total replacement received so far for this rejection (mocking logic by resolving immediately for prototype purposes, or calculating remaining)
             await tx.materialRejection.update({
               where: { id: rej.id },
               data: { status: 'RESOLVED', resolvedAt: new Date() },
@@ -1145,55 +1537,55 @@ export class ProcurementService {
           }
         }
 
-        // Auto-close PO check
-        const poId = updated.purchaseOrderId;
-        const po = await tx.purchaseOrder.findUnique({
-          where: { id: poId },
-          include: {
-            items: true,
-            grns: { include: { items: true } },
-            materialRejections: { include: { items: true } },
-          },
-        });
-
+        // Auto-close PO check based on actual PostgreSQL-audited quantities
         if (po) {
-          let totalOrderedQty = 0;
-          let totalReceivedQty = 0;
-          let totalRejectedQty = 0;
-          let totalReplacementQty = 0;
-
-          po.items.forEach((item) => {
-            totalOrderedQty += Number(item.quantity) || 0;
+          const approvedGrns = await tx.goodsReceiptNote.findMany({
+            where: {
+              purchaseOrderId: poId,
+              status: 'FINANCE_AUDIT_APPROVED',
+            },
+            include: { items: true },
           });
-          po.grns.forEach((g) => {
-            if (
-              g.status === 'FINANCE_AUDIT_APPROVED' ||
-              g.status === 'APPROVED' ||
-              g.status === 'INVENTORY_UPDATED' ||
-              g.status === 'CLOSED' ||
-              g.id === updated.id
-            ) {
-              const isRep = (g.snapshot as any)?.isReplacement;
-              g.items.forEach((item) => {
-                if (isRep)
-                  totalReplacementQty += Number(item.acceptedQuantity) || 0;
-                else totalReceivedQty += Number(item.acceptedQuantity) || 0;
-              });
+
+          // Accumulate accepted quantities by product ID
+          const acceptedQtyMap = new Map<string, number>();
+          for (const g of approvedGrns) {
+            for (const gi of g.items) {
+              const prev = acceptedQtyMap.get(gi.productId) || 0;
+              acceptedQtyMap.set(gi.productId, prev + Number(gi.acceptedQuantity || 0));
             }
-          });
-          po.materialRejections.forEach((rej) => {
-            rej.items.forEach((item) => {
-              totalRejectedQty += Number(item.quantity) || 0;
-            });
+          }
+
+          let poCompleted = true;
+          for (const item of po.items) {
+            const accepted = acceptedQtyMap.get(item.productId) || 0;
+            const ordered = Number(item.quantity) || 0;
+            if (accepted < ordered) {
+              poCompleted = false;
+            }
+          }
+
+          const newPoStatus = poCompleted ? 'CLOSED' : 'PARTIALLY_DELIVERED';
+
+          await tx.purchaseOrder.update({
+            where: { id: poId },
+            data: {
+              status: newPoStatus,
+              version: { increment: 1 },
+              ...(poCompleted && { closedAt: new Date() }),
+            },
           });
 
-          const pendingQty = Math.max(
-            0,
-            totalOrderedQty -
-              totalReceivedQty +
-              totalRejectedQty -
-              totalReplacementQty,
-          );
+          if (po.purchaseIndentId) {
+            await tx.purchaseIndent.update({
+              where: { id: po.purchaseIndentId },
+              data: {
+                status: newPoStatus,
+                version: { increment: 1 },
+                ...(poCompleted && { closedAt: new Date() }),
+              },
+            });
+          }
         }
       }
       await tx.gRNStatusHistory.create({

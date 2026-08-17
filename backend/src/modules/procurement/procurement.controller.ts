@@ -63,6 +63,12 @@ export class ProcurementController {
     return this.service.purchaseOrderQueue(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
+  @Get('finance/eligible-indents')
+  @Roles('FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'ADMIN', 'SUPER_ADMIN')
+  financeEligibleIndents(@Req() r: any, @Query() q: any) {
+    return this.service.financeEligibleIndents(r.user?.companyId, q);
+  }
+  @RequirePermissions('procurement.procurement.read')
   @Get('super-admin/po-requests')
   @Roles('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'STORE', 'STORE_MANAGER')
   adminQueue(@Req() r: any, @Query() q: any) {
@@ -70,6 +76,12 @@ export class ProcurementController {
       ...q,
       status: 'PENDING_SUPER_ADMIN_APPROVAL',
     });
+  }
+  @RequirePermissions('procurement.procurement.read')
+  @Get('super-admin/po-history')
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  adminHistory(@Req() r: any, @Query() q: any) {
+    return this.service.superAdminPurchaseOrderHistory(r.user?.companyId, q);
   }
   @Post('indents')
   @RequirePermissions('procurement.indents.create')
@@ -127,7 +139,7 @@ export class ProcurementController {
   }
   @Post('purchase-orders/:id/:action')
   @RequirePermissions('procurement.purchase_orders.update')
-  poAction(
+  async poAction(
     @Param('id') id: string,
     @Param('action') a: string,
     @Body() d: any,
@@ -136,7 +148,25 @@ export class ProcurementController {
     const overrideSod =
       r.user?.role === 'SUPER_ADMIN' ||
       Boolean(r.user?.permissions?.includes('procurement.po.override'));
-    return this.service.poAction(id, a, d, r.user?.sub, overrideSod);
+    const updated = await this.service.poAction(
+      id,
+      a,
+      d,
+      r.user?.sub,
+      overrideSod,
+    );
+
+    // Keep the Super Admin approval response explicit. The global response
+    // interceptor wraps this value as { success: true, data: ... }.
+    if (a === 'approve') {
+      return {
+        id: updated.id,
+        status: updated.status,
+        approvedAt: updated.superAdminApprovedAt,
+        approvedById: updated.superAdminApprovedById,
+      };
+    }
+    return updated;
   }
   @Get('purchase-orders/:id/history')
   @RequirePermissions('procurement.purchase_orders.read')

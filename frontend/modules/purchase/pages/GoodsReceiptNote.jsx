@@ -7,6 +7,8 @@ import { FileText, Plus, Truck, Warehouse, Eye, Trash2, Calendar, ClipboardCheck
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import * as purchaseService from '../services/purchase.service';
+import { grnService } from '../../../services/procurement/grnService';
+import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
 
 export default function GoodsReceiptNote() {
   const navigate = useRouter();
@@ -36,40 +38,35 @@ export default function GoodsReceiptNote() {
   const fetchGRNsAndMetadata = async () => {
     setIsLoading(true);
     try {
-      const [grnsData, posData, warehousesData] = await Promise.all([
-        purchaseService.getGRNs(),
-        purchaseService.getPurchaseOrders(),
+      const [grnsResponse, posResponse, warehousesData] = await Promise.all([
+        grnService.list({ limit: 100 }),
+        purchaseOrderService.list({ limit: 100 }),
         purchaseService.getWarehouses()
       ]);
-      const dummyGrns = [
-        {
-          id: 1, grn_number: 'GRN-2026-1042', purchase_order_number: 'PO-2026-905', vendor_name: 'Global Metals Inc.', vendor_code: 'V-042',
-          received_date: new Date(Date.now() - 86400000 * 1).toISOString(), total_accepted: 1000, total_rejected: 0, status: 'Inventory Updated',
-          delivery_challan_number: 'DC-8481', received_by_name: 'Store Operator', notes: 'All sheets passed QC visually',
-          items: [
-            { id: 101, product_name: 'High-Tensile Steel Sheets (RM-1605)', product_code: 'RM-1605', unit_of_measure: 'Sheets', quantity_received: 1000, quantity_accepted: 1000, quantity_rejected: 0, inspection_notes: 'QC OK' }
-          ]
-        },
-        {
-          id: 2, grn_number: 'GRN-2026-1043', purchase_order_number: 'PO-2026-906', vendor_name: 'LubeTech Supplies', vendor_code: 'V-019',
-          received_date: new Date(Date.now() - 86400000 * 2).toISOString(), total_accepted: 480, total_rejected: 20, status: 'Draft',
-          delivery_challan_number: 'INV-9922', received_by_name: 'Store Operator', notes: '20 liters leaked in transit',
-          items: [
-            { id: 102, product_name: 'Industrial Lubricant Grade A', product_code: 'CONS-002', unit_of_measure: 'Liters', quantity_received: 500, quantity_accepted: 480, quantity_rejected: 20, inspection_notes: 'Damaged packaging' }
-          ]
-        },
-        {
-          id: 3, grn_number: 'GRN-2026-1044', purchase_order_number: 'PO-2026-907', vendor_name: 'CopperWorks Ltd', vendor_code: 'V-088',
-          received_date: new Date(Date.now() - 86400000 * 5).toISOString(), total_accepted: 50, total_rejected: 0, status: 'Inventory Updated',
-          delivery_challan_number: 'DC-1092', received_by_name: 'Store Manager', notes: 'Partial delivery received',
-          items: [
-            { id: 103, product_name: 'Copper Wire Roles 5mm', product_code: 'RM-2099', unit_of_measure: 'Coils', quantity_received: 50, quantity_accepted: 50, quantity_rejected: 0, inspection_notes: 'Gauge verified' }
-          ]
-        }
-      ];
-
-      setGrns(grnsData?.length > 0 && grnsData[0].grn_number ? grnsData : dummyGrns);
-      setPurchaseOrders(posData || []);
+      const rawGrns = Array.isArray(grnsResponse) ? grnsResponse : (grnsResponse?.data || []);
+      const grnRows = rawGrns.map((grn) => ({
+        ...grn,
+        grn_number: grn.grnNumber || grn.publicId || grn.id,
+        purchase_order_number: grn.purchaseOrder?.poNumber || grn.purchaseOrder?.publicId || grn.purchaseOrderId,
+        vendor_name: grn.purchaseOrder?.supplier?.name || 'Supplier',
+        received_date: grn.receivedAt || grn.createdAt,
+        total_accepted: (grn.items || []).reduce((sum, item) => sum + Number(item.acceptedQuantity || 0), 0),
+        total_rejected: (grn.items || []).reduce((sum, item) => sum + Number(item.rejectedQuantity || 0), 0),
+        delivery_challan_number: grn.snapshot?.deliveryChallanNumber,
+        notes: grn.snapshot?.remarks,
+        items: (grn.items || []).map((item) => ({
+          ...item,
+          product_name: item.product?.name || 'Material',
+          product_code: item.product?.sku || '-',
+          unit_of_measure: item.product?.unit || '-',
+          quantity_received: item.receivedQuantity,
+          quantity_accepted: item.acceptedQuantity,
+          quantity_rejected: item.rejectedQuantity,
+          inspection_notes: item.inspectionRemarks,
+        })),
+      }));
+      setGrns(grnRows);
+      setPurchaseOrders(Array.isArray(posResponse) ? posResponse : (posResponse?.data || []));
       setWarehouses(warehousesData || []);
 
       // If warehouse is loaded and no warehouse selected, default to first one
@@ -286,12 +283,7 @@ export default function GoodsReceiptNote() {
   };
 
   const handleInspectGRN = async (grn) => {
-    try {
-      const detailed = await purchaseService.getGRNById(grn.id);
-      setSelectedGRNDetail(detailed);
-    } catch (err) {
-      Swal.fire('Error', 'Failed to retrieve receipt items details', 'error');
-    }
+    setSelectedGRNDetail(grn);
   };
 
   const formatCurrency = (val) => {

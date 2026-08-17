@@ -1229,7 +1229,7 @@ async function seed136RawMaterials(prisma: PrismaClient, companyId: string) {
   for (const item of hmRawMaterialsSeedData) {
     const publicId = `RM-${item.code}`;
     const cleanUnit = (item.unit || 'PCS').trim();
-    await prisma.rawMaterial.upsert({
+    const rm = await prisma.rawMaterial.upsert({
       where: { sku: item.code },
       update: {
         name: item.name,
@@ -1244,6 +1244,30 @@ async function seed136RawMaterials(prisma: PrismaClient, companyId: string) {
         name: item.name,
         unit: cleanUnit,
         category: 'Raw Material',
+        minimumStock: 0,
+        isActive: true,
+      },
+    });
+
+    await prisma.product.upsert({
+      where: { publicId: `PROD-${item.code}` },
+      update: {
+        name: item.name,
+        unit: cleanUnit,
+        category: 'Raw Material',
+        productType: 'RAW_MATERIAL',
+        isActive: true,
+      },
+      create: {
+        id: rm.id,
+        publicId: `PROD-${item.code}`,
+        companyId,
+        sku: item.code,
+        name: item.name,
+        unit: cleanUnit,
+        category: 'Raw Material',
+        productType: 'RAW_MATERIAL',
+        unitPrice: 100,
         minimumStock: 0,
         isActive: true,
       },
@@ -1583,7 +1607,7 @@ async function main() {
     await prisma.user.upsert({
       where: { email: 'dispatch.2@himalayaerp.com' },
       update: {
-        password: hashedPassword,
+        password: hashedPassword, done
         roleId: dispatch2RoleAlias.id,
         isActive: true,
       },

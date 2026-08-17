@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useERPStore } from '../../../store/erpStore';
-import { verifyPODelivery } from '../../../store/procurementActions';
+import { syncProcurementData, verifyPODelivery } from '../../../store/procurementActions';
 import { PurchaseOrderDetails } from '../components/PurchaseOrderDetails';
 import { MaterialManifestTable } from '../components/MaterialManifestTable';
 import { DeliveryDocumentUploader } from '../components/DeliveryDocumentUploader';
 import { Package, Search, ChevronLeft, CheckCircle2 } from 'lucide-react';
 import Swal from 'sweetalert2';
+
+const EMPTY_REJECTIONS = [];
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -17,30 +19,11 @@ const formatDate = (value) => {
 };
 
 export default function VerifyPODelivery() {
-  let purchaseOrders = useERPStore(state => state.state?.procurement?.purchaseOrders || []);
+  const purchaseOrders = useERPStore(state => state.state?.procurement?.purchaseOrders || state.state?.purchaseOrders || []);
+  // Keep the empty fallback referentially stable. Returning a new [] from a
+  // Zustand selector causes React to resubscribe indefinitely before data loads.
+  const materialRejections = useERPStore(state => state.state?.materialRejections ?? EMPTY_REJECTIONS);
 
-  if (!purchaseOrders || purchaseOrders.length === 0) {
-    purchaseOrders = [
-      {
-        id: 'PO-2026-905', status: 'PO_ISSUED', vendorName: 'Global Metals Inc.', poNumber: 'PO-2026-905', createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), expectedDeliveryDate: new Date(Date.now() + 86400000 * 3).toISOString(),
-        items: [
-          { materialId: 'mat-1', materialName: 'High-Tensile Steel Sheets (RM-1605)', quantity: 1000, receivedQuantity: 0, unit: 'Sheets' }
-        ]
-      },
-      {
-        id: 'PO-2026-906', status: 'IN_TRANSIT', vendorName: 'LubeTech Supplies', poNumber: 'PO-2026-906', createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), expectedDeliveryDate: new Date(Date.now() + 86400000 * 1).toISOString(),
-        items: [
-          { materialId: 'mat-2', materialName: 'Industrial Lubricant Grade A', quantity: 500, receivedQuantity: 100, unit: 'Liters' }
-        ]
-      },
-      {
-        id: 'PO-2026-907', status: 'PARTIALLY_RECEIVED', vendorName: 'CopperWorks Ltd', poNumber: 'PO-2026-907', createdAt: new Date(Date.now() - 86400000 * 7).toISOString(), expectedDeliveryDate: new Date(Date.now() - 86400000 * 1).toISOString(),
-        items: [
-          { materialId: 'mat-4', materialName: 'Copper Wire Roles 5mm', quantity: 200, receivedQuantity: 50, unit: 'Coils' }
-        ]
-      }
-    ];
-  }
   const [selectedPOId, setSelectedPOId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewTab, setViewTab] = useState('pending');
@@ -48,12 +31,41 @@ export default function VerifyPODelivery() {
   const [remarks, setRemarks] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedReplacement, setSelectedReplacement] = useState(null);
 
+  // Fetch fresh PO statuses when Store opens this queue, including POs Finance
+  // has just moved to ORDERED in another session.
+  useEffect(() => {
+    void syncProcurementData();
+  }, []);
+
+  const replacementByPO = new Map(
+    materialRejections
+      .filter(rejection => ['REPLACEMENT_EXPECTED', 'PARTIALLY_RESOLVED'].includes(rejection.status))
+      .map(rejection => [rejection.purchaseOrderId || rejection.poId, rejection]),
+  );
+  const replacementHistoryByPO = new Map(
+    materialRejections
+      .filter(rejection => ['REPLACEMENT_RECEIVED', 'RESOLVED'].includes(rejection.status))
+      .map(rejection => [rejection.purchaseOrderId || rejection.poId, rejection]),
+  );
   const pendingPOs = purchaseOrders.filter(po => 
-    ['PO_ISSUED', 'VENDOR_ACCEPTED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'DELIVERY_PENDING'].includes(po.status)
+    // Only POs that can receive another Store delivery belong here. Once a
+    // GRN is submitted, Finance owns the next step and the PO moves to history.
+    ['ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'DELIVERY_PENDING', 'PARTIALLY_DELIVERED'].includes(po.status) || replacementByPO.has(po.id)
   );
   const completedPOs = purchaseOrders.filter(po => 
-    ['COMPLETED', 'GRN_RECEIVED', 'FULLY_RECEIVED', 'CLOSED', 'STOCK_POSTED', 'PAYMENT_COMPLETED'].includes(po.status)
+    [
+      'DELIVERY_PENDING_FINANCE_AUDIT',
+      'PARTIALLY_DELIVERED_PENDING_AUDIT',
+      'COMPLETED',
+      'GRN_RECEIVED',
+      'FULLY_RECEIVED',
+      'CLOSED',
+      'STOCK_POSTED',
+      'PAYMENT_COMPLETED',
+      'FINANCE_AUDIT_APPROVED',
+    ].includes(po.status)
   );
 
   const selectedPO = purchaseOrders.find(p => p.id === selectedPOId) || null;
@@ -62,8 +74,19 @@ export default function VerifyPODelivery() {
     const po = purchaseOrders.find(p => p.id === poId);
     if (!po) return;
     setSelectedPOId(po.id);
+    const replacement = replacementByPO.get(po.id);
+    setSelectedReplacement(replacement || null);
     
-    const initialItems = (po.items || []).map(item => {
+    const initialItems = replacement ? (po.items || []).filter(item =>
+      (item.productId || item.materialId) === replacement.materialId,
+    ).map(item => ({
+      productId: item.productId || item.materialId,
+      materialName: item.product?.name || item.materialName || replacement.materialName || 'Replacement material',
+      remainingSupplyQty: Number(replacement.remainingResolutionQty || replacement.rejectedQty || 0),
+      orderedQty: Number(replacement.remainingResolutionQty || replacement.rejectedQty || 0),
+      deliveredQty: 0, acceptedQty: 0, rejectedQty: 0,
+      unit: item.unit || item.product?.unit || 'Nos', inspectionRemarks: '',
+    })) : (po.items || []).map(item => {
       const ordered = Number(item.quantity ?? item.orderedQty ?? 0);
       const delivered = Number(item.cumulativeDeliveredQty ?? item.receivedQuantity ?? 0);
       const remaining = Math.max(0, ordered - delivered);
@@ -164,19 +187,16 @@ export default function VerifyPODelivery() {
           inspectionRemarks: item.inspectionRemarks || ''
         }))
       };
-      
-      try {
-        await verifyPODelivery(selectedPO.id, grnPayload, 'Store Operator');
-      } catch (backendErr) {
-        console.warn('Backend verifyPODelivery handled with store fallback:', backendErr);
-        useERPStore.setState((prev) => {
-          const list = prev.purchaseOrders || prev.procurement?.purchaseOrders || [];
-          const updated = list.map(p => p.id === selectedPO.id ? { ...p, status: 'RECEIVED', grnStatus: 'PENDING_FINANCE_AUDIT' } : p);
-          return { ...prev, purchaseOrders: updated };
-        });
+      if (selectedReplacement) {
+        grnPayload.isReplacement = true;
+        grnPayload.materialRejectionId = selectedReplacement.id;
+        grnPayload.snapshot.remarks = `Replacement delivery for ${selectedReplacement.rejectionNumber || 'material rejection'}. ${remarks}`.trim();
       }
+      
+      await verifyPODelivery(selectedPO.id, grnPayload, 'Store Operator');
       await Swal.fire('Success', 'Delivery verified and GRN submitted for Finance Audit.', 'success');
       setSelectedPOId(null);
+      setSelectedReplacement(null);
     } catch (err) {
       Swal.fire('Error', err.message || 'Failed to submit GRN', 'error');
     } finally {
@@ -270,14 +290,16 @@ export default function VerifyPODelivery() {
                     <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b', margin: '0 0 4px 0' }}>{po.poNumber || po.publicId || po.id}</h3>
                     <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>{po.supplier?.name || po.vendorDisplayName || po.vendorName || 'Supplier'}</p>
                   </div>
-                  <Package color="#94a3b8" size={20} />
+                  {replacementByPO.has(po.id) ? (
+                    <span style={{ background:'#fff7ed', color:'#c2410c', border:'1px solid #fed7aa', borderRadius:'999px', padding:'5px 9px', fontSize:'11px', fontWeight:800 }}>REPLACEMENT</span>
+                  ) : <Package color="#94a3b8" size={20} />}
                 </div>
                 <div style={{ paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', background: '#eff6ff', color: '#1d4ed8', borderRadius: '12px', textTransform: 'uppercase' }}>
-                    {po.status.replace(/_/g, ' ')}
+                    {replacementByPO.has(po.id) ? 'Replacement delivery' : po.status.replace(/_/g, ' ')}
                   </span>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
-                    Due: {formatDate(po.expectedDeliveryDate || po.deliveryDate)}
+                    Due: {formatDate(replacementByPO.get(po.id)?.expectedDeliveryDate || po.expectedDeliveryDate || po.deliveryDate)}
                   </span>
                 </div>
               </div>
@@ -288,14 +310,18 @@ export default function VerifyPODelivery() {
                     <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b', margin: '0 0 4px 0' }}>{po.poNumber || po.publicId || po.id}</h3>
                     <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>{po.supplier?.name || po.vendorDisplayName || po.vendorName || 'Supplier'}</p>
                   </div>
-                  <CheckCircle2 color="#10b981" size={20} />
+                  {replacementHistoryByPO.has(po.id) ? (
+                    <span style={{ background:'#f3e8ff', color:'#7e22ce', border:'1px solid #e9d5ff', borderRadius:'999px', padding:'5px 9px', fontSize:'11px', fontWeight:800 }}>REPLACEMENT</span>
+                  ) : <CheckCircle2 color="#10b981" size={20} />}
                 </div>
                 <div style={{ paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', background: '#ecfdf5', color: '#059669', borderRadius: '12px', textTransform: 'uppercase' }}>
                     {po.status.replace(/_/g, ' ')}
                   </span>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
-                    Completed
+                    {['DELIVERY_PENDING_FINANCE_AUDIT', 'PARTIALLY_DELIVERED_PENDING_AUDIT'].includes(po.status)
+                      ? 'Awaiting Finance Audit'
+                      : 'Completed'}
                   </span>
                 </div>
               </div>

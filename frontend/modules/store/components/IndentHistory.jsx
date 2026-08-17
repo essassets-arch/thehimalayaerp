@@ -1,16 +1,23 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useERPStore } from '../../../store/erpStore';
+import { purchaseIndentService } from '../../../services/procurement/purchaseIndentService';
 
 const STATUS_COLORS = {
   'PENDING_PLANT_HEAD_APPROVAL': { bg: '#FEF3C7', color: '#92400E', label: 'Pending Approval' },
-  'PLANT_HEAD_APPROVED':         { bg: '#D1FAE5', color: '#065F46', label: 'Approved' },
+  'PLANT_HEAD_APPROVED':         { bg: '#D1FAE5', color: '#065F46', label: 'Approved by PH' },
   'PLANT_HEAD_CORRECTION_REQUIRED': { bg: '#FEF3C7', color: '#D97706', label: 'Correction Required' },
-  'PLANT_HEAD_REJECTED':         { bg: '#FEE2E2', color: '#B91C1C', label: 'Rejected' },
+  'PLANT_HEAD_REJECTED':         { bg: '#FEE2E2', color: '#B91C1C', label: 'Rejected by PH' },
   'INDENT_CANCELLED':            { bg: '#F1F5F9', color: '#64748B', label: 'Cancelled' },
-  'DRAFT_PO_CREATED':            { bg: '#DBEAFE', color: '#1D4ED8', label: 'PO Draft Created' },
-  'PROCUREMENT_IN_PROGRESS':     { bg: '#E0F2FE', color: '#0369A1', label: 'In Progress' },
-  'PROCUREMENT_COMPLETED':       { bg: '#D1FAE5', color: '#047857', label: 'Completed' },
+  'DRAFT_PO_CREATED':            { bg: '#DBEAFE', color: '#1D4ED8', label: 'Draft PO Created' },
+  'PENDING_SUPER_ADMIN_APPROVAL': { bg: '#F3E8FF', color: '#6B21A8', label: 'Pending SA Approval' },
+  'SUPER_ADMIN_APPROVED':        { bg: '#D1FAE5', color: '#047857', label: 'Approved by SA' },
+  'SUPER_ADMIN_REJECTED':        { bg: '#FEE2E2', color: '#991B1B', label: 'Rejected by SA' },
+  'ORDERED':                     { bg: '#E0F2FE', color: '#0369A1', label: 'Ordered' },
+  'PARTIALLY_DELIVERED_PENDING_AUDIT': { bg: '#FEF3C7', color: '#B45309', label: 'Partial Delivery Audit' },
+  'DELIVERY_PENDING_FINANCE_AUDIT': { bg: '#FEF3C7', color: '#B45309', label: 'Delivery Audit Pending' },
+  'PARTIALLY_DELIVERED':         { bg: '#E0F2FE', color: '#0284C7', label: 'Partially Delivered' },
+  'CLOSED':                      { bg: '#D1FAE5', color: '#065F46', label: 'Closed' },
 };
 
 function StatusBadge({ status }) {
@@ -27,26 +34,53 @@ function StatusBadge({ status }) {
 }
 
 export default function IndentHistory({ hideHeader = false } = {}) {
-  const purchaseIndents = useERPStore(s => s.state?.procurement?.materialIndents || []);
+  const storeState = useERPStore(s => s.state);
+  const [serverIndents, setServerIndents] = useState([]);
+  React.useEffect(() => {
+    let active = true;
+    purchaseIndentService.list({ limit: 100 })
+      .then((response) => {
+        const data = Array.isArray(response) ? response : (response?.data || []);
+        if (active) setServerIndents(data);
+      })
+      .catch((error) => console.warn('Unable to load indent history:', error));
+    return () => { active = false; };
+  }, []);
+
+  const purchaseIndents = useMemo(() => {
+    const sources = [
+      ...(storeState?.procurement?.materialIndents || []),
+      ...(storeState?.purchaseIndents || []),
+      ...(storeState?.materialIndents || []),
+      ...serverIndents,
+    ];
+    const unique = new Map();
+    sources.forEach(indent => {
+      if (indent) unique.set(indent.id || indent.publicId || indent.indentNo, indent);
+    });
+    return Array.from(unique.values());
+  }, [storeState, serverIndents]);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  const filters = ['All', 'Pending Approval', 'Approved', 'Correction Required', 'Rejected', 'Completed'];
+  const filters = ['All', 'Pending Approval', 'Approved', 'Correction Required', 'Rejected', 'Closed'];
 
   const statusMap = {
-    'Pending Approval':     'PENDING_PLANT_HEAD_APPROVAL',
-    'Approved':             'PLANT_HEAD_APPROVED',
-    'Correction Required':  'PLANT_HEAD_CORRECTION_REQUIRED',
-    'Rejected':             'PLANT_HEAD_REJECTED',
-    'Completed':            'PROCUREMENT_COMPLETED',
+    'Pending Approval':     ['PENDING_PLANT_HEAD_APPROVAL'],
+    'Approved':             ['PLANT_HEAD_APPROVED', 'DRAFT_PO_CREATED', 'PENDING_SUPER_ADMIN_APPROVAL', 'SUPER_ADMIN_APPROVED', 'ORDERED', 'PARTIALLY_DELIVERED_PENDING_AUDIT', 'DELIVERY_PENDING_FINANCE_AUDIT', 'PARTIALLY_DELIVERED'],
+    'Correction Required':  ['PLANT_HEAD_CORRECTION_REQUIRED'],
+    'Rejected':             ['PLANT_HEAD_REJECTED', 'SUPER_ADMIN_REJECTED'],
+    'Closed':               ['CLOSED'],
   };
 
   const filtered = purchaseIndents.filter(ind => {
-    const matchFilter = filter === 'All' || ind.status === statusMap[filter];
+    const matchFilter = filter === 'All' || (statusMap[filter] && statusMap[filter].includes(ind.status));
     const q = search.toLowerCase();
     const matchSearch = !q
       || (ind.id || '').toLowerCase().includes(q)
+      || (ind.publicId || '').toLowerCase().includes(q)
+      || (ind.indentNo || '').toLowerCase().includes(q)
       || (ind.department || '').toLowerCase().includes(q)
       || (ind.items || []).some(i => (i.product?.name || i.materialId || i.materialName || '').toLowerCase().includes(q));
     return matchFilter && matchSearch;
@@ -56,9 +90,9 @@ export default function IndentHistory({ hideHeader = false } = {}) {
   const counts = {
     total:     purchaseIndents.length,
     pending:   purchaseIndents.filter(i => i.status === 'PENDING_PLANT_HEAD_APPROVAL').length,
-    approved:  purchaseIndents.filter(i => i.status === 'PLANT_HEAD_APPROVED').length,
-    rejected:  purchaseIndents.filter(i => i.status === 'PLANT_HEAD_REJECTED').length,
-    converted: purchaseIndents.filter(i => ['DRAFT_PO_CREATED', 'PROCUREMENT_IN_PROGRESS', 'PROCUREMENT_COMPLETED'].includes(i.status)).length,
+    approved:  purchaseIndents.filter(i => ['PLANT_HEAD_APPROVED', 'DRAFT_PO_CREATED', 'PENDING_SUPER_ADMIN_APPROVAL', 'SUPER_ADMIN_APPROVED', 'ORDERED'].includes(i.status)).length,
+    rejected:  purchaseIndents.filter(i => ['PLANT_HEAD_REJECTED', 'SUPER_ADMIN_REJECTED'].includes(i.status)).length,
+    converted: purchaseIndents.filter(i => ['CLOSED', 'PARTIALLY_DELIVERED'].includes(i.status)).length,
   };
 
   const thStyle = {

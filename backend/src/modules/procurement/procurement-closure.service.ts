@@ -154,7 +154,7 @@ export class ProcurementClosureService {
           : 'PO_CLOSED',
         resultingIndentStatus: blockers.length
           ? po.purchaseIndent?.status
-          : 'PROCUREMENT_COMPLETED',
+          : 'CLOSED',
         blockers,
         totals: {
           orderedQuantity: ordered.toString(),
@@ -191,7 +191,7 @@ export class ProcurementClosureService {
       if (indentIdToUpdate)
         await tx.purchaseIndent.update({
           where: { id: indentIdToUpdate },
-          data: { status: 'PROCUREMENT_COMPLETED', version: { increment: 1 } },
+          data: { status: 'CLOSED', version: { increment: 1 } },
         });
       await tx.auditLog.create({
         data: {

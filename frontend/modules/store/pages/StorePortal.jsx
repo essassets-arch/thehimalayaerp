@@ -1992,7 +1992,10 @@ export default function StorePortal() {
           remarks: indentRemarks || '',
         };
         
-        const res = await createMaterialIndent(payload).catch(() => ({ id: `INDENT-${Date.now()}` }));
+        // Do not manufacture a successful indent when the API rejects the request.
+        // A fake ID makes the Store page look correct, but leaves nothing for Plant
+        // Head (or the real history) to review.
+        const res = await createMaterialIndent(payload);
         await syncData().catch(() => {});
 
         const newIndentId = res?.publicId || res?.id || `INDENT-${Date.now()}`;
@@ -2634,7 +2637,9 @@ export default function StorePortal() {
           searchQuery={globalSearch}
           searchField="id"
           actions={(row) => {
-            const canVerify = row.status === 'PO_CREATED' || row.status === 'SENT_TO_STORE' || row.status === 'PARTIALLY_RECEIVED' || row.status === 'REJECTED' || row.status === 'PO_ISSUED' || row.status === 'VENDOR_ACCEPTED' || row.status === 'PO_ORDERED' || row.status === 'SUPER_ADMIN_APPROVED';
+            // Finance marks the final issued PO as ORDERED. That is the normal
+            // entry point for Store's delivery-verification workflow.
+            const canVerify = row.status === 'PO_CREATED' || row.status === 'SENT_TO_STORE' || row.status === 'PARTIALLY_RECEIVED' || row.status === 'REJECTED' || row.status === 'PO_ISSUED' || row.status === 'VENDOR_ACCEPTED' || row.status === 'PO_ORDERED' || row.status === 'SUPER_ADMIN_APPROVED' || row.status === 'ORDERED';
             const canUpload = row.status === 'PARTIALLY_RECEIVED' || row.status === 'FULLY_RECEIVED' || row.status === 'REJECTED' || row.status === 'PO_ISSUED' || row.status === 'VENDOR_ACCEPTED' || row.status === 'PO_ORDERED' || row.status === 'GRN_SUBMITTED';
             return (
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>

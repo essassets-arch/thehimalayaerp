@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { selectMaterialRejections, selectFinancePurchaseOrder } from '../../../store/procurementSelectors';
-import { approveVendorReplacement, closeMaterialRejection, disposeRejectedStock } from '../../../store/procurementActions';
+import { approveVendorReplacement, closeMaterialRejection, disposeRejectedStock, syncProcurementData } from '../../../store/procurementActions';
+import { useERPStore } from '../../../store/erpStore';
 import { ProcurementStatusBadge } from '../components/ProcurementStatusBadge';
 import { AlertTriangle, CheckCircle, PackageX } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -17,10 +18,16 @@ export default function RejectionManagement() {
     defectiveMaterialDisposition: 'RETURN_TO_VENDOR'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState('active');
+  const storeState = useERPStore((state) => state.state);
 
   useEffect(() => {
-    setRejections(selectMaterialRejections());
+    void syncProcurementData();
   }, []);
+
+  useEffect(() => {
+    setRejections(selectMaterialRejections(storeState));
+  }, [storeState]);
 
   const handleSelectRejection = (rejId) => {
     const rej = selectMaterialRejections().find(r => r.id === rejId);
@@ -36,19 +43,15 @@ export default function RejectionManagement() {
   };
 
   const handleApproveReplacement = async () => {
-    if (approvalData.approvedReplacementQty <= 0) {
-      Swal.fire('Error', 'Approved quantity must be greater than 0', 'error');
-      return;
-    }
-    if (approvalData.approvedReplacementQty > selectedRejection.remainingResolutionQty) {
-      Swal.fire('Error', `Cannot approve more than remaining resolution quantity (${selectedRejection.remainingResolutionQty})`, 'error');
+    if (!approvalData.expectedDeliveryDate) {
+      Swal.fire('Expected replacement date required', 'Select the vendor replacement delivery date before sending this request to Store.', 'warning');
       return;
     }
     
     try {
       setIsSubmitting(true);
       
-      approveVendorReplacement({
+      await approveVendorReplacement({
         rejectionId: selectedRejection.id,
         approvedReplacementQty: approvalData.approvedReplacementQty,
         expectedDeliveryDate: approvalData.expectedDeliveryDate,
@@ -62,6 +65,7 @@ export default function RejectionManagement() {
       await Swal.fire('Success', 'Replacement approved and expected.', 'success');
       
       setSelectedRejection(null);
+      await syncProcurementData();
       setRejections(selectMaterialRejections());
     } catch (err) {
       Swal.fire('Error', err.message || 'Failed to approve replacement', 'error');
@@ -173,22 +177,14 @@ export default function RejectionManagement() {
             </div>
           </div>
 
-          {selectedRejection.status === 'MATERIAL_REJECTION_SUBMITTED' && (
+          {['SUBMITTED', 'MATERIAL_REJECTION_SUBMITTED'].includes(selectedRejection.status) && (
             <div style={{ background: '#F5FAFE', border: '1px solid #DCE5F0', borderRadius: '8px', padding: '24px', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#24345C' }}>Approve Vendor Replacement</h3>
+              <h3 style={{ fontSize: '16px', margin: '0 0 8px 0', color: '#24345C' }}>Set Replacement Delivery Date</h3>
+              <p style={{ margin:'0 0 16px', color:'#64748b', fontSize:'13px' }}>The original rejected quantity will be sent to Store for replacement verification.</p>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ marginBottom: '16px', maxWidth:'360px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Approved Replacement Qty</label>
-                  <input 
-                    type="number" 
-                    value={approvalData.approvedReplacementQty} 
-                    onChange={(e) => setApprovalData(prev => ({...prev, approvedReplacementQty: Number(e.target.value)}))}
-                    style={{ width: '100%', padding: '10px', border: '1px solid #D6E2F0', borderRadius: '6px' }} 
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Expected Delivery Date</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>Expected Replacement Date *</label>
                   <input 
                     type="date" 
                     value={approvalData.expectedDeliveryDate} 
@@ -196,39 +192,6 @@ export default function RejectionManagement() {
                     style={{ width: '100%', padding: '10px', border: '1px solid #D6E2F0', borderRadius: '6px' }} 
                   />
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Vendor Acknowledgment #</label>
-                  <input 
-                    type="text" 
-                    value={approvalData.vendorAcknowledgementNumber} 
-                    onChange={(e) => setApprovalData(prev => ({...prev, vendorAcknowledgementNumber: e.target.value}))}
-                    style={{ width: '100%', padding: '10px', border: '1px solid #D6E2F0', borderRadius: '6px' }} 
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Defective Material Disposition</label>
-                  <select
-                    value={approvalData.defectiveMaterialDisposition}
-                    onChange={(e) => setApprovalData(prev => ({...prev, defectiveMaterialDisposition: e.target.value}))}
-                    style={{ width: '100%', padding: '10px', border: '1px solid #D6E2F0', borderRadius: '6px', background: '#fff' }}
-                  >
-                    <option value="RETURN_TO_VENDOR">Return to Vendor</option>
-                    <option value="VENDOR_PICKUP_PENDING">Vendor Pickup Pending</option>
-                    <option value="SCRAP_AFTER_APPROVAL">Scrap After Approval</option>
-                    <option value="DISPOSE_LOCALLY">Dispose Locally</option>
-                    <option value="RETAIN_FOR_INSPECTION">Retain for Inspection</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Finance Remarks</label>
-                <textarea 
-                  value={approvalData.financeRemarks}
-                  onChange={(e) => setApprovalData(prev => ({...prev, financeRemarks: e.target.value}))}
-                  rows={2}
-                  style={{ width: '100%', padding: '10px', border: '1px solid #D6E2F0', borderRadius: '6px' }}
-                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -237,7 +200,7 @@ export default function RejectionManagement() {
                   disabled={isSubmitting}
                   style={{ padding: '10px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
                 >
-                  {isSubmitting ? 'Approving...' : 'Approve Vendor Replacement'}
+                  {isSubmitting ? 'Sending...' : 'Send Replacement to Store'}
                 </button>
               </div>
             </div>
@@ -268,13 +231,40 @@ export default function RejectionManagement() {
     );
   }
 
+  const historyStatuses = ['COMPLETED', 'CLOSED', 'REJECTED', 'RESOLVED', 'FINANCE_AUDIT_APPROVED'];
+  const displayedRejections = rejections.filter((rejection) =>
+    activeTab === 'history'
+      ? historyStatuses.includes(rejection.status)
+      : !historyStatuses.includes(rejection.status),
+  );
+
   return (
-    <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h2 style={{ margin: 0, fontSize: '24px', color: '#24345C' }}>Rejection Management</h2>
+    <div className="finance-rejections" style={{ padding: '24px', width: '100%', maxWidth: 'none', boxSizing: 'border-box' }}>
+      <style>{`
+        .finance-rejections .rejection-hero { background: linear-gradient(118deg,#172554 0%,#243b6b 48%,#0e7490 100%); border-radius:18px; padding:26px 30px; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:18px; box-shadow:0 12px 28px rgba(30,58,138,.16); }
+        .finance-rejections .rejection-kpis { display:grid; grid-template-columns:repeat(3,minmax(115px,1fr)); gap:10px; }
+        .finance-rejections .rejection-kpi { border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.1); border-radius:12px; padding:11px 14px; }
+        .finance-rejections .rejection-kpi span { display:block;font-size:11px;color:#bfdbfe;font-weight:700;text-transform:uppercase;letter-spacing:.04em; }
+        .finance-rejections .rejection-kpi strong { display:block;font-size:23px;margin-top:3px; }
+        .finance-rejections .rejection-table-wrap { margin-top:22px; background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; box-shadow:0 5px 16px rgba(15,23,42,.04); }
+        .finance-rejections table { min-width:780px; }
+        .finance-rejections th { background:#f8fafc; color:#475569 !important; text-transform:uppercase; letter-spacing:.04em; font-size:11px !important; }
+        .finance-rejections tbody tr:hover { background:#f8fbff; }
+        .finance-rejections .manage-button { padding:8px 14px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+        .finance-rejections .manage-button:hover { background:#2563eb; color:#fff; }
+        @media(max-width:760px){ .finance-rejections{padding:14px !important}.finance-rejections .rejection-hero{padding:20px;align-items:flex-start;flex-direction:column}.finance-rejections .rejection-kpis{width:100%;grid-template-columns:repeat(3,1fr)}.finance-rejections .rejection-kpi{padding:10px}.finance-rejections .rejection-kpi strong{font-size:19px}.finance-rejections .rejection-table-wrap{overflow-x:auto} }
+      `}</style>
+      <div className="rejection-hero">
+        <div style={{ display:'flex', alignItems:'center', gap:'14px' }}><div style={{ width:48,height:48,borderRadius:14,display:'grid',placeItems:'center',background:'rgba(251,113,133,.2)',color:'#fecdd3' }}><AlertTriangle size={25}/></div><div><h2 style={{ margin:0,fontSize:'23px',letterSpacing:'-.02em' }}>Rejection Management</h2><p style={{ margin:'5px 0 0', color:'#bfdbfe', fontSize:'13px' }}>Review Store material rejections and authorize replacement delivery.</p></div></div>
+        <div className="rejection-kpis"><div className="rejection-kpi"><span>Open cases</span><strong>{rejections.filter(r => !['COMPLETED','CLOSED','REJECTED'].includes(r.status)).length}</strong></div><div className="rejection-kpi"><span>Awaiting review</span><strong>{rejections.filter(r => ['SUBMITTED','MATERIAL_REJECTION_SUBMITTED'].includes(r.status)).length}</strong></div><div className="rejection-kpi"><span>Replacement due</span><strong>{rejections.filter(r => r.status === 'REPLACEMENT_EXPECTED').length}</strong></div></div>
       </div>
 
-      <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+      <div className="rejection-table-wrap">
+        <div style={{ padding:'18px 20px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center' }}><div><strong style={{ color:'#172554', fontSize:'16px' }}>Material rejection queue</strong><div style={{ color:'#64748b', fontSize:'12px', marginTop:3 }}>Select a case to set replacement quantity and expected delivery.</div></div><span style={{ background:'#eff6ff', color:'#1d4ed8', borderRadius:20, padding:'5px 10px', fontSize:12, fontWeight:700 }}>{rejections.length} Total</span></div>
+        <div style={{ display:'flex', gap:'22px', padding:'0 20px', borderBottom:'1px solid #e2e8f0' }}>
+          <button onClick={() => setActiveTab('active')} style={{ padding:'13px 2px', border:'none', borderBottom:activeTab === 'active' ? '2px solid #2563eb' : '2px solid transparent', background:'transparent', color:activeTab === 'active' ? '#1d4ed8' : '#64748b', fontWeight:700, cursor:'pointer' }}>Active Cases ({rejections.length - rejections.filter(r => historyStatuses.includes(r.status)).length})</button>
+          <button onClick={() => setActiveTab('history')} style={{ padding:'13px 2px', border:'none', borderBottom:activeTab === 'history' ? '2px solid #2563eb' : '2px solid transparent', background:'transparent', color:activeTab === 'history' ? '#1d4ed8' : '#64748b', fontWeight:700, cursor:'pointer' }}>History ({rejections.filter(r => historyStatuses.includes(r.status)).length})</button>
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', textAlign: 'left' }}>
@@ -287,14 +277,14 @@ export default function RejectionManagement() {
             </tr>
           </thead>
           <tbody>
-            {rejections.length === 0 ? (
+            {displayedRejections.length === 0 ? (
               <tr>
                 <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: '#5E6B82' }}>
-                  No active material rejections.
+                  {activeTab === 'history' ? 'No completed material rejection history.' : 'No active material rejections.'}
                 </td>
               </tr>
             ) : (
-              rejections.map(rej => (
+              displayedRejections.map(rej => (
                 <tr key={rej.id} style={{ borderBottom: '1px solid #DCE5F0' }}>
                   <td style={{ padding: '16px', fontSize: '14px', fontWeight: 500 }}>{rej.rejectionNumber}</td>
                   <td style={{ padding: '16px', fontSize: '14px' }}>{rej.materialName}</td>
@@ -306,9 +296,8 @@ export default function RejectionManagement() {
                   </td>
                   <td style={{ padding: '16px' }}><ProcurementStatusBadge status={rej.status} /></td>
                   <td style={{ padding: '16px', textAlign: 'right' }}>
-                    <button 
+                    <button className="manage-button"
                       onClick={() => handleSelectRejection(rej.id)}
-                      style={{ padding: '6px 12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
                     >
                       Manage
                     </button>

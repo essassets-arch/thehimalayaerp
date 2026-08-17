@@ -4,8 +4,10 @@ import { ProcurementService } from './procurement.service';
 import { ProcurementClosureService } from './procurement-closure.service';
 import { POReportService } from './po-report.service';
 import { MaterialRejectionService } from './material-rejection.service';
+import { SequenceModule } from '../../common/sequence/sequence.module';
 
 @Module({
+  imports: [SequenceModule],
   controllers: [ProcurementController],
   providers: [
     ProcurementService,

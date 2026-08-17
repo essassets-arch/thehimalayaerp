@@ -389,9 +389,13 @@ export const useERP = () => {
       notify('PO Returned', 'PO has been returned for correction', 'Finance');
       return res;
     },
-    issuePurchaseOrder: async (id, poNo) => {
-      const res = await issuePurchaseOrderAction(id, 'Finance');
-      notify('PO Issued', `Purchase Order ${poNo || id} has been issued`, 'Store');
+    issuePurchaseOrder: async (id, payload = {}) => {
+      // The backend action expects a JSON object. Older callers supplied a
+      // display PO number here, which produced a JSON string body and caused
+      // NestJS to reject the request before the status transition.
+      const actionPayload = typeof payload === 'string' ? {} : payload;
+      const res = await issuePurchaseOrderAction(id, actionPayload);
+      notify('PO Issued', `Purchase Order ${res?.poNumber || res?.poNo || id} has been issued`, 'Store');
       return res;
     },
     acceptPurchaseOrderByVendor: store.acceptPurchaseOrderByVendor,

@@ -8,6 +8,8 @@ import Swal from 'sweetalert2';
 import { useERP } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
 import { issuePurchaseOrder, closePurchaseOrder, evaluatePOClose } from '../../../store/procurementActions';
+import { purchaseIndentService } from '../../../services/procurement/purchaseIndentService';
+import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
 import { useAuth } from '../../../shared/context/AuthContext';
 import MyProfileView from '../../../shared/components/MyProfileView';
 import { financeService } from '../../../services/finance.service';
@@ -158,7 +160,6 @@ export default function FinancePortal({ initialView, forceView }) {
     submitPurchaseOrder,
     approvePurchaseOrder,
     rejectPurchaseOrder,
-    issuePurchaseOrder,
     approveGoodsReceiptNote,
     approveGoodsReceipt,
     createGoodsReceipt,
@@ -187,6 +188,9 @@ export default function FinancePortal({ initialView, forceView }) {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
+    // Reload persisted procurement records whenever the Finance workspace is
+    // opened, rather than relying on the previous page's in-memory state.
+    void syncData();
   }, []);
 
   // Approved PO Manual Placement State
@@ -266,6 +270,41 @@ export default function FinancePortal({ initialView, forceView }) {
   }, [tabParam]);
 
   const [selectedPO, setSelectedPO] = useState(null);
+  const [serverPurchaseIndents, setServerPurchaseIndents] = useState([]);
+  const [serverPurchaseOrders, setServerPurchaseOrders] = useState([]);
+  const [serverPurchaseOrdersLoaded, setServerPurchaseOrdersLoaded] = useState(false);
+
+  const refreshPurchaseOrders = async () => {
+    try {
+      // Use Finance's own read endpoint. The generic PO endpoint can be
+      // permission-scoped away and leave stale client rows on this page.
+      const response = await purchaseOrderService.financeQueue({ limit: 100 });
+      setServerPurchaseOrders(Array.isArray(response) ? response : (response?.data || []));
+      setServerPurchaseOrdersLoaded(true);
+    } catch (error) {
+      console.warn('Unable to load Finance PO queue:', error);
+    }
+  };
+
+  // Finance may be opened in a different browser session from Plant Head, so
+  // load the approval queue directly instead of relying solely on shared state.
+  useEffect(() => {
+    let active = true;
+    purchaseIndentService.eligibleForPO({ limit: 100 })
+      // Allows the queue to continue working while a development backend is
+      // restarting after the new eligibility route is added.
+      .catch(() => purchaseIndentService.list({ limit: 100 }))
+      .then((response) => {
+        const data = Array.isArray(response) ? response : (response?.data || []);
+        if (active) setServerPurchaseIndents(data);
+      })
+      .catch((error) => console.warn('Unable to load approved indents:', error));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    void refreshPurchaseOrders();
+  }, []);
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [draftPOsSubTab, setDraftPOsSubTab] = useState('Pending Drafts');
@@ -1770,20 +1809,24 @@ export default function FinancePortal({ initialView, forceView }) {
 
   const combinedIndents = useMemo(() => {
     const map = new Map();
-    DEMO_APPROVED_INDENTS.forEach(ind => map.set(ind.id, ind));
-    (purchaseIndents || []).forEach(ind => {
+    // The server response is the authoritative eligible queue. Local/demo
+    // records must not reintroduce ineligible rows or duplicate PO actions.
+    serverPurchaseIndents.forEach(ind => {
       const key = ind.id || ind.publicId || ind.indentNo;
       if (key) map.set(key, ind);
     });
     return Array.from(map.values());
-  }, [purchaseIndents, DEMO_APPROVED_INDENTS]);
+  }, [serverPurchaseIndents]);
 
   const renderPendingRequestsTab = () => {
     const pendingIndents = combinedIndents.filter(i => {
       const status = String(i.status || '').toUpperCase();
-      return (status.includes('APPROVED') || status === 'PLANT_HEAD_APPROVED' || status === 'PENDING_PO_CREATION') &&
-        status !== 'REJECTED' && status !== 'PLANT_HEAD_REJECTED' &&
-        !i.poId && !i.poCreated;
+      const hasActivePurchaseOrder = purchaseOrders.some((po) =>
+        (po.purchaseIndentId === i.id || po.indentId === i.id) &&
+        !['SUPER_ADMIN_REJECTED', 'CANCELLED'].includes(po.status),
+      );
+      return status === 'PLANT_HEAD_APPROVED' &&
+        !i.hasActivePurchaseOrder && !hasActivePurchaseOrder;
     });
 
     return (
@@ -1843,7 +1886,7 @@ export default function FinancePortal({ initialView, forceView }) {
     const displayFreight = Number(poFreight || 0);
     const displayTotal = displaySubtotal + displayTax + displayFreight;
 
-    const handleGeneratePO = (e) => {
+    const handleGeneratePO = async (e) => {
       e.preventDefault();
       const itemsPayload = lineItems.map(it => {
         const matName = it.product?.name || it.materialName || it.material || it.name || 'Material';
@@ -1878,10 +1921,16 @@ export default function FinancePortal({ initialView, forceView }) {
         freight: poFreight || '0'
       };
       
-      createPurchaseOrderFromIndent(selectedPO.id, poPayload);
-      showToast('Draft PO created successfully!');
-      setSelectedPO(null);
-      setActiveTab('Draft POs');
+      try {
+        await createPurchaseOrderFromIndent(selectedPO.id, poPayload);
+        await syncData();
+        setServerPurchaseIndents((current) => current.filter((indent) => indent.id !== selectedPO.id));
+        showToast('Draft PO created successfully!');
+        setSelectedPO(null);
+        setActiveTab('Draft POs');
+      } catch (error) {
+        showToast(error?.message || 'Unable to create the draft PO.');
+      }
     };
 
     return (
@@ -2061,14 +2110,21 @@ export default function FinancePortal({ initialView, forceView }) {
   };
 
   const renderDraftPOsTab = () => {
-    const draftPOs = purchaseOrders.filter(po => po.status === 'DRAFT' || po.status === 'SUPER_ADMIN_REJECTED');
+    // A PO created from an approved indent is shown here until Super Admin
+    // approves it. Older editable drafts and returned POs remain here too.
+    const draftPOs = purchaseOrders.filter(po => ['DRAFT', 'SUPER_ADMIN_REJECTED', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(po.status));
     const historyPOs = purchaseOrders.filter(po => po.status === 'PENDING_SUPER_ADMIN_APPROVAL' || po.status === 'SUPER_ADMIN_APPROVED');
     
     const displayedPOs = draftPOsSubTab === 'Pending Drafts' ? draftPOs : historyPOs;
 
-    const handleSubmitForApproval = (po) => {
-      submitPurchaseOrder(po.id);
-      showToast(`PO ${po.id} submitted for Super Admin Approval`);
+    const handleSubmitForApproval = async (po) => {
+      try {
+        await submitPurchaseOrder(po.id);
+        await syncData();
+        showToast(`PO ${po.poNumber || po.publicId || po.id} sent to Super Admin for approval`);
+      } catch (error) {
+        showToast(error?.message || 'Unable to send the PO for approval.');
+      }
     };
 
     return (
@@ -2096,7 +2152,7 @@ export default function FinancePortal({ initialView, forceView }) {
             { header: 'Remarks', accessor: 'rejectionReason' }
           ]}
           data={displayedPOs}
-          actions={row => draftPOsSubTab === 'Pending Drafts' ? (
+          actions={row => draftPOsSubTab === 'Pending Drafts' && ['DRAFT', 'SUPER_ADMIN_REJECTED'].includes(row.status) ? (
             <button
               style={{
                 background: '#24345C',
@@ -2111,7 +2167,7 @@ export default function FinancePortal({ initialView, forceView }) {
               }}
               onClick={() => handleSubmitForApproval(row)}
             >
-              Submit for Approval
+              Send to Super Admin
             </button>
           ) : undefined}
           emptyMessage={draftPOsSubTab === 'Pending Drafts' ? "No draft POs found." : "No submitted POs found."}
@@ -2121,8 +2177,13 @@ export default function FinancePortal({ initialView, forceView }) {
   };
 
   const renderApprovedPOsTab = () => {
-    const activePOs = purchaseOrders.filter(po => po.status === 'SUPER_ADMIN_APPROVED');
-    const historyPOs = purchaseOrders.filter(po => ['PO_ISSUED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
+    const livePOs = Array.from(new Map(
+      [...(serverPurchaseOrdersLoaded ? serverPurchaseOrders : purchaseOrders)]
+        .filter(Boolean)
+        .map(po => [po.id || po.publicId || po.poNumber, po]),
+    ).values());
+    const activePOs = livePOs.filter(po => po.status === 'SUPER_ADMIN_APPROVED');
+    const historyPOs = livePOs.filter(po => ['ORDERED', 'PO_ISSUED', 'PARTIALLY_DELIVERED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
     
     const displayedPOs = approvedPOsSubTab === 'Approved' ? activePOs : historyPOs;
 
@@ -2245,26 +2306,29 @@ export default function FinancePortal({ initialView, forceView }) {
       }
     };
 
-    const handleConfirmManualOrder = (e) => {
+    const handleConfirmManualOrder = async (e) => {
       e.preventDefault();
       if (!selectedApprovedPO) return;
       
       const payload = {
-        orderedBy: user?.name || 'Finance Executive',
-        orderedAt: new Date().toISOString(),
-        orderDate,
-        orderMethod,
-        vendorAcknowledgementNumber: ackNumber || `ACK-${Math.floor(1000 + Math.random() * 9000)}`,
         expectedDeliveryDate,
-        financeRemarks
+        vendorOrderReference: ackNumber || `ACK-${Math.floor(1000 + Math.random() * 9000)}`,
+        remarks: financeRemarks
       };
 
-      issuePurchaseOrder(selectedApprovedPO.id, user?.name || 'Finance Executive');
-      showToast(`PO ${selectedApprovedPO.id} ordered manually via ${orderMethod}. Sent to Store tracking!`, 'success');
-      setShowPlaceOrderModal(false);
-      setSelectedApprovedPO(null);
-      setAckNumber('');
-      setFinanceRemarks('');
+      try {
+        const orderedPO = await issuePurchaseOrder(selectedApprovedPO.id, payload);
+        await syncData();
+        await refreshPurchaseOrders();
+        const finalPONumber = orderedPO?.poNumber || orderedPO?.poNo || selectedApprovedPO.poNumber || selectedApprovedPO.publicId || selectedApprovedPO.id;
+        showToast(`PO ${finalPONumber} ordered successfully. Sent to Store for delivery tracking.`, 'success');
+        setShowPlaceOrderModal(false);
+        setSelectedApprovedPO(null);
+        setAckNumber('');
+        setFinanceRemarks('');
+      } catch (error) {
+        showToast(error?.message || 'Unable to place the order.');
+      }
     };
 
     return (
@@ -2568,7 +2632,9 @@ export default function FinancePortal({ initialView, forceView }) {
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
           data={filteredData}
-          actions={filterType === 'HISTORY' ? undefined : row => {
+          // Finance can monitor the Super Admin queue, but approval/rejection
+          // controls belong exclusively to Super Admin → Purchase Indents.
+          actions={filterType === 'HISTORY' || filterType === 'PENDING_APPROVAL' ? undefined : row => {
             const handleClosePO = async (poId, poNumber) => {
               // Step 1: Pre-flight — check closure eligibility
               let eligibility = null;

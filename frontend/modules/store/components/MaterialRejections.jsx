@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { useERPStore } from '../../../store/erpStore';
 import { selectMaterialRejections } from '../../../store/procurementSelectors';
-import { submitMaterialRejection, createReplacementGRN } from '../../../store/procurementActions';
+import { submitMaterialRejection } from '../../../store/procurementActions';
 import { ProcurementStatusBadge } from '../../procurement/components/ProcurementStatusBadge';
-import { PackageX, Plus, FileCheck } from 'lucide-react';
+import { PackageX, Plus } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function MaterialRejections() {
@@ -30,6 +30,9 @@ export default function MaterialRejections() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const purchaseOrders = storeState.procurement?.purchaseOrders || storeState.purchaseOrders || [];
+  const selectedPO = purchaseOrders.find((po) => po.id === rejectionForm.poId);
+  const selectedPOItems = selectedPO?.items || [];
 
   useEffect(() => {
     setRejections(selectMaterialRejections());
@@ -41,12 +44,22 @@ export default function MaterialRejections() {
   };
 
   const submitRejection = async () => {
-    if (!rejectionForm.poId || !rejectionForm.materialId || rejectionForm.rejectedQty <= 0) {
+    if (!rejectionForm.poId || !rejectionForm.materialId || rejectionForm.rejectedQty <= 0 || !rejectionForm.reason.trim()) {
       return Swal.fire('Error', 'Please fill in all required fields.', 'error');
     }
+    const confirmation = await Swal.fire({
+      title: 'Send rejection to Finance?',
+      html: `<div style="text-align:left;line-height:1.7"><strong>Quantity:</strong> ${rejectionForm.rejectedQty}<br/><strong>Reason:</strong> ${rejectionForm.reason || 'Not specified'}<br/><span style="color:#64748b">Finance will review the request and set the expected replacement delivery date.</span></div>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, send to Finance',
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Continue editing',
+    });
+    if (!confirmation.isConfirmed) return;
     try {
       setIsSubmitting(true);
-      submitMaterialRejection({
+      await submitMaterialRejection({
         ...rejectionForm,
       }, 'Store Admin');
       await Swal.fire('Success', 'Material rejection logged and sent to Finance.', 'success');
@@ -69,22 +82,25 @@ export default function MaterialRejections() {
   };
 
   const submitReplacementGRN = async () => {
-    if (verifyForm.deliveredQty <= 0 || verifyForm.acceptedQty + verifyForm.rejectedQty !== verifyForm.deliveredQty) {
+    const deliveredQty = Number(verifyForm.deliveredQty) || 0;
+    const acceptedQty = Number(verifyForm.acceptedQty) || 0;
+    const rejectedQty = Number(verifyForm.rejectedQty) || 0;
+    if (deliveredQty <= 0 || acceptedQty + rejectedQty !== deliveredQty) {
       return Swal.fire('Error', 'Invalid quantities. Accepted + Rejected must equal Delivered.', 'error');
     }
     try {
       setIsSubmitting(true);
       const grnData = {
-        warehouseId: 'MAIN-WH-01',
+        purchaseOrderId: selectedRejection.purchaseOrderId || selectedRejection.poId,
         items: [{
           productId: selectedRejection.materialId,
-          receivedQuantity: verifyForm.deliveredQty,
+          deliveredQuantity: verifyForm.deliveredQty,
           acceptedQuantity: verifyForm.acceptedQty,
           rejectedQuantity: verifyForm.rejectedQty,
           inspectionRemarks: 'Replacement delivery inspection'
         }]
       };
-      createReplacementGRN(selectedRejection.id, grnData, 'Store Admin');
+      await createReplacementGRN(selectedRejection.id, grnData, 'Store Admin');
       await Swal.fire('Success', 'Replacement delivery recorded and sent for audit.', 'success');
       setShowVerifyModal(false);
     } catch (err) {
@@ -106,7 +122,21 @@ export default function MaterialRejections() {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="material-rejections-page" style={{ padding: '24px', maxWidth: '1440px', margin: '0 auto' }}>
+      <style>{`
+        .material-rejections-modal-overlay { padding: 16px; }
+        .material-rejections-modal { width: 640px; }
+        .material-rejections-form { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+        @media (max-width: 760px) {
+          .material-rejections-page { padding: 14px !important; }
+          .material-rejections-modal-overlay { align-items: flex-end !important; padding: 0 !important; }
+          .material-rejections-modal { width: 100% !important; max-height: 94vh !important; border-radius: 18px 18px 0 0 !important; }
+          .material-rejections-form { grid-template-columns: 1fr !important; padding: 18px !important; gap: 13px !important; }
+          .material-rejections-form > div[style*="grid-column"] { grid-column: auto !important; }
+          .material-rejections-actions { flex-direction: column-reverse; }
+          .material-rejections-actions button { width: 100%; padding: 12px 16px !important; }
+        }
+      `}</style>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#24345C', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -141,7 +171,6 @@ export default function MaterialRejections() {
                 <th style={thStyle}>Rejected Qty</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Expected Delivery</th>
-                <th style={thStyle}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -153,16 +182,6 @@ export default function MaterialRejections() {
                   <td style={tdStyle}><strong style={{ color: '#ef4444' }}>{r.rejectedQty}</strong></td>
                   <td style={tdStyle}><ProcurementStatusBadge status={r.status} /></td>
                   <td style={tdStyle}>{r.expectedDeliveryDate ? new Date(r.expectedDeliveryDate).toLocaleDateString() : '—'}</td>
-                  <td style={tdStyle}>
-                    {['REPLACEMENT_EXPECTED', 'PARTIALLY_RESOLVED'].includes(r.status) && (
-                      <button 
-                        onClick={() => handleVerifyDelivery(r)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        <FileCheck size={14} /> Verify Delivery
-                      </button>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -172,36 +191,36 @@ export default function MaterialRejections() {
 
       {/* REJECTION MODAL */}
       {showRejectionModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '500px', maxWidth: '90%' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>Log Material Rejection</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="material-rejections-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.62)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
+          <div className="material-rejections-modal" style={{ background: '#fff', borderRadius: '18px', width: '640px', maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(15,23,42,.28)' }}>
+            <div style={{ padding: '22px 24px 18px', background: 'linear-gradient(135deg,#fff1f2,#fff)', borderBottom: '1px solid #ffe4e6' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}><div style={{ width: '42px', height: '42px', borderRadius: '12px', display: 'grid', placeItems: 'center', background: '#fee2e2', color: '#dc2626' }}><PackageX size={21}/></div><div><h3 style={{ margin: 0, fontSize: '19px', color: '#172554' }}>Log Material Rejection</h3><p style={{ margin: '3px 0 0', fontSize: '13px', color: '#64748b' }}>Record rejected material and route it to Finance.</p></div></div>
+            </div>
+            <div className="material-rejections-form" style={{ padding: '22px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>PO Number</label>
-                <input style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
-                       value={rejectionForm.poId} onChange={e => setRejectionForm({...rejectionForm, poId: e.target.value})} />
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>PO Number <span style={{color:'#dc2626'}}>*</span></label>
+                <select style={{ width: '100%', padding: '11px', border: '1px solid #cbd5e1', borderRadius: '8px', background:'#fff' }} value={rejectionForm.poId} onChange={e => setRejectionForm({...rejectionForm, poId: e.target.value, materialId: '', materialName: ''})}><option value="">Select Purchase Order</option>{purchaseOrders.map(po => <option key={po.id} value={po.id}>{po.poNumber || po.publicId || po.id}</option>)}</select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>GRN Reference / Invoice</label>
-                <input style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>GRN Reference / Invoice</label>
+                <input placeholder="GRN or invoice number" style={{ width: '100%', boxSizing:'border-box', padding: '11px', border: '1px solid #cbd5e1', borderRadius: '8px' }} 
                        value={rejectionForm.grnId} onChange={e => setRejectionForm({...rejectionForm, grnId: e.target.value})} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Material / Product</label>
-                <input style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
-                       value={rejectionForm.materialId} onChange={e => setRejectionForm({...rejectionForm, materialId: e.target.value, materialName: e.target.value})} />
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>Material / Product <span style={{color:'#dc2626'}}>*</span></label>
+                <select disabled={!rejectionForm.poId} style={{ width: '100%', padding: '11px', border: '1px solid #cbd5e1', borderRadius: '8px', background: rejectionForm.poId ? '#fff' : '#f8fafc' }} value={rejectionForm.materialId} onChange={e => { const item = selectedPOItems.find(i => (i.productId || i.materialId) === e.target.value); setRejectionForm({...rejectionForm, materialId: e.target.value, materialName: item?.product?.name || item?.materialName || 'Material'}); }}><option value="">{rejectionForm.poId ? 'Select Material' : 'Select PO first'}</option>{selectedPOItems.map(item => <option key={item.productId || item.materialId} value={item.productId || item.materialId}>{item.product?.name || item.materialName || item.productId}</option>)}</select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Rejected Quantity</label>
-                <input type="number" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>Rejected Quantity <span style={{color:'#dc2626'}}>*</span></label>
+                <input type="number" min="0" style={{ width: '100%', boxSizing:'border-box', padding: '11px', border: '1px solid #cbd5e1', borderRadius: '8px' }} 
                        value={rejectionForm.rejectedQty} onChange={e => setRejectionForm({...rejectionForm, rejectedQty: Number(e.target.value)})} />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Reason</label>
-                <textarea rows={3} style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
+              <div style={{gridColumn:'1 / -1'}}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>Reason <span style={{color:'#dc2626'}}>*</span></label>
+                <textarea rows={3} placeholder="Describe the damage, quality issue, or shortage" style={{ width: '100%', boxSizing:'border-box', padding: '11px', border: '1px solid #cbd5e1', borderRadius: '8px', resize:'vertical' }} 
                        value={rejectionForm.reason} onChange={e => setRejectionForm({...rejectionForm, reason: e.target.value})} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+              <div className="material-rejections-actions" style={{ gridColumn:'1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px', paddingTop:'18px', borderTop:'1px solid #e2e8f0' }}>
                 <button onClick={() => setShowRejectionModal(false)} style={{ padding: '8px 16px', border: '1px solid #ccc', background: '#fff', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
                 <button onClick={submitRejection} disabled={isSubmitting} style={{ padding: '8px 16px', border: 'none', background: '#ef4444', color: '#fff', borderRadius: '6px', cursor: 'pointer' }}>
                   {isSubmitting ? 'Submitting...' : 'Send to Finance'}
@@ -228,18 +247,18 @@ export default function MaterialRejections() {
               <div>
                 <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Delivered Quantity</label>
                 <input type="number" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
-                       value={verifyForm.deliveredQty} onChange={e => setVerifyForm({...verifyForm, deliveredQty: Number(e.target.value)})} />
+                       value={verifyForm.deliveredQty} onChange={e => { const deliveredQty = Number(e.target.value) || 0; setVerifyForm({ deliveredQty, acceptedQty: deliveredQty, rejectedQty: 0 }); }} />
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Accepted Qty</label>
                   <input type="number" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
-                         value={verifyForm.acceptedQty} onChange={e => setVerifyForm({...verifyForm, acceptedQty: Number(e.target.value)})} />
+                         value={verifyForm.acceptedQty} onChange={e => { const acceptedQty = Math.min(Number(e.target.value) || 0, Number(verifyForm.deliveredQty) || 0); setVerifyForm({ ...verifyForm, acceptedQty, rejectedQty: (Number(verifyForm.deliveredQty) || 0) - acceptedQty }); }} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Rejected Qty</label>
                   <input type="number" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} 
-                         value={verifyForm.rejectedQty} onChange={e => setVerifyForm({...verifyForm, rejectedQty: Number(e.target.value)})} />
+                         value={verifyForm.rejectedQty} onChange={e => { const rejectedQty = Math.min(Number(e.target.value) || 0, Number(verifyForm.deliveredQty) || 0); setVerifyForm({ ...verifyForm, rejectedQty, acceptedQty: (Number(verifyForm.deliveredQty) || 0) - rejectedQty }); }} />
                 </div>
               </div>
               
