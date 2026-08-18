@@ -244,18 +244,23 @@ export default function SuperAdminPortal() {
     }
   };
 
+  const saPunchesErrCount = useRef(0);
+
   // Sync real-time punches and simulated logs for Super Admin
   const loadPunches = async () => {
+    if (saPunchesErrCount.current >= 4) return;
     try {
       // 1. Fetch real punches from centralized DB
       let dbPunches = [];
       try {
         const response = await apiClient.get('/attendance');
         if (response && response.success !== false) {
+          saPunchesErrCount.current = 0;
           dbPunches = response.data || response;
         }
       } catch (e) {
-        console.error('Error fetching punches from DB in Super Admin:', e);
+        saPunchesErrCount.current += 1;
+        console.warn('[SuperAdminPortal] Error fetching punches from DB (backoff active):', e?.message || e);
       }
 
       const mappedDbPunches = dbPunches.map(p => ({

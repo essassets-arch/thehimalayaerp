@@ -248,18 +248,23 @@ export default function HRPortal() {
     }
   };
 
+  const loadPunchesErrCount = useRef(0);
+
   // Load real-time punches from NestJS database & localStorage
   const loadPunches = async () => {
+    if (loadPunchesErrCount.current >= 4) return;
     try {
       // 1. Fetch real punches from centralized DB
       let dbPunches = [];
       try {
         const response = await apiClient.get('/attendance');
         if (response && response.success !== false) {
+          loadPunchesErrCount.current = 0;
           dbPunches = response.data || response;
         }
       } catch (e) {
-        console.error('Error fetching punches from DB:', e);
+        loadPunchesErrCount.current += 1;
+        console.warn('[HRPortal] Error fetching punches from DB (backoff active):', e?.message || e);
       }
 
       const mappedDbPunches = dbPunches.map(p => ({

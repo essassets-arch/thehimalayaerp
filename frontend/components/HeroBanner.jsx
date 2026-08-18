@@ -97,11 +97,14 @@ export default function HeroBanner({
   const [showPunchModal, setShowPunchModal] = useState(false);
   const [punchStatus, setPunchStatus] = useState({ isPunchedIn: false, punchInTime: null, punchOutTime: null, lastPhoto: null });
 
+  const punchSyncErrors = useRef(0);
+
   const syncPunchStatusFromDB = async () => {
-    if (!user) return;
+    if (!user || punchSyncErrors.current >= 4) return;
     try {
       const response = await apiClient.get('/attendance/me/today');
       if (response && response.success !== false) {
+        punchSyncErrors.current = 0;
         const data = response.data || response;
         const empCode = user.employeeId || user.id || 'EMP-001';
         
@@ -117,7 +120,8 @@ export default function HeroBanner({
         localStorage.setItem(key, JSON.stringify(status));
       }
     } catch (e) {
-      console.error('Failed to sync punch status from DB:', e);
+      punchSyncErrors.current += 1;
+      console.warn('[HeroBanner] Sync punch status failed (backoff active):', e?.message || e);
       try {
         const key = `himalaya_punch_status_${user.employeeId || user.id || 'EMP-001'}`;
         const saved = localStorage.getItem(key);
