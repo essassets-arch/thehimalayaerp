@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';

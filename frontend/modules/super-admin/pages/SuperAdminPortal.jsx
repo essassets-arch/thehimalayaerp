@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useSearchStore } from '@/store/searchStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
