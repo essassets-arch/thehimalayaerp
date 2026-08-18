@@ -59,7 +59,7 @@ export default function DispatchListPage() {
       accessorKey: "dispatchNo",
       header: "Dispatch No",
       cell: ({ row }) => (
-        <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
+        <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center shrink-0">
           {row.getValue("dispatchNo")}
         </span>
       ),

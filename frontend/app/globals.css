@@ -8,6 +8,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html, body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
 /* ── TAILWIND v4 THEME EXTENSION ──
    Exposes the Himalaya brand palette as Tailwind utilities:
    bg-primary, text-primary, border-border, bg-secondary/10, hover:bg-primary/90, etc.

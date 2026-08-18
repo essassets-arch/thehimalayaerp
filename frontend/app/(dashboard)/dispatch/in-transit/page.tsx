@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
 import { Button } from "@/components/ui/button";
+import { DispatchNavigationTabs } from "../components/DispatchNavigationTabs";
 import responsive from "../dispatch-responsive.module.css";
 import pageStyles from "../orders/orders.module.css";
 
@@ -100,6 +101,9 @@ export default function InTransitPage() {
   return (
     <div className={responsive.flushPage}>
       <div className={responsive.content}>
+        {/* Navigation Tabs */}
+        <DispatchNavigationTabs activeTab="in-transit" counts={{ inTransit: dispatches.length }} />
+
         {/* ── Page Header ── */}
         <div className={pageStyles.header}>
           <div className={pageStyles.headerMain}>
@@ -248,7 +252,7 @@ export default function InTransitPage() {
                         className="hover:bg-indigo-50/20 transition-colors group"
                       >
                         <td className="px-4 py-3.5 whitespace-nowrap">
-                          <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
+                          <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center shrink-0">
                             {dispatch.dispatchNo}
                           </span>
                         </td>

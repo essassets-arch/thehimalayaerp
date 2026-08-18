@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
+import { DispatchNavigationTabs } from "../components/DispatchNavigationTabs";
 import responsive from "../dispatch-responsive.module.css";
 import pageStyles from "../orders/orders.module.css";
 import styles from "./delivery.module.css";
@@ -205,7 +206,7 @@ export default function DeliveryRunPage() {
       header: "Dispatch Number",
       size: 160,
       cell: ({ row }) => (
-        <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
+        <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center shrink-0">
           {row.original.dispatchNo}
         </span>
       ),
@@ -259,6 +260,9 @@ export default function DeliveryRunPage() {
   return (
     <div className={responsive.flushPage}>
       <div className={`${responsive.content} ${styles.pageFlow}`}>
+        {/* Navigation Tabs */}
+        <DispatchNavigationTabs activeTab="delivery" counts={{ delivery: activeDeliveryQueue.length }} />
+
         {/* Header */}
         <div className={pageStyles.header}>
         <div className={pageStyles.watermark}>

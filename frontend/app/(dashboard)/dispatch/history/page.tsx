@@ -8,6 +8,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/erp/data-table/DataTable";
 import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
+import { DispatchNavigationTabs } from "../components/DispatchNavigationTabs";
 import responsive from "../dispatch-responsive.module.css";
 import pageStyles from "../orders/orders.module.css";
 import styles from "../delivery/delivery.module.css";
@@ -54,7 +55,7 @@ export default function DeliveryHistoryPage() {
       header: "Dispatch Number",
       size: 160,
       cell: ({ row }) => (
-        <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
+        <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center shrink-0">
           {row.original.dispatchNo}
         </span>
       ),
@@ -115,6 +116,9 @@ export default function DeliveryHistoryPage() {
   return (
     <div className={responsive.flushPage}>
       <div className={`${responsive.content} ${styles.pageFlow}`}>
+        {/* Navigation Tabs */}
+        <DispatchNavigationTabs activeTab="history" counts={{ history: deliveredHistory.length }} />
+
         <div className={pageStyles.header}>
           <div className={pageStyles.watermark}>
             <CheckCircle2 size={140} />

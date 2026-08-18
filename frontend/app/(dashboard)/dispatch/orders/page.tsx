@@ -18,6 +18,7 @@ import {
 
 import { backendFetch } from "@/lib/backendFetch";
 import { Button } from "@/components/ui/button";
+import { DispatchNavigationTabs } from "../components/DispatchNavigationTabs";
 import styles from "./orders.module.css";
 
 interface Customer {
@@ -377,6 +378,9 @@ export default function DispatchOrdersPage() {
   return (
     <div className={styles.page}>
       <div className={styles.content}>
+        {/* Navigation Tabs */}
+        <DispatchNavigationTabs activeTab="orders" counts={{ orders: filteredPendingItems.length }} />
+
         {/* ── Page Header ── */}
         <div className={styles.header}>
           <div className={styles.headerMain}>
@@ -519,7 +523,7 @@ export default function DispatchOrdersPage() {
                           className="hover:bg-indigo-50/20 transition-colors group"
                         >
                           <td className="px-4 py-3.5 whitespace-nowrap">
-                            <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center gap-1 shrink-0">
+                            <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center gap-1 shrink-0">
                               #{item.orderNumber}
                             </span>
                           </td>
@@ -549,17 +553,17 @@ export default function DispatchOrdersPage() {
                           </td>
                           <td className="px-3 py-3.5 whitespace-nowrap text-center">
                             <span
-                              className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase ${
+                              className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase ${
                                 isTrading
-                                  ? 'bg-sky-50 text-sky-700 border border-sky-200/80'
-                                  : 'bg-purple-50 text-purple-700 border border-purple-200/80'
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200/60'
+                                  : 'bg-purple-50 text-purple-700 border border-purple-200/60'
                               }`}
                             >
                               {isTrading ? 'TRADING' : 'MFG'}
                             </span>
                           </td>
                           <td className="px-3 py-3.5 whitespace-nowrap text-center">
-                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-800 font-bold font-mono text-xs px-2.5 py-1 rounded-md border border-emerald-200/80">
+                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-semibold text-xs px-2.5 py-1 rounded-md border border-emerald-200/60">
                               {item.approvedQuantity}
                             </span>
                           </td>
@@ -574,7 +578,7 @@ export default function DispatchOrdersPage() {
                                   router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
                                 }
                               }}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors duration-150 whitespace-nowrap cursor-pointer shrink-0 ml-auto"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-medium rounded-md border-0 transition-colors duration-150 whitespace-nowrap cursor-pointer shrink-0 ml-auto"
                             >
                               <FileText className="h-3.5 w-3.5 shrink-0" />
                               <span>Create Dispatch</span>
