@@ -172,6 +172,22 @@ export default function QuotationsView({
       .map((milestone) => `${milestone.label} ${milestone.percentage}%`)
       .join(', ');
   };
+  const resolveQuotationCustomerName = (q) => {
+    if (!q) return '—';
+    return (
+      q.customerName ||
+      q.customer_name ||
+      q.customer?.companyName ||
+      q.customer?.name ||
+      q.lead?.companyName ||
+      q.lead?.customerName ||
+      q.lead?.projectName ||
+      q.leadName ||
+      q.clientName ||
+      q.partyName ||
+      '—'
+    );
+  };
   const editCustomerOptions = useMemo(() => {
     const options = [
       ...leads.map(lead => ({
@@ -1101,7 +1117,7 @@ export default function QuotationsView({
                 displayedQuotations.map((q) => (
                   <tr key={q.id}>
                     <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{q.quotationNumber || (String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`)}</td>
-                    <td data-label="Customer Name" style={{ fontWeight: '600' }}>{q.customerName}</td>
+                    <td data-label="Customer Name" style={{ fontWeight: '600' }}>{resolveQuotationCustomerName(q)}</td>
                     <td data-label="Product / Items">{quotationItemsText(q)}</td>
                     <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
                     <td data-label="Status">
