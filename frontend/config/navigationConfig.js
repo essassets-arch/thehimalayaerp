@@ -328,10 +328,10 @@ export const navigationConfig = {
 
   'HR': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/hr/dashboard' },
+    { id: 'employees', label: 'Staff Directory', icon: UserCheck, path: '/hr/employees' },
+    { id: 'register-staff', label: 'Register Staff', icon: UserPlus, path: '/hr/register-staff' },
     { id: 'users', label: 'User Management', icon: Users, path: '/hr/users' },
     { id: 'recruitment', label: 'Recruitment Requisitions', icon: UserPlus, path: '/hr/recruitment' },
-    { id: 'employees', label: 'Employees', icon: Users, path: '/hr/employees' },
-    { id: 'register-staff', label: 'Register Staff', icon: UserPlus, path: '/hr/register-staff' },
     { id: 'attendance', label: 'Attendance & Clock', icon: Clock, path: '/hr/attendance' },
     { id: 'leaves', label: 'Leave Workflows', icon: FileText, path: '/hr/leaves' },
     { id: 'exit-clearance', label: 'Exit Clearance', icon: PackageCheck, path: '/hr/exit-clearance' },

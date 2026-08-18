@@ -37,13 +37,15 @@ export class CreateEmployeeDto {
   @IsOptional() @IsDateString() probationEndDate?: string;
   @IsEmail() workEmail!: string;
   @IsOptional() @IsEmail() personalEmail?: string;
-  @IsString() @IsNotEmpty() phoneNumber!: string;
+  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '') : value)
+  @Matches(/^\d{10}$/) phoneNumber!: string;
   @IsString() @IsNotEmpty() residentialAddress!: string;
   @IsString() @IsNotEmpty() emergencyContactName!: string;
-  @IsString() @IsNotEmpty() emergencyContactPhone!: string;
+  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '') : value)
+  @Matches(/^\d{10}$/) emergencyContactPhone!: string;
   @IsString() @IsNotEmpty() emergencyRelationship!: string;
   @Transform(upper) @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/) panNumber!: string;
-  @Matches(/^\d{12}$/) aadhaarNumber!: string;
+  @Matches(/^[2-9]\d{11}$/) aadhaarNumber!: string;
   @IsOptional() @Matches(/^\d{12}$/) uanNumber?: string;
   @IsOptional() @IsString() esicNumber?: string;
   @IsString() @IsNotEmpty() bankName!: string;

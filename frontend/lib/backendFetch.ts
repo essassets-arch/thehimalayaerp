@@ -126,16 +126,16 @@ async function performBackendFetch<T = unknown>(
     error.status = res.status;
     error.code = envelope?.error?.code || envelope?.code;
     error.details = envelope?.error?.details || envelope; // Attach the full envelope as details for logging
-    error.field = envelope?.error?.field;
+    error.field = envelope?.error?.field || envelope?.field;
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[backendFetch] Request failed', {
-        method,
-        url: targetUrl,
-        status: res.status,
-        response: envelope,
-      });
-    }
+    console.error('[backendFetch] Request failed', {
+      method,
+      url: targetUrl,
+      status: res.status,
+      response: envelope,
+      code: error.code,
+      field: error.field,
+    });
 
     throw error;
   }

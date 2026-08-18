@@ -1607,7 +1607,7 @@ async function main() {
     await prisma.user.upsert({
       where: { email: 'dispatch.2@himalayaerp.com' },
       update: {
-        password: hashedPassword, done
+        password: hashedPassword,
         roleId: dispatch2RoleAlias.id,
         isActive: true,
       },

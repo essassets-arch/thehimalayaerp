@@ -44,4 +44,6 @@ export const employeesService = {
   listWorkLocations: () => backendFetch<any[]>('/api/backend/hr/work-locations', { cacheTtlMs: 0 }),
   listReportingManagers: (excludeId?: string) =>
     backendFetch<any[]>(`${base}/managers${excludeId ? `?excludeId=${encodeURIComponent(excludeId)}` : ''}`, { cacheTtlMs: 0 }),
+  getNextEmployeeCode: () =>
+    backendFetch<{ employeeCode: string }>(`${base}/next-code`, { cacheTtlMs: 0 }),
 };

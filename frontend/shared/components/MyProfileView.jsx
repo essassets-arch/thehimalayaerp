@@ -215,9 +215,10 @@ export default function MyProfileView() {
   const fetchSalarySlips = useCallback(async () => {
     try {
       setLoadingSalary(true);
-      const res = await apiClient.get(`/profile/salary-slips?t=${Date.now()}`);
-      if (res && res.success && Array.isArray(res.data)) {
-        setSalarySlips(res.data);
+      const res = await apiClient.get(`/payroll/me?t=${Date.now()}`);
+      if (res && res.success !== false) {
+        const data = res.data || res || [];
+        setSalarySlips(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('Failed to load salary slips', e);

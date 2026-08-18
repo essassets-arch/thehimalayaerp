@@ -86,52 +86,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       ? await request.formData()
       : await request.json().catch(() => undefined);
 
-  if (backendPath === '/hr/employees' && finalMethod === 'POST') {
-    if (body && !body.hasOwnProperty('employeeData')) {
-      const nameParts = (body.name || '').trim().split(/\s+/);
-      const first_name = nameParts[0] || 'Staff';
-      const last_name = nameParts.slice(1).join(' ') || 'Member';
-
-      // Look up first department
-      const firstDept = await prisma.department.findFirst({ where: { isActive: true } });
-      // Look up first location
-      const firstLoc = await prisma.workLocation.findFirst({ where: { isActive: true } });
-      
-      const deptId = firstDept?.id || 'dept-1';
-      const locId = firstLoc?.id || 'loc-1';
-
-      const mappedPayload = {
-        employeeCode: body.employeeCode || `EMP-${Date.now().toString().slice(-4)}`,
-        firstName: first_name,
-        lastName: last_name,
-        dateOfBirth: '1990-01-01',
-        gender: 'MALE',
-        jobTitle: body.designation || body.role || 'Staff',
-        departmentId: deptId,
-        workLocationId: locId,
-        employmentType: 'FULL_TIME',
-        joiningDate: body.date_of_joining || new Date().toISOString(),
-        workEmail: body.email || '',
-        phoneNumber: body.phone || '9999999999',
-        residentialAddress: '123 Industrial Area, Haridwar',
-        emergencyContactName: 'Emergency Contact',
-        emergencyContactPhone: '9999999999',
-        emergencyRelationship: 'Friend',
-        panNumber: 'ABCDE1234F',
-        aadhaarNumber: '123456789012',
-        bankName: 'State Bank of India',
-        accountHolderName: `${first_name} ${last_name}`.trim(),
-        bankAccountType: 'SAVINGS',
-        bankAccountNumber: '1234567890',
-        confirmAccountNumber: '1234567890',
-        ifscCode: 'SBIN0000001',
-      };
-      
-      body = {
-        employeeData: JSON.stringify(mappedPayload)
-      };
-    }
-  } else if (backendPath.startsWith('/hr/employees/')) {
+  if (backendPath.startsWith('/hr/employees/')) {
     if (finalMethod === 'PATCH' || finalMethod === 'PUT') {
       const parts = backendPath.split('/');
       const empId = parts[parts.length - 1];

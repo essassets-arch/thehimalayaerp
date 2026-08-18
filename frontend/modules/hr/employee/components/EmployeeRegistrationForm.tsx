@@ -13,10 +13,16 @@ import { useRouter } from 'next/navigation';
 import { useNotificationStore } from '@/store/notificationStore';
 import { employeeRegistrationSchema } from '../employee.schema';
 import { employeesService } from '@/services/hr/employeesService';
+import { clearFilesByPrefix, getFile, saveFile } from '../employee.db';
 
 // ── Constants ──────────────────────────────────────────────────
 const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern', 'Temporary', 'Consultant'] as const;
 const DRAFT_VERSION = 1;
+const REGISTRATION_DRAFT_KEY = 'hr_employee_registration_draft_v1';
+const PHOTO_DRAFT_KEY = 'draft_employee_photo';
+const SIGNATURE_DRAFT_KEY = 'draft_employee_signature';
+const normalizeIndianPhone = (value: string) =>
+  value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '');
 const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'] as const;
 const EMERGENCY_RELATIONSHIPS = ['Parent', 'Spouse', 'Sibling', 'Relative', 'Friend', 'Other'] as const;
 const ACCOUNT_TYPES = ['Savings', 'Current', 'Salary'] as const;
@@ -108,6 +114,7 @@ function DocUploadBox({
     if (value.previewUrl) URL.revokeObjectURL(value.previewUrl);
 
     const storageKey = `draft_${category}_${Date.now()}`;
+    await saveFile(storageKey, file);
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
     onChange({
       meta: {
@@ -198,15 +205,13 @@ function DocUploadBox({
 export default function EmployeeRegistrationForm() {
   const navigate = useRouter();
   const showToast = useNotificationStore((s: any) => s.showToast);
-  const [activeStep, setActiveStep] = useState<number>(1);
-
   const [departments, setDepartments] = useState<any[]>([]);
   const [workLocations, setWorkLocations] = useState<any[]>([]);
   const [eligibleManagers, setEligibleManagers] = useState<any[]>([]);
 
   // Form setup
   const {
-    register, control, handleSubmit, watch, setValue, reset, setError,
+    register, control, handleSubmit, watch, getValues, setValue, reset, setError,
     formState: { errors },
   } = useForm<any>({
     resolver: zodResolver(employeeRegistrationSchema),
@@ -234,13 +239,70 @@ export default function EmployeeRegistrationForm() {
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftId, setDraftId] = useState<string | undefined>();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasSessionDraft = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isDraftReady, setIsDraftReady] = useState(false);
 
   // Department search
   const [deptSearch, setDeptSearch] = useState('');
   const [deptOpen, setDeptOpen] = useState(false);
   const watchedDept = watch('department');
+
+  useEffect(() => {
+    const restore = async () => {
+    try {
+      const stored = sessionStorage.getItem(REGISTRATION_DRAFT_KEY);
+      if (!stored) return;
+      const draft = JSON.parse(stored);
+      if (draft?.version === DRAFT_VERSION && draft.values) {
+        reset(draft.values);
+        hasSessionDraft.current = true;
+        setDraftRestored(true);
+        showToast('Your registration details were restored after refresh.');
+        await (async () => {
+          const restoreDoc = async (meta: DocState['meta']) => {
+            if (!meta) return null;
+            const blob = await getFile(meta.storageKey);
+            if (!blob) return null;
+            return { meta, blob: new File([blob], meta.fileName, { type: meta.mimeType }), previewUrl: blob.type.startsWith('image/') ? URL.createObjectURL(blob) : null };
+          };
+          const documents = draft.documents || {};
+          const [aadhaar, pan, bank, photo, signature] = await Promise.all([
+            restoreDoc(documents.aadhaar),
+            restoreDoc(documents.pan),
+            restoreDoc(documents.bank),
+            getFile(PHOTO_DRAFT_KEY),
+            getFile(SIGNATURE_DRAFT_KEY),
+          ]);
+          if (aadhaar) setAadhaarDoc(aadhaar);
+          if (pan) setPanDoc(pan);
+          if (bank) setBankDoc(bank);
+          const restoredAdditional = await Promise.all((documents.additional || []).map(async (doc: AdditionalDoc) => {
+            const restored = await restoreDoc(doc.meta);
+            return restored ? { ...doc, ...restored } : doc;
+          }));
+          setAdditionalDocs(restoredAdditional);
+          if (photo) {
+            const file = new File([photo], 'employee-photo', { type: photo.type });
+            const base64 = await fileToBase64(file);
+            setPhotograph(base64); setPhotoPreview(base64); setPhotographFile(file);
+          }
+          if (signature) {
+            const file = new File([signature], 'employee-signature', { type: signature.type });
+            const base64 = await fileToBase64(file);
+            setSignature(base64); setSigPreview(base64); setSignatureFile(file);
+          }
+        })();
+      }
+    } catch {
+      sessionStorage.removeItem(REGISTRATION_DRAFT_KEY);
+    } finally {
+      setIsDraftReady(true);
+    }
+    };
+    void restore();
+  }, [reset, showToast]);
 
   useEffect(() => {
     Promise.all([
@@ -253,7 +315,7 @@ export default function EmployeeRegistrationForm() {
       setWorkLocations(locations);
       setEligibleManagers(managers);
       const latest = drafts[0];
-      if (latest?.employeeData) {
+      if (!hasSessionDraft.current && latest?.employeeData) {
         reset(latest.employeeData);
         setDraftId(latest.id);
         setDraftRestored(true);
@@ -261,6 +323,16 @@ export default function EmployeeRegistrationForm() {
       }
     }).catch((error) => console.warn('HR data load fallback:', error.message));
   }, [reset, showToast]);
+
+  useEffect(() => {
+    employeesService.getNextEmployeeCode()
+      .then(({ employeeCode }) => {
+        if (!getValues('employeeCode')) {
+          setValue('employeeCode', employeeCode, { shouldDirty: false });
+        }
+      })
+      .catch((error) => console.warn('Employee code suggestion unavailable:', error.message));
+  }, [getValues, setValue]);
 
   // Auto-gen full name from first+last
   const firstName = watch('firstName');
@@ -284,30 +356,28 @@ export default function EmployeeRegistrationForm() {
   // Draft auto-save
   const formValues = watch();
   useEffect(() => {
+    if (!isDraftReady) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       try {
         const draft = {
           version: DRAFT_VERSION,
-          draftId: `draft_${Date.now()}`,
           values: {
             ...formValues,
-            photograph,
-            signature,
-            aadhaarCardDoc: aadhaarDoc.meta,
-            panCardDoc: panDoc.meta,
-            bankProofDoc: bankDoc.meta,
           },
-          additionalDocuments: additionalDocs.map(d => ({
-            rowId: d.rowId, docType: d.docType, customTitle: d.customTitle, meta: d.meta,
-          })),
+          documents: {
+            aadhaar: aadhaarDoc.meta,
+            pan: panDoc.meta,
+            bank: bankDoc.meta,
+            additional: additionalDocs.map(({ rowId, docType, customTitle, meta }) => ({ rowId, docType, customTitle, meta })),
+          },
           lastSavedAt: new Date().toISOString(),
         };
-        void draft;
+        sessionStorage.setItem(REGISTRATION_DRAFT_KEY, JSON.stringify(draft));
       } catch { /* ignore */ }
     }, 800);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [formValues, aadhaarDoc.meta, panDoc.meta, bankDoc.meta, additionalDocs, photograph, signature]);
+  }, [formValues, aadhaarDoc.meta, panDoc.meta, bankDoc.meta, additionalDocs, photograph, signature, isDraftReady]);
 
   // Clear Draft
   const handleClearDraft = async () => {
@@ -331,6 +401,8 @@ export default function EmployeeRegistrationForm() {
     setAdditionalDocs([]);
     setPhotograph(''); setSigPreview(''); setPhotoPreview(''); setSignature('');
     reset();
+    sessionStorage.removeItem(REGISTRATION_DRAFT_KEY);
+    await clearFilesByPrefix('draft_');
     setDraftRestored(false);
     showToast('Draft cleared successfully.');
   };
@@ -366,8 +438,8 @@ export default function EmployeeRegistrationForm() {
       return;
     }
     const b64 = await fileToBase64(file);
-    if (type === 'photo') { setPhotograph(b64); setPhotographFile(file); setPhotoPreview(b64); setValue('photograph', 'selected'); }
-    else { setSignature(b64); setSignatureFile(file); setSigPreview(b64); setValue('signature', 'selected'); }
+    if (type === 'photo') { await saveFile(PHOTO_DRAFT_KEY, file); setPhotograph(b64); setPhotographFile(file); setPhotoPreview(b64); setValue('photograph', 'selected'); }
+    else { await saveFile(SIGNATURE_DRAFT_KEY, file); setSignature(b64); setSignatureFile(file); setSigPreview(b64); setValue('signature', 'selected'); }
   };
 
   // Additional Documents
@@ -400,6 +472,7 @@ export default function EmployeeRegistrationForm() {
     const old = additionalDocs.find(d => d.rowId === rowId);
     if (old?.previewUrl) URL.revokeObjectURL(old.previewUrl);
     const storageKey = `draft_other_${rowId}_${Date.now()}`;
+    await saveFile(storageKey, file);
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
     updateAdditionalDoc(rowId, {
       meta: { id: genId(), fileName: file.name, mimeType: file.type, size: file.size, category: 'OTHER', title: '', storageKey, uploadedAt: new Date().toISOString() },
@@ -433,16 +506,16 @@ export default function EmployeeRegistrationForm() {
         jobTitle: data.designation,
         departmentId: data.department,
         reportingManagerId: data.managerId || undefined,
-        workLocationId: workLocations.find((location) => location.name === data.workLocation)?.id,
+        workLocationId: data.workLocation,
         employmentType: employmentTypes[data.employmentType],
         joiningDate: data.joiningDate,
         probationEndDate: data.probationEndDate || undefined,
         workEmail: data.email,
         personalEmail: data.personalEmail || undefined,
-        phoneNumber: data.phone,
+        phoneNumber: normalizeIndianPhone(data.phone),
         residentialAddress: data.residentialAddress,
         emergencyContactName: data.emergencyName,
-        emergencyContactPhone: data.emergencyPhone,
+        emergencyContactPhone: normalizeIndianPhone(data.emergencyPhone),
         emergencyRelationship: data.emergencyRelationship,
         panNumber: data.pan,
         aadhaarNumber: data.aadhaar,
@@ -471,6 +544,8 @@ export default function EmployeeRegistrationForm() {
       additionalDocs.forEach((doc) => { if (doc.blob) multipart.append('additionalDocuments', doc.blob); });
 
       const employee = await employeesService.createEmployee(multipart);
+      sessionStorage.removeItem(REGISTRATION_DRAFT_KEY);
+      await clearFilesByPrefix('draft_');
 
       await Swal.fire({
         icon: 'success',
@@ -545,17 +620,12 @@ export default function EmployeeRegistrationForm() {
     .filter(d => d.isActive)
     .filter(d => d.name.toLowerCase().includes(deptSearch.toLowerCase()));
 
-  // Step definition
-  const steps = [
-    { id: 1, title: 'Personal & Contact', icon: User, subtitle: 'Basic details & address' },
-    { id: 2, title: 'Employment & Statutory', icon: Briefcase, subtitle: 'Role, department & IDs' },
-    { id: 3, title: 'Bank & Emergency', icon: Building2, subtitle: 'Salary account & emergency' },
-    { id: 4, title: 'Documents & Photo', icon: FileText, subtitle: 'Identity files & photos' },
-  ];
-
   return (
     <div className="reg-form-wrapper" style={{ maxWidth: '1080px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <style>{`
+        .reg-grid-3, .reg-grid-4 {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
         @media (max-width: 900px) {
           .reg-stepper-grid {
             grid-template-columns: repeat(2, 1fr) !important;
@@ -655,8 +725,11 @@ export default function EmployeeRegistrationForm() {
               HR Administration Portal
             </div>
             <h1 style={{ fontSize: '22px', fontWeight: '900', margin: 0, letterSpacing: '-0.3px' }}>
-              Employee Onboarding & Registration
+              Register New Staff
             </h1>
+            <p style={{ margin: '4px 0 0', color: '#cbd5e1', fontSize: '13px' }}>
+              Create employee profile, employment, statutory and banking records
+            </p>
           </div>
         </div>
 
@@ -666,69 +739,11 @@ export default function EmployeeRegistrationForm() {
               ✏️ Draft Auto-Restored
             </span>
           )}
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Form Completion</span>
-            <strong style={{ fontSize: '14px', color: '#38bdf8' }}>Step {activeStep} of 4</strong>
-          </div>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: '#bae6fd' }}>Employee Master</span>
         </div>
       </div>
 
       {/* ── STEPPER NAVIGATION TABS ───────────────────────────────────── */}
-      <div className="reg-stepper-grid" style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '12px',
-        marginBottom: '24px'
-      }}>
-        {steps.map((step) => {
-          const IconComponent = step.icon;
-          const isActive = activeStep === step.id;
-          const isDone = activeStep > step.id;
-          return (
-            <div
-              key={step.id}
-              onClick={() => setActiveStep(step.id)}
-              style={{
-                background: isActive ? '#ffffff' : '#f8fafc',
-                border: `2px solid ${isActive ? '#2563eb' : isDone ? '#16a34a' : '#e2e8f0'}`,
-                borderRadius: '12px',
-                padding: '14px 16px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: isActive ? '0 10px 20px -5px rgba(37, 99, 235, 0.15)' : 'none',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}
-            >
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: isActive ? '#2563eb' : isDone ? '#16a34a' : '#cbd5e1',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '14px',
-                flexShrink: 0
-              }}>
-                {isDone ? <Check size={18} /> : <IconComponent size={18} />}
-              </div>
-              <div style={{ overflow: 'hidden' }}>
-                <span style={{ fontSize: '13px', fontWeight: '800', color: isActive ? '#0f172a' : '#475569', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {step.title}
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {step.subtitle}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       {/* ── FORM CONTAINER ────────────────────────────────────────────── */}
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate>
         <div className="reg-form-card" style={{
@@ -741,7 +756,7 @@ export default function EmployeeRegistrationForm() {
         }}>
 
           {/* ─── STEP 1: PERSONAL & CONTACT INFORMATION ─────────────── */}
-          {activeStep === 1 && (
+          {(
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div style={{ borderBottom: '2px solid #f1f5f9', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -802,7 +817,7 @@ export default function EmployeeRegistrationForm() {
           )}
 
           {/* ─── STEP 2: EMPLOYMENT & STATUTORY ──────────────────────── */}
-          {activeStep === 2 && (
+          {(
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div style={{ borderBottom: '2px solid #f1f5f9', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -876,15 +891,15 @@ export default function EmployeeRegistrationForm() {
                   <select {...register('managerId')} style={selectStyle(!!errors.managerId)}>
                     <option value="">None / Direct Report</option>
                     {eligibleManagers.map((e: any) => (
-                      <option key={e.id} value={e.id}>{e.fullName} ({e.jobTitle})</option>
+                      <option key={e.id} value={e.id}>{e.fullName} — {e.jobTitle}{e.department?.name ? ` • ${e.department.name}` : ''}</option>
                     ))}
                   </select>
                 </FormField>
 
                 <FormField label="Work Location" required error={errors.workLocation?.message as string}>
-                  <select {...register('workLocation')} style={selectStyle(!!errors.workLocation)}>
+                  <select {...register('workLocation')} required aria-required="true" style={selectStyle(!!errors.workLocation)}>
                     <option value="">Select Location</option>
-                    {workLocations.map((loc) => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
+                    {workLocations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                   </select>
                 </FormField>
 
@@ -915,7 +930,7 @@ export default function EmployeeRegistrationForm() {
                     <input {...register('pan')} style={inputStyle(!!errors.pan)} placeholder="ABCDE1234F" maxLength={10} onChange={e => { e.target.value = e.target.value.toUpperCase(); register('pan').onChange(e); }} />
                   </FormField>
                   <FormField label="Aadhaar Number" required error={errors.aadhaar?.message as string} hint="12 digits">
-                    <input {...register('aadhaar')} style={inputStyle(!!errors.aadhaar)} placeholder="XXXX XXXX XXXX" maxLength={14} type="password" autoComplete="off" />
+                    <input {...register('aadhaar')} style={inputStyle(!!errors.aadhaar)} placeholder="12 digits, starting 2–9" maxLength={12} inputMode="numeric" type="password" autoComplete="off" />
                   </FormField>
                   <FormField label="UAN Number" error={errors.uan?.message as string} hint="Optional — 12 digits">
                     <input {...register('uan')} style={inputStyle(!!errors.uan)} placeholder="100XXXXXXXXX" maxLength={12} />
@@ -929,7 +944,7 @@ export default function EmployeeRegistrationForm() {
           )}
 
           {/* ─── STEP 3: BANK & EMERGENCY CONTACT ───────────────────── */}
-          {activeStep === 3 && (
+          {(
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div style={{ borderBottom: '2px solid #f1f5f9', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -993,7 +1008,7 @@ export default function EmployeeRegistrationForm() {
           )}
 
           {/* ─── STEP 4: DOCUMENTS & PHOTOS ───────────────────────────── */}
-          {activeStep === 4 && (
+          {(
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div style={{ borderBottom: '2px solid #f1f5f9', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -1163,20 +1178,20 @@ export default function EmployeeRegistrationForm() {
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
-            {activeStep > 1 && (
+            {true && (
               <button
                 type="button"
-                onClick={() => setActiveStep(prev => Math.max(1, prev - 1))}
+                onClick={() => navigate.push('/hr/employees')}
                 style={{ padding: '10px 18px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                <ArrowLeft size={14} /> Previous Step
+                <ArrowLeft size={14} /> Cancel
               </button>
             )}
 
-            {activeStep < 4 ? (
+            {false ? (
               <button
                 type="button"
-                onClick={() => setActiveStep(prev => Math.min(4, prev + 1))}
+                onClick={() => undefined}
                 style={{ padding: '10px 22px', background: '#0f172a', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 Next Step <ChevronRight size={14} />

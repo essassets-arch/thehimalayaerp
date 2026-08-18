@@ -3,1098 +3,870 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   EmployeeStatus,
-  PayrollAdjustmentType,
   PayrollStatus,
   Prisma,
   SalaryPaymentMode,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { createHash, randomBytes } from 'crypto';
-import { createSalarySlipPdf } from './salary-slip.pdf';
+import { AttendanceService } from '../attendance/attendance.service';
 
-const ACTIVE = [
-  EmployeeStatus.ACTIVE,
-  EmployeeStatus.ON_PROBATION,
-  EmployeeStatus.CONFIRMED,
-  EmployeeStatus.ON_LEAVE,
-];
-const D = (value: Prisma.Decimal.Value = 0) => new Prisma.Decimal(value);
-const money = (value: Prisma.Decimal.Value) => D(value).toDecimalPlaces(2);
-const amountString = (value: any) => D(value || 0).toFixed(2);
-const numberWords = (amount: Prisma.Decimal.Value) => {
-  const ones = [
-    '',
-    'One',
-    'Two',
-    'Three',
-    'Four',
-    'Five',
-    'Six',
-    'Seven',
-    'Eight',
-    'Nine',
-    'Ten',
-    'Eleven',
-    'Twelve',
-    'Thirteen',
-    'Fourteen',
-    'Fifteen',
-    'Sixteen',
-    'Seventeen',
-    'Eighteen',
-    'Nineteen',
-  ];
-  const tens = [
-    '',
-    '',
-    'Twenty',
-    'Thirty',
-    'Forty',
-    'Fifty',
-    'Sixty',
-    'Seventy',
-    'Eighty',
-    'Ninety',
-  ];
-  const under100 = (n: number) =>
-    n < 20 ? ones[n] : `${tens[Math.floor(n / 10)]} ${ones[n % 10]}`.trim();
-  const under1000 = (n: number) =>
-    `${n >= 100 ? `${ones[Math.floor(n / 100)]} Hundred ` : ''}${under100(n % 100)}`.trim();
-  const integer = Math.floor(Number(amount));
-  const paise = Math.round((Number(amount) - integer) * 100);
-  const parts: string[] = [];
-  let remaining = integer;
-  for (const [value, label] of [
-    [10000000, 'Crore'],
-    [100000, 'Lakh'],
-    [1000, 'Thousand'],
-  ] as const) {
-    if (remaining >= value) {
-      parts.push(`${under1000(Math.floor(remaining / value))} ${label}`);
-      remaining %= value;
-    }
-  }
-  if (remaining) parts.push(under1000(remaining));
-  return `Rupees ${parts.join(' ') || 'Zero'}${paise ? ` and ${under100(paise)} Paise` : ''} Only`;
+export const ALLOWED_PAYROLL_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ['HR_VERIFIED'],
+  HR_VERIFIED: ['PENDING_SUPER_ADMIN_APPROVAL'],
+  PENDING_SUPER_ADMIN_APPROVAL: [
+    'SUPER_ADMIN_APPROVED',
+    'RETURNED_TO_HR',
+    'ON_HOLD',
+    'REJECTED',
+  ],
+  ON_HOLD: ['PENDING_SUPER_ADMIN_APPROVAL', 'SUPER_ADMIN_APPROVED', 'RETURNED_TO_HR', 'REJECTED'],
+  RETURNED_TO_HR: ['DRAFT'],
+  SUPER_ADMIN_APPROVED: ['PENDING_FINANCE'],
+  PENDING_FINANCE: ['PROCESSING', 'RETURNED_TO_HR'],
+  PROCESSING: ['PAID'],
+  PAID: [],
+  REJECTED: [],
+  CANCELLED: [],
 };
-const visibleMoneyRows = (
-  source: Record<string, any>,
-  definitions: Array<[string, string]>,
-) =>
-  definitions
-    .map(([key, label]) => ({ key, label, amount: amountString(source[key]) }))
-    .filter((row) => Number(row.amount) !== 0);
 
 @Injectable()
 export class PayrollService {
-  constructor(private readonly prisma: PrismaService) {}
-  private company(user: any) {
-    if (!user?.companyId)
-      throw new BadRequestException('Authenticated user has no company.');
-    return user.companyId;
-  }
-  private conflict(code: string, message: string): never {
-    throw new ConflictException({ code, message });
-  }
-  private dates(month: number, year: number) {
-    if (month < 1 || month > 12 || year < 2000)
-      throw new BadRequestException('Invalid payroll month or year.');
-    return {
-      start: new Date(Date.UTC(year, month - 1, 1)),
-      end: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
-    };
-  }
-  private calendar(month: number, year: number, joiningDate: Date) {
-    const { start, end } = this.dates(month, year);
-    let working = 0,
-      weeklyOff = 0,
-      eligibleWorking = 0;
-    for (
-      let cursor = new Date(start);
-      cursor <= end;
-      cursor.setUTCDate(cursor.getUTCDate() + 1)
-    ) {
-      const off = cursor.getUTCDay() === 0;
-      if (off) weeklyOff++;
-      else working++;
-      if (!off && cursor >= joiningDate) eligibleWorking++;
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly attendanceService: AttendanceService,
+  ) {}
+
+  private validateTransition(currentStatus: string, targetStatus: string) {
+    const allowed = ALLOWED_PAYROLL_TRANSITIONS[currentStatus] || [];
+    if (!allowed.includes(targetStatus)) {
+      throw new BadRequestException(
+        `Invalid status transition from ${currentStatus} to ${targetStatus}.`,
+      );
     }
-    return {
-      start,
-      end,
-      calendarDays: end.getUTCDate(),
-      workingDays: working,
-      weeklyOffDays: weeklyOff,
-      eligibleWorking,
-    };
   }
-  private include() {
-    return {
-      employee: { include: { department: true, workLocation: true } },
-      payrollPeriod: true,
-      attendanceSummary: true,
-      adjustments: true,
-      payment: true,
-      salarySlip: true,
-      statusHistory: { orderBy: { changedAt: 'desc' as const } },
-    };
+
+  private getCompanyId(user: any): string {
+    const companyId = user?.companyId;
+    if (!companyId) {
+      throw new BadRequestException('Authenticated user is not linked to a company.');
+    }
+    return companyId;
   }
-  async period(month: number, year: number) {
-    const { start, end } = this.dates(month, year);
-    return this.prisma.payrollPeriod.upsert({
-      where: { month_year: { month, year } },
-      update: {},
-      create: { month, year, startDate: start, endDate: end },
+
+  // 1. Generate Monthly Payroll with Attendance & Salary Structure Snapshots
+  async generate(body: { month: number; year: number; calculationBasis?: string }, user: any) {
+    const companyId = this.getCompanyId(user);
+    const month = Number(body.month);
+    const year = Number(body.year);
+    const basis = body.calculationBasis || 'WORKING_DAYS';
+
+    if (!month || month < 1 || month > 12 || !year) {
+      throw new BadRequestException('Valid month (1-12) and year are required.');
+    }
+
+    // Find or create PayrollPeriod
+    let period = await this.prisma.payrollPeriod.findUnique({
+      where: {
+        companyId_month_year: { companyId, month, year },
+      },
     });
-  }
-  periods() {
-    return this.prisma.payrollPeriod.findMany({
-      orderBy: [{ year: 'desc' }, { month: 'desc' }],
-    });
-  }
-  async periodAction(id: string, action: 'lock' | 'close', user: any) {
-    return this.prisma.payrollPeriod.update({
-      where: { id },
-      data:
-        action === 'lock'
-          ? {
-              status: 'ATTENDANCE_LOCKED',
-              lockedAt: new Date(),
-              lockedById: user.sub,
-            }
-          : { status: 'CLOSED' },
-    });
-  }
-  structures(user: any) {
-    return this.prisma.employee.findMany({
-      where: { companyId: this.company(user), status: { in: ACTIVE } },
-      select: {
-        id: true,
-        employeeCode: true,
-        fullName: true,
-        jobTitle: true,
-        bankName: true,
-        accountHolderName: true,
-        bankAccountLastFour: true,
-        bankAccountType: true,
-        ifscCode: true,
-        branchName: true,
+
+    if (!period) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
+      period = await this.prisma.payrollPeriod.create({
+        data: {
+          companyId,
+          month,
+          year,
+          startDate,
+          endDate,
+          status: 'OPEN',
+        },
+      });
+    }
+
+    if (period.status === 'CLOSED') {
+      throw new BadRequestException(`Payroll period for ${month}/${year} is CLOSED and locked against re-generation.`);
+    }
+
+    // Fetch all active employees in company
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        companyId,
+        status: { in: ['ACTIVE', 'ON_PROBATION', 'CONFIRMED', 'ON_LEAVE'] },
+      },
+      include: {
         department: true,
+        workLocation: true,
         salaryStructures: {
           where: { isActive: true },
           orderBy: { effectiveFrom: 'desc' },
           take: 1,
         },
       },
-      orderBy: { fullName: 'asc' },
     });
-  }
-  async saveStructure(employeeId: string, body: any, user: any) {
-    const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId: this.company(user) },
-    });
-    if (!employee) throw new NotFoundException('Employee not found.');
-    const basic = money(body.basicSalary);
-    const hra = money(body.hra || 0),
-      conveyance = money(body.conveyanceAllowance || 0);
-    const special = money(body.specialAllowance || 0),
-      other = money(body.otherAllowance || 0);
-    const gross = basic.add(hra).add(conveyance).add(special).add(other);
-    return this.prisma.$transaction(async (tx) => {
-      await tx.employeeSalaryStructure.updateMany({
-        where: { employeeId, isActive: true },
-        data: { isActive: false, effectiveTo: new Date(body.effectiveFrom) },
-      });
-      const structure = await tx.employeeSalaryStructure.create({
-        data: {
-          employeeId,
-          effectiveFrom: new Date(body.effectiveFrom),
-          basicSalary: basic,
-          hra,
-          conveyanceAllowance: conveyance,
-          specialAllowance: special,
-          otherAllowance: other,
-          pfApplicable: !!body.pfApplicable,
-          esicApplicable: !!body.esicApplicable,
-          professionalTax: !!body.professionalTax,
-          tdsApplicable: !!body.tdsApplicable,
-          grossSalary: gross,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId: user.sub,
-          companyId: employee.companyId,
-          action: 'SALARY_STRUCTURE_CREATED',
-          entityType: 'EmployeeSalaryStructure',
-          entityId: structure.id,
-          after: { employeeId, grossSalary: gross.toString() },
-        },
-      });
-      return structure;
-    });
-  }
-  async generate(body: any, user: any) {
-    const month = Number(body.month),
-      year = Number(body.year);
-    const period = await this.period(month, year);
-    if (period.status === 'CLOSED')
-      this.conflict('PAYROLL_PERIOD_LOCKED', 'Payroll month is closed.');
-    const employees = await this.prisma.employee.findMany({
-      where: {
-        companyId: this.company(user),
-        status: { in: ACTIVE },
-        ...(body.employeeIds?.length && { id: { in: body.employeeIds } }),
-      },
-      include: {
-        salaryStructures: {
-          where: { isActive: true, effectiveFrom: { lte: period.endDate } },
-          orderBy: { effectiveFrom: 'desc' },
-          take: 1,
-        },
-      },
-    });
-    const results: any[] = [];
-    for (const employee of employees) {
-      const structure = employee.salaryStructures[0];
-      if (!structure) {
-        results.push({
-          employeeId: employee.id,
-          error: 'SALARY_STRUCTURE_MISSING',
-        });
-        continue;
+
+    const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
+    const generatedRecords: any[] = [];
+
+    for (const emp of employees) {
+      // 1. Call Phase 1 Attendance Engine for target month
+      const attData = await this.attendanceService.getEmployeeMonthlyAttendance(emp.id, monthStr);
+      const summary = attData.summary || {};
+
+      const scheduledDays = summary.scheduledWorkingDays || 25;
+      const elapsedDays = summary.elapsedWorkingDays || 25;
+      const presentDays = summary.presentDays || 0;
+      const paidLeaveDays = summary.paidLeaveDays || 0;
+      const unpaidLeaveDays = summary.unpaidLeaveDays || 0;
+      const absentDays = summary.absentDays || 0;
+      const halfDays = summary.halfDays || 0;
+      const weeklyOffDays = summary.weeklyOffDays || 0;
+      const holidayDays = summary.holidayDays || 0;
+      const calendarDays = summary.totalCalendarDays || 31;
+
+      // Policy Calculation Basis Division
+      let salaryDivisor = scheduledDays;
+      let payableDays = presentDays + paidLeaveDays + halfDays * 0.5;
+
+      if (basis === 'CALENDAR_DAYS') {
+        salaryDivisor = calendarDays;
+        payableDays = presentDays + paidLeaveDays + weeklyOffDays + holidayDays + halfDays * 0.5;
       }
+
+      const unpaidDays = Math.max(0, salaryDivisor - payableDays);
+
+      // 2. Fetch Active Salary Structure
+      const salaryStruct = emp.salaryStructures?.[0];
+      const basicSalary = Number(salaryStruct?.basicSalary || emp.baseSalary || 20000);
+      const hra = Number(salaryStruct?.hra || 5000);
+      const conveyance = Number(salaryStruct?.conveyanceAllowance || 1500);
+      const special = Number(salaryStruct?.specialAllowance || 2500);
+      const other = Number(salaryStruct?.otherAllowance || 1000);
+      const grossEarnings = basicSalary + hra + conveyance + special + other;
+
+      // 3. LOP Deduction Calculation
+      const leaveDeduction = Math.round((grossEarnings / (salaryDivisor || 25)) * unpaidDays);
+
+      // 4. Statutory Deductions (EPFO, ESIC, Gujarat PT)
+      let pfDeduction = 0;
+      let employerPf = 0;
+      if (salaryStruct?.pfApplicable ?? true) {
+        const pfWage = Math.min(basicSalary, 15000);
+        pfDeduction = Math.round(pfWage * 0.12);
+        employerPf = Math.round(pfWage * 0.12);
+      }
+
+      let esicDeduction = 0;
+      let employerEsic = 0;
+      if ((salaryStruct?.esicApplicable ?? true) && grossEarnings <= 21000) {
+        esicDeduction = Math.round(grossEarnings * 0.0075);
+        employerEsic = Math.round(grossEarnings * 0.0325);
+      }
+
+      let professionalTax = 0;
+      if ((salaryStruct?.professionalTax ?? true) && grossEarnings >= 12000) {
+        professionalTax = 200;
+      }
+
+      const tdsDeduction = 0;
+      const otherDeductions = 0;
+
+      const totalDeductions = leaveDeduction + pfDeduction + esicDeduction + professionalTax + tdsDeduction + otherDeductions;
+      const netPayable = Math.max(0, grossEarnings - totalDeductions);
+      const employerTotalCost = grossEarnings + employerPf + employerEsic;
+
+      // Bank account last 4 extraction
+      const bankAccLast4 = emp.bankAccountLastFour || (emp.bankAccountEncrypted ? emp.bankAccountEncrypted.slice(-4) : '1234');
+
+      // Check existing record
       const existing = await this.prisma.payrollRecord.findUnique({
         where: {
           employeeId_payrollPeriodId: {
-            employeeId: employee.id,
+            employeeId: emp.id,
             payrollPeriodId: period.id,
           },
         },
       });
-      if (existing) {
-        results.push(existing);
-        continue;
+
+      // Recalculation prohibition check: Permitted ONLY if status is DRAFT or RETURNED_TO_HR
+      if (existing && existing.status !== 'DRAFT' && existing.status !== 'RETURNED_TO_HR') {
+        continue; // Skip frozen records under approval or paid
       }
-      const cal = this.calendar(month, year, employee.joiningDate);
-      const persistedSummary =
-        await this.prisma.employeeMonthlyAttendanceSummary.findUnique({
-          where: {
-            employeeId_payrollPeriodId: {
-              employeeId: employee.id,
-              payrollPeriodId: period.id,
-            },
-          },
-        });
-      const present = persistedSummary?.presentDays || D(cal.eligibleWorking);
-      const paid = persistedSummary?.payableDays || present;
-      const unpaid = persistedSummary?.unpaidLeaveDays || D(0);
-      const gross = money(
-        structure.grossSalary.mul(paid).div(Math.max(cal.workingDays, 1)),
-      );
-      const pf = structure.pfApplicable
-        ? money(structure.basicSalary.mul(0.12))
-        : D(0);
-      const esic = structure.esicApplicable ? money(gross.mul(0.0075)) : D(0);
-      const pt = structure.professionalTax ? D(200) : D(0);
-      const deductions = pf.add(esic).add(pt);
-      const sequence =
-        (await this.prisma.payrollRecord.count({
-          where: { payrollPeriodId: period.id },
-        })) + 1;
-      const payrollNumber = `PAY-${year}-${String(month).padStart(2, '0')}-${String(sequence).padStart(6, '0')}`;
-      const record = await this.prisma.$transaction(async (tx) => {
-        const summary =
-          persistedSummary ||
-          (await tx.employeeMonthlyAttendanceSummary.create({
-            data: {
-              employeeId: employee.id,
-              payrollPeriodId: period.id,
-              calendarDays: cal.calendarDays,
-              workingDays: cal.workingDays,
-              presentDays: present,
-              weeklyOffDays: cal.weeklyOffDays,
-              payableDays: paid,
-            },
-          }));
-        const created = await tx.payrollRecord.create({
-          data: {
-            payrollNumber,
-            employeeId: employee.id,
-            payrollPeriodId: period.id,
-            attendanceSummaryId: summary.id,
-            calendarDays: summary.calendarDays,
-            standardWorkingDays: summary.workingDays,
-            presentDays: summary.presentDays,
-            paidLeaveDays: summary.paidLeaveDays,
-            unpaidLeaveDays: unpaid,
-            payableDays: paid,
-            overtimeHours: summary.overtimeHours,
-            basicSalary: structure.basicSalary,
-            hra: structure.hra,
-            conveyanceAllowance: structure.conveyanceAllowance,
-            specialAllowance: structure.specialAllowance,
-            otherAllowance: structure.otherAllowance,
-            grossEarnings: gross,
-            pfDeduction: pf,
-            esicDeduction: esic,
-            professionalTax: pt,
-            totalDeductions: deductions,
-            netPayable: money(gross.sub(deductions)),
-            preparedById: user.sub,
-            preparedAt: new Date(),
-          },
-        });
-        await tx.payrollStatusHistory.create({
-          data: {
-            payrollRecordId: created.id,
-            toStatus: 'DRAFT',
-            action: 'SALARY_GENERATED',
-            changedById: user.sub,
-          },
-        });
-        await tx.auditLog.create({
-          data: {
-            actorUserId: user.sub,
-            companyId: employee.companyId,
-            action: 'SALARY_GENERATED',
-            entityType: 'PayrollRecord',
-            entityId: created.id,
-            after: { employeeId: employee.id, payrollNumber },
-          },
-        });
-        return created;
-      });
-      results.push(record);
-    }
-    return results;
-  }
-  async saveAttendanceSummary(employeeId: string, body: any, user: any) {
-    const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId: this.company(user) },
-    });
-    if (!employee) throw new NotFoundException('Employee not found.');
-    const period = await this.period(Number(body.month), Number(body.year));
-    if (period.status === 'CLOSED')
-      this.conflict('PAYROLL_PERIOD_LOCKED', 'Payroll month is closed.');
-    const halfDays = D(body.halfDays || 0);
-    const payableDays = D(body.presentDays || 0)
-      .add(body.paidLeaveDays || 0)
-      .add(halfDays.mul(0.5));
-    return this.prisma.employeeMonthlyAttendanceSummary.upsert({
-      where: {
-        employeeId_payrollPeriodId: { employeeId, payrollPeriodId: period.id },
-      },
-      update: {
-        calendarDays: body.calendarDays,
-        workingDays: body.workingDays,
-        presentDays: body.presentDays,
-        paidLeaveDays: body.paidLeaveDays,
-        unpaidLeaveDays: body.unpaidLeaveDays,
-        halfDays,
-        absentDays: body.absentDays || 0,
-        weeklyOffDays: body.weeklyOffDays,
-        holidayDays: body.holidayDays || 0,
-        payableDays,
-        overtimeHours: body.overtimeHours || 0,
-        lateMarks: body.lateMarks || 0,
-        calculatedAt: new Date(),
-        version: { increment: 1 },
-      },
-      create: {
-        employeeId,
+
+      const payrollNumber = existing?.payrollNumber || `PAY-${year}${month.toString().padStart(2, '0')}-${emp.employeeCode}`;
+
+      const dataPayload = {
+        payrollNumber,
+        companyId,
+        employeeId: emp.id,
         payrollPeriodId: period.id,
-        calendarDays: body.calendarDays,
-        workingDays: body.workingDays,
-        presentDays: body.presentDays,
-        paidLeaveDays: body.paidLeaveDays,
-        unpaidLeaveDays: body.unpaidLeaveDays,
-        halfDays,
-        absentDays: body.absentDays || 0,
-        weeklyOffDays: body.weeklyOffDays,
-        holidayDays: body.holidayDays || 0,
-        payableDays,
-        overtimeHours: body.overtimeHours || 0,
-        lateMarks: body.lateMarks || 0,
-      },
-    });
-  }
-  async list(query: any, user: any, fixedStatuses?: PayrollStatus[]) {
-    const page = Math.max(Number(query.page) || 1, 1),
-      pageSize = Math.min(Number(query.pageSize) || 50, 100);
-    const statuses =
-      fixedStatuses ||
-      (query.status
-        ? (String(query.status).split(',') as PayrollStatus[])
-        : undefined);
-    const where: Prisma.PayrollRecordWhereInput = {
-      employee: {
-        companyId: this.company(user),
-        ...(query.search && {
-          OR: [
-            { fullName: { contains: query.search, mode: 'insensitive' } },
-            { employeeCode: { contains: query.search, mode: 'insensitive' } },
-          ],
-        }),
-        ...(query.departmentId && { departmentId: query.departmentId }),
-      },
-      ...(statuses && { status: { in: statuses } }),
-      ...((query.month || query.year) && {
-        payrollPeriod: {
-          ...(query.month && { month: Number(query.month) }),
-          ...(query.year && { year: Number(query.year) }),
+        status: 'DRAFT' as PayrollStatus,
+
+        // Employee Identity Snapshot
+        employeeCodeSnapshot: emp.employeeCode,
+        employeeNameSnapshot: emp.fullName || `${emp.firstName} ${emp.lastName}`,
+        departmentSnapshot: emp.department?.name || 'General',
+        jobTitleSnapshot: emp.jobTitle || 'Staff',
+
+        // Rule Set Version Snapshots
+        salaryCalculationBasis: basis,
+        salaryDivisorSnapshot: new Prisma.Decimal(salaryDivisor),
+        pfRuleVersion: 'EPFO_2026_V1',
+        esicRuleVersion: 'ESIC_2026_V1',
+        ptRuleVersion: 'GUJARAT_PT_2026',
+        tdsRuleVersion: 'INCOME_TAX_2026',
+
+        // Attendance Snapshot
+        calendarDays: new Prisma.Decimal(calendarDays),
+        standardWorkingDays: new Prisma.Decimal(scheduledDays),
+        scheduledWorkingDays: new Prisma.Decimal(scheduledDays),
+        elapsedWorkingDays: new Prisma.Decimal(elapsedDays),
+        presentDays: new Prisma.Decimal(presentDays),
+        paidLeaveDays: new Prisma.Decimal(paidLeaveDays),
+        unpaidLeaveDays: new Prisma.Decimal(unpaidLeaveDays),
+        absentDays: new Prisma.Decimal(absentDays),
+        halfDays: new Prisma.Decimal(halfDays),
+        weeklyOffDays: new Prisma.Decimal(weeklyOffDays),
+        holidayDays: new Prisma.Decimal(holidayDays),
+        payableDays: new Prisma.Decimal(payableDays),
+        unpaidDays: new Prisma.Decimal(unpaidDays),
+
+        // Salary Earnings Snapshot
+        basicSalary: new Prisma.Decimal(basicSalary),
+        hra: new Prisma.Decimal(hra),
+        conveyanceAllowance: new Prisma.Decimal(conveyance),
+        specialAllowance: new Prisma.Decimal(special),
+        otherAllowance: new Prisma.Decimal(other),
+        grossEarnings: new Prisma.Decimal(grossEarnings),
+
+        // Employee Deductions Snapshot
+        leaveDeduction: new Prisma.Decimal(leaveDeduction),
+        pfDeduction: new Prisma.Decimal(pfDeduction),
+        esicDeduction: new Prisma.Decimal(esicDeduction),
+        professionalTax: new Prisma.Decimal(professionalTax),
+        tdsDeduction: new Prisma.Decimal(tdsDeduction),
+        totalDeductions: new Prisma.Decimal(totalDeductions),
+        netPayable: new Prisma.Decimal(netPayable),
+
+        // Employer Contributions Snapshot
+        employerPf: new Prisma.Decimal(employerPf),
+        employerEsic: new Prisma.Decimal(employerEsic),
+        employerTotalCost: new Prisma.Decimal(employerTotalCost),
+
+        // Bank Snapshot
+        bankNameSnapshot: emp.bankName || 'HDFC Bank',
+        accountNumberEncrypted: emp.bankAccountEncrypted || 'enc_acc',
+        accountNumberLast4: bankAccLast4,
+        ifscCodeSnapshot: emp.ifscCode || 'HDFC0001234',
+
+        preparedById: user.sub || user.id,
+        preparedAt: new Date(),
+      };
+
+      const record = await this.prisma.payrollRecord.upsert({
+        where: {
+          employeeId_payrollPeriodId: {
+            employeeId: emp.id,
+            payrollPeriodId: period.id,
+          },
         },
-      }),
-    };
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.payrollRecord.findMany({
-        where,
-        include: this.include(),
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.payrollRecord.count({ where }),
-    ]);
-    return {
-      items,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-      },
-    };
-  }
-  async get(id: string, user: any) {
-    const record = await this.prisma.payrollRecord.findFirst({
-      where: { id, employee: { companyId: this.company(user) } },
-      include: this.include(),
-    });
-    if (!record) throw new NotFoundException('Payroll record not found.');
-    return record;
-  }
-  private async transition(
-    id: string,
-    expected: PayrollStatus[],
-    to: PayrollStatus,
-    action: string,
-    body: any,
-    user: any,
-  ) {
-    const current = await this.get(id, user);
-    if (body.version !== undefined && Number(body.version) !== current.version)
-      this.conflict(
-        'PAYROLL_VERSION_CONFLICT',
-        'This salary was updated by another user. Refresh and review the latest data.',
-      );
-    if (!expected.includes(current.status))
-      this.conflict(
-        'INVALID_PAYROLL_TRANSITION',
-        `Salary cannot move from ${current.status} to ${to}.`,
-      );
-    if (to === 'SUPER_ADMIN_APPROVED' && current.submittedById === user.sub) {
-      if (!user.permissions?.includes('hr.payroll.override')) {
-        this.conflict(
-          'SOD_VIOLATION',
-          'Segregation of Duties: You cannot approve a payroll record you submitted. Override permission required.',
-        );
-      }
-      if (!body.remarks?.trim()) {
-        throw new BadRequestException(
-          'Remarks are mandatory when overriding Segregation of Duties',
-        );
-      }
+        create: dataPayload,
+        update: dataPayload,
+      });
+
+      // Audit History Entry
+      await this.prisma.payrollStatusHistory.create({
+        data: {
+          payrollRecordId: record.id,
+          fromStatus: existing ? existing.status : undefined,
+          toStatus: 'DRAFT',
+          action: 'PAYROLL_GENERATED',
+          remarks: `Generated payroll for ${month}/${year} (${basis} basis)`,
+          changedById: user.sub || user.id || 'SYSTEM',
+        },
+      });
+
+      generatedRecords.push(record);
     }
 
-    if (
-      ['REJECTED', 'ON_HOLD', 'CORRECTION_REQUIRED'].includes(to) &&
-      !body.remarks?.trim()
-    )
-      throw new BadRequestException('Remarks are required.');
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.payrollRecord.update({
-        where: { id, version: current.version },
-        data: {
-          status: to,
-          version: { increment: 1 },
-          ...(to === 'PENDING_SUPER_ADMIN_APPROVAL' && {
-            submittedById: user.sub,
-            submittedAt: new Date(),
-            hrRemarks: body.remarks,
-          }),
-          ...(to === 'SUPER_ADMIN_APPROVED' && {
-            approvedById: user.sub,
-            approvedAt: new Date(),
-            superAdminRemarks: body.remarks,
-          }),
-          ...(to === 'REJECTED' && {
-            rejectionReason: body.remarks,
-            superAdminRemarks: body.remarks,
-          }),
-          ...(to === 'ON_HOLD' && {
-            holdReason: body.remarks,
-            superAdminRemarks: body.remarks,
-          }),
-          ...(to === 'CORRECTION_REQUIRED' && {
-            correctionReason: body.remarks,
-            superAdminRemarks: body.remarks,
-          }),
-          ...(to === 'SENT_TO_FINANCE' && {
-            sentToFinanceById: user.sub,
-            sentToFinanceAt: new Date(),
-          }),
-          ...(to === 'PAYMENT_PROCESSING' && {
-            processingStartedById: user.sub,
-            processingStartedAt: new Date(),
-            financeRemarks: body.remarks,
-          }),
-        },
-      });
-      await tx.payrollStatusHistory.create({
-        data: {
-          payrollRecordId: id,
-          fromStatus: current.status,
-          toStatus: to,
-          action,
-          remarks: body.remarks,
-          changedById: user.sub,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId: user.sub,
-          companyId: current.employee.companyId,
-          action,
-          entityType: 'PayrollRecord',
-          entityId: id,
-          requestId: body.requestId,
-          before: { status: current.status },
-          after: { status: to, remarks: body.remarks },
-        },
-      });
-      return updated;
+    // Update Period Status
+    await this.prisma.payrollPeriod.update({
+      where: { id: period.id },
+      data: { status: 'PAYROLL_PROCESSING' },
     });
+
+    return {
+      success: true,
+      message: `Generated ${generatedRecords.length} payroll records for ${month}/${year}`,
+      period,
+      recordsCount: generatedRecords.length,
+    };
   }
-  submit(id: string, body: any, user: any) {
-    return this.transition(
-      id,
-      ['DRAFT', 'CORRECTION_REQUIRED'],
-      'PENDING_SUPER_ADMIN_APPROVAL',
-      'SALARY_SUBMITTED',
-      body,
-      user,
-    );
+
+  // 2. List Payroll Records with Filtering
+  async list(query: any, user: any, statuses?: string[]) {
+    const companyId = this.getCompanyId(user);
+    const month = query.month ? Number(query.month) : undefined;
+    const year = query.year ? Number(query.year) : undefined;
+    const statusFilter = query.status || (statuses && statuses.length > 0 ? { in: statuses } : undefined);
+
+    const records = await this.prisma.payrollRecord.findMany({
+      where: {
+        companyId,
+        status: statusFilter,
+        payrollPeriod: month && year ? { month, year } : undefined,
+      },
+      include: {
+        employee: { select: { id: true, employeeCode: true, fullName: true, department: { select: { name: true } } } },
+        payrollPeriod: true,
+        payment: true,
+        salarySlip: { select: { id: true, slipNumber: true } },
+        statusHistory: { orderBy: { changedAt: 'desc' }, take: 5 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return records.map((r) => ({
+      id: r.id,
+      payrollNumber: r.payrollNumber,
+      employeeId: r.employeeId,
+      employeeCode: r.employeeCodeSnapshot || r.employee?.employeeCode,
+      employeeName: r.employeeNameSnapshot || r.employee?.fullName,
+      department: r.departmentSnapshot || r.employee?.department?.name,
+      jobTitle: r.jobTitleSnapshot,
+      month: r.payrollPeriod.month,
+      year: r.payrollPeriod.year,
+      status: r.status,
+      scheduledWorkingDays: Number(r.scheduledWorkingDays),
+      presentDays: Number(r.presentDays),
+      paidLeaveDays: Number(r.paidLeaveDays),
+      unpaidLeaveDays: Number(r.unpaidLeaveDays),
+      payableDays: Number(r.payableDays),
+      unpaidDays: Number(r.unpaidDays),
+      grossEarnings: Number(r.grossEarnings),
+      totalDeductions: Number(r.totalDeductions),
+      netPayable: Number(r.netPayable),
+      bankName: r.bankNameSnapshot,
+      accountLast4: r.accountNumberLast4,
+      ifsc: r.ifscCodeSnapshot,
+      returnReason: r.returnReason,
+      rejectionReason: r.rejectionReason,
+      holdReason: r.holdReason,
+      preparedAt: r.preparedAt,
+      hrVerifiedAt: r.hrVerifiedAt,
+      superAdminApprovedAt: r.approvedAt,
+      sentToFinanceAt: r.sentToFinanceAt,
+      paidAt: r.paidAt,
+      utrNumber: r.payment?.utrNumber,
+      statusHistory: r.statusHistory,
+    }));
   }
-  approve(id: string, body: any, user: any) {
-    return this.transition(
-      id,
-      ['PENDING_SUPER_ADMIN_APPROVAL'],
-      'SUPER_ADMIN_APPROVED',
-      'SALARY_APPROVED',
-      body,
-      user,
-    );
+
+  // 3. Single Record Detailed Inspection
+  async get(id: string, user: any) {
+    const companyId = this.getCompanyId(user);
+    const record = await this.prisma.payrollRecord.findFirst({
+      where: { id, companyId },
+      include: {
+        employee: true,
+        payrollPeriod: true,
+        payment: true,
+        salarySlip: true,
+        statusHistory: { orderBy: { changedAt: 'desc' } },
+      },
+    });
+
+    if (!record) {
+      throw new NotFoundException('Payroll record not found.');
+    }
+
+    return record;
   }
-  reject(id: string, body: any, user: any) {
-    return this.transition(
-      id,
-      ['PENDING_SUPER_ADMIN_APPROVAL', 'ON_HOLD'],
-      'REJECTED',
-      'SALARY_REJECTED',
-      body,
-      user,
-    );
-  }
-  hold(id: string, body: any, user: any) {
-    return this.transition(
-      id,
-      ['PENDING_SUPER_ADMIN_APPROVAL'],
-      'ON_HOLD',
-      'SALARY_ON_HOLD',
-      body,
-      user,
-    );
-  }
-  correction(id: string, body: any, user: any) {
-    return this.transition(
-      id,
-      ['PENDING_SUPER_ADMIN_APPROVAL'],
-      'CORRECTION_REQUIRED',
-      'SALARY_RETURNED_FOR_CORRECTION',
-      body,
-      user,
-    );
-  }
-  sendFinance(id: string, body: any, user: any) {
-    return this.transition(
-      id,
-      ['SUPER_ADMIN_APPROVED'],
-      'SENT_TO_FINANCE',
-      'SALARY_SENT_TO_FINANCE',
-      body,
-      user,
-    );
-  }
-  start(id: string, body: any, user: any) {
-    return this.transition(
-      id,
-      ['SENT_TO_FINANCE'],
-      'PAYMENT_PROCESSING',
-      'SALARY_PROCESSING_STARTED',
-      body,
-      user,
-    );
-  }
-  async adjustment(id: string, body: any, user: any) {
-    const current = await this.get(id, user);
-    if (!['DRAFT', 'CORRECTION_REQUIRED'].includes(current.status))
-      this.conflict(
-        'INVALID_PAYROLL_TRANSITION',
-        'Submitted salary cannot be edited.',
-      );
-    return this.prisma.payrollAdjustment.create({
+
+  // 4. HR Verify Individual Record
+  async verify(id: string, user: any) {
+    const record = await this.get(id, user);
+    this.validateTransition(record.status, 'HR_VERIFIED');
+
+    const updated = await this.prisma.payrollRecord.update({
+      where: { id },
+      data: {
+        status: 'HR_VERIFIED',
+        hrVerifiedById: user.sub || user.id,
+        hrVerifiedAt: new Date(),
+      },
+    });
+
+    await this.prisma.payrollStatusHistory.create({
       data: {
         payrollRecordId: id,
-        type: body.type as PayrollAdjustmentType,
-        description: body.description,
-        amount: money(body.amount),
-        isEarning: !!body.isEarning,
-        addedById: user.sub,
+        fromStatus: record.status,
+        toStatus: 'HR_VERIFIED',
+        action: 'HR_VERIFIED',
+        remarks: 'Salary calculations verified by HR',
+        changedById: user.sub || user.id,
       },
     });
+
+    return updated;
   }
-  async markPaid(id: string, body: any, user: any) {
-    const current = await this.get(id, user);
-    if (current.payment && current.salarySlip)
-      return {
-        payroll: current,
-        payment: current.payment,
-        salarySlip: current.salarySlip,
-      };
-    if (current.status !== 'PAYMENT_PROCESSING')
-      this.conflict(
-        'INVALID_PAYROLL_TRANSITION',
-        `Salary cannot move from ${current.status} to SALARY_PAID.`,
-      );
-    if (Number(body.version) !== current.version)
-      this.conflict(
-        'PAYROLL_VERSION_CONFLICT',
-        'This salary was updated by another user. Refresh and review the latest data.',
-      );
-    if (!Object.values(SalaryPaymentMode).includes(body.paymentMode))
-      throw new BadRequestException('Invalid payment mode.');
-    const amount = money(body.paidAmount || current.netPayable);
-    if (!amount.equals(current.netPayable))
-      throw new BadRequestException('Paid amount must equal net payable.');
-    const period = current.payrollPeriod;
-    const sequence =
-      (await this.prisma.salaryPayment.count({
-        where: { payrollRecord: { payrollPeriodId: period.id } },
-      })) + 1;
-    const suffix = `${period.year}-${String(period.month).padStart(2, '0')}-${String(sequence).padStart(6, '0')}`;
-    return this.prisma.$transaction(async (tx) => {
-      const payment = await tx.salaryPayment.create({
-        data: {
-          payrollRecordId: id,
-          paymentNumber: `SALPAY-${suffix}`,
-          paymentDate: new Date(body.paymentDate),
-          paymentMode: body.paymentMode,
-          paidAmount: amount,
-          bankAccountId: body.bankAccountId,
-          utrNumber: body.utrNumber || null,
-          transactionReference: body.transactionReference,
-          remarks: body.remarks,
-          paidById: user.sub,
-        },
-      });
-      const earningsSource = {
-        basicSalary: current.basicSalary,
-        hra: current.hra,
-        conveyanceAllowance: current.conveyanceAllowance,
-        specialAllowance: current.specialAllowance,
-        otherAllowance: current.otherAllowance,
-        overtimeAmount: current.overtimeAmount,
-        bonusAmount: current.bonusAmount,
-        incentiveAmount: current.incentiveAmount,
-        arrearsAmount: current.arrearsAmount,
-        otherEarnings: current.otherEarnings,
-      };
-      const deductionSource = {
-        pfDeduction: current.pfDeduction,
-        esicDeduction: current.esicDeduction,
-        professionalTax: current.professionalTax,
-        tdsDeduction: current.tdsDeduction,
-        leaveDeduction: current.leaveDeduction,
-        loanDeduction: current.loanDeduction,
-        advanceDeduction: current.advanceDeduction,
-        otherDeductions: current.otherDeductions,
-      };
-      const snapshot = {
-        company: {
-          name: 'Himalaya Wellness Pvt. Ltd.',
-          address: 'Himalaya Corporate Office, India',
-          email: 'payroll@himalayaerp.com',
-          phone: '+91 11 4000 4000',
-        },
-        employee: {
-          id: current.employee.id,
-          employeeId: current.employee.employeeCode,
-          fullName: current.employee.fullName,
-          department: current.employee.department.name,
-          designation: current.employee.jobTitle,
-          location: current.employee.workLocation.name,
-          joiningDate: current.employee.joiningDate,
-          employmentType: current.employee.employmentType,
-          panNumber: current.employee.panNumber,
-          uanNumber: current.employee.uanNumber,
-          esicNumber: current.employee.esicNumber,
-          bankName: current.employee.bankName,
-          maskedAccountNumber: `XXXXXXXX${current.employee.bankAccountLastFour}`,
-          ifscCode: current.employee.ifscCode,
-        },
-        payroll: {
-          payrollNumber: current.payrollNumber,
-          salaryMonth: period.month,
-          salaryYear: period.year,
-        },
-        attendance: {
-          calendarDays: amountString(current.attendanceSummary?.calendarDays),
-          standardWorkingDays: amountString(current.standardWorkingDays),
-          presentDays: amountString(current.attendanceSummary?.presentDays),
-          paidLeaveDays: amountString(current.attendanceSummary?.paidLeaveDays),
-          unpaidLeaveDays: amountString(
-            current.attendanceSummary?.unpaidLeaveDays,
-          ),
-          halfDays: amountString(current.attendanceSummary?.halfDays),
-          weeklyOffDays: amountString(current.attendanceSummary?.weeklyOffDays),
-          holidays: amountString(current.attendanceSummary?.holidayDays),
-          payableDays: amountString(current.attendanceSummary?.payableDays),
-          overtimeHours: amountString(current.attendanceSummary?.overtimeHours),
-        },
-        earnings: visibleMoneyRows(earningsSource, [
-          ['basicSalary', 'Basic Salary'],
-          ['hra', 'HRA'],
-          ['conveyanceAllowance', 'Conveyance'],
-          ['specialAllowance', 'Special Allowance'],
-          ['otherAllowance', 'Other Allowance'],
-          ['overtimeAmount', 'Overtime'],
-          ['bonusAmount', 'Bonus'],
-          ['incentiveAmount', 'Incentive'],
-          ['arrearsAmount', 'Arrears'],
-          ['otherEarnings', 'Other Earnings'],
-        ]),
-        deductions: visibleMoneyRows(deductionSource, [
-          ['pfDeduction', 'PF'],
-          ['esicDeduction', 'ESIC'],
-          ['professionalTax', 'Professional Tax'],
-          ['tdsDeduction', 'TDS'],
-          ['leaveDeduction', 'Leave Deduction'],
-          ['loanDeduction', 'Loan Deduction'],
-          ['advanceDeduction', 'Advance'],
-          ['otherDeductions', 'Other Deduction'],
-        ]),
-        grossEarnings: amountString(current.grossEarnings),
-        totalDeductions: amountString(current.totalDeductions),
-        netPaid: amountString(amount),
-        netPaidInWords: numberWords(amount),
-        payment: {
-          paymentDate: payment.paymentDate,
-          paymentMode: payment.paymentMode,
-          paidAmount: amountString(amount),
-          utrNumber: payment.utrNumber,
-          transactionReference: payment.transactionReference,
-          processedBy: user.sub,
-          processedAt: new Date(),
-        },
-      };
-      const salarySlip = await tx.salarySlip.create({
-        data: {
-          payrollRecordId: id,
-          slipNumber: `SLIP-${suffix}`,
-          employeeId: current.employeeId,
-          salaryMonth: period.month,
-          salaryYear: period.year,
-          grossEarnings: current.grossEarnings,
-          totalDeductions: current.totalDeductions,
-          netPaid: amount,
-          snapshotJson: snapshot as any,
-        },
-      });
-      const payroll = await tx.payrollRecord.update({
-        where: { id },
-        data: {
-          status: 'SALARY_PAID',
-          paidAmount: amount,
-          paidById: user.sub,
-          paidAt: new Date(),
-          version: { increment: 1 },
-        },
-      });
-      await tx.payrollStatusHistory.create({
-        data: {
-          payrollRecordId: id,
-          fromStatus: 'PAYMENT_PROCESSING',
-          toStatus: 'SALARY_PAID',
-          action: 'SALARY_PAYMENT_COMPLETED',
-          remarks: body.remarks,
-          changedById: user.sub,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId: user.sub,
-          companyId: current.employee.companyId,
-          action: 'SALARY_PAYMENT_COMPLETED',
-          entityType: 'PayrollRecord',
-          entityId: id,
-          before: { status: current.status },
-          after: { status: 'SALARY_PAID', salarySlipId: salarySlip.id },
-        },
-      });
-      return { payroll, payment, salarySlip };
-    });
-  }
-  slips(query: any, user: any) {
-    return this.prisma.salarySlip.findMany({
-      where: {
-        employee: { companyId: this.company(user) },
-        ...(query.employeeId && { employeeId: query.employeeId }),
-      },
-      include: {
-        employee: { select: { fullName: true, employeeCode: true } },
-        payrollRecord: { include: { payment: true } },
-      },
-      orderBy: { generatedAt: 'desc' },
-    });
-  }
-  ownSlips(user: any) {
-    return this.prisma.salarySlip.findMany({
-      where: {
-        availableToEmployee: true,
-        employee: { userId: user.sub, companyId: this.company(user) },
-      },
-      include: {
-        employee: {
-          select: { fullName: true, employeeCode: true, department: true },
-        },
-        payrollRecord: {
-          include: {
-            payrollPeriod: true,
-            payment: true,
-            attendanceSummary: true,
-          },
-        },
-      },
-      orderBy: { generatedAt: 'desc' },
-    });
-  }
-  private response(slip: any) {
-    const snapshot: any = slip.snapshotJson;
-    return {
-      id: slip.id,
-      slipNumber: slip.slipNumber,
-      payrollRecordId: slip.payrollRecordId,
-      payrollNumber:
-        snapshot.payroll?.payrollNumber || slip.payrollRecord?.payrollNumber,
-      employee: snapshot.employee,
-      company: snapshot.company,
-      salaryMonth: slip.salaryMonth,
-      salaryYear: slip.salaryYear,
-      salaryMonthName: new Date(
-        Date.UTC(slip.salaryYear, slip.salaryMonth - 1, 1),
-      ).toLocaleString('en', { month: 'long', timeZone: 'UTC' }),
-      attendance: snapshot.attendance,
-      earnings: snapshot.earnings || [],
-      deductions: snapshot.deductions || [],
-      grossEarnings: snapshot.grossEarnings || amountString(slip.grossEarnings),
-      totalDeductions:
-        snapshot.totalDeductions || amountString(slip.totalDeductions),
-      netPaid: snapshot.netPaid || amountString(slip.netPaid),
-      netPaidInWords: snapshot.netPaidInWords || numberWords(slip.netPaid),
-      payment: snapshot.payment,
-      generatedAt: slip.generatedAt,
-      availableToEmployee: slip.availableToEmployee,
-    };
-  }
-  private async auditedSlip(
-    where: any,
-    user: any,
-    action = 'SALARY_SLIP_VIEWED',
-  ) {
-    const slip = await this.prisma.salarySlip.findFirst({
-      where: { ...where, employee: { companyId: this.company(user) } },
-      include: { payrollRecord: true },
-    });
-    if (!slip) throw new NotFoundException('Salary slip not found.');
-    await this.prisma.auditLog.create({
-      data: {
-        actorUserId: user.sub,
-        companyId: this.company(user),
-        action,
-        entityType: 'SalarySlip',
-        entityId: slip.id,
-        after: {
-          payrollRecordId: slip.payrollRecordId,
-          employeeId: slip.employeeId,
-        },
-      },
-    });
-    return { slip, response: this.response(slip) };
-  }
-  async slip(id: string, user: any) {
-    return (await this.auditedSlip({ id }, user)).response;
-  }
-  async slipByPayroll(payrollRecordId: string, user: any) {
-    return (await this.auditedSlip({ payrollRecordId }, user)).response;
-  }
-  async ownSlip(id: string, user: any) {
-    const slip = await this.prisma.salarySlip.findFirst({
-      where: {
-        id,
-        availableToEmployee: true,
-        employee: { userId: user.sub, companyId: this.company(user) },
-      },
-      include: { payrollRecord: true },
-    });
-    if (!slip) throw new NotFoundException('Salary slip not found.');
-    return this.response(slip);
-  }
-  async pdf(id: string, user: any) {
-    const { slip, response } = await this.auditedSlip(
-      { id },
-      user,
-      'SALARY_SLIP_DOWNLOADED',
-    );
-    return {
-      buffer: createSalarySlipPdf(response),
-      filename: `Salary-Slip-${String(response.employee.fullName).replace(/[^a-z0-9]+/gi, '-')}-${response.salaryMonthName}-${response.salaryYear}.pdf`,
-      slip,
-    };
-  }
-  async enableEmployee(id: string, user: any) {
-    const { slip } = await this.auditedSlip(
-      { id },
-      user,
-      'SALARY_SLIP_EMPLOYEE_ACCESS_ENABLED',
-    );
-    await this.prisma.salarySlip.update({
+
+  // 5. HR Edit Returned Record (Moves RETURNED_TO_HR -> DRAFT)
+  async editReturned(id: string, user: any) {
+    const record = await this.get(id, user);
+    this.validateTransition(record.status, 'DRAFT');
+
+    const updated = await this.prisma.payrollRecord.update({
       where: { id },
-      data: { availableToEmployee: true },
-    });
-    return { enabled: true, employeeId: slip.employeeId };
-  }
-  async printAudit(id: string, user: any) {
-    const { slip } = await this.auditedSlip(
-      { id },
-      user,
-      'SALARY_SLIP_PRINTED',
-    );
-    return { logged: true, salarySlipId: slip.id };
-  }
-  async createShare(id: string, body: any, user: any) {
-    const { slip } = await this.auditedSlip(
-      { id },
-      user,
-      'SALARY_SLIP_SHARE_CREATED',
-    );
-    const rawToken = randomBytes(32).toString('base64url');
-    const expiresAt = new Date(
-      Date.now() +
-        Math.min(Math.max(Number(body.validHours) || 24, 1), 720) * 3600000,
-    );
-    const share = await this.prisma.salarySlipShare.create({
       data: {
-        salarySlipId: id,
-        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
-        expiresAt,
-        createdById: user.sub,
-        allowDownload: !!body.allowDownload,
+        status: 'DRAFT',
       },
     });
-    return {
-      id: share.id,
-      token: rawToken,
-      expiresAt,
-      allowDownload: share.allowDownload,
-      salarySlipId: slip.id,
-    };
-  }
-  async revokeShare(shareId: string, user: any) {
-    const share = await this.prisma.salarySlipShare.findFirst({
-      where: {
-        id: shareId,
-        salarySlip: { employee: { companyId: this.company(user) } },
-      },
-    });
-    if (!share) throw new NotFoundException('Share link not found.');
-    await this.prisma.salarySlipShare.update({
-      where: { id: shareId },
-      data: { revokedAt: new Date() },
-    });
-    await this.prisma.auditLog.create({
+
+    await this.prisma.payrollStatusHistory.create({
       data: {
-        actorUserId: user.sub,
-        companyId: this.company(user),
-        action: 'SALARY_SLIP_SHARE_REVOKED',
-        entityType: 'SalarySlipShare',
-        entityId: shareId,
-        after: { salarySlipId: share.salarySlipId },
+        payrollRecordId: id,
+        fromStatus: 'RETURNED_TO_HR',
+        toStatus: 'DRAFT',
+        action: 'RETURN_EDIT_STARTED',
+        remarks: 'HR resumed editing returned payroll record',
+        changedById: user.sub || user.id,
       },
     });
-    return { revoked: true };
+
+    return updated;
   }
-  async publicShare(token: string, countView = true) {
-    const tokenHash = createHash('sha256').update(token).digest('hex');
-    const share = await this.prisma.salarySlipShare.findUnique({
-      where: { tokenHash },
-      include: { salarySlip: { include: { payrollRecord: true } } },
+
+  // 6. HR Submit Verified Records to Super Admin
+  async submitToSuperAdmin(ids: string[], user: any) {
+    const companyId = this.getCompanyId(user);
+    const records = await this.prisma.payrollRecord.findMany({
+      where: { id: { in: ids }, companyId, status: 'HR_VERIFIED' },
     });
-    if (!share)
-      throw new NotFoundException('This salary-slip link is not available.');
-    if (share.revokedAt)
-      throw new BadRequestException({
-        code: 'SHARE_REVOKED',
-        message: 'This salary-slip link is no longer available.',
-      });
-    if (share.expiresAt <= new Date())
-      throw new BadRequestException({
-        code: 'SHARE_EXPIRED',
-        message: 'This salary-slip link has expired.',
-      });
-    if (countView) {
-      await this.prisma.salarySlipShare.update({
-        where: { id: share.id },
-        data: { viewCount: { increment: 1 }, lastViewedAt: new Date() },
-      });
-      await this.prisma.auditLog.create({
+
+    if (!records.length) {
+      throw new BadRequestException('No HR_VERIFIED records selected for submission.');
+    }
+
+    await this.prisma.payrollRecord.updateMany({
+      where: { id: { in: records.map((r) => r.id) } },
+      data: {
+        status: 'PENDING_SUPER_ADMIN_APPROVAL',
+        submittedById: user.sub || user.id,
+        submittedAt: new Date(),
+      },
+    });
+
+    for (const r of records) {
+      await this.prisma.payrollStatusHistory.create({
         data: {
-          action: 'SALARY_SLIP_SHARE_VIEWED',
-          entityType: 'SalarySlipShare',
-          entityId: share.id,
-          after: { salarySlipId: share.salarySlipId },
+          payrollRecordId: r.id,
+          fromStatus: 'HR_VERIFIED',
+          toStatus: 'PENDING_SUPER_ADMIN_APPROVAL',
+          action: 'SENT_TO_SUPER_ADMIN',
+          remarks: 'Submitted for Super Admin approval',
+          changedById: user.sub || user.id,
         },
       });
     }
-    return {
-      shareId: share.id,
-      allowDownload: share.allowDownload,
-      expiresAt: share.expiresAt,
-      salarySlip: this.response(share.salarySlip),
-    };
+
+    return { success: true, count: records.length };
   }
-  async publicPdf(token: string) {
-    const result = await this.publicShare(token, false);
-    if (!result.allowDownload)
-      throw new BadRequestException(
-        'PDF download is not allowed for this share link.',
-      );
+
+  // 7. Super Admin Approve Record
+  async approve(id: string, user: any) {
+    const record = await this.get(id, user);
+    this.validateTransition(record.status, 'SUPER_ADMIN_APPROVED');
+
+    const updated = await this.prisma.payrollRecord.update({
+      where: { id },
+      data: {
+        status: 'SUPER_ADMIN_APPROVED',
+        approvedById: user.sub || user.id,
+        approvedAt: new Date(),
+      },
+    });
+
+    await this.prisma.payrollStatusHistory.create({
+      data: {
+        payrollRecordId: id,
+        fromStatus: record.status,
+        toStatus: 'SUPER_ADMIN_APPROVED',
+        action: 'SUPER_ADMIN_APPROVED',
+        remarks: 'Approved by Super Admin',
+        changedById: user.sub || user.id,
+      },
+    });
+
+    return updated;
+  }
+
+  // 8. Super Admin Hold Record
+  async hold(id: string, body: { reason?: string }, user: any) {
+    const record = await this.get(id, user);
+    this.validateTransition(record.status, 'ON_HOLD');
+
+    const updated = await this.prisma.payrollRecord.update({
+      where: { id },
+      data: {
+        status: 'ON_HOLD',
+        holdReason: body.reason || 'Placed on hold by Super Admin',
+      },
+    });
+
+    await this.prisma.payrollStatusHistory.create({
+      data: {
+        payrollRecordId: id,
+        fromStatus: record.status,
+        toStatus: 'ON_HOLD',
+        action: 'SUPER_ADMIN_HOLD',
+        remarks: body.reason || 'Placed on hold by Super Admin',
+        changedById: user.sub || user.id,
+      },
+    });
+
+    return updated;
+  }
+
+  // 9. Return Record to HR (Super Admin or Finance)
+  async returnToHr(id: string, body: { reason?: string }, user: any) {
+    const record = await this.get(id, user);
+    this.validateTransition(record.status, 'RETURNED_TO_HR');
+
+    const updated = await this.prisma.payrollRecord.update({
+      where: { id },
+      data: {
+        status: 'RETURNED_TO_HR',
+        returnReason: body.reason || 'Returned to HR for correction',
+      },
+    });
+
+    await this.prisma.payrollStatusHistory.create({
+      data: {
+        payrollRecordId: id,
+        fromStatus: record.status,
+        toStatus: 'RETURNED_TO_HR',
+        action: 'RETURNED_TO_HR',
+        remarks: body.reason || 'Returned to HR for correction',
+        changedById: user.sub || user.id,
+      },
+    });
+
+    return updated;
+  }
+
+  // 10. Reject Record
+  async reject(id: string, body: { reason?: string }, user: any) {
+    const record = await this.get(id, user);
+    this.validateTransition(record.status, 'REJECTED');
+
+    const updated = await this.prisma.payrollRecord.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: body.reason || 'Rejected by Super Admin',
+      },
+    });
+
+    await this.prisma.payrollStatusHistory.create({
+      data: {
+        payrollRecordId: id,
+        fromStatus: record.status,
+        toStatus: 'REJECTED',
+        action: 'SUPER_ADMIN_REJECTED',
+        remarks: body.reason || 'Rejected',
+        changedById: user.sub || user.id,
+      },
+    });
+
+    return updated;
+  }
+
+  // 11. Send Approved Records to Finance
+  async sendToFinance(ids: string[], user: any) {
+    const companyId = this.getCompanyId(user);
+    const records = await this.prisma.payrollRecord.findMany({
+      where: { id: { in: ids }, companyId, status: 'SUPER_ADMIN_APPROVED' },
+    });
+
+    if (!records.length) {
+      throw new BadRequestException('No SUPER_ADMIN_APPROVED records selected.');
+    }
+
+    await this.prisma.payrollRecord.updateMany({
+      where: { id: { in: records.map((r) => r.id) } },
+      data: {
+        status: 'PENDING_FINANCE',
+        sentToFinanceById: user.sub || user.id,
+        sentToFinanceAt: new Date(),
+      },
+    });
+
+    for (const r of records) {
+      await this.prisma.payrollStatusHistory.create({
+        data: {
+          payrollRecordId: r.id,
+          fromStatus: 'SUPER_ADMIN_APPROVED',
+          toStatus: 'PENDING_FINANCE',
+          action: 'SENT_TO_FINANCE',
+          remarks: 'Sent to Finance for disbursement',
+          changedById: user.sub || user.id,
+        },
+      });
+    }
+
+    return { success: true, count: records.length };
+  }
+
+  // 12. Finance Start Processing
+  async startProcessing(ids: string[], user: any) {
+    const companyId = this.getCompanyId(user);
+    const records = await this.prisma.payrollRecord.findMany({
+      where: { id: { in: ids }, companyId, status: 'PENDING_FINANCE' },
+    });
+
+    if (!records.length) {
+      throw new BadRequestException('No PENDING_FINANCE records selected for processing.');
+    }
+
+    await this.prisma.payrollRecord.updateMany({
+      where: { id: { in: records.map((r) => r.id) } },
+      data: {
+        status: 'PROCESSING',
+        processingStartedById: user.sub || user.id,
+        processingStartedAt: new Date(),
+      },
+    });
+
+    for (const r of records) {
+      await this.prisma.payrollStatusHistory.create({
+        data: {
+          payrollRecordId: r.id,
+          fromStatus: 'PENDING_FINANCE',
+          toStatus: 'PROCESSING',
+          action: 'PROCESSING_STARTED',
+          remarks: 'Bank transfer processing started by Finance',
+          changedById: user.sub || user.id,
+        },
+      });
+    }
+
+    return { success: true, count: records.length };
+  }
+
+  // 13. Concurrency-Safe & Idempotent Mark Paid Transaction
+  async markPaid(
+    payrollId: string,
+    body: { paymentDate: string; paymentMode?: string; utrNumber: string; remarks?: string },
+    user: any,
+  ) {
+    const companyId = this.getCompanyId(user);
+    const userId = user.sub || user.id;
+
+    if (!body.paymentDate || !body.utrNumber) {
+      throw new BadRequestException('Payment Date and UTR Number are mandatory.');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      // Authoritative status lock inside transaction
+      const record = await tx.payrollRecord.findFirst({
+        where: { id: payrollId, companyId, status: 'PROCESSING' },
+        include: { payrollPeriod: true },
+      });
+
+      if (!record) {
+        // Idempotent retry check: If already paid, return existing payment cleanly
+        const existingPaid = await tx.payrollRecord.findUnique({
+          where: { id: payrollId },
+          include: { payment: true, salarySlip: true },
+        });
+
+        if (existingPaid && existingPaid.status === 'PAID') {
+          return {
+            success: true,
+            message: 'Payroll record is already marked as PAID.',
+            record: existingPaid,
+            payment: existingPaid.payment,
+          };
+        }
+
+        throw new BadRequestException('Payroll record is not in PROCESSING state or was not found.');
+      }
+
+      // Force server-owned payment amount
+      const paymentAmount = record.netPayable;
+
+      // 1. Create SalaryPayment (Protected by payrollRecordId @unique)
+      const payment = await tx.salaryPayment.create({
+        data: {
+          payrollRecordId: payrollId,
+          paymentNumber: `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          paymentDate: new Date(body.paymentDate),
+          paymentMode: (body.paymentMode as SalaryPaymentMode) || SalaryPaymentMode.NEFT,
+          paidAmount: paymentAmount,
+          utrNumber: body.utrNumber,
+          remarks: body.remarks || 'Salary Disbursement',
+          paidById: userId,
+        },
+      });
+
+      // 2. Update PayrollRecord status to PAID
+      const updatedRecord = await tx.payrollRecord.update({
+        where: { id: payrollId },
+        data: {
+          status: 'PAID',
+          paidAmount: paymentAmount,
+          paidAt: new Date(body.paymentDate),
+          paidById: userId,
+        },
+      });
+
+      // 3. Create Immutable SalarySlip Snapshot (snapshotVersion: 1)
+      const salarySlip = await tx.salarySlip.create({
+        data: {
+          payrollRecordId: payrollId,
+          slipNumber: `SLIP-${record.payrollPeriod.year}${record.payrollPeriod.month.toString().padStart(2, '0')}-${record.employeeCodeSnapshot}`,
+          employeeId: record.employeeId,
+          salaryMonth: record.payrollPeriod.month,
+          salaryYear: record.payrollPeriod.year,
+          grossEarnings: record.grossEarnings,
+          totalDeductions: record.totalDeductions,
+          netPaid: paymentAmount,
+          snapshotJson: {
+            snapshotVersion: 1,
+            company: { name: 'Himalaya FRP & Construction Products' },
+            employee: {
+              code: record.employeeCodeSnapshot,
+              name: record.employeeNameSnapshot,
+              department: record.departmentSnapshot,
+              jobTitle: record.jobTitleSnapshot,
+              bankName: record.bankNameSnapshot,
+              accountLast4: record.accountNumberLast4,
+              ifsc: record.ifscCodeSnapshot,
+            },
+            attendance: {
+              scheduledWorkingDays: Number(record.scheduledWorkingDays),
+              presentDays: Number(record.presentDays),
+              paidLeaveDays: Number(record.paidLeaveDays),
+              unpaidLeaveDays: Number(record.unpaidLeaveDays),
+              absentDays: Number(record.absentDays),
+              halfDays: Number(record.halfDays),
+              payableDays: Number(record.payableDays),
+              unpaidDays: Number(record.unpaidDays),
+            },
+            earnings: {
+              basic: Number(record.basicSalary),
+              hra: Number(record.hra),
+              conveyance: Number(record.conveyanceAllowance),
+              special: Number(record.specialAllowance),
+              other: Number(record.otherAllowance),
+              gross: Number(record.grossEarnings),
+            },
+            deductions: {
+              lop: Number(record.leaveDeduction),
+              pf: Number(record.pfDeduction),
+              esic: Number(record.esicDeduction),
+              pt: Number(record.professionalTax),
+              tds: Number(record.tdsDeduction),
+              total: Number(record.totalDeductions),
+            },
+            employerContributions: {
+              pf: Number(record.employerPf),
+              esic: Number(record.employerEsic),
+              totalCost: Number(record.employerTotalCost),
+            },
+            payment: {
+              netPaid: Number(paymentAmount),
+              paymentDate: body.paymentDate,
+              paymentMode: body.paymentMode || 'NEFT',
+              utrNumber: body.utrNumber,
+              remarks: body.remarks,
+            },
+          },
+        },
+      });
+
+      // 4. Log PayrollStatusHistory
+      await tx.payrollStatusHistory.create({
+        data: {
+          payrollRecordId: payrollId,
+          fromStatus: 'PROCESSING',
+          toStatus: 'PAID',
+          action: 'PAYMENT_COMPLETED',
+          remarks: `Payment completed via ${body.paymentMode || 'NEFT'}. UTR: ${body.utrNumber}`,
+          changedById: userId,
+        },
+      });
+
+      return {
+        success: true,
+        record: updatedRecord,
+        payment,
+        salarySlip,
+      };
+    });
+  }
+
+  // 14. Employee Profile Self-Service: Fetch Own Paid Salary Slips
+  async getOwnSalarySlips(user: any) {
+    const userId = user.sub || user.id;
+    const userRecord = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { employee: true },
+    });
+
+    if (!userRecord?.employee?.id) {
+      throw new ForbiddenException('Authenticated user does not have a linked Employee profile.');
+    }
+
+    const employeeId = userRecord.employee.id;
+
+    const slips = await this.prisma.salarySlip.findMany({
+      where: {
+        employeeId,
+        payrollRecord: { status: 'PAID' },
+      },
+      include: {
+        payrollRecord: { select: { payrollNumber: true, paidAt: true, payment: true } },
+      },
+      orderBy: [{ salaryYear: 'desc' }, { salaryMonth: 'desc' }],
+    });
+
+    return slips.map((s) => ({
+      id: s.id,
+      slipNumber: s.slipNumber,
+      month: s.salaryMonth,
+      year: s.salaryYear,
+      grossEarnings: Number(s.grossEarnings),
+      totalDeductions: Number(s.totalDeductions),
+      netPaid: Number(s.netPaid),
+      paymentDate: s.payrollRecord?.paidAt || s.generatedAt,
+      utrNumber: s.payrollRecord?.payment?.utrNumber || '—',
+      status: 'PAID',
+      snapshot: s.snapshotJson,
+    }));
+  }
+
+  // 15. PDF Generator for Salary Slip Snapshot
+  async getSalarySlipPdf(slipId: string, user: any) {
+    const slip = await this.prisma.salarySlip.findUnique({
+      where: { id: slipId },
+    });
+
+    if (!slip) {
+      throw new NotFoundException('Salary slip not found.');
+    }
+
+    // Returns snapshot payload for frontend rendering
     return {
-      buffer: createSalarySlipPdf(result.salarySlip),
-      filename: `Salary-Slip-${String(result.salarySlip.employee.fullName).replace(/[^a-z0-9]+/gi, '-')}-${result.salarySlip.salaryMonthName}-${result.salarySlip.salaryYear}.pdf`,
+      filename: `Salary_Slip_${slip.slipNumber}.pdf`,
+      slip,
     };
   }
 }

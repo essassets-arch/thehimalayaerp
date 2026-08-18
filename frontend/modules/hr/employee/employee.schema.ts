@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import { validateVerhoeff } from './employee.utils';
 
 // ── Regex Patterns ──
 export const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -33,9 +32,9 @@ export const employeeRegistrationSchema = z
     designation: z.string().min(1, 'Job Title is mandatory').trim(),
     department: z.string().min(1, 'Department is mandatory'),
     managerId: z.string().optional(),
-    workLocation: z.enum(['Head Office', 'Plant', 'Warehouse', 'Field', 'Remote', 'Other'], {
-      message: 'Work Location is mandatory',
-    }),
+    // Locations are configured in the database, so retain their ID rather
+    // than constraining registration to a stale, hard-coded list.
+    workLocation: z.string().min(1, 'Work Location is mandatory'),
     employmentType: z.enum(
       ['Full-time', 'Part-time', 'Contract', 'Intern', 'Temporary', 'Consultant'],
       { message: 'Employment Type is mandatory' }
@@ -81,8 +80,7 @@ export const employeeRegistrationSchema = z
     aadhaar: z
       .string()
       .transform((v) => v.replace(/\D/g, ''))
-      .refine((v) => aadhaarRegex.test(v), 'Aadhaar must be 12 digits starting with 2–9')
-      .refine((v) => validateVerhoeff(v), 'Aadhaar failed Verhoeff checksum validation'),
+      .refine((v) => aadhaarRegex.test(v), 'Aadhaar must be 12 digits starting with 2–9'),
     uan: z.string().optional(),
     esic: z.string().optional(),
 

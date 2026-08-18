@@ -36,14 +36,13 @@ export class AttendanceController {
   }
 
   @Get('summary')
-  getAttendanceSummary(@Req() req: any) {
+  getAttendanceSummary(@Req() req: any, @Query('date') dateStr?: string) {
     const role = req.user.role;
-    // Authorized roles: Super Admin, Admin, HR
     if (role !== 'HR' && role !== 'SUPER_ADMIN' && role !== 'ADMIN' && role !== 'Super Admin' && role !== 'Admin') {
       throw new ForbiddenException('Not authorized to access attendance summary');
     }
     const companyId = req.user.companyId;
-    return this.attendanceService.getAttendanceSummary(companyId);
+    return this.attendanceService.getAttendanceSummary(companyId, dateStr);
   }
 
   @Get()
@@ -56,16 +55,6 @@ export class AttendanceController {
     return this.attendanceService.listCompanyAttendance(companyId, query);
   }
 
-  @Get(':id')
-  getAttendanceById(@Req() req: any, @Param('id') id: string) {
-    const role = req.user.role;
-    if (role !== 'HR' && role !== 'SUPER_ADMIN' && role !== 'ADMIN' && role !== 'Super Admin' && role !== 'Admin') {
-      throw new ForbiddenException('Not authorized to access attendance details');
-    }
-    const companyId = req.user.companyId;
-    return this.attendanceService.getAttendanceById(companyId, id);
-  }
-
   // Shift policy management
   @Get('policies')
   getAllShiftPolicies() {
@@ -75,5 +64,16 @@ export class AttendanceController {
   @Post('policies/:deptName')
   saveShiftPolicy(@Param('deptName') deptName: string, @Body() body: any) {
     return this.attendanceService.saveShiftPolicy(deptName, body);
+  }
+
+  // HR Employee Attendance breakdown endpoint
+  @Get('employees/:employeeId')
+  getEmployeeMonthlyAttendance(@Req() req: any, @Param('employeeId') employeeId: string, @Query('month') monthStr?: string) {
+    const role = req.user.role;
+    if (role !== 'HR' && role !== 'SUPER_ADMIN' && role !== 'ADMIN' && role !== 'Super Admin' && role !== 'Admin') {
+      throw new ForbiddenException('Not authorized to access employee attendance details');
+    }
+    const companyId = req.user.companyId;
+    return this.attendanceService.getEmployeeMonthlyAttendance(employeeId, companyId, monthStr);
   }
 }

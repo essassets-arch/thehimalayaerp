@@ -696,6 +696,7 @@ model Employee {
   completedDraft         EmployeeDraft?                     @relation("CompletedEmployeeDraft")
   leaveRequests          LeaveRequest[]
   manualAttendanceRequests ManualAttendanceRequest[]
+  attendances            Attendance[]
 
   @@index([companyId, status])
   @@index([departmentId])
@@ -754,16 +755,15 @@ enum PayrollPeriodStatus {
 
 enum PayrollStatus {
   DRAFT
-  READY_FOR_SUBMISSION
+  HR_VERIFIED
   PENDING_SUPER_ADMIN_APPROVAL
   SUPER_ADMIN_APPROVED
-  REJECTED
   ON_HOLD
-  CORRECTION_REQUIRED
-  SENT_TO_FINANCE
-  PAYMENT_PROCESSING
-  SALARY_PAID
-  PAYMENT_FAILED
+  RETURNED_TO_HR
+  REJECTED
+  PENDING_FINANCE
+  PROCESSING
+  PAID
   CANCELLED
 }
 
@@ -794,6 +794,7 @@ enum SalaryPaymentMode {
 
 model PayrollPeriod {
   id             String                             @id @default(uuid())
+  companyId      String                             @default("COMP-001")
   month          Int
   year           Int
   startDate      DateTime
@@ -801,12 +802,14 @@ model PayrollPeriod {
   status         PayrollPeriodStatus                @default(OPEN)
   lockedAt       DateTime?
   lockedById     String?
+  closedAt       DateTime?
+  closedById     String?
   createdAt      DateTime                           @default(now())
   updatedAt      DateTime                           @updatedAt
   payrollRecords PayrollRecord[]
   summaries      EmployeeMonthlyAttendanceSummary[]
 
-  @@unique([month, year])
+  @@unique([companyId, month, year])
   @@index([status])
 }
 
@@ -859,73 +862,117 @@ model EmployeeMonthlyAttendanceSummary {
 }
 
 model PayrollRecord {
-  id                    String                            @id @default(uuid())
-  payrollNumber         String                            @unique
-  employeeId            String
-  payrollPeriodId       String
-  attendanceSummaryId   String?                           @unique
-  status                PayrollStatus                     @default(DRAFT)
-  calendarDays          Decimal                           @default(0) @db.Decimal(6, 2)
-  standardWorkingDays   Decimal                           @default(0) @db.Decimal(6, 2)
-  presentDays           Decimal                           @default(0) @db.Decimal(6, 2)
-  paidLeaveDays         Decimal                           @default(0) @db.Decimal(6, 2)
-  unpaidLeaveDays       Decimal                           @default(0) @db.Decimal(6, 2)
-  payableDays           Decimal                           @default(0) @db.Decimal(6, 2)
-  overtimeHours         Decimal                           @default(0) @db.Decimal(8, 2)
-  basicSalary           Decimal                           @default(0) @db.Decimal(14, 2)
-  hra                   Decimal                           @default(0) @db.Decimal(14, 2)
-  conveyanceAllowance   Decimal                           @default(0) @db.Decimal(14, 2)
-  specialAllowance      Decimal                           @default(0) @db.Decimal(14, 2)
-  otherAllowance        Decimal                           @default(0) @db.Decimal(14, 2)
-  overtimeAmount        Decimal                           @default(0) @db.Decimal(14, 2)
-  bonusAmount           Decimal                           @default(0) @db.Decimal(14, 2)
-  incentiveAmount       Decimal                           @default(0) @db.Decimal(14, 2)
-  arrearsAmount         Decimal                           @default(0) @db.Decimal(14, 2)
-  otherEarnings         Decimal                           @default(0) @db.Decimal(14, 2)
-  grossEarnings         Decimal                           @default(0) @db.Decimal(14, 2)
-  leaveDeduction        Decimal                           @default(0) @db.Decimal(14, 2)
-  pfDeduction           Decimal                           @default(0) @db.Decimal(14, 2)
-  esicDeduction         Decimal                           @default(0) @db.Decimal(14, 2)
-  professionalTax       Decimal                           @default(0) @db.Decimal(14, 2)
-  tdsDeduction          Decimal                           @default(0) @db.Decimal(14, 2)
-  loanDeduction         Decimal                           @default(0) @db.Decimal(14, 2)
-  advanceDeduction      Decimal                           @default(0) @db.Decimal(14, 2)
-  otherDeductions       Decimal                           @default(0) @db.Decimal(14, 2)
-  totalDeductions       Decimal                           @default(0) @db.Decimal(14, 2)
-  netPayable            Decimal                           @default(0) @db.Decimal(14, 2)
-  paidAmount            Decimal                           @default(0) @db.Decimal(14, 2)
-  hrRemarks             String?
-  superAdminRemarks     String?
-  financeRemarks        String?
-  preparedById          String?
-  preparedAt            DateTime?
-  submittedById         String?
-  submittedAt           DateTime?
-  approvedById          String?
-  approvedAt            DateTime?
-  sentToFinanceById     String?
-  sentToFinanceAt       DateTime?
-  processingStartedById String?
-  processingStartedAt   DateTime?
-  paidById              String?
-  paidAt                DateTime?
-  rejectionReason       String?
-  holdReason            String?
-  correctionReason      String?
-  version               Int                               @default(1)
-  createdAt             DateTime                          @default(now())
-  updatedAt             DateTime                          @updatedAt
-  employee              Employee                          @relation(fields: [employeeId], references: [id])
-  payrollPeriod         PayrollPeriod                     @relation(fields: [payrollPeriodId], references: [id])
-  attendanceSummary     EmployeeMonthlyAttendanceSummary? @relation(fields: [attendanceSummaryId], references: [id])
-  payment               SalaryPayment?
-  salarySlip            SalarySlip?
-  adjustments           PayrollAdjustment[]
-  statusHistory         PayrollStatusHistory[]
+  id                          String                            @id @default(uuid())
+  payrollNumber               String                            @unique
+  companyId                   String                            @default("COMP-001")
+  employeeId                  String
+  payrollPeriodId             String
+  attendanceSummaryId         String?                           @unique
+  status                      PayrollStatus                     @default(DRAFT)
+
+  // Employee Identity Snapshot
+  employeeCodeSnapshot        String                            @default("")
+  employeeNameSnapshot        String                            @default("")
+  departmentSnapshot          String                            @default("")
+  jobTitleSnapshot            String                            @default("")
+
+  // Policy & Statutory Rule Version Snapshots
+  salaryCalculationBasis      String                            @default("WORKING_DAYS")
+  salaryDivisorSnapshot       Decimal                           @default(25) @db.Decimal(6, 2)
+  pfRuleVersion               String                            @default("EPFO_2026_V1")
+  esicRuleVersion             String                            @default("ESIC_2026_V1")
+  ptRuleVersion               String                            @default("GUJARAT_PT_2026")
+  tdsRuleVersion              String                            @default("INCOME_TAX_2026")
+
+  // Attendance Snapshot (Frozen at generation)
+  calendarDays                Decimal                           @default(0) @db.Decimal(6, 2)
+  standardWorkingDays         Decimal                           @default(0) @db.Decimal(6, 2)
+  scheduledWorkingDays        Decimal                           @default(0) @db.Decimal(6, 2)
+  elapsedWorkingDays          Decimal                           @default(0) @db.Decimal(6, 2)
+  presentDays                 Decimal                           @default(0) @db.Decimal(6, 2)
+  paidLeaveDays               Decimal                           @default(0) @db.Decimal(6, 2)
+  unpaidLeaveDays             Decimal                           @default(0) @db.Decimal(6, 2)
+  absentDays                  Decimal                           @default(0) @db.Decimal(6, 2)
+  halfDays                    Decimal                           @default(0) @db.Decimal(6, 2)
+  weeklyOffDays               Decimal                           @default(0) @db.Decimal(6, 2)
+  holidayDays                 Decimal                           @default(0) @db.Decimal(6, 2)
+  payableDays                 Decimal                           @default(0) @db.Decimal(6, 2)
+  unpaidDays                  Decimal                           @default(0) @db.Decimal(6, 2)
+  overtimeHours               Decimal                           @default(0) @db.Decimal(8, 2)
+
+  // Salary Structure Snapshot (Earnings)
+  basicSalary                 Decimal                           @default(0) @db.Decimal(14, 2)
+  hra                         Decimal                           @default(0) @db.Decimal(14, 2)
+  conveyanceAllowance         Decimal                           @default(0) @db.Decimal(14, 2)
+  specialAllowance            Decimal                           @default(0) @db.Decimal(14, 2)
+  otherAllowance              Decimal                           @default(0) @db.Decimal(14, 2)
+  overtimeAmount              Decimal                           @default(0) @db.Decimal(14, 2)
+  bonusAmount                 Decimal                           @default(0) @db.Decimal(14, 2)
+  incentiveAmount             Decimal                           @default(0) @db.Decimal(14, 2)
+  arrearsAmount               Decimal                           @default(0) @db.Decimal(14, 2)
+  otherEarnings               Decimal                           @default(0) @db.Decimal(14, 2)
+  grossEarnings               Decimal                           @default(0) @db.Decimal(14, 2)
+
+  // Deductions Snapshot (Employee-Side)
+  leaveDeduction              Decimal                           @default(0) @db.Decimal(14, 2)
+  pfDeduction                 Decimal                           @default(0) @db.Decimal(14, 2)
+  esicDeduction               Decimal                           @default(0) @db.Decimal(14, 2)
+  professionalTax             Decimal                           @default(0) @db.Decimal(14, 2)
+  tdsDeduction                Decimal                           @default(0) @db.Decimal(14, 2)
+  loanDeduction               Decimal                           @default(0) @db.Decimal(14, 2)
+  advanceDeduction            Decimal                           @default(0) @db.Decimal(14, 2)
+  otherDeductions             Decimal                           @default(0) @db.Decimal(14, 2)
+  totalDeductions             Decimal                           @default(0) @db.Decimal(14, 2)
+  netPayable                  Decimal                           @default(0) @db.Decimal(14, 2)
+
+  // Employer Contributions (CTC Cost)
+  employerPf                  Decimal                           @default(0) @db.Decimal(14, 2)
+  employerEsic                Decimal                           @default(0) @db.Decimal(14, 2)
+  employerTotalCost           Decimal                           @default(0) @db.Decimal(14, 2)
+
+  // Encrypted Bank Account Snapshot
+  bankNameSnapshot            String?
+  accountNumberEncrypted      String?
+  accountNumberLast4          String?
+  ifscCodeSnapshot            String?
+
+  paidAmount                  Decimal                           @default(0) @db.Decimal(14, 2)
+  hrRemarks                   String?
+  superAdminRemarks           String?
+  financeRemarks              String?
+  preparedById                String?
+  preparedAt                  DateTime?
+  hrVerifiedById              String?
+  hrVerifiedAt                DateTime?
+  submittedById               String?
+  submittedAt                 DateTime?
+  approvedById                String?
+  approvedAt                  DateTime?
+  sentToFinanceById           String?
+  sentToFinanceAt             DateTime?
+  processingStartedById       String?
+  processingStartedAt         DateTime?
+  paidById                    String?
+  paidAt                      DateTime?
+  rejectionReason             String?
+  holdReason                  String?
+  returnReason                String?
+  correctionReason            String?
+  version                     Int                               @default(1)
+  createdAt                   DateTime                          @default(now())
+  updatedAt                   DateTime                          @updatedAt
+  employee                    Employee                          @relation(fields: [employeeId], references: [id])
+  payrollPeriod               PayrollPeriod                     @relation(fields: [payrollPeriodId], references: [id])
+  attendanceSummary           EmployeeMonthlyAttendanceSummary? @relation(fields: [attendanceSummaryId], references: [id])
+  payment                     SalaryPayment?
+  salarySlip                  SalarySlip?
+  adjustments                 PayrollAdjustment[]
+  statusHistory               PayrollStatusHistory[]
 
   @@unique([employeeId, payrollPeriodId])
   @@index([payrollPeriodId, status])
   @@index([employeeId, status])
+  @@index([companyId, status])
 }
 
 model PayrollAdjustment {
@@ -3491,6 +3538,7 @@ model ShiftPolicy {
 model Attendance {
   id                 String           @id @default(uuid())
   companyId          String
+  employeeId         String?
   userId             String
   attendanceDate     DateTime
   punchInAt          DateTime?
@@ -3506,26 +3554,35 @@ model Attendance {
   punchInSelfieUrl   String?
   punchOutSelfieUrl  String?
   workedSeconds      Int              @default(0)
-  status             AttendanceStatus @default(NOT_PUNCHED)
+  workedMinutes      Int              @default(0)
+  lateMinutes        Int              @default(0)
+  earlyExitMinutes   Int              @default(0)
+  overtimeMinutes    Int              @default(0)
+  status             AttendanceStatus @default(NOT_PUNCHED_IN)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
+  employee           Employee?        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   user               User             @relation(fields: [userId], references: [id])
 
+  @@unique([employeeId, attendanceDate])
   @@index([companyId])
   @@index([userId])
+  @@index([employeeId])
   @@index([attendanceDate])
 }
 
 enum AttendanceStatus {
-  NOT_PUNCHED
-  PRESENT
+  NOT_PUNCHED_IN
   PUNCHED_IN
-  PUNCHED_OUT
-  LATE
+  PRESENT
   HALF_DAY
   ABSENT
-  LEAVE
+  PAID_LEAVE
+  UNPAID_LEAVE
+  WEEKLY_OFF
+  HOLIDAY
+  MISSING_PUNCH_OUT
 }
 
 enum StockHistoryEvent {

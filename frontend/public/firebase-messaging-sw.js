@@ -1,7 +1,10 @@
 // Service Worker for Firebase Cloud Messaging Background Push Notifications
 
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
+// Keep the service worker on the same Firebase SDK version as the web client.
+// Mixing the v9 compat worker with the v11 client can leave incompatible FCM
+// IndexedDB metadata behind and trigger database-version downgrade errors.
+importScripts('https://www.gstatic.com/firebasejs/11.3.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.3.0/firebase-messaging-compat.js');
 
 const firebaseConfig = {
   apiKey: "AIzaSyCKsMYkWC3yhiKNt5VQuRhxOogrGwTh_DA",

@@ -99,6 +99,12 @@ export class EmployeesController {
     return this.employees.managers(req.user, excludeId);
   }
 
+  @Get('employees/next-code')
+  @RequirePermissions('hr.employees.create')
+  nextCode(@Req() req: any) {
+    return this.employees.nextCode(req.user);
+  }
+
   @Get('departments')
   @RequirePermissions('hr.departments.read')
   departments(@Req() req: any) {

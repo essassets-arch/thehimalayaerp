@@ -388,6 +388,7 @@ export class EmployeesService {
         }
       }
       const additional = (dto as any).additionalDocuments || [];
+      let additionalDocumentIndex = 0;
       const employee = await this.prisma.$transaction(async (tx) => {
         const created = await tx.employee.create({
           data: {
@@ -437,21 +438,26 @@ export class EmployeesService {
           },
         });
         await tx.employeeDocument.createMany({
-          data: stored.map((item, index) => ({
+          data: stored.map((item) => {
+            const additionalMetadata = item.field === 'additionalDocuments'
+              ? additional[additionalDocumentIndex++]
+              : undefined;
+            return {
             employeeId,
             documentType:
               DOCUMENT_TYPE[item.field] ||
-              additional[index]?.documentType ||
+              additionalMetadata?.documentType ||
               EmployeeDocumentType.OTHER,
-            documentName: additional[index]?.documentName || item.field,
+            documentName: additionalMetadata?.documentName || item.field,
             originalFileName: item.file.originalname,
             storedFileName: item.storedFileName,
             storageKey: item.storageKey,
             mimeType: item.file.mimetype,
             fileSize: item.file.size,
-            description: additional[index]?.description,
+            description: additionalMetadata?.description,
             uploadedById: user.sub,
-          })),
+          };
+          }),
         });
         if (dto.draftId) {
           await tx.employeeDraft.updateMany({
@@ -623,9 +629,27 @@ export class EmployeesService {
         status: { in: ACTIVE_MANAGER_STATUSES },
         ...(excludeId && { id: { not: excludeId } }),
       },
-      select: { id: true, employeeCode: true, fullName: true, jobTitle: true },
+      select: {
+        id: true,
+        employeeCode: true,
+        fullName: true,
+        jobTitle: true,
+        department: { select: { name: true } },
+      },
       orderBy: { fullName: 'asc' },
     });
+  }
+
+  async nextCode(user: any) {
+    const rows = await this.prisma.employee.findMany({
+      where: { companyId: this.companyId(user) },
+      select: { employeeCode: true },
+    });
+    const highest = rows.reduce((max, { employeeCode }) => {
+      const match = employeeCode.trim().match(/^\d+$/);
+      return match ? Math.max(max, Number.parseInt(match[0], 10)) : max;
+    }, 0);
+    return { employeeCode: String(highest + 1).padStart(3, '0') };
   }
 
   async addDocument(id: string, file: any, body: any, user: any) {

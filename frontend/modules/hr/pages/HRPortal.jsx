@@ -66,15 +66,42 @@ export default function HRPortal() {
 
   const [directoryEmployees, setDirectoryEmployees] = useState([]);
   const [directoryError, setDirectoryError] = useState('');
+
+  const loadDirectory = async () => {
+    try {
+      const today = new Date();
+      const [listRes, payrollOverviewRes] = await Promise.allSettled([
+        employeesService.listEmployees({ page: 1, limit: 100, search: globalSearch }),
+        employeesService.getPayrollOverview({ month: today.getMonth() + 1, year: today.getFullYear(), search: globalSearch })
+      ]);
+
+      const allEmps = listRes.status === 'fulfilled' && listRes.value?.items ? listRes.value.items : [];
+      const payrollData = payrollOverviewRes.status === 'fulfilled' && Array.isArray(payrollOverviewRes.value) ? payrollOverviewRes.value : [];
+
+      if (allEmps.length > 0) {
+        const merged = allEmps.map(emp => {
+          const overview = payrollData.find(p => p.id === emp.id || p.employeeCode === emp.employeeCode);
+          return {
+            ...emp,
+            payroll: overview?.payroll || emp.payroll || null
+          };
+        });
+        setDirectoryEmployees(merged);
+      } else if (payrollData.length > 0) {
+        setDirectoryEmployees(payrollData);
+      } else {
+        setDirectoryEmployees([]);
+      }
+      setDirectoryError('');
+    } catch (e) {
+      setDirectoryError(e.message || 'Error loading employee directory');
+    }
+  };
+
   useEffect(() => {
-    if (view !== 'employees') return;
-    const today = new Date();
-    employeesService.getPayrollOverview({ month: today.getMonth() + 1, year: today.getFullYear(), search: globalSearch })
-      .then((result) => {
-        setDirectoryEmployees(result);
-        setDirectoryError('');
-      })
-      .catch((error) => setDirectoryError(error.message));
+    if (view === 'employees') {
+      loadDirectory();
+    }
   }, [view, globalSearch]);
   const leaves = state.leaves || [];
   const shifts = state.shifts || [];
