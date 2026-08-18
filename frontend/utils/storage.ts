@@ -1,5 +1,5 @@
 export class SafeStorage {
-  private static MAX_SIZE = 3.5 * 1024 * 1024; // 3.5MB per key safeguard
+  private static MAX_SIZE = 1 * 1024 * 1024; // 1MB per key limit
   private static isQuotaHandling = false;
 
   static setItemString(key: string, serialized: string): boolean {
@@ -8,7 +8,6 @@ export class SafeStorage {
     try {
       let dataToSave = serialized;
       if (dataToSave.length > this.MAX_SIZE) {
-        console.warn(`Data for key "${key}" is large (${(dataToSave.length / 1024 / 1024).toFixed(2)}MB). Trimming heavy payloads.`);
         dataToSave = this.stripHeavyPayloadsFromString(dataToSave);
       }
       
@@ -31,7 +30,6 @@ export class SafeStorage {
           window.localStorage.setItem(`${key}_timestamp`, Date.now().toString());
           return true;
         } catch (e) {
-          console.warn(`[SafeStorage] Could not persist key "${key}" due to browser storage limits.`);
           return false;
         }
       }
@@ -53,7 +51,22 @@ export class SafeStorage {
   private static stripHeavyPayloadsFromString(raw: string): string {
     if (!raw) return raw;
     // Replace huge inline data URIs (e.g. data:image/png;base64,...) with a placeholder
-    return raw.replace(/data:image\/[a-zA-Z]+;base64,[^"'\s]+/g, 'data:image/svg+xml;utf8,<svg></svg>');
+    let cleaned = raw.replace(/data:image\/[a-zA-Z]+;base64,[^"'\s]+/g, 'data:image/svg+xml;utf8,<svg></svg>');
+    // If still large, try parsing as JSON and slicing top array fields
+    if (cleaned.length > this.MAX_SIZE) {
+      try {
+        const obj = JSON.parse(cleaned);
+        if (typeof obj === 'object' && obj !== null) {
+          for (const k of Object.keys(obj)) {
+            if (Array.isArray(obj[k]) && obj[k].length > 50) {
+              obj[k] = obj[k].slice(0, 50);
+            }
+          }
+          cleaned = JSON.stringify(obj);
+        }
+      } catch (e) {}
+    }
+    return cleaned;
   }
 
   private static handleQuotaExceeded(currentKey?: string) {

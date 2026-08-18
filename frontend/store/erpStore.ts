@@ -267,11 +267,15 @@ const persistToStorage = (state: any) => {
       if (Array.isArray(state.replacementReceipts)) setStorageItem('erp_replacement_receipts', JSON.stringify(state.replacementReceipts));
       
       if (state.procurement) {
-        setStorageItem('erp_procurement', JSON.stringify(state.procurement));
-        // Keep fallback keys updated for non-migrated or legacy reader pages
-        setStorageItem('erp_material_indents', JSON.stringify(state.procurement.materialIndents || []));
-        setStorageItem('erp_purchase_orders', JSON.stringify(state.procurement.purchaseOrders || []));
-        setStorageItem('erp_goods_receipts', JSON.stringify(state.procurement.goodsReceiptNotes || []));
+        setStorageItem('erp_procurement', JSON.stringify({
+          materialIndents: (state.procurement.materialIndents || []).slice(0, 10),
+          purchaseOrders: (state.procurement.purchaseOrders || []).slice(0, 10),
+          goodsReceiptNotes: (state.procurement.goodsReceiptNotes || []).slice(0, 10),
+        }));
+        // Keep fallback keys updated for non-migrated or legacy reader pages (lightweight fallback only)
+        setStorageItem('erp_material_indents', JSON.stringify((state.procurement.materialIndents || []).slice(0, 10)));
+        setStorageItem('erp_purchase_orders', JSON.stringify((state.procurement.purchaseOrders || []).slice(0, 10)));
+        setStorageItem('erp_goods_receipts', JSON.stringify((state.procurement.goodsReceiptNotes || []).slice(0, 10)));
       }
 
       setStorageItem('erp_procurement_data_version', '1');
@@ -289,7 +293,11 @@ const persistToStorage = (state: any) => {
       // Canonical persisted store snapshot under required key
       const unifiedStoreSnapshot = {
         state: {
-          procurement: state.procurement,
+          procurement: {
+            materialIndents: (state.procurement?.materialIndents || []).slice(0, 20),
+            purchaseOrders: (state.procurement?.purchaseOrders || []).slice(0, 20),
+            goodsReceiptNotes: (state.procurement?.goodsReceiptNotes || []).slice(0, 20),
+          },
           sales: salesToPersist,
           production: state.production || { finishedGoods: [], workOrders: [], qcRecords: [] },
           dispatch: state.dispatch || { dispatchOrders: [], consignments: [] },
