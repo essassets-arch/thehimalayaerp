@@ -486,75 +486,75 @@ export default function DispatchOrdersPage() {
               <div className={styles.tableScroll}>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
+                    <tr className="bg-slate-50/90 border-b border-slate-200">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
                         Sales Order
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
                         Customer
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
                         Delivery Address
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
                         Product
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap">
                         Type
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap">
                         Qty
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {filteredPendingItems.map((item) => {
                       const isTrading = item.itemType === 'TRADING_SALES_ORDER';
                       return (
                         <tr
                           key={item.id}
-                          className="hover:bg-indigo-50/30 transition-colors group"
+                          className="hover:bg-indigo-50/20 transition-colors group"
                         >
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="font-bold text-indigo-600 font-mono text-xs tracking-wide">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="font-extrabold text-indigo-600 font-mono text-xs tracking-wider bg-indigo-50/80 px-2.5 py-1 rounded-md border border-indigo-100 inline-block shadow-2xs">
                               #{item.orderNumber}
                             </span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="font-semibold text-slate-800">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="font-bold text-slate-900 text-xs tracking-tight">
                               {item.customerName}
                             </span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-6 py-4">
                             <span
-                              className="text-xs text-slate-500 block max-w-[220px] truncate"
+                              className="text-xs text-slate-600 leading-relaxed block max-w-[240px] truncate"
                               title={item.deliveryAddress}
                             >
                               {item.deliveryAddress}
                             </span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="text-slate-700 font-medium">
+                          <td className="px-6 py-4">
+                            <span className="text-slate-800 font-semibold text-xs leading-snug block max-w-[260px]">
                               {item.productName}
                             </span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full ${isTrading ? 'bg-sky-100 text-sky-800 border border-sky-200' : 'bg-purple-100 text-purple-800 border border-purple-200'}`}>
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-wider ${isTrading ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
                               {isTrading ? 'TRADING' : 'MFG'}
                             </span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-3 py-1 rounded-lg border border-emerald-200">
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-3 py-1 rounded-lg border border-emerald-200/80 shadow-2xs">
                               {item.approvedQuantity}
                             </span>
                           </td>
 
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <Button
-                              size="sm"
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <button
+                              type="button"
                               onClick={() => {
                                 if (item.itemType === 'WORK_ORDER' && item.workOrderId) {
                                   router.push(`${basePath}/create-dispatch?workOrderId=${item.workOrderId}`);
@@ -562,11 +562,11 @@ export default function DispatchOrdersPage() {
                                   router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
                                 }
                               }}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold rounded-lg transition-all"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all duration-150 whitespace-nowrap cursor-pointer hover:shadow-indigo-200 hover:shadow-md shrink-0"
                             >
-                              <FileText className="h-3.5 w-3.5" />
-                              Create Dispatch
-                            </Button>
+                              <FileText className="h-3.5 w-3.5 shrink-0" />
+                              <span>Create Dispatch</span>
+                            </button>
                           </td>
                         </tr>
                       );
