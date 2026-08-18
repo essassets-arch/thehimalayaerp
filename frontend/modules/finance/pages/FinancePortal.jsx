@@ -2634,7 +2634,7 @@ export default function FinancePortal({ initialView, forceView }) {
           data={filteredData}
           // Finance can monitor the Super Admin queue, but approval/rejection
           // controls belong exclusively to Super Admin → Purchase Indents.
-          actions={filterType === 'HISTORY' || filterType === 'PENDING_APPROVAL' ? undefined : row => {
+          actions={filterType === 'HISTORY' ? undefined : row => {
             const handleClosePO = async (poId, poNumber) => {
               // Step 1: Pre-flight — check closure eligibility
               let eligibility = null;
@@ -2693,45 +2693,26 @@ export default function FinancePortal({ initialView, forceView }) {
 
             return (
               <div style={{display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center'}}>
-                {(row.status === 'DRAFT' || row.status === 'PENDING_FINANCE_APPROVAL') && (
+                {(row.status === 'DRAFT' || row.status === 'PENDING_FINANCE_APPROVAL' || row.status === 'PLANT_HEAD_APPROVED' || row.status === 'PENDING') && (
                   <button
-                    style={{ background: '#24345C', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
-                    onClick={() => { submitPurchaseOrder(row.id); showToast(`PO ${row.id} submitted for Super Admin Approval`); }}
+                    style={{ background: '#4F46E5', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    onClick={async () => {
+                      try {
+                        await submitPurchaseOrder(row.id, 'Finance Manager');
+                        await syncData();
+                        showToast(`PO ${row.poNumber || row.id} submitted for Super Admin Approval`, 'success');
+                      } catch (err) {
+                        showToast(err?.message || 'Failed to submit PO', 'error');
+                      }
+                    }}
                   >
-                    Submit for Approval
+                    🚀 Send to Super Admin
                   </button>
                 )}
                 {row.status === 'PENDING_SUPER_ADMIN_APPROVAL' && (
-                  <>
-                    <button
-                      style={{ background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                      onClick={async () => {
-                        try {
-                          await approvePurchaseOrder(row.id, 'Approved by Super Admin', user?.name); 
-                          showToast(`PO ${row.poNumber || row.id} approved successfully!`, 'success'); 
-                        } catch (err) {
-                          console.error(err);
-                          showToast(`Failed to approve PO: ${err?.message || 'Unknown error'}`, 'error');
-                        }
-                      }}
-                    >
-                      <CheckCircle2 size={14} /> Approve PO
-                    </button>
-                    <button
-                      style={{ background: '#dc2626', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                      onClick={async () => {
-                        try {
-                          await rejectPurchaseOrder(row.id, 'Rejected by Super Admin', user?.name); 
-                          showToast(`PO ${row.poNumber || row.id} rejected.`, 'error'); 
-                        } catch (err) {
-                          console.error(err);
-                          showToast(`Failed to reject PO: ${err?.message || 'Unknown error'}`, 'error');
-                        }
-                      }}
-                    >
-                      <XCircle size={14} /> Reject
-                    </button>
-                  </>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#4338ca', background: '#eef2ff', padding: '4px 12px', borderRadius: '12px', border: '1px solid #c7d2fe' }}>
+                    ⏳ Sent to Super Admin
+                  </span>
                 )}
                 {row.status === 'PO_ISSUED' && (
                   <button className="btn-small btn-outline-small" onClick={() => handleVendorAccept(row)}>
