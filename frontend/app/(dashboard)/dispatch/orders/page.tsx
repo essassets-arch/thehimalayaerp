@@ -1,25 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Truck,
   FileText,
-  Clock,
   User,
   MapPin,
   Package,
-  Calendar,
-  ChevronRight,
-  RefreshCw,
-  LayoutGrid,
 } from "lucide-react";
 
 import { backendFetch } from "@/lib/backendFetch";
-import { Button } from "@/components/ui/button";
-import { DispatchNavigationTabs } from "../components/DispatchNavigationTabs";
-import styles from "./orders.module.css";
+import {
+  DispatchPageShell,
+  DispatchPageHeader,
+  DispatchNavigationTabs,
+  DispatchToolbar,
+  DispatchTableCard,
+  SalesOrderNumberBadge,
+  DispatchTypeBadge,
+  DispatchQuantityBadge,
+  DispatchActionButton,
+  DispatchLoadingState,
+  DispatchEmptyState,
+  DispatchErrorState,
+} from "../components";
 
 interface Customer {
   id: string;
@@ -95,10 +101,7 @@ function formatAddressValue(value?: ShippingAddress | string | null): string {
     value.line2 || value.addressLine2,
     value.city,
     value.state,
-    value.postalCode ||
-      value.pincode ||
-      value.pinCode ||
-      value.zipCode,
+    value.postalCode || value.pincode || value.pinCode || value.zipCode,
     value.country,
   ].filter((part): part is string => Boolean(part));
 
@@ -116,18 +119,18 @@ function formatAddress(salesOrder?: SalesOrder, customer?: Customer): string {
 
 function isTradingProduct(item: any): boolean {
   if (!item) return false;
-  const type = (item.productType || item.product?.productType || '').toUpperCase();
-  const cat = (item.category || item.product?.category || item.brand || '').toUpperCase();
-  const name = (item.productNameSnapshot || item.productName || item.name || '').toLowerCase();
-  if (type === 'TRADING') return true;
-  if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER'].includes(cat)) return true;
-  if (name.includes('wcb') || name.includes('coverblock')) return true;
+  const type = (item.productType || item.product?.productType || "").toUpperCase();
+  const cat = (item.category || item.product?.category || item.brand || "").toUpperCase();
+  const name = (item.productNameSnapshot || item.productName || item.name || "").toLowerCase();
+  if (type === "TRADING") return true;
+  if (["COVERBLOCK", "RCC PIPE", "FRC COVER"].includes(cat)) return true;
+  if (name.includes("wcb") || name.includes("coverblock")) return true;
   return false;
 }
 
 interface UnifiedPendingDispatchItem {
   id: string;
-  itemType: 'WORK_ORDER' | 'TRADING_SALES_ORDER';
+  itemType: "WORK_ORDER" | "TRADING_SALES_ORDER";
   orderNumber: string;
   customerName: string;
   deliveryAddress: string;
@@ -147,6 +150,8 @@ export default function DispatchOrdersPage() {
   const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
   const userDispatchCat = isDispatch2 ? "D2" : "D1";
 
+  const [search, setSearch] = useState("");
+
   const { data: products = [] } = useQuery<any[]>({
     queryKey: ["products-list-orders-page"],
     queryFn: async () => {
@@ -155,7 +160,7 @@ export default function DispatchOrdersPage() {
     },
   });
 
-  const productsMap = React.useMemo(() => {
+  const productsMap = useMemo(() => {
     const map = new Map<string, any>();
     products.forEach((p) => {
       if (p.id) map.set(p.id, p);
@@ -167,6 +172,7 @@ export default function DispatchOrdersPage() {
   const {
     data: pendingItems = [],
     isLoading,
+    isRefetching,
     error,
     refetch,
   } = useQuery<UnifiedPendingDispatchItem[]>({
@@ -188,24 +194,16 @@ export default function DispatchOrdersPage() {
       ]);
 
       const workOrders: WorkOrder[] =
-        workOrdersPayload.status === "fulfilled"
-          ? extractArray(workOrdersPayload.value)
-          : [];
+        workOrdersPayload.status === "fulfilled" ? extractArray(workOrdersPayload.value) : [];
 
       const rawSalesOrders =
-        salesOrdersPayload.status === "fulfilled"
-          ? extractArray(salesOrdersPayload.value)
-          : [];
+        salesOrdersPayload.status === "fulfilled" ? extractArray(salesOrdersPayload.value) : [];
 
       const rawFinishedGoods =
-        finishedGoodsPayload.status === "fulfilled"
-          ? extractArray(finishedGoodsPayload.value)
-          : [];
+        finishedGoodsPayload.status === "fulfilled" ? extractArray(finishedGoodsPayload.value) : [];
 
       const rawQueue =
-        queuePayload.status === "fulfilled"
-          ? extractArray(queuePayload.value)
-          : [];
+        queuePayload.status === "fulfilled" ? extractArray(queuePayload.value) : [];
 
       const unifiedDirectDispatches: UnifiedPendingDispatchItem[] = [];
       rawQueue.forEach((qOrder: any) => {
@@ -219,7 +217,7 @@ export default function DispatchOrdersPage() {
             customerName: qOrder.customerName || "N/A",
             deliveryAddress: qOrder.deliveryAddress || "Factory Staging Area",
             productName: qItem.productName || "Direct Dispatch Item",
-            approvedQuantity: typeof qty === 'number' ? `${qty} ${qItem.unit || 'PCS'}` : String(qty),
+            approvedQuantity: typeof qty === "number" ? `${qty} ${qItem.unit || "PCS"}` : String(qty),
             salesOrderId: qOrder.salesOrderId,
             salesOrderItemId: qItem.salesOrderItemId,
             productId: qItem.productId,
@@ -229,14 +227,14 @@ export default function DispatchOrdersPage() {
 
       const unifiedFinishedGoods: UnifiedPendingDispatchItem[] = rawFinishedGoods
         .filter((fg) => {
-          const s = String(fg.status || '').toUpperCase();
-          const jobNoStr = String(fg.jobNo || fg.workOrderId || fg.id || '');
-          const isWoStock = jobNoStr.startsWith('WO-STOCK-') || jobNoStr.includes('WO-STOCK-');
+          const s = String(fg.status || "").toUpperCase();
+          const jobNoStr = String(fg.jobNo || fg.workOrderId || fg.id || "");
+          const isWoStock = jobNoStr.startsWith("WO-STOCK-") || jobNoStr.includes("WO-STOCK-");
           const qtyVal = fg.availableQuantity ?? fg.quantity ?? 0;
-          const qty = typeof qtyVal === 'number' ? qtyVal : parseFloat(String(qtyVal)) || 0;
+          const qty = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 0;
 
           if (isWoStock || qty <= 0) return false;
-          return ['AVAILABLE', 'READY_FOR_DISPATCH', 'QC_APPROVED', 'PASSED', 'STAGED', 'IN_STAGING'].includes(s);
+          return ["AVAILABLE", "READY_FOR_DISPATCH", "QC_APPROVED", "PASSED", "STAGED", "IN_STAGING"].includes(s);
         })
         .map((fg) => {
           const wo = fg.workOrder;
@@ -251,7 +249,7 @@ export default function DispatchOrdersPage() {
             customerName: fg.customerName || customer?.companyName || "Factory Stock Staging",
             deliveryAddress: address !== "N/A" ? address : "Factory Staging Area",
             productName: fg.productName || "Finished Product",
-            approvedQuantity: `${qty} ${fg.unit || 'Pcs'}`,
+            approvedQuantity: `${qty} ${fg.unit || "Pcs"}`,
             workOrderId: fg.workOrderId || fg.id,
             salesOrderId: salesOrder?.id,
             workOrderNumber: fg.jobNo,
@@ -261,11 +259,11 @@ export default function DispatchOrdersPage() {
 
       const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders
         .filter((wo) => {
-          const woNo = String(wo.workOrderNumber || wo.id || '');
-          const soNo = String(wo.productionPlan?.salesOrder?.orderNumber || '');
-          if (woNo.startsWith('WO-STOCK-') || woNo.includes('WO-STOCK-') || woNo.includes('TEST') || soNo.includes('SO-TEST-')) return false;
-          const prodStatus = String((wo as any).productionStatus || wo.status || '').toUpperCase();
-          if (prodStatus === 'DISPATCHED' || prodStatus === 'COMPLETED' || prodStatus === 'DELIVERED') return false;
+          const woNo = String(wo.workOrderNumber || wo.id || "");
+          const soNo = String(wo.productionPlan?.salesOrder?.orderNumber || "");
+          if (woNo.startsWith("WO-STOCK-") || woNo.includes("WO-STOCK-") || woNo.includes("TEST") || soNo.includes("SO-TEST-")) return false;
+          const prodStatus = String((wo as any).productionStatus || wo.status || "").toUpperCase();
+          if (prodStatus === "DISPATCHED" || prodStatus === "COMPLETED" || prodStatus === "DELIVERED") return false;
           const item = wo.salesOrderItem;
           const alreadyDispatched = item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
           const remaining = Math.max(0, Number(item?.orderedQuantity || wo.quantity || 0) - alreadyDispatched);
@@ -296,17 +294,17 @@ export default function DispatchOrdersPage() {
 
       const unifiedSalesOrders: UnifiedPendingDispatchItem[] = [];
       rawSalesOrders.forEach((so: any) => {
-        const orderNo = String(so.orderNumber || so.orderId || '');
-        if (orderNo.includes('SO-TEST-')) return;
+        const orderNo = String(so.orderNumber || so.orderId || "");
+        if (orderNo.includes("SO-TEST-")) return;
 
-        const status = String(so.status || so.dispatchStatus || '').toUpperCase();
-        if (status === 'IN_TRANSIT' || status === 'COMPLETED' || status === 'DELIVERED') return;
+        const status = String(so.status || so.dispatchStatus || "").toUpperCase();
+        if (status === "IN_TRANSIT" || status === "COMPLETED" || status === "DELIVERED") return;
 
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
         if (items.length > 0) {
           items.forEach((item: any, idx: number) => {
             const hasFgReservation = Array.isArray(item.allocations) && item.allocations.some(
-              (a: any) => a.allocationType === 'FINISHED_GOODS_RESERVATION' && Number(a.reservedQuantity || 0) > 0
+              (a: any) => a.allocationType === "FINISHED_GOODS_RESERVATION" && Number(a.reservedQuantity || 0) > 0
             );
 
             if (!isTradingProduct(item) && !hasFgReservation) {
@@ -356,344 +354,257 @@ export default function DispatchOrdersPage() {
     },
   });
 
-  const filteredPendingItems = React.useMemo(() => {
+  const filteredPendingItems = useMemo(() => {
     return pendingItems.filter((item) => {
-      // Get the product dispatch category
+      // Category filter (D1 vs D2)
       const productObj = productsMap.get(item.productId);
-      const productCat = productObj?.dispatchCategory || 
-                         productObj?.dispatch_category ||
-                         "D1"; // default to D1 if not specified
-      
+      const productCat = productObj?.dispatchCategory || productObj?.dispatch_category || "D1";
       const c1 = String(productCat).trim().toUpperCase();
       const c2 = String(userDispatchCat).trim().toUpperCase();
-      
-      if (c1 === c2) return true;
-      if ((c1 === 'D1' || c1 === 'DISPATCH 1' || c1 === 'DISPATCH_1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) return true;
-      if ((c1 === 'D2' || c1 === 'DISPATCH 2' || c1 === 'DISPATCH_2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) return true;
-      
-      return false;
+
+      let matchCategory = false;
+      if (c1 === c2) matchCategory = true;
+      else if ((c1 === "D1" || c1 === "DISPATCH 1") && (c2 === "D1" || c2 === "DISPATCH 1")) matchCategory = true;
+      else if ((c1 === "D2" || c1 === "DISPATCH 2") && (c2 === "D2" || c2 === "DISPATCH 2")) matchCategory = true;
+
+      if (!matchCategory) return false;
+
+      // Search query filter
+      if (!search.trim()) return true;
+      const lower = search.toLowerCase();
+      return (
+        item.orderNumber.toLowerCase().includes(lower) ||
+        item.customerName.toLowerCase().includes(lower) ||
+        item.productName.toLowerCase().includes(lower) ||
+        item.deliveryAddress.toLowerCase().includes(lower)
+      );
     });
-  }, [pendingItems, userDispatchCat, productsMap]);
+  }, [pendingItems, userDispatchCat, productsMap, search]);
+
+  const handleCreateDispatch = (item: UnifiedPendingDispatchItem) => {
+    if (item.itemType === "WORK_ORDER" && item.workOrderId) {
+      router.push(`${basePath}/create-dispatch?workOrderId=${item.workOrderId}`);
+    } else if (item.salesOrderId) {
+      router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
+    }
+  };
 
   return (
-    <div className={styles.page}>
-      <div className={styles.content}>
-        {/* Navigation Tabs */}
-        <DispatchNavigationTabs activeTab="orders" counts={{ orders: filteredPendingItems.length }} />
+    <DispatchPageShell>
+      {/* Navigation Tabs */}
+      <DispatchNavigationTabs />
 
-        {/* ── Page Header ── */}
-        <div className={styles.header}>
-          <div className={styles.headerMain}>
-            <div className={styles.watermark}>
-              <Truck size={160} />
-            </div>
+      {/* Page Header */}
+      <DispatchPageHeader
+        title="Pending Dispatches"
+        description="Create dispatch gate passes for manufacturing work orders and trading sales orders ready to be shipped."
+        eyebrow="Queue Management"
+        icon={Truck}
+        stats={[
+          { label: "Awaiting Dispatch", value: filteredPendingItems.length, icon: Package, color: "bg-indigo-50 text-indigo-600" },
+        ]}
+        onRefresh={() => refetch()}
+        isRefreshing={isRefetching}
+      />
 
-            <div className={styles.headerLayout}>
-              <div className={styles.headerCopy}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={styles.eyebrow}>
-                    <LayoutGrid className="h-3 w-3" />
-                    Logistics
-                  </span>
-                </div>
-                <h1 className={styles.title}>Pending Dispatches</h1>
-                <p className={styles.description}>
-                  Create dispatch records for manufacturing work orders and trading sales orders ready to be shipped.
-                </p>
-              </div>
+      {/* Toolbar / Search Filter */}
+      <DispatchToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search order number, customer, product or delivery address..."
+        title="Pending Queue"
+        subtitle={`Showing ${filteredPendingItems.length} order${filteredPendingItems.length !== 1 ? "s" : ""} ready for dispatch`}
+      />
 
-              <div className={styles.summary}>
-                <div className={styles.summaryCount}>
-                  <strong>{filteredPendingItems.length}</strong>
-                  <span>Awaiting Dispatch</span>
-                </div>
-                <div className={styles.divider} />
-                <button onClick={() => refetch()} className={styles.refresh}>
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* Loading State */}
+      {isLoading && <DispatchLoadingState count={6} />}
 
-          <div className={styles.headerFooter}>
-            <p>
-              Showing {filteredPendingItems.length} order
-              {filteredPendingItems.length !== 1 ? "s" : ""} ready for dispatch
-              &nbsp;·&nbsp; Manufacturing & Trading orders
-            </p>
-          </div>
-        </div>
+      {/* Error State */}
+      {error && !isLoading && <DispatchErrorState onRetry={() => refetch()} />}
 
-        {/* ── Loading ── */}
-        {isLoading && (
-          <div className={styles.loadingCard}>
-            <div className={styles.loadingSpinner}>
-              <Clock className="animate-spin h-7 w-7 text-indigo-600" />
-            </div>
-            <div className={styles.loadingText}>
-              <h4>Loading Dispatch Queue</h4>
-              <p>Fetching pending manufacturing and trading dispatch orders...</p>
-            </div>
-          </div>
-        )}
+      {/* Empty State */}
+      {!isLoading && !error && filteredPendingItems.length === 0 && (
+        <DispatchEmptyState
+          title={search ? "No Matching Dispatches Found" : "No Pending Dispatches"}
+          description={
+            search
+              ? `No pending orders match "${search}". Try clearing your search filter.`
+              : "No orders are currently awaiting dispatch. Once manufacturing QC passes or trading orders are submitted, they will appear here automatically."
+          }
+          onRetry={() => refetch()}
+        />
+      )}
 
-        {/* ── Error ── */}
-        {error && !isLoading && (
-          <div className={styles.stateCard}>
-            <div className={styles.stateContent}>
-              <div className="w-16 h-16 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-                <Clock className="h-8 w-8" />
-              </div>
-              <h3>Failed to Load Dispatch Queue</h3>
-              <p>Please check network connectivity or verify your user role permissions.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                className="mt-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-              >
-                Try Again
-              </Button>
-            </div>
-          </div>
-        )}
+      {/* Table & Mobile Cards */}
+      {!isLoading && !error && filteredPendingItems.length > 0 && (
+        <>
+          {/* Desktop Table View (≥ 768px) */}
+          <div className="hidden md:block">
+            <DispatchTableCard minTableWidth={1100}>
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/90 border-b border-slate-200">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                      Sales Order
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                      Customer
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[240px]">
+                      Delivery Address
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[260px]">
+                      Product
+                    </th>
+                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap min-w-[100px]">
+                      Type
+                    </th>
+                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap min-w-[100px]">
+                      Qty
+                    </th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {filteredPendingItems.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-slate-50 transition-colors group"
+                    >
+                      {/* Sales Order Number */}
+                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                        <SalesOrderNumberBadge orderNumber={item.orderNumber} />
+                      </td>
 
-        {/* ── Empty ── */}
-        {!isLoading && !error && filteredPendingItems.length === 0 && (
-          <div className={styles.stateCard}>
-            <div className={styles.stateContent}>
-              <div className={styles.stateIcon}>
-                <Package className="h-8 w-8 text-indigo-600" />
-              </div>
-              <h3>No Pending Dispatches</h3>
-              <p>
-                No orders are currently ready for dispatch. Once manufacturing QC passes or trading orders are submitted, they will appear here automatically.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                className="mt-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Check Again
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Desktop Table ── */}
-        {!isLoading && !error && filteredPendingItems.length > 0 && (
-          <>
-            <div className={styles.desktopTable}>
-              <div className={styles.tableScroll}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-slate-50/90 border-b border-slate-200">
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Sales Order
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Customer
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Delivery Address
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Product
-                      </th>
-                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap">
-                        Type
-                      </th>
-                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap">
-                        Qty
-                      </th>
-                      <th className="text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {filteredPendingItems.map((item) => {
-                      const isTrading = item.itemType === 'TRADING_SALES_ORDER';
-                      return (
-                        <tr
-                          key={item.id}
-                          className="hover:bg-indigo-50/20 transition-colors group"
-                        >
-                          <td className="px-4 py-3.5 whitespace-nowrap">
-                            <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center gap-1 shrink-0">
-                              #{item.orderNumber}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 whitespace-nowrap">
-                            <span
-                              className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[180px] truncate"
-                              title={item.customerName}
-                            >
-                              {item.customerName}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span
-                              className="text-xs text-slate-600 leading-relaxed block max-w-[220px] truncate"
-                              title={item.deliveryAddress}
-                            >
-                              {item.deliveryAddress}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span
-                              className="text-slate-800 font-semibold text-xs leading-snug block max-w-[240px] truncate"
-                              title={item.productName}
-                            >
-                              {item.productName}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
-                            <span
-                              className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase ${
-                                isTrading
-                                  ? 'bg-sky-50 text-sky-700 border border-sky-200/60'
-                                  : 'bg-purple-50 text-purple-700 border border-purple-200/60'
-                              }`}
-                            >
-                              {isTrading ? 'TRADING' : 'MFG'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
-                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-semibold text-xs px-2.5 py-1 rounded-md border border-emerald-200/60">
-                              {item.approvedQuantity}
-                            </span>
-                          </td>
-
-                          <td className="px-4 py-3.5 whitespace-nowrap text-right">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (item.itemType === 'WORK_ORDER' && item.workOrderId) {
-                                  router.push(`${basePath}/create-dispatch?workOrderId=${item.workOrderId}`);
-                                } else if (item.salesOrderId) {
-                                  router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
-                                }
-                              }}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-medium rounded-md border-0 transition-colors duration-150 whitespace-nowrap cursor-pointer shrink-0 ml-auto"
-                            >
-                              <FileText className="h-3.5 w-3.5 shrink-0" />
-                              <span>Create Dispatch</span>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* ── Mobile & Tablet: Card View ── */}
-            <div className={styles.mobileCards}>
-              {filteredPendingItems.map((item) => {
-                const isTrading = item.itemType === 'TRADING_SALES_ORDER';
-                return (
-                  <div
-                    key={item.id}
-                    className="bg-white rounded-2xl border border-gray-200/70 shadow-sm overflow-hidden"
-                  >
-                    {/* Card Header */}
-                    <div className="flex items-center justify-between px-4 py-3 bg-blue-50/40 border-b border-blue-100/60">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-blue-600 font-mono text-xs tracking-wide">
-                          #{item.orderNumber}
-                        </span>
-                        <span className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isTrading ? 'bg-sky-100 text-sky-800' : 'bg-purple-100 text-purple-800'}`}>
-                          {isTrading ? 'TRADING' : 'MFG'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="px-4 py-4 space-y-3">
                       {/* Customer */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                          <User className="h-3.5 w-3.5 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Customer
-                          </p>
-                          <p className="text-sm font-semibold text-gray-800">
-                            {item.customerName}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Product */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                          <Package className="h-3.5 w-3.5 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Product
-                          </p>
-                          <p className="text-sm font-medium text-gray-700">
-                            {item.productName}
-                          </p>
-                        </div>
-                      </div>
+                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                        <span
+                          className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[200px] truncate"
+                          title={item.customerName}
+                        >
+                          {item.customerName}
+                        </span>
+                      </td>
 
                       {/* Delivery Address */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                          <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Delivery Address
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {item.deliveryAddress}
-                          </p>
-                        </div>
-                      </div>
+                      <td className="px-4 py-3.5 align-middle">
+                        <span
+                          className="text-xs text-slate-600 leading-relaxed block max-w-[280px] truncate"
+                          title={item.deliveryAddress}
+                        >
+                          {item.deliveryAddress}
+                        </span>
+                      </td>
+
+                      {/* Product */}
+                      <td className="px-4 py-3.5 align-middle">
+                        <span
+                          className="text-slate-800 font-semibold text-xs leading-snug block max-w-[280px] truncate"
+                          title={item.productName}
+                        >
+                          {item.productName}
+                        </span>
+                      </td>
+
+                      {/* Type */}
+                      <td className="px-3 py-3.5 whitespace-nowrap text-center align-middle">
+                        <DispatchTypeBadge type={item.itemType === "TRADING_SALES_ORDER" ? "TRADING" : "MFG"} />
+                      </td>
 
                       {/* Quantity */}
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Qty
-                          </p>
-                          <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg border border-emerald-100 mt-0.5">
-                            {item.approvedQuantity}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            if (item.itemType === 'WORK_ORDER' && item.workOrderId) {
-                              router.push(`${basePath}/create-dispatch?workOrderId=${item.workOrderId}`);
-                            } else if (item.salesOrderId) {
-                              router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
-                            }
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          Create Dispatch
-                        </Button>
-                      </div>
+                      <td className="px-3 py-3.5 whitespace-nowrap text-center align-middle">
+                        <DispatchQuantityBadge quantity={item.approvedQuantity} />
+                      </td>
+
+                      {/* Action Button */}
+                      <td className="px-4 py-3.5 whitespace-nowrap text-right align-middle">
+                        <DispatchActionButton
+                          label="Create Dispatch"
+                          icon={FileText}
+                          onClick={() => handleCreateDispatch(item)}
+                          variant="primary"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </DispatchTableCard>
+          </div>
+
+          {/* Mobile Cards View (< 768px) */}
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {filteredPendingItems.map((item) => (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
+              >
+                {/* Card Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-100">
+                  <SalesOrderNumberBadge orderNumber={item.orderNumber} />
+                  <DispatchTypeBadge type={item.itemType === "TRADING_SALES_ORDER" ? "TRADING" : "MFG"} />
+                </div>
+
+                {/* Card Body */}
+                <div className="p-4 space-y-3">
+                  {/* Customer */}
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                      <User className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
+                      <p className="text-xs font-semibold text-slate-900 m-0 truncate">{item.customerName}</p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+
+                  {/* Product */}
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                      <Package className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Product</p>
+                      <p className="text-xs font-medium text-slate-800 m-0 leading-snug">{item.productName}</p>
+                    </div>
+                  </div>
+
+                  {/* Delivery Address */}
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                      <MapPin className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
+                      <p className="text-xs text-slate-600 m-0 leading-relaxed">{item.deliveryAddress}</p>
+                    </div>
+                  </div>
+
+                  {/* Quantity */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Approved Qty</span>
+                    <DispatchQuantityBadge quantity={item.approvedQuantity} />
+                  </div>
+                </div>
+
+                {/* Card Footer: Full width action button */}
+                <div className="p-3 bg-slate-50/50 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => handleCreateDispatch(item)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Create Dispatch</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </DispatchPageShell>
   );
 }

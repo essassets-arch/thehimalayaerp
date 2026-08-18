@@ -2,28 +2,33 @@
 
 import React, { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Truck,
-  CheckCircle2,
   CheckSquare,
-  Clock,
   Upload,
   ArrowRight,
-  LayoutGrid,
+  User,
+  MapPin,
   X,
 } from "lucide-react";
-import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 
-import { DataTable } from "@/components/erp/data-table/DataTable";
-import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
 import { Button } from "@/components/ui/button";
-import { useRouter, usePathname } from "next/navigation";
-import { DispatchNavigationTabs } from "../components/DispatchNavigationTabs";
-import responsive from "../dispatch-responsive.module.css";
-import pageStyles from "../orders/orders.module.css";
-import styles from "./delivery.module.css";
+import {
+  DispatchPageShell,
+  DispatchPageHeader,
+  DispatchNavigationTabs,
+  DispatchToolbar,
+  DispatchTableCard,
+  SalesOrderNumberBadge,
+  DispatchStatusBadge,
+  DispatchActionButton,
+  DispatchLoadingState,
+  DispatchEmptyState,
+  DispatchErrorState,
+} from "../components";
 
 interface Customer {
   companyName: string;
@@ -77,11 +82,10 @@ export default function DeliveryRunPage() {
   const isDispatch2 = pathname?.startsWith("/dispatch-2");
   const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
 
-  const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(
-    null,
-  );
+  const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
+  const [search, setSearch] = useState("");
 
-  // Delivery confirmation states
+  // Delivery confirmation form state
   const [receiverName, setReceiverName] = useState("");
   const [receiverMobile, setReceiverMobile] = useState("");
   const [deliveryImage, setDeliveryImage] = useState<File | null>(null);
@@ -93,7 +97,6 @@ export default function DeliveryRunPage() {
       setDeliveryImagePreview("");
       return;
     }
-
     const previewUrl = URL.createObjectURL(deliveryImage);
     setDeliveryImagePreview(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
@@ -101,7 +104,6 @@ export default function DeliveryRunPage() {
 
   useEffect(() => {
     if (!selectedDispatch) return;
-
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !isSubmitting) {
@@ -110,15 +112,19 @@ export default function DeliveryRunPage() {
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
-
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [selectedDispatch, isSubmitting]);
 
-  // Fetch all dispatches
-  const { data: dispatches = [], isLoading } = useQuery<Dispatch[]>({
+  const {
+    data: dispatches = [],
+    isLoading,
+    isRefetching,
+    error,
+    refetch,
+  } = useQuery<Dispatch[]>({
     queryKey: ["delivery-run-dispatches"],
     queryFn: async () => {
       const payload = await backendFetch<Dispatch[]>(
@@ -128,14 +134,21 @@ export default function DeliveryRunPage() {
     },
   });
 
-  // Filter queues
-  const activeDeliveryQueue = dispatches.filter(
-    (d) => d.status === "OUT_FOR_DELIVERY",
-  );
+  const activeDeliveryQueue = useMemo(() => {
+    const list = dispatches.filter((d) => d.status === "OUT_FOR_DELIVERY");
+    if (!search.trim()) return list;
+    const lower = search.toLowerCase();
+    return list.filter(
+      (d) =>
+        d.dispatchNo?.toLowerCase().includes(lower) ||
+        d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+        d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
+        d.driverName?.toLowerCase().includes(lower)
+    );
+  }, [dispatches, search]);
 
-  // Handle row selection
-  const handleSelectDispatch = (dispatch: Dispatch) => {
-    setSelectedDispatch(dispatch);
+  const handleSelectDispatch = (dispatchItem: Dispatch) => {
+    setSelectedDispatch(dispatchItem);
     setReceiverName("");
     setReceiverMobile("");
     setDeliveryImage(null);
@@ -152,7 +165,7 @@ export default function DeliveryRunPage() {
       return;
     }
     if (!deliveryImage) {
-      toast.error("Delivery image is mandatory");
+      toast.error("Delivery POD image is mandatory");
       return;
     }
 
@@ -167,14 +180,14 @@ export default function DeliveryRunPage() {
       });
       const uploadResult = await uploadResponse.json();
       if (!uploadResponse.ok || !uploadResult.url) {
-        throw new Error(uploadResult.message || "Failed to upload delivery image");
+        throw new Error(uploadResult.message || "Failed to upload delivery proof image");
       }
 
       const payload = {
-        receiverName: receiverName,
-        receiverPhone: receiverMobile,
+        receiverName: receiverName.trim(),
+        receiverPhone: receiverMobile.trim(),
         podImageUrl: uploadResult.url,
-        version: selectedDispatch.version || 1, // Assume version is returned by GET
+        version: selectedDispatch.version || 1,
       };
 
       await backendFetch(
@@ -185,9 +198,7 @@ export default function DeliveryRunPage() {
         },
       );
 
-      toast.success(
-        `Shipment ${selectedDispatch.dispatchNo} marked as Delivered`,
-      );
+      toast.success(`Shipment ${selectedDispatch.dispatchNo} marked as Delivered`);
       setSelectedDispatch(null);
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
       router.push(`${basePath}/history`);
@@ -200,303 +211,365 @@ export default function DeliveryRunPage() {
     }
   };
 
-  const activeColumns: ColumnDef<Dispatch>[] = [
-    {
-      accessorKey: "dispatchNo",
-      header: "Dispatch Number",
-      size: 160,
-      cell: ({ row }) => (
-        <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center shrink-0">
-          {row.original.dispatchNo}
-        </span>
-      ),
-    },
-    {
-      id: "customer",
-      header: "Customer",
-      size: 180,
-      cell: ({ row }) => (
-        <span className="font-semibold text-slate-900 text-xs truncate max-w-[180px] block" title={row.original.salesOrder?.customer?.companyName || "—"}>
-          {row.original.salesOrder?.customer?.companyName || "—"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "driverName",
-      header: "Driver",
-      size: 140,
-      cell: ({ row }) => <span className="text-slate-700 font-medium text-xs whitespace-nowrap">{row.original.driverName || "—"}</span>,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      size: 140,
-      cell: ({ row }) => (
-        <div className="whitespace-nowrap inline-flex items-center">
-          <StatusBadge status={row.original.status} />
-        </div>
-      ),
-    },
-    {
-      id: "actions",
-      header: () => <div className="text-right whitespace-nowrap">Action</div>,
-      size: 170,
-      cell: ({ row }) => (
-        <div className="flex justify-end whitespace-nowrap">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => handleSelectDispatch(row.original)}
-            className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ml-auto"
-          >
-            Confirm Delivery
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <div className={responsive.flushPage}>
-      <div className={`${responsive.content} ${styles.pageFlow}`}>
-        {/* Navigation Tabs */}
-        <DispatchNavigationTabs activeTab="delivery" counts={{ delivery: activeDeliveryQueue.length }} />
+    <DispatchPageShell>
+      {/* Navigation Tabs */}
+      <DispatchNavigationTabs />
 
-        {/* Header */}
-        <div className={pageStyles.header}>
-        <div className={pageStyles.watermark}>
-          <Truck size={140} />
-        </div>
-        <div className={pageStyles.headerMain}>
-          <div className={pageStyles.headerLayout}>
-            <div className={pageStyles.headerCopy}>
-              <span className={pageStyles.eyebrow}>
-                <LayoutGrid size={13} />
-                Logistics
-              </span>
-              <h1 className={pageStyles.title}>
-                Out for Delivery (Final Mile)
-              </h1>
-              <p className={pageStyles.description}>
-                Record final handover details from customers. Select an
-                out-for-delivery dispatch, upload POD, capture receiver details,
-                and mark dispatches as Delivered.
-              </p>
-            </div>
-            <div className={pageStyles.summary}>
-              <Clock className="text-indigo-500 h-7 w-7" />
-              <div className={pageStyles.summaryCount}>
-                <strong>{activeDeliveryQueue.length}</strong>
-                <span>Active Delivery Runs</span>
-              </div>
-            </div>
+      {/* Page Header */}
+      <DispatchPageHeader
+        title="Out for Delivery (Final Mile)"
+        description="Record final handover details from customers. Select an out-for-delivery dispatch, upload proof of delivery (POD), capture receiver details, and mark dispatches as Delivered."
+        eyebrow="Final Mile Operations"
+        icon={Truck}
+        stats={[
+          { label: "Out for Delivery", value: activeDeliveryQueue.length, icon: Truck, color: "bg-indigo-50 text-indigo-600" },
+        ]}
+        onRefresh={() => refetch()}
+        isRefreshing={isRefetching}
+      />
+
+      {/* Toolbar / Search Filter */}
+      <DispatchToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search dispatch number, customer or driver..."
+        title="Delivery Run Queue"
+        subtitle={`Showing ${activeDeliveryQueue.length} shipment${activeDeliveryQueue.length !== 1 ? "s" : ""} out for delivery`}
+      />
+
+      {/* Loading State */}
+      {isLoading && <DispatchLoadingState count={5} />}
+
+      {/* Error State */}
+      {error && !isLoading && <DispatchErrorState onRetry={() => refetch()} />}
+
+      {/* Empty State */}
+      {!isLoading && !error && activeDeliveryQueue.length === 0 && (
+        <DispatchEmptyState
+          title={search ? "No Matching Active Deliveries" : "No Active Delivery Runs"}
+          description={
+            search
+              ? `No active delivery runs match "${search}". Try clearing your search filter.`
+              : "No shipments are currently out for delivery. Start a delivery run from the In-Transit shipments list."
+          }
+          onRetry={() => refetch()}
+        />
+      )}
+
+      {/* Table & Mobile Cards */}
+      {!isLoading && !error && activeDeliveryQueue.length > 0 && (
+        <>
+          {/* Desktop Table View (≥ 768px) */}
+          <div className="hidden md:block">
+            <DispatchTableCard minTableWidth={1100}>
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/90 border-b border-slate-200">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                      Dispatch Number
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                      Sales Order
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                      Customer
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                      Driver
+                    </th>
+                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                      Status
+                    </th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {activeDeliveryQueue.map((dispatchItem) => (
+                    <tr
+                      key={dispatchItem.id}
+                      className="hover:bg-slate-50 transition-colors group"
+                    >
+                      {/* Dispatch Number */}
+                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                        <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
+                      </td>
+
+                      {/* Sales Order */}
+                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                        <span className="font-semibold text-slate-900 text-xs">
+                          #{dispatchItem.salesOrder?.orderNumber}
+                        </span>
+                      </td>
+
+                      {/* Customer */}
+                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                        <span
+                          className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[200px] truncate"
+                          title={dispatchItem.salesOrder?.customer?.companyName || "—"}
+                        >
+                          {dispatchItem.salesOrder?.customer?.companyName || "—"}
+                        </span>
+                      </td>
+
+                      {/* Driver */}
+                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                        <span className="text-slate-800 font-medium text-xs">
+                          {dispatchItem.driverName || "—"}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3.5 whitespace-nowrap text-center align-middle">
+                        <DispatchStatusBadge status={dispatchItem.status} />
+                      </td>
+
+                      {/* Action Button */}
+                      <td className="px-4 py-3.5 whitespace-nowrap text-right align-middle">
+                        <DispatchActionButton
+                          label="Confirm Delivery"
+                          icon={ArrowRight}
+                          onClick={() => handleSelectDispatch(dispatchItem)}
+                          variant="primary"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </DispatchTableCard>
           </div>
-        </div>
-      </div>
 
-      {/* Active delivery queue */}
-      <div className={styles.workspace} role="tabpanel">
-          <div className={styles.queueColumn}>
-            <div className={styles.panel}>
-              <h2 className={styles.panelTitle}>Out for Delivery Queue</h2>
-              {isLoading ? (
-                <div className="flex justify-center py-8 text-sm text-gray-500">
-                  Loading delivery run data...
+          {/* Mobile Cards View (< 768px) */}
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {activeDeliveryQueue.map((dispatchItem) => (
+              <div
+                key={dispatchItem.id}
+                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
+              >
+                {/* Card Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
+                    <span className="text-xs font-semibold text-slate-600">
+                      #{dispatchItem.salesOrder?.orderNumber}
+                    </span>
+                  </div>
+                  <DispatchStatusBadge status={dispatchItem.status} />
                 </div>
-              ) : (
-                <DataTable
-                  columns={activeColumns}
-                  data={activeDeliveryQueue}
-                  className={styles.tableFrame}
-                  emptyMessage="No shipments are currently out for delivery."
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
+                {/* Card Body */}
+                <div className="p-4 space-y-3">
+                  {/* Customer */}
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                      <User className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
+                      <p className="text-xs font-semibold text-slate-900 m-0 truncate">
+                        {dispatchItem.salesOrder?.customer?.companyName || "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Delivery Address */}
+                  {dispatchItem.deliveryAddress && (
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                        <MapPin className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
+                        <p className="text-xs text-slate-600 m-0 leading-relaxed">{dispatchItem.deliveryAddress}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Driver */}
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                      <Truck className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Driver</p>
+                      <p className="text-xs font-medium text-slate-800 m-0">
+                        {dispatchItem.driverName || "—"} {dispatchItem.driverPhone ? `· ${dispatchItem.driverPhone}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Footer */}
+                <div className="p-3 bg-slate-50/50 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectDispatch(dispatchItem)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <span>Confirm Delivery</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Confirmation Modal */}
       {selectedDispatch && (
         <div
-          className={styles.modalBackdrop}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
           role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !isSubmitting) {
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !isSubmitting) {
               setSelectedDispatch(null);
             }
           }}
         >
-          <section
-            className={styles.confirmationModal}
+          <div
+            className="w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200 flex flex-col"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="delivery-confirmation-title"
           >
-            <div className={styles.confirmationCard}>
-              <div className={styles.confirmationHeader}>
-                <div>
-                  <h2
-                    id="delivery-confirmation-title"
-                    className="text-base font-bold text-gray-900"
-                  >
-                  Delivery Confirmation
-                  </h2>
-                  <span className="text-xs text-gray-500 font-medium font-mono">
-                    Dispatch: {selectedDispatch.dispatchNo}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className={styles.modalClose}
-                  onClick={() => setSelectedDispatch(null)}
-                  disabled={isSubmitting}
-                  aria-label="Close delivery confirmation"
-                >
-                  <X size={18} />
-                </button>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50/80">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 m-0">Delivery Confirmation</h3>
+                <p className="text-xs text-slate-500 font-mono m-0 mt-0.5">
+                  Dispatch: {selectedDispatch.dispatchNo}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDispatch(null)}
+                disabled={isSubmitting}
+                aria-label="Close modal"
+                className="p-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              {/* Show Details */}
-              <div className={styles.dispatchDetails}>
-                <div>
-                  Sales Order:{" "}
-                  <span className="font-bold text-gray-900">
-                    #{selectedDispatch.salesOrder?.orderNumber}
-                  </span>
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Dispatch Summary Box */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 text-slate-700">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Sales Order:</span>
+                  <span className="font-semibold text-slate-900">#{selectedDispatch.salesOrder?.orderNumber}</span>
                 </div>
-                <div>
-                  Customer:{" "}
-                  <span className="font-bold text-gray-900">
-                    {selectedDispatch.salesOrder?.customer?.companyName}
-                  </span>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Customer:</span>
+                  <span className="font-semibold text-slate-900">{selectedDispatch.salesOrder?.customer?.companyName}</span>
                 </div>
-                <div>
-                  Address:{" "}
-                  <span className="font-bold text-gray-900">
-                    {selectedDispatch.deliveryAddress || "N/A"}
-                  </span>
-                </div>
-                <div>
-                  Driver:{" "}
-                  <span className="font-bold text-gray-900">
-                    {selectedDispatch.driverName || "N/A"}
-                  </span>
-                </div>
-                <div>
-                  Products:{" "}
-                  <span className="font-bold text-gray-900">
-                    {selectedDispatch.items
-                      ?.map((i) => i.salesOrderItem.productNameSnapshot)
-                      .join(", ")}
-                  </span>
-                </div>
-                <div>
-                  Quantity:{" "}
-                  <span className="font-bold text-blue-700 font-mono">
-                    {selectedDispatch.items?.reduce(
-                      (sum, item) => sum + Number(item.quantity),
-                      0,
-                    )}
-                  </span>
-                </div>
-                <div>
-                  Invoice / E-way:{" "}
-                  <span className="font-mono text-gray-900">
-                    {selectedDispatch.invoiceNumber || "-"} /{" "}
-                    {selectedDispatch.ewayBillNumber || "-"}
-                  </span>
-                </div>
+                {selectedDispatch.deliveryAddress && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Address:</span>
+                    <span className="font-medium text-slate-800 max-w-[260px] text-right truncate">{selectedDispatch.deliveryAddress}</span>
+                  </div>
+                )}
+                {selectedDispatch.driverName && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Driver:</span>
+                    <span className="font-medium text-slate-800">{selectedDispatch.driverName}</span>
+                  </div>
+                )}
               </div>
 
               {/* Form Input Fields */}
-              <div className={styles.formFields}>
-                <div className={styles.receiverGrid}>
-                  <div className={styles.formField}>
-                    <label htmlFor="receiver-name">Receiver Name *</label>
+              <div className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="receiver-name" className="text-xs font-bold text-slate-700">
+                      Receiver Name <span className="text-red-500">*</span>
+                    </label>
                     <input
                       id="receiver-name"
                       type="text"
                       value={receiverName}
                       onChange={(e) => setReceiverName(e.target.value)}
                       placeholder="Who received the package?"
-                      autoComplete="name"
+                      className="h-10 px-3 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
-                  <div className={styles.formField}>
-                    <label htmlFor="receiver-mobile">Receiver Mobile *</label>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="receiver-mobile" className="text-xs font-bold text-slate-700">
+                      Receiver Mobile <span className="text-red-500">*</span>
+                    </label>
                     <input
                       id="receiver-mobile"
                       type="tel"
                       value={receiverMobile}
                       onChange={(e) => setReceiverMobile(e.target.value)}
                       placeholder="+91-9999999999"
-                      autoComplete="tel"
-                      inputMode="tel"
+                      className="h-10 px-3 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
                 </div>
-                <div className={styles.formField}>
-                  <label>
-                    Delivery Image *
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700">
+                    Delivery Image (POD) <span className="text-red-500">*</span>
                   </label>
-                  <label className={styles.imageUploader}>
+                  <label className="relative flex flex-col items-center justify-center min-h-[140px] p-4 border-2 border-dashed border-indigo-200 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors text-center">
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] || null;
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
                         if (file && file.size > 5 * 1024 * 1024) {
                           toast.error("Image must be 5 MB or smaller");
-                          event.target.value = "";
                           return;
                         }
                         setDeliveryImage(file);
                       }}
                     />
                     {deliveryImagePreview ? (
-                      <div className={styles.imagePreview}>
+                      <div className="space-y-2 flex flex-col items-center">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={deliveryImagePreview} alt="Delivery proof preview" />
-                        <span>Click to replace image</span>
+                        <img src={deliveryImagePreview} alt="POD Preview" className="max-h-36 rounded-lg object-contain" />
+                        <span className="text-[11px] text-slate-400 font-medium">Click to replace image</span>
                       </div>
                     ) : (
-                      <div className={styles.imagePrompt}>
-                        <Upload className="h-7 w-7" />
-                        <strong>Upload delivery image</strong>
-                        <span>JPG, PNG or WebP · maximum 5 MB</span>
+                      <div className="space-y-1.5 flex flex-col items-center text-indigo-600">
+                        <Upload className="w-7 h-7" />
+                        <span className="text-xs font-bold text-slate-800">Upload delivery proof image</span>
+                        <span className="text-[11px] text-slate-400">JPG, PNG or WebP · maximum 5 MB</span>
                       </div>
                     )}
                   </label>
                 </div>
               </div>
-
-              <div className={styles.formActions}>
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedDispatch(null)}
-                  className="px-5 py-2.5 text-sm font-semibold rounded-xl"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  disabled={
-                    !receiverName ||
-                    !receiverMobile ||
-                    !deliveryImage ||
-                    isSubmitting
-                  }
-                  onClick={handleConfirmDelivery}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold rounded-xl flex items-center gap-2"
-                >
-                  <CheckSquare className="h-4.5 w-4.5" />
-                  Confirm Delivery
-                </Button>
-              </div>
             </div>
-          </section>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-200 bg-slate-50/80">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedDispatch(null)}
+                disabled={isSubmitting}
+                className="text-xs font-semibold rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!receiverName || !receiverMobile || !deliveryImage || isSubmitting}
+                onClick={handleConfirmDelivery}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5"
+              >
+                <CheckSquare className="w-4 h-4" />
+                <span>{isSubmitting ? "Confirming..." : "Confirm Delivery"}</span>
+              </Button>
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </DispatchPageShell>
   );
 }

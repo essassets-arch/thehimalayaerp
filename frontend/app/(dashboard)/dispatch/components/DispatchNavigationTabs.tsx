@@ -3,103 +3,46 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Package,
-  Truck,
-  MapPin,
-  RefreshCw,
-  CheckCircle2,
-} from "lucide-react";
+import { Package, Truck, Navigation, CheckCircle2, Factory, RotateCcw, Repeat, FileSpreadsheet } from "lucide-react";
 
-export type DispatchTabKey = "orders" | "in-transit" | "delivery" | "replacements" | "history";
-
-interface DispatchNavigationTabsProps {
-  activeTab: DispatchTabKey;
-  counts?: {
-    orders?: number;
-    inTransit?: number;
-    delivery?: number;
-    replacements?: number;
-    history?: number;
-  };
-}
-
-export function DispatchNavigationTabs({ activeTab, counts }: DispatchNavigationTabsProps) {
+export function DispatchNavigationTabs() {
   const pathname = usePathname();
   const isDispatch2 = pathname?.startsWith("/dispatch-2");
   const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
 
   const tabs = [
-    {
-      key: "orders" as const,
-      label: "Pending Orders",
-      href: `${basePath}/orders`,
-      icon: Package,
-      count: counts?.orders,
-    },
-    {
-      key: "in-transit" as const,
-      label: "In-Transit",
-      href: `${basePath}/in-transit`,
-      icon: Truck,
-      count: counts?.inTransit,
-    },
-    {
-      key: "delivery" as const,
-      label: "Delivery Run",
-      href: `${basePath}/delivery`,
-      icon: MapPin,
-      count: counts?.delivery,
-    },
-    {
-      key: "replacements" as const,
-      label: "Replacements",
-      href: `${basePath}/replacements`,
-      icon: RefreshCw,
-      count: counts?.replacements,
-    },
-    {
-      key: "history" as const,
-      label: "History",
-      href: `${basePath}/history`,
-      icon: CheckCircle2,
-      count: counts?.history,
-    },
+    { href: `${basePath}/orders`, label: "Pending Orders", icon: Package },
+    { href: `${basePath}/in-transit`, label: "In Transit", icon: Navigation },
+    { href: `${basePath}/delivery`, label: "Out for Delivery", icon: Truck },
+    { href: `${basePath}/history`, label: "Delivery History", icon: CheckCircle2 },
+    { href: `${basePath}/finished-goods`, label: "Finished Stock", icon: Factory },
+    { href: `${basePath}/returns`, label: "Returns", icon: RotateCcw },
+    { href: `${basePath}/replacements`, label: "Replacements", icon: Repeat },
+    { href: `${basePath}/daily-report`, label: "Daily Report", icon: FileSpreadsheet },
   ];
 
   return (
-    <div className="w-full bg-white border border-slate-200 rounded-2xl p-1.5 shadow-xs mb-6 overflow-x-auto scrollbar-thin">
-      <nav className="flex items-center gap-1 min-w-max" aria-label="Dispatch Sections">
+    <div className="w-full overflow-x-auto scrollbar-none py-1">
+      <div className="inline-flex items-center gap-1.5 p-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xs">
         {tabs.map((tab) => {
+          const isActive = pathname === tab.href || (tab.href.endsWith("/orders") && pathname === basePath);
           const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
           return (
             <Link
-              key={tab.key}
+              key={tab.href}
               href={tab.href}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 whitespace-nowrap cursor-pointer ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
               }`}
             >
-              <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : "text-slate-500"}`} />
+              <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-slate-400"}`} />
               <span>{tab.label}</span>
-              {typeof tab.count === "number" && (
-                <span
-                  className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
             </Link>
           );
         })}
-      </nav>
+      </div>
     </div>
   );
 }

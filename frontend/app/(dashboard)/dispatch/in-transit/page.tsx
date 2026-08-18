@@ -7,21 +7,25 @@ import {
   Truck,
   Navigation,
   Play,
-  Clock,
   User,
-  Calendar,
   MapPin,
-  ChevronRight,
-  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
-import { Button } from "@/components/ui/button";
-import { DispatchNavigationTabs } from "../components/DispatchNavigationTabs";
-import responsive from "../dispatch-responsive.module.css";
-import pageStyles from "../orders/orders.module.css";
+import {
+  DispatchPageShell,
+  DispatchPageHeader,
+  DispatchNavigationTabs,
+  DispatchToolbar,
+  DispatchTableCard,
+  SalesOrderNumberBadge,
+  DispatchStatusBadge,
+  DispatchActionButton,
+  DispatchLoadingState,
+  DispatchEmptyState,
+  DispatchErrorState,
+} from "../components";
 
 interface Customer {
   companyName: string;
@@ -57,13 +61,15 @@ export default function InTransitPage() {
 
   const queryClient = useQueryClient();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
-  const getExpectedDelivery = (dispatch: Dispatch) =>
-    dispatch.eta || dispatch.salesOrder?.requestedDeliveryDate || null;
+  const getExpectedDelivery = (dispatchItem: Dispatch) =>
+    dispatchItem.eta || dispatchItem.salesOrder?.requestedDeliveryDate || null;
 
   const {
     data: dispatches = [],
     isLoading,
+    isRefetching,
     error,
     refetch,
   } = useQuery<Dispatch[]>({
@@ -74,8 +80,21 @@ export default function InTransitPage() {
       );
       return Array.isArray(payload) ? payload : [];
     },
-    refetchInterval: 30000, // auto-refresh every 30s
+    refetchInterval: 30000,
   });
+
+  const filteredDispatches = React.useMemo(() => {
+    if (!search.trim()) return dispatches;
+    const lower = search.toLowerCase();
+    return dispatches.filter(
+      (d) =>
+        d.dispatchNo?.toLowerCase().includes(lower) ||
+        d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+        d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
+        d.driverName?.toLowerCase().includes(lower) ||
+        d.vehicleNumber?.toLowerCase().includes(lower)
+    );
+  }, [dispatches, search]);
 
   const handleStartDelivery = async (dispatchId: string) => {
     setLoadingId(dispatchId);
@@ -99,417 +118,304 @@ export default function InTransitPage() {
   };
 
   return (
-    <div className={responsive.flushPage}>
-      <div className={responsive.content}>
-        {/* Navigation Tabs */}
-        <DispatchNavigationTabs activeTab="in-transit" counts={{ inTransit: dispatches.length }} />
+    <DispatchPageShell>
+      {/* Navigation Tabs */}
+      <DispatchNavigationTabs />
 
-        {/* ── Page Header ── */}
-        <div className={pageStyles.header}>
-          <div className={pageStyles.headerMain}>
-            {/* Background watermark */}
-            <div className={pageStyles.watermark}>
-              <Truck size={160} />
-            </div>
+      {/* Page Header */}
+      <DispatchPageHeader
+        title="Active Transit Shipments"
+        description="Monitor active shipments currently on the road. Click Start Delivery when vehicle arrives at destination area to hand off to final-mile delivery team."
+        eyebrow="Logistics Operations"
+        icon={Navigation}
+        stats={[
+          { label: "Active In-Transit", value: dispatches.length, icon: Truck, color: "bg-sky-50 text-sky-600" },
+        ]}
+        onRefresh={() => refetch()}
+        isRefreshing={isRefetching}
+      />
 
-            <div className={pageStyles.headerLayout}>
-              {/* Left: Title + description */}
-              <div className={pageStyles.headerCopy}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={pageStyles.eyebrow}>
-                    <Navigation className="h-3 w-3" />
-                    Logistics
-                  </span>
-                </div>
-                <h1 className={pageStyles.title}>Active Shipments</h1>
-                <p className={pageStyles.description}>
-                  Monitor shipments currently in transit. Click{" "}
-                  <span className="font-semibold text-indigo-600">
-                    Start Delivery
-                  </span>{" "}
-                  when the vehicle reaches the destination area to hand off to
-                  the final-mile delivery team.
-                </p>
-              </div>
+      {/* Toolbar / Search Filter */}
+      <DispatchToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search dispatch no, sales order, customer, driver or vehicle..."
+        title="Transit Queue"
+        subtitle={`Auto-refreshes every 30s · Showing ${filteredDispatches.length} shipment${filteredDispatches.length !== 1 ? "s" : ""}`}
+      />
 
-              {/* Right: Stats */}
-              <div className={pageStyles.summary}>
-                <div className={pageStyles.summaryCount}>
-                  <strong>{dispatches.length}</strong>
-                  <span>In Transit</span>
-                </div>
-                <div className={pageStyles.divider} />
-                <button
-                  onClick={() => refetch()}
-                  className={pageStyles.refresh}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* Loading State */}
+      {isLoading && <DispatchLoadingState count={5} />}
 
-          {/* Status strip */}
-          <div className={pageStyles.headerFooter}>
-            <p>
-              Auto-refreshes every 30 seconds &nbsp;·&nbsp; Showing{" "}
-              {dispatches.length} active shipment
-              {dispatches.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-        </div>
+      {/* Error State */}
+      {error && !isLoading && <DispatchErrorState onRetry={() => refetch()} />}
 
-        {/* ── Loading / Error States ── */}
-        {isLoading && (
-          <div className="bg-white rounded-2xl border border-gray-200/70 shadow-sm flex items-center justify-center py-20 gap-3 text-sm text-gray-500">
-            <Clock className="animate-spin h-5 w-5 text-indigo-500" />
-            Loading active transit shipments...
-          </div>
-        )}
+      {/* Empty State */}
+      {!isLoading && !error && filteredDispatches.length === 0 && (
+        <DispatchEmptyState
+          title={search ? "No Matching Transit Shipments" : "No Active Transit Shipments"}
+          description={
+            search
+              ? `No active transit shipments match "${search}". Try clearing your search.`
+              : "No shipments are currently in transit. Create a dispatch gate pass from the Pending Queue to start transit runs."
+          }
+          onRetry={() => refetch()}
+        />
+      )}
 
-        {error && !isLoading && (
-          <div className="bg-red-50 rounded-2xl border border-red-200 p-8 text-center space-y-2">
-            <p className="text-sm font-semibold text-red-700">
-              Failed to load transit data
-            </p>
-            <p className="text-xs text-red-500">
-              Please check connectivity or permissions.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              className="mt-3 text-red-600 border-red-200"
-            >
-              Try Again
-            </Button>
-          </div>
-        )}
-
-        {/* ── Empty State ── */}
-        {!isLoading && !error && dispatches.length === 0 && (
-          <div className={pageStyles.stateCard}>
-            <div className={pageStyles.stateContent}>
-              <div className={pageStyles.stateIcon}>
-                <Truck className="h-8 w-8" />
-              </div>
-              <h3>No Active Shipments</h3>
-              <p>
-                No shipments are currently in transit. Create a dispatch from
-                the Pending Dispatch queue to get started.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push(`${basePath}/orders`)}
-              >
-                Go to Pending Queue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Desktop Table View ── */}
-        {!isLoading && !error && dispatches.length > 0 && (
-          <>
-            {/* Desktop: Scrollable Table */}
-            <div className={pageStyles.desktopTable}>
-              <div className={pageStyles.tableScroll}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-slate-50/90 border-b border-slate-200">
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Dispatch No.
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Sales Order
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Customer
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Driver / Vehicle
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Dispatched At
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Expected Delivery
-                      </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Status
-                      </th>
-                      <th className="text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {dispatches.map((dispatch) => (
+      {/* Table & Mobile Cards */}
+      {!isLoading && !error && filteredDispatches.length > 0 && (
+        <>
+          {/* Desktop Table View (≥ 768px) */}
+          <div className="hidden md:block">
+            <DispatchTableCard minTableWidth={1100}>
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/90 border-b border-slate-200">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                      Dispatch No.
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                      Sales Order
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                      Customer
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                      Driver / Vehicle
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                      Dispatched At
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[150px]">
+                      Expected Delivery
+                    </th>
+                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                      Status
+                    </th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {filteredDispatches.map((dispatchItem) => {
+                    const expectedDate = getExpectedDelivery(dispatchItem);
+                    const isOverdue = expectedDate && new Date(expectedDate) < new Date();
+                    return (
                       <tr
-                        key={dispatch.id}
-                        className="hover:bg-indigo-50/20 transition-colors group"
+                        key={dispatchItem.id}
+                        className="hover:bg-slate-50 transition-colors group"
                       >
-                        <td className="px-4 py-3.5 whitespace-nowrap">
-                          <span className="font-semibold text-indigo-700 text-xs tracking-tight bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/60 inline-flex items-center shrink-0">
-                            {dispatch.dispatchNo}
-                          </span>
+                        {/* Dispatch No */}
+                        <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                          <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
+
+                        {/* Sales Order */}
+                        <td className="px-4 py-3.5 whitespace-nowrap align-middle">
                           <span className="font-semibold text-slate-900 text-xs">
-                            #{dispatch.salesOrder?.orderNumber}
+                            #{dispatchItem.salesOrder?.orderNumber}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
+
+                        {/* Customer */}
+                        <td className="px-4 py-3.5 whitespace-nowrap align-middle">
                           <span
-                            className="font-medium text-slate-800 text-xs block max-w-[180px] truncate"
-                            title={dispatch.salesOrder?.customer?.companyName}
+                            className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[200px] truncate"
+                            title={dispatchItem.salesOrder?.customer?.companyName || "—"}
                           >
-                            {dispatch.salesOrder?.customer?.companyName}
+                            {dispatchItem.salesOrder?.customer?.companyName || "—"}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
+
+                        {/* Driver / Vehicle */}
+                        <td className="px-4 py-3.5 whitespace-nowrap align-middle">
                           <div className="flex flex-col">
-                            <span className="text-slate-800 font-semibold text-xs">
-                              {dispatch.driverName || "—"}
+                            <span className="text-slate-900 font-semibold text-xs">
+                              {dispatchItem.driverName || "—"}
                             </span>
-                            {dispatch.driverPhone && (
-                              <span className="text-slate-500 text-[11px] font-mono">
-                                {dispatch.driverPhone}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {dispatchItem.vehicleNumber && (
+                                <span className="text-indigo-600 font-mono text-[11px] font-bold">
+                                  {dispatchItem.vehicleNumber}
+                                </span>
+                              )}
+                              {dispatchItem.driverPhone && (
+                                <span className="text-slate-400 text-[11px] font-mono">
+                                  · {dispatchItem.driverPhone}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
+
+                        {/* Dispatched At */}
+                        <td className="px-4 py-3.5 whitespace-nowrap align-middle">
                           <span className="text-slate-600 text-xs font-medium">
-                            {dispatch.dispatchedAt
-                              ? new Date(dispatch.dispatchedAt).toLocaleString(
-                                  "en-IN",
-                                  {
-                                    day: "2-digit",
-                                    month: "short",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )
+                            {dispatchItem.dispatchedAt
+                              ? new Date(dispatchItem.dispatchedAt).toLocaleString("en-IN", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
                               : "—"}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
+
+                        {/* Expected Delivery */}
+                        <td className="px-4 py-3.5 whitespace-nowrap align-middle">
                           <span
-                            className={`text-xs font-mono font-semibold ${
-                              getExpectedDelivery(dispatch) &&
-                              new Date(getExpectedDelivery(dispatch)!) < new Date()
-                                ? "text-red-600"
-                                : "text-slate-700"
+                            className={`text-xs font-semibold ${
+                              isOverdue ? "text-red-600" : "text-slate-700"
                             }`}
                           >
-                            {getExpectedDelivery(dispatch)
-                              ? new Date(getExpectedDelivery(dispatch)!).toLocaleDateString(
-                                  "en-IN",
-                                  {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  },
-                                )
+                            {expectedDate
+                              ? new Date(expectedDate).toLocaleDateString("en-IN", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
                               : "—"}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
-                          <StatusBadge status={dispatch.status} />
+
+                        {/* Status */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-center align-middle">
+                          <DispatchStatusBadge status={dispatchItem.status} />
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap text-right">
-                          <Button
-                            size="sm"
-                            onClick={() => handleStartDelivery(dispatch.id)}
-                            disabled={loadingId === dispatch.id}
-                            className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ml-auto"
-                          >
-                            {loadingId === dispatch.id ? (
-                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Play className="h-3.5 w-3.5" />
-                            )}
-                            Start Delivery
-                          </Button>
+
+                        {/* Action Button */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-right align-middle">
+                          <DispatchActionButton
+                            label="Start Delivery"
+                            icon={Play}
+                            onClick={() => handleStartDelivery(dispatchItem.id)}
+                            loading={loadingId === dispatchItem.id}
+                            variant="primary"
+                          />
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </DispatchTableCard>
+          </div>
 
-            {/* Mobile: Card View */}
-            <div className={pageStyles.mobileCards}>
-              {dispatches.map((dispatch) => (
+          {/* Mobile Cards View (< 768px) */}
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {filteredDispatches.map((dispatchItem) => {
+              const expectedDate = getExpectedDelivery(dispatchItem);
+              const isOverdue = expectedDate && new Date(expectedDate) < new Date();
+              return (
                 <div
-                  key={dispatch.id}
-                  className={pageStyles.shipmentCard}
+                  key={dispatchItem.id}
+                  className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
                 >
                   {/* Card Header */}
-                  <div className={pageStyles.shipmentCardHeader}>
-                    <div className={pageStyles.shipmentIdentity}>
-                      <span className="font-bold text-indigo-600 font-mono text-xs tracking-wide">
-                        {dispatch.dispatchNo}
-                      </span>
-                      <span className="text-gray-400 mx-1.5">·</span>
-                      <span className="text-xs font-semibold text-gray-600">
-                        #{dispatch.salesOrder?.orderNumber}
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
+                      <span className="text-xs font-semibold text-slate-600">
+                        #{dispatchItem.salesOrder?.orderNumber}
                       </span>
                     </div>
-                    <StatusBadge status={dispatch.status} />
+                    <DispatchStatusBadge status={dispatchItem.status} />
                   </div>
 
                   {/* Card Body */}
-                  <div className={pageStyles.shipmentCardBody}>
+                  <div className="p-4 space-y-3">
                     {/* Customer */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                        <User className="h-3.5 w-3.5 text-gray-400" />
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                        <User className="w-3.5 h-3.5" />
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                          Customer
-                        </p>
-                        <p className="text-sm font-semibold text-gray-800">
-                          {dispatch.salesOrder?.customer?.companyName}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
+                        <p className="text-xs font-semibold text-slate-900 m-0 truncate">
+                          {dispatchItem.salesOrder?.customer?.companyName || "—"}
                         </p>
                       </div>
                     </div>
 
-                    {/* Delivery address */}
-                    {dispatch.deliveryAddress && (
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                          <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                    {/* Delivery Address */}
+                    {dispatchItem.deliveryAddress && (
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                          <MapPin className="w-3.5 h-3.5" />
                         </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Delivery To
-                          </p>
-                          <p className="text-xs text-gray-600 leading-relaxed">
-                            {dispatch.deliveryAddress}
-                          </p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
+                          <p className="text-xs text-slate-600 m-0 leading-relaxed">{dispatchItem.deliveryAddress}</p>
                         </div>
                       </div>
                     )}
 
-                    {/* Driver + Vehicle */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                        <Truck className="h-3.5 w-3.5 text-gray-400" />
+                    {/* Driver & Vehicle */}
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
+                        <Truck className="w-3.5 h-3.5" />
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                          Driver / Vehicle
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Driver / Vehicle</p>
+                        <p className="text-xs font-medium text-slate-800 m-0">
+                          {dispatchItem.driverName || "—"} {dispatchItem.driverPhone ? `· ${dispatchItem.driverPhone}` : ""}
                         </p>
-                        {dispatch.driverName && (
-                          <p className="text-sm text-gray-700 font-medium">
-                            {dispatch.driverName} ·{" "}
-                            {dispatch.driverPhone || "No phone"}
-                          </p>
-                        )}
-                        {dispatch.vehicleNumber && (
-                          <p className="text-[11px] font-mono text-indigo-600 mt-0.5">
-                            {dispatch.vehicleNumber}
+                        {dispatchItem.vehicleNumber && (
+                          <p className="text-xs font-bold text-indigo-600 font-mono m-0 mt-0.5">
+                            {dispatchItem.vehicleNumber}
                           </p>
                         )}
                       </div>
                     </div>
 
                     {/* Dates */}
-                    <div className={pageStyles.dateGrid}>
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                          <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Dispatched
-                          </p>
-                          <p className="text-xs font-medium text-gray-700">
-                            {dispatch.dispatchedAt
-                              ? new Date(
-                                  dispatch.dispatchedAt,
-                                ).toLocaleDateString("en-IN", {
-                                  day: "2-digit",
-                                  month: "short",
-                                })
-                              : "—"}
-                          </p>
-                        </div>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Dispatched</p>
+                        <p className="text-xs font-medium text-slate-700 m-0">
+                          {dispatchItem.dispatchedAt
+                            ? new Date(dispatchItem.dispatchedAt).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                              })
+                            : "—"}
+                        </p>
                       </div>
-                      <div className="flex items-start gap-2.5">
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                            getExpectedDelivery(dispatch) &&
-                            new Date(getExpectedDelivery(dispatch)!) < new Date()
-                              ? "bg-red-50"
-                              : "bg-gray-100"
-                          }`}
-                        >
-                          <Clock
-                            className={`h-3.5 w-3.5 ${
-                              getExpectedDelivery(dispatch) &&
-                              new Date(getExpectedDelivery(dispatch)!) < new Date()
-                                ? "text-red-400"
-                                : "text-gray-400"
-                            }`}
-                          />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Expected Delivery
-                          </p>
-                          <p
-                            className={`text-xs font-semibold font-mono ${
-                              getExpectedDelivery(dispatch) &&
-                              new Date(getExpectedDelivery(dispatch)!) < new Date()
-                                ? "text-red-500"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {getExpectedDelivery(dispatch)
-                              ? new Date(getExpectedDelivery(dispatch)!).toLocaleDateString(
-                                  "en-IN",
-                                  {
-                                    day: "2-digit",
-                                    month: "short",
-                                  },
-                                )
-                              : "—"}
-                          </p>
-                        </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Expected Delivery</p>
+                        <p className={`text-xs font-semibold m-0 ${isOverdue ? "text-red-600" : "text-slate-700"}`}>
+                          {expectedDate
+                            ? new Date(expectedDate).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                              })
+                            : "—"}
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Card Footer: Action */}
-                  <div className={pageStyles.shipmentCardFooter}>
-                    <Button
-                      size="sm"
-                      onClick={() => handleStartDelivery(dispatch.id)}
-                      disabled={loadingId === dispatch.id}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 text-xs font-semibold w-full justify-center"
+                  {/* Card Footer */}
+                  <div className="p-3 bg-slate-50/50 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handleStartDelivery(dispatchItem.id)}
+                      disabled={loadingId === dispatchItem.id}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      {loadingId === dispatch.id ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Play className="h-3.5 w-3.5" />
-                      )}
-                      Start Delivery
-                      <ChevronRight className="h-3.5 w-3.5 ml-auto" />
-                    </Button>
+                      <Play className={`w-4 h-4 ${loadingId === dispatchItem.id ? "animate-spin" : ""}`} />
+                      <span>Start Delivery</span>
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </DispatchPageShell>
   );
 }
