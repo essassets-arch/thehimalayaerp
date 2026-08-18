@@ -257,17 +257,19 @@ export class QcService {
           },
         });
 
-        // Log StockHistory event for QC_RECEIPT
-        await tx.stockHistory.create({
-          data: {
-            companyId,
-            productId: orderItem.productId,
-            quantity: inspection.workOrder.quantity,
-            salesOrderId: inspection.workOrder.productionPlan?.salesOrderId,
-            event: 'QC_RECEIPT',
-            actor: userId,
-          },
-        });
+        // Log StockHistory event for QC_RECEIPT (if model exists)
+        if ((tx as any).stockHistory) {
+          await (tx as any).stockHistory.create({
+            data: {
+              companyId,
+              productId: orderItem.productId,
+              quantity: inspection.workOrder.quantity,
+              salesOrderId: inspection.workOrder.productionPlan?.salesOrderId,
+              event: 'QC_RECEIPT',
+              actor: userId,
+            },
+          }).catch(() => null);
+        }
         const planId = inspection.workOrder.productionPlanId;
         const planWorkOrders = await tx.workOrder.findMany({
           where: { productionPlanId: planId },

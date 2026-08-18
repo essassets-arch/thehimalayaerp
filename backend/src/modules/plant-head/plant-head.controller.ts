@@ -178,6 +178,18 @@ export class PlantHeadController {
     return this.plantHeadService.directDispatch(orderId, items, companyId, userId);
   }
 
+  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @Get('orders/:orderId/fulfillment-plan')
+  async getFulfillmentPlan(
+    @Param('orderId') orderId: string,
+    @Req() req: Request,
+  ) {
+    const companyId =
+      (req.headers['x-company-id'] as string) ||
+      (req as any).user?.['companyId'];
+    return this.plantHeadService.getFulfillmentPlan(orderId, companyId);
+  }
+
   @RequirePermissions('admin.planthead.create', 'planthead.create')
   @Post('orders/:orderId/fulfillment-plan')
   async submitFulfillmentPlan(

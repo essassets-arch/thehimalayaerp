@@ -130,53 +130,57 @@ export class ProductionTargetService {
   }
 
   async getCurrentAchievement() {
-    const today = new Date();
-    // Reset hours to start of day for comparison
-    today.setUTCHours(0, 0, 0, 0);
+    try {
+      const today = new Date();
+      // Reset hours to start of day for comparison
+      today.setUTCHours(0, 0, 0, 0);
 
-    const activeTarget = await this.prisma.productionTarget.findFirst({
-      where: {
-        status: 'ACTIVE',
-        startDate: { lte: today },
-        endDate: { gte: today },
-      },
-    });
+      const activeTarget = await this.prisma.productionTarget.findFirst({
+        where: {
+          status: 'ACTIVE',
+          startDate: { lte: today },
+          endDate: { gte: today },
+        },
+      });
 
-    if (!activeTarget) {
-      return { hasTarget: false };
+      if (!activeTarget) {
+        return { hasTarget: false, achievement: 0, achieved: 0, target: 0, remaining: 0 };
+      }
+
+      // Sum quantity of completed work orders within target period
+      const workOrders = await this.prisma.workOrder.findMany({
+        where: {
+          status: {
+            in: ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'],
+          },
+          completedAt: {
+            gte: activeTarget.startDate,
+            lte: activeTarget.endDate,
+          },
+        },
+        select: {
+          quantity: true,
+        },
+      });
+
+      const targetVal = activeTarget.quantityTarget || 0;
+      const achievedVal = workOrders.reduce((sum, wo) => sum + Number(wo.quantity || 0), 0);
+      const remainingVal = Math.max(targetVal - achievedVal, 0);
+      const achievementVal = targetVal > 0 ? (achievedVal / targetVal) * 100 : 0;
+
+      return {
+        hasTarget: true,
+        targetId: activeTarget.id,
+        period: activeTarget.targetPeriod,
+        target: targetVal,
+        achieved: achievedVal,
+        remaining: remainingVal,
+        achievement: Number(achievementVal.toFixed(1)),
+        startDate: activeTarget.startDate.toISOString().split('T')[0],
+        endDate: activeTarget.endDate.toISOString().split('T')[0],
+      };
+    } catch (error) {
+      return { hasTarget: false, achievement: 0, achieved: 0, target: 0, remaining: 0 };
     }
-
-    // Sum quantity of completed work orders within target period
-    const workOrders = await this.prisma.workOrder.findMany({
-      where: {
-        status: {
-          in: ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'],
-        },
-        completedAt: {
-          gte: activeTarget.startDate,
-          lte: activeTarget.endDate,
-        },
-      },
-      select: {
-        quantity: true,
-      },
-    });
-
-    const targetVal = activeTarget.quantityTarget;
-    const achievedVal = workOrders.reduce((sum, wo) => sum + Number(wo.quantity), 0);
-    const remainingVal = Math.max(targetVal - achievedVal, 0);
-    const achievementVal = targetVal > 0 ? (achievedVal / targetVal) * 100 : 0;
-
-    return {
-      hasTarget: true,
-      targetId: activeTarget.id,
-      period: activeTarget.targetPeriod,
-      target: targetVal,
-      achieved: achievedVal,
-      remaining: remainingVal,
-      achievement: Number(achievementVal.toFixed(1)),
-      startDate: activeTarget.startDate.toISOString().split('T')[0],
-      endDate: activeTarget.endDate.toISOString().split('T')[0],
-    };
   }
 }

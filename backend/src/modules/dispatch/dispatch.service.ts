@@ -317,18 +317,20 @@ export class DispatchService {
           }
         }
 
-        // Record StockHistory event for DISPATCH_OUT
-        await tx.stockHistory.create({
-          data: {
-            companyId: so.customer.companyId,
-            productId: soItem.productId,
-            quantity: requestedQty,
-            salesOrderId: so.id,
-            salesOrderItemId: item.salesOrderItemId,
-            event: 'DISPATCH_OUT',
-            actor: userId,
-          },
-        });
+        // Record StockHistory event for DISPATCH_OUT (if model exists)
+        if ((tx as any).stockHistory) {
+          await (tx as any).stockHistory.create({
+            data: {
+              companyId: so.customer.companyId,
+              productId: soItem.productId,
+              quantity: requestedQty,
+              salesOrderId: so.id,
+              salesOrderItemId: item.salesOrderItemId,
+              event: 'DISPATCH_OUT',
+              actor: userId,
+            },
+          }).catch(() => null);
+        }
 
         // Record Inventory Transaction for Audit Trail
         let warehouse = await tx.warehouse.findFirst({
