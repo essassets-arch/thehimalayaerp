@@ -96,22 +96,25 @@ export class DispatchService {
       );
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const so = await tx.salesOrder.findUnique({
-        where: { id: dto.salesOrderId },
-        include: {
-          customer: true,
-          items: { include: { dispatchItems: true } },
-          workflowState: true,
-        },
-      });
-      if (!so) throw new NotFoundException('Sales Order not found');
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        console.log('[DISPATCH 01] Load sales order:', dto.salesOrderId);
+        const so = await tx.salesOrder.findUnique({
+          where: { id: dto.salesOrderId },
+          include: {
+            customer: true,
+            items: { include: { dispatchItems: true } },
+            workflowState: true,
+          },
+        });
+        if (!so) throw new NotFoundException('Sales Order not found');
 
-      const dispatchNo = await this.sequenceService.generateNextWithTx(
-        tx,
-        'dispatch_number',
-        `DISP - ${new Date().getFullYear()} -`,
-      );
+        console.log('[DISPATCH 02] Generate dispatch sequence number');
+        const dispatchNo = await this.sequenceService.generateNextWithTx(
+          tx,
+          'dispatch_number',
+          `DISP - ${new Date().getFullYear()} -`,
+        );
 
       let invoiceSubtotal = new Decimal(0);
       let invoiceDiscount = new Decimal(0);
@@ -317,20 +320,7 @@ export class DispatchService {
           }
         }
 
-        // Record StockHistory event for DISPATCH_OUT (if model exists)
-        if ((tx as any).stockHistory) {
-          await (tx as any).stockHistory.create({
-            data: {
-              companyId: so.customer.companyId,
-              productId: soItem.productId,
-              quantity: requestedQty,
-              salesOrderId: so.id,
-              salesOrderItemId: item.salesOrderItemId,
-              event: 'DISPATCH_OUT',
-              actor: userId,
-            },
-          }).catch(() => null);
-        }
+
 
         // Record Inventory Transaction for Audit Trail
         let warehouse = await tx.warehouse.findFirst({
@@ -510,6 +500,7 @@ export class DispatchService {
         data: { status: 'READY_FOR_DISPATCH' },
       });
 
+      console.log('[DISPATCH 10] Dispatch transaction committed successfully:', dispatch.dispatchNo);
       return dispatch;
     });
 
@@ -560,7 +551,17 @@ export class DispatchService {
     }
 
     return result;
+  } catch (error: any) {
+    console.error('[CREATE DISPATCH ORIGINAL ERROR]', {
+      name: error?.name,
+      code: error?.code,
+      message: error?.message,
+      meta: error?.meta,
+      cause: error?.cause,
+    });
+    throw error;
   }
+}
 
   async startDelivery(id: string) {
     const dispatch = await this.prisma.dispatch.findFirst({

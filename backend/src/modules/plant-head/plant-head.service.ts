@@ -832,21 +832,7 @@ export class PlantHeadService {
           },
         });
 
-        // 4. Log RESERVE stock event in StockHistory (if model exists)
-        if ((tx as any).stockHistory) {
-          await (tx as any).stockHistory.create({
-            data: {
-              companyId,
-              productId: item.productId,
-              quantity: requestedQty,
-              salesOrderId: orderId,
-              salesOrderItemId: item.salesOrderItemId,
-              allocationId: allocation.id,
-              event: 'RESERVE',
-              actor: userId,
-            },
-          }).catch(() => null);
-        }
+
 
         // 5. Create user AuditLog entry
         await tx.auditLog.create({
