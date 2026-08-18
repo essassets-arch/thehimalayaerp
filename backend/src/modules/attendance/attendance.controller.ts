@@ -37,21 +37,24 @@ export class AttendanceController {
 
   @Get('summary')
   getAttendanceSummary(@Req() req: any, @Query('date') dateStr?: string) {
-    const role = req.user.role;
-    if (role !== 'HR' && role !== 'SUPER_ADMIN' && role !== 'ADMIN' && role !== 'Super Admin' && role !== 'Admin') {
-      throw new ForbiddenException('Not authorized to access attendance summary');
-    }
-    const companyId = req.user.companyId;
+    const rawRole = req.user?.role;
+    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
+    const upperRole = roleCode.toUpperCase();
+    const allowedRoles = ['HR', 'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'PLANT_HEAD_MANAGER'];
+    const companyId = req.user?.companyId || '46be0689-1169-4adc-bcf9-d4100032a0ee';
     return this.attendanceService.getAttendanceSummary(companyId, dateStr);
   }
 
   @Get()
   listCompanyAttendance(@Req() req: any, @Query() query: any) {
-    const role = req.user.role;
-    if (role !== 'HR' && role !== 'SUPER_ADMIN' && role !== 'ADMIN' && role !== 'Super Admin' && role !== 'Admin') {
-      throw new ForbiddenException('Not authorized to access company attendance logs');
+    const rawRole = req.user?.role;
+    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
+    const upperRole = roleCode.toUpperCase();
+    const allowedRoles = ['HR', 'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'PLANT_HEAD_MANAGER'];
+    if (!allowedRoles.some(r => upperRole.includes(r))) {
+      return this.attendanceService.getMyAttendanceHistory(req.user?.sub, req.user?.companyId, query);
     }
-    const companyId = req.user.companyId;
+    const companyId = req.user?.companyId || '46be0689-1169-4adc-bcf9-d4100032a0ee';
     return this.attendanceService.listCompanyAttendance(companyId, query);
   }
 

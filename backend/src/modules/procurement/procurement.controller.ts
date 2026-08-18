@@ -74,7 +74,7 @@ export class ProcurementController {
   adminQueue(@Req() r: any, @Query() q: any) {
     return this.service.purchaseOrderQueue(r.user?.companyId, {
       ...q,
-      status: 'PENDING_SUPER_ADMIN_APPROVAL',
+      status: q.status || { in: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE', 'DRAFT', 'PENDING'] },
     });
   }
   @RequirePermissions('procurement.procurement.read')

@@ -44,34 +44,76 @@ export default function MaterialIndentApproval() {
     (state) => state.procurement?.materialIndents ?? state.state?.procurement?.materialIndents ?? state.materialIndents ?? state.state?.materialIndents ?? EMPTY_INDENTS
   );
 
-  // Load from the authoritative API as well as the shared client store. The store
-  // can be empty after a refresh or when Store and Plant Head use different sessions.
+  // Auto-refresh helper
+  const refreshIndents = async () => {
+    try {
+      const response = await purchaseIndentService.list({ limit: 100 });
+      const data = Array.isArray(response) ? response : (response?.data || []);
+      setServerIndents(data);
+    } catch (error) {
+      console.warn('Unable to load material indents:', error);
+    }
+  };
+
   useEffect(() => {
     let active = true;
-    purchaseIndentService.list({ limit: 100 })
-      .then((response) => {
+    const fetchFresh = async () => {
+      try {
+        const response = await purchaseIndentService.list({ limit: 100 });
         const data = Array.isArray(response) ? response : (response?.data || []);
         if (active) setServerIndents(data);
-      })
-      .catch((error) => console.warn('Unable to load material indents:', error));
-    return () => { active = false; };
+      } catch (error) {
+        console.warn('Unable to load material indents:', error);
+      }
+    };
+
+    fetchFresh();
+    const interval = setInterval(fetchFresh, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const allMaterialIndents = useMemo(() => {
     const unique = new Map();
     [...materialIndents, ...serverIndents].forEach(indent => {
-      if (indent) unique.set(indent.id || indent.publicId || indent.indentNo, indent);
+      if (indent) {
+        const key = indent.id || indent.publicId || indent.indentNo;
+        if (key) unique.set(key, indent);
+      }
     });
     return Array.from(unique.values());
   }, [materialIndents, serverIndents]);
 
-  // Filter pending indents
+  // Filter pending indents (inclusive of Finance, Store, and Purchase Manager indents)
   const pendingIndents = useMemo(() => {
-    return allMaterialIndents.filter(ind => ['PENDING_PLANT_HEAD_APPROVAL', 'PENDING_PLANT_HEAD', 'PENDING'].includes(ind.status));
+    return allMaterialIndents.filter(ind => {
+      if (!ind) return false;
+      const st = String(ind.status || 'PENDING').toUpperCase();
+      return (
+        st.includes('PENDING') ||
+        st.includes('SUBMIT') ||
+        st.includes('DRAFT') ||
+        st.includes('CREATE') ||
+        ['PENDING_PLANT_HEAD_APPROVAL', 'PENDING_PLANT_HEAD', 'PENDING', 'SUBMITTED', 'PENDING_APPROVAL', 'DRAFT', 'CREATED'].includes(st)
+      );
+    });
   }, [allMaterialIndents]);
 
   const historyIndents = useMemo(() => {
-    return allMaterialIndents.filter(ind => !['PENDING_PLANT_HEAD_APPROVAL', 'PENDING_PLANT_HEAD', 'PENDING', 'DRAFT'].includes(ind.status));
+    return allMaterialIndents.filter(ind => {
+      if (!ind) return false;
+      const st = String(ind.status || '').toUpperCase();
+      return (
+        st.includes('APPROV') ||
+        st.includes('RETURN') ||
+        st.includes('REJECT') ||
+        st.includes('CANCEL') ||
+        st.includes('ISSUED') ||
+        st.includes('PO_')
+      ) && !['PENDING_PLANT_HEAD_APPROVAL', 'PENDING_PLANT_HEAD', 'PENDING', 'DRAFT', 'SUBMITTED'].includes(st);
+    });
   }, [allMaterialIndents]);
 
   const displayedIndents = viewTab === 'history' ? historyIndents : pendingIndents;
@@ -149,6 +191,7 @@ export default function MaterialIndentApproval() {
       });
 
       await approveMaterialIndent(selectedIndent.id, finalApprovedItems, remarks || 'Approved by Plant Head', 'Plant Head');
+      await refreshIndents();
       
       await Swal.fire({
         title: 'Indent Approved!',
@@ -159,6 +202,7 @@ export default function MaterialIndentApproval() {
 
       setSelectedIndentId(null);
       setRemarks('');
+      await refreshIndents();
     } catch (err) {
       Swal.fire({
         title: 'Error',
@@ -193,7 +237,8 @@ export default function MaterialIndentApproval() {
 
     try {
       setIsSubmitting(true);
-      returnIndentForCorrection(selectedIndent.id, inputRemarks, 'Plant Head');
+      await returnIndentForCorrection(selectedIndent.id, inputRemarks, 'Plant Head');
+      await refreshIndents();
       
       await Swal.fire({
         title: 'Indent Returned',
@@ -204,6 +249,7 @@ export default function MaterialIndentApproval() {
 
       setSelectedIndentId(null);
       setRemarks('');
+      await refreshIndents();
     } catch (err) {
       Swal.fire({
         title: 'Error',
@@ -239,6 +285,7 @@ export default function MaterialIndentApproval() {
     try {
       setIsSubmitting(true);
       await rejectMaterialIndent(selectedIndent.id, inputRemarks, 'Plant Head');
+      await refreshIndents();
       
       await Swal.fire({
         title: 'Indent Rejected',
@@ -249,6 +296,7 @@ export default function MaterialIndentApproval() {
 
       setSelectedIndentId(null);
       setRemarks('');
+      await refreshIndents();
     } catch (err) {
       Swal.fire({
         title: 'Error',

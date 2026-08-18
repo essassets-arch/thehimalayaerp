@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { Eye, CheckCircle, XCircle, FileCheck, Layers, Box, Clock, ShieldAlert, DollarSign, Calendar, Building } from 'lucide-react';
 import DataTable from '../../../shared/components/DataTable';
@@ -7,6 +7,7 @@ import { useToast } from '../../../shared/context/ToastContext';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { approvePurchaseOrder, rejectPurchaseOrder } from '../../../store/procurementActions';
 import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
+import { purchaseIndentService } from '../../../services/procurement/purchaseIndentService';
 import styles from './PurchaseIndentsView.module.css';
 
 const EMPTY_PURCHASE_ORDERS = [];
@@ -19,39 +20,76 @@ export default function PurchaseIndentsView() {
   const [selectedPO, setSelectedPO] = useState(null);
   const [directBackendPOs, setDirectBackendPOs] = useState([]);
   const [historyPOs, setHistoryPOs] = useState([]);
+  const [serverIndents, setServerIndents] = useState([]);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const refreshQueue = async () => {
-    const [pendingResponse, historyResponse] = await Promise.all([
-      purchaseOrderService.superAdminQueue({ limit: 100 }),
-      purchaseOrderService.superAdminHistory({ limit: 100 }),
-    ]);
-    const rows = Array.isArray(pendingResponse) ? pendingResponse : (pendingResponse?.data || []);
-    const historyRows = Array.isArray(historyResponse) ? historyResponse : (historyResponse?.data || []);
-    setDirectBackendPOs(rows);
-    setHistoryPOs(historyRows);
-    setQueueLoaded(true);
-    return rows;
+    try {
+      const [pendingResponse, historyResponse, indentsResponse] = await Promise.all([
+        purchaseOrderService.superAdminQueue({ limit: 100 }).catch(() => []),
+        purchaseOrderService.superAdminHistory({ limit: 100 }).catch(() => []),
+        purchaseIndentService.list({ limit: 100 }).catch(() => []),
+      ]);
+      const rows = Array.isArray(pendingResponse) ? pendingResponse : (pendingResponse?.data || []);
+      const historyRows = Array.isArray(historyResponse) ? historyResponse : (historyResponse?.data || []);
+      const indentsRows = Array.isArray(indentsResponse) ? indentsResponse : (indentsResponse?.data || []);
+      setDirectBackendPOs(rows);
+      setHistoryPOs(historyRows);
+      setServerIndents(indentsRows);
+      setQueueLoaded(true);
+      return rows;
+    } catch (error) {
+      console.warn('[PurchaseIndentsView] Unable to load Super Admin PO queue:', error);
+      setQueueLoaded(true);
+    }
   };
 
   useEffect(() => {
-    async function fetchPOs() {
-      try {
-        await refreshQueue();
-      } catch (error) {
-        console.warn('[PurchaseIndentsView] Unable to load Super Admin PO queue:', error);
-        setQueueLoaded(true);
-      }
-    }
-    void fetchPOs();
+    let active = true;
+    const poll = async () => {
+      if (active) await refreshQueue();
+    };
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
-  // Database queue only: persisted browser state must never create a pending
-  // approval row, including while this page is initially loading.
-  const combinedPOs = queueLoaded ? directBackendPOs : EMPTY_PURCHASE_ORDERS;
-
-  const pendingPOs = combinedPOs.filter(i => i.status === 'PENDING_SUPER_ADMIN_APPROVAL');
+  const pendingPOs = useMemo(() => {
+    if (!queueLoaded) return [];
+    const unique = new Map();
+    // Add PO requests
+    directBackendPOs.forEach(po => {
+      if (po) {
+        const st = String(po.status || '').toUpperCase();
+        if (['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE', 'PENDING', 'DRAFT'].includes(st) || st.includes('PENDING') || st.includes('SUBMIT')) {
+          unique.set(po.id, po);
+        }
+      }
+    });
+    // Add Purchase Indents created by Finance / Store that require approval
+    serverIndents.forEach(ind => {
+      if (ind) {
+        const st = String(ind.status || '').toUpperCase();
+        if (['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_APPROVAL', 'PENDING_PLANT_HEAD_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE', 'PENDING', 'DRAFT'].includes(st) || st.includes('PENDING') || st.includes('SUBMIT')) {
+          if (!unique.has(ind.id)) {
+            unique.set(ind.id, {
+              ...ind,
+              id: ind.id,
+              poNumber: ind.publicId || ind.indentNo || ind.id,
+              vendorName: ind.supplier?.name || ind.department || 'Finance Request',
+              grandTotal: ind.totalEstimatedAmount || ind.estimatedAmount || 0,
+              isIndentOnly: true,
+            });
+          }
+        }
+      }
+    });
+    return Array.from(unique.values());
+  }, [queueLoaded, directBackendPOs, serverIndents]);
   const approvedPOs = historyPOs.filter(i => ['SUPER_ADMIN_APPROVED', 'ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'PURCHASE_COMPLETED', 'PO_CLOSED', 'CLOSED'].includes(i.status));
   const rejectedPOs = historyPOs.filter(i => ['SUPER_ADMIN_REJECTED', 'REJECTED', 'RETURNED', 'VENDOR_REJECTED'].includes(i.status));
 

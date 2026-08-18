@@ -234,7 +234,7 @@ export class AttendanceService {
   }
 
   // Get current day's punch status for header/modal
-  async getTodayAttendance(userId: string, companyId: string) {
+  async getTodayAttendance(userId: string, companyId?: string) {
     const now = new Date();
     const { startOfDay } = getKolkataDate(now);
 
@@ -242,6 +242,8 @@ export class AttendanceService {
       where: { id: userId },
       include: { employee: true },
     });
+
+    const targetCompanyId = companyId || user?.companyId;
 
     const whereConditions: any[] = [{ userId }];
     if (user?.employee?.id) {
@@ -251,7 +253,7 @@ export class AttendanceService {
     const record = await this.prisma.attendance.findFirst({
       where: {
         OR: whereConditions,
-        companyId,
+        ...(targetCompanyId && { companyId: targetCompanyId }),
         attendanceDate: startOfDay,
       },
     });
