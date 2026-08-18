@@ -4,7 +4,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 
 const VAPID_KEY =
   process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
-  'BFcUKdC5mGzG-Tyy1z-X1PxTrlY3nPJ-GZc9PhokyE1-g7xfnMUb24gzb3kGLCvsnVftzjIJ9sJpljR8cR1Yl2s';
+  'BHQC5Wf2yNHjsOGWK4iASVj23eO3PS3Gexyil7nMgzCw3VM79o-YVry_9CxhO8VHc-omcJ7optmdrxLwE2R-uB0';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return null;
