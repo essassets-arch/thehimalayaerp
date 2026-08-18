@@ -59,7 +59,7 @@ export default function DispatchListPage() {
       accessorKey: "dispatchNo",
       header: "Dispatch No",
       cell: ({ row }) => (
-        <span className="font-medium text-gray-900">
+        <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
           {row.getValue("dispatchNo")}
         </span>
       ),
@@ -68,8 +68,8 @@ export default function DispatchListPage() {
       accessorKey: "salesOrder.orderNumber",
       header: "Sales Order",
       cell: ({ row }) => (
-        <span className="text-gray-600">
-          {row.original.salesOrder?.orderNumber}
+        <span className="font-semibold text-slate-800 text-xs">
+          #{row.original.salesOrder?.orderNumber}
         </span>
       ),
     },
@@ -77,8 +77,8 @@ export default function DispatchListPage() {
       accessorKey: "salesOrder.customer.companyName",
       header: "Customer",
       cell: ({ row }) => (
-        <span className="text-gray-600">
-          {row.original.salesOrder?.customer?.companyName}
+        <span className="text-slate-800 font-medium text-xs truncate max-w-[180px] block" title={row.original.salesOrder?.customer?.companyName || "—"}>
+          {row.original.salesOrder?.customer?.companyName || "—"}
         </span>
       ),
     },
@@ -86,7 +86,7 @@ export default function DispatchListPage() {
       accessorKey: "createdAt",
       header: "Created At",
       cell: ({ row }) => (
-        <span className="text-gray-600">
+        <span className="text-slate-600 text-xs font-medium whitespace-nowrap">
           {format(new Date(row.getValue("createdAt")), "MMM dd, yyyy HH:mm")}
         </span>
       ),
@@ -105,7 +105,7 @@ export default function DispatchListPage() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1 text-gray-500 hover:text-gray-900"
+          className="h-8 gap-1 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 font-semibold text-xs"
           onClick={() => router.push(`/dispatch/${row.original.id}`)}
         >
           <Eye className="h-4 w-4" />
@@ -133,7 +133,7 @@ export default function DispatchListPage() {
         <div className="ml-auto">
           <Button
             onClick={() => router.push("/dispatch/orders")}
-            className="bg-[#2d82b5] hover:bg-[#256c98] text-white"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Dispatch
@@ -173,22 +173,24 @@ export default function DispatchListPage() {
         {isLoading ? (
           <div className={styles.loading}>Loading dispatches...</div>
         ) : (
-          <DataTable
-            columns={columns}
-            data={filteredData.slice(
-              pagination.pageIndex * pagination.pageSize,
-              (pagination.pageIndex + 1) * pagination.pageSize,
-            )}
-            pageCount={Math.ceil(filteredData.length / pagination.pageSize)}
-            onPaginationChange={setPagination}
-            serverSide={false}
-            className={styles.table}
-            emptyMessage={
-              search
-                ? "No dispatches match your search."
-                : "No dispatches have been created yet."
-            }
-          />
+          <div className="w-full overflow-x-auto scrollbar-thin rounded-xl border border-slate-200">
+            <DataTable
+              columns={columns}
+              data={filteredData.slice(
+                pagination.pageIndex * pagination.pageSize,
+                (pagination.pageIndex + 1) * pagination.pageSize,
+              )}
+              pageCount={Math.ceil(filteredData.length / pagination.pageSize)}
+              onPaginationChange={setPagination}
+              serverSide={false}
+              className={styles.table}
+              emptyMessage={
+                search
+                  ? "No dispatches match your search."
+                  : "No dispatches have been created yet."
+              }
+            />
+          </div>
         )}
       </section>
     </main>

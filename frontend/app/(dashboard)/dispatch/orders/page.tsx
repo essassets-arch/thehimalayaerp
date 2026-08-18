@@ -484,28 +484,28 @@ export default function DispatchOrdersPage() {
           <>
             <div className={styles.desktopTable}>
               <div className={styles.tableScroll}>
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-slate-50/90 border-b border-slate-200">
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Sales Order
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Customer
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Delivery Address
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Product
                       </th>
-                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap">
+                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap">
                         Type
                       </th>
-                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap">
+                      <th className="text-center text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap">
                         Qty
                       </th>
-                      <th className="text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap">
+                      <th className="text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Actions
                       </th>
                     </tr>
@@ -518,41 +518,53 @@ export default function DispatchOrdersPage() {
                           key={item.id}
                           className="hover:bg-indigo-50/20 transition-colors group"
                         >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="font-extrabold text-indigo-600 font-mono text-xs tracking-wider bg-indigo-50/80 px-2.5 py-1 rounded-md border border-indigo-100 inline-block shadow-2xs">
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center gap-1 shrink-0">
                               #{item.orderNumber}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="font-bold text-slate-900 text-xs tracking-tight">
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <span
+                              className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[180px] truncate"
+                              title={item.customerName}
+                            >
                               {item.customerName}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-3.5">
                             <span
-                              className="text-xs text-slate-600 leading-relaxed block max-w-[240px] truncate"
+                              className="text-xs text-slate-600 leading-relaxed block max-w-[220px] truncate"
                               title={item.deliveryAddress}
                             >
                               {item.deliveryAddress}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className="text-slate-800 font-semibold text-xs leading-snug block max-w-[260px]">
+                          <td className="px-4 py-3.5">
+                            <span
+                              className="text-slate-800 font-semibold text-xs leading-snug block max-w-[240px] truncate"
+                              title={item.productName}
+                            >
                               {item.productName}
                             </span>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-wider ${isTrading ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
+                            <span
+                              className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase ${
+                                isTrading
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200/80'
+                                  : 'bg-purple-50 text-purple-700 border border-purple-200/80'
+                              }`}
+                            >
                               {isTrading ? 'TRADING' : 'MFG'}
                             </span>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-3 py-1 rounded-lg border border-emerald-200/80 shadow-2xs">
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
+                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-800 font-bold font-mono text-xs px-2.5 py-1 rounded-md border border-emerald-200/80">
                               {item.approvedQuantity}
                             </span>
                           </td>
 
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <td className="px-4 py-3.5 whitespace-nowrap text-right">
                             <button
                               type="button"
                               onClick={() => {
@@ -562,7 +574,7 @@ export default function DispatchOrdersPage() {
                                   router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
                                 }
                               }}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all duration-150 whitespace-nowrap cursor-pointer hover:shadow-indigo-200 hover:shadow-md shrink-0"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors duration-150 whitespace-nowrap cursor-pointer shrink-0 ml-auto"
                             >
                               <FileText className="h-3.5 w-3.5 shrink-0" />
                               <span>Create Dispatch</span>

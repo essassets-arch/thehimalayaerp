@@ -205,7 +205,7 @@ export default function DeliveryRunPage() {
       header: "Dispatch Number",
       size: 160,
       cell: ({ row }) => (
-        <span className="font-semibold text-blue-600 whitespace-nowrap">
+        <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
           {row.original.dispatchNo}
         </span>
       ),
@@ -215,14 +215,16 @@ export default function DeliveryRunPage() {
       header: "Customer",
       size: 180,
       cell: ({ row }) => (
-        <span className="font-medium text-gray-900 whitespace-nowrap">{row.original.salesOrder?.customer?.companyName || "—"}</span>
+        <span className="font-semibold text-slate-900 text-xs truncate max-w-[180px] block" title={row.original.salesOrder?.customer?.companyName || "—"}>
+          {row.original.salesOrder?.customer?.companyName || "—"}
+        </span>
       ),
     },
     {
       accessorKey: "driverName",
       header: "Driver",
       size: 140,
-      cell: ({ row }) => <span className="whitespace-nowrap">{row.original.driverName || "-"}</span>,
+      cell: ({ row }) => <span className="text-slate-700 font-medium text-xs whitespace-nowrap">{row.original.driverName || "—"}</span>,
     },
     {
       accessorKey: "status",
@@ -244,7 +246,7 @@ export default function DeliveryRunPage() {
             variant="default"
             size="sm"
             onClick={() => handleSelectDispatch(row.original)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0"
+            className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ml-auto"
           >
             Confirm Delivery
             <ArrowRight className="h-3.5 w-3.5" />

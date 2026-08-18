@@ -30,7 +30,7 @@
 
 .headerMain {
   position: relative;
-  padding: clamp(24px, 2.5vw, 36px);
+  padding: clamp(20px, 2.5vw, 32px);
 }
 
 .headerLayout {
@@ -39,7 +39,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 32px;
+  gap: 24px;
 }
 
 .headerCopy {
@@ -66,10 +66,10 @@
 .title {
   margin: 0;
   color: #0f172a;
-  font-size: clamp(26px, 2.5vw, 36px);
+  font-size: clamp(24px, 2.2vw, 32px);
   font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.035em;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
 }
 
 .description {
@@ -94,7 +94,7 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 20px;
-  padding: 16px 22px;
+  padding: 14px 20px;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -110,7 +110,7 @@
 
 .summaryCount strong {
   color: #0f172a;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 800;
   line-height: 1;
 }
@@ -153,7 +153,7 @@
 }
 
 .headerFooter {
-  padding: 12px clamp(24px, 2.5vw, 36px);
+  padding: 12px clamp(20px, 2.5vw, 32px);
   border-top: 1px solid #e2e8f0;
   background: #f8fafc;
   color: #64748b;
@@ -171,8 +171,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 280px;
-  padding: 48px 24px;
+  min-height: 260px;
+  padding: 40px 24px;
   border: 1px solid #e2e8f0;
   border-radius: 20px;
   background: #ffffff;
@@ -185,8 +185,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: #eef2ff;
   color: #4f46e5;
@@ -209,8 +209,8 @@
 .stateCard {
   display: flex;
   width: 100%;
-  min-height: 280px;
-  padding: 48px 24px;
+  min-height: 260px;
+  padding: 40px 24px;
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
@@ -230,8 +230,8 @@
 
 .stateIcon {
   display: flex;
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
@@ -253,27 +253,28 @@
   line-height: 1.6;
 }
 
-/* ── Desktop Table ── */
+/* ── Desktop Table Container ── */
 .desktopTable {
   display: block;
   width: 100%;
   min-width: 0;
-  overflow: hidden;
   border: 1px solid #e2e8f0;
-  border-radius: 20px;
+  border-radius: 18px;
   background: #ffffff;
-  box-shadow: 0 4px 24px -2px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
 }
 
 .tableScroll {
   width: 100%;
   overflow-x: auto;
   scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 .desktopTable table {
   width: 100%;
-  min-width: 1100px;
+  min-width: 960px;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -283,8 +284,8 @@
 }
 
 .desktopTable th {
-  height: 48px;
-  padding: 0 20px;
+  height: 46px;
+  padding: 0 16px;
   border-bottom: 1px solid #e2e8f0;
   color: #475569;
   font-size: 11px;
@@ -296,7 +297,7 @@
 }
 
 .desktopTable td {
-  padding: 16px 20px;
+  padding: 14px 16px;
   border-bottom: 1px solid #f1f5f9;
   color: #1e293b;
   font-size: 13px;
@@ -312,10 +313,10 @@
 }
 
 .desktopTable tbody tr:hover {
-  background: #f8fafc;
+  background: #f8fbff;
 }
 
-/* ── Mobile View ── */
+/* ── Mobile View Cards ── */
 .mobileCards {
   display: none;
 }
@@ -326,6 +327,42 @@
   background: #ffffff;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
   overflow: hidden;
+}
+
+.shipmentCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.shipmentIdentity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shipmentCardBody {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.shipmentCardFooter {
+  padding: 12px 16px;
+  background: #fafcff;
+  border-top: 1px solid #f1f5f9;
 }
 
 @media (max-width: 1024px) {
@@ -347,7 +384,7 @@
   .headerLayout {
     flex-direction: column;
     align-items: stretch;
-    gap: 20px;
+    gap: 18px;
   }
   .summary {
     justify-content: space-between;

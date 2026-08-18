@@ -54,7 +54,7 @@ export default function DeliveryHistoryPage() {
       header: "Dispatch Number",
       size: 160,
       cell: ({ row }) => (
-        <span className="font-semibold text-blue-600 text-sm whitespace-nowrap">
+        <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
           {row.original.dispatchNo}
         </span>
       ),
@@ -64,7 +64,7 @@ export default function DeliveryHistoryPage() {
       header: "Customer",
       size: 180,
       cell: ({ row }) => (
-        <span className="text-sm font-medium text-gray-800 whitespace-nowrap">
+        <span className="font-semibold text-slate-900 text-xs truncate max-w-[200px] block" title={row.original.salesOrder?.customer?.companyName || "N/A"}>
           {row.original.salesOrder?.customer?.companyName || "N/A"}
         </span>
       ),
@@ -74,7 +74,7 @@ export default function DeliveryHistoryPage() {
       header: "Received By",
       size: 140,
       cell: ({ row }) => (
-        <span className="text-sm text-gray-600 whitespace-nowrap">
+        <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
           {row.original.receivedBy || "N/A"}
         </span>
       ),
@@ -85,10 +85,16 @@ export default function DeliveryHistoryPage() {
       size: 180,
       cell: ({ row }) => {
         const date = row.original.deliveredAt
-          ? new Date(row.original.deliveredAt).toLocaleString()
-          : "-";
+          ? new Date(row.original.deliveredAt).toLocaleString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "—";
         return (
-          <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
+          <span className="text-xs text-slate-600 font-medium whitespace-nowrap">
             {date}
           </span>
         );

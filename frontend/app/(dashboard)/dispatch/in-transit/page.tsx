@@ -212,77 +212,79 @@ export default function InTransitPage() {
             {/* Desktop: Scrollable Table */}
             <div className={pageStyles.desktopTable}>
               <div className={pageStyles.tableScroll}>
-                <table>
+                <table className="w-full text-xs">
                   <thead>
-                    <tr className="bg-gray-50/80 border-b border-gray-100">
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                    <tr className="bg-slate-50/90 border-b border-slate-200">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Dispatch No.
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Sales Order
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Customer
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
-                        Driver
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
+                        Driver / Vehicle
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
-                        Dispatch Date
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
+                        Dispatched At
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Expected Delivery
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Status
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {dispatches.map((dispatch) => (
                       <tr
                         key={dispatch.id}
                         className="hover:bg-indigo-50/20 transition-colors group"
                       >
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <span className="font-bold text-indigo-600 font-mono text-xs tracking-wide">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <span className="font-bold text-indigo-700 font-mono text-xs tracking-tight bg-indigo-50/90 px-2.5 py-1 rounded-md border border-indigo-200/70 inline-flex items-center shrink-0">
                             {dispatch.dispatchNo}
                           </span>
                         </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <span className="font-semibold text-gray-800">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <span className="font-semibold text-slate-900 text-xs">
                             #{dispatch.salesOrder?.orderNumber}
                           </span>
                         </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <span className="text-gray-700">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <span
+                            className="font-medium text-slate-800 text-xs block max-w-[180px] truncate"
+                            title={dispatch.salesOrder?.customer?.companyName}
+                          >
                             {dispatch.salesOrder?.customer?.companyName}
                           </span>
                         </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
                           <div className="flex flex-col">
-                            <span className="text-gray-700 font-medium text-xs">
+                            <span className="text-slate-800 font-semibold text-xs">
                               {dispatch.driverName || "—"}
                             </span>
                             {dispatch.driverPhone && (
-                              <span className="text-gray-400 text-[11px] font-mono">
+                              <span className="text-slate-500 text-[11px] font-mono">
                                 {dispatch.driverPhone}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <span className="text-gray-500 text-xs font-medium">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <span className="text-slate-600 text-xs font-medium">
                             {dispatch.dispatchedAt
                               ? new Date(dispatch.dispatchedAt).toLocaleString(
                                   "en-IN",
                                   {
                                     day: "2-digit",
                                     month: "short",
-                                    year: "numeric",
                                     hour: "2-digit",
                                     minute: "2-digit",
                                   },
@@ -290,13 +292,13 @@ export default function InTransitPage() {
                               : "—"}
                           </span>
                         </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
                           <span
                             className={`text-xs font-mono font-semibold ${
                               getExpectedDelivery(dispatch) &&
                               new Date(getExpectedDelivery(dispatch)!) < new Date()
-                                ? "text-red-500"
-                                : "text-gray-600"
+                                ? "text-red-600"
+                                : "text-slate-700"
                             }`}
                           >
                             {getExpectedDelivery(dispatch)
@@ -311,15 +313,15 @@ export default function InTransitPage() {
                               : "—"}
                           </span>
                         </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
+                        <td className="px-4 py-3.5 whitespace-nowrap">
                           <StatusBadge status={dispatch.status} />
                         </td>
-                        <td className="px-5 py-4 whitespace-nowrap">
+                        <td className="px-4 py-3.5 whitespace-nowrap text-right">
                           <Button
                             size="sm"
                             onClick={() => handleStartDelivery(dispatch.id)}
                             disabled={loadingId === dispatch.id}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold"
+                            className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ml-auto"
                           >
                             {loadingId === dispatch.id ? (
                               <RefreshCw className="h-3.5 w-3.5 animate-spin" />

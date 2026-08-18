@@ -43,13 +43,15 @@
 
 .page :global(table),
 .content :global(table) {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .page :global(.overflow-x-auto),
 .content :global(.overflow-x-auto) {
   max-width: 100%;
   scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 @media (max-width: 1024px) {
