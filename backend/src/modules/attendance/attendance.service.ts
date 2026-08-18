@@ -235,30 +235,68 @@ export class AttendanceService {
 
   // Get current day's punch status for header/modal
   async getTodayAttendance(userId: string, companyId?: string) {
-    const now = new Date();
-    const { startOfDay } = getKolkataDate(now);
+    try {
+      const now = new Date();
+      const { startOfDay } = getKolkataDate(now);
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { employee: true },
-    });
+      const user = userId ? await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { employee: true },
+      }) : null;
 
-    const targetCompanyId = companyId || user?.companyId;
+      const targetCompanyId = companyId || user?.companyId;
 
-    const whereConditions: any[] = [{ userId }];
-    if (user?.employee?.id) {
-      whereConditions.push({ employeeId: user.employee.id });
-    }
+      const whereConditions: any[] = [];
+      if (userId) whereConditions.push({ userId });
+      if (user?.employee?.id) whereConditions.push({ employeeId: user.employee.id });
 
-    const record = await this.prisma.attendance.findFirst({
-      where: {
-        OR: whereConditions,
-        ...(targetCompanyId && { companyId: targetCompanyId }),
-        attendanceDate: startOfDay,
-      },
-    });
+      if (whereConditions.length === 0) {
+        return {
+          status: 'NOT_PUNCHED_IN',
+          punchInAt: null,
+          punchOutAt: null,
+          workedSeconds: 0,
+          workedMinutes: 0,
+          lateMinutes: 0,
+          earlyExitMinutes: 0,
+          overtimeMinutes: 0,
+          isPunchedIn: false,
+          isPunchedOut: false,
+          punchInTime: null,
+          punchOutTime: null,
+          lastPhoto: null,
+        };
+      }
 
-    if (!record) {
+      const record = await this.prisma.attendance.findFirst({
+        where: {
+          OR: whereConditions,
+          ...(targetCompanyId && { companyId: targetCompanyId }),
+          attendanceDate: startOfDay,
+        },
+      });
+
+      if (!record) {
+        return {
+          status: 'NOT_PUNCHED_IN',
+          punchInAt: null,
+          punchOutAt: null,
+          workedSeconds: 0,
+          workedMinutes: 0,
+          lateMinutes: 0,
+          earlyExitMinutes: 0,
+          overtimeMinutes: 0,
+          isPunchedIn: false,
+          isPunchedOut: false,
+          punchInTime: null,
+          punchOutTime: null,
+          lastPhoto: null,
+        };
+      }
+
+      return this.mapTodayAttendance(record);
+    } catch (err) {
+      console.warn('[AttendanceService] getTodayAttendance fallback:', err);
       return {
         status: 'NOT_PUNCHED_IN',
         punchInAt: null,
@@ -275,8 +313,6 @@ export class AttendanceService {
         lastPhoto: null,
       };
     }
-
-    return this.mapTodayAttendance(record);
   }
 
   // Helper to map record into UI-friendly format

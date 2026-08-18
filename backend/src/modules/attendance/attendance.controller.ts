@@ -9,29 +9,38 @@ export class AttendanceController {
 
   @Get('me/today')
   getTodayAttendance(@Req() req: any) {
-    const userId = req.user.sub;
-    const companyId = req.user.companyId;
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    const companyId = req.user?.companyId;
+    if (!userId) {
+      return {
+        status: 'NOT_PUNCHED_IN',
+        isPunchedIn: false,
+        isPunchedOut: false,
+        punchInTime: null,
+        punchOutTime: null,
+      };
+    }
     return this.attendanceService.getTodayAttendance(userId, companyId);
   }
 
   @Get('me')
   getMyAttendanceHistory(@Req() req: any, @Query() query: any) {
-    const userId = req.user.sub;
-    const companyId = req.user.companyId;
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    const companyId = req.user?.companyId;
     return this.attendanceService.getMyAttendanceHistory(userId, companyId, query);
   }
 
   @Post('punch-in')
   punchIn(@Req() req: any, @Body() body: any) {
-    const userId = req.user.sub;
-    const companyId = req.user.companyId;
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    const companyId = req.user?.companyId;
     return this.attendanceService.punchIn(userId, companyId, body);
   }
 
   @Post('punch-out')
   punchOut(@Req() req: any, @Body() body: any) {
-    const userId = req.user.sub;
-    const companyId = req.user.companyId;
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    const companyId = req.user?.companyId;
     return this.attendanceService.punchOut(userId, companyId, body);
   }
 
