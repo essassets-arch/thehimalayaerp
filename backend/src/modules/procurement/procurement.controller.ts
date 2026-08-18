@@ -72,7 +72,11 @@ export class ProcurementController {
   @Get('super-admin/po-requests')
   @Roles('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'STORE', 'STORE_MANAGER')
   adminQueue(@Req() r: any, @Query() q: any) {
-    return this.service.purchaseOrderQueue(r.user?.companyId, {
+    const rawRole = r.user?.role;
+    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const targetCompanyId = isSuperAdmin ? undefined : r.user?.companyId;
+    return this.service.purchaseOrderQueue(targetCompanyId, {
       ...q,
       status: q.status || { in: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE', 'DRAFT', 'PENDING'] },
     });
@@ -81,7 +85,11 @@ export class ProcurementController {
   @Get('super-admin/po-history')
   @Roles('SUPER_ADMIN', 'ADMIN')
   adminHistory(@Req() r: any, @Query() q: any) {
-    return this.service.superAdminPurchaseOrderHistory(r.user?.companyId, q);
+    const rawRole = r.user?.role;
+    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const targetCompanyId = isSuperAdmin ? undefined : r.user?.companyId;
+    return this.service.superAdminPurchaseOrderHistory(targetCompanyId, q);
   }
   @Post('indents')
   @RequirePermissions('procurement.indents.create')

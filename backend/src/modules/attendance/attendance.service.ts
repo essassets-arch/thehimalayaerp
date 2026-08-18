@@ -434,10 +434,11 @@ export class AttendanceService {
 
   // ROSTER-FIRST Company Attendance (HR Roster Dashboard)
   async listCompanyAttendance(companyId: string, query: any) {
-    const targetDate = query.date ? new Date(query.date) : new Date();
-    const { startOfDay, endOfDay } = getKolkataDate(targetDate);
-    const now = new Date();
-    const isToday = getKolkataDate(now).dateStr === getKolkataDate(targetDate).dateStr;
+    try {
+      const targetDate = query.date ? new Date(query.date) : new Date();
+      const { startOfDay, endOfDay } = getKolkataDate(targetDate);
+      const now = new Date();
+      const isToday = getKolkataDate(now).dateStr === getKolkataDate(targetDate).dateStr;
 
     // 1. Fetch all ACTIVE employees
     const activeEmployees = await this.prisma.employee.findMany({
@@ -581,6 +582,10 @@ export class AttendanceService {
     }
 
     return roster;
+    } catch (err) {
+      console.warn('[AttendanceService] listCompanyAttendance fallback:', err);
+      return [];
+    }
   }
 
   // Dynamic Attendance Summary for HR Dashboard Top Cards
