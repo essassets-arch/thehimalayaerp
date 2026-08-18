@@ -885,271 +885,281 @@ export class PlantHeadService {
     companyId: string,
     userId: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Fetch Sales Order and items
-      const salesOrder = await tx.salesOrder.findUnique({
-        where: { id: orderId },
-        include: { customer: true, items: { include: { product: true } } },
-      });
-      if (!salesOrder) {
-        throw new NotFoundException(`Sales order with ID ${orderId} not found.`);
-      }
-      if (salesOrder.customer && salesOrder.customer.companyId !== companyId && companyId && companyId !== 'd039cfa4-e78b-4138-adfc-1b0f14cffa91') {
-        throw new BadRequestException('Unauthorized access to this company\'s order.');
-      }
-
-      // 2. Duplicate submission check (idempotency)
-      let processedAny = false;
-      for (const item of planDto.items) {
-        if (Number(item.directDispatchQty || 0) > 0 || Number(item.productionQty || 0) > 0) {
-          processedAny = true;
-        }
-      }
-      if (!processedAny) {
-        return {
-          success: true,
-          message: 'No pending fulfillment actions requested or order already fully planned.',
-          alreadyProcessed: true,
-        };
-      }
-
-      let plannedEndDateVal: Date | null = null;
-      let priorityVal: string | null = null;
-
-      // 3. Revalidate every item first to ensure atomic correctness
-      for (const item of planDto.items) {
-        const orderItem = salesOrder.items.find(i => i.id === item.salesOrderItemId);
-        if (!orderItem) {
-          throw new BadRequestException(`Item ${item.salesOrderItemId} not found in this sales order.`);
-        }
-
-        const directDispatchQty = Number(item.directDispatchQty || 0);
-        const productionQty = Number(item.productionQty || 0);
-
-        if (directDispatchQty <= 0 && productionQty <= 0) {
-          continue;
-        }
-
-        // Fetch Finished Goods available stock
-        const fgRecords = await tx.finishedGoods.findMany({
-          where: { productId: orderItem.productId },
+    console.log(`[FULFILLMENT_PLAN:${orderId}] Starting fulfillment plan submission for company ${companyId}`);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // 1. Fetch Sales Order and items
+        console.log(`[FULFILLMENT_PLAN:${orderId}] Step 1: Loading sales order`);
+        const salesOrder = await tx.salesOrder.findUnique({
+          where: { id: orderId },
+          include: { customer: true, items: { include: { product: true } } },
         });
-        const totalFgAvailable = fgRecords.reduce((sum, fg) => sum + Number(fg.availableQuantity), 0);
-
-        // Fetch remaining unallocated quantity
-        const dispatchItems = await tx.dispatchItem.findMany({
-          where: { salesOrderItemId: item.salesOrderItemId },
-        });
-        const alreadyDispatchedQty = dispatchItems.reduce((sum, d) => sum + Number(d.quantity), 0);
-
-        const allocations = await tx.salesOrderAllocation.findMany({
-          where: { salesOrderItemId: item.salesOrderItemId },
-        });
-        const activeReservedQty = allocations
-          .filter(a => a.allocationType === 'FINISHED_GOODS_RESERVATION')
-          .reduce((sum, r) => sum + Number(r.reservedQuantity), 0);
-        const activeProductionCommittedQty = allocations
-          .filter(a => a.allocationType === 'PRODUCTION_REQUIRED')
-          .reduce((sum, p) => sum + Number(p.productionQuantity), 0);
-
-        const remainingUnallocatedQty = Math.max(
-          0,
-          Number(orderItem.orderedQuantity) - alreadyDispatchedQty - activeReservedQty - activeProductionCommittedQty
-        );
-
-        if (directDispatchQty + productionQty > remainingUnallocatedQty) {
-          throw new BadRequestException(
-            `Requested quantity (${directDispatchQty + productionQty}) exceeds remaining unallocated ordered quantity (${remainingUnallocatedQty}) for ${orderItem.productNameSnapshot}.`
-          );
+        if (!salesOrder) {
+          throw new NotFoundException(`Sales order with ID ${orderId} not found.`);
+        }
+        if (salesOrder.customer && salesOrder.customer.companyId !== companyId && companyId && companyId !== 'd039cfa4-e78b-4138-adfc-1b0f14cffa91') {
+          throw new BadRequestException('Unauthorized access to this company\'s order.');
         }
 
-        if (directDispatchQty > totalFgAvailable) {
-          throw new BadRequestException(
-            `Finished Goods availability changed for ${orderItem.productNameSnapshot}. Requested: ${directDispatchQty} UNITS, Available: ${totalFgAvailable} UNITS. Please refresh the fulfillment decision.`
-          );
+        // 2. Duplicate submission check (idempotency)
+        console.log(`[FULFILLMENT_PLAN:${orderId}] Step 2: Checking planDto items`);
+        let processedAny = false;
+        for (const item of planDto.items) {
+          if (Number(item.directDispatchQty || 0) > 0 || Number(item.productionQty || 0) > 0) {
+            processedAny = true;
+          }
         }
-      }
+        if (!processedAny) {
+          return {
+            success: true,
+            message: 'No pending fulfillment actions requested or order already fully planned.',
+            alreadyProcessed: true,
+          };
+        }
 
-      // 4. Commit allocations
-      for (const item of planDto.items) {
-        const orderItem = salesOrder.items.find(i => i.id === item.salesOrderItemId);
-        if (!orderItem) continue;
+        let plannedEndDateVal: Date | null = null;
+        let priorityVal: string | null = null;
 
-        const directDispatchQty = Number(item.directDispatchQty || 0);
-        const productionQty = Number(item.productionQty || 0);
+        // 3. Revalidate every item first to ensure atomic correctness
+        console.log(`[FULFILLMENT_PLAN:${orderId}] Step 3: Revalidating item quantities`);
+        for (const item of planDto.items) {
+          const orderItem = salesOrder.items.find(i => i.id === item.salesOrderItemId);
+          if (!orderItem) {
+            throw new BadRequestException(`Item ${item.salesOrderItemId} not found in this sales order.`);
+          }
 
-        // A. Direct Dispatch Allocation
-        if (directDispatchQty > 0) {
+          const directDispatchQty = Number(item.directDispatchQty || 0);
+          const productionQty = Number(item.productionQty || 0);
+
+          if (directDispatchQty <= 0 && productionQty <= 0) {
+            continue;
+          }
+
+          // Fetch Finished Goods available stock
           const fgRecords = await tx.finishedGoods.findMany({
             where: { productId: orderItem.productId },
           });
+          const totalFgAvailable = fgRecords.reduce((sum, fg) => sum + Number(fg.availableQuantity), 0);
 
-          let remainingToReserve = directDispatchQty;
-          for (const fg of fgRecords) {
-            if (remainingToReserve <= 0) break;
-            const currentAvail = Number(fg.availableQuantity || 0);
-            if (currentAvail <= 0) continue;
+          // Fetch remaining unallocated quantity
+          const dispatchItems = await tx.dispatchItem.findMany({
+            where: { salesOrderItemId: item.salesOrderItemId },
+          });
+          const alreadyDispatchedQty = dispatchItems.reduce((sum, d) => sum + Number(d.quantity), 0);
 
-            const deduct = Math.min(currentAvail, remainingToReserve);
-            const updated = await tx.finishedGoods.updateMany({
-              where: {
-                id: fg.id,
-                availableQuantity: { gte: deduct },
-              },
-              data: {
-                availableQuantity: { decrement: deduct },
-              },
-            });
+          const allocations = await tx.salesOrderAllocation.findMany({
+            where: { salesOrderItemId: item.salesOrderItemId },
+          });
+          const activeReservedQty = allocations
+            .filter(a => a.allocationType === 'FINISHED_GOODS_RESERVATION')
+            .reduce((sum, r) => sum + Number(r.reservedQuantity), 0);
+          const activeProductionCommittedQty = allocations
+            .filter(a => a.allocationType === 'PRODUCTION_REQUIRED')
+            .reduce((sum, p) => sum + Number(p.productionQuantity), 0);
 
-            if (updated.count === 0) {
-              throw new BadRequestException(
-                `Insufficient finished goods available stock due to concurrent updates. Please refresh and try again.`,
-              );
-            }
-            remainingToReserve -= deduct;
+          const remainingUnallocatedQty = Math.max(
+            0,
+            Number(orderItem.orderedQuantity) - alreadyDispatchedQty - activeReservedQty - activeProductionCommittedQty
+          );
+
+          if (directDispatchQty + productionQty > remainingUnallocatedQty) {
+            throw new BadRequestException(
+              `Requested quantity (${directDispatchQty + productionQty}) exceeds remaining unallocated ordered quantity (${remainingUnallocatedQty}) for ${orderItem.productNameSnapshot}.`
+            );
           }
 
-          // Create FINISHED_GOODS_RESERVATION allocation
-          const allocation = await tx.salesOrderAllocation.create({
-            data: {
-              salesOrderId: orderId,
-              salesOrderItemId: item.salesOrderItemId,
-              allocationType: 'FINISHED_GOODS_RESERVATION',
-              requiredQuantity: directDispatchQty,
-              reservedQuantity: directDispatchQty,
-              productionQuantity: 0,
-            },
-          });
+          if (directDispatchQty > totalFgAvailable) {
+            throw new BadRequestException(
+              `Finished Goods availability changed for ${orderItem.productNameSnapshot}. Requested: ${directDispatchQty} UNITS, Available: ${totalFgAvailable} UNITS. Please refresh the fulfillment decision.`
+            );
+          }
+        }
 
-          // Log RESERVE event in StockHistory (if model exists)
-          if ((tx as any).stockHistory) {
-            await (tx as any).stockHistory.create({
+        // Validate user ID for assignedToId
+        let validAssigneeId: string | null = null;
+        if (userId && userId !== 'system') {
+          const userObj = await tx.user.findUnique({ where: { id: userId } });
+          if (userObj) validAssigneeId = userObj.id;
+        }
+
+        // 4. Commit allocations
+        console.log(`[FULFILLMENT_PLAN:${orderId}] Step 4: Committing allocations`);
+        for (const item of planDto.items) {
+          const orderItem = salesOrder.items.find(i => i.id === item.salesOrderItemId);
+          if (!orderItem) continue;
+
+          const directDispatchQty = Number(item.directDispatchQty || 0);
+          const productionQty = Number(item.productionQty || 0);
+
+          // A. Direct Dispatch Allocation
+          if (directDispatchQty > 0) {
+            const fgRecords = await tx.finishedGoods.findMany({
+              where: { productId: orderItem.productId },
+            });
+
+            let remainingToReserve = directDispatchQty;
+            for (const fg of fgRecords) {
+              if (remainingToReserve <= 0) break;
+              const currentAvail = Number(fg.availableQuantity || 0);
+              if (currentAvail <= 0) continue;
+
+              const deduct = Math.min(currentAvail, remainingToReserve);
+              const updated = await tx.finishedGoods.updateMany({
+                where: {
+                  id: fg.id,
+                  availableQuantity: { gte: deduct },
+                },
+                data: {
+                  availableQuantity: { decrement: deduct },
+                },
+              });
+
+              if (updated.count === 0) {
+                throw new BadRequestException(
+                  `Insufficient finished goods available stock due to concurrent updates. Please refresh and try again.`,
+                );
+              }
+              remainingToReserve -= deduct;
+            }
+
+            // Create FINISHED_GOODS_RESERVATION allocation
+            const allocation = await tx.salesOrderAllocation.create({
               data: {
-                companyId,
-                productId: orderItem.productId,
-                quantity: directDispatchQty,
                 salesOrderId: orderId,
                 salesOrderItemId: item.salesOrderItemId,
-                allocationId: allocation.id,
-                event: 'RESERVE',
-                actor: userId,
+                allocationType: 'FINISHED_GOODS_RESERVATION',
+                requiredQuantity: directDispatchQty,
+                reservedQuantity: directDispatchQty,
+                productionQuantity: 0,
               },
-            }).catch(() => null);
-          }
-
-          // Create user AuditLog entry
-          await tx.auditLog.create({
-            data: {
-              action: 'STOCK_RESERVE',
-              entityType: 'SalesOrderAllocation',
-              entityId: allocation.id,
-              actorUserId: userId,
-              companyId,
-              after: JSON.parse(JSON.stringify(allocation)),
-            },
-          });
-        }
-
-        // B. Production Allocation & Work Order
-        if (productionQty > 0) {
-          if (item.targetDate) {
-            plannedEndDateVal = new Date(item.targetDate);
-          }
-          if (item.priority) {
-            priorityVal = item.priority;
-          }
-
-          // Generate or get Production Plan (one per sales order)
-          let productionPlan = await tx.productionPlan.findFirst({
-            where: { salesOrderId: orderId, status: { not: 'CANCELLED' } },
-          });
-
-          if (!productionPlan) {
-            const initialState = await tx.workflowState.findFirst({
-              where: { workflow: { code: 'PRODUCTION_PLAN' }, code: 'RELEASED' },
-            }) || await tx.workflowState.findFirst({
-              where: { workflow: { code: 'PRODUCTION_PLAN' } },
             });
 
-            const planNumber = `PP-${Date.now().toString().slice(-6)}`;
-
-            productionPlan = await tx.productionPlan.create({
+            // Create user AuditLog entry
+            await tx.auditLog.create({
               data: {
-                planNumber,
+                action: 'STOCK_RESERVE',
+                entityType: 'SalesOrderAllocation',
+                entityId: allocation.id,
+                actorUserId: validAssigneeId,
+                companyId: salesOrder.customer?.companyId || companyId,
+                after: JSON.parse(JSON.stringify(allocation)),
+              },
+            });
+          }
+
+          // B. Production Allocation & Work Order
+          if (productionQty > 0) {
+            console.log(`[FULFILLMENT_PLAN:${orderId}] Step 5: Handling production quantity ${productionQty}`);
+            if (item.targetDate) {
+              plannedEndDateVal = new Date(item.targetDate);
+            }
+            if (item.priority) {
+              priorityVal = item.priority;
+            }
+
+            // Generate or get Production Plan (one per sales order, checking unique salesOrderId)
+            let productionPlan = await tx.productionPlan.findFirst({
+              where: { salesOrderId: orderId },
+            });
+
+            if (!productionPlan) {
+              const initialState = await tx.workflowState.findFirst({
+                where: { workflow: { code: 'PRODUCTION_PLAN' }, code: 'RELEASED' },
+              }) || await tx.workflowState.findFirst({
+                where: { workflow: { code: 'PRODUCTION_PLAN' } },
+              });
+
+              const planNumber = `PP-${Date.now().toString().slice(-6)}`;
+
+              productionPlan = await tx.productionPlan.create({
+                data: {
+                  planNumber,
+                  salesOrderId: orderId,
+                  plannedStartDate: new Date(),
+                  plannedEndDate: plannedEndDateVal,
+                  status: 'RELEASED',
+                  workflowStateId: initialState?.id,
+                  assignedToId: validAssigneeId,
+                  priority: priorityVal,
+                },
+              });
+            } else {
+              productionPlan = await tx.productionPlan.update({
+                where: { id: productionPlan.id },
+                data: {
+                  plannedEndDate: plannedEndDateVal || productionPlan.plannedEndDate,
+                  status: 'RELEASED',
+                  priority: priorityVal || productionPlan.priority,
+                  assignedToId: validAssigneeId || productionPlan.assignedToId,
+                },
+              });
+            }
+
+            // Generate Work Order number
+            const woCount = await tx.workOrder.count();
+            const workOrderNumber = `WO-${new Date().getFullYear()}-${String(woCount + 1).padStart(5, '0')}`;
+
+            const initialWOState = await tx.workflowState.findFirst({
+              where: { workflow: { code: 'WORK_ORDER' } },
+            });
+
+            // Create Work Order
+            const wo = await tx.workOrder.create({
+              data: {
+                workOrderNumber,
+                productionPlanId: productionPlan.id,
+                salesOrderItemId: item.salesOrderItemId,
+                quantity: productionQty,
+                workflowStateId: initialWOState?.id,
+                status: 'CREATED',
+                productionStatus: 'IN_PRODUCTION',
+              },
+            });
+
+            // Create SalesOrderAllocation of type PRODUCTION_REQUIRED
+            await tx.salesOrderAllocation.create({
+              data: {
                 salesOrderId: orderId,
-                plannedStartDate: new Date(),
-                plannedEndDate: plannedEndDateVal,
-                status: 'RELEASED',
-                workflowStateId: initialState?.id,
-                assignedToId: userId,
-                priority: priorityVal,
-              },
-            });
-          } else {
-            productionPlan = await tx.productionPlan.update({
-              where: { id: productionPlan.id },
-              data: {
-                plannedEndDate: plannedEndDateVal || productionPlan.plannedEndDate,
-                status: 'RELEASED',
-                priority: priorityVal || productionPlan.priority,
+                salesOrderItemId: item.salesOrderItemId,
+                allocationType: 'PRODUCTION_REQUIRED',
+                requiredQuantity: productionQty,
+                productionQuantity: productionQty,
+                workOrderId: wo.id,
               },
             });
           }
+        }
 
-          // Generate Work Order number
-          const woCount = await tx.workOrder.count();
-          const workOrderNumber = `WO-${new Date().getFullYear()}-${String(woCount + 1).padStart(5, '0')}`;
-
-          const initialWOState = await tx.workflowState.findFirst({
-            where: { workflow: { code: 'WORK_ORDER' } },
+        // Update SalesOrder status to PLANT_APPROVED
+        console.log(`[FULFILLMENT_PLAN:${orderId}] Step 6: Updating SalesOrder status`);
+        if (salesOrder.status === 'SENT_TO_PLANT_HEAD' || salesOrder.status === 'SENT_TO_PLANT') {
+          const approvedState = await tx.workflowState.findFirst({
+            where: { code: 'PLANT_APPROVED' },
           });
-
-          // Create Work Order
-          const wo = await tx.workOrder.create({
+          await tx.salesOrder.update({
+            where: { id: orderId },
             data: {
-              workOrderNumber,
-              productionPlanId: productionPlan.id,
-              salesOrderItemId: item.salesOrderItemId,
-              quantity: productionQty,
-              workflowStateId: initialWOState?.id,
-              status: 'CREATED',
-              productionStatus: 'IN_PRODUCTION',
-            },
-          });
-
-          // Create SalesOrderAllocation of type PRODUCTION_REQUIRED
-          await tx.salesOrderAllocation.create({
-            data: {
-              salesOrderId: orderId,
-              salesOrderItemId: item.salesOrderItemId,
-              allocationType: 'PRODUCTION_REQUIRED',
-              requiredQuantity: productionQty,
-              productionQuantity: productionQty,
-              workOrderId: wo.id,
+              status: 'PLANT_APPROVED',
+              workflowStateId: approvedState?.id || salesOrder.workflowStateId,
             },
           });
         }
-      }
 
-      // Update SalesOrder status to PLANT_APPROVED
-      if (salesOrder.status === 'SENT_TO_PLANT_HEAD' || salesOrder.status === 'SENT_TO_PLANT') {
-        const approvedState = await tx.workflowState.findFirst({
-          where: { code: 'PLANT_APPROVED' },
-        });
-        await tx.salesOrder.update({
-          where: { id: orderId },
-          data: {
-            status: 'PLANT_APPROVED',
-            workflowStateId: approvedState?.id || salesOrder.workflowStateId,
-          },
-        });
-      }
-
-      return {
-        success: true,
-        message: 'Fulfillment plan submitted and structured downstream operations created successfully.',
-      };
-    });
+        return {
+          success: true,
+          message: 'Fulfillment plan submitted and structured downstream operations created successfully.',
+        };
+      });
+    } catch (error: any) {
+      console.error(`[FULFILLMENT_PLAN_ERROR:${orderId}] Failed during execution:`, {
+        name: error?.name,
+        message: error?.message,
+        code: error?.code,
+        meta: error?.meta,
+        stack: error?.stack,
+      });
+      throw error;
+    }
   }
 
   private async getFulfillmentData(orders: any[]) {
