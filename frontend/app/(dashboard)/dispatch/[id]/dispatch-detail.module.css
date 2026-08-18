@@ -179,7 +179,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  max-width: 100%;
 }
 
 .heroDivider {
@@ -210,8 +210,12 @@
 .stepperScroll {
   overflow-x: auto;
   padding-bottom: 8px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-x-contain: contain;
 }
+
 .stepperScroll::-webkit-scrollbar { display: none; }
 
 .stepperTrack {

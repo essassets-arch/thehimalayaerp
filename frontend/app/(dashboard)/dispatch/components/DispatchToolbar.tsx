@@ -1,12 +1,14 @@
 "use client";
 
 import React from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Download } from "lucide-react";
 
 interface DispatchToolbarProps {
   searchValue?: string;
   onSearchChange?: (val: string) => void;
   searchPlaceholder?: string;
+  onExportCsv?: () => void;
+  exportCsvLabel?: string;
   children?: React.ReactNode;
   title?: string;
   subtitle?: string;
@@ -15,46 +17,172 @@ interface DispatchToolbarProps {
 export function DispatchToolbar({
   searchValue = "",
   onSearchChange,
-  searchPlaceholder = "Search order, customer, product or vehicle...",
+  searchPlaceholder = "Search order number, customer, product or delivery address...",
+  onExportCsv,
+  exportCsvLabel = "Export CSV",
   children,
   title,
   subtitle,
 }: DispatchToolbarProps) {
   return (
-    <div className="w-full bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex flex-wrap items-center justify-between gap-4">
-      {/* Optional Title & Subtitle */}
-      {(title || subtitle) && (
-        <div className="min-w-0">
-          {title && <h3 className="text-base font-bold text-slate-900 m-0">{title}</h3>}
-          {subtitle && <p className="text-xs text-slate-500 m-0 mt-0.5">{subtitle}</p>}
-        </div>
-      )}
-
-      {/* Toolbar Controls */}
-      <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto flex-1 justify-end">
-        {onSearchChange && (
-          <div className="relative flex-1 sm:flex-initial min-w-[240px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchValue}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={searchPlaceholder}
-              className="w-full pl-9 pr-8 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
-            />
-            {searchValue && (
-              <button
-                type="button"
-                onClick={() => onSearchChange("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200/60"
+    <div
+      style={{
+        width: "100%",
+        minWidth: 0,
+        overflow: "hidden",
+        background: "#fff",
+        border: "1px solid #dce5f0",
+        borderRadius: 16,
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Toolbar Row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 20,
+          minHeight: 72,
+          padding: "14px 20px",
+          borderBottom: "1px solid #e8eef6",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Title & Subtitle */}
+        {(title || subtitle) && (
+          <div style={{ minWidth: 0, flexShrink: 0 }}>
+            {title && (
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: 17,
+                  lineHeight: 1.25,
+                  fontWeight: 700,
+                  color: "#0f172a",
+                }}
               >
-                <X className="w-3.5 h-3.5" />
-              </button>
+                {title}
+              </h3>
+            )}
+            {subtitle && (
+              <p
+                style={{
+                  margin: "3px 0 0",
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                  color: "#64748b",
+                }}
+              >
+                {subtitle}
+              </p>
             )}
           </div>
         )}
 
-        {children}
+        {/* Search + Export Actions */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flex: "0 1 620px",
+            minWidth: 0,
+          }}
+        >
+          {onSearchChange && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 260,
+                height: 42,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "0 14px",
+                border: "1px solid #d6e2f0",
+                borderRadius: 11,
+                background: "#f8fafc",
+                position: "relative",
+                boxSizing: "border-box",
+              }}
+            >
+              <Search
+                size={15}
+                style={{ color: "#94a3b8", flexShrink: 0 }}
+              />
+              <input
+                type="text"
+                value={searchValue}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={searchPlaceholder}
+                style={{
+                  flex: 1,
+                  width: "100%",
+                  minWidth: 0,
+                  border: 0,
+                  outline: 0,
+                  background: "transparent",
+                  fontSize: 13,
+                  lineHeight: "normal",
+                  color: "#334155",
+                }}
+              />
+              {searchValue && (
+                <button
+                  type="button"
+                  onClick={() => onSearchChange("")}
+                  aria-label="Clear search"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 22,
+                    height: 22,
+                    border: 0,
+                    borderRadius: 6,
+                    background: "transparent",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    padding: 0,
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {onExportCsv && (
+            <button
+              type="button"
+              onClick={onExportCsv}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+                height: 42,
+                padding: "0 14px",
+                border: "1px solid #dce5f0",
+                borderRadius: 10,
+                background: "#fff",
+                color: "#475569",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Download size={14} style={{ color: "#94a3b8" }} />
+              <span>{exportCsvLabel}</span>
+            </button>
+          )}
+
+          {children}
+        </div>
       </div>
     </div>
   );

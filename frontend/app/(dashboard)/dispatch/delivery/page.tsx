@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -211,6 +211,31 @@ export default function DeliveryRunPage() {
     }
   };
 
+  const handleExportCsv = () => {
+    if (!activeDeliveryQueue.length) return;
+    const exportRows = activeDeliveryQueue.map((d) => ({
+      "Dispatch Number": d.dispatchNo,
+      "Sales Order": d.salesOrder?.orderNumber || "—",
+      Customer: d.salesOrder?.customer?.companyName || "—",
+      "Delivery Address": d.deliveryAddress || "—",
+      Driver: d.driverName || "—",
+      Status: d.status,
+    }));
+    const headers = Object.keys(exportRows[0]);
+    const csvContent = [
+      headers.join(","),
+      ...exportRows.map((row) =>
+        headers.map((h) => `"${String((row as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
+      ),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `out_for_delivery_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
+
   return (
     <DispatchPageShell>
       {/* Navigation Tabs */}
@@ -234,9 +259,11 @@ export default function DeliveryRunPage() {
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search dispatch number, customer or driver..."
+        onExportCsv={activeDeliveryQueue.length > 0 ? handleExportCsv : undefined}
         title="Delivery Run Queue"
         subtitle={`Showing ${activeDeliveryQueue.length} shipment${activeDeliveryQueue.length !== 1 ? "s" : ""} out for delivery`}
       />
+
 
       {/* Loading State */}
       {isLoading && <DispatchLoadingState count={5} />}
@@ -262,26 +289,26 @@ export default function DeliveryRunPage() {
         <>
           {/* Desktop Table View (≥ 768px) */}
           <div className="hidden md:block">
-            <DispatchTableCard minTableWidth={1100}>
-              <table className="w-full text-xs text-left border-collapse">
+            <DispatchTableCard minTableWidth={1150}>
+              <table className="w-full text-sm text-left border-collapse no-mobile-stack">
                 <thead>
-                  <tr className="bg-slate-50/90 border-b border-slate-200">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[180px]">
                       Dispatch Number
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
                       Sales Order
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
                       Customer
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
                       Driver
                     </th>
-                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                    <th className="text-center text-xs font-semibold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap min-w-[140px]">
                       Status
                     </th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                    <th className="text-right text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[170px]">
                       Action
                     </th>
                   </tr>
@@ -293,21 +320,21 @@ export default function DeliveryRunPage() {
                       className="hover:bg-slate-50 transition-colors group"
                     >
                       {/* Dispatch Number */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
                         <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
                       </td>
 
                       {/* Sales Order */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
-                        <span className="font-semibold text-slate-900 text-xs">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                        <span className="font-semibold text-slate-900 text-sm">
                           #{dispatchItem.salesOrder?.orderNumber}
                         </span>
                       </td>
 
                       {/* Customer */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
                         <span
-                          className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[200px] truncate"
+                          className="font-semibold text-slate-900 text-sm tracking-tight block max-w-[220px] truncate"
                           title={dispatchItem.salesOrder?.customer?.companyName || "—"}
                         >
                           {dispatchItem.salesOrder?.customer?.companyName || "—"}
@@ -315,19 +342,19 @@ export default function DeliveryRunPage() {
                       </td>
 
                       {/* Driver */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
-                        <span className="text-slate-800 font-medium text-xs">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                        <span className="text-slate-800 font-medium text-sm">
                           {dispatchItem.driverName || "—"}
                         </span>
                       </td>
 
                       {/* Status */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-center align-middle">
+                      <td className="px-4 py-4.5 whitespace-nowrap text-center align-middle">
                         <DispatchStatusBadge status={dispatchItem.status} />
                       </td>
 
                       {/* Action Button */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-right align-middle">
+                      <td className="px-5 py-4.5 whitespace-nowrap text-right align-middle">
                         <DispatchActionButton
                           label="Confirm Delivery"
                           icon={ArrowRight}
@@ -343,17 +370,17 @@ export default function DeliveryRunPage() {
           </div>
 
           {/* Mobile Cards View (< 768px) */}
-          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
             {activeDeliveryQueue.map((dispatchItem) => (
               <div
                 key={dispatchItem.id}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between"
               >
                 {/* Card Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-100">
+                <div className="flex items-center justify-between px-4 py-3.5 bg-slate-50 border-b border-slate-100">
                   <div className="flex items-center gap-2">
                     <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
-                    <span className="text-xs font-semibold text-slate-600">
+                    <span className="text-sm font-semibold text-slate-700">
                       #{dispatchItem.salesOrder?.orderNumber}
                     </span>
                   </div>
@@ -361,15 +388,15 @@ export default function DeliveryRunPage() {
                 </div>
 
                 {/* Card Body */}
-                <div className="p-4 space-y-3">
+                <div className="p-4 space-y-3.5">
                   {/* Customer */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
-                      <User className="w-3.5 h-3.5" />
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                      <User className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
-                      <p className="text-xs font-semibold text-slate-900 m-0 truncate">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
+                      <p className="text-sm font-semibold text-slate-900 m-0 truncate">
                         {dispatchItem.salesOrder?.customer?.companyName || "—"}
                       </p>
                     </div>
@@ -377,25 +404,25 @@ export default function DeliveryRunPage() {
 
                   {/* Delivery Address */}
                   {dispatchItem.deliveryAddress && (
-                    <div className="flex items-start gap-2.5">
-                      <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5" />
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                        <MapPin className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
-                        <p className="text-xs text-slate-600 m-0 leading-relaxed">{dispatchItem.deliveryAddress}</p>
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
+                        <p className="text-sm text-slate-600 m-0 leading-relaxed">{dispatchItem.deliveryAddress}</p>
                       </div>
                     </div>
                   )}
 
                   {/* Driver */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
-                      <Truck className="w-3.5 h-3.5" />
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                      <Truck className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Driver</p>
-                      <p className="text-xs font-medium text-slate-800 m-0">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Driver</p>
+                      <p className="text-sm font-medium text-slate-800 m-0">
                         {dispatchItem.driverName || "—"} {dispatchItem.driverPhone ? `· ${dispatchItem.driverPhone}` : ""}
                       </p>
                     </div>
@@ -403,11 +430,11 @@ export default function DeliveryRunPage() {
                 </div>
 
                 {/* Card Footer */}
-                <div className="p-3 bg-slate-50/50 border-t border-slate-100">
+                <div className="p-3.5 bg-slate-50 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => handleSelectDispatch(dispatchItem)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
                   >
                     <span>Confirm Delivery</span>
                     <ArrowRight className="w-4 h-4" />
@@ -422,7 +449,7 @@ export default function DeliveryRunPage() {
       {/* Confirmation Modal */}
       {selectedDispatch && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !isSubmitting) {
@@ -436,9 +463,9 @@ export default function DeliveryRunPage() {
             aria-modal="true"
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50/80">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200 bg-slate-50">
               <div>
-                <h3 className="text-base font-bold text-slate-900 m-0">Delivery Confirmation</h3>
+                <h3 className="text-lg font-bold text-slate-900 m-0">Delivery Confirmation</h3>
                 <p className="text-xs text-slate-500 font-mono m-0 mt-0.5">
                   Dispatch: {selectedDispatch.dispatchNo}
                 </p>
@@ -448,16 +475,16 @@ export default function DeliveryRunPage() {
                 onClick={() => setSelectedDispatch(null)}
                 disabled={isSubmitting}
                 aria-label="Close modal"
-                className="p-1.5 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
+                className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* Dispatch Summary Box */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 text-slate-700">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm space-y-2 text-slate-700">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Sales Order:</span>
                   <span className="font-semibold text-slate-900">#{selectedDispatch.salesOrder?.orderNumber}</span>
@@ -469,7 +496,7 @@ export default function DeliveryRunPage() {
                 {selectedDispatch.deliveryAddress && (
                   <div className="flex justify-between">
                     <span className="text-slate-500">Address:</span>
-                    <span className="font-medium text-slate-800 max-w-[260px] text-right truncate">{selectedDispatch.deliveryAddress}</span>
+                    <span className="font-medium text-slate-800 max-w-[280px] text-right truncate">{selectedDispatch.deliveryAddress}</span>
                   </div>
                 )}
                 {selectedDispatch.driverName && (
@@ -481,10 +508,10 @@ export default function DeliveryRunPage() {
               </div>
 
               {/* Form Input Fields */}
-              <div className="space-y-3.5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label htmlFor="receiver-name" className="text-xs font-bold text-slate-700">
+                    <label htmlFor="receiver-name" className="text-xs font-bold uppercase tracking-wider text-slate-600">
                       Receiver Name <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -493,12 +520,12 @@ export default function DeliveryRunPage() {
                       value={receiverName}
                       onChange={(e) => setReceiverName(e.target.value)}
                       placeholder="Who received the package?"
-                      className="h-10 px-3 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      className="h-11 px-3.5 text-sm font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label htmlFor="receiver-mobile" className="text-xs font-bold text-slate-700">
+                    <label htmlFor="receiver-mobile" className="text-xs font-bold uppercase tracking-wider text-slate-600">
                       Receiver Mobile <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -507,13 +534,13 @@ export default function DeliveryRunPage() {
                       value={receiverMobile}
                       onChange={(e) => setReceiverMobile(e.target.value)}
                       placeholder="+91-9999999999"
-                      className="h-10 px-3 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      className="h-11 px-3.5 text-sm font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-700">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
                     Delivery Image (POD) <span className="text-red-500">*</span>
                   </label>
                   <label className="relative flex flex-col items-center justify-center min-h-[140px] p-4 border-2 border-dashed border-indigo-200 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors text-center">
@@ -534,13 +561,13 @@ export default function DeliveryRunPage() {
                       <div className="space-y-2 flex flex-col items-center">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={deliveryImagePreview} alt="POD Preview" className="max-h-36 rounded-lg object-contain" />
-                        <span className="text-[11px] text-slate-400 font-medium">Click to replace image</span>
+                        <span className="text-xs text-slate-500 font-medium">Click to replace image</span>
                       </div>
                     ) : (
                       <div className="space-y-1.5 flex flex-col items-center text-indigo-600">
-                        <Upload className="w-7 h-7" />
-                        <span className="text-xs font-bold text-slate-800">Upload delivery proof image</span>
-                        <span className="text-[11px] text-slate-400">JPG, PNG or WebP · maximum 5 MB</span>
+                        <Upload className="w-8 h-8" />
+                        <span className="text-sm font-bold text-slate-800">Upload delivery proof image</span>
+                        <span className="text-xs text-slate-400">JPG, PNG or WebP · maximum 5 MB</span>
                       </div>
                     )}
                   </label>
@@ -549,19 +576,19 @@ export default function DeliveryRunPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-200 bg-slate-50/80">
+            <div className="flex items-center justify-end gap-3 px-6 py-4.5 border-t border-slate-200 bg-slate-50">
               <Button
                 variant="outline"
                 onClick={() => setSelectedDispatch(null)}
                 disabled={isSubmitting}
-                className="text-xs font-semibold rounded-xl"
+                className="h-10 text-sm font-semibold rounded-xl"
               >
                 Cancel
               </Button>
               <Button
                 disabled={!receiverName || !receiverMobile || !deliveryImage || isSubmitting}
                 onClick={handleConfirmDelivery}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5"
+                className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 rounded-xl flex items-center gap-2"
               >
                 <CheckSquare className="w-4 h-4" />
                 <span>{isSubmitting ? "Confirming..." : "Confirm Delivery"}</span>

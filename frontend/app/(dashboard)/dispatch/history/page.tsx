@@ -73,6 +73,31 @@ export default function DeliveryHistoryPage() {
     );
   }, [dispatches, search]);
 
+  const handleExportCsv = () => {
+    if (!deliveredHistory.length) return;
+    const exportRows = deliveredHistory.map((d) => ({
+      "Dispatch Number": d.dispatchNo,
+      "Sales Order": d.salesOrder?.orderNumber || "—",
+      Customer: d.salesOrder?.customer?.companyName || "—",
+      "Received By": d.receivedBy || "—",
+      "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString() : "—",
+      Status: d.status || "DELIVERED",
+    }));
+    const headers = Object.keys(exportRows[0]);
+    const csvContent = [
+      headers.join(","),
+      ...exportRows.map((row) =>
+        headers.map((h) => `"${String((row as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
+      ),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `delivery_history_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
+
   return (
     <DispatchPageShell>
       {/* Navigation Tabs */}
@@ -96,9 +121,11 @@ export default function DeliveryHistoryPage() {
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search dispatch number, order number, customer or receiver..."
+        onExportCsv={deliveredHistory.length > 0 ? handleExportCsv : undefined}
         title="Completed Log"
         subtitle={`Showing ${deliveredHistory.length} completed delivery record${deliveredHistory.length !== 1 ? "s" : ""}`}
       />
+
 
       {/* Loading State */}
       {isLoading && <DispatchLoadingState count={5} />}
@@ -124,26 +151,26 @@ export default function DeliveryHistoryPage() {
         <>
           {/* Desktop Table View (≥ 768px) */}
           <div className="hidden md:block">
-            <DispatchTableCard minTableWidth={960}>
-              <table className="w-full text-xs text-left border-collapse">
+            <DispatchTableCard minTableWidth={1000}>
+              <table className="w-full text-sm text-left border-collapse no-mobile-stack">
                 <thead>
-                  <tr className="bg-slate-50/90 border-b border-slate-200">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[180px]">
                       Dispatch Number
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
                       Sales Order
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
                       Customer
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
                       Received By
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
                       Delivery Timestamp
                     </th>
-                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[140px]">
+                    <th className="text-center text-xs font-semibold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap min-w-[140px]">
                       Status
                     </th>
                   </tr>
@@ -155,21 +182,21 @@ export default function DeliveryHistoryPage() {
                       className="hover:bg-slate-50 transition-colors group"
                     >
                       {/* Dispatch Number */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
                         <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
                       </td>
 
                       {/* Sales Order */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
-                        <span className="font-semibold text-slate-900 text-xs">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                        <span className="font-semibold text-slate-900 text-sm">
                           #{dispatchItem.salesOrder?.orderNumber || "N/A"}
                         </span>
                       </td>
 
                       {/* Customer */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
                         <span
-                          className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[200px] truncate"
+                          className="font-semibold text-slate-900 text-sm tracking-tight block max-w-[220px] truncate"
                           title={dispatchItem.salesOrder?.customer?.companyName || "N/A"}
                         >
                           {dispatchItem.salesOrder?.customer?.companyName || "N/A"}
@@ -177,15 +204,15 @@ export default function DeliveryHistoryPage() {
                       </td>
 
                       {/* Received By */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
-                        <span className="text-slate-800 font-medium text-xs">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                        <span className="text-slate-800 font-medium text-sm">
                           {dispatchItem.receivedBy || "N/A"}
                         </span>
                       </td>
 
                       {/* Delivery Timestamp */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
-                        <span className="text-slate-600 text-xs font-medium">
+                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                        <span className="text-slate-700 text-sm font-medium">
                           {dispatchItem.deliveredAt
                             ? new Date(dispatchItem.deliveredAt).toLocaleString("en-IN", {
                                 day: "2-digit",
@@ -199,7 +226,7 @@ export default function DeliveryHistoryPage() {
                       </td>
 
                       {/* Status */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-center align-middle">
+                      <td className="px-4 py-4.5 whitespace-nowrap text-center align-middle">
                         <DispatchStatusBadge status={dispatchItem.status || "DELIVERED"} />
                       </td>
                     </tr>
@@ -210,17 +237,17 @@ export default function DeliveryHistoryPage() {
           </div>
 
           {/* Mobile Cards View (< 768px) */}
-          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
             {deliveredHistory.map((dispatchItem) => (
               <div
                 key={dispatchItem.id}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between"
               >
                 {/* Card Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-100">
+                <div className="flex items-center justify-between px-4 py-3.5 bg-slate-50 border-b border-slate-100">
                   <div className="flex items-center gap-2">
                     <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
-                    <span className="text-xs font-semibold text-slate-600">
+                    <span className="text-sm font-semibold text-slate-700">
                       #{dispatchItem.salesOrder?.orderNumber || "N/A"}
                     </span>
                   </div>
@@ -228,15 +255,15 @@ export default function DeliveryHistoryPage() {
                 </div>
 
                 {/* Card Body */}
-                <div className="p-4 space-y-3">
+                <div className="p-4 space-y-3.5">
                   {/* Customer */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
-                      <User className="w-3.5 h-3.5" />
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                      <User className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
-                      <p className="text-xs font-semibold text-slate-900 m-0 truncate">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
+                      <p className="text-sm font-semibold text-slate-900 m-0 truncate">
                         {dispatchItem.salesOrder?.customer?.companyName || "N/A"}
                       </p>
                     </div>
@@ -244,14 +271,14 @@ export default function DeliveryHistoryPage() {
 
                   {/* Received By */}
                   <div className="flex flex-col pt-2 border-t border-slate-100">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Received By</span>
-                    <span className="text-xs font-medium text-slate-800">{dispatchItem.receivedBy || "N/A"}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Received By</span>
+                    <span className="text-sm font-medium text-slate-800 mt-0.5">{dispatchItem.receivedBy || "N/A"}</span>
                   </div>
 
                   {/* Delivered At */}
                   <div className="flex flex-col pt-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Delivered Timestamp</span>
-                    <span className="text-xs font-medium text-slate-600">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Delivered Timestamp</span>
+                    <span className="text-sm font-medium text-slate-600 mt-0.5">
                       {dispatchItem.deliveredAt
                         ? new Date(dispatchItem.deliveredAt).toLocaleString("en-IN", {
                             day: "2-digit",

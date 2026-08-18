@@ -389,6 +389,31 @@ export default function DispatchOrdersPage() {
     }
   };
 
+  const handleExportCsv = () => {
+    if (!filteredPendingItems.length) return;
+    const exportRows = filteredPendingItems.map((item) => ({
+      "Order Number": item.orderNumber,
+      Customer: item.customerName,
+      "Delivery Address": item.deliveryAddress,
+      Product: item.productName,
+      Type: item.itemType,
+      Quantity: item.approvedQuantity,
+    }));
+    const headers = Object.keys(exportRows[0]);
+    const csvContent = [
+      headers.join(","),
+      ...exportRows.map((row) =>
+        headers.map((h) => `"${String((row as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
+      ),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pending_dispatches_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
+
   return (
     <DispatchPageShell>
       {/* Navigation Tabs */}
@@ -412,9 +437,11 @@ export default function DispatchOrdersPage() {
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search order number, customer, product or delivery address..."
+        onExportCsv={filteredPendingItems.length > 0 ? handleExportCsv : undefined}
         title="Pending Queue"
         subtitle={`Showing ${filteredPendingItems.length} order${filteredPendingItems.length !== 1 ? "s" : ""} ready for dispatch`}
       />
+
 
       {/* Loading State */}
       {isLoading && <DispatchLoadingState count={6} />}
@@ -440,29 +467,35 @@ export default function DispatchOrdersPage() {
         <>
           {/* Desktop Table View (≥ 768px) */}
           <div className="hidden md:block">
-            <DispatchTableCard minTableWidth={1100}>
-              <table className="w-full text-xs text-left border-collapse">
+            <DispatchTableCard minTableWidth={1200}>
+              <table className="w-full text-sm text-left border-collapse no-mobile-stack">
                 <thead>
-                  <tr className="bg-slate-50/90 border-b border-slate-200">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th
+                      style={{ paddingLeft: "24px", paddingRight: "16px", height: "38px", verticalAlign: "middle" }}
+                      className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap min-w-[200px]"
+                    >
                       Sales Order
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[180px]">
+                    <th style={{ height: "38px", verticalAlign: "middle" }} className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 whitespace-nowrap min-w-[220px]">
                       Customer
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[240px]">
+                    <th style={{ height: "38px", verticalAlign: "middle" }} className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 whitespace-nowrap min-w-[260px]">
                       Delivery Address
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[260px]">
+                    <th style={{ height: "38px", verticalAlign: "middle" }} className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 whitespace-nowrap min-w-[280px]">
                       Product
                     </th>
-                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap min-w-[100px]">
+                    <th style={{ height: "38px", verticalAlign: "middle" }} className="text-center text-xs font-bold uppercase tracking-wider text-slate-500 px-4 whitespace-nowrap min-w-[120px]">
                       Type
                     </th>
-                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-3.5 whitespace-nowrap min-w-[100px]">
+                    <th style={{ height: "38px", verticalAlign: "middle" }} className="text-center text-xs font-bold uppercase tracking-wider text-slate-500 px-4 whitespace-nowrap min-w-[110px]">
                       Qty
                     </th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3.5 whitespace-nowrap min-w-[160px]">
+                    <th
+                      style={{ paddingLeft: "16px", paddingRight: "24px", height: "38px", verticalAlign: "middle" }}
+                      className="text-right text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap min-w-[180px]"
+                    >
                       Actions
                     </th>
                   </tr>
@@ -474,14 +507,17 @@ export default function DispatchOrdersPage() {
                       className="hover:bg-slate-50 transition-colors group"
                     >
                       {/* Sales Order Number */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                      <td
+                        style={{ paddingLeft: "24px", paddingRight: "16px", height: "52px", verticalAlign: "middle" }}
+                        className="whitespace-nowrap"
+                      >
                         <SalesOrderNumberBadge orderNumber={item.orderNumber} />
                       </td>
 
                       {/* Customer */}
-                      <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                      <td style={{ height: "52px", verticalAlign: "middle" }} className="px-5 whitespace-nowrap">
                         <span
-                          className="font-semibold text-slate-900 text-xs tracking-tight block max-w-[200px] truncate"
+                          className="font-semibold text-slate-900 text-sm tracking-tight block max-w-[220px] truncate"
                           title={item.customerName}
                         >
                           {item.customerName}
@@ -489,9 +525,9 @@ export default function DispatchOrdersPage() {
                       </td>
 
                       {/* Delivery Address */}
-                      <td className="px-4 py-3.5 align-middle">
+                      <td style={{ height: "52px", verticalAlign: "middle" }} className="px-5">
                         <span
-                          className="text-xs text-slate-600 leading-relaxed block max-w-[280px] truncate"
+                          className="text-sm text-slate-600 leading-relaxed block max-w-[300px] truncate"
                           title={item.deliveryAddress}
                         >
                           {item.deliveryAddress}
@@ -499,9 +535,9 @@ export default function DispatchOrdersPage() {
                       </td>
 
                       {/* Product */}
-                      <td className="px-4 py-3.5 align-middle">
+                      <td style={{ height: "52px", verticalAlign: "middle" }} className="px-5">
                         <span
-                          className="text-slate-800 font-semibold text-xs leading-snug block max-w-[280px] truncate"
+                          className="text-slate-900 font-semibold text-sm leading-snug block max-w-[320px] truncate"
                           title={item.productName}
                         >
                           {item.productName}
@@ -509,17 +545,20 @@ export default function DispatchOrdersPage() {
                       </td>
 
                       {/* Type */}
-                      <td className="px-3 py-3.5 whitespace-nowrap text-center align-middle">
+                      <td style={{ height: "52px", verticalAlign: "middle" }} className="px-4 whitespace-nowrap text-center">
                         <DispatchTypeBadge type={item.itemType === "TRADING_SALES_ORDER" ? "TRADING" : "MFG"} />
                       </td>
 
                       {/* Quantity */}
-                      <td className="px-3 py-3.5 whitespace-nowrap text-center align-middle">
+                      <td style={{ height: "52px", verticalAlign: "middle" }} className="px-4 whitespace-nowrap text-center">
                         <DispatchQuantityBadge quantity={item.approvedQuantity} />
                       </td>
 
                       {/* Action Button */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-right align-middle">
+                      <td
+                        style={{ paddingLeft: "16px", paddingRight: "24px", height: "52px", verticalAlign: "middle" }}
+                        className="whitespace-nowrap text-right"
+                      >
                         <DispatchActionButton
                           label="Create Dispatch"
                           icon={FileText}
@@ -535,66 +574,66 @@ export default function DispatchOrdersPage() {
           </div>
 
           {/* Mobile Cards View (< 768px) */}
-          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filteredPendingItems.map((item) => (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between"
               >
                 {/* Card Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-100">
+                <div className="flex items-center justify-between px-4 py-3.5 bg-slate-50 border-b border-slate-100">
                   <SalesOrderNumberBadge orderNumber={item.orderNumber} />
                   <DispatchTypeBadge type={item.itemType === "TRADING_SALES_ORDER" ? "TRADING" : "MFG"} />
                 </div>
 
                 {/* Card Body */}
-                <div className="p-4 space-y-3">
+                <div className="p-4 space-y-3.5">
                   {/* Customer */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
-                      <User className="w-3.5 h-3.5" />
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                      <User className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
-                      <p className="text-xs font-semibold text-slate-900 m-0 truncate">{item.customerName}</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
+                      <p className="text-sm font-semibold text-slate-900 m-0 truncate">{item.customerName}</p>
                     </div>
                   </div>
 
                   {/* Product */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
-                      <Package className="w-3.5 h-3.5" />
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                      <Package className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Product</p>
-                      <p className="text-xs font-medium text-slate-800 m-0 leading-snug">{item.productName}</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Product</p>
+                      <p className="text-sm font-medium text-slate-800 m-0 leading-snug">{item.productName}</p>
                     </div>
                   </div>
 
                   {/* Delivery Address */}
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 shrink-0 mt-0.5">
-                      <MapPin className="w-3.5 h-3.5" />
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                      <MapPin className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
-                      <p className="text-xs text-slate-600 m-0 leading-relaxed">{item.deliveryAddress}</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
+                      <p className="text-sm text-slate-600 m-0 leading-relaxed">{item.deliveryAddress}</p>
                     </div>
                   </div>
 
                   {/* Quantity */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Approved Qty</span>
+                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Approved Qty</span>
                     <DispatchQuantityBadge quantity={item.approvedQuantity} />
                   </div>
                 </div>
 
                 {/* Card Footer: Full width action button */}
-                <div className="p-3 bg-slate-50/50 border-t border-slate-100">
+                <div className="p-3.5 bg-slate-50 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => handleCreateDispatch(item)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
                   >
                     <FileText className="w-4 h-4" />
                     <span>Create Dispatch</span>

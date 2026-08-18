@@ -1,113 +1,50 @@
+/* ─── Dispatch Page Layout Shell ───────────────────────────────────────────
+   .page / .content / .flushPage own ZERO padding.
+   All page-level padding is already provided by .main-viewport in globals.css.
+   These wrappers exist only to enforce width containment and stacking.
+────────────────────────────────────────────────────────────────────────────── */
+
 .page {
-  width: 100% !important;
-  max-width: 100% !important;
+  width: 100%;
+  max-width: none;
   min-width: 0;
-  min-height: 100%;
-  margin: 0 auto !important;
-  padding: clamp(16px, 2vw, 32px) !important;
+  min-height: auto;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
-  overflow-x: hidden;
-  background: #f7f9fc;
+  background: transparent;
 }
 
 .flushPage {
   width: 100%;
   min-width: 0;
-  min-height: 100%;
-  background: #f7f9fc;
+  min-height: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .content {
-  width: 100% !important;
-  max-width: 100% !important;
+  width: 100%;
+  max-width: none;
   min-width: 0;
-  margin: 0 auto !important;
-  padding: clamp(16px, 2vw, 32px) !important;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.page :global(input),
-.page :global(select),
-.page :global(textarea),
-.content :global(input),
-.content :global(select),
-.content :global(textarea) {
-  max-width: 100%;
-  box-sizing: border-box;
-}
+/* ─── Vertical stacking gap for Dispatch page children ─────────────────────
+   .stack is applied inside DispatchPageShell so all direct children
+   (tabs, header, toolbar, table card, etc.) have consistent vertical gap.
+────────────────────────────────────────────────────────────────────────────── */
 
-.page :global(textarea),
-.content :global(textarea) {
-  resize: vertical;
-}
-
-.page :global(table),
-.content :global(table) {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.page :global(.overflow-x-auto),
-.content :global(.overflow-x-auto) {
-  max-width: 100%;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
-
-@media (max-width: 1024px) {
-  .page,
-  .content {
-    padding: 20px !important;
-  }
-
-  .page :global(.lg\:grid-cols-3),
-  .content :global(.lg\:grid-cols-3) {
-    grid-template-columns: 1fr !important;
-  }
-
-  .page :global(.lg\:col-span-2),
-  .page :global(.lg\:col-span-1),
-  .content :global(.lg\:col-span-2),
-  .content :global(.lg\:col-span-1) {
-    grid-column: auto !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .page,
-  .content {
-    padding: 14px 14px 16px !important;
-  }
-
-  .page :global(.rounded-2xl),
-  .content :global(.rounded-2xl) {
-    border-radius: 14px !important;
-  }
-
-  .page :global(.p-8),
-  .content :global(.p-8) {
-    padding: 20px !important;
-  }
-
-  .page :global(.gap-8),
-  .content :global(.gap-8) {
-    gap: 18px !important;
-  }
-}
-
-@media (max-width: 640px) {
-  .page :global(.sm\:p-8),
-  .content :global(.sm\:p-8) {
-    padding: 18px !important;
-  }
-
-  .page :global(.sm\:flex-row),
-  .content :global(.sm\:flex-row) {
-    align-items: stretch;
-  }
-
-  .page :global(button),
-  .content :global(button) {
-    min-height: 40px;
-  }
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
 }

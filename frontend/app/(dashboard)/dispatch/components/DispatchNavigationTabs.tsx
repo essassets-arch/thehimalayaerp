@@ -22,22 +22,66 @@ export function DispatchNavigationTabs() {
   ];
 
   return (
-    <div className="w-full overflow-x-auto scrollbar-none py-1">
-      <div className="inline-flex items-center gap-1.5 p-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xs">
+    <div
+      style={{
+        width: "100%",
+        minWidth: 0,
+        overflowX: "auto",
+        overflowY: "hidden",
+        WebkitOverflowScrolling: "touch",
+        scrollbarWidth: "none",
+        padding: "4px 0",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          width: "max-content",
+          minWidth: "100%",
+          padding: "6px",
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 14,
+          boxSizing: "border-box",
+        }}
+      >
         {tabs.map((tab) => {
-          const isActive = pathname === tab.href || (tab.href.endsWith("/orders") && pathname === basePath);
+          const isActive =
+            pathname === tab.href ||
+            (tab.href.endsWith("/orders") && pathname === basePath);
           const Icon = tab.icon;
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
-                isActive
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
-              }`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                minHeight: 36,
+                padding: "0 12px",
+                flex: "0 0 auto",
+                borderRadius: 9,
+                fontSize: 13,
+                fontWeight: 600,
+                lineHeight: 1,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                transition: "background 0.12s, color 0.12s",
+                background: isActive ? "#4f46e5" : "transparent",
+                color: isActive ? "#fff" : "#475569",
+              }}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-slate-400"}`} />
+              <Icon
+                size={14}
+                style={{
+                  flexShrink: 0,
+                  color: isActive ? "#fff" : "#94a3b8",
+                }}
+              />
               <span>{tab.label}</span>
             </Link>
           );

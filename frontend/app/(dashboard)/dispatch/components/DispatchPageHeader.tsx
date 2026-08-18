@@ -32,60 +32,164 @@ export function DispatchPageHeader({
   children,
 }: DispatchPageHeaderProps) {
   return (
-    <div className="relative w-full min-w-0 bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        minWidth: 0,
+        minHeight: 118,
+        background: "#fff",
+        border: "1px solid #dce5f0",
+        borderRadius: 16,
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
       {/* Background Watermark Icon */}
       {HeaderIcon && (
-        <div className="absolute -right-6 -bottom-6 text-indigo-600/5 pointer-events-none select-none z-0">
-          <HeaderIcon size={180} />
+        <div
+          style={{
+            position: "absolute",
+            right: -24,
+            bottom: -24,
+            color: "rgba(79,70,229,0.05)",
+            pointerEvents: "none",
+            userSelect: "none",
+            zIndex: 0,
+          }}
+        >
+          <HeaderIcon size={200} />
         </div>
       )}
 
-      {/* Main Content Bar */}
-      <div className="relative z-10 p-4 sm:p-6 lg:p-7 flex flex-col md:flex-row md:items-center justify-between gap-5">
-        <div className="min-w-0 max-w-3xl flex-1">
+      {/* Main Content */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 10,
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 20,
+          padding: "22px 24px",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Left: eyebrow + title + subtitle */}
+        <div style={{ minWidth: 0, flex: 1 }}>
           {eyebrow && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[11px] font-bold tracking-wider uppercase mb-2.5">
-              {HeaderIcon && <HeaderIcon className="w-3.5 h-3.5" />}
-              <span>{eyebrow}</span>
-            </div>
+            <p
+              style={{
+                margin: "0 0 6px",
+                fontSize: 11,
+                lineHeight: 1,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: "#4f46e5",
+                textTransform: "uppercase",
+              }}
+            >
+              {eyebrow}
+            </p>
           )}
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug m-0">
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 28,
+              lineHeight: 1.15,
+              fontWeight: 800,
+              color: "#0f172a",
+              letterSpacing: "-0.01em",
+            }}
+          >
             {title}
           </h1>
-          <p className="mt-1.5 text-xs sm:text-sm text-slate-500 leading-relaxed max-w-2xl m-0">
+          <p
+            style={{
+              margin: "6px 0 0",
+              maxWidth: 700,
+              fontSize: 14,
+              lineHeight: 1.5,
+              color: "#64748b",
+            }}
+          >
             {description}
           </p>
         </div>
 
-        {/* Right Section: Stats & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          {stats.length > 0 && (
-            <div className="flex items-center gap-3 p-2 sm:p-2.5 bg-slate-50/90 border border-slate-200/80 rounded-xl shadow-2xs">
-              {stats.map((stat, idx) => {
-                const StatIcon = stat.icon;
-                return (
-                  <React.Fragment key={stat.label}>
-                    {idx > 0 && <div className="w-px h-8 bg-slate-200" />}
-                    <div className="flex items-center gap-2 px-2 py-0.5">
-                      {StatIcon && (
-                        <div className={`p-1.5 rounded-lg ${stat.color || "bg-indigo-50 text-indigo-600"}`}>
-                          <StatIcon className="w-4 h-4" />
-                        </div>
-                      )}
-                      <div className="flex flex-col">
-                        <span className="text-lg font-extrabold text-slate-900 leading-none">
-                          {stat.value}
-                        </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1 whitespace-nowrap">
-                          {stat.label}
-                        </span>
-                      </div>
-                    </div>
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
+        {/* Right: Stats + Refresh */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexShrink: 0,
+            flexWrap: "wrap",
+          }}
+        >
+          {stats.map((stat) => {
+            const StatIcon = stat.icon;
+            return (
+              <div
+                key={stat.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  minHeight: 48,
+                  minWidth: 155,
+                  padding: "7px 14px",
+                  background: "#fff",
+                  border: "1px solid #dce5f0",
+                  borderRadius: 12,
+                }}
+              >
+                {StatIcon && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 8,
+                      borderRadius: 10,
+                      background: "#ede9fe",
+                      color: "#4f46e5",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <StatIcon size={18} />
+                  </div>
+                )}
+                <div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      lineHeight: 1,
+                      fontWeight: 800,
+                      color: "#0f172a",
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 2,
+                      fontSize: 10,
+                      lineHeight: 1.15,
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
           {children}
 
@@ -94,9 +198,30 @@ export function DispatchPageHeader({
               type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 rounded-xl shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                height: 40,
+                padding: "0 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#475569",
+                background: "#fff",
+                border: "1px solid #dce5f0",
+                borderRadius: 10,
+                cursor: "pointer",
+                opacity: isRefreshing ? 0.5 : 1,
+                transition: "background 0.15s",
+              }}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-indigo-600" : "text-slate-500"}`} />
+              <RefreshCw
+                size={15}
+                style={{
+                  color: isRefreshing ? "#4f46e5" : "#94a3b8",
+                  animation: isRefreshing ? "spin 1s linear infinite" : undefined,
+                }}
+              />
               <span>Refresh</span>
             </button>
           )}
