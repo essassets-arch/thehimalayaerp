@@ -238,9 +238,19 @@ export class AttendanceService {
     const now = new Date();
     const { startOfDay } = getKolkataDate(now);
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { employee: true },
+    });
+
+    const whereConditions: any[] = [{ userId }];
+    if (user?.employee?.id) {
+      whereConditions.push({ employeeId: user.employee.id });
+    }
+
     const record = await this.prisma.attendance.findFirst({
       where: {
-        userId,
+        OR: whereConditions,
         companyId,
         attendanceDate: startOfDay,
       },
@@ -564,9 +574,20 @@ export class AttendanceService {
   }
 
   // Complete Monthly Attendance Breakdown for /hr/employees/:employeeId
-  async getEmployeeMonthlyAttendance(employeeId: string, companyId: string, monthStr?: string) {
+  async getEmployeeMonthlyAttendance(employeeId: string, companyIdOrMonthStr?: string, monthStrInput?: string) {
+    let companyId: string | undefined;
+    let monthStr = monthStrInput;
+
+    if (companyIdOrMonthStr) {
+      if (companyIdOrMonthStr.match(/^\d{4}-\d{2}$/)) {
+        monthStr = companyIdOrMonthStr;
+      } else {
+        companyId = companyIdOrMonthStr;
+      }
+    }
+
     const emp = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId },
+      where: { id: employeeId, ...(companyId ? { companyId } : {}) },
       include: { department: true, workLocation: true },
     });
 
@@ -594,7 +615,7 @@ export class AttendanceService {
     const attendances = await this.prisma.attendance.findMany({
       where: {
         employeeId,
-        companyId,
+        ...(companyId ? { companyId } : {}),
         attendanceDate: {
           gte: getKolkataDate(firstDayOfMonth).startOfDay,
           lte: getKolkataDate(lastDayOfMonth).endOfDay,

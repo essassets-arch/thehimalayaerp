@@ -57,10 +57,8 @@ export class UsersService {
 
     const existing = await this.prisma.user.findUnique({
       where: { email },
+      include: { role: true },
     });
-    if (existing) {
-      throw new BadRequestException('User with this email already exists.');
-    }
 
     const roleInput = data.roleCode || data.role_name || data.role || data.role_id || data.roleId || 'Sales';
     let role = await this.prisma.role.findFirst({
@@ -79,6 +77,37 @@ export class UsersService {
 
     if (!role) {
       throw new BadRequestException('No roles defined in database.');
+    }
+
+    const targetEmployeeId = data.employeeId || data.employee_id;
+    let employeeToLink: any = null;
+    if (targetEmployeeId) {
+      employeeToLink = await this.prisma.employee.findUnique({ where: { id: targetEmployeeId } });
+    } else {
+      employeeToLink = await this.prisma.employee.findFirst({ where: { workEmail: email } });
+    }
+
+    if (existing) {
+      // Update existing user role and link to employee
+      const updatedUser = await this.prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          roleId: role.id,
+          name: data.name || existing.name,
+        },
+        include: { role: true },
+      });
+
+      if (employeeToLink) {
+        await this.prisma.employee.update({
+          where: { id: employeeToLink.id },
+          data: { userId: existing.id },
+        });
+      }
+
+      const result = { ...updatedUser, employeeId: employeeToLink?.id || null };
+      delete (result as { password?: string }).password;
+      return result;
     }
 
     let companyId = data.companyId || data.company_id;
@@ -121,7 +150,21 @@ export class UsersService {
       },
     });
 
-    const result = { ...user };
+    if (employeeToLink) {
+      await this.prisma.employee.update({
+        where: { id: employeeToLink.id },
+        data: { userId: user.id },
+      });
+    }
+
+    if (employeeToLink) {
+      await this.prisma.employee.update({
+        where: { id: employeeToLink.id },
+        data: { userId: user.id },
+      });
+    }
+
+    const result = { ...user, employeeId: employeeToLink?.id || null };
     delete (result as { password?: string }).password;
     return result;
   }

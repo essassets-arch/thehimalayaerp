@@ -22,11 +22,15 @@ export default function SuperAdminSalaryApprovalView() {
       setError('');
       const res = await apiClient.get('/super-admin/payroll/pending');
       if (res && res.success !== false) {
-        setRecords(res.data || res || []);
+        const raw = res.data?.items || res.items || res.data || res;
+        setRecords(Array.isArray(raw) ? raw : []);
+      } else {
+        setRecords([]);
       }
     } catch (err: any) {
       console.error('Failed to load Super Admin pending payroll:', err);
       setError(err.message || 'Error loading pending payroll approvals');
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -110,7 +114,8 @@ export default function SuperAdminSalaryApprovalView() {
     );
   };
 
-  const totalNetPending = records.reduce((acc, r) => acc + (r.netPayable || 0), 0);
+  const safeRecords = Array.isArray(records) ? records : [];
+  const totalNetPending = safeRecords.reduce((acc, r) => acc + (r.netPayable || 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: 'sans-serif' }}>

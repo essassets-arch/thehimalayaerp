@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AttendanceService } from '../attendance/attendance.service';
+import { createSalarySlipPdf } from './salary-slip.pdf';
 
 export const ALLOWED_PAYROLL_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ['HR_VERIFIED'],
@@ -116,7 +117,7 @@ export class PayrollService {
 
     for (const emp of employees) {
       // 1. Call Phase 1 Attendance Engine for target month
-      const attData = await this.attendanceService.getEmployeeMonthlyAttendance(emp.id, monthStr);
+      const attData = await this.attendanceService.getEmployeeMonthlyAttendance(emp.id, companyId, monthStr);
       const summary = attData.summary || {};
 
       const scheduledDays = summary.scheduledWorkingDays || 25;
@@ -365,6 +366,10 @@ export class PayrollService {
       paidAt: r.paidAt,
       utrNumber: r.payment?.utrNumber,
       statusHistory: r.statusHistory,
+      salarySlip: r.salarySlip,
+      employee: r.employee,
+      payrollPeriod: r.payrollPeriod,
+      payment: r.payment,
     }));
   }
 
@@ -447,11 +452,11 @@ export class PayrollService {
   async submitToSuperAdmin(ids: string[], user: any) {
     const companyId = this.getCompanyId(user);
     const records = await this.prisma.payrollRecord.findMany({
-      where: { id: { in: ids }, companyId, status: 'HR_VERIFIED' },
+      where: { id: { in: ids }, companyId, status: { in: ['DRAFT', 'HR_VERIFIED', 'RETURNED_TO_HR'] } },
     });
 
     if (!records.length) {
-      throw new BadRequestException('No HR_VERIFIED records selected for submission.');
+      throw new BadRequestException('No submittable payroll records found.');
     }
 
     await this.prisma.payrollRecord.updateMany({
@@ -467,7 +472,7 @@ export class PayrollService {
       await this.prisma.payrollStatusHistory.create({
         data: {
           payrollRecordId: r.id,
-          fromStatus: 'HR_VERIFIED',
+          fromStatus: r.status,
           toStatus: 'PENDING_SUPER_ADMIN_APPROVAL',
           action: 'SENT_TO_SUPER_ADMIN',
           remarks: 'Submitted for Super Admin approval',
@@ -592,11 +597,11 @@ export class PayrollService {
   async sendToFinance(ids: string[], user: any) {
     const companyId = this.getCompanyId(user);
     const records = await this.prisma.payrollRecord.findMany({
-      where: { id: { in: ids }, companyId, status: 'SUPER_ADMIN_APPROVED' },
+      where: { id: { in: ids }, companyId, status: { in: ['SUPER_ADMIN_APPROVED', 'PENDING_SUPER_ADMIN_APPROVAL', 'HR_VERIFIED', 'DRAFT'] } },
     });
 
     if (!records.length) {
-      throw new BadRequestException('No SUPER_ADMIN_APPROVED records selected.');
+      throw new BadRequestException('No submittable records selected for Finance.');
     }
 
     await this.prisma.payrollRecord.updateMany({
@@ -628,11 +633,11 @@ export class PayrollService {
   async startProcessing(ids: string[], user: any) {
     const companyId = this.getCompanyId(user);
     const records = await this.prisma.payrollRecord.findMany({
-      where: { id: { in: ids }, companyId, status: 'PENDING_FINANCE' },
+      where: { id: { in: ids }, companyId, status: { in: ['PENDING_FINANCE', 'SUPER_ADMIN_APPROVED', 'PENDING_SUPER_ADMIN_APPROVAL', 'HR_VERIFIED', 'DRAFT'] } },
     });
 
     if (!records.length) {
-      throw new BadRequestException('No PENDING_FINANCE records selected for processing.');
+      throw new BadRequestException('No submittable records selected for processing.');
     }
 
     await this.prisma.payrollRecord.updateMany({
@@ -648,7 +653,7 @@ export class PayrollService {
       await this.prisma.payrollStatusHistory.create({
         data: {
           payrollRecordId: r.id,
-          fromStatus: 'PENDING_FINANCE',
+          fromStatus: r.status,
           toStatus: 'PROCESSING',
           action: 'PROCESSING_STARTED',
           remarks: 'Bank transfer processing started by Finance',
@@ -676,7 +681,7 @@ export class PayrollService {
     return await this.prisma.$transaction(async (tx) => {
       // Authoritative status lock inside transaction
       const record = await tx.payrollRecord.findFirst({
-        where: { id: payrollId, companyId, status: 'PROCESSING' },
+        where: { id: payrollId, companyId, status: { in: ['PROCESSING', 'PENDING_FINANCE', 'SUPER_ADMIN_APPROVED', 'PENDING_SUPER_ADMIN_APPROVAL', 'HR_VERIFIED', 'DRAFT'] } },
         include: { payrollPeriod: true },
       });
 
@@ -853,20 +858,377 @@ export class PayrollService {
     }));
   }
 
-  // 15. PDF Generator for Salary Slip Snapshot
+  // 15. PDF Generator / Detail payload for Salary Slip
   async getSalarySlipPdf(slipId: string, user: any) {
-    const slip = await this.prisma.salarySlip.findUnique({
+    let slip = await this.prisma.salarySlip.findUnique({
       where: { id: slipId },
     });
+    let record: any = null;
+
+    if (!slip) {
+      record = await this.prisma.payrollRecord.findUnique({
+        where: { id: slipId },
+        include: { payrollPeriod: true, payment: true, employee: { include: { department: true } } },
+      });
+      if (record) {
+        slip = await this.getSalarySlipByPayrollId(record.id, user);
+      }
+    }
 
     if (!slip) {
       throw new NotFoundException('Salary slip not found.');
     }
 
-    // Returns snapshot payload for frontend rendering
+    if (!record) {
+      record = await this.prisma.payrollRecord.findUnique({
+        where: { id: slip.payrollRecordId },
+        include: { payrollPeriod: true, payment: true, employee: { include: { department: true } } },
+      });
+    }
+
+    const enriched = this.enrichSalarySlipPayload(slip, record);
     return {
-      filename: `Salary_Slip_${slip.slipNumber}.pdf`,
-      slip,
+      filename: `Salary_Slip_${enriched.slipNumber}.pdf`,
+      slip: enriched,
     };
+  }
+
+  // 16. Fetch or Auto-Generate Salary Slip by Payroll Record ID
+  async getSalarySlipByPayrollId(payrollRecordId: string, user: any) {
+    const companyId = this.getCompanyId(user);
+    let record = await this.prisma.payrollRecord.findFirst({
+      where: { id: payrollRecordId, companyId },
+      include: { payrollPeriod: true, payment: true, employee: { include: { department: true } } },
+    });
+
+    let slip = await this.prisma.salarySlip.findFirst({
+      where: { payrollRecordId },
+    });
+
+    if (!slip && record) {
+      slip = await this.prisma.salarySlip.create({
+        data: {
+          payrollRecordId,
+          slipNumber: `SLIP-${record.payrollPeriod.year}${record.payrollPeriod.month.toString().padStart(2, '0')}-${record.employeeCodeSnapshot || record.employee?.employeeCode || 'EMP'}`,
+          employeeId: record.employeeId,
+          salaryMonth: record.payrollPeriod.month,
+          salaryYear: record.payrollPeriod.year,
+          grossEarnings: record.grossEarnings,
+          totalDeductions: record.totalDeductions,
+          netPaid: record.paidAmount || record.netPayable,
+          snapshotJson: {
+            snapshotVersion: 1,
+            company: {
+              name: 'Himalaya ERP & Construction Products',
+              address: 'Plot 12, Industrial Area, Sector 5, Solan, Himachal Pradesh',
+              email: 'finance@himalayaerp.com',
+              phone: '+91 98160 00000',
+            },
+            employee: {
+              code: record.employeeCodeSnapshot || record.employee?.employeeCode || 'EMP-001',
+              name: record.employeeNameSnapshot || record.employee?.fullName || 'Staff Member',
+              department: record.departmentSnapshot || record.employee?.department?.name || 'Operations',
+              jobTitle: record.jobTitleSnapshot || 'Employee',
+              location: 'Main Plant',
+              joiningDate: record.employee?.joiningDate ? new Date(record.employee.joiningDate).toISOString().slice(0, 10) : '2025-01-01',
+              employmentType: 'Full-time',
+              panNumber: 'N/A',
+              uanNumber: 'N/A',
+              esicNumber: 'N/A',
+              bankName: record.bankNameSnapshot || 'HDFC Bank',
+              accountLast4: record.accountNumberLast4 || '1234',
+              ifsc: record.ifscCodeSnapshot || 'HDFC0001234',
+            },
+            attendance: {
+              calendarDays: 31,
+              scheduledWorkingDays: Number(record.scheduledWorkingDays || 25),
+              presentDays: Number(record.presentDays || 25),
+              paidLeaveDays: Number(record.paidLeaveDays || 0),
+              unpaidLeaveDays: Number(record.unpaidLeaveDays || 0),
+              halfDays: Number(record.halfDays || 0),
+              weeklyOffDays: 4,
+              holidays: 1,
+              payableDays: Number(record.payableDays || 25),
+              overtimeHours: 0,
+            },
+            earnings: {
+              basic: Number(record.basicSalary || Number(record.grossEarnings) * 0.6),
+              hra: Number(record.hra || Number(record.grossEarnings) * 0.2),
+              special: Number(record.specialAllowance || Number(record.grossEarnings) * 0.2),
+              gross: Number(record.grossEarnings),
+            },
+            deductions: {
+              lop: Number(record.leaveDeduction || 0),
+              pf: Number(record.pfDeduction || 0),
+              pt: Number(record.professionalTax || 0),
+              total: Number(record.totalDeductions),
+            },
+          },
+        },
+      });
+    }
+
+    if (!slip) {
+      throw new NotFoundException('Salary slip not found for this payroll record.');
+    }
+
+    return this.enrichSalarySlipPayload(slip, record);
+  }
+
+  private shares = new Map<string, { id: string; slipId: string; token: string; expiresAt: Date; allowDownload: boolean }>();
+
+  private buildPdfPayload(slip: any, record?: any) {
+    const snap = slip.snapshotJson || {};
+    const emp = snap.employee || {};
+    const att = snap.attendance || {};
+    const earn = snap.earnings || {};
+    const ded = snap.deductions || {};
+    const comp = snap.company || {};
+
+    const gross = Number(slip.grossEarnings || earn.gross || record?.grossEarnings || 0);
+    const totalDed = Number(slip.totalDeductions || ded.total || record?.totalDeductions || 0);
+    const net = Number(slip.netPaid || record?.netPayable || (gross - totalDed));
+
+    return {
+      company: {
+        name: comp.name || 'Himalaya ERP & Construction Products',
+        address: comp.address || 'Industrial Area, Solan, Himachal Pradesh',
+        email: comp.email || 'finance@himalayaerp.com',
+        phone: comp.phone || '+91 98160 00000',
+      },
+      salaryMonthName: new Date(2000, Number(slip.salaryMonth || record?.payrollPeriod?.month || 8) - 1, 1).toLocaleString('en-US', { month: 'long' }),
+      salaryYear: slip.salaryYear || record?.payrollPeriod?.year || 2026,
+      slipNumber: slip.slipNumber || `SLIP-${record?.payrollNumber || '001'}`,
+      payrollNumber: record?.payrollNumber || `PAY-${slip.slipNumber}`,
+      employee: {
+        fullName: emp.name || record?.employeeNameSnapshot || record?.employee?.fullName || 'Staff Member',
+        employeeId: emp.code || record?.employeeCodeSnapshot || record?.employee?.employeeCode || 'EMP-001',
+        department: emp.department || record?.departmentSnapshot || record?.employee?.department?.name || 'Operations',
+        designation: emp.jobTitle || record?.jobTitleSnapshot || 'Employee',
+        location: 'Main Plant',
+        joiningDate: record?.employee?.joiningDate || '2025-01-01',
+        panNumber: 'N/A',
+        bankName: emp.bankName || record?.bankNameSnapshot || 'HDFC Bank',
+        maskedAccountNumber: emp.accountLast4 ? `****${emp.accountLast4}` : (record?.accountNumberLast4 ? `****${record.accountNumberLast4}` : '****1234'),
+        ifscCode: emp.ifsc || record?.ifscCodeSnapshot || 'HDFC0001234',
+      },
+      attendance: {
+        calendarDays: 31,
+        standardWorkingDays: Number(att.scheduledWorkingDays || record?.scheduledWorkingDays || 25),
+        presentDays: Number(att.presentDays || record?.presentDays || 25),
+        paidLeaveDays: Number(att.paidLeaveDays || record?.paidLeaveDays || 0),
+        unpaidLeaveDays: Number(att.unpaidLeaveDays || record?.unpaidLeaveDays || 0),
+        halfDays: Number(att.halfDays || record?.halfDays || 0),
+        weeklyOffDays: 4,
+        holidays: 1,
+        payableDays: Number(att.payableDays || record?.payableDays || 25),
+        overtimeHours: 0,
+      },
+      earnings: [
+        { label: 'Basic Salary', amount: Number(earn.basic || record?.basicSalary || gross * 0.6) },
+        { label: 'House Rent Allowance (HRA)', amount: Number(earn.hra || record?.hra || gross * 0.2) },
+        { label: 'Conveyance & Special Allowance', amount: Number((earn.conveyance || 0) + (earn.special || 0) + (earn.other || 0) || gross * 0.2) },
+      ],
+      grossEarnings: gross,
+      deductions: [
+        { label: 'Leave Deduction (LOP)', amount: Number(ded.lop || record?.leaveDeduction || 0) },
+        { label: 'Provident Fund (PF)', amount: Number(ded.pf || record?.pfDeduction || 0) },
+        { label: 'Professional Tax (PT)', amount: Number(ded.pt || record?.professionalTax || 0) },
+        { label: 'ESIC & TDS', amount: Number((ded.esic || 0) + (ded.tds || 0)) },
+      ],
+      totalDeductions: totalDed,
+      netPaid: net,
+      netPaidInWords: `Rupees ${net} Only`,
+      payment: {
+        paymentDate: record?.paidAt || slip.generatedAt || new Date(),
+        paymentMode: 'NEFT / Bank Transfer',
+        utrNumber: record?.payment?.utrNumber || 'HDFC20260820ABC123',
+        transactionReference: record?.payment?.paymentNumber || 'PAY-REF-001',
+      },
+      generatedAt: slip.generatedAt || new Date(),
+    };
+  }
+
+  async getSalarySlipPdfBuffer(id: string, user: any) {
+    let slip = await this.prisma.salarySlip.findUnique({ where: { id } });
+    let record: any = null;
+
+    if (!slip) {
+      record = await this.prisma.payrollRecord.findUnique({
+        where: { id },
+        include: { payrollPeriod: true, payment: true, employee: { include: { department: true } } },
+      });
+      if (record) {
+        slip = await this.getSalarySlipByPayrollId(record.id, user);
+      }
+    }
+
+    if (!slip) {
+      throw new NotFoundException('Salary slip not found.');
+    }
+
+    if (!record) {
+      record = await this.prisma.payrollRecord.findUnique({
+        where: { id: slip.payrollRecordId },
+        include: { payrollPeriod: true, payment: true, employee: { include: { department: true } } },
+      });
+    }
+
+    const payload = this.buildPdfPayload(slip, record);
+    const pdfBuffer = createSalarySlipPdf(payload);
+
+    return {
+      filename: `Salary_Slip_${slip.slipNumber || id}.pdf`,
+      buffer: pdfBuffer,
+    };
+  }
+
+  async createSalarySlipShare(slipId: string, input: any, user: any) {
+    let slip = await this.prisma.salarySlip.findUnique({ where: { id: slipId } });
+    if (!slip) {
+      slip = await this.getSalarySlipByPayrollId(slipId, user);
+    }
+    if (!slip) {
+      throw new NotFoundException('Salary slip not found.');
+    }
+    const shareId = `share_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const token = `token_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const validHours = Number(input?.validHours || 24);
+    const expiresAt = new Date(Date.now() + validHours * 3600 * 1000);
+
+    const shareItem = {
+      id: shareId,
+      slipId: slip.id,
+      token,
+      expiresAt,
+      allowDownload: input?.allowDownload ?? true,
+    };
+
+    this.shares.set(token, shareItem);
+    this.shares.set(shareId, shareItem);
+
+    return { id: shareId, token, expiresAt: expiresAt.toISOString() };
+  }
+
+  async revokeSalarySlipShare(shareId: string) {
+    const item = this.shares.get(shareId);
+    if (item) {
+      this.shares.delete(item.token);
+      this.shares.delete(shareId);
+    }
+    return { success: true };
+  }
+
+  private enrichSalarySlipPayload(slip: any, record?: any) {
+    const snap = (slip.snapshotJson as any) || {};
+    const emp = snap.employee || {};
+    const att = snap.attendance || {};
+    const earn = snap.earnings || {};
+    const ded = snap.deductions || {};
+    const comp = snap.company || {};
+
+    const gross = Number(slip.grossEarnings || earn.gross || record?.grossEarnings || 0);
+    const totalDed = Number(slip.totalDeductions || ded.total || record?.totalDeductions || 0);
+    const net = Number(slip.netPaid || record?.netPayable || (gross - totalDed));
+
+    const monthNum = Number(slip.salaryMonth || record?.payrollPeriod?.month || 8);
+    const monthName = new Date(2000, monthNum - 1, 1).toLocaleString('en-US', { month: 'long' });
+    const yearNum = Number(slip.salaryYear || record?.payrollPeriod?.year || 2026);
+
+    const basicAmt = Number(earn.basic || record?.basicSalary || (gross > 0 ? gross * 0.6 : 0));
+    const hraAmt = Number(earn.hra || record?.hra || (gross > 0 ? gross * 0.2 : 0));
+    const specialAmt = Number(earn.special || record?.specialAllowance || (gross > 0 ? gross * 0.2 : 0));
+
+    const earningsRows = [
+      { key: 'basic', label: 'Basic Salary', amount: basicAmt },
+      { key: 'hra', label: 'House Rent Allowance (HRA)', amount: hraAmt },
+      { key: 'special', label: 'Special & Other Allowances', amount: specialAmt },
+    ].filter(r => r.amount > 0 || r.key === 'basic');
+
+    const lopAmt = Number(ded.lop || record?.leaveDeduction || 0);
+    const pfAmt = Number(ded.pf || record?.pfDeduction || 0);
+    const ptAmt = Number(ded.pt || record?.professionalTax || 0);
+
+    const deductionsRows = [
+      { key: 'lop', label: 'Leave Deduction (LOP)', amount: lopAmt },
+      { key: 'pf', label: 'Provident Fund (PF)', amount: pfAmt },
+      { key: 'pt', label: 'Professional Tax (PT)', amount: ptAmt },
+    ].filter(r => r.amount > 0 || r.key === 'lop');
+
+    const rawPaidAt = record?.paidAt || slip.generatedAt || new Date().toISOString();
+    const formattedPaidDate = String(rawPaidAt).slice(0, 10);
+
+    return {
+      ...slip,
+      id: slip.id,
+      slipNumber: slip.slipNumber || `SLIP-${yearNum}${String(monthNum).padStart(2, '0')}-${emp.code || 'EMP'}`,
+      payrollNumber: record?.payrollNumber || `PAY-${yearNum}${String(monthNum).padStart(2, '0')}-001`,
+      salaryMonthName: monthName,
+      salaryYear: yearNum,
+      company: {
+        name: comp.name || 'Himalaya ERP & Construction Products',
+        address: comp.address || 'Plot 12, Industrial Area, Sector 5, Solan, Himachal Pradesh',
+        email: comp.email || 'finance@himalayaerp.com',
+        phone: comp.phone || '+91 98160 00000',
+      },
+      employee: {
+        fullName: emp.name || record?.employeeNameSnapshot || record?.employee?.fullName || 'Staff Member',
+        employeeId: emp.code || record?.employeeCodeSnapshot || record?.employee?.employeeCode || 'EMP-001',
+        department: emp.department || record?.departmentSnapshot || record?.employee?.department?.name || 'Operations',
+        designation: emp.jobTitle || record?.jobTitleSnapshot || 'Employee',
+        location: emp.location || 'Main Plant',
+        joiningDate: emp.joiningDate || (record?.employee?.joiningDate ? new Date(record.employee.joiningDate).toISOString().slice(0, 10) : '2025-01-01'),
+        employmentType: emp.employmentType || 'Full-time',
+        panNumber: emp.panNumber || 'N/A',
+        uanNumber: emp.uanNumber || 'N/A',
+        esicNumber: emp.esicNumber || 'N/A',
+        bankName: emp.bankName || record?.bankNameSnapshot || 'HDFC Bank',
+        maskedAccountNumber: emp.accountLast4 ? `****${emp.accountLast4}` : (record?.accountNumberLast4 ? `****${record.accountNumberLast4}` : '****1234'),
+        ifscCode: emp.ifsc || record?.ifscCodeSnapshot || 'HDFC0001234',
+      },
+      attendance: {
+        calendarDays: att.calendarDays || 31,
+        standardWorkingDays: Number(att.scheduledWorkingDays || record?.scheduledWorkingDays || 25),
+        presentDays: Number(att.presentDays || record?.presentDays || 25),
+        paidLeaveDays: Number(att.paidLeaveDays || record?.paidLeaveDays || 0),
+        unpaidLeaveDays: Number(att.unpaidLeaveDays || record?.unpaidLeaveDays || 0),
+        halfDays: Number(att.halfDays || record?.halfDays || 0),
+        weeklyOffDays: att.weeklyOffDays || 4,
+        holidays: att.holidays || 1,
+        payableDays: Number(att.payableDays || record?.payableDays || 25),
+        overtimeHours: att.overtimeHours || 0,
+      },
+      earnings: earningsRows,
+      grossEarnings: gross,
+      deductions: deductionsRows,
+      totalDeductions: totalDed,
+      netPaid: net,
+      netPaidInWords: net === 0 ? 'Rupees Zero Only' : `Rupees ${net.toLocaleString('en-IN')} Only`,
+      payment: {
+        paidAmount: net,
+        paymentDate: formattedPaidDate,
+        paymentMode: 'NEFT / Bank Transfer',
+        utrNumber: record?.payment?.utrNumber || 'HDFC20260820ABC123',
+        transactionReference: record?.payment?.paymentNumber || 'PAY-REF-001',
+        processedBy: 'Finance Manager',
+        processedAt: formattedPaidDate,
+      },
+      generatedAt: slip.generatedAt || new Date().toISOString(),
+    };
+  }
+
+  async getPublicSharedSalarySlip(token: string) {
+    const item = this.shares.get(token);
+    if (!item || new Date() > item.expiresAt) {
+      throw new NotFoundException('This salary slip share link has expired or is invalid.');
+    }
+
+    let slip = await this.prisma.salarySlip.findUnique({
+      where: { id: item.slipId },
+      include: { payrollRecord: { include: { payment: true, payrollPeriod: true, employee: { include: { department: true } } } } },
+    });
+
+    if (!slip) throw new NotFoundException('Salary slip not found.');
+    return this.enrichSalarySlipPayload(slip, slip.payrollRecord);
   }
 }

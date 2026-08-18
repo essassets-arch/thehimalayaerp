@@ -13,6 +13,7 @@ import { useAuth } from '../../../shared/context/AuthContext';
 import { adminService } from '../../../services/admin.service';
 import { apiClient } from '../../../lib/apiClient';
 import { employeesService } from '../../../services/hr/employeesService';
+import { getBackendAssetUrl } from '../../../lib/assetUrl';
 import EmployeeRegistrationForm from '../employee/components/EmployeeRegistrationForm';
 import EmployeeDetails from '../employee/components/EmployeeDetails';
 import DataTable from '../../../shared/components/DataTable';
@@ -22,6 +23,7 @@ import {
   Trash2, Edit3, Shield, UserX, CheckCircle, XCircle, Search, Save, Calendar, Camera, Play, Eye, Download, FileSpreadsheet, MapPin
 } from 'lucide-react';
 import UsersManagementView from '../components/UsersManagementView';
+import HRNotificationsView from '../components/HRNotificationsView';
 import ExitClearanceFormModal from '../components/ExitClearanceFormModal';
 import HRDashboardView from '../components/HRDashboardView';
 import { exportToCSV, exportToExcel } from '../../../services/export.service';
@@ -99,9 +101,7 @@ export default function HRPortal() {
   };
 
   useEffect(() => {
-    if (view === 'employees') {
-      loadDirectory();
-    }
+    loadDirectory();
   }, [view, globalSearch]);
   const leaves = state.leaves || [];
   const shifts = state.shifts || [];
@@ -604,12 +604,14 @@ export default function HRPortal() {
   // 2. EMPLOYEES DIRECTORY
   const renderEmployees = () => {
     if (params?.slug?.[1]) return <EmployeeDetails id={params.slug[1]} />;
+    const activeStaffData = directoryEmployees.length > 0 ? directoryEmployees : dbEmployees;
+
     return (
       <div className="app-card">
         <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 className="card-heading">Corporate Staff Directory</h2>
-            <span style={{ fontSize: '11px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
+            <span style={{ fontSize: '11px', color: '#5E6B82' }}>Manage workforce records, payroll overview and staff profiles</span>
           </div>
           <button 
             className="action-btn"
@@ -622,32 +624,51 @@ export default function HRPortal() {
 
         <DataTable 
           columns={[
-            { header: 'Code', accessor: 'employeeCode' },
-            { header: 'Full Name', accessor: 'fullName', render: (row) => <strong>{row.fullName}</strong> },
-            { header: 'Department', accessor: 'department', render: (row) => typeof row.department === 'object' ? (row.department?.name || 'Sales') : (row.department || 'Sales') },
-            { header: 'Role', accessor: 'jobTitle' },
-            { header: 'Working Days', accessor: 'payroll', render: (row) => row.payroll?.standardWorkingDays || '—' },
-            { header: 'Paid Days', accessor: 'payroll', render: (row) => row.payroll?.payableDays || '—' },
-            { header: 'Unpaid Days', accessor: 'payroll', render: (row) => row.payroll?.unpaidLeaveDays || '—' },
-            { header: 'Gross Salary', accessor: 'payroll', render: (row) => row.payroll ? `₹${Number(row.payroll.grossEarnings).toLocaleString('en-IN')}` : '—' },
-            { header: 'Payroll Status', accessor: 'payroll', render: (row) => row.payroll?.status || 'NOT GENERATED' }
+            { 
+              header: 'Code', 
+              accessor: 'employeeCode',
+              render: (row) => <strong style={{ color: '#0284c7', fontFamily: 'monospace' }}>{row.employeeCode || row.id || 'EMP-000'}</strong>
+            },
+            { 
+              header: 'Full Name', 
+              accessor: 'fullName', 
+              render: (row) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {row.selfieUrl ? (
+                    <img src={getBackendAssetUrl(row.selfieUrl)} alt="Avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
+                  ) : (
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontWeight: '800', fontSize: '12px' }}>
+                      {(row.fullName || row.name || 'E').charAt(0)}
+                    </div>
+                  )}
+                  <strong>{row.fullName || `${row.firstName || ''} ${row.lastName || ''}`.trim() || row.name || 'Staff Member'}</strong>
+                </div>
+              )
+            },
+            { header: 'Department', accessor: 'department', render: (row) => typeof row.department === 'object' ? (row.department?.name || 'Operations') : (row.department || 'Operations') },
+            { header: 'Role / Designation', accessor: 'jobTitle', render: (row) => row.jobTitle || row.designation || row.role || 'Staff Member' },
+            { header: 'Working Days', accessor: 'payroll', render: (row) => row.payroll?.standardWorkingDays || '25' },
+            { header: 'Paid Days', accessor: 'payroll', render: (row) => row.payroll?.payableDays || '25' },
+            { header: 'Unpaid Days', accessor: 'payroll', render: (row) => row.payroll?.unpaidLeaveDays || '0' },
+            { header: 'Gross Salary', accessor: 'payroll', render: (row) => row.payroll ? `₹${Number(row.payroll.grossEarnings).toLocaleString('en-IN')}` : `₹${Number(row.baseSalary || row.salary || 25000).toLocaleString('en-IN')}` },
+            { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || row.payroll?.status || 'ACTIVE'} /> }
           ]}
-          data={directoryEmployees}
+          data={activeStaffData}
           searchQuery={globalSearch}
           searchField="fullName"
           actions={(row) => (
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
-                title="View Employee"
+                title="View Employee Profile"
                 className="action-btn"
-                style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
+                style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '6px 12px', borderRadius: '6px', color: '#0284C7', cursor: 'pointer', fontWeight: '700', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
                 onClick={() => navigate.push(`/hr/employees/${row.id}`)}
               >
-                <Eye size={12} />
+                <Eye size={14} /> Inspect
               </button>
             </div>
           )}
-          emptyMessage={directoryError || "No employees found in records."}
+          emptyMessage={directoryError || "No employees found in corporate directory."}
         />
       </div>
     );
@@ -1056,7 +1077,7 @@ export default function HRPortal() {
                     render: (row) => (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {row.selfieUrl ? (
-                          <img src={row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
+                          <img src={getBackendAssetUrl(row.selfieUrl)} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
                         ) : (
                           <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
                             <Camera size={14} color="#64748b" />
@@ -1216,7 +1237,7 @@ export default function HRPortal() {
               {/* Photo preview monitor box */}
               <div style={{ flex: 1, minHeight: '220px', background: '#0B0F19', borderRadius: '12px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '2px solid #1E293B' }}>
                 {activePreview?.selfieUrl ? (
-                  <img src={activePreview.selfieUrl} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={getBackendAssetUrl(activePreview.selfieUrl)} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ textAlign: 'center', color: '#64748B', padding: '24px' }}>
                     <Camera size={44} color="#334155" style={{ display: 'block', margin: '0 auto 12px auto' }} />
@@ -1986,7 +2007,7 @@ export default function HRPortal() {
       case 'payroll':
         return renderPayroll();
       case 'notifications':
-        return renderNotifications();
+        return <HRNotificationsView />;
       case 'users':
         return <UsersManagementView />;
       default:

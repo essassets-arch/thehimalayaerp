@@ -30,11 +30,15 @@ export default function FinanceSalaryDisbursementView() {
       
       const res = await apiClient.get(endpoint);
       if (res && res.success !== false) {
-        setRecords(res.data || res || []);
+        const raw = res.data?.items || res.items || res.data || res;
+        setRecords(Array.isArray(raw) ? raw : []);
+      } else {
+        setRecords([]);
       }
     } catch (err: any) {
-      console.error('Failed to fetch finance payroll records:', err);
-      setError(err.message || 'Error fetching payroll disbursement records');
+      console.error('Failed to load Finance payroll records:', err);
+      setError(err.message || 'Error loading finance payroll records');
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -87,7 +91,8 @@ export default function FinanceSalaryDisbursementView() {
     }
   };
 
-  const totalTabValue = records.reduce((acc, r) => acc + (r.netPayable || 0), 0);
+  const safeRecords = Array.isArray(records) ? records : [];
+  const totalTabValue = safeRecords.reduce((acc, r) => acc + (r.netPayable || 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: 'sans-serif' }}>

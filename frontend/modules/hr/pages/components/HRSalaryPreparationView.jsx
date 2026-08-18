@@ -24,11 +24,15 @@ export default function HRSalaryPreparationView() {
       const [yearStr, monthStr] = selectedMonth.split('-');
       const res = await apiClient.get(`/hr/payroll?month=${Number(monthStr)}&year=${Number(yearStr)}`);
       if (res && res.success !== false) {
-        setRecords(res.data || res || []);
+        const raw = res.data?.items || res.items || res.data || res;
+        setRecords(Array.isArray(raw) ? raw : []);
+      } else {
+        setRecords([]);
       }
     } catch (err: any) {
       console.error('Failed to load HR payroll records:', err);
       setError(err.message || 'Error loading payroll records');
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -48,15 +52,18 @@ export default function HRSalaryPreparationView() {
         year: Number(yearStr),
         calculationBasis: 'WORKING_DAYS',
       });
-      if (res && res.success !== false) {
-        await fetchPayrollRecords();
-      }
+      fetchPayrollRecords();
     } catch (err: any) {
       setError(err.message || 'Failed to generate payroll');
     } finally {
       setGenerating(false);
     }
   };
+
+  const safeRecords = Array.isArray(records) ? records : [];
+  const totalGross = safeRecords.reduce((acc, r) => acc + (r.grossEarnings || 0), 0);
+  const totalDeductions = safeRecords.reduce((acc, r) => acc + (r.totalDeductions || 0), 0);
+  const totalNet = safeRecords.reduce((acc, r) => acc + (r.netPayable || 0), 0);
 
   const handleVerifySingle = async (id: string) => {
     try {

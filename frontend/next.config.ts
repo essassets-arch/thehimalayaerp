@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const BACKEND_URL = process.env.BACKEND_API_URL?.replace('/api/v1', '') ?? 'http://127.0.0.1:3001';
+const rawBackendUrl = process.env.BACKEND_INTERNAL_URL || process.env.BACKEND_API_URL || 'http://backend:4000';
+const BACKEND_URL = rawBackendUrl.replace('/api/v1', '');
 
 const nextConfig: NextConfig = {
   output: "standalone",

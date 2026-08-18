@@ -13,6 +13,7 @@ import { useAuth } from '../../../shared/context/AuthContext';
 import { adminService } from '../../../services/admin.service';
 import { backendFetch } from '../../../lib/backendFetch';
 import { productService } from '../../../services/product.service';
+import { getBackendAssetUrl } from '../../../lib/assetUrl';
 import { useNotifications } from '../../../shared/context/NotificationContext';
 import DataTable from '../../../shared/components/DataTable';
 const fireSwal = async (opts) => {
@@ -7629,7 +7630,7 @@ export default function SuperAdminPortal() {
                     render: (row) => (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {row.selfieUrl ? (
-                          <img src={row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
+                          <img src={getBackendAssetUrl(row.selfieUrl)} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
                         ) : (
                           <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
                             <Camera size={14} color="#64748b" />
@@ -7784,7 +7785,7 @@ export default function SuperAdminPortal() {
               {/* Photo preview monitor box */}
               <div style={{ flex: 1, minHeight: '220px', background: '#0B0F19', borderRadius: '12px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '2px solid #1E293B' }}>
                 {activePreview?.selfieUrl ? (
-                  <img src={activePreview.selfieUrl} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={getBackendAssetUrl(activePreview.selfieUrl)} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ textAlign: 'center', color: '#64748B', padding: '24px' }}>
                     <Camera size={44} color="#334155" style={{ display: 'block', margin: '0 auto 12px auto' }} />

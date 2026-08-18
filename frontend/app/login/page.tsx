@@ -134,6 +134,9 @@ export default function LoginPage() {
 
   const getPasswordForEmail = (emailStr: string): string => {
     const e = emailStr.toLowerCase().trim();
+    if (e.includes('finance')) {
+      return 'Password@123';
+    }
     if (e === 'ravikant.tiwari@himalayaerp.com') {
       return 'Dispatch@1';
     }

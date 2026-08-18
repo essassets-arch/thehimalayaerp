@@ -9,6 +9,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import { useNotifications } from '../shared/context/NotificationContext';
 import Swal from 'sweetalert2';
 import { apiClient } from '../lib/apiClient';
+import { getBackendAssetUrl } from '../lib/assetUrl';
 
 // Notification category icon/color map
 const getPriorityMeta = (priority, read) => {
@@ -185,6 +186,20 @@ export default function HeroBanner({
   useEffect(() => {
     if (user) {
       syncPunchStatusFromDB();
+
+      const handleFocusSync = () => {
+        syncPunchStatusFromDB();
+      };
+
+      window.addEventListener('focus', handleFocusSync);
+      window.addEventListener('himalaya:punch', handleFocusSync);
+      document.addEventListener('visibilitychange', handleFocusSync);
+
+      return () => {
+        window.removeEventListener('focus', handleFocusSync);
+        window.removeEventListener('himalaya:punch', handleFocusSync);
+        document.removeEventListener('visibilitychange', handleFocusSync);
+      };
     }
   }, [user, showPunchModal]);
 
@@ -239,6 +254,7 @@ export default function HeroBanner({
   const canvasRef = useRef(null);
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
 
   const [locationState, setLocationState] = useState({
     loading: true,
@@ -344,22 +360,46 @@ export default function HeroBanner({
     return () => clearInterval(interval);
   }, []);
 
+  const startCameraFeed = async () => {
+    setCameraError(null);
+    try {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
+      } catch (firstErr) {
+        console.warn('Preferred camera facingMode:user unavailable, attempting fallback constraints:', firstErr);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
+      setCameraStream(stream);
+      setCameraActive(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      return stream;
+    } catch (err) {
+      console.error('Camera stream error:', err);
+      setCameraActive(false);
+      if (err.name === 'NotFoundError') {
+        setCameraError('No camera detected on this device. Connect/enable a camera and click Retry.');
+      } else if (err.name === 'NotAllowedError') {
+        setCameraError('Camera permission is blocked. Allow camera access in browser settings.');
+      } else {
+        setCameraError(err.message || 'Camera stream could not be initialized.');
+      }
+      return null;
+    }
+  };
+
   useEffect(() => {
     if (showPunchModal) {
       let activeStream = null;
-      navigator.mediaDevices?.getUserMedia?.({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
-        .then((stream) => {
-          activeStream = stream;
-          setCameraStream(stream);
-          setCameraActive(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-        })
-        .catch((err) => {
-          console.warn('Camera stream error:', err);
-          setCameraActive(false);
-        });
+      startCameraFeed().then(s => { activeStream = s; });
 
       return () => {
         if (activeStream) {
@@ -371,6 +411,7 @@ export default function HeroBanner({
         cameraStream.getTracks().forEach(t => t.stop());
         setCameraStream(null);
         setCameraActive(false);
+        setCameraError(null);
       }
     }
   }, [showPunchModal]);
@@ -1181,15 +1222,28 @@ export default function HeroBanner({
 
                 {!cameraActive && (
                   <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <Camera size={40} color="#64748b" />
-                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0' }}>Selfie Camera Ready</span>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Align your face in center frame before punching</span>
+                    <Camera size={36} color={cameraError ? '#ef4444' : '#64748b'} />
+                    <span style={{ fontSize: '13px', fontWeight: '800', color: cameraError ? '#f87171' : '#e2e8f0' }}>
+                      {cameraError ? 'Camera Unavailable' : 'Selfie Camera Ready'}
+                    </span>
+                    <span style={{ fontSize: '11.5px', color: '#94a3b8', maxWidth: '300px' }}>
+                      {cameraError || 'Align your face in center frame before punching'}
+                    </span>
+                    {cameraError && (
+                      <button
+                        type="button"
+                        onClick={() => startCameraFeed()}
+                        style={{ marginTop: '4px', background: '#0284c7', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
+                      >
+                        Retry Camera
+                      </button>
+                    )}
                   </div>
                 )}
 
                 <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '20px', color: '#ffffff', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
-                  Selfie Camera Active
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#22c55e' : '#ef4444' }} />
+                  {cameraActive ? 'Selfie Camera Active' : 'Selfie Camera Offline'}
                 </div>
               </div>
 
@@ -1254,7 +1308,19 @@ export default function HeroBanner({
                           });
                         }
                       }).catch((err) => {
-                        Swal.fire({ icon: 'error', title: 'Punch In Failed', text: err.message || 'Error occurred during punch-in.' });
+                        const isAlreadyPunched = err?.message?.includes('ALREADY_PUNCHED_IN') || err?.message?.includes('already punched in');
+                        if (isAlreadyPunched) {
+                          syncPunchStatusFromDB();
+                          setShowPunchModal(false);
+                          Swal.fire({
+                            icon: 'info',
+                            title: 'Already Punched In 🟢',
+                            text: 'You are already punched in for today on another device/session.',
+                            confirmButtonText: 'OK',
+                          });
+                        } else {
+                          Swal.fire({ icon: 'error', title: 'Punch In Failed', text: err.message || 'Error occurred during punch-in.' });
+                        }
                       });
                     }}
                     disabled={locationState.loading || !locationState.coords}
