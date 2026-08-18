@@ -92,10 +92,7 @@ export class DispatchController {
     try {
       return await this.dispatchService.createDispatch(dto, userId);
     } catch (e: any) {
-      fs.writeFileSync(
-        'dispatch_error.log',
-        e.stack || e.message || JSON.stringify(e),
-      );
+      console.error('[DISPATCH_CREATE_ERROR]', e);
       throw e;
     }
   }
