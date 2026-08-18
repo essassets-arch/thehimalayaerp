@@ -179,10 +179,11 @@ export default function DispatchOrdersPage() {
         return [];
       };
 
-      const [workOrdersPayload, salesOrdersPayload, finishedGoodsPayload] = await Promise.allSettled([
+      const [workOrdersPayload, salesOrdersPayload, finishedGoodsPayload, queuePayload] = await Promise.allSettled([
         backendFetch<any>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH"),
         backendFetch<any>("/api/backend/sales/orders?status=READY_FOR_DISPATCH"),
         backendFetch<any>("/api/backend/production/finished-goods"),
+        backendFetch<any>("/api/backend/logistics/dispatches/queue"),
       ]);
 
       const workOrders: WorkOrder[] =
@@ -200,11 +201,30 @@ export default function DispatchOrdersPage() {
           ? extractArray(finishedGoodsPayload.value)
           : [];
 
-      const linkedSalesOrderIds = new Set(
-        workOrders
-          .map((wo) => wo.productionPlan?.salesOrder?.id)
-          .filter(Boolean)
-      );
+      const rawQueue =
+        queuePayload.status === "fulfilled"
+          ? extractArray(queuePayload.value)
+          : [];
+
+      const unifiedDirectDispatches: UnifiedPendingDispatchItem[] = [];
+      rawQueue.forEach((qOrder: any) => {
+        const items = Array.isArray(qOrder.items) ? qOrder.items : [];
+        items.forEach((qItem: any) => {
+          const qty = qItem.approvedQuantity ?? qItem.dispatchableQuantity ?? qItem.reservedQuantity ?? 1;
+          unifiedDirectDispatches.push({
+            id: `alloc-${qItem.allocationId || qItem.id || Math.random()}`,
+            itemType: "TRADING_SALES_ORDER",
+            orderNumber: qOrder.orderNo || qOrder.orderId || "SO-DIRECT",
+            customerName: qOrder.customerName || "N/A",
+            deliveryAddress: qOrder.deliveryAddress || "Factory Staging Area",
+            productName: qItem.productName || "Direct Dispatch Item",
+            approvedQuantity: typeof qty === 'number' ? `${qty} ${qItem.unit || 'PCS'}` : String(qty),
+            salesOrderId: qOrder.salesOrderId,
+            salesOrderItemId: qItem.salesOrderItemId,
+            productId: qItem.productId,
+          });
+        });
+      });
 
       const unifiedFinishedGoods: UnifiedPendingDispatchItem[] = rawFinishedGoods
         .filter((fg) => {
@@ -275,10 +295,6 @@ export default function DispatchOrdersPage() {
 
       const unifiedSalesOrders: UnifiedPendingDispatchItem[] = [];
       rawSalesOrders.forEach((so: any) => {
-        if (so.id && linkedSalesOrderIds.has(so.id)) {
-          // Exclude sales orders that already have active manufacturing work orders
-          return;
-        }
         const orderNo = String(so.orderNumber || so.orderId || '');
         if (orderNo.includes('SO-TEST-')) return;
 
@@ -288,9 +304,11 @@ export default function DispatchOrdersPage() {
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
         if (items.length > 0) {
           items.forEach((item: any, idx: number) => {
-            if (!isTradingProduct(item)) {
-              // Manufacturing products MUST go through Plant Head -> Work Order -> QC -> Dispatch.
-              // They cannot appear directly in trading sales order dispatch queue.
+            const hasFgReservation = Array.isArray(item.allocations) && item.allocations.some(
+              (a: any) => a.allocationType === 'FINISHED_GOODS_RESERVATION' && Number(a.reservedQuantity || 0) > 0
+            );
+
+            if (!isTradingProduct(item) && !hasFgReservation) {
               return;
             }
 
@@ -322,8 +340,13 @@ export default function DispatchOrdersPage() {
           combined.push(fg);
         }
       });
+      unifiedDirectDispatches.forEach((dd) => {
+        if (!combined.some((c) => (c.salesOrderId === dd.salesOrderId && c.salesOrderItemId === dd.salesOrderItemId) || c.id === dd.id)) {
+          combined.push(dd);
+        }
+      });
       unifiedSalesOrders.forEach((so) => {
-        if (!combined.some((c) => c.id === so.id)) {
+        if (!combined.some((c) => (c.salesOrderId === so.salesOrderId && c.salesOrderItemId === so.salesOrderItemId) || c.id === so.id)) {
           combined.push(so);
         }
       });
@@ -400,29 +423,35 @@ export default function DispatchOrdersPage() {
 
         {/* ── Loading ── */}
         {isLoading && (
-          <div className="bg-white rounded-2xl border border-gray-200/70 shadow-sm flex items-center justify-center py-20 gap-3 text-sm text-gray-500">
-            <Clock className="animate-spin h-5 w-5 text-blue-500" />
-            Loading pending dispatch list...
+          <div className={styles.loadingCard}>
+            <div className={styles.loadingSpinner}>
+              <Clock className="animate-spin h-7 w-7 text-indigo-600" />
+            </div>
+            <div className={styles.loadingText}>
+              <h4>Loading Dispatch Queue</h4>
+              <p>Fetching pending manufacturing and trading dispatch orders...</p>
+            </div>
           </div>
         )}
 
         {/* ── Error ── */}
         {error && !isLoading && (
-          <div className="bg-red-50 rounded-2xl border border-red-200 p-8 text-center space-y-2">
-            <p className="text-sm font-semibold text-red-700">
-              Failed to load dispatch queue
-            </p>
-            <p className="text-xs text-red-500">
-              Please verify connectivity or your user permissions.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              className="mt-3 text-red-600 border-red-200"
-            >
-              Try Again
-            </Button>
+          <div className={styles.stateCard}>
+            <div className={styles.stateContent}>
+              <div className="w-16 h-16 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+                <Clock className="h-8 w-8" />
+              </div>
+              <h3>Failed to Load Dispatch Queue</h3>
+              <p>Please check network connectivity or verify your user role permissions.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                className="mt-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+              >
+                Try Again
+              </Button>
+            </div>
           </div>
         )}
 
@@ -431,13 +460,21 @@ export default function DispatchOrdersPage() {
           <div className={styles.stateCard}>
             <div className={styles.stateContent}>
               <div className={styles.stateIcon}>
-                <Package className="h-8 w-8" />
+                <Package className="h-8 w-8 text-indigo-600" />
               </div>
               <h3>No Pending Dispatches</h3>
               <p>
-                No orders are currently ready for dispatch.
-                Once manufacturing QC passes or trading orders are submitted, they will appear here.
+                No orders are currently ready for dispatch. Once manufacturing QC passes or trading orders are submitted, they will appear here automatically.
               </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                className="mt-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Check Again
+              </Button>
             </div>
           </div>
         )}
@@ -449,68 +486,68 @@ export default function DispatchOrdersPage() {
               <div className={styles.tableScroll}>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50/80 border-b border-gray-100">
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
                         Sales Order
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
                         Customer
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
                         Delivery Address
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
                         Product
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
                         Type
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
                         Qty
                       </th>
-                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400 px-5 py-3.5 whitespace-nowrap">
+                      <th className="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 px-5 py-3.5 whitespace-nowrap">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-slate-100">
                     {filteredPendingItems.map((item) => {
                       const isTrading = item.itemType === 'TRADING_SALES_ORDER';
                       return (
                         <tr
                           key={item.id}
-                          className="hover:bg-blue-50/20 transition-colors group"
+                          className="hover:bg-indigo-50/30 transition-colors group"
                         >
                           <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="font-bold text-blue-600 font-mono text-xs tracking-wide">
+                            <span className="font-bold text-indigo-600 font-mono text-xs tracking-wide">
                               #{item.orderNumber}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="font-semibold text-gray-800">
+                            <span className="font-semibold text-slate-800">
                               {item.customerName}
                             </span>
                           </td>
                           <td className="px-5 py-4">
                             <span
-                              className="text-xs text-gray-500 block max-w-[200px] truncate"
+                              className="text-xs text-slate-500 block max-w-[220px] truncate"
                               title={item.deliveryAddress}
                             >
                               {item.deliveryAddress}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="text-gray-700 font-medium">
+                            <span className="text-slate-700 font-medium">
                               {item.productName}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded ${isTrading ? 'bg-sky-100 text-sky-800' : 'bg-purple-100 text-purple-800'}`}>
+                            <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full ${isTrading ? 'bg-sky-100 text-sky-800 border border-sky-200' : 'bg-purple-100 text-purple-800 border border-purple-200'}`}>
                               {isTrading ? 'TRADING' : 'MFG'}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg border border-emerald-100">
+                            <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold font-mono text-xs px-3 py-1 rounded-lg border border-emerald-200">
                               {item.approvedQuantity}
                             </span>
                           </td>
@@ -525,7 +562,7 @@ export default function DispatchOrdersPage() {
                                   router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
                                 }
                               }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5 text-xs font-semibold rounded-lg transition-all"
                             >
                               <FileText className="h-3.5 w-3.5" />
                               Create Dispatch
