@@ -138,8 +138,9 @@ export class ProductionTargetService {
       const activeTarget = await this.prisma.productionTarget.findFirst({
         where: {
           status: 'ACTIVE',
-          startDate: { lte: today },
-          endDate: { gte: today },
+        },
+        orderBy: {
+          createdAt: 'desc',
         },
       });
 

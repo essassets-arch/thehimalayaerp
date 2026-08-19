@@ -63,30 +63,19 @@ export class SalesTargetService {
     });
   }
 
-  async dashboard(userId: string) {
+  async dashboard(userId: string, role?: string) {
     const today = new Date();
 
+    // 1. Prioritize active target assigned specifically to this user
     let target = await this.prisma.salesTarget.findFirst({
       where: {
         salespersonId: userId,
         status: 'ACTIVE',
-        startDate: { lte: today },
-        endDate: { gte: today },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!target) {
-      target = await this.prisma.salesTarget.findFirst({
-        where: {
-          status: 'ACTIVE',
-          startDate: { lte: today },
-          endDate: { gte: today },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-    }
-
+    // 2. Fall back to any active target in the database
     if (!target) {
       target = await this.prisma.salesTarget.findFirst({
         where: {
@@ -109,7 +98,11 @@ export class SalesTargetService {
       };
     }
 
-    const targetSalespersonId = target.salespersonId;
+    // 3. For salesperson scoped roles, measure achievement for their own user ID.
+    // For admin/manager roles, measure achievement for the salesperson the target is assigned to.
+    const roleCode = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isSalesperson = ['SUPER_SALES', 'SALES_EXECUTIVE', 'SALES_INTERN'].includes(roleCode);
+    const targetSalespersonId = isSalesperson ? userId : target.salespersonId;
     const achieved = await this.prisma.salesOrder.aggregate({
       _sum: { totalAmount: true },
       where: {

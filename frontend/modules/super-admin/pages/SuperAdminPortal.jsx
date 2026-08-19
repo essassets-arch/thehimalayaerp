@@ -523,44 +523,7 @@ export default function SuperAdminPortal() {
     }
   ], []);
 
-  const [salesTargets, setSalesTargets] = useState([
-    {
-      id: 'TGT-2026-001',
-      salespersonId: 'rahul-patel',
-      salespersonName: 'Rahul Patel',
-      fy: 'FY 2026-27',
-      period: 'Monthly',
-      startDate: '2026-07-01',
-      endDate: '2026-07-31',
-      targetAmount: 10000000,
-      remarks: 'July Sales Target for Infrastructure Projects',
-      status: 'ACTIVE'
-    },
-    {
-      id: 'TGT-2026-002',
-      salespersonId: 'amit-shah',
-      salespersonName: 'Amit Shah',
-      fy: 'FY 2026-27',
-      period: 'Monthly',
-      startDate: '2026-07-01',
-      endDate: '2026-07-31',
-      targetAmount: 5000000,
-      remarks: 'July Target for Construction & Hume Pipes',
-      status: 'ACTIVE'
-    },
-    {
-      id: 'TGT-2026-003',
-      salespersonId: 'neha-patel',
-      salespersonName: 'Neha Patel',
-      fy: 'FY 2026-27',
-      period: 'Monthly',
-      startDate: '2026-07-01',
-      endDate: '2026-07-31',
-      targetAmount: 8000000,
-      remarks: 'July Target for Telecom & FRP Chambers',
-      status: 'ACTIVE'
-    }
-  ]);
+  const [salesTargets, setSalesTargets] = useState([]);
 
   useEffect(() => {
     if (!view || view === 'sales-target') {
@@ -569,25 +532,21 @@ export default function SuperAdminPortal() {
           const res = await apiClient.get('/backend/sales-targets');
           const targetList = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
           
-          if (targetList.length > 0) {
-            const mapped = targetList.map(t => ({
-              id: t.id,
-              salespersonId: t.salespersonId,
-              salespersonName: t.salesperson?.name || 'Unknown',
-              fy: 'FY 26-27',
-              period: t.targetPeriod || t.period || 'Monthly',
-              startDate: t.startDate ? new Date(t.startDate).toISOString().split('T')[0] : '2026-07-01',
-              endDate: t.endDate ? new Date(t.endDate).toISOString().split('T')[0] : '2026-07-31',
-              targetAmount: Number(t.revenueTarget || t.targetAmount || 0),
-              remarks: t.remarks || '',
-              status: t.status || 'ACTIVE'
-            })).filter(t => t.status !== 'CANCELLED');
-            if (mapped.length > 0) {
-              setSalesTargets(mapped);
-            }
-          }
+          const mapped = targetList.map(t => ({
+            id: t.id,
+            salespersonId: t.salespersonId,
+            salespersonName: t.salesperson?.name || 'Unknown',
+            fy: 'FY 26-27',
+            period: t.targetPeriod || t.period || 'Monthly',
+            startDate: t.startDate ? new Date(t.startDate).toISOString().split('T')[0] : '2026-07-01',
+            endDate: t.endDate ? new Date(t.endDate).toISOString().split('T')[0] : '2026-07-31',
+            targetAmount: Number(t.revenueTarget || t.targetAmount || 0),
+            remarks: t.remarks || '',
+            status: t.status || 'ACTIVE'
+          })).filter(t => t.status !== 'CANCELLED');
+          setSalesTargets(mapped);
         } catch (err) {
-          console.warn('Backend targets endpoint error or empty; maintaining default targets.', err);
+          console.warn('Backend targets endpoint error or empty; maintaining empty targets.', err);
         }
       };
       loadTargets();

@@ -41,7 +41,8 @@ export class SalesTargetController {
   @RequirePermissions('sales.targets.read', 'sales.orders.read')
   async dashboard(@Req() req) {
     const userId = req.user?.sub || req.user?.id;
-    return this.service.dashboard(userId);
+    const role = req.user?.role;
+    return this.service.dashboard(userId, role);
   }
 
   @Get('history')
