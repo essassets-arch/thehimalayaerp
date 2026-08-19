@@ -128,76 +128,80 @@ export class PrismaService
       const { randomUUID } = require('crypto');
 
       for (const t of targetUsers) {
-        const dbRole = await this.role.findFirst({ where: { code: t.role } });
-        if (!dbRole) continue;
+        try {
+          const dbRole = await this.role.findFirst({ where: { code: t.role } });
+          if (!dbRole) continue;
 
-        let user = await this.user.findUnique({ where: { email: t.email } });
-        if (!user) {
-          const passwordHash = await hash('admin123', 12);
-          user = await this.user.create({
-            data: {
-              publicId: randomUUID(),
-              email: t.email,
-              password: passwordHash,
-              name: t.name,
-              roleId: dbRole.id,
-              companyId,
-              isActive: true
-            }
-          });
-        } else {
-          user = await this.user.update({
-            where: { id: user.id },
-            data: { companyId, roleId: dbRole.id }
-          });
-        }
+          let user = await this.user.findUnique({ where: { email: t.email } });
+          if (!user) {
+            const passwordHash = await hash('admin123', 12);
+            user = await this.user.create({
+              data: {
+                publicId: randomUUID(),
+                email: t.email,
+                password: passwordHash,
+                name: t.name,
+                roleId: dbRole.id,
+                companyId,
+                isActive: true
+              }
+            });
+          } else {
+            user = await this.user.update({
+              where: { id: user.id },
+              data: { companyId, roleId: dbRole.id }
+            });
+          }
 
-        let employee = await this.employee.findFirst({
-          where: { OR: [{ userId: user.id }, { workEmail: t.email }] }
-        });
+          let employee = await this.employee.findFirst({
+            where: { OR: [{ userId: user.id }, { workEmail: t.email }, { employeeCode: t.empCode }] }
+          });
 
-        if (!employee) {
-          await this.employee.create({
-            data: {
-              publicId: `EMP-${t.empCode}`,
-              companyId,
-              userId: user.id,
-              employeeCode: t.empCode,
-              firstName: t.name.split(' ')[0],
-              lastName: t.name.split(' ').slice(1).join(' ') || 'Staff',
-              fullName: t.name,
-              dateOfBirth: new Date('1990-01-01'),
-              gender: 'OTHER',
-              jobTitle: t.name,
-              departmentId: dept.id,
-              workLocationId: loc.id,
-              employmentType: 'PERMANENT',
-              joiningDate: new Date(),
-              status: 'ACTIVE',
-              workEmail: t.email,
-              phoneNumber: '9876543210',
-              residentialAddress: 'Default Address',
-              emergencyContactName: 'Emergency',
-              emergencyContactPhone: '9876543210',
-              emergencyRelationship: 'Friend',
-              panNumber: `PAN-${t.empCode}`.toUpperCase(),
-              aadhaarNumberEncrypted: 'enc-auto',
-              aadhaarLastFour: '1234',
-              aadhaarHash: `hash-${t.empCode}`,
-              bankName: 'State Bank of India',
-              accountHolderName: t.name,
-              bankAccountType: 'SAVINGS',
-              bankAccountEncrypted: 'enc-auto',
-              bankAccountLastFour: '1234',
-              bankAccountHash: `bhash-${t.empCode}`,
-              ifscCode: 'SBIN0001234'
-            }
-          });
-        } else {
-          await this.employee.update({
-            where: { id: employee.id },
-            data: { userId: user.id, companyId }
-          });
+          if (!employee) {
+            await this.employee.create({
+              data: {
+                publicId: `EMP-${t.empCode}`,
+                companyId,
+                userId: user.id,
+                employeeCode: t.empCode,
+                firstName: t.name.split(' ')[0],
+                lastName: t.name.split(' ').slice(1).join(' ') || 'Staff',
+                fullName: t.name,
+                dateOfBirth: new Date('1990-01-01'),
+                gender: 'OTHER',
+                jobTitle: t.name,
+                departmentId: dept.id,
+                workLocationId: loc.id,
+                employmentType: 'PERMANENT',
+                joiningDate: new Date(),
+                status: 'ACTIVE',
+                workEmail: t.email,
+                phoneNumber: '9876543210',
+                residentialAddress: 'Default Address',
+                emergencyContactName: 'Emergency',
+                emergencyContactPhone: '9876543210',
+                emergencyRelationship: 'Friend',
+                panNumber: `PAN-${t.empCode}`.toUpperCase(),
+                aadhaarNumberEncrypted: 'enc-auto',
+                aadhaarLastFour: '1234',
+                aadhaarHash: `hash-${t.empCode}`,
+                bankName: 'State Bank of India',
+                accountHolderName: t.name,
+                bankAccountType: 'SAVINGS',
+                bankAccountEncrypted: 'enc-auto',
+                bankAccountLastFour: '1234',
+                bankAccountHash: `bhash-${t.empCode}`,
+                ifscCode: 'SBIN0001234'
+              }
+            });
+          } else {
+            await this.employee.update({
+              where: { id: employee.id },
+              data: { userId: user.id, companyId }
+            });
+          }
+        } catch (innerErr) {
+          console.error(`[PrismaService] Failed to provision/link user ${t.email}:`, innerErr);
         }
       }
       console.log('[PrismaService] Startup Target 17 accounts provisioning completed successfully.');
