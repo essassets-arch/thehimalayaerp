@@ -1623,6 +1623,27 @@ async function main() {
     });
   }
 
+  const hrRoleAlias = allRoles.find((r) => r.code === 'HR');
+  if (hrRoleAlias) {
+    await prisma.user.upsert({
+      where: { email: 'hr@himalayaerp.com' },
+      update: {
+        password: hashedPassword,
+        roleId: hrRoleAlias.id,
+        isActive: true,
+      },
+      create: {
+        publicId: uid('USR'),
+        email: 'hr@himalayaerp.com',
+        password: hashedPassword,
+        name: 'HR',
+        roleId: hrRoleAlias.id,
+        companyId: company.id,
+        isActive: true,
+      },
+    });
+  }
+
   // ── 6. Document Sequences ───────────────────────────────────────────────────
   console.log('🔢 Seeding document sequences...');
   const currentYear = new Date().getFullYear();
