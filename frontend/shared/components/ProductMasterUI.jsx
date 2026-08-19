@@ -114,9 +114,34 @@ export default function ProductMasterUI({ role }) {
 
   // Dynamic Categories / Families list
   const availableFamilies = useMemo(() => {
-    const families = new Set(rawProducts.map(p => p.product_family).filter(Boolean));
-    return ['All', ...Array.from(families)];
+    const families = new Set(rawProducts.map(p => p.product_family || p.category).filter(Boolean));
+    let savedCustom = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('himalaya_custom_categories');
+        if (stored) savedCustom = JSON.parse(stored);
+      } catch (err) {
+        console.error('Failed to parse custom categories:', err);
+      }
+    }
+    const combined = Array.from(new Set([...families, ...savedCustom]));
+    return ['All', ...combined].sort((a, b) => a.localeCompare(b));
   }, [rawProducts]);
+
+  const [availableCategories, setAvailableCategories] = useState([]);
+
+  useEffect(() => {
+    const dbCategories = Array.from(new Set(rawProducts.map(p => p.product_family || p.category).filter(Boolean)));
+    let savedCustom = [];
+    try {
+      const stored = localStorage.getItem('himalaya_custom_categories');
+      if (stored) savedCustom = JSON.parse(stored);
+    } catch (err) {
+      console.error('Failed to parse custom categories:', err);
+    }
+    const combined = Array.from(new Set([...dbCategories, ...savedCustom])).sort((a, b) => a.localeCompare(b));
+    setAvailableCategories(combined);
+  }, [isModalOpen, rawProducts]);
 
   // Instant Client-Side Search & Filter
   const filteredProducts = useMemo(() => {
@@ -559,8 +584,17 @@ export default function ProductMasterUI({ role }) {
 
         {/* Filter Controls Group */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          
-
+          {/* Filter Category Dropdown */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Category:</span>
+            <select 
+              value={filterFamily} 
+              onChange={e => setFilterFamily(e.target.value)}
+              style={{ padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
+            >
+              {availableFamilies.map(f => <option key={f} value={f}>{f === 'All' ? 'All Categories' : f}</option>)}
+            </select>
+          </div>
 
           {/* Filter Dispatch Dropdown */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -886,13 +920,16 @@ export default function ProductMasterUI({ role }) {
 
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Family / Category</label>
-                  <input 
-                    type="text" 
+                  <select 
                     value={formData.product_family} 
                     onChange={e => setFormData({ ...formData, product_family: e.target.value })} 
-                    placeholder="e.g. Hardware" 
-                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }} 
-                  />
+                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="">Select Category / Product Family</option>
+                    {availableCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
