@@ -169,10 +169,20 @@ const SalesAnalyticsContent = () => {
               <div key={idx} className="sales-kpi-card" onClick={() => handleKPISelect(kpi)} style={{ borderTop: getKPIBorder(kpi.title) }}>
                 <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#5E6B82', textTransform: 'uppercase', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{kpi.title}</div>
                 <div style={{ fontSize: 'clamp(18px, 2vw, 22px)', fontWeight: '950', color: '#24345C' }}>{kpi.value}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: '#8893A7', marginTop: '6px' }}>
-                  <span>Achieved: {kpi.achievement}%</span>
-                  <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{kpi.change}</span>
-                </div>
+                {((kpi.achievement !== null && kpi.achievement !== undefined) || kpi.change) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: '#8893A7', marginTop: '6px' }}>
+                    {(kpi.achievement !== null && kpi.achievement !== undefined) ? (
+                      <span>Achieved: {kpi.achievement}%</span>
+                    ) : (
+                      <span />
+                    )}
+                    {kpi.change && (
+                      <span style={{ color: kpi.change.startsWith('-') ? '#ef4444' : '#16a34a', fontWeight: 'bold' }}>
+                        {kpi.change}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -362,13 +372,14 @@ const SalesAnalyticsContent = () => {
                 <tr style={{ background: '#F5FAFE', borderBottom: '2px solid #D6E2F0' }}>
                   <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Executive</th>
                   <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Leads</th>
+                  <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Confirmed Orders</th>
                   <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Revenue Generated</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredEmployeePerformance.length === 0 ? (
                   <tr>
-                    <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic', fontSize: '12.5px' }}>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic', fontSize: '12.5px' }}>
                       No sales executive performance records found.
                     </td>
                   </tr>
@@ -386,6 +397,9 @@ const SalesAnalyticsContent = () => {
                         </td>
                         <td style={{ padding: '12px 8px' }}>
                           <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{leadCount} Leads</span>
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <span style={{ background: '#f0fdf4', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{ex.closed ?? 0} Orders</span>
                         </td>
                         <td style={{ padding: '12px 8px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -500,20 +514,33 @@ const SalesAnalyticsContent = () => {
               <button onClick={() => setDrilldownEntity(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', color: '#64748b' }}>✕</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: (drilldownEntity.details?.achievement !== null && drilldownEntity.details?.achievement !== undefined) 
+                ? 'repeat(auto-fit, minmax(140px, 1fr))' 
+                : '1fr', 
+              gap: '12px', 
+              marginBottom: '16px' 
+            }}>
               <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '11px', color: '#64748b' }}>Current Value</div>
                 <div style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>{drilldownEntity.details?.value}</div>
               </div>
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Target Achievement</div>
-                <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>{drilldownEntity.details?.achievement}%</div>
-              </div>
+              {(drilldownEntity.details?.achievement !== null && drilldownEntity.details?.achievement !== undefined) && (
+                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>Target Achievement</div>
+                  <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>{drilldownEntity.details.achievement}%</div>
+                </div>
+              )}
             </div>
 
             <div style={{ fontSize: '12.5px', color: '#475569', lineHeight: '1.6', marginBottom: '16px', background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
               <strong>Period Range:</strong> {activeDates.label}<br />
-              <strong>Comparative Trend:</strong> {drilldownEntity.details?.change} {activeDates.compareLabel}<br />
+              {drilldownEntity.details?.change && (
+                <>
+                  <strong>Comparative Trend:</strong> {drilldownEntity.details.change} {activeDates.compareLabel}<br />
+                </>
+              )}
               <strong>Calculation Engine:</strong> Aggregate telemetry real-time evaluation across confirmed transactions and operational logs.
             </div>
 

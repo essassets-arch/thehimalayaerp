@@ -40,12 +40,15 @@ export const useCommandCenter = (filters = {}, activeDates = {}) => {
       refreshAll: load
     };
   }
-  const toLegacyKpi = (title, metric, suffix = '') => ({
-    title,
-    value: suffix === '%' ? `${metric.value.toFixed(2)}%` : suffix ? `${metric.value} ${suffix}` : formatCurrency(metric.value),
-    achievement: metric.achievementPercent,
-    change: `${metric.changePercent >= 0 ? '+' : ''}${metric.changePercent.toFixed(2)}%`
-  });
+  const toLegacyKpi = (title, metric, suffix = '') => {
+    const hasChange = metric.changePercent !== 0 || (metric.previousValue !== undefined && metric.previousValue > 0);
+    return {
+      title,
+      value: suffix === '%' ? `${metric.value.toFixed(2)}%` : suffix ? `${metric.value} ${suffix}` : formatCurrency(metric.value),
+      achievement: metric.achievementPercent !== null && metric.achievementPercent !== undefined ? metric.achievementPercent : null,
+      change: hasChange ? `${metric.changePercent >= 0 ? '+' : ''}${metric.changePercent.toFixed(2)}%` : null
+    };
+  };
   const k = data.kpis;
   const legacyData = {
     ...data,

@@ -35,6 +35,7 @@ export function calculatePeriodDates(period, customStart = '', customEnd = '') {
   const startOfFinancialYear = (date) => new Date(date.getFullYear() - (date.getMonth() < 3 ? 1 : 0), 3, 1);
   const endOfDay = (date) => { const result = new Date(date); result.setHours(23, 59, 59, 999); return result; };
   switch (period) {
+    case 'All Time': return range(new Date(2020, 0, 1), today, 'vs All Time');
     case 'Today': return range(today, today, 'vs Yesterday');
     case 'Yesterday': { const day = new Date(today); day.setDate(day.getDate() - 1); return range(day, day, 'vs Previous Day'); }
     case 'This Week': { const from = startOfWeek(today); return range(from, today, 'vs Previous Week'); }

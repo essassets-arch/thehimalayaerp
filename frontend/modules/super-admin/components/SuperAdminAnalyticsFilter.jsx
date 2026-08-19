@@ -38,6 +38,7 @@ export default function SuperAdminAnalyticsFilter({
   const [dateError, setDateError] = useState('');
 
   const periodOptions = [
+    'All Time',
     'Today',
     'Yesterday',
     'This Week',
