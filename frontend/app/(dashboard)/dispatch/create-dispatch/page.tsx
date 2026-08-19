@@ -220,12 +220,14 @@ export default function CreateDispatchPage() {
                   customer: { id: `cust-${fg.id}`, companyName: fg.customerName || "Factory Staging Area" },
                 },
               },
-              salesOrderItem: fg.workOrder?.salesOrderItem || {
-                id: `item-${fg.id}`,
-                productId: fg.productId || "PROD-FG",
-                productNameSnapshot: fg.productName || "Finished Goods",
+              salesOrderItem: {
+                ...(fg.workOrder?.salesOrderItem || {}),
+                id: fg.workOrder?.salesOrderItem?.id || `item-${fg.id}`,
+                productId: fg.productId || fg.workOrder?.salesOrderItem?.productId || "PROD-FG",
+                productNameSnapshot: fg.productName || fg.workOrder?.salesOrderItem?.productNameSnapshot || "Finished Goods",
                 orderedQuantity: Number(fg.quantity || 1),
-                unitPrice: 0,
+                unitPrice: fg.workOrder?.salesOrderItem?.unitPrice || 0,
+                product: fg.product || fg.workOrder?.salesOrderItem?.product,
               },
               qcInspections: [{ approvedQuantity: Number(fg.availableQuantity ?? fg.quantity ?? 1), approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
             };
@@ -325,6 +327,7 @@ export default function CreateDispatchPage() {
                 orderedQuantity: Number(item.orderedQuantity || item.quantity || 1),
                 unitPrice: Number(item.unitPrice || 0),
                 dispatchItems: item.dispatchItems,
+                product: item.product,
               },
               qcInspections: [{ approvedQuantity: remaining, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
             };

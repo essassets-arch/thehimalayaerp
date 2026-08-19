@@ -135,17 +135,25 @@ export default function DeliveryRunPage() {
   });
 
   const activeDeliveryQueue = useMemo(() => {
-    const list = dispatches.filter((d) => d.status === "OUT_FOR_DELIVERY");
-    if (!search.trim()) return list;
+    const targetCat = isDispatch2 ? "D2" : "D1";
+    const categoryFiltered = dispatches.filter((d) => {
+      if (d.status !== "OUT_FOR_DELIVERY") return false;
+      const cat = String(d.dispatchCategory || d.dispatch_category || "D1").toUpperCase();
+      if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
+      if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
+      return true;
+    });
+
+    if (!search.trim()) return categoryFiltered;
     const lower = search.toLowerCase();
-    return list.filter(
+    return categoryFiltered.filter(
       (d) =>
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
         d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
         d.driverName?.toLowerCase().includes(lower)
     );
-  }, [dispatches, search]);
+  }, [dispatches, search, isDispatch2]);
 
   const handleSelectDispatch = (dispatchItem: Dispatch) => {
     setSelectedDispatch(dispatchItem);

@@ -47,7 +47,7 @@ export default function ProductMasterUI({ role }) {
     brand: 'HIMALAYA',
     gst_rate: 18,
     hsn_sac_code: '',
-    dispatch_category: 'DISPATCH 1',
+    dispatch_category: 'D1',
     weight: '',
     image_url: ''
   };
@@ -248,7 +248,7 @@ export default function ProductMasterUI({ role }) {
       brand: p.brand || 'HIMALAYA',
       gst_rate: p.gst_rate ?? 18,
       hsn_sac_code: p.hsn_sac_code || '',
-      dispatch_category: p.dispatch_category || 'DISPATCH 1',
+      dispatch_category: p.dispatch_category || 'D1',
       weight: p.weight || '',
       image_url: p.imageUrl || ''
     });
@@ -276,7 +276,7 @@ export default function ProductMasterUI({ role }) {
       unitPrice: Number(formData.unitPrice || 0),
       productType: normalizeProductType(formData.product_type),
       brand: formData.brand || 'HIMALAYA',
-      dispatchCategory: formData.dispatch_category || 'DISPATCH 1',
+      dispatchCategory: (formData.dispatch_category === 'Unassigned' || !formData.dispatch_category) ? null : formData.dispatch_category,
       gstRate: Number(formData.gst_rate || 18),
       hsnCode: formData.hsn_sac_code || '',
       variantDetails: formData.variant_details || '',

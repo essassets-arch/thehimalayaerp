@@ -40,6 +40,8 @@ export default function ProductPicker({
 
   // Dispatch badge styling
   const DISPATCH_BADGE = {
+    'D1':         { label: 'D1', bg: 'rgba(99,102,241,0.18)', color: '#818cf8' },
+    'D2':         { label: 'D2', bg: 'rgba(16,185,129,0.18)', color: '#34d399' },
     'DISPATCH 1': { label: 'D1', bg: 'rgba(99,102,241,0.18)', color: '#818cf8' },
     'DISPATCH 2': { label: 'D2', bg: 'rgba(16,185,129,0.18)', color: '#34d399' },
     'NONE':       { label: '—',  bg: 'rgba(100,116,139,0.18)', color: '#8893A7' },
@@ -65,21 +67,26 @@ export default function ProductPicker({
         return true;
       });
 
-      const mappedResults = salesProducts.map(p => ({
-        id: p.id,
-        public_id: p.publicId,
-        product_name: p.name || 'Unknown Product',
-        product_code: p.sku || p.publicId || 'N/A',
-        brand: p.category || '',
-        gst_rate: p.gstRate || 18,
-        hsn_sac_code: p.hsnCode || '',
-        unit_of_measure: p.unit || 'pcs',
-        dispatch_category: p.dispatchCategory || 'NONE',
-        selling_price: Number(p.unitPrice || 0),
-        price: Number(p.unitPrice || 0),
-        description: p.description || '',
-        productType: p.productType || 'MANUFACTURING',
-      }));
+      const mappedResults = salesProducts.map(p => {
+        let cat = p.dispatchCategory || 'NONE';
+        if (cat === 'DISPATCH 1') cat = 'D1';
+        if (cat === 'DISPATCH 2') cat = 'D2';
+        return {
+          id: p.id,
+          public_id: p.publicId,
+          product_name: p.name || 'Unknown Product',
+          product_code: p.sku || p.publicId || 'N/A',
+          brand: p.category || '',
+          gst_rate: p.gstRate || 18,
+          hsn_sac_code: p.hsnCode || '',
+          unit_of_measure: p.unit || 'pcs',
+          dispatch_category: cat,
+          selling_price: Number(p.unitPrice || 0),
+          price: Number(p.unitPrice || 0),
+          description: p.description || '',
+          productType: p.productType || 'MANUFACTURING',
+        };
+      });
 
       setResults(mappedResults);
     } catch {

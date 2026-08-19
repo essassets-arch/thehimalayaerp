@@ -84,9 +84,17 @@ export default function InTransitPage() {
   });
 
   const filteredDispatches = React.useMemo(() => {
-    if (!search.trim()) return dispatches;
+    const targetCat = isDispatch2 ? "D2" : "D1";
+    const categoryFiltered = dispatches.filter((d) => {
+      const cat = String(d.dispatchCategory || d.dispatch_category || "D1").toUpperCase();
+      if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
+      if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
+      return true;
+    });
+
+    if (!search.trim()) return categoryFiltered;
     const lower = search.toLowerCase();
-    return dispatches.filter(
+    return categoryFiltered.filter(
       (d) =>
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
@@ -94,7 +102,7 @@ export default function InTransitPage() {
         d.driverName?.toLowerCase().includes(lower) ||
         d.vehicleNumber?.toLowerCase().includes(lower)
     );
-  }, [dispatches, search]);
+  }, [dispatches, search, isDispatch2]);
 
   const handleStartDelivery = async (dispatchId: string) => {
     setLoadingId(dispatchId);

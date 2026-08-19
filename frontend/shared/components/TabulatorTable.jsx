@@ -53,11 +53,11 @@ export default function TabulatorTable({
 
       if (col.field === 'dispatch_category') {
         tabCol.formatter = (cell) => {
-          const val = cell.getValue();
-          if (val === 'DISPATCH 2') {
+          const val = String(cell.getValue() || '').trim().toUpperCase();
+          if (val === 'DISPATCH 2' || val === 'D2') {
             return `<span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3);">D2</span>`;
           }
-          if (val === 'DISPATCH 1') {
+          if (val === 'DISPATCH 1' || val === 'D1') {
             return `<span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3);">D1</span>`;
           }
           return `<span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; color: #94A3B8; background: rgba(255,255,255,0.05);">—</span>`;

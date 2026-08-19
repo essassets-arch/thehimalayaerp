@@ -117,11 +117,20 @@ function formatAddress(salesOrder?: SalesOrder, customer?: Customer): string {
   );
 }
 
-function isTradingProduct(item: any): boolean {
+function isTradingProduct(item: any, productsMap?: Map<string, any>): boolean {
   if (!item) return false;
-  const type = (item.productType || item.product?.productType || "").toUpperCase();
-  const cat = (item.category || item.product?.category || item.brand || "").toUpperCase();
+  let type = (item.productType || item.product?.productType || "").toUpperCase();
+  let cat = (item.category || item.product?.category || item.brand || "").toUpperCase();
   const name = (item.productNameSnapshot || item.productName || item.name || "").toLowerCase();
+  
+  if ((!type || !cat) && productsMap && item.productId) {
+    const dbProd = productsMap.get(item.productId);
+    if (dbProd) {
+      if (!type) type = (dbProd.productType || "").toUpperCase();
+      if (!cat) cat = (dbProd.category || dbProd.brand || "").toUpperCase();
+    }
+  }
+
   if (type === "TRADING") return true;
   if (["COVERBLOCK", "RCC PIPE", "FRC COVER"].includes(cat)) return true;
   if (name.includes("wcb") || name.includes("coverblock")) return true;
@@ -141,6 +150,7 @@ interface UnifiedPendingDispatchItem {
   salesOrderItemId?: string;
   workOrderNumber?: string;
   productId?: string;
+  dispatchCategory?: string;
 }
 
 export default function DispatchOrdersPage() {
@@ -221,6 +231,7 @@ export default function DispatchOrdersPage() {
             salesOrderId: qOrder.salesOrderId,
             salesOrderItemId: qItem.salesOrderItemId,
             productId: qItem.productId,
+            dispatchCategory: qItem.dispatchCategory || qItem.dispatch_category || qItem.product?.dispatchCategory || qItem.product?.dispatch_category || productsMap.get(qItem.productId || '')?.dispatchCategory || productsMap.get(qItem.productId || '')?.dispatch_category || "D1",
           });
         });
       });
@@ -254,6 +265,7 @@ export default function DispatchOrdersPage() {
             salesOrderId: salesOrder?.id,
             workOrderNumber: fg.jobNo,
             productId: fg.productId || wo?.salesOrderItem?.productId || fg.workOrder?.salesOrderItem?.productId,
+            dispatchCategory: fg.dispatchCategory || fg.dispatch_category || fg.product?.dispatchCategory || fg.product?.dispatch_category || wo?.salesOrderItem?.product?.dispatchCategory || wo?.salesOrderItem?.product?.dispatch_category || productsMap.get(fg.productId || '')?.dispatchCategory || productsMap.get(fg.productId || '')?.dispatch_category || "D1",
           };
         });
 
@@ -289,6 +301,7 @@ export default function DispatchOrdersPage() {
             salesOrderId: salesOrder?.id,
             workOrderNumber: wo.workOrderNumber,
             productId: wo.salesOrderItem?.productId,
+            dispatchCategory: wo.salesOrderItem?.product?.dispatchCategory || wo.salesOrderItem?.product?.dispatch_category || productsMap.get(wo.salesOrderItem?.productId || '')?.dispatchCategory || productsMap.get(wo.salesOrderItem?.productId || '')?.dispatch_category || "D1",
           };
         });
 
@@ -307,7 +320,7 @@ export default function DispatchOrdersPage() {
               (a: any) => a.allocationType === "FINISHED_GOODS_RESERVATION" && Number(a.reservedQuantity || 0) > 0
             );
 
-            if (!isTradingProduct(item) && !hasFgReservation) {
+            if (!isTradingProduct(item, productsMap) && !hasFgReservation) {
               return;
             }
 
@@ -328,6 +341,7 @@ export default function DispatchOrdersPage() {
               salesOrderId: so.id,
               salesOrderItemId: item.id,
               productId: item.productId,
+              dispatchCategory: item.product?.dispatchCategory || item.product?.dispatch_category || productsMap.get(item.productId || '')?.dispatchCategory || productsMap.get(item.productId || '')?.dispatch_category || "D1",
             });
           });
         }
@@ -357,15 +371,14 @@ export default function DispatchOrdersPage() {
   const filteredPendingItems = useMemo(() => {
     return pendingItems.filter((item) => {
       // Category filter (D1 vs D2)
-      const productObj = productsMap.get(item.productId);
-      const productCat = productObj?.dispatchCategory || productObj?.dispatch_category || "D1";
+      const productCat = item.dispatchCategory || "D1";
       const c1 = String(productCat).trim().toUpperCase();
       const c2 = String(userDispatchCat).trim().toUpperCase();
 
       let matchCategory = false;
       if (c1 === c2) matchCategory = true;
-      else if ((c1 === "D1" || c1 === "DISPATCH 1") && (c2 === "D1" || c2 === "DISPATCH 1")) matchCategory = true;
-      else if ((c1 === "D2" || c1 === "DISPATCH 2") && (c2 === "D2" || c2 === "DISPATCH 2")) matchCategory = true;
+      else if ((c1 === "D1" || c1 === "DISPATCH 1" || c1 === "DISPATCH_1") && (c2 === "D1" || c2 === "DISPATCH 1")) matchCategory = true;
+      else if ((c1 === "D2" || c1 === "DISPATCH 2" || c1 === "DISPATCH_2") && (c2 === "D2" || c2 === "DISPATCH 2")) matchCategory = true;
 
       if (!matchCategory) return false;
 
