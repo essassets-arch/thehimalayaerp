@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef, cloneElement } from 'react';
 import * as Lucide from 'lucide-react';
 import { 
-  ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
+  ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
   BarChart, Bar, Legend, LineChart, Line, PieChart, Pie, Cell 
 } from 'recharts';
 import { backendFetch } from '@/lib/backendFetch';
@@ -13,12 +13,54 @@ import './ProductionAnalyticsPage.css';
 const CHART_COLORS = ["#0284C7", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B"];
 const QC_COLORS = ["#10B981", "#EF4444", "#F59E0B"];
 
+function ResponsiveChart({ height, children }) {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (!ref.current) return;
+    
+    const initialWidth = ref.current.getBoundingClientRect().width || ref.current.offsetWidth;
+    if (initialWidth > 0) {
+      setWidth(initialWidth);
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const { width: newWidth } = entries[0].contentRect;
+      if (newWidth > 0) {
+        setWidth(newWidth);
+      }
+    });
+
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  if (!mounted) {
+    return <div style={{ height: `${height}px`, width: '100%' }} />;
+  }
+
+  return (
+    <div ref={ref} style={{ width: '100%', height: `${height}px`, position: 'relative' }}>
+      {width > 0 && cloneElement(children, { width, height })}
+    </div>
+  );
+}
+
 export default function ProductionAnalyticsPage() {
   const { activeDates, filters, setFilter } = useSuperAdminFilter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeStage, setActiveStage] = useState('all');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -298,8 +340,8 @@ export default function ProductionAnalyticsPage() {
           <div className="production-card-header">
             <h3 className="production-card-title">Planned Target vs Produced Output</h3>
           </div>
-          <div className="production-chart-frame">
-            <ResponsiveContainer width="100%" height={260}>
+          <div className="production-chart-frame" style={{ height: '260px', width: '100%', position: 'relative' }}>
+            <ResponsiveChart height={260}>
               <BarChart data={[
                 { name: 'Planned Target', qty: summary.productionTarget ?? 0 },
                 { name: 'Actual Produced', qty: summary.productionCompleted ?? 0 }
@@ -317,7 +359,7 @@ export default function ProductionAnalyticsPage() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveChart>
           </div>
         </div>
 
@@ -354,13 +396,13 @@ export default function ProductionAnalyticsPage() {
           <div className="production-card-header">
             <h3 className="production-card-title">Daily Production Trend Curve</h3>
           </div>
-          <div className="production-chart-frame">
+          <div className="production-chart-frame" style={{ height: '260px', width: '100%', position: 'relative' }}>
             {trends.length === 0 ? (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>
+              <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>
                 No daily production data logs found.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveChart height={260}>
                 <ComposedChart data={trends}>
                   <defs>
                     <linearGradient id="colorProd" x1="0" y1="0" x2="0" y2="1">
@@ -376,7 +418,7 @@ export default function ProductionAnalyticsPage() {
                   <Area type="monotone" dataKey="actual" name="Actual Produced" stroke="#0284c7" fillOpacity={1} fill="url(#colorProd)" />
                   <Line type="monotone" dataKey="target" name="Target Quantity" stroke="#f59e0b" strokeWidth={2} dot={false} />
                 </ComposedChart>
-              </ResponsiveContainer>
+              </ResponsiveChart>
             )}
           </div>
         </div>
@@ -600,8 +642,8 @@ export default function ProductionAnalyticsPage() {
           {/* Defect Reasons */}
           <div className="production-card" style={{ border: 'none', padding: 0, boxShadow: 'none' }}>
             <h4 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 'bold' }}>Top Defect Reasons Share</h4>
-            <div className="production-chart-frame" style={{ height: 200 }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="production-chart-frame" style={{ height: '200px', width: '100%', position: 'relative' }}>
+              <ResponsiveChart height={200}>
                 <PieChart>
                   <Pie data={[
                     { name: 'Surface Defect', count: 38 },
@@ -623,7 +665,7 @@ export default function ProductionAnalyticsPage() {
                   <Tooltip />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
                 </PieChart>
-              </ResponsiveContainer>
+              </ResponsiveChart>
             </div>
           </div>
 
@@ -709,8 +751,8 @@ export default function ProductionAnalyticsPage() {
           <div className="production-card-header">
             <h3 className="production-card-title">Production Delay & Loss Analysis</h3>
           </div>
-          <div className="production-chart-frame">
-            <ResponsiveContainer width="100%" height={230}>
+          <div className="production-chart-frame" style={{ height: '230px', width: '100%', position: 'relative' }}>
+            <ResponsiveChart height={230}>
               <BarChart data={[
                 { name: 'Material Unavailable', count: delays.reasons?.materialUnavailable ?? 3 },
                 { name: 'Machine Breakdown', count: delays.reasons?.machineBreakdown ?? 2 },
@@ -724,7 +766,7 @@ export default function ProductionAnalyticsPage() {
                 <Tooltip />
                 <Bar dataKey="count" fill="#ef4444" radius={[4, 4, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveChart>
           </div>
         </div>
       </div>
@@ -803,8 +845,8 @@ export default function ProductionAnalyticsPage() {
           <h3 className="production-card-title">Production Output Loss Waterfall Analysis</h3>
           <span style={{ fontSize: '12px', color: '#64748b' }}>Tracks quantities lost to floor downtime, defects and material issues</span>
         </div>
-        <div className="production-chart-frame">
-          <ResponsiveContainer width="100%" height={260}>
+        <div className="production-chart-frame" style={{ height: '260px', width: '100%', position: 'relative' }}>
+          <ResponsiveChart height={260}>
             <BarChart data={lossData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -816,7 +858,7 @@ export default function ProductionAnalyticsPage() {
                 ))}
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
+          </ResponsiveChart>
         </div>
       </div>
     </div>

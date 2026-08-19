@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, cloneElement } from 'react';
 import * as Lucide from 'lucide-react';
 import { 
-  ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
+  ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
   BarChart, Bar, Legend, PieChart, Pie, Cell 
 } from 'recharts';
 import { backendFetch } from '@/lib/backendFetch';
@@ -14,11 +14,53 @@ import './HRAnalyticsPage.css';
 
 const CHART_COLORS = ["#7e22ce", "#16a34a", "#2563eb", "#d97706", "#e11d48", "#06b6d4", "#64748b"];
 
+function ResponsiveChart({ height, children }) {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (!ref.current) return;
+    
+    const initialWidth = ref.current.getBoundingClientRect().width || ref.current.offsetWidth;
+    if (initialWidth > 0) {
+      setWidth(initialWidth);
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const { width: newWidth } = entries[0].contentRect;
+      if (newWidth > 0) {
+        setWidth(newWidth);
+      }
+    });
+
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  if (!mounted) {
+    return <div style={{ height: `${height}px`, width: '100%' }} />;
+  }
+
+  return (
+    <div ref={ref} style={{ width: '100%', height: `${height}px`, position: 'relative' }}>
+      {width > 0 && cloneElement(children, { width, height })}
+    </div>
+  );
+}
+
 export default function HRAnalyticsPage() {
   const { period, startDate, endDate, activeDates, filters, setFilter } = useSuperAdminFilter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Drill-down Drawer Employee selection
   const [selectedEmp, setSelectedEmp] = useState(null);
@@ -101,7 +143,9 @@ export default function HRAnalyticsPage() {
     users = {},
     employeeDataQuality = {},
     notifications = {},
-    alerts = []
+    alerts = [],
+    celebrations = {},
+    employees = []
   } = data;
 
   return (
@@ -172,6 +216,17 @@ export default function HRAnalyticsPage() {
           </div>
         </div>
 
+        <div className="hr-kpi-card amber">
+          <div className="hr-kpi-card-header">
+            <span>Celebrations</span>
+            <Lucide.Gift size={16} style={{ color: '#d97706' }} />
+          </div>
+          <div className="hr-kpi-card-value">{(workforce.birthdaysCount ?? 0) + (workforce.anniversariesCount ?? 0)}</div>
+          <div className="hr-kpi-card-subtext">
+            <span style={{ color: '#b91c1c', fontWeight: 'bold' }}>{workforce.birthdaysCount ?? 0} Birthdays</span> | <span style={{ color: '#1d4ed8', fontWeight: 'bold' }}>{workforce.anniversariesCount ?? 0} Anniversaries</span>
+          </div>
+        </div>
+
         <div className="hr-kpi-card blue">
           <div className="hr-kpi-card-header">
             <span>Active Recruitment</span>
@@ -183,7 +238,7 @@ export default function HRAnalyticsPage() {
           </div>
         </div>
 
-        <div className="hr-kpi-card amber">
+        <div className="hr-kpi-card purple" style={{ borderLeftColor: '#a855f7' }}>
           <div className="hr-kpi-card-header">
             <span>Pending Approvals</span>
             <Lucide.Clock size={16} />
@@ -305,18 +360,24 @@ export default function HRAnalyticsPage() {
           <div className="hr-card-header">
             <h3 className="hr-card-title">Attendance Rate & Exception Trends</h3>
           </div>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={attendance.trends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis width={40} tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Legend />
-                <Area type="monotone" dataKey="rate" name="Present Rate %" fill="#faf5ff" stroke="#7e22ce" strokeWidth={2} />
-                <Bar dataKey="late" name="Late Arrivals" fill="#d97706" barSize={12} />
-              </ComposedChart>
-            </ResponsiveContainer>
+          <div style={{ height: '280px', width: '100%', position: 'relative' }}>
+            {(!attendance.trends || attendance.trends.length === 0) ? (
+              <div style={{ height: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
+                No attendance trend data available for the selected period.
+              </div>
+            ) : (
+              <ResponsiveChart height={280}>
+                <ComposedChart data={attendance.trends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis width={40} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Area type="monotone" dataKey="rate" name="Present Rate %" fill="#faf5ff" stroke="#7e22ce" strokeWidth={2} />
+                  <Bar dataKey="late" name="Late Arrivals" fill="#d97706" barSize={12} />
+                </ComposedChart>
+              </ResponsiveChart>
+            )}
           </div>
         </div>
 
@@ -372,21 +433,23 @@ export default function HRAnalyticsPage() {
           <div className="hr-card-header">
             <h3 className="hr-card-title">Leave Type Breakdown</h3>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', height: 240 }}>
-            <div style={{ flex: 1, height: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: '240px', width: '100%', minWidth: 0 }}>
+            <div style={{ flex: 1 }}>
               {leave.types?.length === 0 ? (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>No leave transactions this month.</div>
+                <div style={{ height: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>No leave transactions this month.</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={leave.types} cx="50%" cy="50%" innerRadius="40%" outerRadius="75%" paddingAngle={3} dataKey="value">
-                      {leave.types?.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div style={{ height: '240px', width: '100%', position: 'relative' }}>
+                  <ResponsiveChart height={240}>
+                    <PieChart>
+                      <Pie data={leave.types} cx="50%" cy="50%" innerRadius="40%" outerRadius="75%" paddingAngle={3} dataKey="value">
+                        {leave.types?.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveChart>
+                </div>
               )}
             </div>
             <div style={{ width: 140, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -442,18 +505,24 @@ export default function HRAnalyticsPage() {
           <div className="hr-card-header">
             <h3 className="hr-card-title">Department-Wise Payroll Expense</h3>
           </div>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={payroll.departmentWise}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="department" tick={{ fontSize: 10 }} />
-                <YAxis width={60} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
-                <Legend />
-                <Bar dataKey="gross" name="Gross Salary" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="net" name="Net Paid" fill="#16a34a" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div style={{ height: '280px', width: '100%', position: 'relative' }}>
+            {(!payroll.departmentWise || payroll.departmentWise.length === 0) ? (
+              <div style={{ height: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
+                No payroll data available for the selected period.
+              </div>
+            ) : (
+              <ResponsiveChart height={280}>
+                <BarChart data={payroll.departmentWise}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="department" tick={{ fontSize: 10 }} />
+                  <YAxis width={60} tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
+                  <Legend />
+                  <Bar dataKey="gross" name="Gross Salary" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="net" name="Net Paid" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveChart>
+            )}
           </div>
         </div>
 
@@ -510,21 +579,23 @@ export default function HRAnalyticsPage() {
           <div className="hr-card-header">
             <h3 className="hr-card-title">Expense Outlay Category distribution</h3>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', height: 220 }}>
-            <div style={{ flex: 1, height: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: '220px', width: '100%', minWidth: 0 }}>
+            <div style={{ flex: 1 }}>
               {expenses.categories?.length === 0 ? (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>No expense claims found.</div>
+                <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>No expense claims found.</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={expenses.categories} cx="50%" cy="50%" innerRadius="40%" outerRadius="75%" paddingAngle={3} dataKey="value">
-                      {expenses.categories?.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div style={{ height: '220px', width: '100%', position: 'relative' }}>
+                  <ResponsiveChart height={220}>
+                    <PieChart>
+                      <Pie data={expenses.categories} cx="50%" cy="50%" innerRadius="40%" outerRadius="75%" paddingAngle={3} dataKey="value">
+                        {expenses.categories?.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
+                    </PieChart>
+                  </ResponsiveChart>
+                </div>
               )}
             </div>
             <div style={{ width: 140, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -574,6 +645,89 @@ export default function HRAnalyticsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CELEBRATIONS (BIRTHDAYS & ANNIVERSARIES) ── */}
+      <div className="hr-double-grid" style={{ marginBottom: '24px' }}>
+        <div className="hr-card">
+          <div className="hr-card-header">
+            <h3 className="hr-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
+              <Lucide.Cake size={18} style={{ color: '#7e22ce' }} /> Birthdays in Selected Period
+            </h3>
+            <span className="hr-status-pill active" style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #f3e8ff' }}>
+              {celebrations?.birthdays?.length ?? 0} Birthdays
+            </span>
+          </div>
+          <div className="hr-table-frame" style={{ maxHeight: '240px' }}>
+            {(!celebrations?.birthdays || celebrations.birthdays.length === 0) ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
+                No birthdays in this date range.
+              </div>
+            ) : (
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Birthday</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {celebrations.birthdays.map((item, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{item.name}</strong></td>
+                      <td>{item.department}</td>
+                      <td style={{ color: '#7e22ce', fontWeight: 'bold' }}>{item.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <div className="hr-card">
+          <div className="hr-card-header">
+            <h3 className="hr-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
+              <Lucide.Gift size={18} style={{ color: '#2563eb' }} /> Work Anniversaries in Selected Period
+            </h3>
+            <span className="hr-status-pill active" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe' }}>
+              {celebrations?.anniversaries?.length ?? 0} Anniversaries
+            </span>
+          </div>
+          <div className="hr-table-frame" style={{ maxHeight: '240px' }}>
+            {(!celebrations?.anniversaries || celebrations.anniversaries.length === 0) ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
+                No work anniversaries in this date range.
+              </div>
+            ) : (
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Anniversary</th>
+                    <th>Years Completed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {celebrations.anniversaries.map((item, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{item.name}</strong></td>
+                      <td>{item.department}</td>
+                      <td style={{ color: '#2563eb', fontWeight: 'bold' }}>{item.date}</td>
+                      <td>
+                        <span className="hr-status-pill active" style={{ background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+                          {item.years} {item.years === 1 ? 'Year' : 'Years'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
