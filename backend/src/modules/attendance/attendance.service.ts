@@ -435,6 +435,83 @@ export class AttendanceService {
   // ROSTER-FIRST Company Attendance (HR Roster Dashboard)
   async listCompanyAttendance(companyId: string, query: any) {
     try {
+      if (query.mode === 'logs') {
+        const fromDate = query.from ? new Date(query.from) : (query.date ? new Date(query.date) : null);
+        const toDate = query.to ? new Date(query.to) : (query.date ? new Date(query.date) : null);
+
+        const where: any = { companyId };
+        if (fromDate || toDate) {
+          where.attendanceDate = {};
+          if (fromDate) where.attendanceDate.gte = getKolkataDate(fromDate).startOfDay;
+          if (toDate) where.attendanceDate.lte = getKolkataDate(toDate).endOfDay;
+        }
+
+        const records = await this.prisma.attendance.findMany({
+          where,
+          include: {
+            employee: {
+              include: {
+                department: true,
+                workLocation: true
+              }
+            }
+          },
+          orderBy: { punchInAt: 'desc' }
+        });
+
+        return records.map(att => {
+          const emp = att.employee;
+          const deptName = emp?.department?.name || 'Operations';
+          const roleName = emp?.jobTitle || 'Staff Member';
+          const locationName = emp?.workLocation?.name || 'Ahmedabad Plant';
+
+          const formatTime = (d: Date | null | undefined) => {
+            if (!d) return '—';
+            return new Intl.DateTimeFormat('en-US', {
+              timeZone: 'Asia/Kolkata',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            }).format(new Date(d));
+          };
+
+          const formatDate = (d: Date) => {
+            return getKolkataDate(d).dateStr;
+          };
+
+          const formatDuration = (mins: number) => {
+            if (!mins) return '—';
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return `${h}h ${m}m`;
+          };
+
+          return {
+            id: emp?.id || att.employeeId,
+            employeeCode: emp?.employeeCode || '—',
+            employeeName: emp?.fullName || 'Unknown',
+            email: emp?.workEmail || '—',
+            department: deptName,
+            role: roleName,
+            workLocation: locationName,
+            date: formatDate(att.attendanceDate),
+            punchIn: formatTime(att.punchInAt),
+            punchOut: formatTime(att.punchOutAt),
+            workedDuration: att.workedMinutes ? formatDuration(att.workedMinutes) : (att.status === 'PUNCHED_IN' ? 'Running' : '—'),
+            workedMinutes: att.workedMinutes || 0,
+            lateMinutes: att.lateMinutes || 0,
+            earlyExitMinutes: att.earlyExitMinutes || 0,
+            overtimeMinutes: att.overtimeMinutes || 0,
+            status: att.status,
+            punchInLocation: att.punchInAddress || locationName,
+            coords: att.punchOutLatitude ? `${att.punchOutLatitude}, ${att.punchOutLongitude}` : (att.punchInLatitude ? `${att.punchInLatitude}, ${att.punchInLongitude}` : '—'),
+            accuracy: att.punchOutAccuracy || att.punchInAccuracy || null,
+            selfieUrl: att.punchOutSelfieUrl || att.punchInSelfieUrl || null,
+            timestamp: att.punchInAt?.toISOString() || att.createdAt.toISOString(),
+          };
+        });
+      }
+
       const targetDate = query.date ? new Date(query.date) : new Date();
       const { startOfDay, endOfDay } = getKolkataDate(targetDate);
       const now = new Date();

@@ -193,12 +193,12 @@ export default function HRPortal() {
 
 
   const getPunchStatus = (timeStr, isCheckIn, deptName = 'Default') => {
-    if (!timeStr) return 'GPS Verified';
+    if (!timeStr || timeStr === '—') return '—';
     try {
       const policy = shiftPolicies[deptName] || shiftPolicies['Default'] || { checkIn: '09:00 AM', checkOut: '06:00 PM', grace: 15 };
       const cleaned = timeStr.trim();
       const match = cleaned.match(/^(\d+):(\d+):?(\d+)?\s*(AM|PM)$/i);
-      if (!match) return 'GPS Verified';
+      if (!match) return '—';
       
       let hours = parseInt(match[1], 10);
       const minutes = parseInt(match[2], 10);
@@ -250,14 +250,32 @@ export default function HRPortal() {
 
   const loadPunchesErrCount = useRef(0);
 
-  // Load real-time punches from NestJS database & localStorage
+  // Load real-time punches from NestJS database
   const loadPunches = async () => {
     if (loadPunchesErrCount.current >= 4) return;
     try {
+      // Build dynamic API path based on period/target date
+      let apiPath = '/attendance';
+      if (filterPeriod === 'today') {
+        apiPath = `/attendance?date=${rosterInspectDate}`;
+      } else if (filterPeriod === 'custom') {
+        apiPath = `/attendance?mode=logs&from=${customFilterDate}&to=${customFilterDate}`;
+      } else if (filterPeriod === 'weekly') {
+        const toDateStr = new Date().toISOString().slice(0, 10);
+        const fromDateStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        apiPath = `/attendance?mode=logs&from=${fromDateStr}&to=${toDateStr}`;
+      } else if (filterPeriod === 'monthly') {
+        const toDateStr = new Date().toISOString().slice(0, 10);
+        const fromDateStr = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        apiPath = `/attendance?mode=logs&from=${fromDateStr}&to=${toDateStr}`;
+      } else if (filterPeriod === 'all') {
+        apiPath = '/attendance?mode=logs';
+      }
+
       // 1. Fetch real punches from centralized DB
       let dbPunches = [];
       try {
-        const response = await apiClient.get('/attendance');
+        const response = await apiClient.get(apiPath);
         if (response && response.success !== false) {
           loadPunchesErrCount.current = 0;
           dbPunches = response.data || response;
@@ -278,7 +296,7 @@ export default function HRPortal() {
         punchIn: p.punchIn,
         punchOut: p.punchOut,
         date: p.date,
-        location: p.punchOutLocation !== '—' ? p.punchOutLocation : p.punchInLocation,
+        location: p.punchInLocation || '—',
         coords: p.coords,
         selfieUrl: p.selfieUrl,
         status: p.status,
@@ -286,35 +304,8 @@ export default function HRPortal() {
         isRealPunch: true
       }));
 
-      // 2. Load simulated punches from localStorage
-      let simPunches = [];
-      try {
-        const saved = localStorage.getItem('himalaya_sim_logs');
-        if (saved) simPunches = JSON.parse(saved);
-      } catch (err) {}
-
-      // 3. Merge sources prioritizing database records
+      // 2. Merge sources prioritizing database records (Simulated sources removed)
       const mergedMap = new Map();
-
-      simPunches.forEach(item => {
-        const timeStr = item.time || '';
-        const key = `${item.id}_${item.date}`;
-        mergedMap.set(key, {
-          id: item.id,
-          name: item.name,
-          action: item.action,
-          time: timeStr,
-          punchIn: item.action === 'Check In' ? timeStr : '—',
-          punchOut: item.action === 'Check Out' ? timeStr : '—',
-          date: item.date,
-          location: item.location || 'Factory Campus',
-          coords: item.coords || '23.0229° N, 72.5566° E',
-          selfieUrl: item.selfieUrl || null,
-          isRealPunch: false,
-          status: item.status || 'On Time',
-          timestamp: item.timestamp
-        });
-      });
 
       mappedDbPunches.forEach(p => {
         const key = `${p.id}_${p.date}`;
@@ -344,7 +335,7 @@ export default function HRPortal() {
       window.removeEventListener('himalaya:punch', loadPunches);
       clearInterval(interval);
     };
-  }, [user, employees]);
+  }, [user, employees, rosterInspectDate, filterPeriod, customFilterDate]);
 
   // Shift assignment modal/dropdown states
   const [editingShiftEmp, setEditingShiftEmp] = useState(null);
@@ -701,7 +692,7 @@ export default function HRPortal() {
       const logDate = log.date || '2026-06-11';
       const key = `${log.id}_${logDate}`;
       const empDept = employees.find(e => e.id === log.id)?.department || 'Default';
-      const calculatedStatus = getPunchStatus(timeStr, isCheckIn, empDept);
+      const calculatedStatus = log.isRealPunch ? log.status : getPunchStatus(timeStr, isCheckIn, empDept);
 
       if (!grouped[key]) {
         grouped[key] = {
@@ -717,13 +708,15 @@ export default function HRPortal() {
           if (log.selfieUrl) grouped[key].selfieUrl = log.selfieUrl;
         } else {
           grouped[key].punchOut = timeStr;
-          if (calculatedStatus && calculatedStatus !== 'On Time' && calculatedStatus !== 'GPS Verified') {
+          if (log.isRealPunch) {
+            grouped[key].status = log.status;
+          } else if (calculatedStatus && calculatedStatus !== 'On Time' && calculatedStatus !== 'GPS Verified' && calculatedStatus !== '—') {
             grouped[key].status = `${grouped[key].status} / ${calculatedStatus}`;
           }
         }
       }
     });
-    const rawFormattedLogs = Object.values(grouped);
+    const rawFormattedLogs = Object.values(grouped).filter(log => log.punchIn !== '—' || log.punchOut !== '—');
 
     const getFilteredLogs = (logs) => {
       const now = new Date();
@@ -1666,7 +1659,7 @@ export default function HRPortal() {
       }
     ];
 
-    const activeExitList = exitClearances.length > 0 ? exitClearances : defaultExitClearances;
+    const activeExitList = exitClearances;
 
     const handleExportRegistryCSV = () => {
       const data = activeExitList.map(item => ({
