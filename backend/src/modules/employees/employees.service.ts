@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { hash } from 'bcrypt';
 import { Prisma, EmployeeDocumentType, EmployeeStatus } from '@prisma/client';
 import { createCipheriv, createHash, randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
@@ -39,6 +40,32 @@ export class EmployeesService {
     if (!user?.companyId)
       throw new BadRequestException('Authenticated user has no company.');
     return user.companyId;
+  }
+
+  private mapJobTitleToRoleCode(jobTitle: string, departmentName: string): string {
+    const title = (jobTitle || '').toUpperCase().replace(/_/g, ' ');
+    if (title.includes('SUPER SALES')) return 'SUPER_SALES';
+    if (title.includes('SALES EXECUTIVE') || title.includes('SALES EXEC')) return 'SALES_EXECUTIVE';
+    if (title.includes('SALES MANAGER')) return 'SALES_MANAGER';
+    if (title.includes('PLANT HEAD') || title.includes('PLANTHEAD')) return 'PLANT_HEAD';
+    if (title.includes('PRODUCTION PLANNER') || title.includes('PLANNER')) return 'PRODUCTION_PLANNER';
+    if (title.includes('PRODUCTION OPERATOR') || title.includes('OPERATOR')) return 'PRODUCTION_OPERATOR';
+    if (title.includes('QC INSPECTOR') || title.includes('QUALITY') || title.includes('QC')) return 'QC_INSPECTOR';
+    if (title.includes('DISPATCH EXECUTIVE')) return 'DISPATCH_EXECUTIVE';
+    if (title.includes('DISPATCH 2')) return 'DISPATCH_2';
+    if (title.includes('FINANCE EXECUTIVE')) return 'FINANCE_EXECUTIVE';
+    if (title.includes('FINANCE MANAGER')) return 'FINANCE_MANAGER';
+    if (title.includes('STORE MANAGER') || title.includes('STORE')) return 'STORE_MANAGER';
+    if (title.includes('HR') || title.includes('HUMAN RESOURCES')) return 'HR';
+    if (title.includes('ADMIN')) return 'ADMIN';
+
+    const dept = (departmentName || '').toUpperCase();
+    if (dept.includes('SALES')) return 'SALES_EXECUTIVE';
+    if (dept.includes('PRODUCTION')) return 'PRODUCTION_OPERATOR';
+    if (dept.includes('FINANCE')) return 'FINANCE_EXECUTIVE';
+    if (dept.includes('HR')) return 'HR';
+
+    return 'SALES_EXECUTIVE';
   }
 
   private key() {
@@ -390,11 +417,45 @@ export class EmployeesService {
       const additional = (dto as any).additionalDocuments || [];
       let additionalDocumentIndex = 0;
       const employee = await this.prisma.$transaction(async (tx) => {
+        const existingUser = await tx.user.findUnique({
+          where: { email: workEmail },
+        });
+
+        let resolvedUserId = existingUser?.id || null;
+
+        if (!resolvedUserId) {
+          const dept = await tx.department.findFirst({
+            where: { id: dto.departmentId },
+          });
+          const deptName = dept?.name || 'Operations';
+          const roleCode = this.mapJobTitleToRoleCode(dto.jobTitle, deptName);
+          const dbRole = await tx.role.findFirst({
+            where: { code: roleCode },
+          }) || await tx.role.findFirst();
+
+          if (dbRole) {
+            const passwordHash = await hash('admin123', 12);
+            const newUser = await tx.user.create({
+              data: {
+                publicId: randomUUID(),
+                email: workEmail,
+                password: passwordHash,
+                name: `${dto.firstName.trim()} ${dto.lastName.trim()}`,
+                roleId: dbRole.id,
+                companyId,
+                isActive: true,
+              },
+            });
+            resolvedUserId = newUser.id;
+          }
+        }
+
         const created = await tx.employee.create({
           data: {
             id: employeeId,
             publicId: dto.employeeCode.trim(),
             companyId,
+            userId: resolvedUserId,
             employeeCode: dto.employeeCode.trim(),
             firstName: dto.firstName.trim(),
             lastName: dto.lastName.trim(),
@@ -564,9 +625,18 @@ export class EmployeesService {
         .filter((key) => payload[key] !== undefined)
         .map((key) => [key, payload[key]]),
     );
+    let userId = current.userId || null;
+    if (!userId && current.workEmail) {
+      const matchedUser = await this.prisma.user.findUnique({
+        where: { email: current.workEmail },
+      });
+      if (matchedUser) {
+        userId = matchedUser.id;
+      }
+    }
     const updated = await this.prisma.employee.update({
       where: { id },
-      data: { ...data, version: { increment: 1 }, updatedById: user.sub },
+      data: { ...data, userId, version: { increment: 1 }, updatedById: user.sub },
     });
     await this.prisma.auditLog.create({
       data: {
