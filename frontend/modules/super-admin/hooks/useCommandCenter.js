@@ -58,7 +58,7 @@ export const useCommandCenter = (filters = {}, activeDates = {}) => {
       toLegacyKpi('Avg Order Value', k.averageOrderValue), toLegacyKpi('Active CRM Leads', k.activeCrmLeads, 'Leads'),
       toLegacyKpi('Lead Conversion Rate', k.leadConversionRate, '%'), toLegacyKpi('Production Output Yield', k.productionOutputYield, '%'),
       toLegacyKpi('QC Pass Rate', k.qcPassRate, '%'), toLegacyKpi('Dispatches Delivered', k.dispatchesDelivered, 'Loads'),
-      toLegacyKpi('Overdue Invoices', k.overdueInvoices, 'Invoices'), toLegacyKpi('Active Enterprise Clients', k.activeEnterpriseClients, 'Clients'),
+      toLegacyKpi('Active Enterprise Clients', k.activeEnterpriseClients, 'Clients'),
       toLegacyKpi('Quotation Conversion', k.quotationConversionRate, '%'), toLegacyKpi('Sample Fulfillment', k.sampleFulfillment, '%'),
       toLegacyKpi('On-Time Dispatch Rate', k.onTimeDispatchRate, '%')
     ] },
@@ -68,7 +68,7 @@ export const useCommandCenter = (filters = {}, activeDates = {}) => {
     trends: data.charts.billingsReceipts.map(item => ({ month: item.period, revenue: item.billings, receipts: item.receipts })),
     crm: { splits: { sources: data.charts.leadSources } },
     production: { metrics: { planned_qty: data.charts.productionOutput.reduce((sum, item) => sum + item.planned, 0), produced_qty: data.charts.productionOutput.reduce((sum, item) => sum + item.produced, 0) } },
-    employees: { performance: data.executives.map(item => ({ executive: item.name, email: item.email, leads: item.leads.total, revenue: item.revenueGenerated, closed: item.orders.confirmed, targetRevenue: item.targetRevenue, achievementPercent: item.achievementPercent })) },
+    employees: { performance: data.executives.map(item => ({ executive: item.name, email: item.email, leads: item.leadsBreakdown?.total ?? item.leads ?? 0, revenue: item.revenueGenerated, closed: item.orders.confirmed, targetRevenue: item.targetRevenue, achievementPercent: item.achievementPercent })) },
     finance: { billing: k.grossSalesRevenue.value, collected: k.cashCollections.value, outstanding: k.outstandingReceivables.value, agingBuckets: data.receivablesAgeing },
     explorer: { rows: data.transactions.map(item => ({ ...item, salesExecutive: item.salesperson, revenue: item.amount, paymentStatus: item.collected >= item.amount ? 'Paid' : 'Outstanding', deliveryStatus: item.dispatchStatus })) }
   };
