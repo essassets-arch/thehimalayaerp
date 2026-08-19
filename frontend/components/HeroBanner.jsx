@@ -1312,7 +1312,8 @@ export default function HeroBanner({
                             buttonsStyling: false
                           });
                         } else {
-                          const errorMsg = res?.message || 'Error occurred during punch-in.';
+                          const rawError = res?.message || 'Error occurred during punch-in.';
+                          const errorMsg = typeof rawError === 'object' ? JSON.stringify(rawError) : String(rawError);
                           const isAlreadyPunched = errorMsg.includes('ALREADY_PUNCHED_IN') || errorMsg.toLowerCase().includes('already punched in');
                           if (isAlreadyPunched) {
                             syncPunchStatusFromDB();

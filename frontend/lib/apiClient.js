@@ -1074,9 +1074,20 @@ async function proxyRequest(method, path, body = null) {
 
     if (!res.ok) {
       console.warn(`NestJS Proxy Error [${method} ${url}]:`, data);
-      const errMsg = (data && typeof data === 'object')
-        ? (data.message || data.error || (Array.isArray(data.message) ? data.message[0] : null) || JSON.stringify(data))
-        : (data || 'Backend error');
+      let errMsg = 'Backend error';
+      if (data && typeof data === 'object') {
+        if (data.error && typeof data.error === 'object' && data.error.message) {
+          errMsg = data.error.message;
+        } else if (data.message) {
+          errMsg = Array.isArray(data.message) ? data.message[0] : data.message;
+        } else if (data.error && typeof data.error === 'string') {
+          errMsg = data.error;
+        } else {
+          errMsg = JSON.stringify(data);
+        }
+      } else if (data) {
+        errMsg = data;
+      }
       return err(errMsg, data?.errors);
     }
 
