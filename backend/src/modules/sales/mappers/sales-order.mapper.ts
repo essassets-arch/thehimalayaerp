@@ -125,6 +125,12 @@ export function mapSalesOrder(
     customerId: order.customerId,
     customerName: order.customer.companyName,
     customerCode: order.customer.customerCode,
+    customer: {
+      id: order.customer.id,
+      name: order.customer.companyName,
+      companyName: order.customer.companyName,
+      customerCode: order.customer.customerCode,
+    },
     salesExecutiveId: (order as any).salesExecutiveId,
     salesExecutive: (order as any).salesExecutive
       ? {

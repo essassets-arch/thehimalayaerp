@@ -601,7 +601,7 @@ export default function OrdersView({
                   return (
                     <tr key={o.id || o.orderNo}>
                       <td data-label="Order No" style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo}</td>
-                      <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer?.name}</td>
+                      <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
                       <td data-label="Order Value" style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
                       <td data-label="Paid Amount" style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>{formatINR(paid)}</td>
@@ -708,7 +708,7 @@ export default function OrdersView({
                       </span>
                     </td>
                     <td data-label="Customer" style={{ fontWeight: '600' }}>
-                      {o.customerName || o.customer?.name || '—'}
+                      {o.customerName || o.customer?.name || o.customer?.companyName || '—'}
                     </td>
                     <td data-label="Products / Items">
                       {o.products || (Array.isArray(o.items) && o.items.length > 0 ? o.items.map(i => `${i.productName || i.name || i.product?.name || i.productNameSnapshot || 'Item'} (${i.quantity ?? i.orderedQuantity ?? 1} Qty)`).join(', ') : '') || (Array.isArray(o.detailedItems) && o.detailedItems.length > 0 ? o.detailedItems.map(i => `${i.productName || i.name || 'Item'} (${i.quantity || 1} Qty)`).join(', ') : '') || '—'}
@@ -930,7 +930,7 @@ export default function OrdersView({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Customer</div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>{o.customerName || o.customer?.name || '—'}</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Total Value</div>
@@ -1149,7 +1149,7 @@ export default function OrdersView({
               <div className="sheet-meta">
                 <div>
                   <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Bill To:</p>
-                  <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{currentDetailsOrder.customerName || currentDetailsOrder.customer?.name}</p>
+                  <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{currentDetailsOrder.customerName || currentDetailsOrder.customer?.name || currentDetailsOrder.customer?.companyName || '—'}</p>
                   <p style={{ margin: '2px 0 0 0', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>
                   <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>
                 </div>
