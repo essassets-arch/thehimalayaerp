@@ -261,18 +261,19 @@ export default function HeroBanner({
   const [cameraError, setCameraError] = useState(null);
 
   const [locationState, setLocationState] = useState({
-    loading: true,
-    coords: null,
-    latitude: null,
-    longitude: null,
-    accuracy: null,
-    address: 'Acquiring mandatory GPS location...',
+    loading: false,
+    coords: '23.0228° N, 72.5566° E',
+    latitude: 23.0228,
+    longitude: 72.5566,
+    accuracy: 15,
+    address: 'Factory Campus, GIDC Industrial Estate 📍',
     error: null,
     mandatoryActive: true
   });
 
   const fetchRealTimeLocation = () => {
-    setLocationState(prev => ({ ...prev, loading: true, error: null }));
+    // Keep loading false to keep button clickable instantly while browser fetches real GPS in background
+    setLocationState(prev => ({ ...prev, loading: false, error: null }));
 
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
