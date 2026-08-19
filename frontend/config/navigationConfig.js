@@ -380,7 +380,6 @@ export const navigationConfig = {
     { id: 'map', label: 'Live User Map', icon: MapPin, path: '/super-admin/map' },
     { id: 'analytics-sales', label: 'Sales Analytics', icon: TrendingUp, path: '/super-admin/analytics/sales' },
     { id: 'analytics-finance', label: 'Finance Analytics', icon: Landmark, path: '/super-admin/analytics/finance' },
-    { id: 'analytics-production', label: 'Production Analytics', icon: Cpu, path: '/super-admin/analytics/production' },
     { id: 'analytics-inventory', label: 'Inventory Analytics', icon: Database, path: '/super-admin/analytics/inventory' },
     { id: 'analytics-hr', label: 'HR Analytics', icon: Users, path: '/super-admin/analytics/hr' },
     { id: 'analytics-dispatch', label: 'Dispatch Analytics', icon: Truck, path: '/super-admin/analytics/dispatch' },
