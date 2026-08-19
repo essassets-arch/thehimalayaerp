@@ -723,6 +723,7 @@ export class AttendanceService {
         coords,
         accuracy,
         selfieUrl,
+        timestamp: att?.punchInAt?.toISOString() || att?.createdAt?.toISOString() || new Date(targetDate).toISOString(),
       };
     });
 

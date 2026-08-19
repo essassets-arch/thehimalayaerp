@@ -278,9 +278,15 @@ export default function HRPortal() {
       let dbPunches = [];
       try {
         const response = await apiClient.get(apiPath);
-        if (response && response.success !== false) {
+        if (response) {
           loadPunchesErrCount.current = 0;
-          dbPunches = response.data || response;
+          if (Array.isArray(response)) {
+            dbPunches = response;
+          } else if (response.data && Array.isArray(response.data)) {
+            dbPunches = response.data;
+          } else if (response.items && Array.isArray(response.items)) {
+            dbPunches = response.items;
+          }
         }
       } catch (e) {
         loadPunchesErrCount.current += 1;
@@ -718,28 +724,30 @@ export default function HRPortal() {
     const rawFormattedLogs = Object.values(grouped).filter(log => log.punchIn !== '—' || log.punchOut !== '—');
 
     const getFilteredLogs = (logs) => {
-      const now = new Date();
-      const simDayStr = simDate ? new Date(simDate).toDateString() : '';
-      const customDayStr = customFilterDate ? new Date(customFilterDate).toDateString() : '';
+      const todayStr = new Date().toLocaleDateString('en-CA'); // Returns YYYY-MM-DD in local time
       
       return logs.filter(log => {
         if (filterPeriod === 'all') return true;
         
-        const logDate = log.timestamp ? new Date(log.timestamp) : new Date(log.date || now);
-        const diffTime = Math.abs(now - logDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
         if (filterPeriod === 'today') {
           if (log.isRealPunch) {
-            return logDate.toDateString() === now.toDateString();
+            return log.date === todayStr;
           } else {
-            return simDayStr ? logDate.toDateString() === simDayStr : true;
+            return log.date === simDate;
           }
         } else if (filterPeriod === 'custom') {
-          return customDayStr ? logDate.toDateString() === customDayStr : true;
+          return log.date === customFilterDate;
         } else if (filterPeriod === 'weekly') {
+          const logDate = new Date(log.date);
+          const now = new Date();
+          const diffTime = Math.abs(now - logDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
           return diffDays <= 7;
         } else if (filterPeriod === 'monthly') {
+          const logDate = new Date(log.date);
+          const now = new Date();
+          const diffTime = Math.abs(now - logDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
           return diffDays <= 30;
         }
         return true;
