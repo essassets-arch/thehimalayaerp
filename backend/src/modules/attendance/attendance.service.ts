@@ -79,14 +79,100 @@ export class AttendanceService {
   private async getLinkedEmployeeId(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { employee: true },
+      include: { employee: true, role: true },
     });
-    if (!user?.employee?.id) {
-      throw new ForbiddenException(
-        'EMPLOYEE_PROFILE_NOT_LINKED: Authenticated user does not have a linked Employee profile. Please contact HR.'
-      );
+    if (!user) {
+      throw new ForbiddenException('User not found.');
     }
-    return user.employee.id;
+    if (user.employee?.id) {
+      return user.employee.id;
+    }
+
+    // 1. Check if an employee with the same email already exists and link it
+    const existingEmployeeByEmail = await this.prisma.employee.findUnique({
+      where: { workEmail: user.email },
+    });
+    if (existingEmployeeByEmail) {
+      const updatedEmployee = await this.prisma.employee.update({
+        where: { id: existingEmployeeByEmail.id },
+        data: { userId: user.id },
+      });
+      return updatedEmployee.id;
+    }
+
+    // 2. Otherwise auto-create and link Employee profile on-the-fly
+    let dept = await this.prisma.department.findFirst({
+      where: { companyId: user.companyId, isActive: true },
+    });
+    if (!dept) {
+      dept = await this.prisma.department.create({
+        data: {
+          code: `DEPT-AUTO-${Date.now()}`,
+          name: 'Operations',
+          companyId: user.companyId,
+          isActive: true,
+        },
+      });
+    }
+
+    let loc = await this.prisma.workLocation.findFirst({
+      where: { companyId: user.companyId, isActive: true },
+    });
+    if (!loc) {
+      loc = await this.prisma.workLocation.create({
+        data: {
+          code: `LOC-AUTO-${Date.now()}`,
+          name: 'Ahmedabad Head Office',
+          companyId: user.companyId,
+          isActive: true,
+        },
+      });
+    }
+
+    const names = (user.name || 'Staff Member').trim().split(/\s+/);
+    const firstName = names[0] || 'Staff';
+    const lastName = names.slice(1).join(' ') || 'Member';
+    const codeSuffix = Math.floor(1000 + Math.random() * 9000);
+    const employeeCode = `EMP-AUTO-${codeSuffix}`;
+
+    const createdEmployee = await this.prisma.employee.create({
+      data: {
+        publicId: `EMP-${employeeCode}`,
+        companyId: user.companyId,
+        userId: user.id,
+        employeeCode,
+        firstName,
+        lastName,
+        fullName: user.name || 'Staff Member',
+        dateOfBirth: new Date('1990-01-01'),
+        gender: 'OTHER',
+        jobTitle: user.role?.name || 'Staff Member',
+        departmentId: dept.id,
+        workLocationId: loc.id,
+        employmentType: 'PERMANENT',
+        joiningDate: new Date(),
+        status: 'ACTIVE',
+        workEmail: user.email,
+        phoneNumber: '9876543210',
+        residentialAddress: 'Default Residential Address',
+        emergencyContactName: 'Emergency Contact',
+        emergencyContactPhone: '9876543210',
+        emergencyRelationship: 'Friend',
+        panNumber: `PANAUTO${codeSuffix}`,
+        aadhaarNumberEncrypted: 'enc-auto',
+        aadhaarLastFour: '1234',
+        aadhaarHash: `hash-auto-${user.id}`,
+        bankName: 'State Bank of India',
+        accountHolderName: user.name || 'Staff Member',
+        bankAccountType: 'SAVINGS',
+        bankAccountEncrypted: 'enc-auto',
+        bankAccountLastFour: '1234',
+        bankAccountHash: `bhash-auto-${user.id}`,
+        ifscCode: 'SBIN0001234',
+      },
+    });
+
+    return createdEmployee.id;
   }
 
   // Centralized punch-in (Atomic, single source of truth)

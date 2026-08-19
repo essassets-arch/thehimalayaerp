@@ -434,7 +434,8 @@ export class EmployeesService {
           }) || await tx.role.findFirst();
 
           if (dbRole) {
-            const passwordHash = await hash('admin123', 12);
+            const tempPassword = randomBytes(24).toString('hex');
+            const passwordHash = await hash(tempPassword, 12);
             const newUser = await tx.user.create({
               data: {
                 publicId: randomUUID(),
