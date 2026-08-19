@@ -2,7 +2,10 @@
 BEGIN;
 CREATE TYPE "AttendanceStatus_new" AS ENUM ('NOT_PUNCHED_IN', 'PUNCHED_IN', 'PRESENT', 'HALF_DAY', 'ABSENT', 'PAID_LEAVE', 'UNPAID_LEAVE', 'WEEKLY_OFF', 'HOLIDAY', 'MISSING_PUNCH_OUT');
 ALTER TABLE "Attendance" ALTER COLUMN "status" DROP DEFAULT;
-ALTER TABLE "Attendance" ALTER COLUMN "status" TYPE "AttendanceStatus_new" USING ("status"::text::"AttendanceStatus_new");
+ALTER TABLE "Attendance" ALTER COLUMN "status" TYPE TEXT;
+UPDATE "Attendance" SET "status" = 'NOT_PUNCHED_IN' WHERE "status" IN ('NOT_PUNCHED', 'PUNCHED_OUT', 'LATE') OR "status" IS NULL;
+UPDATE "Attendance" SET "status" = 'PAID_LEAVE' WHERE "status" = 'LEAVE';
+ALTER TABLE "Attendance" ALTER COLUMN "status" TYPE "AttendanceStatus_new" USING ("status"::"AttendanceStatus_new");
 ALTER TYPE "AttendanceStatus" RENAME TO "AttendanceStatus_old";
 ALTER TYPE "AttendanceStatus_new" RENAME TO "AttendanceStatus";
 DROP TYPE "AttendanceStatus_old";
