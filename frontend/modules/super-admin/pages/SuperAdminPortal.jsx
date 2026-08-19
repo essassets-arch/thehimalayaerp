@@ -58,7 +58,7 @@ import PurchaseIndentsView from './PurchaseIndentsView.jsx';
 import DashboardView from '../components/DashboardView';
 import ProfitabilityAnalyticsPage from './ProfitabilityAnalyticsPage.jsx';
 import PurchaseOrderApproval from '../../procurement/super-admin/PurchaseOrderApproval';
-import DispatchCostAnalyticsPage from './DispatchCostAnalyticsPage.jsx';
+import DispatchAnalyticsPage from './DispatchAnalyticsPage.jsx';
 import InventoryAnalyticsPage from './InventoryAnalyticsPage.jsx';
 import FinanceAnalyticsPage from './FinanceAnalyticsPage.jsx';
 import ProductionAnalyticsPage from './ProductionAnalyticsPage.jsx';
@@ -7841,7 +7841,7 @@ export default function SuperAdminPortal() {
         if (subView === 'production') return <ProductionAnalyticsPage />;
         if (subView === 'inventory') return <InventoryAnalyticsPage />;
         if (subView === 'hr') return <HRAnalyticsPage />;
-        if (subView === 'dispatch') return <DispatchCostAnalyticsPage />;
+        if (subView === 'dispatch') return <DispatchAnalyticsPage />;
         return (
           <DashboardView
             timeFilter={timeFilter}

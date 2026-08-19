@@ -3016,6 +3016,1084 @@ export class SuperAdminService {
     };
   }
 
+  async getDispatchAnalytics(query: any, companyId: string) {
+    const isCompanyScoped = companyId && companyId !== 'null' && companyId !== 'undefined';
+    const toNumber = (val: any) => (val === null || val === undefined ? 0 : Number(val) || 0);
+    const percentage = (numerator: number, denominator: number) => denominator ? Number(((numerator / denominator) * 100).toFixed(2)) : 0;
+    
+    const now = new Date();
+    const end = query?.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
+    const start = query?.from ? new Date(`${query.from}T00:00:00.000Z`) : new Date(end.getFullYear(), end.getMonth(), 1);
+    
+    const duration = end.getTime() - start.getTime() + 1;
+    const previousEnd = new Date(start.getTime() - 1);
+    const previousStart = new Date(previousEnd.getTime() - duration + 1);
+
+    const branchId = query?.branchId || (query?.branch !== 'All' ? query?.branch : undefined);
+    const customerId = query?.customerId || (query?.customer !== 'All' ? query?.customer : undefined);
+    const productId = query?.productId || (query?.product !== 'All' ? query?.product : undefined);
+    const salesExecutiveId = query?.salesExecutiveId || (query?.salesperson !== 'All' ? query?.salesperson : undefined);
+    const status = query?.status || (query?.dispatchStatus !== 'All' ? query?.dispatchStatus : undefined);
+    const dispatchCategory = query?.dispatchCategory || (query?.category !== 'All' ? query?.category : undefined);
+    const transporterId = query?.transporterId || (query?.transporter !== 'All' ? query?.transporter : undefined);
+
+    const filterByCommonParams = (item: any, isDispatch = false, isSample = false, isAlloc = false) => {
+      if (branchId) {
+        let bId = null;
+        if (isDispatch) bId = item.salesOrder?.customer?.branchId;
+        else if (isSample) bId = item.customer?.branchId;
+        else if (isAlloc) bId = item.salesOrder?.customer?.branchId;
+        else bId = item.salesOrder?.customer?.branchId;
+        if (bId !== branchId) return false;
+      }
+      if (customerId) {
+        let cId = null;
+        if (isDispatch) cId = item.salesOrder?.customerId;
+        else if (isSample) cId = item.customerId;
+        else if (isAlloc) cId = item.salesOrder?.customerId;
+        else cId = item.salesOrder?.customerId;
+        if (cId !== customerId) return false;
+      }
+      if (productId) {
+        let hasProduct = false;
+        if (isDispatch) hasProduct = item.items?.some((i: any) => i.salesOrderItem?.productId === productId);
+        else if (isSample) hasProduct = item.items?.some((i: any) => i.productId === productId);
+        else if (isAlloc) hasProduct = item.productId === productId;
+        else hasProduct = item.items?.some((i: any) => i.productId === productId);
+        if (!hasProduct) return false;
+      }
+      if (salesExecutiveId) {
+        let sId = null;
+        if (isDispatch) sId = item.salesOrder?.salesExecutiveId;
+        else if (isSample) sId = item.salesExecutiveId;
+        else if (isAlloc) sId = item.salesOrder?.salesExecutiveId;
+        else sId = item.salesOrder?.salesExecutiveId;
+        if (sId !== salesExecutiveId) return false;
+      }
+      if (dispatchCategory) {
+        let hasCategory = false;
+        if (isDispatch) {
+          hasCategory = item.dispatchCategory === dispatchCategory ||
+            item.items?.some((i: any) => i.salesOrderItem?.product?.dispatchCategory === dispatchCategory);
+        } else if (isSample) {
+          hasCategory = item.items?.some((i: any) => i.product?.dispatchCategory === dispatchCategory);
+        } else if (isAlloc) {
+          const matchingItem = item.salesOrder?.items?.find((i: any) => i.id === item.salesOrderItemId);
+          hasCategory = matchingItem?.product?.dispatchCategory === dispatchCategory;
+        } else {
+          hasCategory = item.items?.some((i: any) => i.product?.dispatchCategory === dispatchCategory);
+        }
+        if (!hasCategory) return false;
+      }
+      return true;
+    };
+
+    // Database Queries
+    const salesOrderWhere: any = {
+      ...(isCompanyScoped ? { customer: { companyId } } : {}),
+      ...(branchId ? { customer: { branchId } } : {}),
+      ...(customerId ? { customerId } : {}),
+      ...(productId ? { items: { some: { productId } } } : {}),
+      ...(salesExecutiveId ? { salesExecutiveId } : {}),
+    };
+
+    const [
+      allDbDispatches,
+      salesOrders,
+      allocations,
+      samples,
+      replacements,
+      returns,
+      finishedGoods,
+      stockHistory,
+      allBranches,
+      allCustomers,
+      allProducts,
+      salespeople
+    ] = await Promise.all([
+      this.prisma.dispatch.findMany({
+        include: {
+          salesOrder: {
+            include: {
+              customer: true,
+              salesExecutive: true,
+              sourceQuotation: true,
+              items: { include: { product: true } }
+            }
+          },
+          items: {
+            include: {
+              salesOrderItem: { include: { product: true } }
+            }
+          }
+        }
+      }),
+      this.prisma.salesOrder.findMany({
+        where: salesOrderWhere,
+        include: {
+          customer: true,
+          salesExecutive: true,
+          items: {
+            include: {
+              product: true,
+              dispatchItems: { include: { dispatch: true } }
+            }
+          }
+        }
+      }),
+      this.prisma.salesOrderAllocation.findMany({
+        where: {
+          allocationType: 'FINISHED_GOODS_RESERVATION',
+          reservedQuantity: { gt: 0 },
+          ...(isCompanyScoped ? { salesOrder: { customer: { companyId } } } : {}),
+          ...(branchId ? { salesOrder: { customer: { branchId } } } : {}),
+          ...(customerId ? { salesOrder: { customerId } } : {}),
+          ...(productId ? { productId } : {}),
+          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
+        },
+        include: {
+          salesOrder: {
+            include: {
+              customer: true,
+              items: { include: { product: true } }
+            }
+          }
+        }
+      }),
+      this.prisma.sampleRequest.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(salesExecutiveId ? { salesExecutiveId } : {}),
+          ...(productId ? { items: { some: { productId } } } : {}),
+        },
+        include: {
+          customer: true,
+          salesExecutive: true,
+          items: { include: { product: true } },
+          lead: true
+        }
+      }),
+      this.prisma.replacementRequest.findMany({
+        where: {
+          ...(isCompanyScoped ? { salesOrder: { customer: { companyId } } } : {}),
+          ...(customerId ? { salesOrder: { customerId } } : {}),
+          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
+          ...(productId ? { items: { some: { productId } } } : {}),
+        },
+        include: {
+          salesOrder: { include: { customer: true } },
+          items: { include: { product: true, salesOrderItem: true } }
+        }
+      }),
+      this.prisma.salesReturn.findMany({
+        where: {
+          ...(isCompanyScoped ? { salesOrder: { customer: { companyId } } } : {}),
+          ...(customerId ? { salesOrder: { customerId } } : {}),
+          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
+          ...(productId ? { items: { some: { productId } } } : {}),
+        },
+        include: {
+          salesOrder: { include: { customer: true } },
+          items: { include: { product: true } }
+        }
+      }),
+      this.prisma.finishedGoods.findMany({
+        where: {
+          ...(productId ? { productId } : {}),
+          ...(isCompanyScoped ? { product: { companyId } } : {}),
+        },
+        include: {
+          product: true,
+          salesOrder: true
+        }
+      }),
+      this.prisma.stockHistory.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          ...(productId ? { productId } : {}),
+          event: 'DISPATCH_OUT',
+        }
+      }),
+      this.prisma.branch.findMany({
+        where: isCompanyScoped ? { companyId } : {}
+      }),
+      this.prisma.customer.findMany({
+        where: isCompanyScoped ? { companyId } : {}
+      }),
+      this.prisma.product.findMany({
+        where: isCompanyScoped ? { companyId } : {}
+      }),
+      this.prisma.user.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          role: { name: { in: ['Sales Executive', 'Sales Manager', 'Salesperson', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'SALES'] } }
+        }
+      })
+    ]);
+
+    // Apply secondary parameter filtering in JS
+    const filteredDispatches = allDbDispatches.filter(d => filterByCommonParams(d, true, false, false));
+    const filteredAllocations = allocations.filter(a => filterByCommonParams(a, false, false, true));
+    const filteredSamples = samples.filter(s => filterByCommonParams(s, false, true, false));
+    const filteredReplacements = replacements.filter(r => filterByCommonParams(r, false, false, false));
+    const filteredReturns = returns.filter(r => filterByCommonParams(r, false, false, false));
+
+    // Filter dispatches by period
+    const currentPeriodDispatches = filteredDispatches.filter(d => {
+      const dDate = new Date(d.createdAt);
+      return dDate >= start && dDate <= end;
+    });
+
+    const previousPeriodDispatches = filteredDispatches.filter(d => {
+      const dDate = new Date(d.createdAt);
+      return dDate >= previousStart && dDate <= previousEnd;
+    });
+
+    // 1. Transportation Cost & Variance Analytics
+    const thisMonthTransportCost = currentPeriodDispatches.reduce((sum, d) => sum + toNumber(d.freightAmount), 0);
+    const lastMonthTransportCost = previousPeriodDispatches.reduce((sum, d) => sum + toNumber(d.freightAmount), 0);
+    const costChangePercent = lastMonthTransportCost > 0 ? Number((((thisMonthTransportCost - lastMonthTransportCost) / lastMonthTransportCost) * 100).toFixed(1)) : 0;
+    
+    const expectedTransportCost = currentPeriodDispatches.reduce((sum, d) => {
+      const soFreight = toNumber(d.salesOrder?.freightAmount || d.salesOrder?.sourceQuotation?.expectedTransportationCost);
+      return sum + (soFreight > 0 ? soFreight : Math.round(toNumber(d.freightAmount) * 0.85));
+    }, 0);
+    const actualTransportCost = thisMonthTransportCost;
+    const varianceAmount = Math.max(0, actualTransportCost - expectedTransportCost);
+
+    // 2. Funnel & Lifecycle Flow
+    // Ready
+    const readyOrdersMap = new Map<string, any>();
+    for (const alloc of filteredAllocations) {
+      const salesOrder = alloc.salesOrder;
+      const salesOrderItem = salesOrder.items.find((i: any) => i.id === alloc.salesOrderItemId);
+      if (!salesOrderItem) continue;
+
+      const key = alloc.salesOrderId;
+      if (!readyOrdersMap.has(key)) {
+        readyOrdersMap.set(key, {
+          orderNo: salesOrder.orderNumber,
+          customerName: salesOrder.customer.companyName,
+          orderedQty: salesOrder.items.reduce((sum: number, i: any) => sum + toNumber(i.orderedQuantity), 0),
+          reservedQty: 0,
+          items: [] as any[]
+        });
+      }
+      const entry = readyOrdersMap.get(key);
+      entry.reservedQty += toNumber(alloc.reservedQuantity);
+      entry.items.push({
+        productName: salesOrderItem.productNameSnapshot || salesOrderItem.product?.name,
+        reservedQty: toNumber(alloc.reservedQuantity),
+      });
+    }
+
+    const readyOrdersCount = readyOrdersMap.size;
+    const readyUnitsQty = Array.from(readyOrdersMap.values()).reduce((sum, entry: any) => sum + entry.reservedQty, 0);
+
+    // Created
+    const dispatchesCreatedCount = currentPeriodDispatches.length;
+    const dispatchesCreatedQty = currentPeriodDispatches.reduce((sum, d) => {
+      return sum + d.items.reduce((s, item) => s + toNumber(item.quantity), 0);
+    }, 0);
+
+    // In Transit
+    const inTransitDispatches = filteredDispatches.filter(d => 
+      ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(d.status)
+    );
+    const inTransitCount = inTransitDispatches.length;
+    const inTransitQty = inTransitDispatches.reduce((sum, d) => {
+      return sum + d.items.reduce((s, item) => s + toNumber(item.quantity), 0);
+    }, 0);
+
+    // Delivered
+    const deliveredDispatches = filteredDispatches.filter(d => 
+      ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status) &&
+      d.deliveredAt && new Date(d.deliveredAt) >= start && new Date(d.deliveredAt) <= end
+    );
+    const deliveredCount = deliveredDispatches.length;
+    const deliveredQty = deliveredDispatches.reduce((sum, d) => {
+      return sum + d.items.reduce((s, item) => s + toNumber(item.quantity), 0);
+    }, 0);
+
+    // Remaining
+    let remainingOrdersCount = 0;
+    let remainingUnitsQty = 0;
+    const remainingOrdersList: any[] = [];
+
+    for (const order of salesOrders) {
+      if (order.status === 'CANCELLED') continue;
+      let orderHasBalance = false;
+      let orderBalanceQty = 0;
+
+      for (const item of order.items) {
+        const orderedQty = toNumber(item.orderedQuantity);
+        const successfullyDispatched = item.dispatchItems
+          .filter((di: any) => di.dispatch.status !== 'DISPATCH_DRAFT')
+          .reduce((sum: number, di: any) => sum + toNumber(di.quantity), 0);
+
+        const balance = Math.max(0, orderedQty - successfullyDispatched);
+        if (balance > 0) {
+          orderHasBalance = true;
+          orderBalanceQty += balance;
+        }
+      }
+
+      if (orderHasBalance) {
+        remainingOrdersCount++;
+        remainingUnitsQty += orderBalanceQty;
+        const ageDays = Math.ceil((now.getTime() - new Date(order.orderDate).getTime()) / (1000 * 60 * 60 * 24));
+        remainingOrdersList.push({
+          orderNo: order.orderNumber,
+          customerName: order.customer.companyName,
+          orderedQty: order.items.reduce((sum: number, i: any) => sum + toNumber(i.orderedQuantity), 0),
+          dispatchedQty: order.items.reduce((sum: number, i: any) => {
+            return sum + i.dispatchItems
+              .filter((di: any) => di.dispatch.status !== 'DISPATCH_DRAFT')
+              .reduce((s: number, di: any) => s + toNumber(di.quantity), 0);
+          }, 0),
+          remainingQty: orderBalanceQty,
+          targetDate: order.requestedDeliveryDate ? order.requestedDeliveryDate.toISOString().slice(0, 10) : '—',
+          age: ageDays,
+          status: order.status,
+        });
+      }
+    }
+
+    const flow = {
+      ready: { count: readyOrdersCount, qty: readyUnitsQty },
+      created: { count: dispatchesCreatedCount, qty: dispatchesCreatedQty },
+      inTransit: { count: inTransitCount, qty: inTransitQty },
+      delivered: { count: deliveredCount, qty: deliveredQty },
+      remaining: { count: remainingOrdersCount, qty: remainingUnitsQty }
+    };
+
+    // 3. Ready for Dispatch Detail
+    const readyOrdersSummary = Array.from(readyOrdersMap.values()).map(entry => ({
+      orderNo: entry.orderNo,
+      customerName: entry.customerName,
+      orderedQty: entry.orderedQty,
+      reservedQty: entry.reservedQty,
+      items: entry.items
+    }));
+
+    // 4. Daily Dispatch Report Trends
+    const trendsMap = new Map<string, any>();
+    let tempDate = new Date(start);
+    while (tempDate <= end) {
+      const dateStr = tempDate.toISOString().slice(0, 10);
+      trendsMap.set(dateStr, {
+        date: dateStr,
+        dispatches: 0,
+        orders: 0,
+        qty: 0,
+        delivered: 0,
+        pending: 0
+      });
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
+
+    for (const d of currentPeriodDispatches) {
+      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      if (trendsMap.has(dateStr)) {
+        const trend = trendsMap.get(dateStr);
+        trend.dispatches++;
+        trend.qty += d.items.reduce((s, i) => s + toNumber(i.quantity), 0);
+        if (d.salesOrderId) trend.orders++;
+        if (['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
+          trend.delivered++;
+        } else {
+          trend.pending++;
+        }
+      }
+    }
+    const dailyTrends = Array.from(trendsMap.values());
+
+    // Daily summary metrics
+    const dailySummary = {
+      dispatches: dispatchesCreatedCount,
+      orders: new Set(currentPeriodDispatches.map(d => d.salesOrderId)).size,
+      totalQuantity: dispatchesCreatedQty,
+      customers: new Set(currentPeriodDispatches.map(d => d.salesOrder?.customerId)).size,
+      vehiclesUsed: new Set(currentPeriodDispatches.map(d => d.vehicleNumber).filter(Boolean)).size,
+      delivered: currentPeriodDispatches.filter(d => ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)).length,
+      inTransit: currentPeriodDispatches.filter(d => ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(d.status)).length,
+    };
+
+    // 5. Target vs Actual
+    const targetVsActual = {
+      readyQuantity: readyUnitsQty,
+      actualDispatchedQuantity: dispatchesCreatedQty,
+      achievementPercent: percentage(dispatchesCreatedQty, readyUnitsQty),
+      remainingQuantity: Math.max(0, readyUnitsQty - dispatchesCreatedQty)
+    };
+
+    // 6. Backlog Aging
+    let backlog0to1 = 0;
+    let backlog2to3 = 0;
+    let backlog4to7 = 0;
+    let backlogMoreThan7 = 0;
+    let oldestWaitingDays = 0;
+    let totalWaitingTime = 0;
+    let countPastTargetDate = 0;
+
+    for (const order of remainingOrdersList) {
+      const age = order.age;
+      totalWaitingTime += age;
+      if (age > oldestWaitingDays) oldestWaitingDays = age;
+
+      if (age <= 1) backlog0to1++;
+      else if (age <= 3) backlog2to3++;
+      else if (age <= 7) backlog4to7++;
+      else backlogMoreThan7++;
+
+      if (order.targetDate !== '—' && new Date(order.targetDate) < now) {
+        countPastTargetDate++;
+      }
+    }
+
+    const backlogAging = {
+      aging0to1: backlog0to1,
+      aging2to3: backlog2to3,
+      aging4to7: backlog4to7,
+      agingMoreThan7: backlogMoreThan7,
+      oldestPendingDays: oldestWaitingDays,
+      averageWaitingDays: remainingOrdersList.length > 0 ? Number((totalWaitingTime / remainingOrdersList.length).toFixed(1)) : 0,
+      pastTargetDateCount: countPastTargetDate
+    };
+
+    // 7. Delivery & Transit Performance
+    let totalTransitTimeDays = 0;
+    let transitTimeCount = 0;
+    let fastestDeliveryDays = 999;
+    let longestDeliveryDays = 0;
+    let delayedShipmentsCount = 0;
+    let onTimeDeliveryCount = 0;
+
+    const transporterStatsMap = new Map<string, any>();
+
+    for (const d of filteredDispatches) {
+      const promisedDate = d.eta || d.expectedDeliveryTime || d.salesOrder?.requestedDeliveryDate;
+      const deliveredDate = d.deliveredAt;
+
+      // In transit check
+      if (!['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
+        if (promisedDate && new Date(promisedDate) < now) {
+          delayedShipmentsCount++;
+        }
+      }
+
+      const dispatchDate = d.dispatchedAt || d.createdAt;
+      if (['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
+        if (dispatchDate && deliveredDate) {
+          const transitTimeMs = new Date(deliveredDate).getTime() - new Date(dispatchDate).getTime();
+          const transitDays = Math.max(0.1, Number((transitTimeMs / (1000 * 60 * 60 * 24)).toFixed(2)));
+          
+          totalTransitTimeDays += transitDays;
+          transitTimeCount++;
+          if (transitDays < fastestDeliveryDays) fastestDeliveryDays = transitDays;
+          if (transitDays > longestDeliveryDays) longestDeliveryDays = transitDays;
+        }
+
+        if (deliveredDate && promisedDate) {
+          if (new Date(deliveredDate) <= new Date(promisedDate)) {
+            onTimeDeliveryCount++;
+          } else {
+            delayedShipmentsCount++;
+          }
+        }
+      }
+
+      // Transporter Scorecard
+      const transporter = d.transporterName || 'Self-Pickup';
+      if (!transporterStatsMap.has(transporter)) {
+        transporterStatsMap.set(transporter, {
+          transporter,
+          shipments: 0,
+          delivered: 0,
+          delayed: 0,
+          totalTransit: 0,
+          transitCount: 0,
+          onTime: 0
+        });
+      }
+      const transStat = transporterStatsMap.get(transporter);
+      transStat.shipments++;
+      if (['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
+        transStat.delivered++;
+        if (dispatchDate && deliveredDate) {
+          const tMs = new Date(deliveredDate).getTime() - new Date(dispatchDate).getTime();
+          transStat.totalTransit += Math.max(0.1, tMs / (1000 * 60 * 60 * 24));
+          transStat.transitCount++;
+        }
+        if (deliveredDate && promisedDate && new Date(deliveredDate) <= new Date(promisedDate)) {
+          transStat.onTime++;
+        } else if (promisedDate && deliveredDate && new Date(deliveredDate) > new Date(promisedDate)) {
+          transStat.delayed++;
+        }
+      } else if (promisedDate && new Date(promisedDate) < now) {
+        transStat.delayed++;
+      }
+    }
+
+    const avgTransitTime = transitTimeCount > 0 ? Number((totalTransitTimeDays / transitTimeCount).toFixed(1)) : 0;
+    const finalFastestTransit = fastestDeliveryDays === 999 ? 0 : fastestDeliveryDays;
+    const onTimeDeliveryRate = percentage(onTimeDeliveryCount, deliveredDispatches.length || 1);
+
+    const transporterPerformance = Array.from(transporterStatsMap.values()).map(t => ({
+      transporter: t.transporter,
+      shipments: t.shipments,
+      delivered: t.delivered,
+      delayed: t.delayed,
+      avgTransit: t.transitCount > 0 ? Number((t.totalTransit / t.transitCount).toFixed(1)) : 0,
+      onTimePct: percentage(t.onTime, t.delivered || 1)
+    }));
+
+    // 8. Samples Analytics
+    const samplesReady = filteredSamples.filter(s => s.status === 'CREATED' || s.status === 'PENDING_DISPATCH').length;
+    const samplesDispatchedToday = filteredSamples.filter(s => s.status === 'DISPATCHED' && s.dispatchDate && new Date(s.dispatchDate) >= start && new Date(s.dispatchDate) <= end).length;
+    const samplesInTransit = filteredSamples.filter(s => s.status === 'RETURN_IN_TRANSIT' || (s.status === 'DISPATCHED' && !s.deliveredAt)).length;
+    const samplesDelivered = filteredSamples.filter(s => ['DELIVERED', 'TESTING', 'APPROVED', 'COMPLETED'].includes(s.status)).length;
+    const samplesPendingDelivery = filteredSamples.filter(s => s.status === 'DISPATCHED' && !s.deliveredAt).length;
+    const samplesOverdue = filteredSamples.filter(s => s.expectedDeliveryDate && new Date(s.expectedDeliveryDate) < now && !['DELIVERED', 'COMPLETED', 'RETURNED'].includes(s.status)).length;
+
+    let samplesAccepted = 0;
+    let convertedToBusiness = 0;
+
+    for (const sample of filteredSamples) {
+      if (['APPROVED', 'COMPLETED'].includes(sample.status) || sample.sampleResult === 'ACCEPTED') {
+        samplesAccepted++;
+      }
+
+      let isConverted = false;
+      if (sample.lead && (sample.lead.convertedCustomerId || sample.lead.convertedAt)) {
+        isConverted = true;
+      } else if (sample.customerId) {
+        const customerOrders = salesOrders.filter(so => so.customerId === sample.customerId && new Date(so.orderDate) > new Date(sample.requestedDate));
+        if (customerOrders.length > 0) {
+          isConverted = true;
+        }
+      }
+      if (isConverted) {
+        convertedToBusiness++;
+      }
+    }
+
+    const samplesData = {
+      summary: {
+        samplesReady,
+        samplesDispatchedToday,
+        samplesInTransit,
+        samplesDelivered,
+        samplesPendingDelivery,
+        samplesOverdue,
+        totalDispatched: filteredSamples.filter(s => s.status !== 'CREATED' && s.status !== 'PENDING_DISPATCH').length,
+        totalAccepted: samplesAccepted,
+        converted: convertedToBusiness
+      },
+      records: filteredSamples.map(s => ({
+        sampleNo: s.sampleNumber,
+        customerName: s.customer?.companyName || s.lead?.companyName || '—',
+        salespersonName: s.salesExecutive?.name || '—',
+        productName: s.items?.map(i => i.product?.name).join(', ') || '—',
+        dispatchDate: s.dispatchDate ? s.dispatchDate.toISOString().slice(0, 10) : '—',
+        deliveryStatus: s.status,
+        testingStatus: s.sampleResult || 'PENDING'
+      })).slice(0, 50)
+    };
+
+    // 9. Replacements Analytics
+    const replacementRequestsCount = filteredReplacements.length;
+    const approvedReplacementsCount = filteredReplacements.filter(r => ['APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(r.status)).length;
+    const readyReplacementsCount = filteredReplacements.filter(r => r.status === 'APPROVED' || r.dispatchStatus === 'READY_FOR_DISPATCH').length;
+    const inTransitReplacementsCount = filteredReplacements.filter(r => r.dispatchStatus === 'IN_TRANSIT' || r.dispatchStatus === 'DISPATCHED').length;
+    const deliveredReplacementsCount = filteredReplacements.filter(r => r.dispatchStatus === 'DELIVERED' || r.dispatchStatus === 'POD_CONFIRMED' || r.dispatchStatus === 'CLOSED').length;
+    const pendingReplacementsCount = Math.max(0, replacementRequestsCount - deliveredReplacementsCount);
+
+    const replacementReasonsMap = new Map<string, number>();
+    filteredReplacements.forEach(r => {
+      const code = r.reasonCode || 'OTHER';
+      replacementReasonsMap.set(code, (replacementReasonsMap.get(code) || 0) + 1);
+    });
+
+    const replacementReasons = Array.from(replacementReasonsMap.entries()).map(([reason, count]) => ({
+      reason,
+      count
+    }));
+
+    const replacementsData = {
+      summary: {
+        replacementRequests: replacementRequestsCount,
+        approved: approvedReplacementsCount,
+        readyForDispatch: readyReplacementsCount,
+        inTransit: inTransitReplacementsCount,
+        delivered: deliveredReplacementsCount,
+        pending: pendingReplacementsCount,
+        replacementRate: percentage(replacementRequestsCount, deliveredCount || 1)
+      },
+      reasons: replacementReasons,
+      records: filteredReplacements.map(r => ({
+        replacementNo: r.requestNumber,
+        originalOrderNo: r.salesOrder?.orderNumber || '—',
+        customerName: r.salesOrder?.customer?.companyName || '—',
+        productName: r.items?.map(i => i.product?.name).join(', ') || '—',
+        qty: r.items?.reduce((s, i) => s + toNumber(i.requestedQuantity), 0) || 0,
+        reason: r.reasonCode,
+        status: r.status,
+        dispatchStatus: r.dispatchStatus || 'PENDING'
+      })).slice(0, 50)
+    };
+
+    // 10. Returns Analytics
+    const returnRequests = filteredReturns.length;
+    const approvedReturns = filteredReturns.filter(r => r.status !== 'REQUESTED' && r.status !== 'REJECTED' && r.status !== 'CANCELLED').length;
+    const pickupPending = filteredReturns.filter(r => r.status === 'PICKUP_PENDING').length;
+    const inTransitReturns = filteredReturns.filter(r => r.status === 'IN_TRANSIT').length;
+    const receivedReturns = filteredReturns.filter(r => ['GATE_RECEIVED', 'QC_PENDING', 'QC_COMPLETED'].includes(r.status)).length;
+    const closedReturns = filteredReturns.filter(r => r.status === 'CLOSED').length;
+
+    const returnReasonsMap = new Map<string, number>();
+    filteredReturns.forEach(r => {
+      const code = r.reasonCode || 'OTHER';
+      returnReasonsMap.set(code, (returnReasonsMap.get(code) || 0) + 1);
+    });
+    const returnReasons = Array.from(returnReasonsMap.entries()).map(([reason, count]) => ({
+      reason,
+      count,
+      percentage: Number(((count / (returnRequests || 1)) * 100).toFixed(1))
+    }));
+
+    const returnsData = {
+      summary: {
+        returnRequests,
+        approved: approvedReturns,
+        pickupPending,
+        inTransit: inTransitReturns,
+        received: receivedReturns,
+        closed: closedReturns,
+        returnRate: percentage(returnRequests, deliveredCount || 1)
+      },
+      reasons: returnReasons,
+      records: filteredReturns.map(r => ({
+        returnNo: r.returnNumber,
+        customerName: r.salesOrder?.customer?.companyName || '—',
+        originalOrderNo: r.salesOrder?.orderNumber || '—',
+        productName: r.items?.map(i => i.product?.name).join(', ') || '—',
+        qty: r.items?.reduce((s, i) => s + toNumber(i.requestedQuantity), 0) || 0,
+        reason: r.reasonCode,
+        pickupRequired: r.pickupRequired,
+        status: r.status
+      })).slice(0, 50)
+    };
+
+    // 11. Product-Wise Dispatch Performance
+    const productStatsMap = new Map<string, any>();
+    for (const order of salesOrders) {
+      for (const item of order.items) {
+        const prod = item.product;
+        const prodName = item.productNameSnapshot || prod?.name || 'Unknown Product';
+        if (!productStatsMap.has(prodName)) {
+          productStatsMap.set(prodName, {
+            product: prodName,
+            sku: prod?.sku || '',
+            readyFG: 0,
+            reserved: 0,
+            dispatched: 0,
+            remaining: 0,
+            delivered: 0,
+            returnQty: 0,
+            replacementQty: 0
+          });
+        }
+        const stat = productStatsMap.get(prodName);
+        stat.reserved += toNumber(item.orderedQuantity);
+        stat.remaining += Math.max(0, toNumber(item.orderedQuantity) - item.dispatchItems.reduce((s: number, di: any) => s + toNumber(di.quantity), 0));
+        stat.dispatched += item.dispatchItems
+          .filter((di: any) => di.dispatch.status !== 'DISPATCH_DRAFT' && di.dispatch.status !== 'REJECTED')
+          .reduce((s: number, di: any) => s + toNumber(di.quantity), 0);
+        stat.delivered += item.dispatchItems
+          .filter((di: any) => ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(di.dispatch.status))
+          .reduce((s: number, di: any) => s + toNumber(di.quantity), 0);
+      }
+    }
+
+    for (const fg of finishedGoods) {
+      const prodName = fg.product?.name;
+      if (prodName && productStatsMap.has(prodName)) {
+        const stat = productStatsMap.get(prodName);
+        stat.readyFG += toNumber(fg.availableQuantity);
+      }
+    }
+
+    for (const ret of filteredReturns) {
+      for (const item of ret.items) {
+        const prodName = item.product?.name;
+        if (prodName && productStatsMap.has(prodName)) {
+          const stat = productStatsMap.get(prodName);
+          stat.returnQty += toNumber(item.receivedQuantity || item.requestedQuantity);
+        }
+      }
+    }
+
+    for (const repl of filteredReplacements) {
+      for (const item of repl.items) {
+        const prodName = item.product?.name;
+        if (prodName && productStatsMap.has(prodName)) {
+          const stat = productStatsMap.get(prodName);
+          stat.replacementQty += toNumber(item.requestedQuantity);
+        }
+      }
+    }
+    const productsAnalytics = Array.from(productStatsMap.values());
+
+    // 12. Customer-Wise Dispatch Performance
+    const customerStatsMap = new Map<string, any>();
+    for (const order of salesOrders) {
+      const custName = order.customer.companyName;
+      if (!customerStatsMap.has(custName)) {
+        customerStatsMap.set(custName, {
+          customer: custName,
+          orders: 0,
+          dispatches: 0,
+          qty: 0,
+          delivered: 0,
+          pending: 0,
+          onTimeCount: 0,
+          deliveredCount: 0,
+          delayedCount: 0
+        });
+      }
+      const stat = customerStatsMap.get(custName);
+      stat.orders++;
+      stat.qty += order.items.reduce((s, i) => s + toNumber(i.orderedQuantity), 0);
+    }
+
+    for (const d of filteredDispatches) {
+      const custName = d.salesOrder?.customer?.companyName;
+      if (custName && customerStatsMap.has(custName)) {
+        const stat = customerStatsMap.get(custName);
+        stat.dispatches++;
+        const dQty = d.items.reduce((s, i) => s + toNumber(i.quantity), 0);
+        if (['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
+          stat.delivered += dQty;
+          stat.deliveredCount++;
+          if (d.deliveredAt && d.eta && new Date(d.deliveredAt) <= new Date(d.eta)) {
+            stat.onTimeCount++;
+          } else if (d.eta && new Date(d.eta) < now) {
+            stat.delayedCount++;
+          }
+        } else {
+          stat.pending += dQty;
+        }
+      }
+    }
+
+    const customersAnalytics = Array.from(customerStatsMap.values()).map(c => ({
+      ...c,
+      onTimePct: percentage(c.onTimeCount, c.deliveredCount || 1)
+    }));
+
+    // 13. Salesperson-Wise Dispatch
+    const salespersonStatsMap = new Map<string, any>();
+    for (const order of salesOrders) {
+      const spName = order.salesExecutive?.name || 'Unassigned';
+      if (!salespersonStatsMap.has(spName)) {
+        salespersonStatsMap.set(spName, {
+          salesperson: spName,
+          orders: 0,
+          ready: 0,
+          dispatched: 0,
+          pending: 0,
+          delivered: 0
+        });
+      }
+      const stat = salespersonStatsMap.get(spName);
+      stat.orders++;
+      
+      const orderDispatched = order.items.reduce((sum, i) => {
+        return sum + i.dispatchItems
+          .filter((di: any) => di.dispatch.status !== 'DISPATCH_DRAFT' && di.dispatch.status !== 'REJECTED')
+          .reduce((s: number, di: any) => s + toNumber(di.quantity), 0);
+      }, 0);
+      const orderDelivered = order.items.reduce((sum, i) => {
+        return sum + i.dispatchItems
+          .filter((di: any) => ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(di.dispatch.status))
+          .reduce((s: number, di: any) => s + toNumber(di.quantity), 0);
+      }, 0);
+      const orderOrdered = order.items.reduce((s, i) => s + toNumber(i.orderedQuantity), 0);
+
+      stat.dispatched += orderDispatched;
+      stat.delivered += orderDelivered;
+      stat.pending += Math.max(0, orderOrdered - orderDispatched);
+    }
+    const salespersonAnalytics = Array.from(salespersonStatsMap.values());
+
+    // 14. Dispatch Category (D1/D2 Scorecard)
+    const getCatStats = (cat: string) => {
+      const catAllocations = filteredAllocations.filter(a => {
+        const item = a.salesOrder?.items?.find((i: any) => i.id === a.salesOrderItemId);
+        return item?.product?.dispatchCategory === cat;
+      });
+      const catDispatches = filteredDispatches.filter(d => 
+        d.dispatchCategory === cat || d.items.some(i => i.salesOrderItem?.product?.dispatchCategory === cat)
+      );
+
+      const readyOrders = new Set(catAllocations.map(a => a.salesOrderId)).size;
+      const dispatchesCount = catDispatches.filter(d => {
+        const dDate = new Date(d.createdAt);
+        return dDate >= start && dDate <= end;
+      }).length;
+      const qtyDispatched = catDispatches.reduce((sum, d) => sum + d.items.reduce((s, i) => s + toNumber(i.quantity), 0), 0);
+      const pending = catDispatches.filter(d => !['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)).length;
+      
+      const delivered = catDispatches.filter(d => ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status));
+      const onTime = delivered.filter(d => d.deliveredAt && d.eta && new Date(d.deliveredAt) <= new Date(d.eta)).length;
+      
+      return {
+        readyOrders,
+        dispatchesToday: dispatchesCount,
+        qtyDispatched,
+        pending,
+        delivered: delivered.length,
+        onTimePct: percentage(onTime, delivered.length || 1)
+      };
+    };
+
+    const categories = {
+      dispatch1: getCatStats('D1'),
+      dispatch2: getCatStats('D2')
+    };
+
+    // 15. FG & Reservation Reconciliation
+    const fgAvailableTotal = finishedGoods.reduce((sum, fg) => sum + toNumber(fg.availableQuantity), 0);
+    const reservedTotal = filteredAllocations.reduce((sum, a) => sum + toNumber(a.reservedQuantity), 0);
+    const dispatchReadyTotal = filteredDispatches
+      .filter(d => ['DISPATCH_APPROVED', 'READY_FOR_PICKUP', 'VEHICLE_ASSIGNED', 'LOADING_IN_PROGRESS'].includes(d.status))
+      .reduce((sum, d) => sum + d.items.reduce((s, i) => s + toNumber(i.quantity), 0), 0);
+    const dispatchedTotal = filteredDispatches
+      .filter(d => ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status))
+      .reduce((sum, d) => sum + d.items.reduce((s, i) => s + toNumber(i.quantity), 0), 0);
+
+    const inventoryReconciliation = {
+      finishedGoods: fgAvailableTotal,
+      reservations: reservedTotal,
+      dispatchReady: dispatchReadyTotal,
+      dispatched: dispatchedTotal,
+      mismatches: [] as any[]
+    };
+
+    // Exception detection
+    for (const d of filteredDispatches) {
+      for (const di of d.items) {
+        const alloc = filteredAllocations.find(a => a.salesOrderItemId === di.salesOrderItemId);
+        if (alloc && toNumber(di.quantity) > toNumber(alloc.reservedQuantity)) {
+          inventoryReconciliation.mismatches.push({
+            type: 'DISPATCH_EXCEEDS_RESERVATION',
+            message: `Dispatch ${d.dispatchNo} item quantity (${di.quantity}) exceeds reservation (${alloc.reservedQuantity}) for product ${di.salesOrderItem?.productNameSnapshot || 'item'}.`,
+            severity: 'WARNING'
+          });
+        }
+      }
+    }
+
+    for (const alloc of filteredAllocations) {
+      const orderDispatches = filteredDispatches.filter(d => d.salesOrderId === alloc.salesOrderId);
+      if (orderDispatches.length === 0) {
+        inventoryReconciliation.mismatches.push({
+          type: 'RESERVATION_WITHOUT_DISPATCH',
+          message: `Reservation exists for Order ${alloc.salesOrder.orderNumber} but order is not yet in dispatch queue.`,
+          severity: 'NOTE'
+        });
+      }
+    }
+
+    for (const d of filteredDispatches) {
+      if (['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
+        const matchHistory = stockHistory.find(sh => sh.dispatchId === d.id);
+        if (!matchHistory) {
+          inventoryReconciliation.mismatches.push({
+            type: 'MISSING_STOCK_TRANSACTION',
+            message: `Dispatch ${d.dispatchNo} is active/delivered but stock deduction transaction is missing.`,
+            severity: 'CRITICAL'
+          });
+        }
+      }
+    }
+
+    for (const d of filteredDispatches) {
+      if (['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(d.status) && (d.deliveredAt || d.podStatus === 'APPROVED')) {
+        inventoryReconciliation.mismatches.push({
+          type: 'DELIVERED_BUT_IN_TRANSIT',
+          message: `Dispatch ${d.dispatchNo} has delivered date/POD approved but status is still marked ${d.status}.`,
+          severity: 'WARNING'
+        });
+      }
+    }
+
+    // 16. Exception Center Alerts
+    const alertsList: string[] = [];
+    if (remainingOrdersCount > 0) {
+      alertsList.push(`⚠ ${remainingOrdersCount} orders have remaining dispatch quantity`);
+    }
+    const pastPromisedDispatches = filteredDispatches.filter(d => 
+      !['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status) &&
+      d.eta && new Date(d.eta) < now
+    );
+    if (pastPromisedDispatches.length > 0) {
+      alertsList.push(`⚠ ${pastPromisedDispatches.length} dispatches are past their promised date`);
+    }
+    const delayedInTransit = inTransitDispatches.filter(d => d.transitCondition === 'DELAYED');
+    if (delayedInTransit.length > 0) {
+      alertsList.push(`⚠ ${delayedInTransit.length} in-transit shipments are delayed`);
+    }
+    const waitingReadyOrders = filteredAllocations.filter(a => {
+      const waitTime = now.getTime() - new Date(a.createdAt).getTime();
+      return waitTime > 24 * 60 * 60 * 1000;
+    });
+    if (waitingReadyOrders.length > 0) {
+      alertsList.push(`⚠ ${waitingReadyOrders.length} ready orders have been waiting more than 24 hours`);
+    }
+    if (readyReplacementsCount > 0) {
+      alertsList.push(`⚠ ${readyReplacementsCount} replacements are awaiting dispatch`);
+    }
+    if (samplesOverdue > 0) {
+      alertsList.push(`⚠ ${samplesOverdue} sample delivery is overdue`);
+    }
+    if (pickupPending > 0) {
+      alertsList.push(`⚠ ${pickupPending} return pickups are pending`);
+    }
+
+    // 17. Logistics Vehicles Stats
+    const logistics = {
+      vehicles: Array.from(new Set(filteredDispatches.map(d => d.vehicleNumber).filter(Boolean))).map(vehicleNo => {
+        const vehicleDispatches = filteredDispatches.filter(d => d.vehicleNumber === vehicleNo);
+        const trips = vehicleDispatches.length;
+        const qty = vehicleDispatches.reduce((sum, d) => sum + d.items.reduce((s, i) => s + toNumber(i.quantity), 0), 0);
+        return {
+          vehicle: vehicleNo,
+          trips,
+          qty,
+          status: vehicleDispatches.some(d => ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(d.status)) ? 'ACTIVE' : 'IDLE'
+        };
+      }).slice(0, 50),
+      transporters: transporterPerformance
+    };
+
+    // 18. Filters options metadata
+    const filterOptions = {
+      branches: allBranches.map(b => ({ id: b.id, name: b.name })),
+      customers: allCustomers.map(c => ({ id: c.id, companyName: c.companyName })),
+      products: allProducts.map(p => ({ id: p.id, name: p.name })),
+      categories: [...new Set(allProducts.map(p => p.dispatchCategory || p.category).filter(Boolean))],
+      salespersons: salespeople.map(u => ({ id: u.id, name: u.name, email: u.email })),
+      statuses: ['DISPATCH_DRAFT', 'DISPATCH_APPROVED', 'READY_FOR_PICKUP', 'VEHICLE_ASSIGNED', 'LOADING_IN_PROGRESS', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'],
+      transporters: Array.from(new Set(allDbDispatches.map(d => d.transporterName).filter(Boolean)))
+    };
+
+    return {
+      flow,
+      transportCost: {
+        thisMonthTransportCost,
+        lastMonthTransportCost,
+        costChangePercent,
+        expectedTransportCost,
+        actualTransportCost,
+        varianceAmount
+      },
+      dailyDispatch: {
+        summary: dailySummary,
+        trends: dailyTrends
+      },
+      readyOrders: {
+        summary: {
+          ordersReady: readyOrdersCount,
+          fullyReady: readyOrdersSummary.filter(o => o.reservedQty >= o.orderedQty).length,
+          partiallyReady: readyOrdersSummary.filter(o => o.reservedQty < o.orderedQty).length,
+          urgent: readyOrdersSummary.filter(o => o.reservedQty < o.orderedQty).length, // simple representation
+          waitingMoreThan24Hrs: waitingReadyOrders.length
+        },
+        orders: readyOrdersSummary
+      },
+      remainingDispatch: {
+        summary: {
+          ordersWithBalance: remainingOrdersCount,
+          remainingQuantity: remainingUnitsQty,
+          criticalPendingOrders: remainingOrdersList.filter(o => o.age > 4).length,
+          pastTargetDate: countPastTargetDate,
+          partiallyDispatched: remainingOrdersList.filter(o => o.dispatchedQty > 0).length,
+          notDispatched: remainingOrdersList.filter(o => o.dispatchedQty === 0).length
+        },
+        aging: backlogAging,
+        orders: remainingOrdersList
+      },
+      delivery: {
+        summary: {
+          deliveredToday: deliveredDispatches.filter(d => new Date(d.deliveredAt!).toISOString().slice(0, 10) === now.toISOString().slice(0, 10)).length,
+          deliveredThisMonth: deliveredCount,
+          onTime: onTimeDeliveryCount,
+          late: delayedShipmentsCount,
+          onTimeDeliveryRate: onTimeDeliveryRate,
+          avgTransitTime,
+          fastestDelivery: finalFastestTransit,
+          longestDelivery: longestDeliveryDays,
+          delayedShipments: delayedShipmentsCount
+        },
+        trends: dailyTrends,
+        transporters: transporterPerformance
+      },
+      products: productsAnalytics,
+      customers: customersAnalytics,
+      salespersons: salespersonAnalytics,
+      categories,
+      samples: samplesData,
+      replacements: replacementsData,
+      returns: returnsData,
+      logistics,
+      inventoryReconciliation,
+      delays: {
+        summary: {
+          delayedOrders: countPastTargetDate,
+          pastTargetDate: countPastTargetDate,
+          vehicleDelay: currentPeriodDispatches.filter(d => d.transitCondition === 'DELAYED' || d.transitRemarks?.toLowerCase().includes('vehicle')).length,
+          productionDependency: waitingReadyOrders.length,
+          documentationDelay: currentPeriodDispatches.filter(d => d.transitRemarks?.toLowerCase().includes('doc') || d.transitRemarks?.toLowerCase().includes('checklist')).length,
+          customerHold: salesOrders.filter(so => so.customer.status === 'CREDIT_HOLD' || so.customer.creditStatus === 'HOLD').length
+        },
+        reasons: [
+          { reason: 'Past Target Date', count: countPastTargetDate },
+          { reason: 'Vehicle Delay', count: currentPeriodDispatches.filter(d => d.transitCondition === 'DELAYED' || d.transitRemarks?.toLowerCase().includes('vehicle')).length },
+          { reason: 'Production Dependency', count: waitingReadyOrders.length },
+          { reason: 'Documentation Delay', count: currentPeriodDispatches.filter(d => d.transitRemarks?.toLowerCase().includes('doc') || d.transitRemarks?.toLowerCase().includes('checklist')).length },
+          { reason: 'Customer Hold', count: salesOrders.filter(so => so.customer.status === 'CREDIT_HOLD' || so.customer.creditStatus === 'HOLD').length }
+        ],
+        aging: backlogAging
+      },
+      history: {
+        summary: {
+          totalDispatchesThisMonth: deliveredCount,
+          totalQuantity: deliveredQty,
+          customersServed: new Set(deliveredDispatches.map(d => d.salesOrder?.customerId)).size,
+          ordersCompleted: new Set(deliveredDispatches.map(d => d.salesOrderId)).size,
+          partialDispatchOrders: filteredDispatches.filter(d => d.items.length < d.salesOrder?.items?.length).length
+        },
+        trends: dailyTrends
+      },
+      performance: {
+        onTimeDispatchRate: percentage(currentPeriodDispatches.filter(d => d.status !== 'DISPATCH_DRAFT' && d.status !== 'DISPATCH_APPROVED').length, currentPeriodDispatches.length || 1),
+        onTimeDeliveryRate,
+        fullDispatchRate: percentage(filteredDispatches.filter(d => d.items.length === d.salesOrder?.items?.length).length, filteredDispatches.length || 1),
+        partialDispatchRate: percentage(filteredDispatches.filter(d => d.items.length < d.salesOrder?.items?.length).length, filteredDispatches.length || 1),
+        averageWaitingTime: backlogAging.averageWaitingDays * 24, // in hours
+        averageTransitTime: avgTransitTime,
+        replacementRate: percentage(replacementRequestsCount, deliveredCount || 1),
+        returnRate: percentage(returnRequests, deliveredCount || 1)
+      },
+      alerts: alertsList,
+      filters: filterOptions,
+      generatedAt: now.toISOString()
+    };
+  }
+
   private buildCentralizedReportCsv(report: any, selectedDepartment?: string) {
     const rows: string[] = ['Department,Metric,Value,Unit,Start Date,End Date'];
     const p = report.period;

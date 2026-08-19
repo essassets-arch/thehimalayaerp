@@ -1,0 +1,631 @@
+=== MODEL: SalesOrder ===
+model SalesOrder {
+  id                           String           @id @default(uuid())
+  orderNumber                  String           @unique
+  customerId                   String
+  nextReminder                 DateTime?
+  quotationId                  String?          @unique
+  sourceQuotationId            String?          @unique
+  quotation                    Quotation?       @relation("SalesOrderQuotation", fields: [quotationId], references: [id])
+  sourceQuotation              Quotation?       @relation("SalesOrderSourceQuotation", fields: [sourceQuotationId], references: [id])
+  customerPurchaseOrderNo      String?
+  customerPurchaseOrderDate    DateTime?
+  customerPurchaseOrderFileUrl String?
+  orderDate                    DateTime         @default(now())
+  requestedDeliveryDate        DateTime?
+  confirmedAt                  DateTime?
+  subtotal                     Decimal          @db.Decimal(18, 2)
+  discountAmount               Decimal          @default(0) @db.Decimal(18, 2)
+  taxableAmount                Decimal          @db.Decimal(18, 2)
+  taxAmount                    Decimal          @default(0) @db.Decimal(18, 2)
+  freightAmount                Decimal          @default(0) @db.Decimal(18, 2)
+  totalAmount                  Decimal          @db.Decimal(18, 2)
+  currency                     String           @default("INR")
+  paymentTermsDays             Int?
+  deliveryTerms                String?
+  billingAddress               Json?
+  shippingAddress              Json?
+  remarks                      String?
+  workflowStateId              String?
+  workflowState                WorkflowState?   @relation(fields: [workflowStateId], references: [id])
+  status                       SalesOrderStatus @default(DRAFT)
+  version                      Int              @default(1)
+  createdById                  String
+  updatedById                  String?
+  createdAt                    DateTime         @default(now())
+  updatedAt                    DateTime         @updatedAt
+  deletedAt                    DateTime?
+
+  // Relations — statuses are computed from child documents, not stored
+  customer            Customer                    @relation(fields: [customerId], references: [id])
+  items               SalesOrderItem[]
+  productionPlans     ProductionPlan[]
+  dispatches          Dispatch[]
+  invoices            SalesInvoice[]
+  returns             SalesReturn[]
+  replacementRequests ReplacementRequest[]
+  replacementOrders   ReplacementOrder[]
+  amendments          OrderAmendment[]
+  creditReviews       SalesOrderCreditReview[]
+  allocations         SalesOrderAllocation[]
+  histories           SalesOrderHistory[]
+  customerPayments    CustomerPayment[]
+  // Kept for backward-compat during migration; to be deprecated
+  paymentAllocations  CustomerPaymentAllocation[]
+  FinishedGoods       FinishedGoods[]
+
+  salesExecutiveId String?
+  salesExecutive   User?   @relation("SalesExecutiveOrders", fields: [salesExecutiveId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@index([salesExecutiveId])
+  @@index([workflowStateId])
+  @@index([createdAt])
+}
+
+=== MODEL: SalesOrderItem ===
+model SalesOrderItem {
+  id                      String                   @id @default(uuid())
+  salesOrderId            String
+  productId               String
+  productNameSnapshot     String
+  productCodeSnapshot     String?
+  specifications          Json?
+  orderedQuantity         Decimal                  @db.Decimal(18, 3)
+  unit                    String
+  unitPrice               Decimal                  @db.Decimal(18, 2)
+  discountAmount          Decimal                  @default(0) @db.Decimal(18, 2)
+  taxableAmount           Decimal                  @db.Decimal(18, 2)
+  taxRate                 Decimal                  @default(0) @db.Decimal(8, 3)
+  taxAmount               Decimal                  @default(0) @db.Decimal(18, 2)
+  lineTotal               Decimal                  @db.Decimal(18, 2)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  product                 Product                  @relation(fields: [productId], references: [id])
+  salesOrder              SalesOrder               @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  replacementRequestItems ReplacementRequestItem[]
+  dispatchItems           DispatchItem[]
+  invoiceItems            InvoiceItem[]
+  workOrders              WorkOrder[]
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+=== MODEL: SalesOrderAllocation ===
+model SalesOrderAllocation {
+  id                 String              @id @default(uuid())
+  salesOrderId       String
+  salesOrderItemId   String
+  allocationType     SalesAllocationType
+  requiredQuantity   Decimal             @db.Decimal(18, 3)
+  reservedQuantity   Decimal             @default(0) @db.Decimal(18, 3)
+  productionQuantity Decimal             @default(0) @db.Decimal(18, 3)
+  workOrderId        String?
+  inventoryBatchId   String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  salesOrder         SalesOrder          @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  @@index([salesOrderId])
+  @@index([salesOrderItemId])
+}
+
+=== MODEL: Dispatch ===
+model Dispatch {
+  id           String         @id @default(uuid())
+  dispatchNo   String         @unique
+  salesOrderId     String
+  dispatchCategory String?
+  status           DispatchStatus @default(DISPATCH_DRAFT)
+  isSubmitted  Boolean        @default(false)
+
+  // Delivery info
+  deliveryAddress     String?
+  specialInstructions String?
+
+  // Packages
+  packageCount Int?
+  packageType  String? // e.g. Box, Pallet, Bag
+  totalWeight  Decimal? @db.Decimal(18, 3)
+
+  // Transport / Vehicle
+  transporterName String?
+  vehicleNumber   String?
+  vehicleType     String?
+  driverName      String?
+  driverPhone     String?
+  driverLicence   String?
+  lrNumber        String? // LR / Consignment Number
+  freightType     String? // e.g. Paid, To Pay, contract
+  freightAmount   Decimal? @db.Decimal(18, 2)
+  trackingRef     String? // GPS / tracking reference
+
+  // 3. Approval details
+  approvedAt       DateTime?
+  approvedById     String?
+  rejectionRemarks String?
+
+  // 4. Ready for Pickup
+  readyAt           DateTime?
+  readyById         String?
+  dispatchLocation  String?
+  documentChecklist Json? // checklist state e.g. { packed: true, labels: true, invoice: true }
+
+=== MODEL: DispatchItem ===
+model DispatchItem {
+  id               String         @id @default(uuid())
+  dispatchId       String
+  salesOrderItemId String
+  quantity         Decimal        @db.Decimal(18, 3)
+  createdAt        DateTime       @default(now())
+  dispatch         Dispatch       @relation(fields: [dispatchId], references: [id])
+  salesOrderItem   SalesOrderItem @relation(fields: [salesOrderItemId], references: [id])
+
+  @@unique([dispatchId, salesOrderItemId])
+}
+
+=== MODEL: SampleRequest ===
+model SampleRequest {
+  id           String @id @default(uuid())
+  sampleNumber String @unique
+  companyId    String
+  nextReminder DateTime?
+
+  leadId     String?
+  customerId String?
+
+  status SampleStatus @default(CREATED)
+
+  requestedDate        DateTime  @default(now())
+  expectedDeliveryDate DateTime?
+  testingDeadline      DateTime?
+  returnDeadline       DateTime?
+
+  dispatchDate      DateTime?
+  deliveredAt       DateTime?
+  returnRequestedAt DateTime?
+  returnedAt        DateTime?
+  proofOfDelivery   String? // base64 or URL
+
+  transportMode String?
+  vehicleNo     String?
+  driverName    String?
+  driverPhone   String?
+  lrNo          String?
+  transportCost Decimal? @db.Decimal(14, 2)
+
+  customerFeedback String?
+  sampleResult     String?
+
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  lead     Lead?     @relation(fields: [leadId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  salesExecutiveId String?
+  salesExecutive   User?   @relation("SalesExecutiveSamples", fields: [salesExecutiveId], references: [id])
+
+  items     SampleItem[]
+  histories SampleHistory[]
+
+  @@index([companyId, salesExecutiveId])
+}
+
+=== MODEL: SampleItem ===
+model SampleItem {
+  id              String @id @default(uuid())
+  sampleRequestId String
+  productId       String
+
+  quantity       Decimal @db.Decimal(18, 3)
+  specifications String?
+
+  version   Int       @default(1)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sampleRequest SampleRequest @relation(fields: [sampleRequestId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+}
+
+=== MODEL: SampleHistory ===
+model SampleHistory {
+  id              String   @id @default(uuid())
+  sampleRequestId String
+  action          String
+  details         Json?
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  sampleRequest SampleRequest @relation(fields: [sampleRequestId], references: [id], onDelete: Cascade)
+}
+
+=== MODEL: ReplacementRequest ===
+model ReplacementRequest {
+  id               String                   @id @default(uuid())
+  requestNumber    String                   @unique
+  complaintId      String?                  @unique
+  salesOrderId     String
+  returnId         String?
+  workflowStateId  String?
+  workflowState    WorkflowState?           @relation(fields: [workflowStateId], references: [id])
+  reasonCode       ReplacementReasonCode
+  status           ReplacementRequestStatus @default(REQUESTED)
+  dispatchStatus   ReplacementOrderStatus?
+  dispatchDetails  Json?
+  deliveryProof    Json?
+  completedAt      DateTime?
+  customerRemarks  String?
+  internalRemarks  String?
+  evidence         Json?
+  requestedById    String
+  reviewedById     String?
+  approvedById     String?
+  requestedAt      DateTime                 @default(now())
+  reviewedAt       DateTime?
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  salesOrder       SalesOrder               @relation(fields: [salesOrderId], references: [id])
+  replacementOrder ReplacementOrder?
+  items            ReplacementRequestItem[]
+
+  @@index([salesOrderId])
+  @@index([workflowStateId])
+}
+
+=== MODEL: ReplacementRequestItem ===
+model ReplacementRequestItem {
+  id                   String             @id @default(uuid())
+  replacementRequestId String
+  salesOrderItemId     String
+  productId            String
+  requestedQuantity    Decimal            @db.Decimal(18, 3)
+  reason               String
+  evidence             Json?
+  createdAt            DateTime           @default(now())
+  product              Product            @relation(fields: [productId], references: [id])
+  salesOrderItem       SalesOrderItem     @relation(fields: [salesOrderItemId], references: [id])
+  replacementRequest   ReplacementRequest @relation(fields: [replacementRequestId], references: [id], onDelete: Cascade)
+}
+
+=== MODEL: SalesReturn ===
+model SalesReturn {
+  id              String               @id @default(uuid())
+  returnNumber    String               @unique
+  rmaNumber       String               @unique
+  salesOrderId    String
+  complaintId     String?              @unique
+  reasonCode      ReturnReasonCode
+  customerRemarks String?
+  internalRemarks String?
+  pickupRequired  Boolean              @default(true)
+  pickupAddress   Json?
+  resolutionType  ReturnResolutionType
+  status          ReturnStatus         @default(REQUESTED)
+  dispatchDetails Json?
+  deliveryProof   Json?
+  workflowStateId String?
+  workflowState   WorkflowState?       @relation(fields: [workflowStateId], references: [id])
+  requestedById   String
+  reviewedById    String?
+  approvedById    String?
+  requestedAt     DateTime             @default(now())
+  reviewedAt      DateTime?
+  approvedAt      DateTime?
+  receivedAt      DateTime?
+  closedAt        DateTime?
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt       DateTime             @updatedAt
+  creditNotes     CreditNote[]
+  gateEntries     ReturnGateEntry[]
+  inspections     ReturnQcInspection[]
+  salesOrder      SalesOrder           @relation(fields: [salesOrderId], references: [id])
+  items           SalesReturnItem[]
+
+  @@index([salesOrderId])
+  @@index([workflowStateId])
+}
+
+=== MODEL: SalesReturnItem ===
+model SalesReturnItem {
+  id                    String      @id @default(uuid())
+  salesReturnId         String
+  salesOrderItemId      String
+  productId             String
+  deliveredQuantity     Decimal     @db.Decimal(18, 3)
+  previouslyReturnedQty Decimal     @default(0) @db.Decimal(18, 3)
+  requestedQuantity     Decimal     @db.Decimal(18, 3)
+  approvedQuantity      Decimal     @default(0) @db.Decimal(18, 3)
+  receivedQuantity      Decimal     @default(0) @db.Decimal(18, 3)
+  goodQuantity          Decimal     @default(0) @db.Decimal(18, 3)
+  defectiveQuantity     Decimal     @default(0) @db.Decimal(18, 3)
+  scrapQuantity         Decimal     @default(0) @db.Decimal(18, 3)
+  reworkQuantity        Decimal     @default(0) @db.Decimal(18, 3)
+  conditionReported     String?
+  reason                String
+  evidence              Json?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  product               Product     @relation(fields: [productId], references: [id])
+  salesReturn           SalesReturn @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
+
+  @@index([salesReturnId])
+  @@index([salesOrderItemId])
+}
+
+=== MODEL: FinishedGoods ===
+model FinishedGoods {
+  id                String   @id @default(uuid())
+  workOrderId       String   @unique
+  productId         String
+  salesOrderId      String?
+  quantity          Decimal
+  availableQuantity Decimal
+  unit              String
+  status            String
+  receivedAt        DateTime @default(now())
+  receivedById      String?
+
+  workOrder  WorkOrder   @relation(fields: [workOrderId], references: [id])
+  product    Product     @relation(fields: [productId], references: [id])
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
+}
+
+=== MODEL: StockHistory ===
+model StockHistory {
+  id               String            @id @default(uuid())
+  companyId        String
+  productId        String
+  quantity         Decimal           @db.Decimal(18, 3)
+  salesOrderId     String?
+  salesOrderItemId String?
+  allocationId     String?
+  dispatchId       String?
+  event            StockHistoryEvent
+  actor            String?
+  createdAt        DateTime          @default(now())
+
+  @@index([companyId, productId, createdAt])
+  @@index([salesOrderId])
+  @@index([allocationId])
+  @@index([dispatchId])
+}
+
+=== MODEL: Product ===
+model Product {
+  id                          String                       @id @default(uuid())
+  publicId                    String                       @unique
+  companyId                   String
+  name                        String
+  sku                         String?
+  description                 String?
+  category                    String?
+  productType                 String?                      @default("MANUFACTURING")
+  brand                       String?
+  dispatchCategory            String?
+  gstRate                     Decimal?                     @db.Decimal(5, 2)
+  hsnCode                     String?
+  variantDetails              String?
+  weight                      Decimal?                     @db.Decimal(10, 3)
+  imageUrl                    String?
+  unit                        String
+  unitPrice                   Decimal                      @db.Decimal(14, 2)
+  minimumStock                Decimal                      @default(0) @db.Decimal(14, 2)
+  reorderQuantity             Decimal?                     @db.Decimal(14, 2)
+  reorderUnit                 String?
+  leadTimeDays                Int?
+  preferredVendorId           String?
+  isAutoReorderEnabled        Boolean                      @default(false)
+  isActive                    Boolean                      @default(true)
+  version                     Int                          @default(1)
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  inventoryTransactions       InventoryTransaction[]
+  materialRequestItems        MaterialRequestItem[]
+  company                     Company                      @relation(fields: [companyId], references: [id])
+  purchaseIndentItems         PurchaseIndentItem[]
+  salesOrderItems             SalesOrderItem[]
+  quotationItems              QuotationItem[]
+  salesReturnItems            SalesReturnItem[]
+  replacementRequestItems     ReplacementRequestItem[]
+  replacementOrderItems       ReplacementOrderItem[]
+  SampleItem                  SampleItem[]
+  PurchaseOrderItem           PurchaseOrderItem[]
+  GoodsReceiptNoteItem        GoodsReceiptNoteItem[]
+  complaints                  CustomerComplaint[]
+  VendorReturnItem            VendorReturnItem[]
+  VendorInvoiceItem           VendorInvoiceItem[]
+  preferredVendor             Supplier?                    @relation("PreferredVendor", fields: [preferredVendorId], references: [id], onDelete: SetNull)
+  deliveryItems               ProcurementDeliveryItem[]
+  materialRejectionItems      MaterialRejectionItem[]
+  procurementReplacementItems ProcurementReplacementItem[]
+  productSuppliers            ProductSupplier[]
+  FinishedGoods               FinishedGoods[]
+
+  size                        String?
+  type                        String?
+  capacity                    String?
+  coverUnitWeight             Decimal?                     @db.Decimal(10, 3)
+  frameUnitWeight             Decimal?                     @db.Decimal(10, 3)
+  coversPerSet                Int?                         @default(1)
+  framesPerSet                Int?                         @default(1)
+  dailyReportItems            ProductionDailyReportItem[]
+
+  @@index([companyId, minimumStock])
+  @@index([preferredVendorId])
+}
+
+=== MODEL: Customer ===
+model Customer {
+  id              String              @id @default(uuid())
+  customerCode    String              @unique @default(uuid())
+  companyId       String
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdById     String?
+  updatedById     String?
+  deletedAt       DateTime?
+  alternatePhone  String?
+  billingAddress  Json?
+  branchId        String?
+  companyName     String
+  contactPerson   String?
+  creditLimit     Decimal?            @db.Decimal(14, 2)
+  creditDays      Int?
+  email           String?
+  gstin           String?
+  status          CustomerStatus      @default(ACTIVE)
+  notes           String?
+  pan             String?
+  paymentTerms    Int?
+  creditStatus    String              @default("GOOD") // GOOD, HOLD, BLOCKED
+  phone           String?
+  shippingAddress Json?
+  branch          Branch?             @relation(fields: [branchId], references: [id])
+  company         Company             @relation(fields: [companyId], references: [id])
+  salesOrders     SalesOrder[]
+  sampleRequests  SampleRequest[]
+  payments        CustomerPayment[]
+  ledgers         CustomerLedger[]
+  complaints      CustomerComplaint[]
+
+  @@unique([companyId, gstin])
+  @@index([companyId, status])
+  @@index([companyId, companyName])
+  @@index([companyId, email])
+  @@index([companyId, phone])
+  @@index([companyId, gstin])
+}
+
+=== MODEL: Employee ===
+model Employee {
+  id                     String                             @id @default(uuid())
+  publicId               String                             @unique
+  companyId              String
+  userId                 String?                            @unique
+  employeeCode           String                             @unique
+  firstName              String
+  lastName               String
+  fullName               String
+  dateOfBirth            DateTime
+  gender                 Gender
+  jobTitle               String
+  departmentId           String
+  reportingManagerId     String?
+  workLocationId         String
+  employmentType         EmploymentType
+  joiningDate            DateTime
+  probationEndDate       DateTime?
+  status                 EmployeeStatus                     @default(ACTIVE)
+  workEmail              String                             @unique
+  personalEmail          String?
+  phoneNumber            String
+  residentialAddress     String
+  emergencyContactName   String
+  emergencyContactPhone  String
+  emergencyRelationship  String
+  panNumber              String                             @unique
+  aadhaarNumberEncrypted String
+  aadhaarLastFour        String
+  aadhaarHash            String                             @unique
+  uanNumber              String?
+  esicNumber             String?
+  bankName               String
+  accountHolderName      String
+  bankAccountType        BankAccountType
+  bankAccountEncrypted   String
+  bankAccountLastFour    String
+  bankAccountHash        String
+  ifscCode               String
+  branchName             String?
+  baseSalary             Decimal                            @default(0) @db.Decimal(14, 2)
+  version                Int                                @default(1)
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
+  createdById            String?
+  updatedById            String?
+  company                Company                            @relation(fields: [companyId], references: [id])
+  user                   User?                              @relation(fields: [userId], references: [id])
+  department             Department                         @relation(fields: [departmentId], references: [id])
+  workLocation           WorkLocation                       @relation(fields: [workLocationId], references: [id])
+  reportingManager       Employee?                          @relation("EmployeeReportingManager", fields: [reportingManagerId], references: [id])
+  directReports          Employee[]                         @relation("EmployeeReportingManager")
+  documents              EmployeeDocument[]
+  salarySlips            SalarySlip[]
+  salaryStructures       EmployeeSalaryStructure[]
+  attendanceSummaries    EmployeeMonthlyAttendanceSummary[]
+  payrollRecords         PayrollRecord[]
+  completedDraft         EmployeeDraft?                     @relation("CompletedEmployeeDraft")
+  leaveRequests          LeaveRequest[]
+  manualAttendanceRequests ManualAttendanceRequest[]
+  attendances            Attendance[]
+
+  @@index([companyId, status])
+  @@index([departmentId])
+  @@index([workLocationId])
+  @@index([reportingManagerId])
+  @@index([fullName])
+  @@index([phoneNumber])
+}
+
+=== MODEL: User ===
+model User {
+  id                            String                 @id @default(uuid())
+  publicId                      String                 @unique
+  email                         String                 @unique
+  password                      String
+  name                          String
+  roleId                        String
+  companyId                     String
+  dispatchCategory              String?
+  isActive                      Boolean                @default(true)
+  failedLoginAttempts           Int                    @default(0)
+  lockedUntil                   DateTime?
+  version                       Int                    @default(1)
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @updatedAt
+  createdById                   String?
+  updatedById                   String?
+  deletedAt                     DateTime?
+  employee                      Employee?
+  materialRequests              MaterialRequest[]
+  purchaseIndents               PurchaseIndent[]
+  assignedProductionPlans       ProductionPlan[]       @relation("ProductionPlanAssignee")
+  refreshSessions               RefreshSession[]
+  elevationSessions             ElevationSession[]
+  company                       Company                @relation(fields: [companyId], references: [id])
+  role                          Role                   @relation(fields: [roleId], references: [id])
+  brandAnalysisRequested        BrandAnalysisRequest[] @relation("BrandAnalysisRequestedBy")
+  brandAnalysisApproved         BrandAnalysisRequest[] @relation("BrandAnalysisApprovedBy")
+  brandAnalysisRejected         BrandAnalysisRequest[] @relation("BrandAnalysisRejectedBy")
+  brandAnalysisFinanceStarted   BrandAnalysisRequest[] @relation("BrandAnalysisFinanceStartedBy")
+  brandAnalysisFinanceCompleted BrandAnalysisRequest[] @relation("BrandAnalysisFinanceCompletedBy")
+  brandAnalysisHistoryPerformed BrandAnalysisHistory[] @relation("BrandAnalysisHistoryPerformedBy")
+  salesTargets                  SalesTarget[]
+  machineStatusUpdates          MachineDailyStatus[]   @relation("UserMachineStatusUpdates")
+  salesExecutiveLeads           Lead[]                 @relation("SalesExecutiveLeads")
+  salesExecutiveQuotations      Quotation[]            @relation("SalesExecutiveQuotations")
+  customerComplaints            CustomerComplaint[]    @relation("CustomerComplaintSalesExecutive")
+  salesExecutiveOrders          SalesOrder[]           @relation("SalesExecutiveOrders")
+  salesExecutiveSamples         SampleRequest[]        @relation("SalesExecutiveSamples")
+  dailyReportsCreated           ProductionDailyReport[] @relation("DailyReportCreatedBy")
+  dailyReportsApproved          ProductionDailyReport[] @relation("DailyReportApprovedBy")
+  notifications                 Notification[]
+  fcmDeviceTokens               FcmDeviceToken[]
+  attendances                   Attendance[]
+  deviceSessions                DeviceSession[]
+  latestUserLocations           LatestUserLocation[]
+  userLocationHistories         UserLocationHistory[]
+}
+
