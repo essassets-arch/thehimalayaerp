@@ -2994,9 +2994,9 @@ export default function SuperAdminPortal() {
                     ))}
                   </div>
                 </div>
-                <div style={{ height: '260px', width: '100%', minHeight: 0 }}>
+                <div className="responsive-chart-container" style={{ '--default-chart-height': '260px', height: 'var(--chart-height, var(--default-chart-height))', width: '100%', minHeight: 0 }}>
                   {isMounted && (
-                    <ResponsiveContainer width="100%" height={260} minWidth={0}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <LineChart data={currentData.revenue} margin={{ top: 10, right: 15, left: 15, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(15, 23, 42, 0.05)" />
                         <XAxis dataKey="name" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} />
@@ -3029,9 +3029,9 @@ export default function SuperAdminPortal() {
                       </div>
                       <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Index base 100</span>
                     </div>
-                    <div style={{ height: '260px', width: '100%', minHeight: 0 }}>
+                    <div className="responsive-chart-container" style={{ '--default-chart-height': '260px', height: 'var(--chart-height, var(--default-chart-height))', width: '100%', minHeight: 0 }}>
                       {isMounted && (
-                        <ResponsiveContainer width="100%" height={260} minWidth={0}>
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                           <BarChart data={barChartData} margin={{ top: 10, right: 15, left: 15, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(15, 23, 42, 0.05)" />
                             <XAxis dataKey="dept" tick={{ fill: '#8893A7', fontSize: 11 }} />

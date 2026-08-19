@@ -13,39 +13,63 @@ import './DispatchAnalyticsPage.css';
 const CHART_COLORS = ["#0284C7", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B"];
 const REASON_COLORS = ["#EF4444", "#F59E0B", "#10B981", "#8B5CF6", "#EC4899", "#64748B"];
 
-function ResponsiveChart({ height, children }) {
+function ResponsiveChart({ height: defaultHeight, children }) {
   const ref = useRef(null);
-  const [width, setWidth] = useState(0);
+  const [dimensions, setDimensions] = useState({ width: 0, height: defaultHeight });
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     if (!ref.current) return;
     
-    const initialWidth = ref.current.getBoundingClientRect().width || ref.current.offsetWidth;
-    if (initialWidth > 0) {
-      setWidth(initialWidth);
-    }
+    const updateSize = () => {
+      if (ref.current) {
+        const rect = ref.current.getBoundingClientRect();
+        if (rect.width > 0) {
+          setDimensions({
+            width: Math.floor(rect.width),
+            height: rect.height > 0 ? Math.floor(rect.height) : defaultHeight
+          });
+        }
+      }
+    };
+    updateSize();
 
     const observer = new ResizeObserver((entries) => {
       if (!entries || entries.length === 0) return;
-      const { width: newWidth } = entries[0].contentRect;
+      const { width: newWidth, height: newHeight } = entries[0].contentRect;
+      let measuredHeight = newHeight;
+      if (measuredHeight === 0 && ref.current) {
+        measuredHeight = ref.current.getBoundingClientRect().height;
+      }
       if (newWidth > 0) {
-        setWidth(newWidth);
+        setDimensions({
+          width: Math.floor(newWidth),
+          height: measuredHeight > 0 ? Math.floor(measuredHeight) : defaultHeight
+        });
       }
     });
 
     observer.observe(ref.current);
     return () => observer.disconnect();
-  }, []);
+  }, [defaultHeight]);
 
   if (!mounted) {
-    return <div style={{ height: `${height}px`, width: '100%' }} />;
+    return <div className="responsive-chart-container" style={{ height: `${defaultHeight}px`, width: '100%', position: 'relative' }} />;
   }
 
   return (
-    <div ref={ref} style={{ width: '100%', height: `${height}px`, position: 'relative' }}>
-      {width > 0 && cloneElement(children, { width, height })}
+    <div 
+      ref={ref} 
+      className="responsive-chart-container" 
+      style={{ 
+        width: '100%', 
+        '--default-chart-height': `${defaultHeight}px`,
+        height: 'var(--chart-height, var(--default-chart-height))',
+        position: 'relative' 
+      }}
+    >
+      {dimensions.width > 0 && cloneElement(children, { width: dimensions.width, height: dimensions.height })}
     </div>
   );
 }

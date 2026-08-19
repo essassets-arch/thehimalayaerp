@@ -12,7 +12,6 @@ import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from './SuperAdminAnalyticsFilter';
 import "./dashboard.css";
 
-// Dynamic Responsive Wrapper to bypass Recharts ResponsiveContainer 0px measurement bug
 const ResponsiveWrapper = ({ height = 300, children }) => {
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height });
@@ -23,7 +22,10 @@ const ResponsiveWrapper = ({ height = 300, children }) => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
         if (rect.width > 0) {
-          setDimensions({ width: Math.floor(rect.width), height });
+          setDimensions({ 
+            width: Math.floor(rect.width), 
+            height: rect.height > 0 ? Math.floor(rect.height) : height 
+          });
         }
       }
     };
@@ -34,8 +36,18 @@ const ResponsiveWrapper = ({ height = 300, children }) => {
   }, [height]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height, minHeight: height, minWidth: 0, overflow: 'hidden' }}>
-      {children(dimensions.width > 0 ? dimensions.width : 600, height)}
+    <div 
+      ref={containerRef} 
+      className="responsive-chart-container"
+      style={{ 
+        width: '100%', 
+        '--default-chart-height': `${height}px`,
+        height: 'var(--chart-height, var(--default-chart-height))',
+        minWidth: 0, 
+        overflow: 'hidden' 
+      }}
+    >
+      {children(dimensions.width > 0 ? dimensions.width : 600, dimensions.height)}
     </div>
   );
 };
@@ -369,10 +381,12 @@ export default function DashboardView({
         </div>
       </header>
 
-      {/* Shared Analytics Filter Bar */}
       <SuperAdminAnalyticsFilter
         title="Business Command Filter Control"
         showBranch={true}
+        filterOptions={{
+          branches: backendStats?.branches || []
+        }}
       />
 
       {/* 2. Financial Command Center (Financial Command Summary) */}
@@ -618,7 +632,7 @@ export default function DashboardView({
             </div>
           </div>
 
-          <div className="pnl-chart-container" style={{ width: '100%', minWidth: 0, height: '320px', minHeight: '280px' }}>
+          <div className="pnl-chart-container" style={{ width: '100%', minWidth: 0, '--default-chart-height': '320px', height: 'var(--chart-height, var(--default-chart-height))' }}>
             {mounted && (
               <ResponsiveWrapper height={320}>
                 {(w, h) => (

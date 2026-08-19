@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, cloneElement } from 'react';
 import { 
   Database, RefreshCw, FileSpreadsheet, Download, Search, AlertCircle, 
   Activity, Layers, TrendingUp, TrendingDown, ArrowUpDown, ChevronLeft, 
@@ -8,6 +8,67 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
   BarChart, Bar, PieChart, Pie, Cell, Legend 
 } from 'recharts';
+
+function ResponsiveChart({ height: defaultHeight, children }) {
+  const ref = useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: defaultHeight });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (!ref.current) return;
+    
+    const updateSize = () => {
+      if (ref.current) {
+        const rect = ref.current.getBoundingClientRect();
+        if (rect.width > 0) {
+          setDimensions({
+            width: Math.floor(rect.width),
+            height: rect.height > 0 ? Math.floor(rect.height) : defaultHeight
+          });
+        }
+      }
+    };
+    updateSize();
+
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const { width: newWidth, height: newHeight } = entries[0].contentRect;
+      let measuredHeight = newHeight;
+      if (measuredHeight === 0 && ref.current) {
+        measuredHeight = ref.current.getBoundingClientRect().height;
+      }
+      if (newWidth > 0) {
+        setDimensions({
+          width: Math.floor(newWidth),
+          height: measuredHeight > 0 ? Math.floor(measuredHeight) : defaultHeight
+        });
+      }
+    });
+
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [defaultHeight]);
+
+  if (!mounted) {
+    return <div className="responsive-chart-container" style={{ height: `${defaultHeight}px`, width: '100%', position: 'relative' }} />;
+  }
+
+  return (
+    <div 
+      ref={ref} 
+      className="responsive-chart-container" 
+      style={{ 
+        width: '100%', 
+        '--default-chart-height': `${defaultHeight}px`,
+        height: 'var(--chart-height, var(--default-chart-height))',
+        position: 'relative' 
+      }}
+    >
+      {dimensions.width > 0 && cloneElement(children, { width: dimensions.width, height: dimensions.height })}
+    </div>
+  );
+}
 
 import { backendFetch } from '../../../lib/backendFetch';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
@@ -196,9 +257,9 @@ const InventoryAnalyticsContent = () => {
             <Activity size={16} color="#0284c7" /> Inventory Health Index
           </h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center' }}>
-            <div className="inv-chart-frame" style={{ flex: '1 1 220px', height: '220px' }}>
+            <div className="inv-chart-frame" style={{ flex: '1 1 220px', '--default-chart-height': '220px', height: 'var(--chart-height, var(--default-chart-height))' }}>
               {mounted && healthPieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveChart height={220}>
                   <PieChart>
                     <Pie data={healthPieData} cx="50%" cy="50%" innerRadius="35%" outerRadius="60%" paddingAngle={4} dataKey="value" nameKey="name">
                       {healthPieData.map((entry, index) => (
@@ -208,7 +269,7 @@ const InventoryAnalyticsContent = () => {
                     <Tooltip />
                     <Legend wrapperStyle={{ fontSize: '11px' }} />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveChart>
               ) : (
                 <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
                   No inventory health items to display.
@@ -311,14 +372,14 @@ const InventoryAnalyticsContent = () => {
           <h3 className="inv-section-title">
             <Activity size={16} color="#4f46e5" /> Stock Movement Trend
           </h3>
-          <div className="inv-chart-frame">
+          <div className="inv-chart-frame" style={{ '--default-chart-height': '260px' }}>
             {movementTrend.length === 0 ? (
               <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
                 No stock movement transactions logged for the selected period.
               </div>
             ) : (
               mounted && (
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveChart height={260}>
                   <AreaChart data={movementTrend}>
                     <defs>
                       <linearGradient id="colorStockIn" x1="0" y1="0" x2="0" y2="1">
@@ -333,7 +394,7 @@ const InventoryAnalyticsContent = () => {
                     <Area type="monotone" dataKey="stockIn" name="Stock In" stroke="#10b981" fillOpacity={1} fill="url(#colorStockIn)" />
                     <Area type="monotone" dataKey="stockOut" name="Stock Out" stroke="#ef4444" fillOpacity={0} />
                   </AreaChart>
-                </ResponsiveContainer>
+                </ResponsiveChart>
               )
             )}
           </div>

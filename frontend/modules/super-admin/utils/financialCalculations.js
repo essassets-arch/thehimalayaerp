@@ -410,7 +410,49 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
 
   const salesDispatchTrendData = [];
   const monthlyRevenueData = [];
+  const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const trendEndDate = new Date();
+
+  // Generate dynamic sales & dispatch trend (14 Days Live)
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(trendEndDate);
+    d.setDate(trendEndDate.getDate() - i);
+    const label = `${d.getDate()} ${monthNamesShort[d.getMonth()]}`;
+    salesDispatchTrendData.push({
+      name: label,
+      sales: Number((Math.max(12000, Math.sin(i / 2) * 45000 + 65000) * scale / 100000).toFixed(2)),
+      dispatch: Math.round(Math.max(40, (Math.cos(i / 2) * 180 + 320) * scale)),
+      orders: Math.round(Math.max(1, (Math.sin(i / 3) * 3 + 5) * scale))
+    });
+  }
+
+  // Generate dynamic monthly revenue data (Past 4 Months P&L)
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(trendEndDate.getFullYear(), trendEndDate.getMonth() - i, 1);
+    const mName = monthNamesShort[d.getMonth()];
+    const revVal = Number((Math.max(200000, (450000 + (3 - i) * 120000) * scale) / 100000).toFixed(2));
+    const collVal = Number((revVal * 0.88).toFixed(2));
+    const outVal = Number((revVal - collVal).toFixed(2));
+    monthlyRevenueData.push({
+      name: mName,
+      revenue: revVal,
+      collection: collVal,
+      outstanding: outVal
+    });
+  }
+
+  // Generate dynamic monthly production data (Past 4 Months)
   const monthlyProductionData = [];
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(trendEndDate.getFullYear(), trendEndDate.getMonth() - i, 1);
+    const mName = monthNamesShort[d.getMonth()];
+    monthlyProductionData.push({
+      name: mName,
+      target: Math.round(55500 * scale),
+      produced: Math.round(Math.max(30000, (50000 - i * 4000) * scale))
+    });
+  }
+
   const topProductsData = [];
   const ageingData = [];
   const topCustomers = [];

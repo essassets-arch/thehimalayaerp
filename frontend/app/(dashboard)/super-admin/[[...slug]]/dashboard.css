@@ -980,3 +980,119 @@
     height: 240px;
   }
 }
+
+/* ── ULTRA LARGE AND 4K SCREEN RESPONSIVENESS OVERRIDES ── */
+
+:root {
+  --chart-font-size: 11px;
+}
+
+.responsive-chart-container,
+.pnl-chart-container,
+.inv-chart-frame {
+  width: 100%;
+  position: relative;
+  height: var(--chart-height, var(--default-chart-height, 300px)) !important;
+  min-height: 0;
+}
+
+/* Scaled font size for chart elements */
+.recharts-cartesian-axis-tick text {
+  font-size: var(--chart-font-size, 11px) !important;
+}
+.recharts-legend-item-text {
+  font-size: var(--chart-font-size, 12px) !important;
+}
+.recharts-label {
+  font-size: var(--chart-font-size, 12px) !important;
+}
+.recharts-tooltip-label, 
+.recharts-tooltip-item, 
+.recharts-tooltip-item-name, 
+.recharts-tooltip-item-value {
+  font-size: var(--chart-font-size, 12px) !important;
+}
+
+/* Medium-Large screens (1080p high width, up to QHD) */
+@media (min-width: 1600px) {
+  :root {
+    --chart-font-size: 13px;
+  }
+  .responsive-chart-container,
+  .pnl-chart-container,
+  .inv-chart-frame {
+    --chart-height: calc(var(--default-chart-height, 300px) * 1.35) !important;
+  }
+}
+
+/* QHD and 4K displays */
+@media (min-width: 2500px) {
+  :root {
+    --chart-font-size: 16px;
+  }
+  .responsive-chart-container,
+  .pnl-chart-container,
+  .inv-chart-frame {
+    --chart-height: calc(var(--default-chart-height, 300px) * 1.8) !important;
+  }
+  
+  /* Make grid spacing slightly larger for premium 4K feel */
+  .super-dashboard {
+    padding: 40px !important;
+    --dashboard-gap: 24px !important;
+  }
+  .dashboard-header {
+    min-height: 100px !important;
+    padding: 24px 30px !important;
+    margin-bottom: 32px !important;
+  }
+  .dashboard-heading h1 {
+    font-size: 38px !important;
+  }
+  .kpi-card {
+    min-height: 160px !important;
+    padding: 20px 24px !important;
+  }
+  .kpi-value {
+    font-size: 38px !important;
+  }
+  .kpi-label {
+    font-size: 14px !important;
+  }
+  .kpi-description {
+    font-size: 14px !important;
+  }
+}
+
+/* Ultra-large screens / full-resolution 4K and above */
+@media (min-width: 3200px) {
+  :root {
+    --chart-font-size: 20px;
+  }
+  .responsive-chart-container,
+  .pnl-chart-container,
+  .inv-chart-frame {
+    --chart-height: calc(var(--default-chart-height, 300px) * 2.3) !important;
+  }
+  .super-dashboard {
+    padding: 50px !important;
+    --dashboard-gap: 32px !important;
+  }
+  .dashboard-heading h1 {
+    font-size: 44px !important;
+  }
+  .kpi-card {
+    min-height: 200px !important;
+    padding: 24px 30px !important;
+  }
+  .kpi-value {
+    font-size: 46px !important;
+  }
+  .kpi-label {
+    font-size: 16px !important;
+  }
+  .kpi-description {
+    font-size: 16px !important;
+  }
+}
+
