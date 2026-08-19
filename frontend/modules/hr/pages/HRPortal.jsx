@@ -307,6 +307,8 @@ export default function HRPortal() {
         location: p.punchInLocation || '—',
         coords: p.coords,
         selfieUrl: p.selfieUrl,
+        punchInSelfieUrl: p.punchInSelfieUrl,
+        punchOutSelfieUrl: p.punchOutSelfieUrl,
         status: p.status,
         timestamp: p.timestamp,
         isRealPunch: true
@@ -711,8 +713,11 @@ export default function HRPortal() {
         if (isCheckIn) {
           grouped[key].punchIn = timeStr;
           if (log.selfieUrl) grouped[key].selfieUrl = log.selfieUrl;
+          if (log.punchInSelfieUrl) grouped[key].punchInSelfieUrl = log.punchInSelfieUrl;
         } else {
           grouped[key].punchOut = timeStr;
+          if (log.selfieUrl) grouped[key].selfieUrl = log.selfieUrl;
+          if (log.punchOutSelfieUrl) grouped[key].punchOutSelfieUrl = log.punchOutSelfieUrl;
           if (log.isRealPunch) {
             grouped[key].status = log.status;
           } else if (calculatedStatus && calculatedStatus !== 'On Time' && calculatedStatus !== 'GPS Verified' && calculatedStatus !== '—') {
@@ -1184,15 +1189,41 @@ export default function HRPortal() {
               </div>
 
               {/* Photo preview monitor box */}
-              <div style={{ flex: 1, minHeight: '220px', background: '#0B0F19', borderRadius: '12px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '2px solid #1E293B' }}>
-                {activePreview?.selfieUrl ? (
-                  <img src={getBackendAssetUrl(activePreview.selfieUrl)} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ textAlign: 'center', color: '#64748B', padding: '24px' }}>
-                    <Camera size={44} color="#334155" style={{ display: 'block', margin: '0 auto 12px auto' }} />
-                    <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#0EA5E9', fontWeight: '800', display: 'block', marginBottom: '8px' }}>BIOMETRIC SCANNER READY</span>
-                    <span style={{ fontSize: '12px', color: '#475569' }}>Select employee check-in log to inspect photo capture</span>
+              <div style={{ flex: 1, minHeight: '220px', background: '#0B0F19', borderRadius: '12px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px', border: '2px solid #1E293B', overflow: 'hidden' }}>
+                {activePreview?.punchInSelfieUrl || activePreview?.punchOutSelfieUrl ? (
+                  <div style={{ display: 'flex', gap: '8px', width: '100%', height: '100%', flex: 1 }}>
+                    {activePreview?.punchInSelfieUrl ? (
+                      <div style={{ flex: 1, position: 'relative', height: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+                        <img src={getBackendAssetUrl(activePreview.punchInSelfieUrl)} alt="Punch In Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.75)', color: '#10B981', fontSize: '9px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.3)', letterSpacing: '0.5px' }}>PUNCH IN</div>
+                      </div>
+                    ) : null}
+                    {activePreview?.punchOutSelfieUrl ? (
+                      <div style={{ flex: 1, position: 'relative', height: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+                        <img src={getBackendAssetUrl(activePreview.punchOutSelfieUrl)} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.75)', color: '#EF4444', fontSize: '9px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.3)', letterSpacing: '0.5px' }}>PUNCH OUT</div>
+                      </div>
+                    ) : (
+                      activePreview?.punchInSelfieUrl ? (
+                        <div style={{ flex: 1, background: '#111827', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '10px', fontWeight: '700', border: '1px dashed #1e293b' }}>
+                          <Camera size={18} color="#1e293b" style={{ marginBottom: '4px' }} />
+                          No Punch Out
+                        </div>
+                      ) : null
+                    )}
                   </div>
+                ) : (
+                  activePreview?.selfieUrl ? (
+                    <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative' }}>
+                      <img src={getBackendAssetUrl(activePreview.selfieUrl)} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#64748B', padding: '24px' }}>
+                      <Camera size={44} color="#334155" style={{ display: 'block', margin: '0 auto 12px auto' }} />
+                      <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#0EA5E9', fontWeight: '800', display: 'block', marginBottom: '8px' }}>BIOMETRIC SCANNER READY</span>
+                      <span style={{ fontSize: '12px', color: '#475569' }}>Select employee check-in log to inspect photo capture</span>
+                    </div>
+                  )
                 )}
                 
                 {/* Overlay live tag */}

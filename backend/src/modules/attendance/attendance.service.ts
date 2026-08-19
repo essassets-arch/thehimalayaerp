@@ -593,6 +593,8 @@ export class AttendanceService {
             coords: att.punchOutLatitude ? `${att.punchOutLatitude}, ${att.punchOutLongitude}` : (att.punchInLatitude ? `${att.punchInLatitude}, ${att.punchInLongitude}` : '—'),
             accuracy: att.punchOutAccuracy || att.punchInAccuracy || null,
             selfieUrl: att.punchOutSelfieUrl || att.punchInSelfieUrl || null,
+            punchInSelfieUrl: att.punchInSelfieUrl || null,
+            punchOutSelfieUrl: att.punchOutSelfieUrl || null,
             timestamp: att.punchInAt?.toISOString() || att.createdAt.toISOString(),
           };
         });
@@ -723,6 +725,8 @@ export class AttendanceService {
         coords,
         accuracy,
         selfieUrl,
+        punchInSelfieUrl: att?.punchInSelfieUrl || null,
+        punchOutSelfieUrl: att?.punchOutSelfieUrl || null,
         timestamp: att?.punchInAt?.toISOString() || att?.createdAt?.toISOString() || new Date(targetDate).toISOString(),
       };
     });
