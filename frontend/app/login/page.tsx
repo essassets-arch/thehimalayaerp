@@ -146,6 +146,9 @@ export default function LoginPage() {
     if (e === 'sahad.accounts@himalayaerp.com') {
       return 'Hcpp1@5253';
     }
+    if (e === 'hr@himalayaerp.com') {
+      return 'admin123';
+    }
     const salesMatch = e.match(/^sales(\d+)@himalayaerp\.com$/);
     if (salesMatch) {
       return `HimalayaSales#${salesMatch[1]}`;
