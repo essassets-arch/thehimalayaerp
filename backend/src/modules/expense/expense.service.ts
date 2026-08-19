@@ -67,9 +67,9 @@ export class ExpenseService {
       data: {
         companyId: activeCompanyId,
         employeeId,
-        expenseName: body.expenseName,
+        expenseName: body.expenseName || body.item || body.name || 'Expense',
         amount: Number(body.amount),
-        expenseDate: new Date(body.expenseDate || Date.now()),
+        expenseDate: new Date(body.expenseDate || body.date || Date.now()),
         receiptUrl: body.receiptUrl || null,
         status,
       }

@@ -6396,26 +6396,7 @@ export default function SuperAdminPortal() {
               <Download size={12} />
               Finance PDF
             </button>
-            <button
-              onClick={() => exportAgingReportPDF()}
-              className="action-btn"
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                background: 'var(--color-primary)',
-                color: '#000',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <Download size={12} />
-              Aging AR PDF
-            </button>
+
             <button
               onClick={() => exportInventoryReportPDF()}
               className="action-btn"
@@ -6520,7 +6501,7 @@ export default function SuperAdminPortal() {
             {cardHead(<ShieldAlert size={14} />, 'QC Quality Control', '#06b6d4')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '12.5px' }}>
               {row('Total Samples Logged', `${(state.sales?.samples || []).length} Samples`)}
-              {row('Under Testing', `${(state.sales?.samples || []).filter(s => s.status === 'Testing').length} Items`, '#06b6d4')}
+
               {row('Approved / Passed', `${(state.sales?.samples || []).filter(s => s.status === 'Approved').length} Passed`, '#4ade80')}
               {row('Rejected / Failed', `${(state.sales?.samples || []).filter(s => s.status === 'Rejected').length} Failed`, '#f87171')}
               {row('First Pass Yield', '94.3%', '#4ade80')}

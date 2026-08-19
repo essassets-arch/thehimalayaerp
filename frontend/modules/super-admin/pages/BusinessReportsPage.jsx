@@ -137,13 +137,13 @@ export default function BusinessReportsPage() {
     try {
       setExporting(true);
       if (type === 'sales') {
-        await exportSalesReportPDF({ title: 'Centralized Sales Report', period: report?.period?.label });
+        await exportSalesReportPDF(filters);
       } else if (type === 'finance') {
-        await exportFinanceReportPDF({ title: 'Centralized Finance Report', period: report?.period?.label });
+        await exportFinanceReportPDF(filters);
       } else if (type === 'inventory') {
-        await exportInventoryReportPDF({ title: 'Centralized Raw Inventory Report' });
+        await exportInventoryReportPDF(filters);
       } else if (type === 'aging') {
-        await exportAgingReportPDF({ title: 'Centralized Receivables Aging Report' });
+        await exportAgingReportPDF(filters);
       }
     } catch (err) {
       console.error('PDF Export Error:', err);
@@ -566,10 +566,7 @@ export default function BusinessReportsPage() {
                   <span style={{ color: '#64748b' }}>Total Samples Logged</span>
                   <strong style={{ color: '#1e293b' }}>{report.qc?.totalSamplesLogged ?? 0} Samples</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: '#64748b' }}>Under Testing</span>
-                  <strong style={{ color: '#d97706' }}>{report.qc?.underTesting ?? 0} Testing</strong>
-                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                   <span style={{ color: '#64748b' }}>Approved / Passed</span>
                   <strong style={{ color: '#16a34a' }}>{report.qc?.approvedPassed ?? 0} Passed</strong>
@@ -733,13 +730,7 @@ export default function BusinessReportsPage() {
             <Lucide.Landmark size={16} /> Finance & Inflows PDF
           </button>
 
-          <button
-            onClick={() => handleDocumentExport('aging')}
-            disabled={exporting}
-            style={{ padding: '12px 14px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fecdd3', color: '#b91c1c', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
-          >
-            <Lucide.Clock size={16} /> Aging AR Receivables PDF
-          </button>
+
 
           <button
             onClick={() => handleDocumentExport('inventory')}

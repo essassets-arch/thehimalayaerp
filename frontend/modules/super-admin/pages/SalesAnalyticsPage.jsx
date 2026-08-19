@@ -9,6 +9,7 @@ import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import { formatCurrency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './SalesAnalyticsPage.css';
+import { exportSalesReportPDF, exportFinanceReportPDF, exportInventoryReportPDF } from '../../../services/export.service';
 
 const CHART_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B"];
 
@@ -697,6 +698,66 @@ export default function SalesAnalyticsPage() {
           </div>
         </div>
       )}
+
+      {/* Executive Document Export Center */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginTop: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: 750, color: '#1e293b' }}>Executive Document Export Center</h4>
+        <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>
+          Generate formatted PDF executive documentation using active company filters and live reporting metrics.
+        </p>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={async () => {
+              try {
+                await exportSalesReportPDF({
+                  startDate: activeDates?.dateFrom,
+                  endDate: activeDates?.dateTo,
+                  branchId: filters?.branch
+                });
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            style={{ padding: '12px 14px', borderRadius: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <Lucide.FileText size={16} /> Sales Performance PDF
+          </button>
+
+          <button
+            onClick={async () => {
+              try {
+                await exportFinanceReportPDF({
+                  startDate: activeDates?.dateFrom,
+                  endDate: activeDates?.dateTo,
+                  branchId: filters?.branch
+                });
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            style={{ padding: '12px 14px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <Lucide.Landmark size={16} /> Finance & Inflows PDF
+          </button>
+
+          <button
+            onClick={async () => {
+              try {
+                await exportInventoryReportPDF({
+                  startDate: activeDates?.dateFrom,
+                  endDate: activeDates?.dateTo,
+                  branchId: filters?.branch
+                });
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            style={{ padding: '12px 14px', borderRadius: '8px', background: '#faf5ff', border: '1px solid #e9d5ff', color: '#6b21a8', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <Lucide.Boxes size={16} /> Stock Levels & Store PDF
+          </button>
+        </div>
+      </div>
 
       {/* ── SALESPERSON DETAIL DRAWER ── */}
       {selectedSalesperson && (

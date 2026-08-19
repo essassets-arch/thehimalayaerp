@@ -32,18 +32,17 @@ export const financeService = {
 
   recordExpense: async (state, expenseData, dispatch, currentUser) => {
     try {
-      const res = await apiClient.post('/finance/expenses', {
-        item: expenseData.item,
-        amount: expenseData.amount,
-        category: expenseData.category || 'Operations',
-        date: new Date().toISOString().split('T')[0]
+      const res = await apiClient.post('/expenses', {
+        expenseName: expenseData.item,
+        amount: Number(expenseData.amount),
+        expenseDate: new Date().toISOString()
       });
 
       // Also update local state so the expense shows immediately
       dispatch({
         type: 'RECORD_EXPENSE',
         payload: {
-          id: 'EXP-' + Math.floor(1000 + Math.random() * 9000),
+          id: res.data?.id || 'EXP-' + Math.floor(1000 + Math.random() * 9000),
           item: expenseData.item,
           amount: expenseData.amount,
           category: expenseData.category || 'Operations',
