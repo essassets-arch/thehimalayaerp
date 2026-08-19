@@ -1625,17 +1625,18 @@ async function main() {
 
   const hrRoleAlias = allRoles.find((r) => r.code === 'HR');
   if (hrRoleAlias) {
+    const hrPassword = await bcrypt.hash('admin123', 12);
     await prisma.user.upsert({
       where: { email: 'hr@himalayaerp.com' },
       update: {
-        password: hashedPassword,
+        password: hrPassword,
         roleId: hrRoleAlias.id,
         isActive: true,
       },
       create: {
         publicId: uid('USR'),
         email: 'hr@himalayaerp.com',
-        password: hashedPassword,
+        password: hrPassword,
         name: 'HR',
         roleId: hrRoleAlias.id,
         companyId: company.id,
