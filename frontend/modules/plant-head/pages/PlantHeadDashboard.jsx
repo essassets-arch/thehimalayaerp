@@ -121,8 +121,13 @@ export const PlantHeadDashboard = () => {
       const rawWOs = (rawWOsRes.status === 'fulfilled' && (Array.isArray(rawWOsRes.value) ? rawWOsRes.value : rawWOsRes.value?.data)) || [];
       if (Array.isArray(rawWOs) && rawWOs.length > 0) {
         ordersList = rawWOs.map((wo, idx) => {
-          const planned = Number(wo.targetQty || wo.plannedQty || wo.quantity || wo.targetQuantity || 100);
-          const actual = Number(wo.producedQty || wo.completedQty || Math.round(planned * (Number(wo.progress || 0) / 100)));
+          const plannedVal = Number(wo.targetQty || wo.plannedQty || wo.quantity || wo.targetQuantity);
+          const planned = isNaN(plannedVal) || plannedVal <= 0 ? 100 : plannedVal;
+          const progVal = Number(wo.progress);
+          const progress = isNaN(progVal) ? 0 : progVal;
+          const actualVal = Number(wo.producedQty || wo.completedQty);
+          const actual = isNaN(actualVal) ? Math.round(planned * (progress / 100)) : actualVal;
+
           const st = String(wo.status || wo.workflowStatus || '').toUpperCase();
           const displayStatus = ['COMPLETED', 'CLOSED', 'QC_PASSED'].includes(st)
             ? 'Completed'
@@ -134,7 +139,7 @@ export const PlantHeadDashboard = () => {
           return {
             id: wo.workOrderNo || wo.orderNo || wo.id || `WO-${1040 + idx}`,
             product: wo.salesOrderItem?.product?.name || wo.productName || wo.product || 'Himalaya Product',
-            category: wo.salesOrderItem?.product?.category?.name || wo.category || 'Production Order',
+            category: (typeof wo.salesOrderItem?.product?.category === 'object' ? wo.salesOrderItem?.product?.category?.name : wo.salesOrderItem?.product?.category) || wo.category || 'Production Order',
             line: wo.line || `Line ${String.fromCharCode(65 + (idx % 4))}`,
             machine: wo.machine || wo.workCenter || `MC-0${(idx % 4) + 1}`,
             plannedQty: planned,
@@ -150,12 +155,14 @@ export const PlantHeadDashboard = () => {
       } else if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value) && ordersRes.value.length > 0) {
         ordersList = ordersRes.value.map((ord, idx) => {
           const item = ord.items?.[0] || {};
-          const planned = Number(item.orderedQuantity || ord.quantity || 1000);
-          const actual = ord.status === 'COMPLETED' ? planned : Math.round(planned * (0.6 + (idx % 4) * 0.1));
+          const plannedVal = Number(item.orderedQuantity || ord.quantity);
+          const planned = isNaN(plannedVal) || plannedVal <= 0 ? 1000 : plannedVal;
+          const actualVal = ord.status === 'COMPLETED' ? planned : Math.round(planned * (0.6 + (idx % 4) * 0.1));
+          const actual = isNaN(actualVal) ? 0 : actualVal;
           return {
             id: ord.orderNo || ord.id || `WO-${1040 + idx}`,
             product: item.product?.name || item.productName || ord.products || 'Paper / Wax Product',
-            category: item.product?.category || 'Production Order',
+            category: (typeof item.product?.category === 'object' ? item.product?.category?.name : item.product?.category) || 'Production Order',
             line: `Line ${String.fromCharCode(65 + (idx % 4))}`,
             machine: `MC-0${(idx % 4) + 1}`,
             plannedQty: planned,
@@ -333,8 +340,10 @@ export const PlantHeadDashboard = () => {
       workOrders.forEach((wo) => {
         const cat = wo.category || 'Production Order';
         if (!catMap[cat]) catMap[cat] = { category: cat, planned: 0, actual: 0 };
-        catMap[cat].planned += Number(wo.plannedQty || 0);
-        catMap[cat].actual += Number(wo.actualQty || 0);
+        const plannedVal = Number(wo.plannedQty);
+        const actualVal = Number(wo.actualQty);
+        catMap[cat].planned += isNaN(plannedVal) ? 0 : plannedVal;
+        catMap[cat].actual += isNaN(actualVal) ? 0 : actualVal;
       });
       const result = Object.values(catMap).map((item, idx) => ({
         ...item,
@@ -343,12 +352,16 @@ export const PlantHeadDashboard = () => {
       if (result.length > 0) return result;
     }
     if (backendProdAnalytics?.categories && Array.isArray(backendProdAnalytics.categories) && backendProdAnalytics.categories.length > 0) {
-      return backendProdAnalytics.categories.map((c, i) => ({
-        category: c.category,
-        planned: Math.round(Number(c.volume) * 1.15),
-        actual: Number(c.volume),
-        fill: ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6'][i % 4]
-      }));
+      return backendProdAnalytics.categories.map((c, i) => {
+        const vol = Number(c.volume);
+        const volumeVal = isNaN(vol) ? 0 : vol;
+        return {
+          category: c.category,
+          planned: Math.round(volumeVal * 1.15),
+          actual: volumeVal,
+          fill: ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6'][i % 4]
+        };
+      });
     }
     return [
       { category: 'Coated Abrasives', planned: 2500, actual: 2350, fill: '#0284c7' },
@@ -366,7 +379,8 @@ export const PlantHeadDashboard = () => {
       workOrders.forEach((wo) => {
         const prod = wo.product || 'Standard Product';
         if (!prodMap[prod]) prodMap[prod] = 0;
-        prodMap[prod] += Number(wo.actualQty || wo.plannedQty || 10);
+        const val = Number(wo.actualQty || wo.plannedQty || 10);
+        prodMap[prod] += isNaN(val) ? 10 : val;
       });
       const result = Object.entries(prodMap).map(([name, value], idx) => ({
         name,
@@ -661,7 +675,7 @@ export const PlantHeadDashboard = () => {
       {activeTab === 'executive_overview' && (
         <div>
           {/* Charts Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: '20px', marginBottom: '24px' }}>
 
             {/* Category-wise Production Chart */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
