@@ -1,273 +1,656 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as Lucide from 'lucide-react';
-import { useERP } from '@/shared/context/ERPContext';
+import {
+  ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  BarChart, Bar, Legend, LineChart, Line, PieChart, Pie, Cell
+} from 'recharts';
+import { backendFetch } from '@/lib/backendFetch';
 import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
-import { computeFinancialData, formatCurrency, formatNumber, formatPercent } from '../utils/financialCalculations';
+import { formatCurrency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
-import FinancePortal from '../../finance/pages/FinancePortal.jsx';
-import { useCommandCenter } from '../hooks/useCommandCenter';
-import "../components/dashboard.css";
+import './FinanceAnalyticsPage.css';
 
-const PORTAL_TABS = [
-  { id: 'overview', label: 'Unified Overview', icon: Lucide.LayoutDashboard, badge: 'All Data' },
-  // Executive Portal Tabs (/finance-executive/)
-  { id: 'payment-verification', label: 'Payment Verification', icon: Lucide.CheckCircle2, category: 'Executive (/finance-executive/)' },
-  { id: 'receipts', label: 'Receipts & Inflows', icon: Lucide.Receipt, category: 'Executive (/finance-executive/)' },
-  { id: 'outstanding', label: 'Outstanding Collections', icon: Lucide.Clock, category: 'Executive (/finance-executive/)' },
-  { id: 'customers', label: 'Customer Ledgers', icon: Lucide.Users, category: 'Executive (/finance-executive/)' },
-  { id: 'daily-tasks', label: 'Daily Tasks & Follow-ups', icon: Lucide.Calendar, category: 'Executive (/finance-executive/)' },
-  // Manager Portal Tabs (/finance/)
-  { id: 'dashboard', label: 'Finance Manager Overview', icon: Lucide.PieChart, category: 'Manager (/finance/)' },
-  { id: 'sales', label: 'Sales Confirmation', icon: Lucide.ShoppingCart, category: 'Manager (/finance/)' },
-  { id: 'sales-analytics', label: 'Sales Analytics', icon: Lucide.TrendingUp, category: 'Manager (/finance/)' },
-  { id: 'invoices', label: 'Vendor PO & Invoices', icon: Lucide.FileText, category: 'Manager (/finance/)' },
-  { id: 'vendors', label: 'Vendor Directory', icon: Lucide.Building2, category: 'Manager (/finance/)' },
-  { id: 'rejection-management', label: 'Rejection & Returns', icon: Lucide.AlertTriangle, category: 'Manager (/finance/)' },
-  { id: 'brand-analysis', label: 'Brand Analytics', icon: Lucide.Tag, category: 'Manager (/finance/)' },
-  { id: 'reports', label: 'Financial Reports & Exports', icon: Lucide.Download, category: 'Manager (/finance/)' }
-];
+const CHART_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B"];
 
-export default function FinanceAnalyticsPage() {
-  const { state } = useERP();
-  const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
-  const fin = computeFinancialData(state, period, startDate, endDate);
-  const { data: commandData } = useCommandCenter(filters, activeDates);
+function ResponsiveChart({ height, children }) {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('overview');
+  useEffect(() => {
+    setMounted(true);
+    if (!ref.current) return;
+    const initialWidth = ref.current.getBoundingClientRect().width || ref.current.offsetWidth;
+    if (initialWidth > 0) {
+      setWidth(initialWidth);
+    }
+  }, []);
 
   return (
-    <div className="super-dashboard">
-      <header className="dashboard-header" style={{ marginBottom: '16px' }}>
-        <div className="dashboard-header-left">
-          <div className="dashboard-header-icon" style={{ background: '#e0e7ff', color: '#4338ca' }}>
-            <Lucide.Landmark size={26} />
+    <div ref={ref} style={{ width: '100%', height: height, position: 'relative' }}>
+      {mounted && width > 0 && React.cloneElement(children, { width, height })}
+    </div>
+  );
+}
+
+export default function FinanceAnalyticsPage() {
+  const { activeDates, filters } = useSuperAdminFilter();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // View states
+  const [riskRankBy, setRiskRankBy] = useState('overdue'); // outstanding | overdue | oldestDueDays | pendingInvoices
+  const [brandRankBy, setBrandRankBy] = useState('revenue'); // revenue | collected | outstanding
+  const [salespersonRankBy, setSalespersonRankBy] = useState('collected'); // collected | receivable | outstanding | overdue
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const q = new URLSearchParams({
+        from: activeDates.dateFrom || '',
+        to: activeDates.dateTo || '',
+        branchId: filters.branchId || '',
+        customerId: filters.customerId || '',
+        salespersonId: filters.salespersonId || '',
+        vendorId: filters.vendorId || '',
+        brandId: filters.brandId || '',
+        categoryId: filters.categoryId || '',
+        orderStatus: filters.orderStatus || ''
+      });
+      const res = await backendFetch(`/super-admin/analytics/finance?${q.toString()}`);
+      setData(res);
+    } catch (err) {
+      console.error(err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeDates.dateFrom, activeDates.dateTo, filters]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (error) {
+    return (
+      <div className="finance-analytics-container" style={{ textAlign: 'center', padding: '48px 0' }}>
+        <Lucide.AlertTriangle size={48} color="#ef4444" style={{ marginBottom: 16, display: 'inline-block' }} />
+        <h2>Unable to load Finance Command Center.</h2>
+        <p style={{ color: '#64748b', marginBottom: 16 }}>{error.message || 'An error occurred while fetching finance telemetry.'}</p>
+        <button onClick={load} className="fa-btn-primary">
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="finance-analytics-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+        <Lucide.Loader size={36} className="animate-spin" style={{ color: '#6366f1', marginBottom: 12 }} />
+        <p style={{ color: '#64748b', fontWeight: 'bold' }}>Loading Finance & Commercial Control Telemetry...</p>
+      </div>
+    );
+  }
+
+  const {
+    summary = {},
+    collections = {},
+    receivables = {},
+    salespersonCollections = [],
+    brands = {},
+    procurement = {},
+    rejections = {},
+    payroll = {},
+    exposure = {},
+    performance = {},
+    alerts = []
+  } = data;
+
+  const collectedAmount = summary.collections?.collectedAmount ?? 0;
+
+  const handleExport = (format) => {
+    alert(`Exporting Finance Analytics data as ${format.toUpperCase()}...`);
+  };
+
+  // Sort customer risks dynamically
+  const sortedCustomerRisks = [...(receivables.riskRanking || [])].sort((a, b) => {
+    if (riskRankBy === 'outstanding') return b.outstanding - a.outstanding;
+    if (riskRankBy === 'oldestDueDays') return b.oldestDueDays - a.oldestDueDays;
+    if (riskRankBy === 'pendingInvoices') return b.pendingInvoices - a.pendingInvoices;
+    return b.overdue - a.overdue; // default
+  });
+
+  // Sort brand performance dynamically
+  const sortedBrands = [...(brands.ranking || [])].sort((a, b) => {
+    if (brandRankBy === 'collected') return b.collected - a.collected;
+    if (brandRankBy === 'outstanding') return b.outstanding - a.outstanding;
+    return b.revenue - a.revenue; // default
+  });
+
+  // Sort salesperson collections dynamically
+  const sortedSalespersons = [...(salespersonCollections || [])].sort((a, b) => {
+    if (salespersonRankBy === 'receivable') return b.receivable - a.receivable;
+    if (salespersonRankBy === 'outstanding') return b.outstanding - a.outstanding;
+    if (salespersonRankBy === 'overdue') return b.overdue - a.overdue;
+    return b.collected - a.collected; // default
+  });
+
+  return (
+    <div className="finance-analytics-container">
+      {/* ── HEADER BLOCK ── */}
+      <div className="finance-analytics-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="finance-analytics-header-icon">
+            <Lucide.ShieldCheck size={28} />
           </div>
-          <div className="dashboard-heading">
-            <div className="dashboard-heading-row">
-              <h1>Finance & Cash Flow Analytics</h1>
-              <span className="dashboard-badge badge-info">Unified: /finance-executive/ & /finance/</span>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 className="finance-analytics-title">Finance &amp; Commercial Control</h1>
+              <span className="finance-analytics-badge">COMMERCIAL CONTROL</span>
             </div>
-            <p>Finance-verified revenue, payment verifications, bank receipts, customer ageing, vendor POs & cash flow telemetry</p>
+            <p className="finance-analytics-subtitle">Complete financial visibility across collections, receivables, purchase commitments, material rejections, payroll and brand performance.</p>
           </div>
         </div>
-      </header>
-
-      {/* Shared Analytics Filter Bar */}
-      <SuperAdminAnalyticsFilter
-        title="Finance Filter Control"
-        showBranch={true}
-        showCustomer={true}
-        showVendor={true}
-        showStatus={true}
-      />
-
-      {/* Financial Summary KPI Cards */}
-      <div className="sa-financial-grid" style={{ marginBottom: '20px' }}>
-        <div className="sa-financial-card" style={{ '--kpi-accent': '#2563eb' }}>
-          <div className="sa-card-top">
-            <span className="sa-card-label">Total Invoiced Sales</span>
-            <Lucide.FileText size={18} color="#2563eb" />
-          </div>
-          <div className="sa-card-val-row">
-            <span className="sa-card-val">{commandData?.overview?.kpis?.[0]?.value || formatCurrency(fin.totalSalesVal)}</span>
-          </div>
-          <div className="sa-card-subtext">{commandData?.overview?.kpis?.[3]?.value || `${fin.totalOrdersCount} Verified Invoices`}</div>
-          <div className="sa-card-footer">
-            <span className="kpi-success">{commandData?.overview?.kpis?.[0]?.change ? `${commandData.overview.kpis[0].change} ${activeDates.compareLabel}` : activeDates.compareLabel}</span>
-          </div>
-        </div>
-
-        <div className="sa-financial-card" style={{ '--kpi-accent': '#10b981' }}>
-          <div className="sa-card-top">
-            <span className="sa-card-label">Realized Cash Collections</span>
-            <Lucide.CheckCircle size={18} color="#10b981" />
-          </div>
-          <div className="sa-card-val-row">
-            <span className="sa-card-val">{commandData?.overview?.kpis?.[1]?.value || formatCurrency(fin.revenueCollected)}</span>
-          </div>
-          <div className="sa-card-subtext">Finance Verified Payments</div>
-          <div className="sa-card-footer">
-            <span className="kpi-success">{commandData?.overview?.kpis?.[1]?.change ? `${commandData.overview.kpis[1].change} Cash Inflow` : 'Bank Cleared Cash Inflow'}</span>
-          </div>
-        </div>
-
-        <div className="sa-financial-card" style={{ '--kpi-accent': '#ef4444' }}>
-          <div className="sa-card-top">
-            <span className="sa-card-label">Outstanding Receivables</span>
-            <Lucide.AlertTriangle size={18} color="#ef4444" />
-          </div>
-          <div className="sa-card-val-row">
-            <span className="sa-card-val">{commandData?.overview?.kpis?.[2]?.value || formatCurrency(fin.outstandingReceivables)}</span>
-          </div>
-          <div className="sa-card-subtext">{fin.pendingInvoicesCount} Active Accounts</div>
-          <div className="sa-card-footer">
-            <span className="kpi-danger">⚠️ {formatCurrency(fin.overdueAmount)} Overdue</span>
-          </div>
-        </div>
-
-        <div className="sa-financial-card" style={{ '--kpi-accent': '#8b5cf6' }}>
-          <div className="sa-card-top">
-            <span className="sa-card-label">Vendor Procurement Payments</span>
-            <Lucide.CreditCard size={18} color="#8b5cf6" />
-          </div>
-          <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.rawMaterialCost)}</span>
-          </div>
-          <div className="sa-card-subtext">Recognized Material Outflow</div>
-          <div className="sa-card-footer">
-            <span className="kpi-warning">Store PO GRN Payments</span>
-          </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => handleExport('pdf')} className="fa-btn-outline">
+            <Lucide.FileText size={16} /> Export PDF
+          </button>
+          <button onClick={() => handleExport('excel')} className="fa-btn-outline">
+            <Lucide.FileSpreadsheet size={16} /> Export Excel
+          </button>
         </div>
       </div>
 
-      {/* Interactive Portal Tab Selector */}
-      <div 
-        className="dashboard-card" 
-        style={{ 
-          padding: '12px 16px', 
-          marginBottom: '20px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '12px',
-          background: 'var(--color-surface, #fff)',
-          borderRadius: '12px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Lucide.Layers size={18} color="#4338ca" />
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>
-              Finance Portal Workspaces & Data Views
-            </h3>
-          </div>
-          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>
-            Includes all features from <strong>/finance-executive/</strong> and <strong>/finance/</strong>
-          </span>
-        </div>
+      {/* ── FILTER TOOLBAR ── */}
+      <div style={{ marginBottom: 24 }}>
+        <SuperAdminAnalyticsFilter 
+          title="Finance Filter Control"
+          showBranch={true}
+          showCustomer={true}
+          showProduct={false}
+          showCategory={false}
+          showSalesperson={true}
+          showStatus={false}
+          filterOptions={data.filters}
+        />
+      </div>
 
-        <div 
-          style={{ 
-            display: 'flex', 
-            gap: '8px', 
-            overflowX: 'auto', 
-            paddingBottom: '4px',
-            borderBottom: '1px solid #e2e8f0'
-          }}
-        >
-          {PORTAL_TABS.map((tab) => {
-            const IconComponent = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 14px',
-                  borderRadius: '8px',
-                  border: isActive ? '1px solid #4338ca' : '1px solid #cbd5e1',
-                  background: isActive ? '#4338ca' : '#f8fafc',
-                  color: isActive ? '#ffffff' : '#334155',
-                  fontWeight: isActive ? 700 : 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <IconComponent size={14} />
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span 
-                    style={{ 
-                      fontSize: '10px', 
-                      background: isActive ? '#6366f1' : '#e2e8f0', 
-                      color: isActive ? '#fff' : '#475569', 
-                      padding: '2px 6px', 
-                      borderRadius: '10px',
-                      fontWeight: 800
-                    }}
-                  >
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+      {/* ── EXECUTIVE FINANCE KPIs ── */}
+      <div className="fa-kpi-grid">
+        <div className="fa-kpi-card text-blue">
+          <span className="label">Sales / Invoice Value</span>
+          <strong className="value">{formatCurrency(summary.sales?.invoiceValue ?? 0)}</strong>
+          <span className="sub">Orders: {formatCurrency(summary.sales?.confirmedValue ?? 0)}</span>
+        </div>
+        <div className="fa-kpi-card text-emerald">
+          <span className="label">Verified Collections</span>
+          <strong className="value">{formatCurrency(summary.collections?.collectedAmount ?? 0)}</strong>
+          <span className="sub">Verification Pending: {formatCurrency(collections.summary?.verificationPending ?? 0)}</span>
+        </div>
+        <div className="fa-kpi-card text-orange">
+          <span className="label">Outstanding</span>
+          <strong className="value">{formatCurrency(summary.receivables?.outstandingAmount ?? 0)}</strong>
+          <span className="sub">Overdue: {formatCurrency(summary.receivables?.overdueAmount ?? 0)}</span>
+        </div>
+        <div className="fa-kpi-card text-purple">
+          <span className="label">Purchase Commitments</span>
+          <strong className="value">{formatCurrency(summary.procurement?.poCommitmentValue ?? 0)}</strong>
+          <span className="sub">Pending PO Requests: {summary.procurement?.pendingIndentsCount ?? 0}</span>
+        </div>
+        <div className="fa-kpi-card text-red">
+          <span className="label">Rejected Material Exposure</span>
+          <strong className="value">{formatCurrency(summary.rejections?.totalRejectionValue ?? 0)}</strong>
+          <span className="sub">Resolutions: {rejections.summary?.resolvedThisMonth ?? 0} cases</span>
+        </div>
+        <div className="fa-kpi-card text-indigo">
+          <span className="label">Payroll Payable</span>
+          <strong className="value">{formatCurrency(summary.payroll?.payrollNet ?? 0)}</strong>
+          <span className="sub">Net Cash Flow: {formatCurrency(collectedAmount - summary.payroll?.payrollNet - summary.procurement?.poCommitmentValue)}</span>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      {activeTab === 'overview' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Receivables Ageing Table */}
-          <div className="dashboard-card" style={{ padding: '20px' }}>
-            <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-              <div>
-                <h3 className="card-title">Receivables Ageing Ledger</h3>
-                <p className="card-subtitle">Calculated <strong>As of {activeDates.dateTo}</strong> (Reporting End Date)</p>
-              </div>
-              <span className="dashboard-badge badge-warning">Ageing Reporting Date: {activeDates.dateTo}</span>
-            </div>
+      {/* ── CASH COLLECTION OVERVIEW & RECEIVABLES AGING ── */}
+      <div className="fa-double-grid">
+        <div className="fa-card">
+          <h3 className="fa-card-title">Billing &amp; Receipts Trends</h3>
+          <ResponsiveChart height={300}>
+            <ComposedChart data={collections.trends || []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+              <XAxis dataKey="period" stroke="#64748b" style={{ fontSize: '11px' }} />
+              <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
+              <Tooltip />
+              <Legend />
+              <Area type="monotone" dataKey="billings" name="Gross Billings" stroke="#6366f1" fill="rgba(99, 102, 241, 0.1)" />
+              <Line type="monotone" dataKey="receipts" name="Verified Collections" stroke="#10B981" strokeWidth={2.5} />
+            </ComposedChart>
+          </ResponsiveChart>
+        </div>
 
-            <div className="sa-table-container">
-              <table className="sa-table">
-                <thead>
-                  <tr>
-                    <th>Customer Name</th>
-                    <th>Total Sales</th>
-                    <th>0 - 30 Days</th>
-                    <th>31 - 60 Days</th>
-                    <th>61 - 90 Days</th>
-                    <th>90+ Days Critical</th>
-                    <th>Status</th>
+        <div className="fa-card">
+          <h3 className="fa-card-title">Receivables Aging (Days Overdue)</h3>
+          <ResponsiveChart height={300}>
+            <BarChart data={[
+              { name: 'Current / Not Due', value: receivables.aging?.notDue ?? 0 },
+              { name: '1-15 Days', value: receivables.aging?.aging1to15 ?? 0 },
+              { name: '16-30 Days', value: receivables.aging?.aging16to30 ?? 0 },
+              { name: '31-60 Days', value: receivables.aging?.aging31to60 ?? 0 },
+              { name: '61-90 Days', value: receivables.aging?.aging61to90 ?? 0 },
+              { name: '90+ Days', value: receivables.aging?.agingMoreThan90 ?? 0 }
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+              <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '10px' }} />
+              <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
+              <Tooltip />
+              <Bar dataKey="value" name="Balance" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
+                <Cell fill="#10B981" />
+                <Cell fill="#F59E0B" />
+                <Cell fill="#EF4444" />
+                <Cell fill="#EF4444" />
+                <Cell fill="#EF4444" />
+                <Cell fill="#EF4444" />
+              </Bar>
+            </BarChart>
+          </ResponsiveChart>
+        </div>
+      </div>
+
+      {/* ── COLLECTION RISK RANKING ── */}
+      <div className="fa-card" style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <h3 className="fa-card-title">Collection Risk Ranking (Receivables Attention List)</h3>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>Rank By:</span>
+            <select value={riskRankBy} onChange={(e) => setRiskRankBy(e.target.value)} className="fa-select-inline">
+              <option value="overdue">Overdue Amount</option>
+              <option value="outstanding">Outstanding Balance</option>
+              <option value="oldestDueDays">Oldest Due Invoice</option>
+              <option value="pendingInvoices">Count of Pending Invoices</option>
+            </select>
+          </div>
+        </div>
+        <div className="fa-table-wrapper">
+          <table className="fa-table">
+            <thead>
+              <tr>
+                <th>Risk Rank</th>
+                <th>Customer</th>
+                <th>Outstanding Balance</th>
+                <th>Overdue Outstanding</th>
+                <th>Oldest Invoice Due</th>
+                <th>Unpaid Invoices</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedCustomerRisks.map((row, idx) => (
+                <tr key={row.id}>
+                  <td className="bold">{idx + 1 === 1 ? '🥇 1' : idx + 1 === 2 ? '🥈 2' : idx + 1 === 3 ? '🥉 3' : idx + 1}</td>
+                  <td className="bold">{row.customerName}</td>
+                  <td>{formatCurrency(row.outstanding)}</td>
+                  <td className="bold text-danger">{formatCurrency(row.overdue)}</td>
+                  <td>{row.oldestDueDays > 0 ? `${row.oldestDueDays} days overdue` : 'Not overdue'}</td>
+                  <td>{row.pendingInvoices} Invoices</td>
+                </tr>
+              ))}
+              {sortedCustomerRisks.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No customer accounts with pending balances.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── PAYMENT VERIFICATION COMMAND CENTER & SALESPERSON PERFORMANCE ── */}
+      <div className="fa-double-grid">
+        <div className="fa-card">
+          <h3 className="fa-card-title">Payment Verification (Pending / Auditing)</h3>
+          <div className="fa-drawer-grid" style={{ marginBottom: 16 }}>
+            <div className="grid-item">
+              <span className="label">Verification Pending</span>
+              <strong>{collections.verification?.pendingCount ?? 0} Payments</strong>
+              <span className="sub">{formatCurrency(collections.summary?.verificationPending ?? 0)}</span>
+            </div>
+            <div className="grid-item text-success">
+              <span className="label">Verified Today</span>
+              <strong>{collections.verification?.verifiedTodayCount ?? 0} Payments</strong>
+              <span className="sub">{formatCurrency(collections.summary?.verifiedToday ?? 0)}</span>
+            </div>
+            <div className="grid-item text-red">
+              <span className="label">Average Verification SLA</span>
+              <strong>{collections.summary?.averageVerificationTime ?? 0} Hours</strong>
+              <span className="sub">Oldest pending: {collections.summary?.oldestPendingHrs ?? 0} hours</span>
+            </div>
+          </div>
+          <p style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', marginBottom: 12 }}>Note: Payment verifications and auditing are executed directly on the payment verification operational page.</p>
+        </div>
+
+        <div className="fa-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 className="fa-card-title">Salesperson Collection Rankings</h3>
+            <select value={salespersonRankBy} onChange={(e) => setSalespersonRankBy(e.target.value)} className="fa-select-inline">
+              <option value="collected">Collected Amount</option>
+              <option value="receivable">Total Receivable</option>
+              <option value="outstanding">Outstanding</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </div>
+          <div className="fa-table-wrapper" style={{ maxHeight: 200, overflowY: 'auto' }}>
+            <table className="fa-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Salesperson</th>
+                  <th>Receivable</th>
+                  <th>Collected</th>
+                  <th>Outstanding</th>
+                  <th>Collection %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedSalespersons.map((row, idx) => (
+                  <tr key={row.salespersonName}>
+                    <td className="bold">{idx + 1}</td>
+                    <td className="bold">{row.salespersonName}</td>
+                    <td>{formatCurrency(row.receivable)}</td>
+                    <td className="bold text-success">{formatCurrency(row.collected)}</td>
+                    <td>{formatCurrency(row.outstanding)}</td>
+                    <td>{row.collectionRate != null ? `${row.collectionRate}%` : 'N/A'}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {(fin.customerProfitability || []).map((cust, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 750, color: '#24345C' }}>{cust.name}</td>
-                      <td style={{ fontWeight: 750, color: '#2563eb' }}>{formatCurrency(cust.totalSales)}</td>
-                      <td style={{ color: '#10b981', fontWeight: 650 }}>{formatCurrency(cust.collected)}</td>
-                      <td style={{ color: '#f59e0b', fontWeight: 650 }}>{formatCurrency(cust.outstanding * 0.6)}</td>
-                      <td style={{ color: '#ef4444', fontWeight: 650 }}>{formatCurrency(cust.outstanding * 0.3)}</td>
-                      <td style={{ color: '#8b5cf6', fontWeight: 800 }}>{formatCurrency(cust.outstanding * 0.1)}</td>
-                      <td>
-                        <span className={`dashboard-badge ${cust.outstanding > 100000 ? 'badge-danger' : 'badge-success'}`}>
-                          {cust.outstanding > 100000 ? 'Followup Needed' : 'Good Standing'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Embedded Finance Portal Dashboard View */}
-          <div className="dashboard-card" style={{ padding: '20px' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '16px', color: '#1e293b' }}>
-              Interactive Cash Flow & Telemetry Dashboard
-            </h3>
-            <FinancePortal forceView="dashboard" />
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      ) : (
-        /* Dynamic Portal Workspace for Selected Subview */
-        <div className="dashboard-card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Lucide.SlidersHorizontal size={18} color="#4338ca" />
-              Viewing: {PORTAL_TABS.find(t => t.id === activeTab)?.label}
-            </h3>
-            <span className="dashboard-badge badge-info">
-              Source: {PORTAL_TABS.find(t => t.id === activeTab)?.category || 'Unified'}
-            </span>
+      </div>
+
+      {/* ── BRAND ANALYSIS & PERFORMANCE ── */}
+      <div className="fa-card" style={{ marginBottom: 24, marginTop: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <h3 className="fa-card-title">Brand Performance Analysis</h3>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>Sort By:</span>
+            <select value={brandRankBy} onChange={(e) => setBrandRankBy(e.target.value)} className="fa-select-inline">
+              <option value="revenue">Revenue Wise</option>
+              <option value="collected">Collection Wise</option>
+              <option value="outstanding">Outstanding Wise</option>
+            </select>
           </div>
-          <FinancePortal forceView={activeTab} />
+        </div>
+        <div className="fa-table-wrapper">
+          <table className="fa-table">
+            <thead>
+              <tr>
+                <th>Brand</th>
+                <th>Sales Volume (Qty)</th>
+                <th>Revenue Value</th>
+                <th>Cost Margin</th>
+                <th>Collected Amount</th>
+                <th>Outstanding Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedBrands.map((row) => (
+                <tr key={row.brandName}>
+                  <td className="bold">{row.brandName}</td>
+                  <td>{formatNumber(row.quantity)}</td>
+                  <td>{formatCurrency(row.revenue)}</td>
+                  <td style={{ color: '#64748b', fontStyle: 'italic' }}>N/A (Cost Disabled)</td>
+                  <td className="bold text-success">{formatCurrency(row.collected)}</td>
+                  <td>{formatCurrency(row.outstanding)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── PROCUREMENT & PURCHASE COMMITTED ── */}
+      <div className="fa-double-grid">
+        <div className="fa-card">
+          <h3 className="fa-card-title">Procurement PO Pipeline Status</h3>
+          <div className="fa-drawer-grid" style={{ marginBottom: 16 }}>
+            <div className="grid-item">
+              <span className="label">Waiting Finance</span>
+              <strong>{procurement.summary?.pendingApprovedIndents ?? 0} Indents</strong>
+            </div>
+            <div className="grid-item">
+              <span className="label">Draft POs</span>
+              <strong>{procurement.summary?.draftPosCount ?? 0} POs</strong>
+            </div>
+            <div className="grid-item">
+              <span className="label">Approval Pending</span>
+              <strong>{procurement.summary?.awaitingApprovalCount ?? 0} POs</strong>
+            </div>
+            <div className="grid-item text-purple">
+              <span className="label">Issued PO Commitment</span>
+              <strong>{formatCurrency(procurement.summary?.openCommitmentValue ?? 0)}</strong>
+            </div>
+          </div>
+          <div className="fa-table-wrapper" style={{ maxHeight: 200, overflowY: 'auto' }}>
+            <table className="fa-table">
+              <thead>
+                <tr>
+                  <th>Indent / PO Status</th>
+                  <th>Active Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Plant Head Approved</td><td>{procurement.statuses?.plantHeadApproved ?? 0}</td></tr>
+                <tr><td>Waiting Finance Action</td><td>{procurement.statuses?.waitingFinance ?? 0}</td></tr>
+                <tr><td>Draft Purchase Order</td><td>{procurement.statuses?.draftPo ?? 0}</td></tr>
+                <tr><td>Approved &amp; Issued PO</td><td>{procurement.statuses?.issued ?? 0}</td></tr>
+                <tr><td>Partially Received Goods</td><td>{procurement.statuses?.partiallyReceived ?? 0}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="fa-card">
+          <h3 className="fa-card-title">Open Commitments by Vendor</h3>
+          <div className="fa-table-wrapper" style={{ maxHeight: 310, overflowY: 'auto' }}>
+            <table className="fa-table">
+              <thead>
+                <tr>
+                  <th>Vendor</th>
+                  <th>Open POs</th>
+                  <th>PO Value</th>
+                  <th>Received Value</th>
+                  <th>Committed Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {procurement.vendors?.slice(0, 10).map((row) => (
+                  <tr key={row.vendorName}>
+                    <td className="bold">{row.vendorName}</td>
+                    <td>{row.openPosCount} POs</td>
+                    <td>{formatCurrency(row.poValue)}</td>
+                    <td>{formatCurrency(row.receivedValue)}</td>
+                    <td className="bold text-purple">{formatCurrency(row.openCommitment)}</td>
+                  </tr>
+                ))}
+                {(procurement.vendors || []).length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No active purchase commitments.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MATERIAL REJECTIONS & EXPOSURE ── */}
+      <div className="fa-double-grid" style={{ marginTop: 24 }}>
+        <div className="fa-card">
+          <h3 className="fa-card-title">Material Rejections Financial Exposure</h3>
+          <div className="fa-drawer-grid" style={{ marginBottom: 16 }}>
+            <div className="grid-item text-red">
+              <span className="label">Rejected Exposure</span>
+              <strong>{formatCurrency(rejections.exposure?.rejectedValue ?? 0)}</strong>
+              <span className="sub">Cases: {rejections.summary?.openCount ?? 0} open</span>
+            </div>
+            <div className="grid-item text-orange">
+              <span className="label">Credit Notes Pending</span>
+              <strong>{formatCurrency(rejections.exposure?.vendorCreditPending ?? 0)}</strong>
+            </div>
+            <div className="grid-item text-purple">
+              <span className="label">Replacement Expected</span>
+              <strong>{formatCurrency(rejections.exposure?.replacementValuePending ?? 0)}</strong>
+            </div>
+            <div className="grid-item text-success">
+              <span className="label">Recovered / Resolved</span>
+              <strong>{formatCurrency(rejections.exposure?.recoveredValue ?? 0)}</strong>
+              <span className="sub">Unrecoverable: {formatCurrency(rejections.exposure?.unrecoverableLoss ?? 0)}</span>
+            </div>
+          </div>
+          <h4 style={{ margin: '12px 0 6px 0', fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>Rejection Reason Analysis:</h4>
+          <div className="fa-table-wrapper">
+            <table className="fa-table">
+              <thead>
+                <tr>
+                  <th>Reason Category</th>
+                  <th>Affect Cases</th>
+                  <th>Exposed Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rejections.reasons?.map((r) => (
+                  <tr key={r.reason}>
+                    <td>{r.reason}</td>
+                    <td>{r.cases} Cases</td>
+                    <td className="bold text-danger">{formatCurrency(r.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── PAYROLL LIABILITY & COST DISTRIBUTION ── */}
+        <div className="fa-card">
+          <h3 className="fa-card-title">Salary &amp; Payroll Cost Analysis</h3>
+          <div className="fa-drawer-grid" style={{ marginBottom: 16 }}>
+            <div className="grid-item">
+              <span className="label">Employees Payable</span>
+              <strong>{payroll.summary?.employeesPayable ?? 0} Employees</strong>
+              <span className="sub">Pending: {payroll.summary?.pendingFinance ?? 0}</span>
+            </div>
+            <div className="grid-item text-purple">
+              <span className="label">Gross Payroll Cost</span>
+              <strong>{formatCurrency(payroll.summary?.grossPayroll ?? 0)}</strong>
+              <span className="sub">Deductions: {formatCurrency(payroll.summary?.deductions ?? 0)}</span>
+            </div>
+            <div className="grid-item text-indigo">
+              <span className="label">Net Liability due</span>
+              <strong>{formatCurrency(payroll.summary?.netPayroll ?? 0)}</strong>
+              <span className="sub">SLA Processed: {payroll.summary?.processedCount ?? 0} records</span>
+            </div>
+          </div>
+          <h4 style={{ margin: '12px 0 6px 0', fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>Department Payroll Cost Split:</h4>
+          <div className="fa-table-wrapper" style={{ maxHeight: 150, overflowY: 'auto' }}>
+            <table className="fa-table">
+              <thead>
+                <tr>
+                  <th>Department</th>
+                  <th>Staff Count</th>
+                  <th>Gross Earnings</th>
+                  <th>Net Pay Obligation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payroll.departmentWise?.map((row) => (
+                  <tr key={row.departmentName}>
+                    <td className="bold">{row.departmentName}</td>
+                    <td>{row.employeesCount} Staff</td>
+                    <td>{formatCurrency(row.gross)}</td>
+                    <td className="bold text-indigo">{formatCurrency(row.netPay)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ── FINANCIAL EXPOSURE & INFLOW VS COMMITMENTS ── */}
+      <div className="fa-double-grid" style={{ marginTop: 24 }}>
+        <div className="fa-card">
+          <h3 className="fa-card-title">Finance Inflow vs Obligation Commitments</h3>
+          <ResponsiveChart height={280}>
+            <BarChart data={[
+              { name: 'Collections Inflow', amount: collectedAmount },
+              { name: 'PO Commitments', amount: exposure.openPoCommitment ?? 0 },
+              { name: 'Payroll Liability', amount: exposure.payrollLiability ?? 0 }
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+              <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />
+              <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
+              <Tooltip />
+              <Bar dataKey="amount" name="Obligation Amount" radius={[4, 4, 0, 0]}>
+                <Cell fill="#10B981" />
+                <Cell fill="#8B5CF6" />
+                <Cell fill="#6366F1" />
+              </Bar>
+            </BarChart>
+          </ResponsiveChart>
+        </div>
+
+        <div className="fa-card">
+          <h3 className="fa-card-title">Commercial Risk &amp; Exposure Feed</h3>
+          <div className="fa-table-wrapper">
+            <table className="fa-table">
+              <thead>
+                <tr>
+                  <th>Commercial Segment</th>
+                  <th>Net Obligation Exposure</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="bold">Customer Total Receivable Outstanding</td>
+                  <td className="bold text-orange">{formatCurrency(exposure.customerOutstanding ?? 0)}</td>
+                </tr>
+                <tr>
+                  <td className="bold">Customer Overdue Balance</td>
+                  <td className="bold text-red">{formatCurrency(exposure.customerOverdue ?? 0)}</td>
+                </tr>
+                <tr>
+                  <td className="bold">Open Purchase Commitments (AP equivalent)</td>
+                  <td className="bold text-purple">{formatCurrency(exposure.openPoCommitment ?? 0)}</td>
+                </tr>
+                <tr>
+                  <td className="bold">Material Quality Rejections Exposure</td>
+                  <td className="bold text-red">{formatCurrency(exposure.materialRejectionExposure ?? 0)}</td>
+                </tr>
+                <tr>
+                  <td className="bold">Salary &amp; Payroll Monthly Obligation</td>
+                  <td className="bold text-indigo">{formatCurrency(exposure.payrollLiability ?? 0)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MANAGEMENT EXCEPTIONS CONTROL FEED ── */}
+      {alerts.length > 0 && (
+        <div className="fa-alerts-card" style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Lucide.AlertTriangle size={20} color="#b45309" />
+            <span className="fa-alerts-title">Finance Exceptions &amp; Attention Feed ({alerts.length})</span>
+          </div>
+          <div className="fa-alerts-list">
+            {alerts.map((alertText, idx) => (
+              <div key={idx} className="fa-alert-item">
+                <Lucide.AlertCircle size={16} color="#d97706" />
+                <span>{alertText}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

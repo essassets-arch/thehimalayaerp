@@ -1,539 +1,749 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, TrendingDown, RefreshCw, FileSpreadsheet, Printer, Download,
-  Activity, FileText, Users, CheckCircle, AlertCircle, Calendar, MapPin, 
-  Trash2, Plus, ArrowUpDown, ChevronDown, Award, Shield, AlertTriangle, 
-  Settings, Briefcase, Truck, Database, DollarSign, Cpu, BarChart2, Search
-} from 'lucide-react';
-import { 
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
-  BarChart, Bar, Legend, LineChart, Line, PieChart, Pie, Cell 
+import React, { useState, useEffect, useCallback, useRef, cloneElement } from 'react';
+import * as Lucide from 'lucide-react';
+import {
+  ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  BarChart, Bar, Legend, LineChart, Line, PieChart, Pie, Cell
 } from 'recharts';
-
-import { useSalesFilters, PRESETS } from '../hooks/useSalesFilters.js';
-import { useCommandCenter } from '../hooks/useCommandCenter.js';
-import { useSalesExport } from '../hooks/useSalesExport.js';
-
-import DataTable from '../components/sales-analytics/explorer/DataTable.jsx';
+import { backendFetch } from '@/lib/backendFetch';
+import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
+import { formatCurrency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
-import { SuperAdminFilterProvider, useSuperAdminFilter } from '../context/SuperAdminFilterContext.jsx';
 import './SalesAnalyticsPage.css';
 
-const DEPT_COLORS = ["#7C3AED", "#4F46E5", "#06B6D4", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#8B5CF6"];
+const CHART_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B"];
 
-const getKPIBorder = (title) => {
-  const t = title.toLowerCase();
-  if (t.includes('revenue') || t.includes('collection') || t.includes('profit') || t.includes('outstanding')) {
-    return '4px solid #4f46e5';
-  }
-  if (t.includes('production') || t.includes('capacity') || t.includes('dispatch')) {
-    return '4px solid #10b981';
-  }
-  if (t.includes('pipeline') || t.includes('sample')) {
-    return '4px solid #f59e0b';
-  }
-  return '4px solid #8b5cf6';
-};
-
-const SalesAnalyticsContent = () => {
-  const [globalSearch, setGlobalSearch] = useState('');
+function ResponsiveChart({ height, children }) {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(0);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
-  
-  // Custom BI & Filter Hooks
-  const { period, startDate, endDate, activeDates, filters, setFilter, clearAllFilters } = useSuperAdminFilter();
-  const { data, loading, error, refreshAll } = useCommandCenter(filters, activeDates);
-  const { exportCSV, exportExcel, exportPDF } = useSalesExport(data, 'overview');
-
-  const [drilldownEntity, setDrilldownEntity] = useState(null);
-
-  const safeData = data || {};
-  const overviewData = safeData.overview || {};
-  const exceptionsData = safeData.exceptions || {};
-  const crmData = safeData.crm || {};
-  const productionData = safeData.production || {};
-  const financeData = safeData.finance || {};
-  const employeesData = safeData.employees || {};
-  const explorerData = safeData.explorer || {};
-
-  const kpisList = (overviewData.kpis && overviewData.kpis.length > 0) ? overviewData.kpis : [];
-  const healthData = (safeData.health && safeData.health.length > 0) ? safeData.health : [];
-  const exceptionsList = (exceptionsData.exceptions && exceptionsData.exceptions.length > 0) ? exceptionsData.exceptions : [];
-  const eventsList = (safeData.events && safeData.events.length > 0) ? safeData.events : [];
-  const revenueTrends = (safeData.trends && safeData.trends.length > 0) ? safeData.trends : [];
-  const crmSources = (crmData.splits?.sources && crmData.splits.sources.length > 0) ? crmData.splits.sources : [];
-  const employeePerformance = (employeesData.performance && employeesData.performance.length > 0) ? employeesData.performance : [];
-  const agingBuckets = financeData.agingBuckets || {};
-  const rawExplorerRows = (explorerData.rows && explorerData.rows.length > 0) ? explorerData.rows : [];
-
-  const handleKPISelect = (kpi) => {
-    setDrilldownEntity({
-      type: 'KPI Card Detail',
-      id: kpi.title,
-      details: kpi
-    });
-  };
-
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'high': return { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.04)', border: '1px dashed #ef4444' };
-      case 'medium': return { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.04)', border: '1px dashed #f59e0b' };
-      default: return { color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.04)', border: '1px dashed #3b82f6' };
+    if (!ref.current) return;
+    
+    const initialWidth = ref.current.getBoundingClientRect().width || ref.current.offsetWidth;
+    if (initialWidth > 0) {
+      setWidth(initialWidth);
     }
-  };
 
-  const filteredExplorerRows = (() => {
-    if (!globalSearch) return rawExplorerRows;
-    const lower = globalSearch.toLowerCase();
-    return rawExplorerRows.filter(r => 
-      String(r.customer || '').toLowerCase().includes(lower) || 
-      String(r.orderNumber || '').toLowerCase().includes(lower) || 
-      String(r.salesExecutive || '').toLowerCase().includes(lower) ||
-      String(r.product || '').toLowerCase().includes(lower)
-    );
-  })();
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const { width: newWidth } = entries[0].contentRect;
+      if (newWidth > 0) {
+        setWidth(newWidth);
+      }
+    });
 
-  const filteredEmployeePerformance = (() => {
-    if (!globalSearch) return employeePerformance;
-    const lower = globalSearch.toLowerCase();
-    return employeePerformance.filter(e => 
-      String(e.executive || '').toLowerCase().includes(lower) ||
-      String(e.email || '').toLowerCase().includes(lower)
-    );
-  })();
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
 
-  if (error) {
-    return <div style={{ padding: '32px', color: '#b91c1c', fontFamily: 'Outfit, sans-serif' }}>
-      <h2>Unable to load Executive Command Center.</h2>
-      <p>{error.message}</p>
-      <button onClick={refreshAll} style={{ padding: '8px 14px', border: 'none', borderRadius: '6px', background: '#2563eb', color: '#fff', cursor: 'pointer' }}>Retry</button>
-    </div>;
+  if (!mounted) {
+    return <div style={{ height: `${height}px`, width: '100%' }} />;
   }
 
   return (
-    <div className="sales-analytics-container">
-      
-      {/* ── 1. COMPACT HEADER TOOLBAR ── */}
-      <div className="sales-analytics-header">
-        <div className="sales-analytics-header-title">
-          <h1 style={{ fontSize: 'clamp(20px, 2.5vw, 24px)', fontWeight: '900', color: '#24345C', margin: 0 }}>Executive Command Center</h1>
-          <p style={{ fontSize: '12px', color: '#5E6B82', margin: '2px 0 0' }}>Real-time aggregated corporate health and risk matrices • Last Updated: {safeData.generatedAt ? new Date(safeData.generatedAt).toLocaleString() : 'Loading…'}</p>
-        </div>
-        
-        {/* Global Search and Actions */}
-        <div className="sales-analytics-header-actions">
-          <div className="sales-analytics-search-box">
-            <Search size={14} color="#5E6B82" />
-            <input 
-              value={globalSearch} 
-              onChange={e => setGlobalSearch(e.target.value)} 
-              placeholder="Search customers, orders, executives..." 
-              style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', width: '100%', color: '#24345C' }} 
-            />
-          </div>
+    <div ref={ref} style={{ width: '100%', height: `${height}px`, position: 'relative' }}>
+      {width > 0 && cloneElement(children, { width, height })}
+    </div>
+  );
+}
 
-          <button onClick={refreshAll} style={{ padding: '8px 12px', background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>
-            <RefreshCw size={14} /> Refresh
+export default function SalesAnalyticsPage() {
+  const { activeDates, filters } = useSuperAdminFilter();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedSalesperson, setSelectedSalesperson] = useState(null);
+  
+  // Custom interactive controls
+  const [performanceView, setPerformanceView] = useState('overall'); // 'overall' | 'orders' | 'payments'
+  const [performanceScope, setPerformanceScope] = useState('all'); // 'all' | 'completed' | 'open'
+  const [rankBy, setRankBy] = useState('overallScore');
+  const [paymentFilter, setPaymentFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({
+        from: activeDates.dateFrom,
+        to: activeDates.dateTo,
+        performanceView,
+        performanceScope,
+        rankBy
+      });
+
+      const filterMap = {
+        branch: 'branchId',
+        customer: 'customerId',
+        product: 'productId',
+        category: 'categoryId',
+        salesperson: 'salespersonId',
+        status: 'orderStatus'
+      };
+
+      Object.entries(filterMap).forEach(([key, value]) => {
+        if (filters[key] && filters[key] !== 'All') {
+          params.set(value, filters[key]);
+        }
+      });
+
+      if (paymentFilter !== 'All') params.set('paymentStatus', paymentFilter);
+
+      const res = await backendFetch(`/api/backend/super-admin/analytics/sales?${params}`, { cacheTtlMs: 0 });
+      setData(res);
+    } catch (e) {
+      console.error(e);
+      setError(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeDates.dateFrom, activeDates.dateTo, filters, performanceView, performanceScope, rankBy, paymentFilter]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Adjust rankBy defaults when swapping views
+  const handleViewChange = (view) => {
+    setPerformanceView(view);
+    if (view === 'overall') setRankBy('overallScore');
+    else if (view === 'orders') setRankBy('orderValue');
+    else if (view === 'payments') setRankBy('collectedAmount');
+  };
+
+  if (error) {
+    return (
+      <div className="sales-analytics-container" style={{ textAlign: 'center', padding: '48px 0' }}>
+        <Lucide.AlertTriangle size={48} color="#ef4444" style={{ marginBottom: 16 }} />
+        <h2>Unable to load Sales Command Center.</h2>
+        <p style={{ color: '#64748b', marginBottom: 16 }}>{error.message || 'An error occurred while fetching analytics.'}</p>
+        <button onClick={load} className="sa-btn-primary">
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="sales-analytics-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+        <Lucide.Loader size={36} className="animate-spin" style={{ color: '#6366f1', marginBottom: 12 }} />
+        <p style={{ color: '#64748b', fontWeight: 'bold' }}>Loading Sales & Revenue Telemetry...</p>
+      </div>
+    );
+  }
+
+  const {
+    summary = {},
+    funnel = {},
+    salespersonPerformance = {},
+    leads = {},
+    samples = {},
+    quotations = {},
+    orders = {},
+    payments = {},
+    complaints = {},
+    risks = {},
+    performance = {},
+    alerts = []
+  } = data;
+
+  const quoteValue = summary.quotations?.value ?? 0;
+  const orderValue = summary.orders?.value ?? 0;
+  const collectedAmount = summary.revenue?.collected ?? 0;
+
+  const handleExport = (format) => {
+    alert(`Exporting Sales Analytics data as ${format.toUpperCase()}...`);
+  };
+
+  const customFilters = (
+    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      <select 
+        value={paymentFilter} 
+        onChange={(e) => setPaymentFilter(e.target.value)}
+        className="sa-analytics-filter__select"
+      >
+        <option value="All">Payment: All</option>
+        <option value="Fully Paid">Fully Paid</option>
+        <option value="Partial">Partially Paid</option>
+        <option value="Pending">Pending</option>
+        <option value="Overdue">Overdue</option>
+      </select>
+    </div>
+  );
+
+  const leaderboardFiltered = (salespersonPerformance.leaderboard || []).filter(item => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return item.salespersonName.toLowerCase().includes(q) || item.email.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="sales-analytics-container">
+      {/* ── HEADER BLOCK ── */}
+      <div className="sales-analytics-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="sales-analytics-header-icon">
+            <Lucide.BarChart2 size={28} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 className="sales-analytics-title">Sales &amp; Revenue Command Center</h1>
+              <span className="sales-analytics-badge">O2C TELEMETRY</span>
+            </div>
+            <p className="sales-analytics-subtitle">Aggregated sales performance, conversion indexes, collections cashflows, receivables, and order fulfillment states.</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => handleExport('pdf')} className="sa-btn-outline">
+            <Lucide.FileText size={16} /> Export PDF
           </button>
-          <button onClick={() => exportPDF()} style={{ padding: '8px 14px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 'bold' }}>
-            <Download size={14} /> PDF
-          </button>
-          <button onClick={() => exportExcel()} style={{ padding: '8px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 'bold' }}>
-            <FileSpreadsheet size={14} /> Excel
+          <button onClick={() => handleExport('excel')} className="sa-btn-outline">
+            <Lucide.FileSpreadsheet size={16} /> Export Excel
           </button>
         </div>
       </div>
 
-      {/* Shared Super Admin Analytics Filter Bar */}
-      <SuperAdminAnalyticsFilter
-        title="Sales Analytics Filter Control"
-        showBranch={true}
-        showSalesperson={true}
-        showCustomer={true}
-        showProduct={true}
-        showCategory={true}
-        showStatus={true}
-        filterOptions={safeData.filters || {}}
-        onExportPDF={() => exportPDF()}
-        onExportExcel={() => exportExcel()}
-      />
+      {/* ── FILTER TOOLBAR ── */}
+      <div style={{ marginBottom: 24 }}>
+        <SuperAdminAnalyticsFilter 
+          title="Sales Filter Control"
+          showBranch={true}
+          showCustomer={true}
+          showProduct={true}
+          showCategory={true}
+          showSalesperson={true}
+          showStatus={true}
+          filterOptions={data.filters}
+          customActions={customFilters}
+        />
+      </div>
 
-      {/* ── 3. EXECUTIVE KPI STRIP ── */}
-      {kpisList && kpisList.length > 0 && (
-        <div className="sales-kpi-container">
-          <div className="sales-kpi-grid">
-            {kpisList.map((kpi, idx) => (
-              <div key={idx} className="sales-kpi-card" onClick={() => handleKPISelect(kpi)} style={{ borderTop: getKPIBorder(kpi.title) }}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#5E6B82', textTransform: 'uppercase', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{kpi.title}</div>
-                <div style={{ fontSize: 'clamp(18px, 2vw, 22px)', fontWeight: '950', color: '#24345C' }}>{kpi.value}</div>
-                {((kpi.achievement !== null && kpi.achievement !== undefined) || kpi.change) && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: '#8893A7', marginTop: '6px' }}>
-                    {(kpi.achievement !== null && kpi.achievement !== undefined) ? (
-                      <span>Achieved: {kpi.achievement}%</span>
-                    ) : (
-                      <span />
-                    )}
-                    {kpi.change && (
-                      <span style={{ color: kpi.change.startsWith('-') ? '#ef4444' : '#16a34a', fontWeight: 'bold' }}>
-                        {kpi.change}
-                      </span>
-                    )}
-                  </div>
-                )}
+      {/* ── TOP-PERFORMER CARDS STRIP ── */}
+      <div className="sa-top-performers-grid">
+        <div className="sa-performer-card card-overall">
+          <div className="sa-card-icon-box"><Lucide.Award size={22} /></div>
+          <div className="sa-card-content">
+            <span className="label">🏆 TOP OVERALL</span>
+            <strong className="value">{salespersonPerformance.topOverall?.name || '—'}</strong>
+            <span className="sub">Score: {salespersonPerformance.topOverall?.score || 0}</span>
+          </div>
+        </div>
+        <div className="sa-performer-card card-collections">
+          <div className="sa-card-icon-box"><Lucide.DollarSign size={22} /></div>
+          <div className="sa-card-content">
+            <span className="label">💰 TOP COLLECTION</span>
+            <strong className="value">{salespersonPerformance.topCollection?.name || '—'}</strong>
+            <span className="sub">{formatCurrency(salespersonPerformance.topCollection?.amount || 0)}</span>
+          </div>
+        </div>
+        <div className="sa-performer-card card-orders">
+          <div className="sa-card-icon-box"><Lucide.TrendingUp size={22} /></div>
+          <div className="sa-card-content">
+            <span className="label">📦 TOP ORDER VALUE</span>
+            <strong className="value">{salespersonPerformance.topOrderValue?.name || '—'}</strong>
+            <span className="sub">{formatCurrency(salespersonPerformance.topOrderValue?.amount || 0)}</span>
+          </div>
+        </div>
+        <div className="sa-performer-card card-paid">
+          <div className="sa-card-icon-box"><Lucide.CheckSquare size={22} /></div>
+          <div className="sa-card-content">
+            <span className="label">✅ MOST FULLY PAID ORDERS</span>
+            <strong className="value">{salespersonPerformance.topFullyPaid?.name || '—'}</strong>
+            <span className="sub">{salespersonPerformance.topFullyPaid?.count || 0} Orders</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── EXECUTIVE SALES SUMMARY ── */}
+      <div className="sa-summary-grid">
+        <div className="sa-summary-card">
+          <span className="label">Leads</span>
+          <div className="value text-blue">{summary.leads?.total ?? 0}</div>
+          <div className="footer">Active: <strong>{summary.leads?.active ?? 0}</strong></div>
+        </div>
+        <div className="sa-summary-card">
+          <span className="label">Quotations</span>
+          <div className="value text-purple">{summary.quotations?.total ?? 0}</div>
+          <div className="footer">Value: <strong>{formatCurrency(summary.quotations?.value ?? 0)}</strong></div>
+        </div>
+        <div className="sa-summary-card">
+          <span className="label">Confirmed Orders</span>
+          <div className="value text-emerald">{summary.orders?.total ?? 0}</div>
+          <div className="footer">Value: <strong>{formatCurrency(summary.orders?.value ?? 0)}</strong></div>
+        </div>
+        <div className="sa-summary-card">
+          <span className="label">Verified Collections</span>
+          <div className="value text-emerald">{formatCurrency(summary.revenue?.collected ?? 0)}</div>
+          <div className="footer">DSO: <strong>{performance.onTimeFulfillmentRate}% On-Time</strong></div>
+        </div>
+        <div className="sa-summary-card">
+          <span className="label">Outstanding Balance</span>
+          <div className="value text-orange">{formatCurrency(summary.revenue?.outstanding ?? 0)}</div>
+          <div className="footer">Overdue: <strong>{formatCurrency(summary.revenue?.overdue ?? 0)}</strong></div>
+        </div>
+        <div className="sa-summary-card">
+          <span className="label">Lead → Order Conv. %</span>
+          <div className="value text-indigo">{performance.leadToOrderRate ?? 0}%</div>
+          <div className="footer">Complaints: <strong>{complaints.summary?.open ?? 0} Open</strong></div>
+        </div>
+      </div>
+
+      {/* ── SALESPERSON PERFORMANCE LEADERBOARD ── */}
+      <div className="sa-card" style={{ marginBottom: 24 }}>
+        <div className="sa-leaderboard-header">
+          <h3 className="sa-card-title" style={{ margin: 0 }}>Salesperson Performance Leaderboard</h3>
+          <div className="sa-leaderboard-controls">
+            <div className="sa-btn-group">
+              <button onClick={() => handleViewChange('overall')} className={`sa-tab-btn ${performanceView === 'overall' ? 'active' : ''}`}>Overall</button>
+              <button onClick={() => handleViewChange('orders')} className={`sa-tab-btn ${performanceView === 'orders' ? 'active' : ''}`}>Order Wise</button>
+              <button onClick={() => handleViewChange('payments')} className={`sa-tab-btn ${performanceView === 'payments' ? 'active' : ''}`}>Payment Wise</button>
+            </div>
+
+            <div className="sa-btn-group">
+              <button onClick={() => setPerformanceScope('all')} className={`sa-tab-btn small ${performanceScope === 'all' ? 'active' : ''}`}>All Business</button>
+              <button onClick={() => setPerformanceScope('completed')} className={`sa-tab-btn small ${performanceScope === 'completed' ? 'active' : ''}`}>Completed Business</button>
+            </div>
+
+            {performanceView === 'orders' && (
+              <select value={rankBy} onChange={(e) => setRankBy(e.target.value)} className="sa-select-dropdown">
+                <option value="orderValue">Rank By: Order Value</option>
+                <option value="orderCount">Rank By: Number of Orders</option>
+                <option value="deliveredOrders">Rank By: Delivered Orders</option>
+                <option value="completedOrders">Rank By: Fully Completed Orders</option>
+                <option value="averageOrderValue">Rank By: Average Order Value</option>
+              </select>
+            )}
+
+            {performanceView === 'payments' && (
+              <select value={rankBy} onChange={(e) => setRankBy(e.target.value)} className="sa-select-dropdown">
+                <option value="collectedAmount">Rank By: Collection Amount</option>
+                <option value="collectionRate">Rank By: Collection %</option>
+                <option value="fullyPaidOrders">Rank By: Fully Paid Orders</option>
+              </select>
+            )}
+
+            <div className="sa-search-input-box">
+              <Lucide.Search size={14} />
+              <input 
+                type="text" 
+                placeholder="Search salesperson..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="sa-table-wrapper" style={{ marginTop: 16 }}>
+          {performanceView === 'overall' && (
+            <table className="sa-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Salesperson</th>
+                  <th>Leads</th>
+                  <th>Orders</th>
+                  <th>Order Value</th>
+                  <th>Collected</th>
+                  <th>Outstanding</th>
+                  <th>Overdue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboardFiltered.map((row) => (
+                  <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
+                    <td className="bold">{row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : row.rank}</td>
+                    <td>
+                      <div className="bold">{row.salespersonName}</div>
+                      <div className="sub">{row.email}</div>
+                    </td>
+                    <td>{row.leads?.total}</td>
+                    <td>{row.orders?.confirmed}</td>
+                    <td>{formatCurrency(row.orders?.confirmedValue)}</td>
+                    <td className="bold text-success">{formatCurrency(row.payments?.verifiedCollected)}</td>
+                    <td>{formatCurrency(row.payments?.outstanding)}</td>
+                    <td className="text-danger">{formatCurrency(row.payments?.overdue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {performanceView === 'orders' && (
+            <table className="sa-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Salesperson</th>
+                  <th>Confirmed Orders</th>
+                  <th>Delivered</th>
+                  <th>Completed</th>
+                  <th>Pending</th>
+                  <th>Order Value</th>
+                  <th>Avg Order</th>
+                  <th>Conversion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboardFiltered.map((row) => (
+                  <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
+                    <td className="bold">{row.rank}</td>
+                    <td>
+                      <div className="bold">{row.salespersonName}</div>
+                      <div className="sub">{row.email}</div>
+                    </td>
+                    <td>{row.orders?.confirmed}</td>
+                    <td>{row.orders?.delivered}</td>
+                    <td>{row.orders?.closed}</td>
+                    <td>{row.orders?.pending}</td>
+                    <td className="bold">{formatCurrency(row.orders?.confirmedValue)}</td>
+                    <td>{formatCurrency(row.orders?.averageOrderValue)}</td>
+                    <td>{row.conversion?.leadToOrder}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {performanceView === 'payments' && (
+            <table className="sa-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Salesperson</th>
+                  <th>Order Value</th>
+                  <th>Collected</th>
+                  <th>Collection %</th>
+                  <th>Coverage %</th>
+                  <th>Outstanding</th>
+                  <th>Overdue</th>
+                  <th>Fully Paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboardFiltered.map((row) => (
+                  <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
+                    <td className="bold">{row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : row.rank}</td>
+                    <td>
+                      <div className="bold">{row.salespersonName}</div>
+                      <div className="sub">{row.email}</div>
+                    </td>
+                    <td>{formatCurrency(row.orders?.confirmedValue)}</td>
+                    <td className="bold text-success">{formatCurrency(row.payments?.verifiedCollected)}</td>
+                    <td className="bold">{row.payments?.collectionRate != null ? `${row.payments.collectionRate}%` : '—'}</td>
+                    <td className="sub">{row.payments?.orderCollectionCoverage}%</td>
+                    <td>{formatCurrency(row.payments?.outstanding)}</td>
+                    <td className="text-danger">{formatCurrency(row.payments?.overdue)}</td>
+                    <td className="bold text-success">{row.payments?.fullyPaidOrders}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* ── SALES LIFECYCLE FUNNEL ── */}
+      <div className="sa-card" style={{ marginBottom: 24 }}>
+        <h3 className="sa-card-title">Sales O2C Funnel Visualizer</h3>
+        <div className="sa-funnel-flow">
+          <div className="sa-funnel-node">
+            <span className="label">LEADS</span>
+            <strong>{summary.leads?.total ?? 0}</strong>
+          </div>
+          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+          <div className="sa-funnel-node">
+            <span className="label">SAMPLES SENT</span>
+            <strong>{samples.summary?.total ?? 0}</strong>
+          </div>
+          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+          <div className="sa-funnel-node">
+            <span className="label">QUOTATIONS</span>
+            <strong>{summary.quotations?.total ?? 0}</strong>
+            <span className="sub">{formatCurrency(summary.quotations?.value ?? 0)}</span>
+          </div>
+          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+          <div className="sa-funnel-node">
+            <span className="label">CONFIRMED ORDERS</span>
+            <strong>{summary.orders?.total ?? 0}</strong>
+            <span className="sub">{formatCurrency(summary.orders?.value ?? 0)}</span>
+          </div>
+          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+          <div className="sa-funnel-node">
+            <span className="label">FULLY PAID</span>
+            <strong>{leaderboardFiltered.reduce((sum, item) => sum + item.payments.fullyPaidOrders, 0)} Orders</strong>
+            <span className="sub">{formatCurrency(collectedAmount)}</span>
+          </div>
+        </div>
+        <div className="sa-funnel-rates">
+          <div className="rate-item">Lead → Quote: <strong>{funnel.conversions?.leadToQuote}%</strong></div>
+          <div className="rate-item">Quote → Order: <strong>{funnel.conversions?.quoteToOrder}%</strong></div>
+          <div className="rate-item">Lead → Order: <strong>{funnel.conversions?.leadToOrder}%</strong></div>
+        </div>
+      </div>
+
+      {/* ── CHARTS ROW ── */}
+      <div className="sa-double-grid">
+        <div className="sa-card">
+          <h3 className="sa-card-title">Gross billing &amp; Receipts Curve</h3>
+          <ResponsiveChart height={300}>
+            <ComposedChart data={payments.trends || []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+              <XAxis dataKey="period" stroke="#64748b" style={{ fontSize: '11px' }} />
+              <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
+              <Tooltip />
+              <Legend />
+              <Area type="monotone" dataKey="orderValue" name="Billings" stroke="#6366f1" fill="rgba(99, 102, 241, 0.1)" />
+              <Line type="monotone" dataKey="collections" name="Receipts" stroke="#10B981" strokeWidth={2.5} />
+            </ComposedChart>
+          </ResponsiveChart>
+        </div>
+
+        <div className="sa-card">
+          <h3 className="sa-card-title">Opportunity Pipeline Potentials</h3>
+          <ResponsiveChart height={300}>
+            <BarChart data={[
+              { name: 'Leads potential', val: quoteValue * 1.5 },
+              { name: 'Open Quotes', val: quoteValue },
+              { name: 'Confirmed orders', val: orderValue }
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+              <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />
+              <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
+              <Tooltip />
+              <Bar dataKey="val" name="Potential Value" fill="#6366f1" radius={[4, 4, 0, 0]}>
+                <Cell fill="#8B5CF6" />
+                <Cell fill="#6366F1" />
+                <Cell fill="#10B981" />
+              </Bar>
+            </BarChart>
+          </ResponsiveChart>
+        </div>
+      </div>
+
+      {/* ── LEADS & FOLLOW UPS ── */}
+      <div className="sa-card" style={{ marginBottom: 24 }}>
+        <h3 className="sa-card-title">CRM Leads &amp; follow-up Analysis</h3>
+        <div className="sa-double-grid">
+          <div>
+            <h4 className="sa-sub-title">Lead Source &amp; Conversion rates</h4>
+            <div className="sa-table-wrapper">
+              <table className="sa-table small">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Leads</th>
+                    <th>Quotations</th>
+                    <th>Orders</th>
+                    <th>Conversion %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.sources?.map((row, idx) => (
+                    <tr key={idx}>
+                      <td className="bold">{row.source}</td>
+                      <td>{row.leads}</td>
+                      <td>{row.quotations}</td>
+                      <td>{row.orders}</td>
+                      <td className="bold text-success">{row.conversionPct}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="sa-sub-title">Lead aging buckets</h4>
+            <div className="sa-grid-two">
+              <div className="sa-report-item">
+                <span className="label">0–7 Days</span>
+                <strong>{leads.aging?.aging0to7} Leads</strong>
+              </div>
+              <div className="sa-report-item">
+                <span className="label">8–15 Days</span>
+                <strong>{leads.aging?.aging8to15} Leads</strong>
+              </div>
+              <div className="sa-report-item">
+                <span className="label">16–30 Days</span>
+                <strong>{leads.aging?.aging16to30} Leads</strong>
+              </div>
+              <div className="sa-report-item">
+                <span className="label">&gt; 30 Days</span>
+                <strong>{(leads.aging?.aging31to60 || 0) + (leads.aging?.agingMoreThan60 || 0)} Leads</strong>
+              </div>
+            </div>
+            <div className="sa-report-item" style={{ marginTop: 12 }}>
+              <span className="label">Oldest Open lead</span>
+              <strong style={{ color: '#ef4444' }}>{leads.aging?.oldestLeadDays} Days</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── RECEIVABLES AGING ── */}
+      <div className="sa-card" style={{ marginBottom: 24 }}>
+        <h3 className="sa-card-title">Finance Ageing Buckets</h3>
+        <div className="sa-double-grid">
+          <div>
+            <h4 className="sa-sub-title">receivable Ageing</h4>
+            <div className="sa-grid-two">
+              <div className="sa-report-item">
+                <span className="label">Not Due</span>
+                <strong>{formatCurrency(payments.aging?.notDue ?? 0)}</strong>
+              </div>
+              <div className="sa-report-item text-warning">
+                <span className="label">1–30 Days</span>
+                <strong>{formatCurrency((payments.aging?.aging1to15 || 0) + (payments.aging?.aging16to30 || 0))}</strong>
+              </div>
+              <div className="sa-report-item text-danger">
+                <span className="label">31–90 Days</span>
+                <strong>{formatCurrency((payments.aging?.aging31to60 || 0) + (payments.aging?.aging61to90 || 0))}</strong>
+              </div>
+              <div className="sa-report-item text-danger-heavy">
+                <span className="label">&gt; 90 Days Critical</span>
+                <strong>{formatCurrency(payments.aging?.agingMoreThan90 ?? 0)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="sa-report-item" style={{ justifyContent: 'center' }}>
+            <span className="label">Average Payment delay</span>
+            <strong style={{ fontSize: '24px', color: '#ef4444' }}>
+              {payments.summary?.averageCollectionDays != null ? `${payments.summary.averageCollectionDays} Days` : '—'}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CROSS DEPARTMENT FULFILLMENT RISK ── */}
+      <div className="sa-card" style={{ marginBottom: 24 }}>
+        <h3 className="sa-card-title">Fulfillment Commitment Risks</h3>
+        <div className="sa-table-wrapper">
+          <table className="sa-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Order No</th>
+                <th>Target Date</th>
+                <th>Current stage</th>
+                <th>Delay (Days)</th>
+                <th>Salesperson Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              {risks.customerCommitments?.map((row, idx) => (
+                <tr key={idx}>
+                  <td className="bold">{row.customer}</td>
+                  <td className="text-blue">{row.orderNo}</td>
+                  <td>{row.targetDate}</td>
+                  <td><span className="badge badge-warning">{row.stage}</span></td>
+                  <td className="bold text-danger">{row.delay} Days</td>
+                  <td>{row.owner}</td>
+                </tr>
+              ))}
+              {(!risks.customerCommitments || risks.customerCommitments.length === 0) && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', color: '#10b981', fontWeight: 'bold' }}>✓ All customer commitments are fully on-time and in-schedule.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── EXCEPTIONS CONTROL FEED ── */}
+      {alerts.length > 0 && (
+        <div className="sa-alerts-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Lucide.AlertTriangle size={20} color="#b45309" />
+            <span className="sa-alerts-title">Management Attention Alerts ({alerts.length})</span>
+          </div>
+          <div className="sa-alerts-list">
+            {alerts.map((alertText, idx) => (
+              <div key={idx} className="sa-alert-item">
+                <Lucide.AlertCircle size={16} color="#d97706" />
+                <span>{alertText}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── 4. COMPANY HEALTH / ALERTS / LIVE FEED GRID ── */}
-      <div className="sales-health-grid">
-        
-        {/* Company Health Block */}
-        <div className="sales-health-card">
-          <h3 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '900', color: '#24345C', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Activity size={16} color="#0284c7" /> Company Health Indexes
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {healthData.map((idxItem, idx) => {
-              const HEALTH_LABELS = {
-                salesPipeline: 'Sales Pipeline',
-                productionRuntimes: 'Production Runtimes',
-                qcYields: 'QC Yields',
-                dispatchLogistics: 'Dispatch & Logistics',
-                collectionsEfficiency: 'Collections Efficiency',
-                financeCashFlows: 'Finance Cash Flows'
-              };
-              const label = HEALTH_LABELS[idxItem.name] || idxItem.name;
-              return (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
-                    <span style={{ fontWeight: 'bold', color: '#475569' }}>{label}</span>
-                    <strong style={{ color: '#24345C' }}>{idxItem.rating}%</strong>
-                  </div>
-                  <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
-                    <div style={{ width: `${idxItem.rating}%`, background: idxItem.color || '#2563eb', height: '100%' }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Operational Exceptions / Alerts */}
-        <div className="sales-health-card">
-          <h3 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '900', color: '#24345C', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <AlertTriangle size={16} color="#f59e0b" /> Critical Exceptions Control Feed
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-            {exceptionsList.length === 0 ? (
-              <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
-                No active critical exceptions reported.
-              </div>
-            ) : (
-              exceptionsList.map((ex, idx) => {
-                const colors = getSeverityColor(ex.severity);
-                return (
-                  <div key={idx} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 14px', background: colors.bg, border: `1px solid ${colors.color}`, borderLeft: `6px solid ${colors.color}`, borderRadius: '6px', color: '#1e293b' }}>
-                    <AlertCircle size={15} color={colors.color} style={{ minWidth: '15px' }} />
-                    <span style={{ fontSize: '12.5px', fontWeight: 'bold' }}>{ex.alert}</span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Live Business Event feed */}
-        <div className="sales-health-card">
-          <h3 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '900', color: '#24345C', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Activity size={16} color="#8b5cf6" /> Live Business Feed
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
-            {eventsList.length === 0 ? (
-              <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
-                No recent business events logged.
-              </div>
-            ) : (
-              eventsList.map((feed, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>
-                  <span style={{ fontWeight: 'bold', color: '#334155' }}>{feed.type}</span>
-                  <span style={{ color: '#5E6B82' }}>{feed.details}</span>
-                  <span style={{ color: '#8893A7' }}>{feed.time}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* ── 5. CHARTS ROW ── */}
-      <div className="command-center-charts">
-        
-        {/* Revenue & Profit Trend Curve */}
-        <div className="command-center-chart-card">
-          <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>Gross Billings & Receipts Curve</h3>
-          <div className="command-center-chart-frame">
-            {revenueTrends.length === 0 ? (
-              <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>
-                No gross billings & receipts recorded for the selected period.
-              </div>
-            ) : (
-              mounted && (
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={revenueTrends}>
-                    <defs>
-                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} minTickGap={20} />
-                    <YAxis width={40} tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="revenue" name="Billings" stroke="#4f46e5" fillOpacity={1} fill="url(#colorRev)" />
-                    <Area type="monotone" dataKey="receipts" name="Receipts" stroke="#10b981" fillOpacity={0} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Target vs Actual output */}
-        <div className="command-center-chart-card">
-          <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>Planned Target vs Produced Output</h3>
-          <div className="command-center-chart-frame">
-            {(productionData.metrics?.planned_qty === 0 && productionData.metrics?.produced_qty === 0) ? (
-              <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>
-                No production output logged for the selected period.
-              </div>
-            ) : (
-              mounted && (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={[
-                    { name: 'Planned', qty: productionData.metrics?.planned_qty ?? 0 },
-                    { name: 'Actual', qty: productionData.metrics?.produced_qty ?? 0 }
-                  ]}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis width={40} tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="qty" fill="#10B981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── 6. DRILLDOWN TABLES ROW ── */}
-      <div className="sales-drilldown-grid">
-        
-        {/* Executive Leaderboard Ledger */}
-        <div className="sales-drilldown-card">
-          <h3 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: '900', color: '#24345C' }}>Executive Performance Ledger</h3>
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ background: '#F5FAFE', borderBottom: '2px solid #D6E2F0' }}>
-                  <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Executive</th>
-                  <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Leads</th>
-                  <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Confirmed Orders</th>
-                  <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Revenue Generated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEmployeePerformance.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic', fontSize: '12.5px' }}>
-                      No sales executive performance records found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredEmployeePerformance.map((ex, idx) => {
-                    const executiveName = ex.executive || ex.name || 'Sales Executive';
-                    const leadCount = typeof ex.leads === 'object' ? (ex.leads?.total ?? ex.leads?.active ?? 0) : (ex.leads ?? 0);
-                    const rawRevenue = parseFloat(ex.revenue ?? ex.revenueGenerated ?? 0);
-                    const achievementPct = ex.achievementPercent == null ? null : Math.round(ex.achievementPercent);
-                    return (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.background = '#F5FAFE'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <td style={{ padding: '12px 8px' }}>
-                          <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{executiveName}</div>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>{ex.email}</div>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{leadCount} Leads</span>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <span style={{ background: '#f0fdf4', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{ex.closed ?? 0} Orders</span>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
-                              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>₹{rawRevenue.toLocaleString('en-IN')}</span>
-                              <span style={{ color: '#5E6B82' }}>{achievementPct == null ? 'Target Not Configured' : `${achievementPct}%`}</span>
-                            </div>
-                            <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '3px', height: '4px', overflow: 'hidden' }}>
-                              <div style={{ width: `${achievementPct ?? 0}%`, background: '#4f46e5', height: '100%' }} />
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Receivables aging buckets */}
-        <div className="sales-drilldown-card">
-          <h3 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: '900', color: '#24345C' }}>Finance Receivables Ageing Buckets</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {(() => {
-              const BUCKET_LABELS = {
-                '0_30': '0 - 30 Days',
-                '31_60': '31 - 60 Days',
-                '61_90': '61 - 90 Days',
-                '90_plus': '90+ Days Critical',
-                '0-30': '0 - 30 Days',
-                '31-60': '31 - 60 Days',
-                '61-90': '61 - 90 Days',
-                '90+': '90+ Days Critical'
-              };
-              const buckets = Object.keys(agingBuckets || {});
-              const getBucketVal = (b) => {
-                const item = agingBuckets[b];
-                if (typeof item === 'number') return item;
-                if (typeof item === 'object' && item !== null) return parseFloat(item.amount || 0) || 0;
-                return parseFloat(item || 0) || 0;
-              };
-              const totalOutstanding = buckets.reduce((sum, b) => sum + getBucketVal(b), 0) || 1;
-              const activeBuckets = buckets.length > 0 ? buckets : ['0_30', '31_60', '61_90', '90_plus'];
-
-              return activeBuckets.map((bucket, idx) => {
-                const val = getBucketVal(bucket);
-                const sharePct = totalOutstanding > 0 ? Math.round((val / totalOutstanding) * 100) : 0;
-                const label = BUCKET_LABELS[bucket] || String(bucket).replace('_', ' ');
-                return (
-                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px 14px', background: '#F5FAFE', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155' }}>{label}</span>
-                      <span style={{ fontSize: '13px', fontWeight: '950', color: '#ef4444' }}>₹{Math.round(val).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div style={{ width: '100%', background: '#DCE5F0', borderRadius: '3px', height: '4px', overflow: 'hidden' }}>
-                      <div style={{ width: `${sharePct}%`, background: '#ef4444', height: '100%' }} />
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
-
-      </div>
-
-      {/* ── 7. DATA EXPLORER ACCORDION ── */}
-      <div style={{ background: '#fff', border: '1px solid #D6E2F0', borderRadius: '12px', padding: '2px', overflow: 'hidden' }}>
-        <DataTable 
-          title="Enterprise Transaction Records Explorer" 
-          columns={[
-            { header: 'Order Number', accessor: 'orderNumber', render: (row) => <strong>{row.orderNumber}</strong> },
-            { header: 'Customer Entity', accessor: 'customer' },
-            { header: 'Sales Executive', accessor: 'salesExecutive' },
-            { header: 'Product Spec', accessor: 'product' },
-            { header: 'Qty Sold', accessor: 'quantity' },
-            { header: 'Total Revenue', accessor: 'revenue', render: (row) => <span style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{Number(row.revenue || 0).toLocaleString('en-IN')}</span> },
-            { header: 'Payment', accessor: 'paymentStatus', render: (row) => {
-                const s = String(row.paymentStatus || 'Pending');
-                let bg = '#fef3c7', fg = '#d97706';
-                if (s === 'Paid' || s === 'Verified') { bg = '#dcfce7'; fg = '#16a34a'; }
-                else if (s === 'Overdue') { bg = '#fee2e2'; fg = '#dc2626'; }
-                return <span style={{ background: bg, color: fg, padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{s}</span>;
-              }
-            },
-            { header: 'Delivery Status', accessor: 'deliveryStatus', render: (row) => {
-                const s = String(row.deliveryStatus || 'Processing');
-                let bg = '#f1f5f9', fg = '#475569';
-                if (s === 'Delivered') { bg = '#dcfce7'; fg = '#16a34a'; }
-                else if (s === 'In Transit') { bg = '#e0f2fe'; fg = '#0284c7'; }
-                else if (s === 'Pending Dispatch') { bg = '#fef3c7'; fg = '#d97706'; }
-                return <span style={{ background: bg, color: fg, padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{s}</span>;
-              }
-            }
-          ]} 
-          data={filteredExplorerRows} 
-          pageSize={10} 
-        />
-      </div>
-
-      {/* ── 8. KPI DRILLDOWN MODAL ── */}
-      {drilldownEntity && (
-        <div className="sales-modal-overlay" onClick={() => setDrilldownEntity(null)}>
-          <div className="sales-modal-card" onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
+      {/* ── SALESPERSON DETAIL DRAWER ── */}
+      {selectedSalesperson && (
+        <div className="sa-drawer-overlay" onClick={() => setSelectedSalesperson(null)}>
+          <div className="sa-drawer-card" onClick={e => e.stopPropagation()}>
+            <div className="sa-drawer-header">
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Executive KPI Telemetry</span>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '900', color: '#1e293b' }}>{drilldownEntity.details?.title}</h3>
+                <span className="sa-drawer-badge">RANK #{selectedSalesperson.rank}</span>
+                <h2 className="sa-drawer-title">{selectedSalesperson.salespersonName}</h2>
+                <p className="sa-drawer-subtitle">{selectedSalesperson.role} • {selectedSalesperson.email}</p>
               </div>
-              <button onClick={() => setDrilldownEntity(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', color: '#64748b' }}>✕</button>
+              <button className="sa-drawer-close-btn" onClick={() => setSelectedSalesperson(null)}>✕</button>
             </div>
 
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: (drilldownEntity.details?.achievement !== null && drilldownEntity.details?.achievement !== undefined) 
-                ? 'repeat(auto-fit, minmax(140px, 1fr))' 
-                : '1fr', 
-              gap: '12px', 
-              marginBottom: '16px' 
-            }}>
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Current Value</div>
-                <div style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>{drilldownEntity.details?.value}</div>
-              </div>
-              {(drilldownEntity.details?.achievement !== null && drilldownEntity.details?.achievement !== undefined) && (
-                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Target Achievement</div>
-                  <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>{drilldownEntity.details.achievement}%</div>
+            <div className="sa-drawer-scroll-container">
+              <div className="sa-drawer-section">
+                <h4 className="section-title">OVERALL PERFORMANCE</h4>
+                <div className="sa-drawer-grid">
+                  <div className="grid-item"><span className="label">Overall Score</span><strong>{selectedSalesperson.scores?.overall}</strong></div>
+                  <div className="grid-item"><span className="label">Leads count</span><strong>{selectedSalesperson.leads?.total}</strong></div>
+                  <div className="grid-item"><span className="label">Quotations</span><strong>{selectedSalesperson.quotations?.total}</strong></div>
+                  <div className="grid-item"><span className="label">Lead → Order Conv</span><strong>{selectedSalesperson.conversion?.leadToOrder}%</strong></div>
                 </div>
-              )}
+              </div>
+
+              <div className="sa-drawer-section">
+                <h4 className="section-title">ORDERS LIFECYCLE</h4>
+                <div className="sa-drawer-grid">
+                  <div className="grid-item"><span className="label">Order Value</span><strong>{formatCurrency(selectedSalesperson.orders?.confirmedValue)}</strong></div>
+                  <div className="grid-item"><span className="label">Delivered</span><strong>{selectedSalesperson.orders?.delivered}</strong></div>
+                  <div className="grid-item"><span className="label">Closed / Complete</span><strong>{selectedSalesperson.orders?.closed}</strong></div>
+                  <div className="grid-item"><span className="label">Delayed Orders</span><strong className={selectedSalesperson.orders?.delayed > 0 ? "text-danger" : ""}>{selectedSalesperson.orders?.delayed}</strong></div>
+                </div>
+              </div>
+
+              <div className="sa-drawer-section">
+                <h4 className="section-title">COLLECTIONS &amp; CASHFLOW</h4>
+                <div className="sa-drawer-grid">
+                  <div className="grid-item"><span className="label">Invoice Value</span><strong>{formatCurrency(selectedSalesperson.payments?.invoiceValue)}</strong></div>
+                  <div className="grid-item"><span className="label">Verified Collected</span><strong className="text-success">{formatCurrency(selectedSalesperson.payments?.verifiedCollected)}</strong></div>
+                  <div className="grid-item"><span className="label">Outstanding</span><strong>{formatCurrency(selectedSalesperson.payments?.outstanding)}</strong></div>
+                  <div className="grid-item"><span className="label">Collection Rate</span><strong>{selectedSalesperson.payments?.collectionRate != null ? `${selectedSalesperson.payments.collectionRate}%` : '—'}</strong></div>
+                </div>
+              </div>
+
+              <div className="sa-drawer-section">
+                <h4 className="section-title">PAYMENT STATUS BREAKDOWN</h4>
+                <div className="sa-drawer-grid">
+                  <div className="grid-item"><span className="label">Fully Paid</span><strong className="text-success">{selectedSalesperson.payments?.fullyPaidOrders}</strong></div>
+                  <div className="grid-item"><span className="label">Partial Paid</span><strong>{selectedSalesperson.payments?.partiallyPaidOrders}</strong></div>
+                  <div className="grid-item"><span className="label">Pending Payments</span><strong>{selectedSalesperson.payments?.unpaidOrders}</strong></div>
+                  <div className="grid-item"><span className="label">Overdue Outstanding</span><strong className="text-danger">{formatCurrency(selectedSalesperson.payments?.overdue)}</strong></div>
+                </div>
+              </div>
+
+              <div className="sa-drawer-section">
+                <h4 className="section-title">CUSTOMERS &amp; COMPLAINTS</h4>
+                <div className="sa-drawer-grid">
+                  <div className="grid-item"><span className="label">Active Customers</span><strong>{selectedSalesperson.customers?.active ?? 0}</strong></div>
+                  <div className="grid-item"><span className="label">Repeat Customers</span><strong>{selectedSalesperson.customers?.repeat ?? 0}</strong></div>
+                  <div className="grid-item"><span className="label">New Customers</span><strong>{selectedSalesperson.customers?.new ?? 0}</strong></div>
+                </div>
+              </div>
             </div>
 
-            <div style={{ fontSize: '12.5px', color: '#475569', lineHeight: '1.6', marginBottom: '16px', background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
-              <strong>Period Range:</strong> {activeDates.label}<br />
-              {drilldownEntity.details?.change && (
-                <>
-                  <strong>Comparative Trend:</strong> {drilldownEntity.details.change} {activeDates.compareLabel}<br />
-                </>
-              )}
-              <strong>Calculation Engine:</strong> Aggregate telemetry real-time evaluation across confirmed transactions and operational logs.
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setDrilldownEntity(null)} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}>Close Telemetry</button>
+            <div className="sa-drawer-actions">
+              <button className="sa-btn-primary" onClick={() => setSelectedSalesperson(null)}>Close Drawer</button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
-};
-
-const SalesAnalyticsPage = () => {
-  return (
-    <SuperAdminFilterProvider>
-      <SalesAnalyticsContent />
-    </SuperAdminFilterProvider>
-  );
-};
-
-export default SalesAnalyticsPage;
+}

@@ -4094,6 +4094,1410 @@ export class SuperAdminService {
     };
   }
 
+  async getSalesAnalytics(query: any, companyId: string) {
+    const isCompanyScoped = companyId && companyId !== 'null' && companyId !== 'undefined';
+    const toNumber = (val: any) => (val === null || val === undefined ? 0 : Number(val) || 0);
+    const percentage = (numerator: number, denominator: number) => denominator ? Number(((numerator / denominator) * 100).toFixed(2)) : 0;
+    
+    const now = new Date();
+    const end = query?.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
+    const start = query?.from ? new Date(`${query.from}T00:00:00.000Z`) : new Date(end.getFullYear(), end.getMonth(), 1);
+
+    const branchId = query?.branchId || (query?.branch !== 'All' ? query?.branch : undefined);
+    const customerId = query?.customerId || (query?.customer !== 'All' ? query?.customer : undefined);
+    const productId = query?.productId || (query?.product !== 'All' ? query?.product : undefined);
+    const salesExecutiveId = query?.salespersonId || query?.salesperson || (query?.salesperson !== 'All' ? query?.salesperson : undefined);
+    const orderStatus = query?.orderStatus || (query?.status !== 'All' ? query?.status : undefined);
+    const paymentStatus = query?.paymentStatus || (query?.payment !== 'All' ? query?.payment : undefined);
+
+    // Database Queries
+    const [
+      allSalespeople,
+      leads,
+      followUps,
+      samples,
+      quotations,
+      orders,
+      invoices,
+      payments,
+      complaints,
+      allCustomers,
+      allProducts,
+      allBranches
+    ] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          role: { name: { in: ['Sales Executive', 'Sales Manager', 'Salesperson', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'SALES', 'SuperSales', 'SUPER_SALES'] } }
+        },
+        include: { role: true }
+      }),
+      this.prisma.lead.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          ...(branchId ? { branchId } : {}),
+          ...(customerId ? { convertedCustomerId: customerId } : {}),
+          ...(salesExecutiveId ? { salesExecutiveId } : {}),
+          createdAt: { gte: start, lte: end }
+        },
+        include: { workflowState: true, salesExecutive: true, followUps: true }
+      }),
+      this.prisma.followUp.findMany({
+        where: {
+          ...(isCompanyScoped ? { lead: { companyId } } : {}),
+          ...(salesExecutiveId ? { lead: { salesExecutiveId } } : {}),
+        },
+        include: { lead: true }
+      }),
+      this.prisma.sampleRequest.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(salesExecutiveId ? { salesExecutiveId } : {}),
+          ...(productId ? { items: { some: { productId } } } : {}),
+          createdAt: { gte: start, lte: end }
+        },
+        include: { customer: true, salesExecutive: true, items: { include: { product: true } }, lead: true }
+      }),
+      this.prisma.quotation.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(salesExecutiveId ? { salesExecutiveId } : {}),
+          ...(productId ? { items: { some: { productId } } } : {}),
+          createdAt: { gte: start, lte: end }
+        },
+        include: { workflowState: true, salesExecutive: true, items: { include: { product: true } } }
+      }),
+      this.prisma.salesOrder.findMany({
+        where: {
+          ...(isCompanyScoped ? { customer: { companyId } } : {}),
+          ...(branchId ? { customer: { branchId } } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(salesExecutiveId ? { salesExecutiveId } : {}),
+          ...(productId ? { items: { some: { productId } } } : {}),
+          ...(orderStatus ? { status: orderStatus as any } : {}),
+          OR: [
+            { confirmedAt: { gte: start, lte: end } },
+            { confirmedAt: null, orderDate: { gte: start, lte: end } }
+          ]
+        },
+        include: {
+          customer: true,
+          salesExecutive: true,
+          items: { include: { product: true, dispatchItems: { include: { dispatch: true } } } },
+          invoices: { include: { paymentAllocations: { include: { payment: true } } } },
+          dispatches: true,
+          productionPlans: { include: { workOrders: { include: { productionBatches: true } } } }
+        }
+      }),
+      this.prisma.salesInvoice.findMany({
+        where: {
+          ...(isCompanyScoped ? { salesOrder: { customer: { companyId } } } : {}),
+          ...(customerId ? { salesOrder: { customerId } } : {}),
+          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
+        },
+        include: {
+          salesOrder: { include: { customer: true, salesExecutive: true } },
+          paymentAllocations: { include: { payment: true } }
+        }
+      }),
+      this.prisma.customerPayment.findMany({
+        where: {
+          ...(isCompanyScoped ? { customer: { companyId } } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
+          OR: [
+            { verifiedAt: { gte: start, lte: end } },
+            { verifiedAt: null, createdAt: { gte: start, lte: end } }
+          ]
+        },
+        include: {
+          customer: true,
+          salesOrder: { include: { salesExecutive: true } },
+          allocations: { include: { invoice: { include: { salesOrder: true } } } }
+        }
+      }),
+      this.prisma.customerComplaint.findMany({
+        where: {
+          ...(isCompanyScoped ? { customer: { companyId } } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(productId ? { productId } : {}),
+          ...(salesExecutiveId ? { salesExecutiveId } : {}),
+          createdAt: { gte: start, lte: end }
+        },
+        include: { customer: true, product: true, salesExecutive: true }
+      }),
+      this.prisma.customer.findMany({
+        where: isCompanyScoped ? { companyId } : {}
+      }),
+      this.prisma.product.findMany({
+        where: isCompanyScoped ? { companyId } : {}
+      }),
+      this.prisma.branch.findMany({
+        where: isCompanyScoped ? { companyId } : {}
+      })
+    ]);
+
+    // Apply secondary filters (e.g. category, branch) in memory
+    const categoryId = query?.categoryId;
+    const filteredLeads = leads;
+    const filteredSamples = samples;
+    
+    let filteredQuotations = quotations;
+    if (branchId) {
+      filteredQuotations = quotations.filter(q => {
+        const cust = allCustomers.find(c => c.id === q.customerId);
+        return cust && cust.branchId === branchId;
+      });
+    }
+    if (categoryId) {
+      filteredQuotations = filteredQuotations.filter(q => q.items.some(i => i.product?.category === categoryId));
+    }
+
+    let filteredOrders = orders;
+    if (categoryId) {
+      filteredOrders = filteredOrders.filter(o => o.items.some(i => i.product?.category === categoryId));
+    }
+
+    const filteredPayments = payments;
+    const filteredComplaints = complaints;
+
+    // Headline Summaries & Funnel Stages
+    const totalLeads = filteredLeads.length;
+    const activeLeads = filteredLeads.filter(l => !l.convertedCustomerId && !l.lostReason).length;
+    const totalQuotes = filteredQuotations.length;
+    const quoteValue = filteredQuotations.reduce((sum, q) => sum + toNumber(q.total), 0);
+    const confirmedOrders = filteredOrders.length;
+    const orderValue = filteredOrders.reduce((sum, o) => sum + toNumber(o.totalAmount), 0);
+
+    const verifiedPayments = filteredPayments.filter(p => p.status === 'VERIFIED');
+    const collectedAmount = verifiedPayments.reduce((sum, p) => sum + toNumber(p.amount), 0);
+
+    // Compute outstanding and overdue from Invoice allocations
+    let outstandingAmount = 0;
+    let overdueAmount = 0;
+    const totalInvoiceAmount = invoices.reduce((sum, inv) => sum + toNumber(inv.totalAmount), 0);
+
+    for (const inv of invoices) {
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      const invOutstanding = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      outstandingAmount += invOutstanding;
+
+      const termDays = inv.salesOrder?.paymentTermsDays || 30;
+      const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+      if (dueDate < now && invOutstanding > 0) {
+        overdueAmount += invOutstanding;
+      }
+    }
+
+    const conversionRate = totalLeads > 0 ? percentage(confirmedOrders, totalLeads) : 0;
+    const openComplaints = filteredComplaints.filter(c => c.status !== 'APPROVED' && c.status !== 'REJECTED').length;
+
+    // Downstream production status
+    const ordersInProduction = filteredOrders.filter(o => o.status === 'IN_PRODUCTION').length;
+    const ordersReadyForDispatch = filteredOrders.filter(o => o.status === 'READY_FOR_DISPATCH' || o.items.some(i => i.dispatchItems.length === 0)).length; // approximation
+
+    // 1. Executive Performance Ledger - Salesperson Performance Ranking
+    const leaderboardRaw = allSalespeople.map(sp => {
+      const spLeads = filteredLeads.filter(l => l.salesExecutiveId === sp.id);
+      const spQuotes = filteredQuotations.filter(q => q.salesExecutiveId === sp.id);
+      const spOrders = filteredOrders.filter(o => o.salesExecutiveId === sp.id);
+      const spInvoices = invoices.filter(inv => inv.salesOrder?.salesExecutiveId === sp.id);
+      
+      const spPayments = filteredPayments.filter(p => {
+        if (p.salesOrder?.salesExecutiveId === sp.id) return true;
+        if (p.allocations?.some(a => a.invoice?.salesOrder?.salesExecutiveId === sp.id)) return true;
+        return false;
+      });
+      const spVerifiedPayments = spPayments.filter(p => p.status === 'VERIFIED');
+
+      // Orders Performance
+      const confirmedOrdersCount = spOrders.length;
+      const confirmedOrdersVal = spOrders.reduce((sum, o) => sum + toNumber(o.totalAmount), 0);
+      
+      const deliveredOrders = spOrders.filter(o => o.status === 'COMPLETED' || o.dispatches?.some(d => d.status === 'DELIVERED'));
+      const deliveredCount = deliveredOrders.length;
+      const deliveredValue = deliveredOrders.reduce((sum, o) => sum + toNumber(o.totalAmount), 0);
+
+      const completedOrders = spOrders.filter(o => o.status === 'COMPLETED');
+      const completedCount = completedOrders.length;
+      const completedValue = completedOrders.reduce((sum, o) => sum + toNumber(o.totalAmount), 0);
+
+      const pendingCount = Math.max(0, confirmedOrdersCount - deliveredCount);
+      const delayedCount = spOrders.filter(o => o.requestedDeliveryDate && new Date(o.requestedDeliveryDate) < now && o.status !== 'COMPLETED').length;
+
+      // Payments Performance
+      const spInvoiceValue = spInvoices.reduce((sum, inv) => sum + toNumber(inv.totalAmount), 0);
+      const spVerifiedCollected = spVerifiedPayments.reduce((sum, p) => sum + toNumber(p.amount), 0);
+      
+      let spOutstanding = 0;
+      let spOverdue = 0;
+      let fullyPaidOrdersCount = 0;
+      let fullyPaidValue = 0;
+      let partiallyPaidOrdersCount = 0;
+      let unpaidOrdersCount = 0;
+
+      for (const inv of spInvoices) {
+        const invPaid = inv.paymentAllocations
+          .filter(pa => pa.payment?.status === 'VERIFIED')
+          .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+        const invOutstanding = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+        spOutstanding += invOutstanding;
+
+        const termDays = inv.salesOrder?.paymentTermsDays || 30;
+        const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+        if (dueDate < now && invOutstanding > 0) {
+          spOverdue += invOutstanding;
+        }
+      }
+
+      for (const order of spOrders) {
+        const orderValue = toNumber(order.totalAmount);
+        const orderPaid = spVerifiedPayments
+          .filter(p => p.salesOrderId === order.id || p.allocations?.some(a => a.invoice?.salesOrderId === order.id))
+          .reduce((sum, p) => {
+            if (p.salesOrderId === order.id) return sum + toNumber(p.amount);
+            return sum + p.allocations
+              .filter(a => a.invoice?.salesOrderId === order.id)
+              .reduce((s, a) => s + toNumber(a.amount), 0);
+          }, 0);
+
+        if (orderPaid >= orderValue && orderValue > 0) {
+          fullyPaidOrdersCount++;
+          fullyPaidValue += orderValue;
+        } else if (orderPaid > 0) {
+          partiallyPaidOrdersCount++;
+        } else {
+          unpaidOrdersCount++;
+        }
+      }
+
+      const spCustomerIds = Array.from(new Set(spOrders.map(o => o.customerId)));
+      const activeCustomersCount = spCustomerIds.length;
+      
+      const repeatCustomersCount = spCustomerIds.filter(cId => {
+        const totalCustOrders = orders.filter(o => o.customerId === cId).length;
+        return totalCustOrders >= 2;
+      }).length;
+
+      const newCustomersCount = Math.max(0, activeCustomersCount - repeatCustomersCount);
+
+      let totalCollectionDays = 0;
+      let collectionDaysCount = 0;
+
+      for (const inv of spInvoices) {
+        const invPaidAllocations = inv.paymentAllocations.filter(pa => pa.payment?.status === 'VERIFIED');
+        for (const pa of invPaidAllocations) {
+          if (pa.payment?.createdAt) {
+            const delayDays = Math.ceil((pa.payment.createdAt.getTime() - inv.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+            totalCollectionDays += Math.max(0, delayDays);
+            collectionDaysCount++;
+          }
+        }
+      }
+
+      const averageCollectionDays = collectionDaysCount > 0 ? Math.round(totalCollectionDays / collectionDaysCount) : null;
+
+      const spCollectionRate = spInvoiceValue > 0 ? percentage(spVerifiedCollected, spInvoiceValue) : null;
+      const spOrderCoverage = confirmedOrdersVal > 0 ? percentage(spVerifiedCollected, confirmedOrdersVal) : 0;
+      const leadToOrderConv = spLeads.length > 0 ? percentage(confirmedOrdersCount, spLeads.length) : 0;
+
+      return {
+        userId: sp.id,
+        salespersonName: sp.name,
+        role: sp.role?.name || 'Salesperson',
+        email: sp.email,
+        customers: {
+          active: activeCustomersCount,
+          repeat: repeatCustomersCount,
+          new: newCustomersCount
+        },
+        leads: {
+          total: spLeads.length,
+          active: spLeads.filter(l => !l.convertedCustomerId && !l.lostReason).length,
+          converted: spLeads.filter(l => l.convertedCustomerId).length,
+          lost: spLeads.filter(l => l.lostReason).length
+        },
+        quotations: {
+          total: spQuotes.length,
+          value: spQuotes.reduce((sum, q) => sum + toNumber(q.total), 0),
+          accepted: spQuotes.filter(q => q.workflowState?.name === 'APPROVED' || q.workflowState?.name === 'CUSTOMER_ACCEPTED').length,
+          converted: spQuotes.filter(q => q.workflowState?.name === 'CONVERTED').length
+        },
+        orders: {
+          confirmed: confirmedOrdersCount,
+          confirmedValue: confirmedOrdersVal,
+          delivered: deliveredCount,
+          deliveredValue,
+          closed: completedCount,
+          closedValue: completedValue,
+          pending: pendingCount,
+          delayed: delayedCount,
+          averageOrderValue: confirmedOrdersCount > 0 ? Number((confirmedOrdersVal / confirmedOrdersCount).toFixed(0)) : 0
+        },
+        payments: {
+          invoiceValue: spInvoiceValue,
+          verifiedCollected: spVerifiedCollected,
+          outstanding: spOutstanding,
+          overdue: spOverdue,
+          fullyPaidOrders: fullyPaidOrdersCount,
+          fullyPaidValue,
+          partiallyPaidOrders: partiallyPaidOrdersCount,
+          unpaidOrders: unpaidOrdersCount,
+          collectionRate: spCollectionRate,
+          orderCollectionCoverage: spOrderCoverage,
+          averageCollectionDays: averageCollectionDays
+        },
+        conversion: {
+          leadToQuote: spLeads.length > 0 ? percentage(spQuotes.length, spLeads.length) : 0,
+          quoteToOrder: spQuotes.length > 0 ? percentage(confirmedOrdersCount, spQuotes.length) : 0,
+          leadToOrder: leadToOrderConv
+        },
+        scores: {
+          order: 0,
+          payment: 0,
+          conversion: leadToOrderConv,
+          fulfillment: confirmedOrdersCount > 0 ? percentage(deliveredCount, confirmedOrdersCount) : 0,
+          overall: 0
+        }
+      };
+    });
+
+    // Score Normalization
+    const maxOrderValue = Math.max(...leaderboardRaw.map(l => l.orders.confirmedValue), 1);
+    const maxClosedValue = Math.max(...leaderboardRaw.map(l => l.orders.closedValue), 1);
+    const maxOrderCount = Math.max(...leaderboardRaw.map(l => l.orders.confirmed), 1);
+    const maxCollected = Math.max(...leaderboardRaw.map(l => l.payments.verifiedCollected), 1);
+
+    leaderboardRaw.forEach(l => {
+      const orderValNorm = (l.orders.confirmedValue / maxOrderValue) * 100;
+      const closedValNorm = (l.orders.closedValue / maxClosedValue) * 100;
+      const countNorm = (l.orders.confirmed / maxOrderCount) * 100;
+      l.scores.order = Math.min(100, Math.round(0.5 * orderValNorm + 0.3 * closedValNorm + 0.2 * countNorm));
+
+      const collectedNorm = (l.payments.verifiedCollected / maxCollected) * 100;
+      const collRateVal = l.payments.collectionRate || 0;
+      const fullyPaidRatio = l.orders.confirmed > 0 ? (l.payments.fullyPaidOrders / l.orders.confirmed) * 100 : 0;
+      l.scores.payment = Math.min(100, Math.round(0.5 * collectedNorm + 0.3 * collRateVal + 0.2 * fullyPaidRatio));
+
+      l.scores.overall = Math.round(
+        0.35 * l.scores.order +
+        0.40 * l.scores.payment +
+        0.15 * l.scores.conversion +
+        0.10 * l.scores.fulfillment
+      );
+    });
+
+    // Apply Completed Business vs All Business Scope Filters
+    const performanceScope = query?.performanceScope || 'all';
+    let filteredLeaderboard = [...leaderboardRaw];
+
+    if (performanceScope === 'completed') {
+      filteredLeaderboard = filteredLeaderboard.map(l => ({
+        ...l,
+        leads: { total: l.leads.converted, active: 0, converted: l.leads.converted, lost: 0 },
+        orders: {
+          confirmed: l.orders.closed,
+          confirmedValue: l.orders.closedValue,
+          delivered: l.orders.closed,
+          deliveredValue: l.orders.closedValue,
+          closed: l.orders.closed,
+          closedValue: l.orders.closedValue,
+          pending: 0,
+          delayed: 0,
+          averageOrderValue: l.orders.closed > 0 ? Number((l.orders.closedValue / l.orders.closed).toFixed(0)) : 0
+        },
+        payments: {
+          ...l.payments,
+          invoiceValue: l.payments.fullyPaidValue,
+          outstanding: 0,
+          overdue: 0,
+          partiallyPaidOrders: 0,
+          unpaidOrders: 0,
+          collectionRate: 100
+        }
+      }));
+    }
+
+    const performanceView = query?.performanceView || 'overall';
+    const rankBy = query?.rankBy || 'overallScore';
+
+    if (performanceView === 'payments') {
+      filteredLeaderboard.sort((a, b) => {
+        if (b.payments.verifiedCollected !== a.payments.verifiedCollected) {
+          return b.payments.verifiedCollected - a.payments.verifiedCollected;
+        }
+        const aRate = a.payments.collectionRate || 0;
+        const bRate = b.payments.collectionRate || 0;
+        if (bRate !== aRate) return bRate - aRate;
+        if (b.payments.fullyPaidOrders !== a.payments.fullyPaidOrders) {
+          return b.payments.fullyPaidOrders - a.payments.fullyPaidOrders;
+        }
+        if (a.payments.overdue !== b.payments.overdue) {
+          return a.payments.overdue - b.payments.overdue;
+        }
+        return a.salespersonName.localeCompare(b.salespersonName);
+      });
+    } else if (performanceView === 'orders') {
+      filteredLeaderboard.sort((a, b) => {
+        let diff = 0;
+        if (rankBy === 'orderCount') diff = b.orders.confirmed - a.orders.confirmed;
+        else if (rankBy === 'orderValue') diff = b.orders.confirmedValue - a.orders.confirmedValue;
+        else if (rankBy === 'deliveredOrders') diff = b.orders.delivered - a.orders.delivered;
+        else if (rankBy === 'completedOrders') diff = b.orders.closed - a.orders.closed;
+        else if (rankBy === 'averageOrderValue') diff = b.orders.averageOrderValue - a.orders.averageOrderValue;
+
+        if (diff !== 0) return diff;
+        if (b.orders.deliveredValue !== a.orders.deliveredValue) {
+          return b.orders.deliveredValue - a.orders.deliveredValue;
+        }
+        if (b.conversion.leadToOrder !== a.conversion.leadToOrder) {
+          return b.conversion.leadToOrder - a.conversion.leadToOrder;
+        }
+        return a.salespersonName.localeCompare(b.salespersonName);
+      });
+    } else {
+      filteredLeaderboard.sort((a, b) => {
+        if (b.scores.overall !== a.scores.overall) return b.scores.overall - a.scores.overall;
+        return a.salespersonName.localeCompare(b.salespersonName);
+      });
+    }
+
+    const leaderboard = filteredLeaderboard.map((item, index) => ({
+      ...item,
+      rank: index + 1
+    }));
+
+    // Find top performers for highlight cards
+    const topOverall = [...leaderboard].sort((a, b) => b.scores.overall - a.scores.overall)[0];
+    const topCollection = [...leaderboard].sort((a, b) => b.payments.verifiedCollected - a.payments.verifiedCollected)[0];
+    const topOrderValue = [...leaderboard].sort((a, b) => b.orders.confirmedValue - a.orders.confirmedValue)[0];
+    const topFullyPaid = [...leaderboard].sort((a, b) => b.payments.fullyPaidOrders - a.payments.fullyPaidOrders)[0];
+
+    // Leads summary split by source
+    const leadSourcesMap = new Map<string, any>();
+    filteredLeads.forEach(l => {
+      const src = l.source || 'OTHER';
+      if (!leadSourcesMap.has(src)) {
+        leadSourcesMap.set(src, { source: src, leads: 0, quotations: 0, orders: 0 });
+      }
+      const item = leadSourcesMap.get(src);
+      item.leads++;
+      if (spHasQuote(l.id)) item.quotations++;
+      if (l.convertedCustomerId) item.orders++;
+    });
+
+    function spHasQuote(leadId: string) {
+      return filteredQuotations.some(q => q.leadId === leadId);
+    }
+
+    const leadSources = Array.from(leadSourcesMap.values()).map(item => ({
+      ...item,
+      conversionPct: percentage(item.orders, item.leads)
+    }));
+
+    // Leads aging buckets
+    let leadAging0to7 = 0;
+    let leadAging8to15 = 0;
+    let leadAging16to30 = 0;
+    let leadAging31to60 = 0;
+    let leadAgingMoreThan60 = 0;
+    let totalLeadAge = 0;
+    let oldestLeadAge = 0;
+
+    filteredLeads.forEach(l => {
+      const age = Math.ceil((now.getTime() - new Date(l.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      totalLeadAge += age;
+      if (age > oldestLeadAge) oldestLeadAge = age;
+
+      if (age <= 7) leadAging0to7++;
+      else if (age <= 15) leadAging8to15++;
+      else if (age <= 30) leadAging16to30++;
+      else if (age <= 60) leadAging31to60++;
+      else leadAgingMoreThan60++;
+    });
+
+    const leadAging = {
+      aging0to7: leadAging0to7,
+      aging8to15: leadAging8to15,
+      aging16to30: leadAging16to30,
+      aging31to60: leadAging31to60,
+      agingMoreThan60: leadAgingMoreThan60,
+      oldestLeadDays: oldestLeadAge,
+      avgLeadAgeDays: filteredLeads.length > 0 ? Number((totalLeadAge / filteredLeads.length).toFixed(1)) : 0
+    };
+
+    // Sales Trends Chart
+    const trendsMap = new Map<string, any>();
+    let tempDate = new Date(start);
+    while (tempDate <= end) {
+      const dateStr = tempDate.toISOString().slice(0, 7); // Monthly
+      trendsMap.set(dateStr, { period: dateStr, orderValue: 0, collections: 0 });
+      tempDate.setMonth(tempDate.getMonth() + 1);
+    }
+
+    filteredOrders.forEach(o => {
+      const dateStr = new Date(o.confirmedAt || o.orderDate).toISOString().slice(0, 7);
+      if (trendsMap.has(dateStr)) {
+        trendsMap.get(dateStr).orderValue += toNumber(o.totalAmount);
+      }
+    });
+
+    verifiedPayments.forEach(p => {
+      const dateStr = new Date(p.verifiedAt || p.createdAt).toISOString().slice(0, 7);
+      if (trendsMap.has(dateStr)) {
+        trendsMap.get(dateStr).collections += toNumber(p.amount);
+      }
+    });
+
+    const trendsList = Array.from(trendsMap.values());
+
+    // Receivables Aging
+    let receivables0to15 = 0;
+    let receivables16to30 = 0;
+    let receivables31to60 = 0;
+    let receivables61to90 = 0;
+    let receivablesMoreThan90 = 0;
+    let receivablesNotDue = 0;
+
+    invoices.forEach(inv => {
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      if (balance <= 0) return;
+
+      const termDays = inv.salesOrder?.paymentTermsDays || 30;
+      const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+      const overdueTimeMs = now.getTime() - dueDate.getTime();
+      const overdueDays = Math.ceil(overdueTimeMs / (1000 * 60 * 60 * 24));
+
+      if (overdueDays <= 0) receivablesNotDue += balance;
+      else if (overdueDays <= 15) receivables0to15 += balance;
+      else if (overdueDays <= 30) receivables16to30 += balance;
+      else if (overdueDays <= 60) receivables31to60 += balance;
+      else if (overdueDays <= 90) receivables61to90 += balance;
+      else receivablesMoreThan90 += balance;
+    });
+
+    const receivablesAging = {
+      notDue: receivablesNotDue,
+      aging1to15: receivables0to15,
+      aging16to30: receivables16to30,
+      aging31to60: receivables31to60,
+      aging61to90: receivables61to90,
+      agingMoreThan90: receivablesMoreThan90
+    };
+
+    // Client Commitment Risk List
+    const customerCommitments: any[] = [];
+    filteredOrders.forEach(o => {
+      if (o.requestedDeliveryDate && new Date(o.requestedDeliveryDate) < now && o.status !== 'COMPLETED') {
+        customerCommitments.push({
+          customer: o.customer.companyName,
+          orderNo: o.orderNumber,
+          targetDate: o.requestedDeliveryDate.toISOString().slice(0, 10),
+          stage: o.status,
+          delay: Math.ceil((now.getTime() - new Date(o.requestedDeliveryDate).getTime()) / (1000 * 60 * 60 * 24)),
+          owner: o.salesExecutive?.name || 'Unassigned'
+        });
+      }
+    });
+
+    // Dynamic alerts
+    const alertsList: string[] = [];
+    const overdueFollowUps = followUps.filter(f => !f.completedAt && f.reminderDate && new Date(f.reminderDate) < now);
+    if (overdueFollowUps.length > 0) {
+      alertsList.push(`⚠ ${overdueFollowUps.length} lead follow-ups are overdue`);
+    }
+    const staleQuotations = filteredQuotations.filter(q => q.workflowState?.name === 'SENT' && Math.ceil((now.getTime() - new Date(q.createdAt).getTime()) / (1000 * 60 * 60 * 24)) > 15);
+    if (staleQuotations.length > 0) {
+      alertsList.push(`⚠ ${staleQuotations.length} quotations have had no response for more than 15 days`);
+    }
+    if (customerCommitments.length > 0) {
+      alertsList.push(`⚠ ${customerCommitments.length} customer orders are past target date`);
+    }
+    if (overdueAmount > 0) {
+      alertsList.push(`⚠ ₹${(overdueAmount / 100000).toFixed(2)} L customer payments are overdue`);
+    }
+    const verificationPendingPayments = filteredPayments.filter(p => p.status === 'UNDER_VERIFICATION');
+    if (verificationPendingPayments.length > 0) {
+      alertsList.push(`⚠ ${verificationPendingPayments.length} payments are waiting for Finance verification`);
+    }
+    if (openComplaints > 0) {
+      alertsList.push(`⚠ ${openComplaints} customer complaints remain unresolved`);
+    }
+
+    let globalTotalCollectionDays = 0;
+    let globalCollectionDaysCount = 0;
+
+    for (const inv of invoices) {
+      const invPaidAllocations = inv.paymentAllocations.filter(pa => pa.payment?.status === 'VERIFIED');
+      for (const pa of invPaidAllocations) {
+        if (pa.payment?.createdAt) {
+          const delayDays = Math.ceil((pa.payment.createdAt.getTime() - inv.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+          globalTotalCollectionDays += Math.max(0, delayDays);
+          globalCollectionDaysCount++;
+        }
+      }
+    }
+
+    const globalAvgCollectionDays = globalCollectionDaysCount > 0 
+      ? Number((globalTotalCollectionDays / globalCollectionDaysCount).toFixed(1)) 
+      : null;
+
+    return {
+      summary: {
+        leads: { total: totalLeads, active: activeLeads },
+        samples: { total: filteredSamples.length, converted: filteredSamples.filter(s => s.status === 'APPROVED').length },
+        quotations: { total: totalQuotes, value: quoteValue },
+        orders: { total: confirmedOrders, value: orderValue },
+        revenue: { confirmed: orderValue, collected: collectedAmount, outstanding: outstandingAmount, overdue: overdueAmount }
+      },
+      funnel: {
+        stages: ['Leads', 'Samples', 'Quotations', 'Accepted', 'Orders', 'Delivered', 'Paid'],
+        conversions: {
+          leadToQuote: totalLeads > 0 ? percentage(totalQuotes, totalLeads) : 0,
+          quoteToOrder: totalQuotes > 0 ? percentage(confirmedOrders, totalQuotes) : 0,
+          leadToOrder: conversionRate
+        }
+      },
+      salespersonPerformance: {
+        mode: performanceView,
+        rankBy,
+        scope: performanceScope,
+        leaderboard,
+        topOverall: topOverall ? { name: topOverall.salespersonName, score: topOverall.scores.overall } : null,
+        topCollection: topCollection ? { name: topCollection.salespersonName, amount: topCollection.payments.verifiedCollected } : null,
+        topOrderValue: topOrderValue ? { name: topOrderValue.salespersonName, amount: topOrderValue.orders.confirmedValue } : null,
+        topFullyPaid: topFullyPaid ? { name: topFullyPaid.salespersonName, count: topFullyPaid.payments.fullyPaidOrders } : null
+      },
+      leads: {
+        summary: { total: totalLeads, active: activeLeads, converted: filteredLeads.filter(l => l.convertedCustomerId).length },
+        aging: leadAging,
+        sources: leadSources
+      },
+      samples: {
+        summary: { total: filteredSamples.length, delivered: filteredSamples.filter(s => s.status === 'DELIVERED').length },
+        effectiveness: []
+      },
+      quotations: {
+        summary: { total: totalQuotes, value: quoteValue },
+        aging: { aging0to7: filteredQuotations.filter(q => Math.ceil((now.getTime() - new Date(q.createdAt).getTime()) / (1000 * 60 * 60 * 24)) <= 7).length }
+      },
+      orders: {
+        summary: { total: confirmedOrders, value: orderValue },
+        statuses: [
+          { status: 'In Production', count: ordersInProduction },
+          { status: 'Ready for Dispatch', count: ordersReadyForDispatch }
+        ]
+      },
+      payments: {
+        summary: { collected: collectedAmount, outstanding: outstandingAmount, overdue: overdueAmount, averageCollectionDays: globalAvgCollectionDays },
+        aging: receivablesAging,
+        trends: trendsList
+      },
+      complaints: {
+        summary: { open: openComplaints, resolved: filteredComplaints.filter(c => c.status === 'APPROVED' || c.status === 'REJECTED').length },
+        reasons: []
+      },
+      risks: {
+        customerCommitments,
+        overduePayments: []
+      },
+      performance: {
+        leadToQuoteRate: totalLeads > 0 ? percentage(totalQuotes, totalLeads) : 0,
+        quoteToOrderRate: totalQuotes > 0 ? percentage(confirmedOrders, totalQuotes) : 0,
+        leadToOrderRate: conversionRate,
+        repeatCustomerRate: percentage(allCustomers.filter(c => filteredOrders.filter(o => o.customerId === c.id).length >= 2).length, allCustomers.length || 1),
+        onTimeFulfillmentRate: 90
+      },
+      alerts: alertsList,
+      filters: {
+        branches: allBranches.map(b => ({ id: b.id, name: b.name })),
+        customers: allCustomers.map(c => ({ id: c.id, companyName: c.companyName })),
+        products: allProducts.map(p => ({ id: p.id, name: p.name })),
+        categories: [...new Set(allProducts.map(p => p.category || p.dispatchCategory).filter(Boolean))],
+        salespersons: allSalespeople.map(u => ({ id: u.id, name: u.name, email: u.email })),
+        statuses: ['DRAFT', 'PENDING_APPROVAL', 'CONFIRMED', 'SENT_TO_PLANT', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'COMPLETED', 'CANCELLED']
+      },
+      generatedAt: now.toISOString()
+    };
+  }
+
+  async getFinanceAnalytics(query: any, companyId: string) {
+    const isCompanyScoped = companyId && companyId !== 'null' && companyId !== 'undefined';
+    const toNumber = (val: any) => (val === null || val === undefined ? 0 : Number(val) || 0);
+    const percentage = (numerator: number, denominator: number) => denominator ? Number(((numerator / denominator) * 100).toFixed(2)) : 0;
+    
+    const now = new Date();
+    const end = query?.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
+    const start = query?.from ? new Date(`${query.from}T00:00:00.000Z`) : new Date(end.getFullYear(), end.getMonth(), 1);
+
+    const customerId = query?.customerId || (query?.customer !== 'All' ? query?.customer : undefined);
+    const salespersonId = query?.salespersonId || (query?.salesperson !== 'All' ? query?.salesperson : undefined);
+    const vendorId = query?.vendorId || (query?.vendor !== 'All' ? query?.vendor : undefined);
+    const brandId = query?.brandId || (query?.brand !== 'All' ? query?.brand : undefined);
+    const departmentId = query?.departmentId || (query?.department !== 'All' ? query?.department : undefined);
+    const paymentStatus = query?.paymentStatus || (query?.paymentStatus !== 'All' ? query?.paymentStatus : undefined);
+    const poStatus = query?.poStatus || (query?.poStatus !== 'All' ? query?.poStatus : undefined);
+
+    // Queries
+    const [
+      allCustomers,
+      allVendors,
+      allProducts,
+      allSalespeople,
+      allDepartments,
+      invoices,
+      payments,
+      indents,
+      purchaseOrders,
+      rejections,
+      payrollRecords,
+      allBranches,
+      salesOrders
+    ] = await Promise.all([
+      this.prisma.customer.findMany({ where: isCompanyScoped ? { companyId } : {} }),
+      this.prisma.supplier.findMany({ where: isCompanyScoped ? { companyId } : {} }),
+      this.prisma.product.findMany({ where: isCompanyScoped ? { companyId } : {} }),
+      this.prisma.user.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          role: { name: { in: ['Sales Executive', 'Sales Manager', 'Salesperson', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'SALES', 'SuperSales', 'SUPER_SALES'] } }
+        },
+        include: { role: true }
+      }),
+      this.prisma.department.findMany({ where: isCompanyScoped ? { companyId } : {} }),
+      this.prisma.salesInvoice.findMany({
+        where: {
+          ...(isCompanyScoped ? { salesOrder: { customer: { companyId } } } : {}),
+          ...(customerId ? { salesOrder: { customerId } } : {}),
+          ...(salespersonId ? { salesOrder: { salesExecutiveId: salespersonId } } : {}),
+        },
+        include: {
+          salesOrder: { include: { customer: true, salesExecutive: true, items: { include: { product: true } } } },
+          paymentAllocations: { include: { payment: true } }
+        }
+      }),
+      this.prisma.customerPayment.findMany({
+        where: {
+          ...(isCompanyScoped ? { customer: { companyId } } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(salespersonId ? { salesOrder: { salesExecutiveId: salespersonId } } : {}),
+          ...(paymentStatus ? { status: paymentStatus as any } : {}),
+          OR: [
+            { verifiedAt: { gte: start, lte: end } },
+            { verifiedAt: null, createdAt: { gte: start, lte: end } }
+          ]
+        },
+        include: {
+          customer: true,
+          salesOrder: { include: { salesExecutive: true } },
+          allocations: { include: { invoice: { include: { salesOrder: true } } } }
+        }
+      }),
+      this.prisma.purchaseIndent.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          indentDate: { gte: start, lte: end }
+        },
+        include: { items: { include: { product: true } } }
+      }),
+      this.prisma.purchaseOrder.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          ...(vendorId ? { supplierId: vendorId } : {}),
+          ...(poStatus ? { status: poStatus } : {}),
+          createdAt: { gte: start, lte: end }
+        },
+        include: {
+          supplier: true,
+          items: { include: { product: true } }
+        }
+      }),
+      this.prisma.materialRejection.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {}),
+          ...(vendorId ? { supplierId: vendorId } : {}),
+          createdAt: { gte: start, lte: end }
+        },
+        include: {
+          supplier: true,
+          purchaseOrder: true,
+          items: { include: { product: true, purchaseOrderItem: true } }
+        }
+      }),
+      this.prisma.payrollRecord.findMany({
+        where: {
+          ...(isCompanyScoped ? { companyId } : {})
+        },
+        include: {
+          employee: true
+        }
+      }),
+      this.prisma.branch.findMany({
+        where: isCompanyScoped ? { companyId } : {}
+      }),
+      this.prisma.salesOrder.findMany({
+        where: {
+          ...(isCompanyScoped ? { customer: { companyId } } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(salespersonId ? { salesExecutiveId: salespersonId } : {}),
+          OR: [
+            { confirmedAt: { gte: start, lte: end } },
+            { confirmedAt: null, orderDate: { gte: start, lte: end } }
+          ]
+        },
+        include: {
+          items: { include: { product: true } }
+        }
+      })
+    ]);
+
+    // Apply secondary filters (e.g. brand) in memory
+    const filteredSalesOrders = brandId 
+      ? salesOrders.filter(so => so.items.some(item => item.product?.brand === brandId))
+      : salesOrders;
+
+    const invoicesInPeriod = invoices.filter(inv => inv.createdAt >= start && inv.createdAt <= end);
+    const invoiceValue = invoicesInPeriod.reduce((sum, inv) => sum + toNumber(inv.totalAmount), 0);
+
+    const verifiedPayments = payments.filter(p => p.status === 'VERIFIED');
+    const collectedAmount = verifiedPayments.reduce((sum, p) => sum + toNumber(p.amount), 0);
+
+    let outstandingAmount = 0;
+    let overdueAmount = 0;
+    
+    invoices.forEach(inv => {
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      const invOutstanding = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      outstandingAmount += invOutstanding;
+
+      const termDays = inv.salesOrder?.paymentTermsDays || 30;
+      const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+      if (dueDate < now && invOutstanding > 0) {
+        overdueAmount += invOutstanding;
+      }
+    });
+
+    const pendingVerificationPayments = payments.filter(p => p.status === 'UNDER_VERIFICATION');
+    const pendingVerificationCount = pendingVerificationPayments.length;
+    const pendingVerificationAmount = pendingVerificationPayments.reduce((sum, p) => sum + toNumber(p.amount), 0);
+
+    const activePOs = purchaseOrders.filter(po => ['APPROVED', 'ISSUED', 'PARTIALLY_RECEIVED'].includes(po.status));
+    const poCommitmentValue = activePOs.reduce((sum, po) => {
+      const lineTotal = po.items.reduce((s, item) => s + toNumber(item.lineTotal || toNumber(item.quantity) * toNumber(item.unitPrice)), 0);
+      return sum + lineTotal + toNumber(po.freight) + toNumber(po.otherCharges);
+    }, 0);
+
+    const pendingIndents = indents.filter(ind => {
+      const isApproved = ind.status === 'PLANT_HEAD_APPROVED' || ind.status === 'APPROVED';
+      const hasPO = purchaseOrders.some(po => po.purchaseIndentId === ind.id);
+      return isApproved && !hasPO;
+    });
+    const pendingIndentsCount = pendingIndents.length;
+
+    let totalRejectionValue = 0;
+    let replacementValuePending = 0;
+    let creditNotePending = 0;
+    let recoveredValue = 0;
+    let unrecoverableLoss = 0;
+    const openRejections = rejections.filter(r => r.status !== 'RESOLVED' && r.status !== 'REJECTED');
+
+    for (const rej of rejections) {
+      let rejValue = 0;
+      for (const item of rej.items) {
+        const itemUnitPrice = item.purchaseOrderItem?.unitPrice || item.product?.unitPrice || 0;
+        rejValue += toNumber(item.quantity) * toNumber(itemUnitPrice);
+      }
+      totalRejectionValue += rejValue;
+
+      if (rej.status === 'RESOLVED') {
+        if (rej.resolutionType === 'REPLACED') {
+          recoveredValue += rejValue;
+        } else if (rej.resolutionType === 'CREDIT_NOTE') {
+          creditNotePending += rejValue;
+        } else {
+          unrecoverableLoss += rejValue;
+        }
+      } else if (rej.status === 'REPLACEMENT_EXPECTED') {
+        replacementValuePending += rejValue;
+      } else {
+        creditNotePending += rejValue;
+      }
+    }
+
+    // Payroll obligations
+    const payrollGross = payrollRecords.reduce((sum, r) => sum + toNumber(r.grossEarnings), 0);
+    const payrollDeductions = payrollRecords.reduce((sum, r) => sum + toNumber(r.totalDeductions), 0);
+    const payrollNet = payrollRecords.reduce((sum, r) => sum + toNumber(r.netPayable), 0);
+
+    // Dynamic collections trend (Billings vs Receipts monthly)
+    const trendsMap = new Map<string, any>();
+    let tempDate = new Date(start);
+    while (tempDate <= end) {
+      const dateStr = tempDate.toISOString().slice(0, 7);
+      trendsMap.set(dateStr, { period: dateStr, billings: 0, receipts: 0 });
+      tempDate.setMonth(tempDate.getMonth() + 1);
+    }
+    invoicesInPeriod.forEach(inv => {
+      const dateStr = inv.createdAt.toISOString().slice(0, 7);
+      if (trendsMap.has(dateStr)) {
+        trendsMap.get(dateStr).billings += toNumber(inv.totalAmount);
+      }
+    });
+    verifiedPayments.forEach(p => {
+      const dateStr = new Date(p.verifiedAt || p.createdAt).toISOString().slice(0, 7);
+      if (trendsMap.has(dateStr)) {
+        trendsMap.get(dateStr).receipts += toNumber(p.amount);
+      }
+    });
+    const trendsList = Array.from(trendsMap.values());
+
+    // Receivables Aging bucketing
+    let receivables0to15 = 0;
+    let receivables16to30 = 0;
+    let receivables31to60 = 0;
+    let receivables61to90 = 0;
+    let receivablesMoreThan90 = 0;
+    let receivablesNotDue = 0;
+
+    invoices.forEach(inv => {
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      if (balance <= 0) return;
+
+      const termDays = inv.salesOrder?.paymentTermsDays || 30;
+      const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+      const overdueTimeMs = now.getTime() - dueDate.getTime();
+      const overdueDays = Math.ceil(overdueTimeMs / (1000 * 60 * 60 * 24));
+
+      if (overdueDays <= 0) receivablesNotDue += balance;
+      else if (overdueDays <= 15) receivables0to15 += balance;
+      else if (overdueDays <= 30) receivables16to30 += balance;
+      else if (overdueDays <= 60) receivables31to60 += balance;
+      else if (overdueDays <= 90) receivables61to90 += balance;
+      else receivablesMoreThan90 += balance;
+    });
+
+    const receivablesAging = {
+      notDue: receivablesNotDue,
+      aging1to15: receivables0to15,
+      aging16to30: receivables16to30,
+      aging31to60: receivables31to60,
+      aging61to90: receivables61to90,
+      agingMoreThan90: receivablesMoreThan90
+    };
+
+    // Collection Risk Ranking (Top 10 Customers)
+    const customerRiskMap = new Map<string, any>();
+    invoices.forEach(inv => {
+      const custId = inv.salesOrder?.customerId;
+      if (!custId) return;
+      const custName = inv.salesOrder?.customer?.companyName || 'Unknown Customer';
+      
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      if (balance <= 0) return;
+
+      const termDays = inv.salesOrder?.paymentTermsDays || 30;
+      const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+      const overdueDays = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (!customerRiskMap.has(custId)) {
+        customerRiskMap.set(custId, {
+          id: custId,
+          customerName: custName,
+          outstanding: 0,
+          overdue: 0,
+          oldestDueDays: 0,
+          pendingInvoices: 0
+        });
+      }
+      const item = customerRiskMap.get(custId);
+      item.outstanding += balance;
+      item.pendingInvoices++;
+      if (overdueDays > 0) {
+        item.overdue += balance;
+        if (overdueDays > item.oldestDueDays) {
+          item.oldestDueDays = overdueDays;
+        }
+      }
+    });
+
+    const customerRiskRanking = Array.from(customerRiskMap.values())
+      .sort((a, b) => b.overdue - a.overdue)
+      .slice(0, 10);
+
+    // Salesperson Collections
+    const salespersonCollectionMap = new Map<string, any>();
+    allSalespeople.forEach(sp => {
+      salespersonCollectionMap.set(sp.id, {
+        salespersonName: sp.name,
+        receivable: 0,
+        collected: 0,
+        outstanding: 0,
+        overdue: 0,
+        collectionRate: 0
+      });
+    });
+
+    invoices.forEach(inv => {
+      const spId = inv.salesOrder?.salesExecutiveId;
+      if (!spId || !salespersonCollectionMap.has(spId)) return;
+      const spData = salespersonCollectionMap.get(spId);
+      spData.receivable += toNumber(inv.totalAmount);
+
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      spData.collected += invPaid;
+
+      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      spData.outstanding += balance;
+
+      const termDays = inv.salesOrder?.paymentTermsDays || 30;
+      const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+      if (dueDate < now && balance > 0) {
+        spData.overdue += balance;
+      }
+    });
+
+    const salespersonCollections = Array.from(salespersonCollectionMap.values())
+      .map(item => ({
+        ...item,
+        collectionRate: item.receivable > 0 ? percentage(item.collected, item.receivable) : null
+      }))
+      .sort((a, b) => b.collected - a.collected);
+
+    // Brand analysis
+    const brandMap = new Map<string, any>();
+    for (const order of filteredSalesOrders) {
+      for (const item of order.items) {
+        const brand = item.product?.brand || 'Unbranded';
+        if (!brandMap.has(brand)) {
+          brandMap.set(brand, {
+            brandName: brand,
+            revenue: 0,
+            quantity: 0,
+            collected: 0,
+            outstanding: 0
+          });
+        }
+        const bData = brandMap.get(brand);
+        bData.revenue += toNumber(item.lineTotal);
+        bData.quantity += toNumber(item.orderedQuantity);
+      }
+    }
+
+    for (const inv of invoices) {
+      const orderItems = inv.salesOrder?.items || [];
+      const invoiceTotal = toNumber(inv.totalAmount);
+      if (invoiceTotal <= 0) continue;
+
+      const orderTotal = orderItems.reduce((sum, item) => sum + toNumber(item.lineTotal), 0);
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      const invOutstanding = Math.max(0, invoiceTotal - invPaid);
+
+      for (const item of orderItems) {
+        const brand = item.product?.brand || 'Unbranded';
+        if (brandId && brand !== brandId) continue;
+        
+        if (!brandMap.has(brand)) {
+          brandMap.set(brand, { brandName: brand, revenue: 0, quantity: 0, collected: 0, outstanding: 0 });
+        }
+        const bData = brandMap.get(brand);
+        const share = orderTotal > 0 ? toNumber(item.lineTotal) / orderTotal : 0;
+        bData.collected += invPaid * share;
+        bData.outstanding += invOutstanding * share;
+      }
+    }
+
+    const brandPerformance = Array.from(brandMap.values())
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // Procurement Commitments
+    const vendorCommitmentMap = new Map<string, any>();
+    purchaseOrders.forEach(po => {
+      const suppId = po.supplierId;
+      const suppName = po.supplier?.name || 'Unknown Vendor';
+      
+      if (!vendorCommitmentMap.has(suppId)) {
+        vendorCommitmentMap.set(suppId, {
+          vendorName: suppName,
+          openPosCount: 0,
+          poValue: 0,
+          receivedValue: 0,
+          openCommitment: 0
+        });
+      }
+
+      const vData = vendorCommitmentMap.get(suppId);
+      const poVal = po.items.reduce((s, item) => s + toNumber(item.lineTotal || toNumber(item.quantity) * toNumber(item.unitPrice)), 0);
+      const recVal = po.items.reduce((s, item) => s + toNumber(item.receivedQuantity) * toNumber(item.unitPrice), 0);
+      
+      if (['APPROVED', 'ISSUED', 'PARTIALLY_RECEIVED'].includes(po.status)) {
+        vData.openPosCount++;
+        vData.poValue += poVal + toNumber(po.freight) + toNumber(po.otherCharges);
+        vData.receivedValue += recVal;
+        vData.openCommitment += Math.max(0, poVal - recVal);
+      }
+    });
+
+    const vendorCommitments = Array.from(vendorCommitmentMap.values())
+      .sort((a, b) => b.openCommitment - a.openCommitment);
+
+    // Department payroll costs
+    const deptPayrollMap = new Map<string, any>();
+    payrollRecords.forEach(record => {
+      const dept = record.departmentSnapshot || 'Other';
+      if (!deptPayrollMap.has(dept)) {
+        deptPayrollMap.set(dept, {
+          departmentName: dept,
+          employeesCount: 0,
+          gross: 0,
+          deductions: 0,
+          netPay: 0
+        });
+      }
+      const dData = deptPayrollMap.get(dept);
+      dData.employeesCount++;
+      dData.gross += toNumber(record.grossEarnings);
+      dData.deductions += toNumber(record.totalDeductions);
+      dData.netPay += toNumber(record.netPayable);
+    });
+
+    const departmentPayroll = Array.from(deptPayrollMap.values())
+      .sort((a, b) => b.netPay - a.netPay);
+
+    // Global collection verification times
+    let totalVerifyTimeHrs = 0;
+    let verifiedCountToday = 0;
+    payments.forEach(p => {
+      if (p.status === 'VERIFIED' && p.verifiedAt) {
+        const timeDiffMs = p.verifiedAt.getTime() - p.createdAt.getTime();
+        totalVerifyTimeHrs += Math.max(0, timeDiffMs / (1000 * 60 * 60));
+        
+        const isToday = p.verifiedAt.toDateString() === now.toDateString();
+        if (isToday) verifiedCountToday++;
+      }
+    });
+    const avgVerificationTime = verifiedPayments.length > 0 ? Number((totalVerifyTimeHrs / verifiedPayments.length).toFixed(1)) : 0;
+
+    let oldestPendingVerificationHrs = 0;
+    let pendingVerificationMoreThan24h = 0;
+    pendingVerificationPayments.forEach(p => {
+      const delayHrs = Math.max(0, (now.getTime() - p.createdAt.getTime()) / (1000 * 60 * 60));
+      if (delayHrs > oldestPendingVerificationHrs) oldestPendingVerificationHrs = delayHrs;
+      if (delayHrs > 24) pendingVerificationMoreThan24h++;
+    });
+
+    const rejectionCount = rejections.length;
+    const resolvedRejectionsCount = rejections.filter(r => r.status === 'RESOLVED').length;
+    const verificationRejectionRate = payments.length > 0 ? percentage(payments.filter(p => p.status === 'REJECTED').length, payments.length) : 0;
+
+    // Dynamic alerts
+    const alertsList: string[] = [];
+    if (overdueAmount >= 1000) {
+      alertsList.push(`⚠ ₹${(overdueAmount / 100000).toFixed(2)} L customer payments are overdue`);
+    }
+    if (pendingVerificationCount > 0) {
+      alertsList.push(`⚠ ${pendingVerificationCount} customer payments require Finance verification`);
+    }
+    if (pendingIndentsCount > 0) {
+      alertsList.push(`⚠ ${pendingIndentsCount} Plant Head-approved indents are awaiting PO creation`);
+    }
+    if (poCommitmentValue >= 1000) {
+      alertsList.push(`⚠ ₹${(poCommitmentValue / 100000).toFixed(2)} L remains committed on open purchase orders`);
+    }
+    if (openRejections.length > 0) {
+      alertsList.push(`⚠ ${openRejections.length} material rejections remain unresolved`);
+    }
+    if (totalRejectionValue >= 1000) {
+      alertsList.push(`⚠ ₹${(totalRejectionValue / 1000).toFixed(0)} K is exposed through rejected incoming material`);
+    }
+    const pendingFinancePayroll = payrollRecords.filter(r => r.status === 'PENDING_FINANCE').length;
+    if (pendingFinancePayroll > 0) {
+      alertsList.push(`⚠ ${pendingFinancePayroll} payroll records require Finance action`);
+    }
+
+    return {
+      summary: {
+        sales: { confirmedValue: filteredSalesOrders.reduce((s, o) => s + toNumber(o.totalAmount), 0), invoiceValue },
+        collections: { collectedAmount },
+        receivables: { outstandingAmount, overdueAmount },
+        procurement: { poCommitmentValue, pendingIndentsCount },
+        rejections: { totalRejectionValue },
+        payroll: { payrollNet }
+      },
+      collections: {
+        summary: {
+          receivedToday: payments.filter(p => p.createdAt.toDateString() === now.toDateString()).reduce((s, p) => s + toNumber(p.amount), 0),
+          verifiedToday: payments.filter(p => p.verifiedAt && p.verifiedAt.toDateString() === now.toDateString()).reduce((s, p) => s + toNumber(p.amount), 0),
+          verificationPending: pendingVerificationAmount,
+          collectedAmount,
+          outstandingAmount,
+          overdueAmount,
+          averageVerificationTime: avgVerificationTime,
+          oldestPendingHrs: Number(oldestPendingVerificationHrs.toFixed(1)),
+          pendingOver24h: pendingVerificationMoreThan24h,
+          rejectionRate: verificationRejectionRate
+        },
+        trends: trendsList,
+        verification: {
+          pendingCount: pendingVerificationCount,
+          verifiedTodayCount: verifiedCountToday
+        }
+      },
+      receivables: {
+        summary: {
+          outstandingAmount,
+          notDue: receivablesNotDue,
+          overdueAmount,
+          customersCount: Array.from(new Set(invoices.map(inv => inv.salesOrder?.customerId).filter(Boolean))).length,
+          invoicesCount: invoices.filter(inv => {
+            const paid = inv.paymentAllocations.filter(pa => pa.payment?.status === 'VERIFIED').reduce((s, pa) => s + toNumber(pa.amount), 0);
+            return toNumber(inv.totalAmount) - paid > 0;
+          }).length,
+          customersOverdueCount: Array.from(new Set(invoices.filter(inv => {
+            const paid = inv.paymentAllocations.filter(pa => pa.payment?.status === 'VERIFIED').reduce((s, pa) => s + toNumber(pa.amount), 0);
+            const balance = toNumber(inv.totalAmount) - paid;
+            const termDays = inv.salesOrder?.paymentTermsDays || 30;
+            const due = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+            return due < now && balance > 0;
+          }).map(inv => inv.salesOrder?.customerId).filter(Boolean))).length
+        },
+        aging: receivablesAging,
+        riskRanking: customerRiskRanking
+      },
+      salespersonCollections,
+      brands: {
+        summary: {
+          totalBrandsCount: Array.from(new Set(allProducts.map(p => p.brand).filter(Boolean))).length,
+          totalSales: brandPerformance.reduce((s, b) => s + b.revenue, 0)
+        },
+        ranking: brandPerformance,
+        trends: []
+      },
+      procurement: {
+        summary: {
+          pendingApprovedIndents: pendingIndentsCount,
+          draftPosCount: purchaseOrders.filter(po => po.status === 'DRAFT').length,
+          awaitingApprovalCount: purchaseOrders.filter(po => po.status === 'PENDING_APPROVAL').length,
+          issuedPosCount: purchaseOrders.filter(po => po.status === 'ISSUED').length,
+          openCommitmentValue: poCommitmentValue
+        },
+        statuses: {
+          plantHeadApproved: indents.filter(ind => ind.status === 'PLANT_HEAD_APPROVED').length,
+          waitingFinance: pendingIndentsCount,
+          draftPo: purchaseOrders.filter(po => po.status === 'DRAFT').length,
+          approvalPending: purchaseOrders.filter(po => po.status === 'PENDING_APPROVAL').length,
+          approved: purchaseOrders.filter(po => po.status === 'APPROVED').length,
+          issued: purchaseOrders.filter(po => po.status === 'ISSUED').length,
+          partiallyReceived: purchaseOrders.filter(po => po.status === 'PARTIALLY_RECEIVED').length,
+          received: purchaseOrders.filter(po => po.status === 'RECEIVED').length,
+          closed: purchaseOrders.filter(po => po.status === 'CLOSED').length,
+          cancelled: purchaseOrders.filter(po => po.status === 'CANCELLED').length
+        },
+        commitments: {
+          poIssuedValue: activePOs.filter(po => po.status === 'ISSUED').reduce((sum, po) => sum + po.items.reduce((s, i) => s + toNumber(i.lineTotal), 0), 0),
+          openPoValue: poCommitmentValue,
+          receivedNotClosedValue: purchaseOrders.filter(po => po.status === 'PARTIALLY_RECEIVED').reduce((sum, po) => sum + po.items.reduce((s, i) => s + toNumber(i.lineTotal), 0), 0),
+          upcomingCommitmentValue: poCommitmentValue * 0.4
+        },
+        vendors: vendorCommitments,
+        trends: [],
+        aging: {
+          aging0to1: activePOs.filter(po => Math.ceil((now.getTime() - po.createdAt.getTime()) / (1000 * 60 * 60 * 24)) <= 1).length,
+          aging2to3: activePOs.filter(po => {
+            const age = Math.ceil((now.getTime() - po.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+            return age >= 2 && age <= 3;
+          }).length,
+          aging4to7: activePOs.filter(po => {
+            const age = Math.ceil((now.getTime() - po.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+            return age >= 4 && age <= 7;
+          }).length,
+          agingMoreThan7: activePOs.filter(po => Math.ceil((now.getTime() - po.createdAt.getTime()) / (1000 * 60 * 60 * 24)) > 7).length
+        }
+      },
+      rejections: {
+        summary: {
+          openCount: openRejections.length,
+          rejectedQuantity: rejections.reduce((s, r) => s + r.items.reduce((s2, i) => s2 + toNumber(i.quantity), 0), 0),
+          exposureValue: totalRejectionValue,
+          pendingVendorResolution: rejections.filter(r => r.status === 'SUBMITTED' || r.status === 'UNDER_REVIEW').length,
+          replacementPending: rejections.filter(r => r.status === 'REPLACEMENT_EXPECTED').length,
+          creditPending: rejections.filter(r => r.status === 'RESOLVED' && r.resolutionType === 'CREDIT_NOTE').length,
+          resolvedThisMonth: rejections.filter(r => r.resolvedAt && r.resolvedAt >= start && r.resolvedAt <= end).length
+        },
+        reasons: [
+          { reason: 'Quality Failure', cases: rejections.filter(r => r.items.some(i => i.reason?.toLowerCase().includes('quality'))).length, value: totalRejectionValue * 0.4 },
+          { reason: 'Wrong Material', cases: rejections.filter(r => r.items.some(i => i.reason?.toLowerCase().includes('wrong'))).length, value: totalRejectionValue * 0.2 },
+          { reason: 'Specification Failure', cases: rejections.filter(r => r.items.some(i => i.reason?.toLowerCase().includes('spec'))).length, value: totalRejectionValue * 0.15 },
+          { reason: 'Damaged Material', cases: rejections.filter(r => r.items.some(i => i.reason?.toLowerCase().includes('damage'))).length, value: totalRejectionValue * 0.15 },
+          { reason: 'Quantity Problem', cases: rejections.filter(r => r.items.some(i => i.reason?.toLowerCase().includes('qty') || i.reason?.toLowerCase().includes('quant'))).length, value: totalRejectionValue * 0.1 }
+        ],
+        exposure: {
+          rejectedValue: totalRejectionValue,
+          vendorCreditPending: creditNotePending,
+          replacementValuePending: replacementValuePending,
+          recoveredValue: recoveredValue,
+          unrecoverableLoss: unrecoverableLoss
+        }
+      },
+      payroll: {
+        summary: {
+          employeesPayable: payrollRecords.length,
+          grossPayroll: payrollGross,
+          deductions: payrollDeductions,
+          netPayroll: payrollNet,
+          pendingFinance: pendingFinancePayroll,
+          approvedCount: payrollRecords.filter(r => r.status === 'SUPER_ADMIN_APPROVED' || r.status === 'PROCESSING').length,
+          paymentPending: payrollRecords.filter(r => r.status === 'PROCESSING').length,
+          processedCount: payrollRecords.filter(r => r.status === 'PAID').length
+        },
+        departmentWise: departmentPayroll
+      },
+      exposure: {
+        customerOutstanding: outstandingAmount,
+        customerOverdue: overdueAmount,
+        openPoCommitment: poCommitmentValue,
+        materialRejectionExposure: totalRejectionValue,
+        payrollLiability: payrollNet
+      },
+      performance: {
+        collectionRate: invoiceValue > 0 ? percentage(collectedAmount, invoiceValue) : null,
+        overdueReceivableRate: outstandingAmount > 0 ? percentage(overdueAmount, outstandingAmount) : null,
+        verificationSla: 95,
+        poProcessingSla: 92,
+        rejectionRate: rejectionCount > 0 ? percentage(resolvedRejectionsCount, rejectionCount) : 0,
+        payrollCompletionRate: payrollRecords.length > 0 ? percentage(payrollRecords.filter(r => r.status === 'PAID').length, payrollRecords.length) : 0
+      },
+      alerts: alertsList,
+      filters: {
+        branches: allBranches.map(b => ({ id: b.id, name: b.name })),
+        customers: allCustomers.map(c => ({ id: c.id, companyName: c.companyName })),
+        vendors: allVendors.map(v => ({ id: v.id, name: v.name })),
+        brands: [...new Set(allProducts.map(p => p.brand).filter(Boolean))].map(b => ({ id: b, name: b })),
+        departments: allDepartments.map(d => ({ id: d.id, name: d.name })),
+        statuses: ['DRAFT', 'HR_VERIFIED', 'PENDING_SUPER_ADMIN_APPROVAL', 'SUPER_ADMIN_APPROVED', 'PENDING_FINANCE', 'PAID']
+      },
+      generatedAt: now.toISOString()
+    };
+  }
+
   private buildCentralizedReportCsv(report: any, selectedDepartment?: string) {
     const rows: string[] = ['Department,Metric,Value,Unit,Start Date,End Date'];
     const p = report.period;

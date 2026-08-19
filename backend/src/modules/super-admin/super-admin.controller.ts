@@ -174,6 +174,16 @@ export class SuperAdminController {
     return this.superAdminService.getDispatchAnalytics(query, user.companyId);
   }
 
+  @Get('analytics/sales')
+  async getSalesAnalytics(@Query() query: any, @CurrentUser() user: any) {
+    return this.superAdminService.getSalesAnalytics(query, user.companyId);
+  }
+
+  @Get('analytics/finance')
+  async getFinanceAnalytics(@Query() query: any, @CurrentUser() user: any) {
+    return this.superAdminService.getFinanceAnalytics(query, user.companyId);
+  }
+
   @Get('analytics/inventory')
   async getInventoryAnalytics(@Query() query: any, @CurrentUser() user: any) {
     return this.superAdminService.getInventoryAnalytics(query, user.companyId);
