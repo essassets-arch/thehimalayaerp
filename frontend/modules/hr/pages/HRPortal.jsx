@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
@@ -56,15 +56,17 @@ export default function HRPortal() {
     loadEmployees();
   }, []);
 
-  const employees = dbEmployees.length > 0
-    ? dbEmployees.map(emp => ({
-        id: emp.employeeCode || emp.id,
-        name: emp.fullName || `${emp.firstName} ${emp.lastName}`.trim(),
-        department: typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations'),
-        designation: emp.jobTitle || 'Staff Member',
-        status: emp.status || 'ACTIVE'
-      }))
-    : [];
+  const employees = useMemo(() => {
+    return dbEmployees.length > 0
+      ? dbEmployees.map(emp => ({
+          id: emp.employeeCode || emp.id,
+          name: emp.fullName || `${emp.firstName} ${emp.lastName}`.trim(),
+          department: typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations'),
+          designation: emp.jobTitle || 'Staff Member',
+          status: emp.status || 'ACTIVE'
+        }))
+      : [];
+  }, [dbEmployees]);
 
   const [directoryEmployees, setDirectoryEmployees] = useState([]);
   const [directoryError, setDirectoryError] = useState('');
