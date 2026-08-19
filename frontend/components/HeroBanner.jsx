@@ -1310,6 +1310,21 @@ export default function HeroBanner({
                             customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
                             buttonsStyling: false
                           });
+                        } else {
+                          const errorMsg = res?.message || 'Error occurred during punch-in.';
+                          const isAlreadyPunched = errorMsg.includes('ALREADY_PUNCHED_IN') || errorMsg.toLowerCase().includes('already punched in');
+                          if (isAlreadyPunched) {
+                            syncPunchStatusFromDB();
+                            setShowPunchModal(false);
+                            Swal.fire({
+                              icon: 'info',
+                              title: 'Already Punched In 🟢',
+                              text: 'You are already punched in for today on another device/session.',
+                              confirmButtonText: 'OK',
+                            });
+                          } else {
+                            Swal.fire({ icon: 'error', title: 'Punch In Failed', text: errorMsg });
+                          }
                         }
                       }).catch((err) => {
                         const isAlreadyPunched = err?.message?.includes('ALREADY_PUNCHED_IN') || err?.message?.includes('already punched in');
@@ -1389,6 +1404,9 @@ export default function HeroBanner({
                             customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
                             buttonsStyling: false
                           });
+                        } else {
+                          const errorMsg = res?.message || 'Error occurred during punch-out.';
+                          Swal.fire({ icon: 'error', title: 'Punch Out Failed', text: errorMsg });
                         }
                       }).catch((err) => {
                         Swal.fire({ icon: 'error', title: 'Punch Out Failed', text: err.message || 'Error occurred during punch-out.' });
