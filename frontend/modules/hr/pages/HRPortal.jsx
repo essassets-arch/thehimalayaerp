@@ -675,9 +675,6 @@ export default function HRPortal() {
 
   // 4. ATTENDANCE & CLOCK BIOMETRIC SIMULATOR (Redesigned Premium UI)
   const renderAttendance = () => {
-    const selectedEmpObj = employees.find(e => e.id === selectedStaffSim);
-    
-    // Auto-select dropdown employee profile if no log row is selected
     let activePreview = null;
     const grouped = {};
     const sortedSimLogs = [...simLogs].sort((a, b) => {
@@ -751,36 +748,10 @@ export default function HRPortal() {
 
     if (selectedLogPreview) {
       activePreview = selectedLogPreview;
+    } else if (formattedLogs.length > 0) {
+      activePreview = formattedLogs[0];
     } else {
-      const selectedEmp = employees.find(e => e.id === selectedStaffSim);
-      if (selectedEmp) {
-        // Find if they have any punch log on the selected inspect date
-        const inspectDayStr = rosterInspectDate ? new Date(rosterInspectDate).toDateString() : '';
-        const dayPunch = rawFormattedLogs.find(log => {
-          if (log.id !== selectedEmp.id) return false;
-          const logDate = log.timestamp ? new Date(log.timestamp) : new Date(log.date || new Date());
-          return logDate.toDateString() === inspectDayStr;
-        });
-
-        if (dayPunch) {
-          activePreview = dayPunch;
-        } else {
-          // Fallback to shift profile
-          activePreview = {
-            id: selectedEmp.id,
-            name: selectedEmp.name,
-            action: 'Staff Member Profile',
-            time: '09:00 AM - 06:00 PM',
-            date: 'General Shift Schedule',
-            status: typeof selectedEmp.department === 'object' ? (selectedEmp.department?.name || 'Operations') : (selectedEmp.department || 'Operations'),
-            location: 'Haridwar Factory Campus (No Active Punch)',
-            coords: '',
-            selfieUrl: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${selectedEmp.id}`
-          };
-        }
-      } else {
-        activePreview = formattedLogs[0];
-      }
+      activePreview = null;
     }
 
     const filteredEmployees = employees.filter(emp => 
@@ -1185,43 +1156,13 @@ export default function HRPortal() {
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Filter Roster Directory</label>
-                  <input
-                    type="text"
-                    placeholder="🔍 Search employee name or code..."
-                    value={employeeSearch}
-                    onChange={(e) => setEmployeeSearch(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: '8px',
-                      fontSize: '12.5px',
-                      fontWeight: '600',
-                      outline: 'none',
-                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
-                    }}
+                  <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Audit Target Date</label>
+                  <input 
+                    type="date" 
+                    value={rosterInspectDate} 
+                    onChange={(e) => setRosterInspectDate(e.target.value)} 
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px', fontWeight: '600', background: '#fff' }} 
                   />
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Select Employee Identity</label>
-                    <select value={selectedStaffSim} onChange={(e) => { setSelectedStaffSim(e.target.value); setSelectedLogPreview(null); }} style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px', fontWeight: '600', background: '#fff' }}>
-                      {filteredEmployees.map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Audit Target Date</label>
-                    <input 
-                      type="date" 
-                      value={rosterInspectDate} 
-                      onChange={(e) => setRosterInspectDate(e.target.value)} 
-                      style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px', fontWeight: '600', background: '#fff' }} 
-                    />
-                  </div>
                 </div>
               </div>
             </div>
