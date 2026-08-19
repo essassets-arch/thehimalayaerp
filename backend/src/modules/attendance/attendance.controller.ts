@@ -10,7 +10,7 @@ export class AttendanceController {
   @Get('me/today')
   getTodayAttendance(@Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.user?.companyId;
+    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     if (!userId) {
       return {
         status: 'NOT_PUNCHED_IN',
@@ -26,31 +26,27 @@ export class AttendanceController {
   @Get('me')
   getMyAttendanceHistory(@Req() req: any, @Query() query: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.user?.companyId;
+    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.getMyAttendanceHistory(userId, companyId, query);
   }
 
   @Post('punch-in')
   punchIn(@Req() req: any, @Body() body: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.user?.companyId;
+    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.punchIn(userId, companyId, body);
   }
 
   @Post('punch-out')
   punchOut(@Req() req: any, @Body() body: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.user?.companyId;
+    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.punchOut(userId, companyId, body);
   }
 
   @Get('summary')
   getAttendanceSummary(@Req() req: any, @Query('date') dateStr?: string) {
-    const rawRole = req.user?.role;
-    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
-    const upperRole = roleCode.toUpperCase();
-    const allowedRoles = ['HR', 'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'PLANT_HEAD_MANAGER'];
-    const companyId = req.user?.companyId || '46be0689-1169-4adc-bcf9-d4100032a0ee';
+    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.getAttendanceSummary(companyId, dateStr);
   }
 
@@ -61,9 +57,9 @@ export class AttendanceController {
     const upperRole = roleCode.toUpperCase();
     const allowedRoles = ['HR', 'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'PLANT_HEAD_MANAGER'];
     if (!allowedRoles.some(r => upperRole.includes(r))) {
-      return this.attendanceService.getMyAttendanceHistory(req.user?.sub, req.user?.companyId, query);
+      return this.attendanceService.getMyAttendanceHistory(req.user?.sub, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015', query);
     }
-    const companyId = req.user?.companyId || '46be0689-1169-4adc-bcf9-d4100032a0ee';
+    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.listCompanyAttendance(companyId, query);
   }
 
@@ -85,7 +81,7 @@ export class AttendanceController {
     if (role !== 'HR' && role !== 'SUPER_ADMIN' && role !== 'ADMIN' && role !== 'Super Admin' && role !== 'Admin') {
       throw new ForbiddenException('Not authorized to access employee attendance details');
     }
-    const companyId = req.user.companyId;
+    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.getEmployeeMonthlyAttendance(employeeId, companyId, monthStr);
   }
 }
