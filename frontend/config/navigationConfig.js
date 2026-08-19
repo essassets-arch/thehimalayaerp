@@ -377,6 +377,7 @@ export const navigationConfig = {
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
 
     { type: 'badge', label: 'ANALYTICS & REPORTS' },
+    { id: 'map', label: 'Live User Map', icon: MapPin, path: '/super-admin/map' },
     { id: 'analytics-sales', label: 'Sales Analytics', icon: TrendingUp, path: '/super-admin/analytics/sales' },
     { id: 'analytics-finance', label: 'Finance Analytics', icon: Landmark, path: '/super-admin/analytics/finance' },
     { id: 'analytics-production', label: 'Production Analytics', icon: Cpu, path: '/super-admin/analytics/production' },

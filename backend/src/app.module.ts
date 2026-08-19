@@ -59,6 +59,7 @@ import { LeaveModule } from './modules/leave/leave.module';
 import { AttendanceRequestModule } from './modules/attendance-request/attendance-request.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { SearchModule } from './modules/search/search.module';
+import { LocationModule } from './modules/location/location.module';
 
 @Module({
   imports: [
@@ -122,6 +123,7 @@ import { SearchModule } from './modules/search/search.module';
     AttendanceRequestModule,
     AttendanceModule,
     SearchModule,
+    LocationModule,
   ],
   controllers: [AppController],
   providers: [

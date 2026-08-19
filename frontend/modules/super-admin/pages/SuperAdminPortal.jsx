@@ -67,6 +67,7 @@ import BusinessReportsPage from './BusinessReportsPage.jsx';
 import { SuperAdminFilterProvider } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import BrandAnalysisPage from './BrandAnalysisPage';
+import SuperAdminLiveMapPage from './SuperAdminLiveMapPage';
 
 
 // Department Views
@@ -7844,6 +7845,8 @@ export default function SuperAdminPortal() {
     }
 
     switch (view) {
+      case 'map':
+        return <SuperAdminLiveMapPage />;
       case 'attendance':
         return renderAttendanceWorkspace();
       case 'profile':

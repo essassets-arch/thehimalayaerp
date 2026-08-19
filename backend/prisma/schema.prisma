@@ -72,6 +72,9 @@ model Company {
   dailyReports                   ProductionDailyReport[]
   notifications                  Notification[]
   fcmDeviceTokens                FcmDeviceToken[]
+  deviceSessions                 DeviceSession[]
+  latestUserLocations            LatestUserLocation[]
+  userLocationHistories          UserLocationHistory[]
 }
 
 model Branch {
@@ -175,6 +178,9 @@ model User {
   notifications                 Notification[]
   fcmDeviceTokens               FcmDeviceToken[]
   attendances                   Attendance[]
+  deviceSessions                DeviceSession[]
+  latestUserLocations           LatestUserLocation[]
+  userLocationHistories         UserLocationHistory[]
 }
 
 model RefreshSession {
@@ -3613,6 +3619,98 @@ model StockHistory {
   @@index([allocationId])
   @@index([dispatchId])
 }
+
+enum ClientType {
+  WEB
+  APP
+}
+
+enum LocationPermissionState {
+  GRANTED
+  DENIED
+  PROMPT
+  UNAVAILABLE
+  UNSUPPORTED
+}
+
+model DeviceSession {
+  id                 String                  @id @default(uuid())
+  companyId          String
+  userId             String
+  deviceId           String                  // Client-generated persistent installation UUID
+  sessionId          String                  @unique @default(uuid())
+  deviceType         String                  // WEB, MOBILE, TABLET
+  deviceModel        String?
+  operatingSystem    String?
+  browser            String?
+  clientType         ClientType              @default(WEB)
+  locationPermission LocationPermissionState @default(PROMPT)
+  lastSeenAt         DateTime                @default(now())
+  connectedAt        DateTime?
+  disconnectedAt     DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  company            Company                 @relation(fields: [companyId], references: [id])
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  latestLocation     LatestUserLocation?
+  userLocationHistories UserLocationHistory[]
+
+  @@unique([userId, deviceId])             // 1 active session per user device
+  @@index([companyId])
+  @@index([companyId, lastSeenAt])
+}
+
+model LatestUserLocation {
+  id              String        @id @default(uuid())
+  companyId       String
+  userId          String
+  deviceSessionId String        @unique
+  latitude        Decimal       // Scoped to [-90.0, 90.0]
+  longitude       Decimal       // Scoped to [-180.0, 180.0]
+  accuracy        Float?
+  altitude        Float?
+  speed           Float?
+  heading         Float?
+  batteryLevel    Float?
+  capturedAt      DateTime
+  receivedAt      DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  company         Company       @relation(fields: [companyId], references: [id])
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceSession   DeviceSession @relation(fields: [deviceSessionId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, capturedAt])
+}
+
+model UserLocationHistory {
+  id              String        @id @default(uuid())
+  companyId       String
+  userId          String
+  deviceSessionId String
+
+  latitude        Decimal
+  longitude       Decimal
+
+  accuracy        Float?
+  altitude        Float?
+  speed           Float?
+  heading         Float?
+
+  capturedAt      DateTime
+  receivedAt      DateTime      @default(now())
+
+  company         Company       @relation(fields: [companyId], references: [id])
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceSession   DeviceSession @relation(fields: [deviceSessionId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, userId, capturedAt])
+  @@index([deviceSessionId, capturedAt])
+}
+
 
 
 
