@@ -149,6 +149,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS "PayrollPeriod_companyId_month_year_key" ON "P
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "PayrollRecord_companyId_status_idx" ON "PayrollRecord"("companyId", "status");
 
+-- Clean up orphaned Notification and Attendance records before adding constraints
+DELETE FROM "Notification" WHERE "companyId" NOT IN (SELECT id FROM "Company");
+DELETE FROM "Notification" WHERE "userId" NOT IN (SELECT id FROM "User");
+DELETE FROM "Attendance" WHERE "employeeId" IS NOT NULL AND "employeeId" NOT IN (SELECT id FROM "Employee");
+
 -- AddForeignKey
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Notification_companyId_fkey') THEN
