@@ -437,7 +437,34 @@ export default function PlantHeadPortal() {
     } else if (currentView === 'finished-goods') {
       backendFetch('/api/backend/production/finished-goods').then(res => {
         const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-        setDirectFinishedGoods(list);
+        const productsOnly = list.filter(item => {
+          const prod = item.product;
+          const origType = String(prod?.productType || prod?.product_type || '').toUpperCase();
+          const category = String(prod?.category || item.category || '').toLowerCase();
+          const code = String(item.productCode || item.product_code || prod?.sku || prod?.product_code || '').toUpperCase();
+          const name = String(item.productName || item.product_name || prod?.name || prod?.product_name || '').toLowerCase();
+          
+          if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
+            return false;
+          }
+          if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(category)) {
+            return false;
+          }
+          if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+            return false;
+          }
+          const rawKeywords = [
+            'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
+            'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
+            'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
+            'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+          ];
+          if (rawKeywords.some(keyword => name.includes(keyword))) {
+            return false;
+          }
+          return true;
+        });
+        setDirectFinishedGoods(productsOnly);
       }).catch(console.error);
     } else if (currentView === 'qc-failures') {
       Promise.allSettled([
@@ -3758,7 +3785,34 @@ export default function PlantHeadPortal() {
         Swal.fire({ icon: 'success', title: 'Sent to Dispatch', text: `Finished goods sent to dispatch queue!`, timer: 1500, showConfirmButton: false });
         backendFetch('/api/backend/production/finished-goods').then(res => {
           const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-          setDirectFinishedGoods(list);
+          const productsOnly = list.filter(item => {
+            const prod = item.product;
+            const origType = String(prod?.productType || prod?.product_type || '').toUpperCase();
+            const category = String(prod?.category || item.category || '').toLowerCase();
+            const code = String(item.productCode || item.product_code || prod?.sku || prod?.product_code || '').toUpperCase();
+            const name = String(item.productName || item.product_name || prod?.name || prod?.product_name || '').toLowerCase();
+            
+            if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
+              return false;
+            }
+            if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(category)) {
+              return false;
+            }
+            if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+              return false;
+            }
+            const rawKeywords = [
+              'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
+              'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
+              'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
+              'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+            ];
+            if (rawKeywords.some(keyword => name.includes(keyword))) {
+              return false;
+            }
+            return true;
+          });
+          setDirectFinishedGoods(productsOnly);
         }).catch(console.error);
       } catch (err) {
         Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to send to dispatch' });

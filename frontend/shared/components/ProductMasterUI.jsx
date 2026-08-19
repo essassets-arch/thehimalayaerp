@@ -23,7 +23,7 @@ export default function ProductMasterUI({ role }) {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Submenu Tab State: 'MANUFACTURING' | 'TRADING' | 'ALL'
-  const [activeSubMenu, setActiveSubMenu] = useState('MANUFACTURING');
+  const [activeSubMenu, setActiveSubMenu] = useState('ALL');
 
   // Pagination & Filtering State
   const [page, setPage] = useState(1);
@@ -87,18 +87,33 @@ export default function ProductMasterUI({ role }) {
         };
       });
 
-      // Exclude raw materials/materials (RAW_MATERIAL, HARDWARE, raw material, hardware, electric)
-      const productsOnly = normalizedList.filter(p => {
-        const type = String(p.product_type || '').toUpperCase();
+      // Exclude raw materials/materials (RAW_MATERIAL, HARDWARE, raw material, hardware, electric, consumables)
+      const productsOnly = normalizedList.filter((p, index) => {
+        const originalProduct = list[index];
+        const origType = String(originalProduct?.productType || originalProduct?.product_type || '').toUpperCase();
         const family = String(p.product_family || '').toLowerCase();
-        if (type === 'RAW_MATERIAL' || type === 'HARDWARE') {
+        const code = String(p.product_code || '').toUpperCase();
+        const name = String(p.product_name || '').toLowerCase();
+        if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
           return false;
         }
-        if (['raw material', 'hardware', 'electric'].includes(family)) {
+        if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) {
+          return false;
+        }
+        if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+          return false;
+        }
+        const rawKeywords = [
+          'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
+          'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
+          'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
+          'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+        ];
+        if (rawKeywords.some(keyword => name.includes(keyword))) {
           return false;
         }
         return true;
-      });
+      }, [rawProducts]);
 
       setRawProducts(productsOnly);
     } catch (err) {
@@ -125,7 +140,9 @@ export default function ProductMasterUI({ role }) {
       }
     }
     const combined = Array.from(new Set([...families, ...savedCustom]));
-    return ['All', ...combined].sort((a, b) => a.localeCompare(b));
+    return ['All', ...combined]
+      .filter(f => !['raw material', 'hardware', 'electric', 'consumable', 'consumables'].includes(f.toLowerCase()))
+      .sort((a, b) => a.localeCompare(b));
   }, [rawProducts]);
 
   const [availableCategories, setAvailableCategories] = useState([]);
@@ -139,7 +156,9 @@ export default function ProductMasterUI({ role }) {
     } catch (err) {
       console.error('Failed to parse custom categories:', err);
     }
-    const combined = Array.from(new Set([...dbCategories, ...savedCustom])).sort((a, b) => a.localeCompare(b));
+    const combined = Array.from(new Set([...dbCategories, ...savedCustom]))
+      .filter(c => !['raw material', 'hardware', 'electric', 'consumable', 'consumables'].includes(c.toLowerCase()))
+      .sort((a, b) => a.localeCompare(b));
     setAvailableCategories(combined);
   }, [isModalOpen, rawProducts]);
 
@@ -382,11 +401,7 @@ export default function ProductMasterUI({ role }) {
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
           </button>
           
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', background: '#FFFFFF', border: '1px solid #E2E8F0', color: '#334155', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-            {importing ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
-            {importing ? 'Importing...' : 'Import Excel'}
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} style={{ display: 'none' }} disabled={importing} />
-          </label>
+
 
           {canEdit && (
             <button 

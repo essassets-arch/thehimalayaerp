@@ -26,7 +26,35 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
     try {
       const data = await backendFetch('/api/backend/products?limit=1000');
       const raw = Array.isArray(data) ? data : (data?.data || []);
-      const normalized = raw.map(p => ({
+
+      // Filter out raw materials/hardware from categories list
+      const productsOnly = raw.filter(p => {
+        const type = String(p.productType || p.product_type || '').toUpperCase();
+        const family = String(p.category || p.product_family || '').toLowerCase();
+        const code = String(p.sku || p.product_code || '').toUpperCase();
+        const name = String(p.name || p.product_name || '').toLowerCase();
+        if (type === 'RAW_MATERIAL' || type === 'HARDWARE') {
+          return false;
+        }
+        if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) {
+          return false;
+        }
+        if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+          return false;
+        }
+        const rawKeywords = [
+          'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
+          'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
+          'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
+          'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+        ];
+        if (rawKeywords.some(keyword => name.includes(keyword))) {
+          return false;
+        }
+        return true;
+      });
+
+      const normalized = productsOnly.map(p => ({
         ...p,
         product_name: p.product_name || p.name || '',
         category: p.category || p.product_family || 'Uncategorized'
@@ -44,7 +72,8 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
         console.error('Failed to parse custom categories:', err);
       }
 
-      const combined = Array.from(new Set([...dbCategories, ...savedCustom]));
+      const combined = Array.from(new Set([...dbCategories, ...savedCustom]))
+        .filter(c => !['raw material', 'hardware', 'electric', 'consumable', 'consumables'].includes(c.toLowerCase()));
       setProductCategories(combined.length > 0 ? combined : dbCategories);
     } catch (e) {
       console.error('Failed to load categories:', e);
