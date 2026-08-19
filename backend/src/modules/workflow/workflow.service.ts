@@ -94,7 +94,7 @@ export class WorkflowService {
       }
     }
 
-    let transition = null;
+    let transition: any = null;
     if (params.currentStateId) {
       transition = await db.workflowTransition.findFirst({
         where: {
