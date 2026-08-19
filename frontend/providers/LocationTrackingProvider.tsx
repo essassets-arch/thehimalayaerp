@@ -71,10 +71,24 @@ const HEARTBEAT_INTERVAL_MS = 30000;
 
 export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, accessToken, user } = useAuthStore();
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [permissionState, setPermissionState] = useState<
+  const [sessionId, setSessionIdState] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+
+  const setSessionId = (id: string | null) => {
+    setSessionIdState(id);
+    sessionIdRef.current = id;
+  };
+
+  const [permissionState, setPermissionStateState] = useState<
     'GRANTED' | 'DENIED' | 'PROMPT' | 'UNAVAILABLE' | 'UNSUPPORTED'
   >('PROMPT');
+  const permissionStateRef = useRef(permissionState);
+
+  const setPermissionState = (state: typeof permissionState) => {
+    setPermissionStateState(state);
+    permissionStateRef.current = state;
+  };
+
   const [showNotice, setShowNotice] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
@@ -137,9 +151,9 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         lastLocationRef.current = { latitude, longitude, time: now };
 
         // Send via Socket.IO if connected
-        if (socketRef.current?.connected && sessionId) {
+        if (socketRef.current?.connected && sessionIdRef.current) {
           socketRef.current.emit('user:location:update', {
-            sessionId,
+            sessionId: sessionIdRef.current,
             latitude,
             longitude,
             accuracy,
@@ -165,9 +179,9 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
   };
 
   const syncPermission = (state: 'GRANTED' | 'DENIED' | 'PROMPT' | 'UNAVAILABLE' | 'UNSUPPORTED') => {
-    if (socketRef.current?.connected && sessionId) {
+    if (socketRef.current?.connected && sessionIdRef.current) {
       socketRef.current.emit('user:permission:update', {
-        sessionId,
+        sessionId: sessionIdRef.current,
         locationPermission: state,
       });
     }
@@ -197,9 +211,9 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         : 'http://localhost:4000');
 
     const socket = io(socketUrl, {
+      path: '/socket.io',
       auth: { token: accessToken },
-      query: { token: accessToken },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     });
 
     socketRef.current = socket;
@@ -216,7 +230,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
           browser,
           operatingSystem: os,
           clientType: 'WEB',
-          locationPermission: permissionState,
+          locationPermission: permissionStateRef.current,
         },
         (res: any) => {
           if (res?.success && res.sessionId) {
@@ -236,8 +250,8 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
 
     // Start periodic heartbeats to maintain online status independently of GPS
     const heartbeatTimer = setInterval(() => {
-      if (socket.connected && sessionId) {
-        socket.emit('user:presence:heartbeat', { sessionId });
+      if (socket.connected && sessionIdRef.current) {
+        socket.emit('user:presence:heartbeat', { sessionId: sessionIdRef.current });
       }
     }, HEARTBEAT_INTERVAL_MS);
 
@@ -250,7 +264,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         watchIdRef.current = null;
       }
     };
-  }, [isAuthenticated, accessToken, sessionId]);
+  }, [isAuthenticated, accessToken]);
 
   return (
     <LocationTrackingContext.Provider value={{ sessionId, permissionState, showNotice, acknowledgeNotice }}>

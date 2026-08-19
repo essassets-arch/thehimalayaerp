@@ -94,20 +94,23 @@ export class WorkflowService {
       }
     }
 
-    let transition = await db.workflowTransition.findFirst({
-      where: {
-        workflow: { code: params.workflowCode },
-        fromStateId: params.currentStateId,
-        actionName: params.actionName,
-      },
-      include: {
-        workflow: {
-          include: {
-            states: true,
+    let transition = null;
+    if (params.currentStateId) {
+      transition = await db.workflowTransition.findFirst({
+        where: {
+          workflow: { code: params.workflowCode },
+          fromStateId: params.currentStateId,
+          actionName: params.actionName,
+        },
+        include: {
+          workflow: {
+            include: {
+              states: true,
+            },
           },
         },
-      },
-    });
+      });
+    }
 
     if (!transition) {
       // Auto-create transition for dynamic workflow execution

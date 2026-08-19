@@ -18,9 +18,13 @@ import { UsePipes, ValidationPipe, Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: [
+      'https://thehimalaya.cloud',
+      'http://localhost:3000',
+    ],
     credentials: true,
   },
+  transports: ['websocket', 'polling'],
   namespace: '/',
 })
 export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect {

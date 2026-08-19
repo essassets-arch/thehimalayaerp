@@ -316,9 +316,9 @@ export default function SuperAdminLiveMapPage() {
       `${window.location.protocol}//${window.location.hostname}:4000`;
 
     const socket = io(socketUrl, {
+      path: '/socket.io',
       auth: { token: accessToken },
-      query: { token: accessToken },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     });
 
     socketRef.current = socket;

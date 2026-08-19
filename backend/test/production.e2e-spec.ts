@@ -157,5 +157,33 @@ describe('Production Domain — E2E Suite', () => {
         .set('Authorization', `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
     });
+
+    it('GET /super-admin/analytics/production returns production analytics', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/super-admin/analytics/production?from=2026-07-31&to=2026-08-19')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      // Verify status filtering query paths do not crash
+      const resProgress = await request(app.getHttpServer())
+        .get('/super-admin/analytics/production?from=2026-07-31&to=2026-08-19&status=IN_PROGRESS')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(resProgress.status).toBe(200);
+
+      const resQcFailed = await request(app.getHttpServer())
+        .get('/super-admin/analytics/production?from=2026-07-31&to=2026-08-19&status=QC_FAILED')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(resQcFailed.status).toBe(200);
+
+      const resCreated = await request(app.getHttpServer())
+        .get('/super-admin/analytics/production?from=2026-07-31&to=2026-08-19&status=CREATED')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(resCreated.status).toBe(200);
+
+      const resCompleted = await request(app.getHttpServer())
+        .get('/super-admin/analytics/production?from=2026-07-31&to=2026-08-19&status=COMPLETED')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(resCompleted.status).toBe(200);
+    });
   });
 });

@@ -129,6 +129,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     container_name: himalaya-frontend
     restart: unless-stopped
     environment:
@@ -137,6 +140,8 @@ services:
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:4000/api/v1}
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:4000/api/v1}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://erp.example.com}
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+      NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

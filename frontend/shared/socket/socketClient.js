@@ -16,10 +16,16 @@ export const connectSocket = (token, onNotification) => {
   // Return existing connection if already active
   if (socket?.connected) return socket;
 
-  socket = io(window.location.origin, {
+  const socketUrl =
+    process.env.NEXT_PUBLIC_SOCKET_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL ||
+    (typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.hostname}:4000`
+      : 'http://localhost:4000');
+
+  socket = io(socketUrl, {
+    path: '/socket.io',
     auth: { token },
-    // Also pass as query param for environments that block auth headers on WS upgrade
-    query: { token },
     reconnection: true,
     reconnectionAttempts: 12,
     reconnectionDelay: 1000,

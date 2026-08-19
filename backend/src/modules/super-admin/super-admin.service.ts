@@ -800,7 +800,29 @@ export class SuperAdminService {
     const previousEnd = new Date(start.getTime() - 1);
     const previousStart = new Date(previousEnd.getTime() - duration + 1);
     const productFilter: any = { ...(query?.productId ? { id: query.productId } : {}), ...(query?.categoryId ? { category: query.categoryId } : {}) };
-    const workOrderWhere: any = { productionPlan: { salesOrder: { customer: { companyId, ...(query?.branchId ? { branchId: query.branchId } : {}) }, ...(query?.status ? { status: query.status } : {}) } }, ...(query?.productId || query?.categoryId ? { salesOrderItem: { product: productFilter } } : {}) };
+    let statusFilter: any = {};
+    if (query?.status) {
+      if (query.status === 'CREATED') {
+        statusFilter = { status: 'CREATED' };
+      } else if (query.status === 'IN_PROGRESS') {
+        statusFilter = {
+          OR: [
+            { status: 'STARTED' },
+            { status: 'PARTIALLY_COMPLETED' },
+            { status: 'READY' },
+            { productionStatus: 'IN_PRODUCTION' },
+            { productionStatus: 'REWORK_IN_PROGRESS' }
+          ]
+        };
+      } else if (query.status === 'COMPLETED') {
+        statusFilter = { status: 'COMPLETED' };
+      } else if (query.status === 'QC_FAILED') {
+        statusFilter = { productionStatus: 'QC_FAILED' };
+      } else {
+        statusFilter = { status: query.status };
+      }
+    }
+    const workOrderWhere: any = { productionPlan: { salesOrder: { customer: { companyId, ...(query?.branchId ? { branchId: query.branchId } : {}) } } }, ...statusFilter, ...(query?.productId || query?.categoryId ? { salesOrderItem: { product: productFilter } } : {}) };
     const [entries, previousEntries, workOrders, targets, products, branches] = await Promise.all([
       this.prisma.productionShiftEntry.findMany({ where: { date: { gte: start, lte: end }, ...(query?.shiftId ? { shift: query.shiftId } : {}), workOrder: workOrderWhere }, include: { workOrder: { include: { qcInspections: true, scrapEntries: true, productionPlan: { include: { salesOrder: true } } } } } }),
       this.prisma.productionShiftEntry.findMany({ where: { date: { gte: previousStart, lte: previousEnd }, ...(query?.shiftId ? { shift: query.shiftId } : {}), workOrder: workOrderWhere }, select: { producedQty: true } }),
