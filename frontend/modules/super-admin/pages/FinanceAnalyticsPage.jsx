@@ -9,22 +9,11 @@ import { useCommandCenter } from '../hooks/useCommandCenter';
 import "../components/dashboard.css";
 
 const PORTAL_TABS = [
-  { id: 'overview', label: 'Unified Overview', icon: Lucide.LayoutDashboard, badge: 'All Data' },
-  // Executive Portal Tabs (/finance-executive/)
-  { id: 'payment-verification', label: 'Payment Verification', icon: Lucide.CheckCircle2, category: 'Executive (/finance-executive/)' },
-  { id: 'receipts', label: 'Receipts & Inflows', icon: Lucide.Receipt, category: 'Executive (/finance-executive/)' },
-  { id: 'outstanding', label: 'Outstanding Collections', icon: Lucide.Clock, category: 'Executive (/finance-executive/)' },
-  { id: 'customers', label: 'Customer Ledgers', icon: Lucide.Users, category: 'Executive (/finance-executive/)' },
-  { id: 'daily-tasks', label: 'Daily Tasks & Follow-ups', icon: Lucide.Calendar, category: 'Executive (/finance-executive/)' },
-  // Manager Portal Tabs (/finance/)
-  { id: 'dashboard', label: 'Finance Manager Overview', icon: Lucide.PieChart, category: 'Manager (/finance/)' },
-  { id: 'sales', label: 'Sales Confirmation', icon: Lucide.ShoppingCart, category: 'Manager (/finance/)' },
-  { id: 'sales-analytics', label: 'Sales Analytics', icon: Lucide.TrendingUp, category: 'Manager (/finance/)' },
-  { id: 'invoices', label: 'Vendor PO & Invoices', icon: Lucide.FileText, category: 'Manager (/finance/)' },
-  { id: 'vendors', label: 'Vendor Directory', icon: Lucide.Building2, category: 'Manager (/finance/)' },
-  { id: 'rejection-management', label: 'Rejection & Returns', icon: Lucide.AlertTriangle, category: 'Manager (/finance/)' },
-  { id: 'brand-analysis', label: 'Brand Analytics', icon: Lucide.Tag, category: 'Manager (/finance/)' },
-  { id: 'reports', label: 'Financial Reports & Exports', icon: Lucide.Download, category: 'Manager (/finance/)' }
+  { id: 'overview', label: 'Unified Overview', icon: Lucide.LayoutDashboard, badge: 'Read-Only' },
+  { id: 'dashboard', label: 'Finance Dashboard', icon: Lucide.PieChart },
+  { id: 'sales-analytics', label: 'Sales & Representative Analytics', icon: Lucide.TrendingUp },
+  { id: 'brand-analysis', label: 'Brand & Product Analytics', icon: Lucide.Tag },
+  { id: 'reports', label: 'Financial Reports & Exports', icon: Lucide.Download }
 ];
 
 export default function FinanceAnalyticsPage() {
@@ -45,9 +34,9 @@ export default function FinanceAnalyticsPage() {
           <div className="dashboard-heading">
             <div className="dashboard-heading-row">
               <h1>Finance & Cash Flow Analytics</h1>
-              <span className="dashboard-badge badge-info">Unified: /finance-executive/ & /finance/</span>
+              <span className="dashboard-badge badge-info">Read-Only Analytics Mode</span>
             </div>
-            <p>Finance-verified revenue, payment verifications, bank receipts, customer ageing, vendor POs & cash flow telemetry</p>
+            <p>Finance-verified revenue, cash flow trends, receivables ageing, and brand profitability telemetry (Operational features disabled)</p>
           </div>
         </div>
       </header>
