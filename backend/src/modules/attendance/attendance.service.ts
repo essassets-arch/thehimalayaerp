@@ -1100,4 +1100,9 @@ export class AttendanceService {
       },
     });
   }
+
+  async clearAll() {
+    return this.prisma.attendance.deleteMany();
+  }
 }
+

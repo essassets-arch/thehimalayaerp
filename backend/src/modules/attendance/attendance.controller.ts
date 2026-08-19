@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Query, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param, Query, Req, ForbiddenException, Delete } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -83,5 +83,10 @@ export class AttendanceController {
     }
     const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.getEmployeeMonthlyAttendance(employeeId, companyId, monthStr);
+  }
+
+  @Delete('clear-all')
+  clearAll() {
+    return this.attendanceService.clearAll();
   }
 }
