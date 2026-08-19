@@ -17,6 +17,8 @@ async function main() {
   console.log('   Email:', user.email);
   console.log('   Role:', user.role ? user.role.code : 'No Role');
   console.log('   Is Active:', user.isActive);
+  console.log('   Failed Login Attempts:', user.failedLoginAttempts);
+  console.log('   Locked Until:', user.lockedUntil);
   console.log('   Password Hash:', user.password);
 
   const matchesAdmin123 = await bcrypt.compare('admin123', user.password);
@@ -24,6 +26,18 @@ async function main() {
 
   const matchesAdmin123Cr = await bcrypt.compare('admin123\r', user.password);
   console.log('   Matches "admin123\\r":', matchesAdmin123Cr);
+
+  if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+    console.log('🔧 Unlocking HR account...');
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null
+      }
+    });
+    console.log('   HR account successfully unlocked!');
+  }
 
   if (process.env.INITIAL_ADMIN_PASSWORD) {
     const matchesEnv = await bcrypt.compare(process.env.INITIAL_ADMIN_PASSWORD, user.password);
