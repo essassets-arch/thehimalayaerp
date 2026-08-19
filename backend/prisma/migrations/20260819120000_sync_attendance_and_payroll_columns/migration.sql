@@ -40,6 +40,7 @@ ADD COLUMN IF NOT EXISTS "workedMinutes" INTEGER NOT NULL DEFAULT 0,
 ALTER COLUMN "status" SET DEFAULT 'NOT_PUNCHED_IN';
 
 -- AlterTable
+UPDATE "Expense" SET "expenseName" = '' WHERE "expenseName" IS NULL;
 ALTER TABLE "Expense" ALTER COLUMN "amount" SET DATA TYPE DECIMAL(10,2),
 ALTER COLUMN "expenseName" SET NOT NULL;
 
@@ -47,11 +48,14 @@ ALTER COLUMN "expenseName" SET NOT NULL;
 ALTER TABLE "FcmDeviceToken" ALTER COLUMN "updatedAt" DROP DEFAULT;
 
 -- AlterTable
+UPDATE "LeaveRequest" SET "fromDate" = CURRENT_TIMESTAMP WHERE "fromDate" IS NULL;
+UPDATE "LeaveRequest" SET "toDate" = CURRENT_TIMESTAMP WHERE "toDate" IS NULL;
 ALTER TABLE "LeaveRequest" ALTER COLUMN "totalDays" SET DATA TYPE INTEGER,
 ALTER COLUMN "fromDate" SET NOT NULL,
 ALTER COLUMN "toDate" SET NOT NULL;
 
 -- AlterTable
+UPDATE "ManualAttendanceRequest" SET "date" = CURRENT_TIMESTAMP WHERE "date" IS NULL;
 ALTER TABLE "ManualAttendanceRequest" ALTER COLUMN "date" SET NOT NULL;
 
 -- AlterTable
@@ -90,6 +94,7 @@ ADD COLUMN IF NOT EXISTS "unpaidDays" DECIMAL(6,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS "weeklyOffDays" DECIMAL(6,2) NOT NULL DEFAULT 0;
 
 -- AlterTable
+UPDATE "ProductionDailyReport" SET "createdById" = (SELECT id FROM "User" LIMIT 1) WHERE "createdById" IS NULL;
 ALTER TABLE "ProductionDailyReport" DROP COLUMN IF EXISTS "lineInCharge",
 DROP COLUMN IF EXISTS "manpowerCount",
 DROP COLUMN IF EXISTS "remarks",
@@ -103,6 +108,8 @@ ALTER COLUMN "createdById" SET NOT NULL;
 ALTER TABLE "inventory_items" ALTER COLUMN "updated_at" DROP DEFAULT;
 
 -- AlterTable
+UPDATE "production_targets" SET "quantity_target" = 0 WHERE "quantity_target" IS NULL;
+UPDATE "production_targets" SET "target_period" = 'Monthly' WHERE "target_period" IS NULL;
 ALTER TABLE "production_targets" ALTER COLUMN "quantity_target" SET NOT NULL,
 ALTER COLUMN "target_period" SET NOT NULL;
 
