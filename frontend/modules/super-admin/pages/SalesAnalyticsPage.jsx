@@ -331,33 +331,6 @@ const SalesAnalyticsContent = () => {
             )}
           </div>
         </div>
-
-        {/* Lead acquisition share */}
-        <div className="command-center-chart-card">
-          <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '850', color: '#24345C' }}>CRM Lead Source Distribution Share</h3>
-          <div className="command-center-chart-frame">
-            {crmSources.length === 0 ? (
-              <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>
-                No CRM lead sources recorded for the selected period.
-              </div>
-            ) : (
-              mounted && (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie data={crmSources} cx="50%" cy="45%" innerRadius="25%" outerRadius="50%" paddingAngle={4} dataKey="count" nameKey="source">
-                      {crmSources.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={DEPT_COLORS[index % DEPT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: '11px', bottom: 0 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )
-            )}
-          </div>
-        </div>
-
       </div>
 
       {/* ── 6. DRILLDOWN TABLES ROW ── */}

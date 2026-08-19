@@ -99,7 +99,7 @@
 /* Command Center Charts Grid */
 .command-center-charts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   width: 100%;
 }
@@ -194,9 +194,6 @@
   .command-center-charts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-  }
-  .command-center-chart-card:last-child {
-    grid-column: span 2;
   }
 }
 
