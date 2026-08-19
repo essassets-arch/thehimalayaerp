@@ -174,6 +174,11 @@ export class SuperAdminController {
     return this.superAdminService.getInventoryAnalytics(query, user.companyId);
   }
 
+  @Get('analytics/hr')
+  async getHrAnalytics(@Query() query: any, @CurrentUser() user: any) {
+    return this.superAdminService.getHrAnalytics(query, user.companyId);
+  }
+
   @Get('reports')
   async getCentralizedReports(@Query() query: CentralizedReportQueryDto, @CurrentUser() user: any) {
     return this.superAdminService.getCentralizedReports(query, user.companyId);

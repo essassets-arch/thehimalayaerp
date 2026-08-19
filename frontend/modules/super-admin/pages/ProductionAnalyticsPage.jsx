@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import * as Lucide from 'lucide-react';
 import { 
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
+  ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
   BarChart, Bar, Legend, LineChart, Line, PieChart, Pie, Cell 
 } from 'recharts';
 import { backendFetch } from '@/lib/backendFetch';
@@ -308,9 +308,13 @@ export default function ProductionAnalyticsPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis width={50} tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="qty" fill="#0284c7" radius={[4, 4, 0, 0]}>
-                  <Cell fill="#64748b" />
-                  <Cell fill="#0284c7" />
+                <Bar dataKey="qty" radius={[4, 4, 0, 0]}>
+                  {[
+                    { fill: '#64748b' },
+                    { fill: '#0284c7' }
+                  ].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -357,7 +361,7 @@ export default function ProductionAnalyticsPage() {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={trends}>
+                <ComposedChart data={trends}>
                   <defs>
                     <linearGradient id="colorProd" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#0284c7" stopOpacity={0.8}/>
@@ -371,7 +375,7 @@ export default function ProductionAnalyticsPage() {
                   <Legend />
                   <Area type="monotone" dataKey="actual" name="Actual Produced" stroke="#0284c7" fillOpacity={1} fill="url(#colorProd)" />
                   <Line type="monotone" dataKey="target" name="Target Quantity" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                </AreaChart>
+                </ComposedChart>
               </ResponsiveContainer>
             )}
           </div>

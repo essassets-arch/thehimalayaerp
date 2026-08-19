@@ -100,8 +100,8 @@ export default function SuperAdminPortal() {
   const pathname = usePathname();
   const params = useParams();
   const pathSlug = pathname ? pathname.split('/').filter(Boolean) : [];
-  const view = params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
-  const subView = params?.slug?.[1] || (pathSlug.length > 2 ? pathSlug[pathSlug.length - 1] : undefined);
+  const view = params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[1] : 'dashboard') || 'dashboard';
+  const subView = params?.slug?.[1] || (pathSlug.length > 2 ? pathSlug[2] : undefined);
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
