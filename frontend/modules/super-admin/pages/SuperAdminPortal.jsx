@@ -4236,7 +4236,7 @@ export default function SuperAdminPortal() {
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#ffffff' }}>
                   {salesTargetModalMode === 'create' ? 'Assign Revenue Target' : 'Edit Revenue Target'}
                 </h3>
                 <button onClick={() => setShowSalesTargetModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer' }}>✕</button>
@@ -4817,7 +4817,7 @@ export default function SuperAdminPortal() {
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#ffffff' }}>
                   {productionTargetModalMode === 'create' ? 'Assign Production Target' : 'Edit Production Target'}
                 </h3>
                 <button onClick={() => setShowProductionTargetModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer' }}>✕</button>
