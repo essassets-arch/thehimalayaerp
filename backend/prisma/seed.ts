@@ -1221,10 +1221,162 @@ const hmRawMaterialsSeedData = [
   { code: 'HM208', name: 'Thundor File', unit: 'PCS' },
   { code: 'HM209', name: 'FAVDE HANDLE', unit: 'PCS' },
   { code: 'HM210', name: 'BROWAN Pigment', unit: 'PCS' },
-  { code: 'HM211', name: 'TERRA COATA Pigment', unit: 'PCS' }
+  { code: 'HM211', name: 'TERRA COATA Pigment', unit: 'PCS' },
+  { code: 'HM212', name: 'golden brown pigment', unit: 'KG' },
+  { code: 'HM213', name: 'c clamp 4', unit: 'PCS' },
+  { code: 'HM214', name: 'c clamp 12', unit: 'PCS' },
+  { code: 'HM215', name: 'iron hammer', unit: 'PCS' },
+  { code: 'HM216', name: 'Hunndi', unit: 'PCS' }
 ];
 
 async function seed136RawMaterials(prisma: PrismaClient, companyId: string) {
+  // Ensure warehouse exists
+  let warehouse = await prisma.warehouse.findFirst({
+    where: { companyId },
+  });
+  if (!warehouse) {
+    warehouse = await prisma.warehouse.create({
+      data: {
+        companyId,
+        name: 'Main Store',
+      },
+    });
+  }
+
+  // Stock balances lookup for HM codes
+  const hmStockBalances: Record<string, number> = {
+    HM001: 85,
+    HM002: 2,
+    HM003: 20,
+    HM005: 9,
+    HM007: 8,
+    HM014: 1,
+    HM015: 99,
+    HM016: 2,
+    HM017: 65,
+    HM018: 2,
+    HM019: 30,
+    HM020: 60,
+    HM027: 75,
+    HM029: 450,
+    HM030: 315,
+    HM031: 310,
+    HM032: 54,
+    HM033: 73,
+    HM034: 45,
+    HM035: 56,
+    HM036: 54,
+    HM037: 14,
+    HM038: 3,
+    HM039: 8,
+    HM041: 24,
+    HM045: 11,
+    HM047: 7,
+    HM048: 13,
+    HM049: 60,
+    HM050: 340,
+    HM051: 2,
+    HM052: 7,
+    HM053: 2,
+    HM054: 4,
+    HM055: 2,
+    HM056: 40,
+    HM057: 20,
+    HM058: 30,
+    HM059: 45,
+    HM061: 4,
+    HM062: 2,
+    HM063: 1,
+    HM064: 80,
+    HM066: 1,
+    HM067: 8,
+    HM068: 60,
+    HM069: 65,
+    HM071: 20,
+    HM075: 1,
+    HM077: 2,
+    HM080: 23,
+    HM081: 4,
+    HM083: 10,
+    HM084: 10,
+    HM085: 11,
+    HM086: 23,
+    HM088: 8,
+    HM089: 17,
+    HM092: 1,
+    HM093: 25,
+    HM094: 800,
+    HM095: 50,
+    HM096: 300,
+    HM097: 790,
+    HM098: 140,
+    HM099: 100,
+    HM100: 340,
+    HM101: 8,
+    HM113: 15,
+    HM115: 4,
+    HM116: 10,
+    HM117: 20,
+    HM123: 3,
+    HM124: 30,
+    HM125: 288,
+    HM130: 120,
+    HM131: 4,
+    HM134: 24,
+    HM135: 12,
+    HM136: 2,
+    HM137: 60,
+    HM141: 20,
+    HM142: 40,
+    HM144: 310,
+    HM145: 2,
+    HM149: 7,
+    HM152: 75,
+    HM156: 3,
+    HM157: 1,
+    HM163: 1,
+    HM164: 42,
+    HM165: 1,
+    HM166: 1,
+    HM167: 2,
+    HM169: 35,
+    HM174: 45,
+    HM175: 1630,
+    HM178: 22,
+    HM182: 30,
+    HM186: 28,
+    'HM186-B': 70,
+    HM187: 30,
+    HM188: 50,
+    HM189: 180,
+    HM190: 2,
+    HM191: 4,
+    HM192: 20,
+    HM193: 70,
+    HM194: 30,
+    HM195: 75,
+    HM196: 60,
+    HM197: 28,
+    HM198: 15,
+    HM199: 45,
+    HM200: 40,
+    HM201: 50,
+    HM202: 1,
+    HM203: 50,
+    HM205: 2,
+    HM206: 1,
+    HM207: 1,
+    HM208: 1,
+    HM210: 1,
+    HM211: 12,
+    HM212: 3,
+    HM213: 4,
+    HM214: 4,
+    HM215: 4,
+    HM216: 100
+  };
+
+  // 1. Seed HM Raw Materials
   console.log(`📦 Seeding ${hmRawMaterialsSeedData.length} HM Raw Materials...`);
   for (const item of hmRawMaterialsSeedData) {
     const publicId = `RM-${item.code}`;
@@ -1272,6 +1424,106 @@ async function seed136RawMaterials(prisma: PrismaClient, companyId: string) {
         isActive: true,
       },
     });
+
+    // Record stock balance transactions
+    const balance = hmStockBalances[item.code] || 0;
+    if (balance > 0) {
+      const existingTx = await prisma.inventoryTransaction.findFirst({
+        where: {
+          companyId,
+          rawMaterialId: rm.id,
+          type: 'OPENING_STOCK',
+        },
+      });
+      if (!existingTx) {
+        await prisma.inventoryTransaction.create({
+          data: {
+            companyId,
+            rawMaterialId: rm.id,
+            warehouseId: warehouse.id,
+            type: 'OPENING_STOCK',
+            quantity: balance,
+            referenceType: 'OPENING_STOCK',
+            referenceId: 'INITIAL_SEED',
+          },
+        });
+      }
+    }
+  }
+
+  // 2. Seed HCPPL Raw Materials
+  console.log(`📦 Seeding ${rawInventoryItemsSeed.length} Authoritative Raw Inventory Items...`);
+  for (const item of rawInventoryItemsSeed) {
+    const publicId = `RM-${item.code}`;
+    const cleanUnit = (item.unit || 'PCS').trim();
+    const rm = await prisma.rawMaterial.upsert({
+      where: { sku: item.code },
+      update: {
+        name: item.name,
+        unit: cleanUnit,
+        category: item.category || 'Raw Material',
+        isActive: true,
+      },
+      create: {
+        publicId,
+        companyId,
+        sku: item.code,
+        name: item.name,
+        unit: cleanUnit,
+        category: item.category || 'Raw Material',
+        minimumStock: item.minStock || 0,
+        isActive: true,
+      },
+    });
+
+    await prisma.product.upsert({
+      where: { publicId: `PROD-${item.code}` },
+      update: {
+        name: item.name,
+        unit: cleanUnit,
+        category: item.category || 'Raw Material',
+        productType: 'RAW_MATERIAL',
+        isActive: true,
+      },
+      create: {
+        id: rm.id,
+        publicId: `PROD-${item.code}`,
+        companyId,
+        sku: item.code,
+        name: item.name,
+        unit: cleanUnit,
+        category: item.category || 'Raw Material',
+        productType: 'RAW_MATERIAL',
+        unitPrice: 100,
+        minimumStock: item.minStock || 0,
+        isActive: true,
+      },
+    });
+
+    // Record stock balance transactions
+    const balance = item.balance || 0;
+    if (balance > 0) {
+      const existingTx = await prisma.inventoryTransaction.findFirst({
+        where: {
+          companyId,
+          rawMaterialId: rm.id,
+          type: 'OPENING_STOCK',
+        },
+      });
+      if (!existingTx) {
+        await prisma.inventoryTransaction.create({
+          data: {
+            companyId,
+            rawMaterialId: rm.id,
+            warehouseId: warehouse.id,
+            type: 'OPENING_STOCK',
+            quantity: balance,
+            referenceType: 'OPENING_STOCK',
+            referenceId: 'INITIAL_SEED',
+          },
+        });
+      }
+    }
   }
 }
 

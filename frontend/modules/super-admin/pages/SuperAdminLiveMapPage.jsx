@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { backendFetch } from '../../../lib/backendFetch';
 import { useAuthStore } from '@/store/authStore';
@@ -207,7 +207,7 @@ export default function SuperAdminLiveMapPage() {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
   // 1. Fetch live users snapshot (REST)
-  const fetchSnapshot = async () => {
+  const fetchSnapshot = useCallback(async () => {
     try {
       const data = await backendFetch('/super-admin/live-users');
       setUsersData(data || []);
@@ -218,7 +218,7 @@ export default function SuperAdminLiveMapPage() {
       setLoading(false);
       return [];
     }
-  };
+  }, []);
 
   // Log API key configuration status on mount
   useEffect(() => {
@@ -341,7 +341,7 @@ export default function SuperAdminLiveMapPage() {
 
     // Handle WebSocket Broadcast Events
     socket.on('device:connected', (data) => {
-      updateSessionInState(data.userId, data.sessionId, data);
+      fetchSnapshot();
     });
 
     socket.on('device:disconnected', (data) => {
@@ -439,10 +439,14 @@ export default function SuperAdminLiveMapPage() {
     });
   };
 
-  // Initial load
+  // Initial load and periodic background polling to keep data live
   useEffect(() => {
     fetchSnapshot();
-  }, []);
+    const interval = setInterval(() => {
+      fetchSnapshot();
+    }, 3000); // Refresh snapshot every 3 seconds
+    return () => clearInterval(interval);
+  }, [fetchSnapshot]);
 
   // 5. Synced Marker Management
   // When usersData updates or filters change, reconcile markers on the map
@@ -1085,9 +1089,9 @@ export default function SuperAdminLiveMapPage() {
         }}>
           <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#64748B' }}>
             <span>Users: <strong style={{ color: '#0F172A' }}>{stats.totalUsers}</strong></span>
-            <span>Devices: <strong style={{ color: '#0F172A' }}>{stats.totalDevices}</strong></span>
             <span>Online: <strong style={{ color: '#10B981' }}>{stats.onlineDevices}</strong></span>
-            <span>With Location: <strong style={{ color: '#0284C7' }}>{stats.withLocation}</strong></span>
+            <span>Devices: <strong style={{ color: '#0F172A' }}>{stats.totalDevices}</strong></span>
+            <span>Locations: <strong style={{ color: '#0284C7' }}>{stats.withLocation}</strong></span>
           </div>
 
           <div style={{
