@@ -132,12 +132,24 @@ export default function StoreReleasesView() {
   const visibleOrderIds = useMemo(() => {
     return orderIds.filter((orderId) => {
       const requests = combinedRequests.filter((req) => req.orderId === orderId);
-      const isComplete = requests.every((req) =>
-        req.items.every((item, idx) => getItemQtyDetails(req, item, idx).isFullyIssued)
-      );
+      
+      let anyIssued = false;
+      let allFullyIssued = true;
 
-      if (activeTab === 'history') return isComplete;
-      return !isComplete; // pending tab shows orders with remaining qty > 0
+      requests.forEach((req) => {
+        req.items.forEach((item, idx) => {
+          const details = getItemQtyDetails(req, item, idx);
+          if (details.cumulativeIssued > 0) {
+            anyIssued = true;
+          }
+          if (!details.isFullyIssued) {
+            allFullyIssued = false;
+          }
+        });
+      });
+
+      if (activeTab === 'history') return anyIssued;
+      return !allFullyIssued;
     });
   }, [orderIds, combinedRequests, activeTab, issuedQuantities]);
 
@@ -300,7 +312,7 @@ export default function StoreReleasesView() {
           });
         });
 
-        const releaseStatus = activeTab === 'history'
+        const releaseStatus = cardTotalRemaining === 0
           ? 'Issued Complete'
           : cardAnyIssued
             ? `Partially Issued (${cardTotalRemaining} Units Remaining)`
@@ -317,9 +329,9 @@ export default function StoreReleasesView() {
                 <strong>Status:</strong>{' '}
                 <span
                   style={{
-                    background: activeTab === 'history' ? '#f0fdf4' : cardAnyIssued ? '#eff6ff' : '#fef3c7',
-                    color: activeTab === 'history' ? '#15803d' : cardAnyIssued ? '#1d4ed8' : '#d97706',
-                    border: `1px solid ${activeTab === 'history' ? '#bbf7d0' : cardAnyIssued ? '#bfdbfe' : '#fde68a'}`,
+                    background: cardTotalRemaining === 0 ? '#f0fdf4' : cardAnyIssued ? '#eff6ff' : '#fef3c7',
+                    color: cardTotalRemaining === 0 ? '#15803d' : cardAnyIssued ? '#1d4ed8' : '#d97706',
+                    border: `1px solid ${cardTotalRemaining === 0 ? '#bbf7d0' : cardAnyIssued ? '#bfdbfe' : '#fde68a'}`,
                     padding: '2px 10px',
                     borderRadius: '6px',
                     fontWeight: '700',

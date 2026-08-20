@@ -979,7 +979,7 @@ export default function CreateQuotation({
                         value={item.quantity} 
                         onChange={e => handleRowChange(item.id, 'quantity', Number(e.target.value))}
                         required
-                        style={{ padding: '8px 12px' }}
+                        style={{ padding: '8px 10px', width: '100%', maxWidth: '80px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                       />
                     </td>
                     <td data-label="Unit Price">
@@ -991,7 +991,7 @@ export default function CreateQuotation({
                         value={item.unitPrice} 
                         onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
                         required
-                        style={{ padding: '8px 12px' }}
+                        style={{ padding: '8px 10px', width: '100%', maxWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                       />
                     </td>
                     <td data-label="Discount (%)">
@@ -1002,7 +1002,7 @@ export default function CreateQuotation({
                         max="100"
                         value={item.discount || 0} 
                         onChange={e => handleRowChange(item.id, 'discount', Number(e.target.value))}
-                        style={{ padding: '8px 12px' }}
+                        style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                       />
                     </td>
                     <td data-label="GST (%)">
@@ -1013,7 +1013,7 @@ export default function CreateQuotation({
                         max="100"
                         value={item.tax !== undefined ? item.tax : 18} 
                         onChange={e => handleRowChange(item.id, 'tax', Number(e.target.value))}
-                        style={{ padding: '8px 12px' }}
+                        style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                       />
                     </td>
                     <td data-label="Total Amount" style={{ fontWeight: '700', paddingLeft: '10px' }}>
