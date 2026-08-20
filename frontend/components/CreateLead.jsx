@@ -766,6 +766,47 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
   return (
     <div className="app-card" style={{ flex: 1 }}>
+      <style>{`
+        .responsive-address-container {
+          display: flex;
+          gap: 8px;
+          width: 100%;
+          align-items: center;
+        }
+        .use-location-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+          color: #ffffff;
+          border: none;
+          border-radius: 8px;
+          height: 38px;
+          padding: 0 16px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+          white-space: nowrap;
+        }
+        .use-location-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);
+        }
+        .use-location-btn-text {
+          display: inline;
+        }
+        @media (max-width: 500px) {
+          .use-location-btn {
+            padding: 0 12px;
+          }
+          .use-location-btn-text {
+            display: none;
+          }
+        }
+      `}</style>
       <div className="module-header-row" style={{ borderBottom: '1px solid #eaeaea', paddingBottom: '12px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button type="button" className="card-top-icon-btn" onClick={onCancel} style={{ width: '36px', height: '36px', background: '#f1f3f5', color: '#000' }}>
@@ -965,7 +1006,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
               <div className="form-group">
                 <label className="form-label">Address Line 1 *</label>
-                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                <div className="responsive-address-container">
                   <input
                     ref={inputRef}
                     data-testid="lead-address"
@@ -980,34 +1021,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                   <button
                     type="button"
                     onClick={handleUseCurrentLocation}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '0 16px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)',
-                      whiteSpace: 'nowrap'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(99, 102, 241, 0.3)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.2)';
-                    }}
+                    className="use-location-btn"
                   >
                     <MapPin size={15} />
-                    <span>Use Current Location</span>
+                    <span className="use-location-btn-text">Use Current Location</span>
                   </button>
                 </div>
               </div>
