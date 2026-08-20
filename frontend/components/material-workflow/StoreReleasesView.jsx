@@ -30,7 +30,7 @@ export default function StoreReleasesView() {
   const updateStatus = useUpdateMaterialRequestStatus();
 
   const [activeTab, setActiveTab] = useState('pending');
-  const [cardDepartments, setCardDepartments] = useState({});
+  const [rowDepartments, setRowDepartments] = useState({});
   
   // Track cumulative issued quantities per item (persisted in localStorage)
   const [issuedQuantities, setIssuedQuantities] = useState(() => {
@@ -79,7 +79,11 @@ export default function StoreReleasesView() {
   const combinedRequests = useMemo(() => {
     const map = new Map();
     fallbackDemoRequests.forEach(req => map.set(req.id, req));
-    (allRequests || []).forEach(req => map.set(req.id, req));
+    (allRequests || []).forEach(req => {
+      if (req.status !== 'PENDING_PLANT_HEAD_APPROVAL' && req.status !== 'PLANT_HEAD_REJECTED') {
+        map.set(req.id, req);
+      }
+    });
     return Array.from(map.values());
   }, [allRequests, fallbackDemoRequests]);
 
@@ -153,67 +157,46 @@ export default function StoreReleasesView() {
     setInputQuantities((prev) => ({ ...prev, [itemKey]: String(clamped) }));
   };
 
-  const issueOrder = async (orderId, targetDept = 'Production') => {
-    const matchingRequests = combinedRequests.filter((req) => req.orderId === orderId);
-
-    // Gather transaction details
-    let totalSending = 0;
-    let anyRemaining = false;
-
-    const itemsToUpdate = matchingRequests.flatMap((request) =>
-      request.items.map((item, idx) => {
-        const details = getItemQtyDetails(request, item, idx);
-        const qtyToSend = details.currentInput;
-        const newCumulative = details.cumulativeIssued + qtyToSend;
-        const rem = details.approvedQty - newCumulative;
-
-        totalSending += qtyToSend;
-        if (rem > 0) anyRemaining = true;
-
-        return {
-          request,
-          itemKey: details.itemKey,
-          qtyToSend,
-          newCumulative,
-          rem,
-          unit: item.unit
-        };
-      })
-    );
-
-    if (totalSending <= 0) {
+  const issueRowItem = async (request, item, index, targetDept, qtyToSend) => {
+    if (qtyToSend <= 0) {
       await Swal.fire('No Quantity Specified', 'Please enter a valid Issue Qty greater than 0.', 'warning');
       return;
     }
 
-    const isPartial = anyRemaining;
-    const actionLabel = isPartial ? `Issue Partial Material (${totalSending} Units)` : `Issue Complete Material (${totalSending} Units)`;
+    const details = getItemQtyDetails(request, item, index);
+    const newCumulative = details.cumulativeIssued + qtyToSend;
+    
+    // Check if the entire request will be fully issued after this item is updated
+    const isRequestFullyIssued = request.items.every((it, idx) => {
+      if (it.id === item.id) {
+        return (it.approvedQty || it.quantity) - newCumulative <= 0;
+      }
+      const itDetails = getItemQtyDetails(request, it, idx);
+      return itDetails.isFullyIssued;
+    });
+
+    const actionLabel = `Issue Material`;
 
     const result = await Swal.fire({
       title: actionLabel + '?',
-      html: `Issue <strong>${totalSending} Units</strong> for order <strong>${orderId}</strong> to <strong>${targetDept}</strong> department?<br/>` +
-        (isPartial ? `<div style="margin-top:8px; font-size:13px; color:#d97706; font-weight:600;">⚠️ Remaining quantities will stay in Pending Releases for future issuance.</div>` : ''),
+      html: `Issue <strong>${qtyToSend} ${item.unit || 'Units'}</strong> of <strong>${item.materialName || item.material}</strong> to <strong>${targetDept}</strong> department?<br/>`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: actionLabel,
-      confirmButtonColor: isPartial ? '#2563eb' : '#059669',
+      confirmButtonText: 'Issue Material',
+      confirmButtonColor: '#2563eb',
       customClass: { popup: 'swal-premium-popup' }
     });
 
     if (!result.isConfirmed) return;
 
     try {
-      const reference = `ISS-${orderId}-${Date.now()}`;
-
-      // Update state for cumulative issued amounts
+      const reference = `ISS-${request.publicId || request.id}-${Date.now()}`;
+      
+      // Update local state for cumulative issued amounts
       const newIssuedState = { ...issuedQuantities };
       const newInputState = { ...inputQuantities };
-
-      itemsToUpdate.forEach(({ itemKey, newCumulative, rem }) => {
-        newIssuedState[itemKey] = newCumulative;
-        // reset input field to the new remaining amount
-        newInputState[itemKey] = rem;
-      });
+      newIssuedState[details.itemKey] = newCumulative;
+      newInputState[details.itemKey] = details.approvedQty - newCumulative;
 
       setIssuedQuantities(newIssuedState);
       setInputQuantities(newInputState);
@@ -226,41 +209,36 @@ export default function StoreReleasesView() {
         }
       }
 
-      // Trigger backend patch if possible
-      await Promise.all(
-        matchingRequests.map((request) =>
-          updateStatus.mutateAsync({
-            id: request.id,
-            status: isPartial ? 'STORE_APPROVED' : 'ISSUED_TO_PRODUCTION',
-            items: request.items.map((item, idx) => {
-              const itemKey = `${request.id}-${item.materialId || idx}`;
-              return { ...item, issuedQty: newIssuedState[itemKey] || item.approvedQty };
-            }),
-            metadata: {
-              issueReference: reference,
-              issuedBy: user?.name || 'Store',
-              department: targetDept,
-              issuedToDepartment: targetDept
-            },
-          }).catch(() => {})
-        )
-      );
+      // Trigger backend patch for the single item
+      await updateStatus.mutateAsync({
+        id: request.id,
+        status: isRequestFullyIssued ? 'ISSUED_TO_PRODUCTION' : 'STORE_APPROVED',
+        items: [
+          {
+            id: item.id,
+            issuedQty: newCumulative
+          }
+        ],
+        metadata: {
+          issueReference: reference,
+          issuedBy: user?.name || 'Store',
+          department: targetDept,
+          issuedToDepartment: targetDept,
+          itemDepartments: {
+            ...(request.metadata?.itemDepartments || {}),
+            [item.id]: targetDept
+          }
+        }
+      });
 
-      if (isPartial) {
-        await Swal.fire(
-          'Partial Release Recorded',
-          `Successfully issued ${totalSending} Units to ${targetDept}. Order ${orderId} remains in Pending Releases with remaining quantities.`,
-          'success'
-        );
-      } else {
-        await Swal.fire(
-          'Material Issue Complete',
-          `All materials for order ${orderId} have been completely issued to ${targetDept}. Moved to Release History.`,
-          'success'
-        );
-      }
+      await Swal.fire(
+        'Material Issued',
+        `Successfully issued ${qtyToSend} ${item.unit || 'Units'} to ${targetDept}.`,
+        'success'
+      );
     } catch (error) {
-      await Swal.fire('Issue Completed', `Issued ${totalSending} Units to ${targetDept}.`, 'success');
+      console.error('Failed to issue item:', error);
+      await Swal.fire('Error', 'Failed to issue material request.', 'error');
     }
   };
 
@@ -307,7 +285,6 @@ export default function StoreReleasesView() {
       {/* Orders Cards List */}
       {paginatedVisibleOrderIds.map((orderId) => {
         const visibleRequests = combinedRequests.filter((request) => request.orderId === orderId);
-        const currentCardDept = cardDepartments[orderId] || visibleRequests[0]?.department || 'Production';
 
         // Calculate card aggregate state
         let cardTotalSending = 0;
@@ -334,7 +311,6 @@ export default function StoreReleasesView() {
             {/* Meta Header */}
             <div className="store-release-card__meta">
               <span><strong>Order ID:</strong> {orderId || '—'}</span>
-              <span><strong>Department:</strong> {currentCardDept}</span>
               <span className="store-release-card__request"><strong>Request ID:</strong> {visibleRequests.map((request) => request.id).join(', ')}</span>
               <span><strong>Materials:</strong> {visibleRequests.reduce((sum, request) => sum + request.items.length, 0)}</span>
               <span>
@@ -365,15 +341,19 @@ export default function StoreReleasesView() {
                     <th>Issued Qty</th>
                     <th>Issue Qty (To Send)</th>
                     <th>Remaining Qty</th>
+                    <th>Department</th>
                     <th>Status</th>
+                    {activeTab === 'pending' && <th>Action</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {visibleRequests.flatMap((request) => request.items.map((item, index) => {
                     const details = getItemQtyDetails(request, item, index);
+                    const itemKey = details.itemKey;
+                    const currentDept = rowDepartments[itemKey] || request.metadata?.itemDepartments?.[item.id] || request.metadata?.issuedToDepartment || request.department || 'Production';
 
                     return (
-                      <tr key={details.itemKey}>
+                      <tr key={itemKey}>
                         <td data-label="Material"><strong>{item.materialName}</strong></td>
                         <td data-label="Approved Qty">{details.approvedQty} {item.unit}</td>
                         <td data-label="Issued Qty" style={{ fontWeight: '600', color: details.cumulativeIssued > 0 ? '#1d4ed8' : '#64748b' }}>
@@ -388,7 +368,7 @@ export default function StoreReleasesView() {
                                 max={details.totalRemaining}
                                 disabled={details.isFullyIssued || details.totalRemaining === 0}
                                 value={details.rawInput}
-                                onChange={(e) => handleInputChange(details.itemKey, details.totalRemaining, e.target.value)}
+                                onChange={(e) => handleInputChange(itemKey, details.totalRemaining, e.target.value)}
                                 style={{
                                   width: '90px',
                                   padding: '6px 10px',
@@ -407,7 +387,7 @@ export default function StoreReleasesView() {
                               {!details.isFullyIssued && details.totalRemaining > 0 && (
                                 <button
                                   type="button"
-                                  onClick={() => handleInputChange(details.itemKey, details.totalRemaining, String(details.totalRemaining))}
+                                  onClick={() => handleInputChange(itemKey, details.totalRemaining, String(details.totalRemaining))}
                                   style={{
                                     padding: '3px 8px',
                                     fontSize: '11px',
@@ -431,6 +411,36 @@ export default function StoreReleasesView() {
                         <td data-label="Remaining Qty" style={{ fontWeight: '700', color: details.newRemaining > 0 ? '#d97706' : '#16a34a' }}>
                           {details.newRemaining} {item.unit}
                         </td>
+                        <td data-label="Department">
+                          {activeTab === 'pending' ? (
+                            <>
+                              <input
+                                type="text"
+                                list={`depts-${itemKey}`}
+                                value={currentDept}
+                                onChange={(e) => setRowDepartments((prev) => ({ ...prev, [itemKey]: e.target.value }))}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '6px',
+                                  border: '1.5px solid #cbd5e1',
+                                  background: '#ffffff',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  color: '#0f172a',
+                                  width: '140px',
+                                  outline: 'none'
+                                }}
+                              />
+                              <datalist id={`depts-${itemKey}`}>
+                                {ISSUE_TARGET_DEPARTMENTS.map((dept) => (
+                                  <option key={dept} value={dept} />
+                                ))}
+                              </datalist>
+                            </>
+                          ) : (
+                            <span>{currentDept}</span>
+                          )}
+                        </td>
                         <td data-label="Status">
                           {activeTab === 'history' || details.isFullyIssued ? (
                             <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
@@ -446,6 +456,30 @@ export default function StoreReleasesView() {
                             </span>
                           )}
                         </td>
+                        {activeTab === 'pending' && (
+                          <td data-label="Action">
+                            <button
+                              type="button"
+                              disabled={details.isFullyIssued || details.totalRemaining === 0 || details.currentInput <= 0}
+                              onClick={() => issueRowItem(request, item, index, currentDept, details.currentInput)}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: details.newRemaining === 0 ? '#059669' : '#2563eb',
+                                color: '#ffffff',
+                                fontWeight: '700',
+                                fontSize: '12px',
+                                cursor: (details.isFullyIssued || details.totalRemaining === 0 || details.currentInput <= 0) ? 'not-allowed' : 'pointer',
+                                opacity: (details.isFullyIssued || details.totalRemaining === 0 || details.currentInput <= 0) ? 0.5 : 1,
+                                transition: 'all 0.15s ease',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                              }}
+                            >
+                              Issue to Production
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   }))}
@@ -456,61 +490,14 @@ export default function StoreReleasesView() {
             {/* Footer */}
             <div className="store-release-card__footer">
               {activeTab === 'pending' ? (
-                <>
-                  <div className="store-release-card__proceed">
-                    <strong>Order can proceed.</strong>
-                    <p>Materials will be planned and arranged by the Production and Store teams.</p>
-                  </div>
-
-                  {/* Department Selector & Issue Material Action */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '12px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '700', color: '#475569' }}>
-                      <span>Department:</span>
-                      <select
-                        value={currentCardDept}
-                        onChange={(e) => setCardDepartments({ ...cardDepartments, [orderId]: e.target.value })}
-                        style={{
-                          padding: '7px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid #cbd5e1',
-                          background: '#ffffff',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          color: '#0f172a',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {ISSUE_TARGET_DEPARTMENTS.map((dept) => (
-                          <option key={dept} value={dept}>{dept}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <button
-                      disabled={cardTotalSending <= 0}
-                      onClick={() => issueOrder(orderId, currentCardDept)}
-                      style={{
-                        padding: '9px 18px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: cardTotalRemaining === 0 ? '#059669' : '#2563eb',
-                        color: '#ffffff',
-                        fontWeight: '700',
-                        fontSize: '13px',
-                        cursor: cardTotalSending > 0 ? 'pointer' : 'not-allowed',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      {cardTotalRemaining === 0
-                        ? `Issue Complete Material (${cardTotalSending} Units)`
-                        : `Issue Partial Material (${cardTotalSending} Units)`}
-                    </button>
-                  </div>
-                </>
+                <div className="store-release-card__proceed">
+                  <strong>Order can proceed.</strong>
+                  <p>Materials will be planned and arranged by the Production and Store teams.</p>
+                </div>
               ) : (
                 <div className="store-release-card__proceed" style={{ background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>
-                  <strong>Material Completely Issued to {currentCardDept}</strong>
-                  <p>All materials for this order have been completely issued to the {currentCardDept} department.</p>
+                  <strong>Material Issue Completed</strong>
+                  <p>All materials for this order have been issued to their respective departments.</p>
                 </div>
               )}
             </div>
