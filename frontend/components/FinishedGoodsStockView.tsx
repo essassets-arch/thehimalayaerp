@@ -76,6 +76,29 @@ export default function FinishedGoodsStockView({
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Stock History Modal State
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyModalProductId, setHistoryModalProductId] = useState("");
+  const [historyModalProductName, setHistoryModalProductName] = useState("");
+  const [historyLogs, setHistoryLogs] = useState<any[]>([]);
+  const [historyLogsLoading, setHistoryLogsLoading] = useState(false);
+
+  const handleViewHistory = async (productId: string, productName: string) => {
+    setHistoryModalProductId(productId);
+    setHistoryModalProductName(productName);
+    setHistoryModalOpen(true);
+    setHistoryLogsLoading(true);
+    try {
+      const logs = await backendFetch<any[]>(`/api/backend/production/finished-goods/${productId}/history`);
+      setHistoryLogs(Array.isArray(logs) ? logs : []);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load stock history logs");
+      setHistoryLogs([]);
+    } finally {
+      setHistoryLogsLoading(false);
+    }
+  };
+
   // Modal Form State (Only used when readOnly === false)
   const [formData, setFormData] = useState({
     productName: "",
@@ -585,19 +608,19 @@ export default function FinishedGoodsStockView({
                   <th>Avail Qty</th>
                   <th>Reserved Qty</th>
                   <th>Stock Status</th>
-                  {!readOnly && <th className={styles.actionsHeader}>Actions</th>}
+                  <th className={styles.actionsHeader}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={readOnly ? 8 : 9} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                    <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
                       Loading live stock data...
                     </td>
                   </tr>
                 ) : paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={readOnly ? 8 : 9} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
+                    <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
                       No finished goods stock items found.
                     </td>
                   </tr>
@@ -626,36 +649,59 @@ export default function FinishedGoodsStockView({
                             {isOut ? "OUT OF STOCK" : "IN STOCK"}
                           </span>
                         </td>
-                        {!readOnly && (
-                          <td data-label="Actions">
-                            <div className={styles.actions}>
-                              <button
-                                type="button"
-                                className={`${styles.btn} ${styles.btnIn}`}
-                                onClick={(e) => handleQuickStockIn(row, e)}
-                                title="Stock In"
-                              >
-                                + In
-                              </button>
-                              <button
-                                type="button"
-                                className={`${styles.btn} ${styles.btnOut}`}
-                                onClick={(e) => handleQuickStockOut(row, e)}
-                                title="Stock Out"
-                              >
-                                − Out
-                              </button>
-                              <button
-                                type="button"
-                                className={`${styles.btn} ${styles.btnAdjust}`}
-                                onClick={(e) => handleQuickAdjust(row, e)}
-                                title="Adjust Stock"
-                              >
-                                Adj
-                              </button>
-                            </div>
-                          </td>
-                        )}
+                        <td data-label="Actions">
+                          <div className={styles.actions}>
+                            {!readOnly && (
+                              <>
+                                <button
+                                  type="button"
+                                  className={`${styles.btn} ${styles.btnIn}`}
+                                  onClick={(e) => handleQuickStockIn(row, e)}
+                                  title="Stock In"
+                                >
+                                  + In
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`${styles.btn} ${styles.btnOut}`}
+                                  onClick={(e) => handleQuickStockOut(row, e)}
+                                  title="Stock Out"
+                                >
+                                  − Out
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`${styles.btn} ${styles.btnAdjust}`}
+                                  onClick={(e) => handleQuickAdjust(row, e)}
+                                  title="Adjust Stock"
+                                >
+                                  Adj
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              className={`${styles.btn}`}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                background: "#f1f5f9",
+                                border: "1px solid #cbd5e1",
+                                color: "#475569",
+                                fontSize: "11px",
+                                padding: "4px 8px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontWeight: "700"
+                              }}
+                              onClick={() => handleViewHistory(row.productId, row.productName)}
+                              title="View Stock Transaction History"
+                            >
+                              <History size={12} /> Log
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
@@ -802,6 +848,127 @@ export default function FinishedGoodsStockView({
           </div>
         </div>
       </div>
+
+      {/* ── View Transaction Audit History Modal ── */}
+      {historyModalOpen && (
+        <div className={modalStyles.modalOverlay} onClick={() => setHistoryModalOpen(false)}>
+          <div className={modalStyles.modalContent} style={{ maxWidth: "800px", width: "95%" }} onClick={(e) => e.stopPropagation()}>
+            <div className={modalStyles.modalHeader}>
+              <div className={modalStyles.modalHeaderTitle}>
+                <div className={modalStyles.modalHeaderIcon}>
+                  <History size={20} />
+                </div>
+                <div>
+                  <h3>Stock Audit Trail Log</h3>
+                  <p>{historyModalProductName} (Product ID: {historyModalProductId})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={modalStyles.modalClose}
+                onClick={() => setHistoryModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className={modalStyles.modalBody} style={{ padding: "20px 24px" }}>
+              {historyLogsLoading ? (
+                <div style={{ padding: "40px 0", textAlign: "center", color: "#64748b" }}>
+                  Loading stock audit logs...
+                </div>
+              ) : historyLogs.length === 0 ? (
+                <div style={{ padding: "40px 0", textAlign: "center", color: "#94a3b8" }}>
+                  No stock transactions found for this product.
+                </div>
+              ) : (
+                <div style={{ overflowX: "auto", maxHeight: "400px" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+                    <thead>
+                      <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
+                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Date &amp; Time</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Event / Action</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Impact</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Stock Before</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Stock After</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Source</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Reference No</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Actor</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyLogs.map((log: any) => {
+                        const dateStr = log.createdAt ? new Date(log.createdAt).toLocaleString("en-GB") : "—";
+                        
+                        // Impact formatting
+                        let impactText = "—";
+                        let impactColor = "#0f172a";
+                        if (log.quantityChange !== undefined && log.quantityChange !== null) {
+                          const val = Number(log.quantityChange);
+                          if (val > 0) {
+                            impactText = `+${val}`;
+                            impactColor = "#10b981";
+                          } else if (val < 0) {
+                            impactText = `${val}`;
+                            impactColor = "#ef4444";
+                          } else {
+                            impactText = "0";
+                          }
+                        }
+
+                        // Event types mapping
+                        let eventLabel = log.eventType || "—";
+                        if (log.eventType === "PRODUCTION_IN") eventLabel = "Production Entry";
+                        else if (log.eventType === "PRODUCTION_CANCEL_OUT") eventLabel = "Production Reversal";
+                        else if (log.eventType === "DISPATCH_OUT") eventLabel = "Dispatch Out";
+                        else if (log.eventType === "DISPATCH_CANCEL_IN") eventLabel = "Dispatch Reversal";
+                        else if (log.eventType === "ADJUSTMENT") eventLabel = "Manual Adjustment";
+
+                        // Source mapping
+                        let sourceLabel = log.sourceType || "—";
+                        if (log.sourceType === "PRODUCTION_REPORT") sourceLabel = "Production Report";
+                        else if (log.sourceType === "DISPATCH_REPORT") sourceLabel = "Dispatch Report";
+                        else if (log.sourceType === "DISPATCH_REPORT_CANCEL") sourceLabel = "Dispatch Cancel";
+                        else if (log.sourceType === "PRODUCTION_REPORT_CANCEL") sourceLabel = "Production Cancel";
+                        else if (log.sourceType === "MANUAL") sourceLabel = "Manual Entry";
+
+                        return (
+                          <tr key={log.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                            <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{dateStr}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <span style={{ fontWeight: "700" }}>{eventLabel}</span>
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "800", color: impactColor }}>
+                              {impactText}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right" }}>{Number(log.beforeQuantity ?? 0)}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "700" }}>{Number(log.afterQuantity ?? 0)}</td>
+                            <td style={{ padding: "10px 12px" }}>{sourceLabel}</td>
+                            <td style={{ padding: "10px 12px", fontFamily: "monospace" }}>{log.referenceNumber || "—"}</td>
+                            <td style={{ padding: "10px 12px" }}>{log.user?.name || "—"}</td>
+                            <td style={{ padding: "10px 12px", color: "#64748b" }}>{log.remarks || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className={modalStyles.modalFooter} style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className={modalStyles.btnCancel}
+                onClick={() => setHistoryModalOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Add Finishing Product Modal (Only used when readOnly === false) ── */}
       {!readOnly && isAddModalOpen && (

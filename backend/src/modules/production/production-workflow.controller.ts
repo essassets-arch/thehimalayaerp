@@ -111,6 +111,17 @@ export class ProductionWorkflowController {
     return { success: true, data };
   }
 
+  @Get('production/finished-goods/:productId/history')
+  @RequirePermissions('production.productionworkflow.read')
+  async getFinishedGoodsHistory(
+    @Param('productId') productId: string,
+    @Req() req: any,
+  ) {
+    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'COMP-000001';
+    const data = await this.workflowService.getFinishedGoodsHistory(companyId, productId);
+    return { success: true, data };
+  }
+
   // ==========================================
   // PRODUCTION FLOOR
   // ==========================================

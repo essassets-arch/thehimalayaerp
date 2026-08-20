@@ -808,6 +808,7 @@ export class PlantHeadService {
             },
             data: {
               availableQuantity: { decrement: deduct },
+              reservedQuantity: { increment: deduct },
             },
           });
 
@@ -997,6 +998,7 @@ export class PlantHeadService {
                 },
                 data: {
                   availableQuantity: { decrement: deduct },
+                  reservedQuantity: { increment: deduct },
                 },
               });
 

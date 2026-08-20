@@ -3663,6 +3663,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       {currentView === 'daily-report-entry' && (
         <DailyReportEntryView
           isDispatch={true}
+          dispatchType={isDispatch2Portal ? 'DISPATCH_2' : 'DISPATCH_1'}
           reportId={params?.slug?.[1] || searchParams.get('edit')}
           onNavigateToHistory={() => navigate.push(`${basePath}/daily-report/history`)}
           onNavigateToPrint={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
@@ -3672,6 +3673,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         <DailyReportHistoryView
           roleMode="DISPATCH"
           isDispatch={true}
+          dispatchType={isDispatch2Portal ? 'DISPATCH_2' : 'DISPATCH_1'}
           onNewReport={() => navigate.push(`${basePath}/daily-report`)}
           onEditReport={(id) => navigate.push(`${basePath}/daily-report?edit=${id}`)}
           onViewReport={(id) => navigate.push(`${basePath}/daily-report/${id}`)}

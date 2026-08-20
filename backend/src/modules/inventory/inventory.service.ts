@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
+import { Prisma, StockHistoryEvent } from '@prisma/client';
 
 @Injectable()
 export class InventoryService {
@@ -376,5 +377,331 @@ export class InventoryService {
       inventory: catalogItems,
       transactions: transactions.slice(0, 50),
     };
+  }
+
+  async getFinishedGoodsHistory(companyId: string, productId: string) {
+    return this.prisma.stockHistory.findMany({
+      where: { companyId, productId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async stockInFinishedGoods(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    productId: string,
+    quantity: number,
+    sourceType: string,
+    sourceId: string,
+    sourceItemId: string | null,
+    referenceNumber: string,
+    userId: string,
+    remarks?: string,
+    eventType: StockHistoryEvent = 'PRODUCTION_IN',
+  ) {
+    const qty = Number(quantity);
+    if (qty <= 0) return;
+
+    // 1. SELECT ... FOR UPDATE row-level locking
+    const fgRecords = await tx.$queryRaw<any[]>`
+      SELECT id, quantity, "availableQuantity", "reservedQuantity"
+      FROM "FinishedGoods"
+      WHERE "productId" = ${productId}
+      FOR UPDATE
+    `;
+
+    let beforeQty = 0;
+    let beforeAvail = 0;
+    let afterQty = 0;
+    let afterAvail = 0;
+    let fgRecord: any = null;
+
+    if (fgRecords.length > 0) {
+      fgRecord = fgRecords[0];
+      beforeQty = Number(fgRecord.quantity || 0);
+      beforeAvail = Number(fgRecord.availableQuantity || 0);
+      const reserved = Number(fgRecord.reservedQuantity || 0);
+
+      afterQty = beforeQty + qty;
+      afterAvail = afterQty - reserved;
+
+      await tx.finishedGoods.update({
+        where: { id: fgRecord.id },
+        data: {
+          quantity: afterQty,
+          availableQuantity: afterAvail,
+          status: afterAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+        },
+      });
+    } else {
+      // Create a dummy work order to satisfy FinishedGoods workOrderId relation
+      const plan = await tx.productionPlan.findFirst({ where: { salesOrder: { customer: { companyId } } } }) || 
+        await tx.productionPlan.create({
+          data: {
+            planNumber: `PP-AUTO-${Date.now().toString().slice(-6)}`,
+            status: 'APPROVED',
+            salesOrder: {
+              create: {
+                orderNumber: `SO-AUTO-${Date.now().toString().slice(-6)}`,
+                status: 'CONFIRMED',
+                totalAmount: 0,
+                subtotal: 0,
+                taxableAmount: 0,
+                createdById: userId,
+                customer: {
+                  create: {
+                    companyId,
+                    companyName: 'Internal Stock Customer',
+                    customerCode: `CUST-AUTO-${Date.now().toString().slice(-6)}`,
+                  }
+                }
+              }
+            }
+          }
+        });
+
+      const wo = await tx.workOrder.create({
+        data: {
+          workOrderNumber: `WO-AUTO-${Date.now().toString().slice(-6)}`,
+          productionPlanId: plan.id,
+          quantity: qty,
+          status: 'READY_FOR_DISPATCH',
+        },
+      });
+
+      afterQty = qty;
+      afterAvail = qty;
+
+      fgRecord = await tx.finishedGoods.create({
+        data: {
+          workOrderId: wo.id,
+          productId,
+          quantity: qty,
+          availableQuantity: qty,
+          reservedQuantity: 0,
+          unit: 'PCS',
+          status: 'AVAILABLE',
+          receivedById: userId,
+        },
+      });
+    }
+
+    // 2. Create StockHistory record
+    await tx.stockHistory.create({
+      data: {
+        companyId,
+        productId,
+        quantity: qty,
+        event: eventType,
+        actor: userId,
+        beforeQuantity: beforeQty,
+        afterQuantity: afterQty,
+        beforeAvailableQuantity: beforeAvail,
+        afterAvailableQuantity: afterAvail,
+        sourceType,
+        sourceId,
+        sourceItemId,
+        referenceNumber,
+        remarks: remarks || 'Production stock posted',
+      },
+    });
+  }
+
+  async stockOutFinishedGoods(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    productId: string,
+    quantity: number,
+    sourceType: string,
+    sourceId: string,
+    sourceItemId: string | null,
+    referenceNumber: string,
+    userId: string,
+    remarks?: string,
+    eventType: StockHistoryEvent = 'DISPATCH_OUT',
+  ) {
+    const qty = Number(quantity);
+    if (qty <= 0) return;
+
+    // 1. SELECT ... FOR UPDATE row-level locking
+    const fgRecords = await tx.$queryRaw<any[]>`
+      SELECT id, quantity, "availableQuantity", "reservedQuantity"
+      FROM "FinishedGoods"
+      WHERE "productId" = ${productId}
+      FOR UPDATE
+    `;
+
+    const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+    if (qty > totalAvail) {
+      throw new BadRequestException(
+        `Insufficient finished goods available stock. Available: ${totalAvail}, Requested: ${qty}.`
+      );
+    }
+
+    let remainingToDeduct = qty;
+    let beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+    let beforeAvailTotal = totalAvail;
+
+    for (const fg of fgRecords) {
+      if (remainingToDeduct <= 0) break;
+      const currentAvail = Number(fg.availableQuantity || 0);
+      const deduct = Math.min(currentAvail, remainingToDeduct);
+      if (deduct <= 0) continue;
+
+      const newAvail = currentAvail - deduct;
+      const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
+
+      await tx.finishedGoods.update({
+        where: { id: fg.id },
+        data: {
+          availableQuantity: newAvail,
+          quantity: newQty,
+          status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+        },
+      });
+      remainingToDeduct -= deduct;
+    }
+
+    const afterQtyTotal = beforeQtyTotal - qty;
+    const afterAvailTotal = beforeAvailTotal - qty;
+
+    // 2. Create StockHistory record
+    await tx.stockHistory.create({
+      data: {
+        companyId,
+        productId,
+        quantity: -qty, // negative for stock-out
+        event: eventType,
+        actor: userId,
+        beforeQuantity: beforeQtyTotal,
+        afterQuantity: afterQtyTotal,
+        beforeAvailableQuantity: beforeAvailTotal,
+        afterAvailableQuantity: afterAvailTotal,
+        sourceType,
+        sourceId,
+        sourceItemId,
+        referenceNumber,
+        remarks: remarks || 'Dispatch stock deducted',
+      },
+    });
+  }
+
+  async adjustFinishedGoods(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    productId: string,
+    newPhysicalStock: number,
+    reason: string,
+    userId: string,
+  ) {
+    const newStock = Number(newPhysicalStock);
+    if (isNaN(newStock) || newStock < 0) {
+      throw new BadRequestException('Physical stock must be a non-negative number');
+    }
+
+    // 1. SELECT ... FOR UPDATE row-level locking
+    const fgRecords = await tx.$queryRaw<any[]>`
+      SELECT id, quantity, "availableQuantity", "reservedQuantity"
+      FROM "FinishedGoods"
+      WHERE "productId" = ${productId}
+      FOR UPDATE
+    `;
+
+    const beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+    const beforeAvailTotal = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+    const reservedTotal = fgRecords.reduce((sum, r) => sum + Number(r.reservedQuantity || 0), 0);
+
+    const afterQtyTotal = newStock;
+    const afterAvailTotal = Math.max(0, newStock - reservedTotal);
+
+    if (fgRecords.length > 0) {
+      const primary = fgRecords[0];
+      await tx.finishedGoods.update({
+        where: { id: primary.id },
+        data: {
+          quantity: newStock,
+          availableQuantity: afterAvailTotal,
+          status: afterAvailTotal <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+        },
+      });
+
+      // Reset others to 0 so we don't have multiple records adding up to more than newStock
+      for (let i = 1; i < fgRecords.length; i++) {
+        await tx.finishedGoods.update({
+          where: { id: fgRecords[i].id },
+          data: {
+            quantity: 0,
+            availableQuantity: 0,
+            reservedQuantity: 0,
+            status: 'OUT_OF_STOCK',
+          },
+        });
+      }
+    } else {
+      // Create new FinishedGoods record if none exists
+      const plan = await tx.productionPlan.findFirst({ where: { salesOrder: { customer: { companyId } } } }) || 
+        await tx.productionPlan.create({
+          data: {
+            planNumber: `PP-AUTO-${Date.now().toString().slice(-6)}`,
+            status: 'APPROVED',
+            salesOrder: {
+              create: {
+                orderNumber: `SO-AUTO-${Date.now().toString().slice(-6)}`,
+                status: 'CONFIRMED',
+                totalAmount: 0,
+                subtotal: 0,
+                taxableAmount: 0,
+                createdById: userId,
+                customer: {
+                  create: {
+                    companyId,
+                    companyName: 'Internal Stock Customer',
+                    customerCode: `CUST-AUTO-${Date.now().toString().slice(-6)}`,
+                  }
+                }
+              }
+            }
+          }
+        });
+
+      const wo = await tx.workOrder.create({
+        data: {
+          workOrderNumber: `WO-AUTO-${Date.now().toString().slice(-6)}`,
+          productionPlanId: plan.id,
+          quantity: newStock,
+          status: 'READY_FOR_DISPATCH',
+        },
+      });
+
+      await tx.finishedGoods.create({
+        data: {
+          workOrderId: wo.id,
+          productId,
+          quantity: newStock,
+          availableQuantity: newStock,
+          reservedQuantity: 0,
+          unit: 'PCS',
+          status: 'AVAILABLE',
+          receivedById: userId,
+        },
+      });
+    }
+
+    // 2. Create StockHistory record
+    await tx.stockHistory.create({
+      data: {
+        companyId,
+        productId,
+        quantity: newStock - beforeQtyTotal, // difference
+        event: 'ADJUSTMENT',
+        actor: userId,
+        beforeQuantity: beforeQtyTotal,
+        afterQuantity: afterQtyTotal,
+        beforeAvailableQuantity: beforeAvailTotal,
+        afterAvailableQuantity: afterAvailTotal,
+        sourceType: 'MANUAL',
+        remarks: reason || 'Manual adjustment',
+      },
+    });
   }
 }

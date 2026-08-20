@@ -81,6 +81,157 @@ export class PrismaService
       // Ignore if table does not exist yet
     }
 
+    // Run Daily Production Report stock auto-post reconciliation
+    try {
+      const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const unpostedProd = await this.productionDailyReport.findMany({
+        where: {
+          status: 'SUBMITTED',
+          stockPostedAt: null,
+        },
+        include: {
+          items: true,
+        },
+      });
+
+      if (unpostedProd.length > 0) {
+        console.log(`[STARTUP] Found ${unpostedProd.length} unposted submitted production daily reports. Posting stock...`);
+        for (const report of unpostedProd) {
+          await this.$transaction(async (tx) => {
+            for (const item of report.items) {
+              if (item.productId && item.setQty > 0) {
+                const qty = Number(item.setQty);
+
+                // Check if FinishedGoods record exists
+                const fgRecords = await tx.$queryRaw<any[]>`
+                  SELECT id, quantity, "availableQuantity", "reservedQuantity"
+                  FROM "FinishedGoods"
+                  WHERE "productId" = ${item.productId}
+                  FOR UPDATE
+                `;
+
+                if (fgRecords.length > 0) {
+                  const fg = fgRecords[0];
+                  const beforeQty = Number(fg.quantity || 0);
+                  const beforeAvail = Number(fg.availableQuantity || 0);
+                  const reserved = Number(fg.reservedQuantity || 0);
+                  const afterQty = beforeQty + qty;
+                  const afterAvail = afterQty - reserved;
+
+                  await tx.finishedGoods.update({
+                    where: { id: fg.id },
+                    data: {
+                      quantity: afterQty,
+                      availableQuantity: afterAvail,
+                      status: afterAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+                    },
+                  });
+
+                  await tx.stockHistory.create({
+                    data: {
+                      companyId: report.companyId,
+                      productId: item.productId,
+                      event: 'PRODUCTION_IN',
+                      quantity: qty,
+                      beforeQuantity: beforeQty,
+                      afterQuantity: afterQty,
+                      sourceType: 'PRODUCTION_REPORT',
+                      sourceId: report.id,
+                      sourceItemId: item.id,
+                      referenceNumber: report.reportNo,
+                      actor: report.createdById || 'system',
+                      remarks: `Startup auto-post for report ${report.reportNo}`,
+                    },
+                  });
+                } else {
+                  // Create dummy workOrder & finished goods
+                  let customer = await tx.customer.findFirst({ where: { companyId } });
+                  if (!customer) {
+                    customer = await tx.customer.create({
+                      data: {
+                        companyId,
+                        companyName: 'Default Client',
+                        status: 'ACTIVE',
+                      }
+                    });
+                  }
+
+                  const plan = await tx.productionPlan.findFirst({ where: { salesOrder: { customer: { companyId } } } }) || 
+                    await tx.productionPlan.create({
+                      data: {
+                        planNumber: `PP-AUTO-${Date.now().toString().slice(-6)}`,
+                        status: 'APPROVED',
+                        salesOrder: {
+                          create: {
+                            orderNumber: `SO-AUTO-${Date.now().toString().slice(-6)}`,
+                            status: 'CONFIRMED',
+                            totalAmount: 0,
+                            subtotal: 0,
+                            taxableAmount: 0,
+                            createdById: report.createdById || 'system',
+                            customerId: customer.id,
+                          }
+                        }
+                      }
+                    });
+
+                  const wo = await tx.workOrder.create({
+                    data: {
+                      workOrderNumber: `WO-AUTO-${Date.now().toString().slice(-6)}`,
+                      productionPlanId: plan.id,
+                      quantity: qty,
+                      status: 'READY_FOR_DISPATCH',
+                    },
+                  });
+
+                  await tx.finishedGoods.create({
+                    data: {
+                      workOrderId: wo.id,
+                      productId: item.productId,
+                      quantity: qty,
+                      availableQuantity: qty,
+                      reservedQuantity: 0,
+                      unit: 'PCS',
+                      status: 'AVAILABLE',
+                      receivedById: report.createdById || 'system',
+                    },
+                  });
+
+                  await tx.stockHistory.create({
+                    data: {
+                      companyId: report.companyId,
+                      productId: item.productId,
+                      event: 'PRODUCTION_IN',
+                      quantity: qty,
+                      beforeQuantity: 0,
+                      afterQuantity: qty,
+                      sourceType: 'PRODUCTION_REPORT',
+                      sourceId: report.id,
+                      sourceItemId: item.id,
+                      referenceNumber: report.reportNo,
+                      actor: report.createdById || 'system',
+                      remarks: `Startup auto-post for report ${report.reportNo}`,
+                    },
+                  });
+                }
+              }
+            }
+
+            await tx.productionDailyReport.update({
+              where: { id: report.id },
+              data: {
+                stockPostedAt: new Date(),
+                stockPostedBy: report.createdById || 'system',
+              },
+            });
+          });
+        }
+        console.log('[STARTUP] Posting stock completed successfully.');
+      }
+    } catch (autoPostErr) {
+      console.error('[PrismaService] Auto-post failed:', autoPostErr);
+    }
+
     // Run target account provisioning & company alignment dynamically on startup
     try {
       const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
@@ -234,6 +385,8 @@ export class PrismaService
         }
       }
       console.log('[PrismaService] Startup Target 17 accounts provisioning completed successfully.');
+
+      // Reconciled at start of hook
     } catch (e) {
       console.error('[PrismaService] Error during startup target provisioning:', e);
     }

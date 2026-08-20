@@ -1121,7 +1121,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             isSuperSales={isSuperSalesPortal}
             basePath={basePath}
             mode={isSuperSalesPortal ? 'SUPER_SALES' : mode}
-            maxPaymentTermDays={isSuperSalesPortal || user?.role === 'SUPER_SALES' || user?.role === 'SuperSales' ? 90 : 20}
+            maxPaymentTermDays={isSuperSalesPortal || user?.role === 'SUPER_SALES' || (user?.role && String(user.role).startsWith('SuperSales')) ? 90 : 20}
             onAddQuotation={onAddQuotation}
             onCreateLead={() => navigate.push(`${basePath}/create-lead`)}
             onCancel={() => {

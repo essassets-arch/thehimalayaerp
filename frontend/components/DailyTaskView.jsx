@@ -552,7 +552,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
               { id: 'Today', label: 'Due Today' },
               { id: 'Upcoming', label: 'Upcoming' },
               { id: 'Overdue', label: 'Overdue' },
-              { id: 'Completed', label: 'Completed' }
+              { id: 'Completed', label: 'History' }
             ].map(f => {
               const isActive = filterStatus === f.id;
               return (

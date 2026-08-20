@@ -101,4 +101,11 @@ export class ProductionDailyReportController {
     const userId = req.user?.sub || req.user?.id;
     return this.dailyReportService.reopenReport(companyId, userId, id);
   }
+
+  @Post(':id/cancel')
+  async cancelReport(@Req() req: any, @Param('id') id: string) {
+    const companyId = req.user?.companyId || 'COMP-000001';
+    const userId = req.user?.sub || req.user?.id;
+    return this.dailyReportService.cancelReport(companyId, userId, id);
+  }
 }

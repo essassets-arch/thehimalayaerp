@@ -95,7 +95,27 @@ export default function TaskCard({ task, onDone, onReschedule }) {
           {task.type}
         </span>
         
-        {isOverdue && (
+        {task.status === 'Completed' ? (
+          <span 
+            className="badge"
+            style={{ 
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontWeight: '800',
+              fontSize: '9.5px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              padding: '3px 6px',
+              backgroundColor: '#dcfce7',
+              color: '#15803d',
+              border: '1px solid #bbf7d0'
+            }}
+          >
+            <Check size={9} style={{ strokeWidth: 3 }} />
+            Completed
+          </span>
+        ) : isOverdue && (
           <span 
             className="badge badge-overdue animate-pulse"
             style={{ 
@@ -166,61 +186,63 @@ export default function TaskCard({ task, onDone, onReschedule }) {
       </div>
 
       {/* Action Buttons */}
-      <div 
-        className="task-actions"
-        style={{ 
-          display: 'flex', 
-          justifyContent: 'flex-end',
-          gap: '6px', 
-          marginTop: '0px', 
-          borderTop: '1px solid #f1f5f9', 
-          paddingTop: '6px' 
-        }}
-      >
-
-        <button 
-          type="button"
-          className="btn-small btn-outline-small task-card-btn"
+      {task.status !== 'Completed' && (
+        <div 
+          className="task-actions"
           style={{ 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '4px',
-            borderColor: 'var(--color-border)',
-            fontWeight: '700',
-            padding: '5px 10px',
-            minWidth: '85px',
-            flex: 'none'
+            display: 'flex', 
+            justifyContent: 'flex-end',
+            gap: '6px', 
+            marginTop: '0px', 
+            borderTop: '1px solid #f1f5f9', 
+            paddingTop: '6px' 
           }}
-          onClick={() => onReschedule(task)}
         >
-          <Calendar size={10} strokeWidth={2.5} />
-          Reschedule
-        </button>
-
-        <button 
-          type="button"
-          className="btn-small btn-primary-small task-card-btn"
-          style={{ 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '4px',
-            background: 'var(--color-lime-brand)',
-            border: 'none',
-            color: 'var(--color-text-primary)',
-            fontWeight: '800',
-            boxShadow: 'none',
-            padding: '5px 10px',
-            minWidth: '85px',
-            flex: 'none'
-          }}
-          onClick={() => onDone(task)}
-        >
-          <Check size={10} strokeWidth={3} />
-          Done
-        </button>
-      </div>
+  
+          <button 
+            type="button"
+            className="btn-small btn-outline-small task-card-btn"
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '4px',
+              borderColor: 'var(--color-border)',
+              fontWeight: '700',
+              padding: '5px 10px',
+              minWidth: '85px',
+              flex: 'none'
+            }}
+            onClick={() => onReschedule(task)}
+          >
+            <Calendar size={10} strokeWidth={2.5} />
+            Reschedule
+          </button>
+  
+          <button 
+            type="button"
+            className="btn-small btn-primary-small task-card-btn"
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '4px',
+              background: 'var(--color-lime-brand)',
+              border: 'none',
+              color: 'var(--color-text-primary)',
+              fontWeight: '800',
+              boxShadow: 'none',
+              padding: '5px 10px',
+              minWidth: '85px',
+              flex: 'none'
+            }}
+            onClick={() => onDone(task)}
+          >
+            <Check size={10} strokeWidth={3} />
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
 }

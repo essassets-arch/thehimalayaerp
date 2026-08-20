@@ -14,9 +14,10 @@ import { ProductionDailyReportService } from './production-daily-report.service'
 import { WorkflowModule } from '../workflow/workflow.module';
 import { SequenceModule } from '../../common/sequence/sequence.module';
 import { FinishedGoodsStockService } from './finished-goods-stock.service';
+import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
-  imports: [WorkflowModule, SequenceModule],
+  imports: [WorkflowModule, SequenceModule, InventoryModule],
   controllers: [
     ProductionController,
     ProductionTestingController,

@@ -30,6 +30,7 @@ export default function DailyReportHistoryView({
   roleMode = 'PRODUCTION', // 'PRODUCTION' | 'DISPATCH' | 'PLANT_HEAD' | 'SUPER_ADMIN'
   isReadOnly = roleMode === 'PLANT_HEAD' || roleMode === 'SUPER_ADMIN',
   isDispatch = roleMode === 'DISPATCH',
+  dispatchType = 'DISPATCH_1',
   title,
   subtitle,
   onNewReport,
@@ -38,6 +39,15 @@ export default function DailyReportHistoryView({
 }) {
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState([]);
+
+  const baseApiUrl = useMemo(() => {
+    if (!isDispatch) {
+      return '/api/backend/production/daily-reports';
+    }
+    return dispatchType === 'DISPATCH_1'
+      ? '/api/backend/dispatch/daily-reports'
+      : '/api/backend/dispatch-2/daily-reports';
+  }, [isDispatch, dispatchType]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(15);
@@ -69,7 +79,7 @@ export default function DailyReportHistoryView({
       if (statusFilter !== 'All') params.set('status', statusFilter);
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
 
-      const res = await backendFetch(`/api/backend/production/daily-reports?${params.toString()}`);
+      const res = await backendFetch(`${baseApiUrl}?${params.toString()}`);
       if (res) {
         setReports(res.items || []);
         setTotal(res.total || 0);
@@ -90,7 +100,7 @@ export default function DailyReportHistoryView({
   const openReportModal = async (reportId) => {
     try {
       setLoadingModalDetail(true);
-      const data = await backendFetch(`/api/backend/production/daily-reports/${reportId}`);
+      const data = await backendFetch(`${baseApiUrl}/${reportId}`);
       setSelectedReportModal(data);
     } catch (err) {
       console.error('[DailyReportHistory] Error opening detail modal:', err);
@@ -178,6 +188,45 @@ export default function DailyReportHistoryView({
       weightMT: (weight / 1000).toFixed(2)
     };
   }, [reports]);
+
+  const handleCancelReport = async (reportId) => {
+    const confirm = await Swal.fire({
+      title: 'Cancel Daily Report?',
+      text: 'This will reverse the associated stock changes. Stock cannot become negative.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, Cancel Report',
+      cancelButtonText: 'No, Keep Report'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setLoading(true);
+      const res = await backendFetch(`${baseApiUrl}/${reportId}/cancel`, {
+        method: 'POST'
+      });
+      if (res) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Report Cancelled',
+          text: 'Stock changes reversed successfully.'
+        });
+        fetchHistory();
+      }
+    } catch (err) {
+      console.error('[DailyReportHistory] Cancel Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Cancellation Failed',
+        text: err.message || 'Unable to cancel report'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Helper for Status Badges
   const renderStatusBadge = (st) => {
@@ -368,7 +417,7 @@ export default function DailyReportHistoryView({
             <Package size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>Covers Produced</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>{isDispatch ? 'Covers Dispatched' : 'Covers Produced'}</div>
             <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary, #0f172a)' }}>{historyStats.covers.toLocaleString()}</div>
           </div>
         </div>
@@ -378,7 +427,7 @@ export default function DailyReportHistoryView({
             <Boxes size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>Frames Produced</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>{isDispatch ? 'Frames Dispatched' : 'Frames Produced'}</div>
             <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary, #0f172a)' }}>{historyStats.frames.toLocaleString()}</div>
           </div>
         </div>
@@ -388,7 +437,7 @@ export default function DailyReportHistoryView({
             <Scale size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>Production Weight</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #64748b)', textTransform: 'uppercase' }}>{isDispatch ? 'Dispatch Weight' : 'Production Weight'}</div>
             <div style={{ fontSize: '18px', fontWeight: '900', color: '#7c3aed' }}>{historyStats.weight.toLocaleString()} kg</div>
             <div style={{ fontSize: '11px', fontWeight: '800', color: '#6d28d9' }}>{historyStats.weightMT} MT</div>
           </div>
@@ -634,6 +683,17 @@ export default function DailyReportHistoryView({
                               style={{ background: 'rgba(245, 158, 11, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#d97706', cursor: 'pointer' }}
                             >
                               <Edit size={14} />
+                            </button>
+                          )}
+
+                          {!isReadOnly && (report.status === 'SUBMITTED' || report.status === 'APPROVED') && (
+                            <button
+                              type="button"
+                              title="Cancel Report (Reverses Stock)"
+                              onClick={() => handleCancelReport(report.id)}
+                              style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#dc2626', cursor: 'pointer' }}
+                            >
+                              <X size={14} />
                             </button>
                           )}
 
@@ -901,6 +961,28 @@ export default function DailyReportHistoryView({
               >
                 <Printer size={15} /> Printable Page
               </button>
+
+              {!isReadOnly && (selectedReportModal.status === 'SUBMITTED' || selectedReportModal.status === 'APPROVED') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCancelReport(selectedReportModal.id);
+                    setSelectedReportModal(null);
+                  }}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#dc2626',
+                    color: '#ffffff',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel Report
+                </button>
+              )}
 
               <button
                 type="button"

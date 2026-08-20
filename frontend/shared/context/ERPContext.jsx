@@ -199,6 +199,7 @@ export const useERP = () => {
           if (
             authUserLog?.role === 'Sales Executive' ||
             authUserLog?.role === 'SuperSales' ||
+            (authUserLog?.role && String(authUserLog.role).startsWith('SuperSales')) ||
             authUserLog?.role === 'Sales Manager' ||
             authUserLog?.role === 'Super Admin' ||
             authUserLog?.role === 'Admin'

@@ -70,6 +70,7 @@ model Company {
   workLocations                  WorkLocation[]
   leaveRequests                  LeaveRequest[]
   dailyReports                   ProductionDailyReport[]
+  dispatchReports                DispatchDailyReport[]
   notifications                  Notification[]
   fcmDeviceTokens                FcmDeviceToken[]
   deviceSessions                 DeviceSession[]
@@ -175,6 +176,7 @@ model User {
   salesExecutiveSamples         SampleRequest[]        @relation("SalesExecutiveSamples")
   dailyReportsCreated           ProductionDailyReport[] @relation("DailyReportCreatedBy")
   dailyReportsApproved          ProductionDailyReport[] @relation("DailyReportApprovedBy")
+  dispatchReportsCreated        DispatchDailyReport[]  @relation("DispatchReportCreatedBy")
   notifications                 Notification[]
   fcmDeviceTokens               FcmDeviceToken[]
   attendances                   Attendance[]
@@ -388,6 +390,7 @@ model Product {
   coversPerSet                Int?                         @default(1)
   framesPerSet                Int?                         @default(1)
   dailyReportItems            ProductionDailyReportItem[]
+  dispatchReportItems         DispatchDailyReportItem[]
 
   @@index([companyId, minimumStock])
   @@index([preferredVendorId])
@@ -3232,6 +3235,7 @@ model FinishedGoods {
   salesOrderId      String?
   quantity          Decimal
   availableQuantity Decimal
+  reservedQuantity  Decimal  @default(0)
   unit              String
   status            String
   receivedAt        DateTime @default(now())
@@ -3471,6 +3475,10 @@ model ProductionDailyReport {
   submittedAt         DateTime?
   approvedAt          DateTime?
 
+  stockPostedAt       DateTime?
+  stockPostedBy       String?
+  stockTransactionId  String?
+
   companyId           String
 
   createdAt           DateTime @default(now())
@@ -3524,6 +3532,92 @@ model ProductionDailyReportItem {
   updatedAt             DateTime @updatedAt
 
   report                ProductionDailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  product               Product?              @relation(fields: [productId], references: [id])
+
+  @@index([reportId])
+  @@index([productId])
+}
+
+model DispatchDailyReport {
+  id                  String   @id @default(uuid())
+  reportNo            String   @unique
+  reportDate          DateTime
+  shift               String?
+  dispatchExecutive   String?
+  dispatchType        String   // "DISPATCH_1" or "DISPATCH_2"
+  status              String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, CANCELLED
+
+  totalCovers         Int      @default(0)
+  totalFrames         Int      @default(0)
+  totalSets           Int      @default(0)
+
+  totalCoverWeight    Decimal  @default(0) @db.Decimal(14, 3)
+  totalFrameWeight    Decimal  @default(0) @db.Decimal(14, 3)
+  totalWeight         Decimal  @default(0) @db.Decimal(14, 3)
+
+  createdById         String
+  updatedById         String?
+  submittedById       String?
+  approvedById        String?
+  cancelledById       String?
+
+  submittedAt         DateTime?
+  approvedAt          DateTime?
+  cancelledAt         DateTime?
+
+  stockPostedAt       DateTime?
+  stockPostedBy       String?
+  stockTransactionId  String?
+
+  companyId           String
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company             Company  @relation(fields: [companyId], references: [id])
+  createdBy           User     @relation("DispatchReportCreatedBy", fields: [createdById], references: [id])
+
+  items               DispatchDailyReportItem[]
+
+  @@unique([companyId, reportDate, shift, dispatchType])
+  @@index([companyId, status])
+  @@index([reportDate])
+}
+
+model DispatchDailyReportItem {
+  id                    String   @id @default(uuid())
+
+  reportId              String
+  productId             String?
+  customProductName     String?
+
+  srNo                  Int
+
+  size                  String?
+  type                  String?
+  capacity              String?
+
+  coverQty              Int      @default(0)
+  coverUnitWeight       Decimal  @default(0) @db.Decimal(10, 3)
+  coverWeight           Decimal  @default(0) @db.Decimal(14, 3)
+  actualCoverWeight     Decimal? @db.Decimal(14, 3)
+
+  frameQty              Int      @default(0)
+  frameUnitWeight       Decimal  @default(0) @db.Decimal(10, 3)
+  frameWeight           Decimal  @default(0) @db.Decimal(14, 3)
+  actualFrameWeight     Decimal? @db.Decimal(14, 3)
+
+  weightOverrideReason  String?
+
+  setQty                Int      @default(0)
+  totalWeight           Decimal  @default(0) @db.Decimal(14, 3)
+
+  remarks               String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  report                DispatchDailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   product               Product?              @relation(fields: [productId], references: [id])
 
   @@index([reportId])
@@ -3617,20 +3711,37 @@ enum StockHistoryEvent {
   QC_RECEIPT
   ADJUSTMENT
   RETURN_IN
+  PRODUCTION_IN
+  PRODUCTION_REVERSAL
+  DISPATCH_REVERSAL
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  RESERVATION
+  RELEASE
 }
 
 model StockHistory {
-  id               String            @id @default(uuid())
-  companyId        String
-  productId        String
-  quantity         Decimal           @db.Decimal(18, 3)
-  salesOrderId     String?
-  salesOrderItemId String?
-  allocationId     String?
-  dispatchId       String?
-  event            StockHistoryEvent
-  actor            String?
-  createdAt        DateTime          @default(now())
+  id                      String            @id @default(uuid())
+  companyId               String
+  productId               String
+  quantity                Decimal           @db.Decimal(18, 3)
+  salesOrderId            String?
+  salesOrderItemId        String?
+  allocationId            String?
+  dispatchId              String?
+  event                   StockHistoryEvent
+  actor                   String?
+  createdAt               DateTime          @default(now())
+
+  beforeQuantity          Decimal?          @db.Decimal(18, 3)
+  afterQuantity           Decimal?          @db.Decimal(18, 3)
+  beforeAvailableQuantity Decimal?          @db.Decimal(18, 3)
+  afterAvailableQuantity  Decimal?          @db.Decimal(18, 3)
+  sourceType              String?
+  sourceId                String?
+  sourceItemId            String?
+  referenceNumber         String?
+  remarks                 String?
 
   @@index([companyId, productId, createdAt])
   @@index([salesOrderId])

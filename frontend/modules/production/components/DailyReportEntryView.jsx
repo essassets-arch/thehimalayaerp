@@ -34,13 +34,23 @@ export default function DailyReportEntryView({
   onNavigateToPrint,
   title,
   subtitle,
-  isDispatch = false
+  isDispatch = false,
+  dispatchType = 'DISPATCH_1'
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const baseApiUrl = useMemo(() => {
+    if (!isDispatch) {
+      return '/api/backend/production/daily-reports';
+    }
+    return dispatchType === 'DISPATCH_1'
+      ? '/api/backend/dispatch/daily-reports'
+      : '/api/backend/dispatch-2/daily-reports';
+  }, [isDispatch, dispatchType]);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -111,7 +121,7 @@ export default function DailyReportEntryView({
     if (!id) return;
     try {
       setLoading(true);
-      const data = await backendFetch(`/api/backend/production/daily-reports/${id}`);
+      const data = await backendFetch(`${baseApiUrl}/${id}`);
       if (data) {
         setCurrentReportId(data.id);
         setReportNo(data.reportNo);
@@ -158,6 +168,26 @@ export default function DailyReportEntryView({
       setLoading(false);
     }
   }, [todayStr]);
+
+  // Check Duplicate Warning on Date/Shift change
+  const checkDuplicateReport = useCallback(async (d, s) => {
+    if (!d || !s) return;
+    try {
+      const res = await backendFetch(`${baseApiUrl}/check-duplicate?date=${d}&shift=${s}`);
+      if (res?.exists && res?.report?.id !== currentReportId) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Existing Report Loaded',
+          text: `A production report (${res.report.reportNo}) already exists for ${d} [${s} shift] and has been loaded.`,
+          timer: 3000,
+          showConfirmButton: false
+        });
+        fetchReport(res.report.id);
+      }
+    } catch {
+      // Best effort check
+    }
+  }, [baseApiUrl, currentReportId, fetchReport]);
 
   useEffect(() => {
     fetchProducts();
@@ -230,6 +260,31 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
     }
   }, []);
 
+  const handleBlurValidation = useCallback(() => {
+    if (!query.trim()) {
+      onChange(null);
+      return;
+    }
+    // Check if we already have a valid value matched to query
+    if (value) {
+      const p = products.find(prod => prod.id === value);
+      if (p && p.name?.toLowerCase().trim() === query.toLowerCase().trim()) {
+        return; // Already matched
+      }
+    }
+    if (customProductName && customProductName.toLowerCase().trim() === query.toLowerCase().trim()) {
+      return; // Already custom name
+    }
+
+    // Find match
+    const exact = products.find(p => p.name?.toLowerCase().trim() === query.toLowerCase().trim() || p.sku?.toLowerCase().trim() === query.toLowerCase().trim());
+    if (exact) {
+      onChange(exact);
+    } else {
+      onCustomNameChange(query.trim());
+    }
+  }, [query, value, customProductName, products, onChange, onCustomNameChange]);
+
   useEffect(() => {
     if (value) {
       const p = products.find(prod => prod.id === value);
@@ -247,6 +302,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
     const handleClickOutside = (e) => {
       if (inputRef.current && !inputRef.current.contains(e.target) && !e.target.closest('.smart-product-popover')) {
         setIsOpen(false);
+        handleBlurValidation();
       }
     };
 
@@ -263,7 +319,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
       window.removeEventListener('scroll', handleScrollOrResize, true);
       window.removeEventListener('resize', handleScrollOrResize);
     };
-  }, [isOpen, updateCoords]);
+  }, [isOpen, updateCoords, handleBlurValidation]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return products.slice(0, 50);
@@ -310,6 +366,12 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             if (!e.target.value.trim()) {
               onChange(null);
             }
+          }}
+          onBlur={() => {
+            // Wait slightly for click events in the popover to register
+            setTimeout(() => {
+              handleBlurValidation();
+            }, 200);
           }}
           className="form-input"
           style={{
@@ -664,27 +726,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
   }, [rows]);
 
   // Check Duplicate Warning on Date/Shift change
-  const checkDuplicateReport = async (d, s) => {
-    try {
-      const res = await backendFetch(`/api/backend/production/daily-reports/check-duplicate?date=${d}&shift=${s}`);
-      if (res?.exists && res?.report?.id !== currentReportId) {
-        Swal.fire({
-          icon: 'info',
-          title: 'Existing Report Found',
-          text: `A production report (${res.report.reportNo}) already exists for ${d} [${s} shift].`,
-          showCancelButton: true,
-          confirmButtonText: 'Open Existing Report',
-          cancelButtonText: 'Continue Editing'
-        }).then(result => {
-          if (result.isConfirmed) {
-            fetchReport(res.report.id);
-          }
-        });
-      }
-    } catch {
-      // Best effort check
-    }
-  };
+  // checkDuplicateReport moved to top using useCallback
 
   // Save Draft
   const handleSaveDraft = async () => {
@@ -725,12 +767,12 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
 
       let response;
       if (currentReportId) {
-        response = await backendFetch(`/api/backend/production/daily-reports/${currentReportId}`, {
+        response = await backendFetch(`${baseApiUrl}/${currentReportId}`, {
           method: 'PATCH',
           body: payload
         });
       } else {
-        response = await backendFetch('/api/backend/production/daily-reports', {
+        response = await backendFetch(baseApiUrl, {
           method: 'POST',
           body: payload
         });
@@ -752,6 +794,28 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
       }
     } catch (err) {
       console.error('[DailyReport] Save Draft Error:', err);
+      const isConflict = err.status === 409 || 
+                         err.message?.includes('409') || 
+                         err.message?.toLowerCase().includes('already exists') ||
+                         err.message?.toLowerCase().includes('conflict');
+      if (isConflict) {
+        try {
+          const check = await backendFetch(`${baseApiUrl}/check-duplicate?date=${reportDate}&shift=${shift}`);
+          if (check?.exists) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Conflict Resolved',
+              text: 'Another session created this report. Loading the existing report details...',
+              timer: 3000,
+              showConfirmButton: false
+            });
+            fetchReport(check.report.id);
+            return;
+          }
+        } catch (checkErr) {
+          console.error('Failed to resolve conflict:', checkErr);
+        }
+      }
       Swal.fire({
         icon: 'error',
         title: 'Save Draft Failed',
@@ -822,7 +886,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
       };
 
       if (!targetId) {
-        const saved = await backendFetch('/api/backend/production/daily-reports', {
+        const saved = await backendFetch(baseApiUrl, {
           method: 'POST',
           body: payload
         });
@@ -830,13 +894,13 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         setCurrentReportId(saved.id);
         setReportNo(saved.reportNo);
       } else {
-        await backendFetch(`/api/backend/production/daily-reports/${targetId}`, {
+        await backendFetch(`${baseApiUrl}/${targetId}`, {
           method: 'PATCH',
           body: payload
         });
       }
 
-      const submitted = await backendFetch(`/api/backend/production/daily-reports/${targetId}/submit`, {
+      const submitted = await backendFetch(`${baseApiUrl}/${targetId}/submit`, {
         method: 'POST'
       });
 
@@ -851,6 +915,28 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
       }
     } catch (err) {
       console.error('[DailyReport] Submit Error:', err);
+      const isConflict = err.status === 409 || 
+                         err.message?.includes('409') || 
+                         err.message?.toLowerCase().includes('already exists') ||
+                         err.message?.toLowerCase().includes('conflict');
+      if (isConflict) {
+        try {
+          const check = await backendFetch(`${baseApiUrl}/check-duplicate?date=${reportDate}&shift=${shift}`);
+          if (check?.exists) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Conflict Resolved',
+              text: 'Another session created this report. Loading the existing report details...',
+              timer: 3000,
+              showConfirmButton: false
+            });
+            fetchReport(check.report.id);
+            return;
+          }
+        } catch (checkErr) {
+          console.error('Failed to resolve conflict:', checkErr);
+        }
+      }
       Swal.fire({
         icon: 'error',
         title: 'Submission Failed',
@@ -1047,7 +1133,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             disabled={isReadOnly}
             onChange={(e) => {
               setReportDate(e.target.value);
-              checkDuplicateReport(e.target.value, shift);
             }}
             className="form-input"
             style={{ width: '100%', margin: 0, fontWeight: '700', fontSize: '13.5px' }}
@@ -1063,7 +1148,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             disabled={isReadOnly}
             onChange={(e) => {
               setShift(e.target.value);
-              checkDuplicateReport(reportDate, e.target.value);
             }}
             className="form-select"
             style={{ width: '100%', margin: 0, fontWeight: '700', fontSize: '13.5px' }}
@@ -1076,7 +1160,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
 
         <div>
           <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
-            Production Supervisor
+            {isDispatch ? 'Dispatch Executive' : 'Production Supervisor'}
           </label>
           <input
             type="text"
@@ -1091,7 +1175,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
 
         <div>
           <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
-            Production User
+            {isDispatch ? 'Dispatch User' : 'Production User'}
           </label>
           <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', padding: '8px 12px', background: 'var(--color-bg-subtle)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
             {user?.name || 'Operator'}
@@ -1188,7 +1272,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             <Scale size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Production Weight</div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>{isDispatch ? 'Dispatch Weight' : 'Production Weight'}</div>
             <div style={{ fontSize: '20px', fontWeight: '900', color: '#7c3aed' }}>
               {totals.totalWeight.toLocaleString()} KG
             </div>
@@ -1218,7 +1302,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={18} style={{ color: 'var(--color-primary)' }} />
             <h2 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-primary)', margin: 0 }}>
-              Production Entries
+              {isDispatch ? 'Dispatch Entries' : 'Production Entries'}
             </h2>
             <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', background: '#e2e8f0', padding: '2px 8px', borderRadius: '12px' }}>
               {rows.length} {rows.length === 1 ? 'Row' : 'Rows'}
@@ -1450,7 +1534,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                 justifyContent: 'center'
               }}
             >
-              <Plus size={16} /> Add Production Row
+              <Plus size={16} /> {isDispatch ? 'Add Dispatch Row' : 'Add Production Row'}
             </button>
           </div>
         )}
@@ -1465,7 +1549,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         boxShadow: 'var(--shadow-soft)'
       }}>
         <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '0 0 14px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Daily Production Summary Breakdown
+          {isDispatch ? 'Daily Dispatch Summary Breakdown' : 'Daily Production Summary Breakdown'}
         </h3>
 
         <div style={{

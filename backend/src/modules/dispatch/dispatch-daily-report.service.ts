@@ -8,38 +8,34 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import {
-  CreateDailyReportDto,
-  UpdateDailyReportDto,
-  QueryDailyReportDto,
-  CreateDailyReportItemDto,
-} from './dto/production-daily-report.dto';
+  CreateDispatchDailyReportDto,
+  UpdateDispatchDailyReportDto,
+  QueryDispatchDailyReportDto,
+  CreateDispatchDailyReportItemDto,
+} from './dto/dispatch-daily-report.dto';
 import { Prisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
-export class ProductionDailyReportService {
+export class DispatchDailyReportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sequenceService: SequenceService,
     private readonly inventoryService: InventoryService,
   ) {}
 
-  /**
-   * Helper to format report number sequence key: DPR-YYYY-MM-DD
-   */
-  private getSequencePrefix(date: Date): { key: string; prefix: string } {
+  private getSequencePrefix(date: Date, dispatchType: string): { key: string; prefix: string } {
     const yyyy = date.getFullYear();
+    const isD1 = dispatchType === 'DISPATCH_1';
+    const base = isD1 ? 'DR' : 'DR2';
     return {
-      key: `PR-${yyyy}`,
-      prefix: `PR-${yyyy}-`,
+      key: `${base}-${yyyy}`,
+      prefix: `${base}-${yyyy}-`,
     };
   }
 
-  /**
-   * Recalculate line item weights & set quantities based on product master and user input.
-   */
   private async processItemsData(
-    items: CreateDailyReportItemDto[],
+    items: CreateDispatchDailyReportItemDto[],
     companyId: string,
   ) {
     if (!items || items.length === 0) {
@@ -95,7 +91,6 @@ export class ProductionDailyReportService {
           ? Number(item.frameUnitWeight)
           : Number(product?.frameUnitWeight || 0);
 
-      // Cover weight calculation (with optional actual weight override)
       const calculatedCoverWeight = coverQty * coverUnitWeight;
       const actualCoverWeight =
         item.actualCoverWeight !== undefined && item.actualCoverWeight !== null
@@ -103,7 +98,6 @@ export class ProductionDailyReportService {
           : null;
       const coverWeight = actualCoverWeight !== null ? actualCoverWeight : calculatedCoverWeight;
 
-      // Frame weight calculation (with optional actual weight override)
       const calculatedFrameWeight = frameQty * frameUnitWeight;
       const actualFrameWeight =
         item.actualFrameWeight !== undefined && item.actualFrameWeight !== null
@@ -113,7 +107,6 @@ export class ProductionDailyReportService {
 
       const totalWeight = coverWeight + frameWeight;
 
-      // Complete Set calculation
       const coversPerSet = Math.max(1, product?.coversPerSet || 1);
       const framesPerSet = Math.max(1, product?.framesPerSet || 1);
 
@@ -149,9 +142,6 @@ export class ProductionDailyReportService {
         weightOverrideReason: item.weightOverrideReason || null,
         setQty,
         totalWeight: new Prisma.Decimal(totalWeight),
-        workOrderId: item.workOrderId || null,
-        productionPlanId: item.productionPlanId || null,
-        salesOrderId: item.salesOrderId || null,
         remarks: item.remarks || null,
       };
     });
@@ -167,16 +157,14 @@ export class ProductionDailyReportService {
     };
   }
 
-  /**
-   * List reports with date range, shift, status, creator, search filters & pagination.
-   */
-  async listReports(companyId: string, query: QueryDailyReportDto) {
+  async listReports(companyId: string, dispatchType: string, query: QueryDispatchDailyReportDto) {
     const page = Math.max(1, Number(query.page || 1));
     const limit = Math.max(1, Math.min(100, Number(query.limit || 20)));
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ProductionDailyReportWhereInput = {
+    const where: Prisma.DispatchDailyReportWhereInput = {
       companyId,
+      dispatchType,
     };
 
     if (query.shift) {
@@ -191,7 +179,6 @@ export class ProductionDailyReportService {
       where.createdById = query.createdById;
     }
 
-    // Date range filtering
     let start: Date | null = null;
     let end: Date | null = null;
 
@@ -212,7 +199,7 @@ export class ProductionDailyReportService {
       } else if (presetLower === 'this week' || presetLower === 'this_week') {
         start = new Date(today);
         const day = start.getDay();
-        const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1);
         start.setDate(diff);
         end = new Date(today);
         end.setHours(23, 59, 59, 999);
@@ -236,9 +223,8 @@ export class ProductionDailyReportService {
       if (end) where.reportDate.lte = end;
     }
 
-    // Search or Product/Type/Capacity filter
     if (query.search || query.product || query.type || query.capacity) {
-      const searchItemConditions: Prisma.ProductionDailyReportItemWhereInput[] = [];
+      const searchItemConditions: Prisma.DispatchDailyReportItemWhereInput[] = [];
 
       if (query.product) {
         searchItemConditions.push({
@@ -263,7 +249,7 @@ export class ProductionDailyReportService {
         const s = query.search.trim();
         where.OR = [
           { reportNo: { contains: s, mode: 'insensitive' } },
-          { supervisorName: { contains: s, mode: 'insensitive' } },
+          { dispatchExecutive: { contains: s, mode: 'insensitive' } },
           {
             items: {
               some: {
@@ -290,15 +276,14 @@ export class ProductionDailyReportService {
     }
 
     const [total, items] = await Promise.all([
-      this.prisma.productionDailyReport.count({ where }),
-      this.prisma.productionDailyReport.findMany({
+      this.prisma.dispatchDailyReport.count({ where }),
+      this.prisma.dispatchDailyReport.findMany({
         where,
         skip,
         take: limit,
         orderBy: { reportDate: 'desc' },
         include: {
           createdBy: { select: { id: true, name: true, email: true } },
-          approvedBy: { select: { id: true, name: true, email: true } },
           _count: { select: { items: true } },
         },
       }),
@@ -316,18 +301,16 @@ export class ProductionDailyReportService {
     };
   }
 
-  /**
-   * Check duplicate report for companyId, date, shift.
-   */
-  async checkDuplicate(companyId: string, dateStr: string, shift: string) {
+  async checkDuplicate(companyId: string, dateStr: string, shift: string, dispatchType: string) {
     const reportDate = new Date(dateStr);
     reportDate.setHours(0, 0, 0, 0);
 
-    const existing = await this.prisma.productionDailyReport.findFirst({
+    const existing = await this.prisma.dispatchDailyReport.findFirst({
       where: {
         companyId,
         reportDate,
         shift,
+        dispatchType,
       },
       select: {
         id: true,
@@ -343,18 +326,15 @@ export class ProductionDailyReportService {
     };
   }
 
-  /**
-   * Get single report details by ID or reportNo.
-   */
-  async getReport(companyId: string, idOrReportNo: string) {
-    const report = await this.prisma.productionDailyReport.findFirst({
+  async getReport(companyId: string, idOrReportNo: string, dispatchType: string) {
+    const report = await this.prisma.dispatchDailyReport.findFirst({
       where: {
         companyId,
+        dispatchType,
         OR: [{ id: idOrReportNo }, { reportNo: idOrReportNo }],
       },
       include: {
         createdBy: { select: { id: true, name: true, email: true } },
-        approvedBy: { select: { id: true, name: true, email: true } },
         items: {
           orderBy: { srNo: 'asc' },
           include: {
@@ -377,35 +357,32 @@ export class ProductionDailyReportService {
     });
 
     if (!report) {
-      throw new NotFoundException(`Daily Production Report '${idOrReportNo}' not found`);
+      throw new NotFoundException(`Daily Dispatch Report '${idOrReportNo}' not found`);
     }
 
     return report;
   }
 
-  /**
-   * Create a new Daily Production Report in DRAFT state.
-   */
-  async createReport(companyId: string, userId: string, dto: CreateDailyReportDto) {
+  async createReport(companyId: string, userId: string, dto: CreateDispatchDailyReportDto, dispatchType: string) {
     const reportDate = new Date(dto.reportDate);
     reportDate.setHours(0, 0, 0, 0);
 
-    // Check duplicate
-    const existing = await this.prisma.productionDailyReport.findFirst({
+    const existing = await this.prisma.dispatchDailyReport.findFirst({
       where: {
         companyId,
         reportDate,
         shift: dto.shift || 'Morning',
+        dispatchType,
       },
     });
 
     if (existing) {
       throw new ConflictException(
-        `A production report (${existing.reportNo}) already exists for date ${dto.reportDate} and shift '${dto.shift || 'Morning'}'.`,
+        `A dispatch report (${existing.reportNo}) already exists for date ${dto.reportDate} and shift '${dto.shift || 'Morning'}'.`,
       );
     }
 
-    const { key, prefix } = this.getSequencePrefix(reportDate);
+    const { key, prefix } = this.getSequencePrefix(reportDate, dispatchType);
 
     return this.prisma.$transaction(async (tx) => {
       const reportNo = await this.sequenceService.generateNextWithTx(tx, key, prefix, 6);
@@ -419,12 +396,13 @@ export class ProductionDailyReportService {
         totalWeight,
       } = await this.processItemsData(dto.items || [], companyId);
 
-      const report = await tx.productionDailyReport.create({
+      const report = await tx.dispatchDailyReport.create({
         data: {
           reportNo,
           reportDate,
           shift: dto.shift || 'Morning',
-          supervisorName: dto.supervisorName || null,
+          dispatchExecutive: dto.dispatchExecutive || null,
+          dispatchType,
           status: 'DRAFT',
           totalCovers,
           totalFrames,
@@ -453,17 +431,15 @@ export class ProductionDailyReportService {
     });
   }
 
-  /**
-   * Update report draft.
-   */
   async updateReport(
     companyId: string,
     userId: string,
     id: string,
-    dto: UpdateDailyReportDto,
+    dto: UpdateDispatchDailyReportDto,
+    dispatchType: string,
   ) {
-    const report = await this.prisma.productionDailyReport.findFirst({
-      where: { id, companyId },
+    const report = await this.prisma.dispatchDailyReport.findFirst({
+      where: { id, companyId, dispatchType },
     });
 
     if (!report) {
@@ -471,7 +447,7 @@ export class ProductionDailyReportService {
     }
 
     if (report.status === 'APPROVED') {
-      throw new ForbiddenException(`Cannot edit an APPROVED production report`);
+      throw new ForbiddenException(`Cannot edit an APPROVED dispatch report`);
     }
 
     const reportDate = dto.reportDate ? new Date(dto.reportDate) : report.reportDate;
@@ -496,8 +472,7 @@ export class ProductionDailyReportService {
         totalFrameWeight = processed.totalFrameWeight;
         totalWeight = processed.totalWeight;
 
-        // Delete existing items and recreate
-        await tx.productionDailyReportItem.deleteMany({
+        await tx.dispatchDailyReportItem.deleteMany({
           where: { reportId: id },
         });
 
@@ -506,13 +481,13 @@ export class ProductionDailyReportService {
         };
       }
 
-      const updated = await tx.productionDailyReport.update({
+      const updated = await tx.dispatchDailyReport.update({
         where: { id },
         data: {
           reportDate,
           shift: dto.shift !== undefined ? dto.shift : report.shift,
-          supervisorName:
-            dto.supervisorName !== undefined ? dto.supervisorName : report.supervisorName,
+          dispatchExecutive:
+            dto.dispatchExecutive !== undefined ? dto.dispatchExecutive : report.dispatchExecutive,
           totalCovers,
           totalFrames,
           totalSets,
@@ -537,12 +512,9 @@ export class ProductionDailyReportService {
     });
   }
 
-  /**
-   * Delete report draft.
-   */
-  async deleteReport(companyId: string, userId: string, id: string) {
-    const report = await this.prisma.productionDailyReport.findFirst({
-      where: { id, companyId },
+  async deleteReport(companyId: string, userId: string, id: string, dispatchType: string) {
+    const report = await this.prisma.dispatchDailyReport.findFirst({
+      where: { id, companyId, dispatchType },
     });
 
     if (!report) {
@@ -553,40 +525,36 @@ export class ProductionDailyReportService {
       throw new ForbiddenException(`Only DRAFT reports can be deleted`);
     }
 
-    await this.prisma.productionDailyReport.delete({
+    await this.prisma.dispatchDailyReport.delete({
       where: { id },
     });
 
     return { success: true, message: `Report ${report.reportNo} deleted successfully` };
   }
 
-  /**
-   * Submit report.
-   */
-  async submitReport(companyId: string, userId: string, id: string) {
+  async submitReport(companyId: string, userId: string, id: string, dispatchType: string) {
     return this.prisma.$transaction(async (tx) => {
-      const report = await tx.productionDailyReport.findUnique({
+      const report = await tx.dispatchDailyReport.findUnique({
         where: { id },
         include: { items: true },
       });
 
-      if (!report || report.companyId !== companyId) {
+      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
       if (report.items.length === 0) {
-        throw new BadRequestException(`Cannot submit an empty report with no production rows`);
+        throw new BadRequestException(`Cannot submit an empty report with no dispatch rows`);
       }
 
-      if (report.status !== 'DRAFT' && report.status !== 'REOPENED') {
-        throw new BadRequestException(`Only DRAFT or REOPENED reports can be submitted (current status: ${report.status})`);
+      if (report.status !== 'DRAFT') {
+        throw new BadRequestException(`Only DRAFT reports can be submitted (current status: ${report.status})`);
       }
 
       if (report.stockPostedAt) {
-        throw new BadRequestException(`Stock has already been posted for this report`);
+        throw new BadRequestException(`Stock has already been deducted for this report`);
       }
 
-      // Validate rows
       for (const item of report.items) {
         if (item.coverQty < 0 || item.frameQty < 0 || item.setQty < 0) {
           throw new BadRequestException(`Invalid negative quantity found in line item Sr #${item.srNo}`);
@@ -596,25 +564,25 @@ export class ProductionDailyReportService {
         }
       }
 
-      // Post stock for each item in the report
+      // Deduct stock for each product row
       for (const item of report.items) {
         if (item.productId && item.setQty > 0) {
-          await this.inventoryService.stockInFinishedGoods(
+          await this.inventoryService.stockOutFinishedGoods(
             tx,
             companyId,
             item.productId,
             item.setQty,
-            'PRODUCTION_REPORT',
+            'DISPATCH_REPORT',
             report.id,
             item.id,
             report.reportNo,
             userId,
-            `Production Report submission ${report.reportNo}`
+            `Dispatch Report submission ${report.reportNo}`
           );
         }
       }
 
-      const updated = await tx.productionDailyReport.update({
+      const updated = await tx.dispatchDailyReport.update({
         where: { id },
         data: {
           status: 'SUBMITTED',
@@ -638,109 +606,43 @@ export class ProductionDailyReportService {
     });
   }
 
-  /**
-   * Approve report.
-   */
-  async approveReport(companyId: string, userId: string, id: string) {
-    const report = await this.prisma.productionDailyReport.findFirst({
-      where: { id, companyId },
-    });
-
-    if (!report) {
-      throw new NotFoundException(`Report with ID ${id} not found`);
-    }
-
-    if (report.status !== 'SUBMITTED') {
-      throw new BadRequestException(`Only SUBMITTED reports can be approved (current status: ${report.status})`);
-    }
-
-    const updated = await this.prisma.productionDailyReport.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        approvedById: userId,
-        approvedAt: new Date(),
-        updatedById: userId,
-      },
-      include: {
-        createdBy: { select: { id: true, name: true, email: true } },
-        approvedBy: { select: { id: true, name: true, email: true } },
-        items: {
-          orderBy: { srNo: 'asc' },
-          include: { product: true },
-        },
-      },
-    });
-
-    return updated;
-  }
-
-  /**
-   * Reopen report.
-   */
-  async reopenReport(companyId: string, userId: string, id: string) {
+  async cancelReport(companyId: string, userId: string, id: string, dispatchType: string) {
     return this.prisma.$transaction(async (tx) => {
-      const report = await tx.productionDailyReport.findUnique({
+      const report = await tx.dispatchDailyReport.findUnique({
         where: { id },
         include: { items: true },
       });
 
-      if (!report || report.companyId !== companyId) {
+      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
       if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED') {
-        throw new BadRequestException(`Cannot reopen report in ${report.status} status`);
+        throw new BadRequestException(`Only SUBMITTED or APPROVED reports can be cancelled`);
       }
 
-      // Reverse stock if it was posted
-      await this.reverseProductionStock(tx, report, companyId, userId);
-
-      const updated = await tx.productionDailyReport.update({
-        where: { id },
-        data: {
-          status: 'REOPENED',
-          stockPostedAt: null,
-          stockPostedBy: null,
-          stockTransactionId: null,
-          updatedById: userId,
-        },
-        include: {
-          createdBy: { select: { id: true, name: true, email: true } },
-          approvedBy: { select: { id: true, name: true, email: true } },
-          items: {
-            orderBy: { srNo: 'asc' },
-            include: { product: true },
-          },
-        },
-      });
-
-      return updated;
-    });
-  }
-
-  /**
-   * Cancel report.
-   */
-  async cancelReport(companyId: string, userId: string, id: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const report = await tx.productionDailyReport.findUnique({
-        where: { id },
-        include: { items: true },
-      });
-
-      if (!report || report.companyId !== companyId) {
-        throw new NotFoundException(`Report with ID ${id} not found`);
+      // Re-add stock back since dispatch was cancelled
+      if (report.stockPostedAt) {
+        for (const item of report.items) {
+          if (item.productId && item.setQty > 0) {
+            await this.inventoryService.stockInFinishedGoods(
+              tx,
+              companyId,
+              item.productId,
+              item.setQty,
+              'DISPATCH_REPORT_CANCEL',
+              report.id,
+              item.id,
+              report.reportNo,
+              userId,
+              `Cancellation reversal of Dispatch Report ${report.reportNo}`,
+              'DISPATCH_REVERSAL'
+            );
+          }
+        }
       }
 
-      if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED') {
-        throw new BadRequestException(`Only SUBMITTED or APPROVED reports can be cancelled (current status: ${report.status})`);
-      }
-
-      // Reverse stock if it was posted
-      await this.reverseProductionStock(tx, report, companyId, userId);
-
-      const updated = await tx.productionDailyReport.update({
+      const updated = await tx.dispatchDailyReport.update({
         where: { id },
         data: {
           status: 'CANCELLED',
@@ -760,81 +662,5 @@ export class ProductionDailyReportService {
 
       return updated;
     });
-  }
-
-  /**
-   * Private helper to cleanly reverse stock and log reversal.
-   */
-  private async reverseProductionStock(
-    tx: Prisma.TransactionClient,
-    report: any,
-    companyId: string,
-    userId: string,
-  ) {
-    if (!report.stockPostedAt) return;
-
-    for (const item of report.items) {
-      if (item.productId && item.setQty > 0) {
-        const fgRecords = await tx.$queryRaw<any[]>`
-          SELECT id, quantity, "availableQuantity", "reservedQuantity"
-          FROM "FinishedGoods"
-          WHERE "productId" = ${item.productId}
-          FOR UPDATE
-        `;
-
-        const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
-        if (item.setQty > totalAvail) {
-          throw new BadRequestException(
-            `Cannot cancel or reopen report. Reversing production for product ID ${item.productId} would result in negative available stock. Available: ${totalAvail}, Required: ${item.setQty}.`
-          );
-        }
-
-        let remainingToDeduct = item.setQty;
-        let beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-        let beforeAvailTotal = totalAvail;
-
-        for (const fg of fgRecords) {
-          if (remainingToDeduct <= 0) break;
-          const currentAvail = Number(fg.availableQuantity || 0);
-          const deduct = Math.min(currentAvail, remainingToDeduct);
-          if (deduct <= 0) continue;
-
-          const newAvail = currentAvail - deduct;
-          const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
-
-          await tx.finishedGoods.update({
-            where: { id: fg.id },
-            data: {
-              availableQuantity: newAvail,
-              quantity: newQty,
-              status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
-            },
-          });
-          remainingToDeduct -= deduct;
-        }
-
-        const afterQtyTotal = beforeQtyTotal - item.setQty;
-        const afterAvailTotal = beforeAvailTotal - item.setQty;
-
-        await tx.stockHistory.create({
-          data: {
-            companyId,
-            productId: item.productId,
-            quantity: -item.setQty,
-            event: 'PRODUCTION_REVERSAL',
-            actor: userId,
-            beforeQuantity: beforeQtyTotal,
-            afterQuantity: afterQtyTotal,
-            beforeAvailableQuantity: beforeAvailTotal,
-            afterAvailableQuantity: afterAvailTotal,
-            sourceType: 'PRODUCTION_REPORT_CANCEL',
-            sourceId: report.id,
-            sourceItemId: item.id,
-            referenceNumber: report.reportNo,
-            remarks: `Cancellation/Reopen reversal of Production Report ${report.reportNo}`,
-          },
-        });
-      }
-    }
   }
 }

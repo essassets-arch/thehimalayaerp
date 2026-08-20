@@ -6,10 +6,14 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { ProductionStatus, QCResult } from '@prisma/client';
 import { QcPassDto } from './dto/qc-pass.dto';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class ProductionWorkflowService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   async getQcHistoryInspections() {
     const inspections = await this.prisma.qCInspection.findMany({
@@ -582,6 +586,54 @@ export class ProductionWorkflowService {
   }
 
   async getFinishedGoods(companyId?: string, userId?: string, role?: string) {
+    // Reconcile any unposted submitted production reports first
+    try {
+      const activeCompanyId = companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const unpostedProd = await this.prisma.productionDailyReport.findMany({
+        where: {
+          status: 'SUBMITTED',
+          stockPostedAt: null,
+        },
+        include: {
+          items: true,
+        },
+      });
+
+      if (unpostedProd.length > 0) {
+        console.log(`[RECONCILE] Found ${unpostedProd.length} unposted submitted production reports. Reconciling...`);
+        for (const report of unpostedProd) {
+          await this.prisma.$transaction(async (tx) => {
+            for (const item of report.items) {
+              if (item.productId && item.setQty > 0) {
+                await this.inventoryService.stockInFinishedGoods(
+                  tx,
+                  report.companyId || activeCompanyId,
+                  item.productId,
+                  item.setQty,
+                  'PRODUCTION_REPORT',
+                  report.id,
+                  item.id,
+                  report.reportNo,
+                  userId || report.createdById || 'system',
+                  `Reconciled auto-post for report ${report.reportNo}`
+                );
+              }
+            }
+            await tx.productionDailyReport.update({
+              where: { id: report.id },
+              data: {
+                stockPostedAt: new Date(),
+                stockPostedBy: userId || report.createdById || 'system',
+              },
+            });
+          });
+        }
+        console.log('[RECONCILE] Reconciled stock completed successfully.');
+      }
+    } catch (reconcileErr) {
+      console.error('[RECONCILE] Failed to reconcile unposted reports:', reconcileErr);
+    }
+
     let userCategory: string | null = null;
     if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
       const u: any = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -952,96 +1004,21 @@ export class ProductionWorkflowService {
       throw new NotFoundException('Finished Good product not found');
     }
 
+    const companyId = dto.companyId || product.companyId;
+
     return await this.prisma.$transaction(async (tx) => {
-      let fg = await tx.finishedGoods.findFirst({
-        where: { productId: product.id },
-      });
-
-      if (!fg) {
-        let plan = await tx.productionPlan.findFirst();
-        if (!plan) {
-          let salesOrder = await tx.salesOrder.findFirst();
-          if (!salesOrder) {
-            let customer = await tx.customer.findFirst();
-            if (!customer) {
-              const comp = await tx.company.findFirst();
-              customer = await tx.customer.create({
-                data: {
-                  companyId: comp?.id || 'default-company',
-                  companyName: 'Internal Stock Customer',
-                  customerCode: `CUST-${Date.now().toString().slice(-4)}`,
-                },
-              });
-            }
-            salesOrder = await tx.salesOrder.create({
-              data: {
-                orderNumber: `SO-STOCK-${Date.now().toString().slice(-5)}`,
-                customerId: customer.id,
-                status: 'CONFIRMED',
-                totalAmount: 0,
-                subtotal: 0,
-                taxableAmount: 0,
-                createdById: userId || 'system',
-              },
-            });
-          }
-          plan = await tx.productionPlan.create({
-            data: {
-              planNumber: `PP-STOCK-${Date.now().toString().slice(-5)}`,
-              salesOrderId: salesOrder.id,
-              status: 'APPROVED',
-            },
-          });
-        }
-
-        const wo = await tx.workOrder.create({
-          data: {
-            workOrderNumber: `WO-STOCK-${Date.now().toString().slice(-5)}`,
-            productionPlanId: plan.id,
-            quantity: qty,
-            status: 'READY_FOR_DISPATCH',
-          },
-        });
-
-        fg = await tx.finishedGoods.create({
-          data: {
-            workOrderId: wo.id,
-            productId: product.id,
-            quantity: qty,
-            availableQuantity: qty,
-            unit: product.unit || 'PCS',
-            status: 'AVAILABLE',
-            receivedById: userId,
-          },
-        });
-      } else {
-        fg = await tx.finishedGoods.update({
-          where: { id: fg.id },
-          data: {
-            quantity: { increment: qty },
-            availableQuantity: { increment: qty },
-            status: 'AVAILABLE',
-          },
-        });
-      }
-
-      // Record Inventory Transaction
-      const comp = await tx.company.findFirst();
-      const warehouse = await tx.warehouse.findFirst();
-      if (comp && warehouse) {
-        await tx.inventoryTransaction.create({
-          data: {
-            companyId: comp.id,
-            productId: product.id,
-            warehouseId: warehouse.id,
-            type: 'IN',
-            quantity: qty,
-            referenceType: 'FINISHED_GOODS_STOCK_IN',
-            referenceId: dto.reference || fg.id,
-          },
-        });
-      }
-
+      const fg = await this.inventoryService.stockInFinishedGoods(
+        tx,
+        companyId,
+        product.id,
+        qty,
+        'MANUAL',
+        dto.reference || 'MANUAL_STOCK_IN',
+        null,
+        dto.reference || 'MANUAL_STOCK_IN',
+        userId || 'system',
+        'Manual stock in from UI'
+      );
       return fg;
     });
   }
@@ -1071,55 +1048,21 @@ export class ProductionWorkflowService {
       throw new NotFoundException('Finished Good product not found');
     }
 
-    const fgRecords = await this.prisma.finishedGoods.findMany({
-      where: { productId: product.id },
-    });
-
-    const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
-
-    // CRITICAL NEGATIVE STOCK PROTECTION
-    if (qty > totalAvail) {
-      throw new BadRequestException(
-        `Insufficient finished goods stock. Available: ${totalAvail} ${product.unit || 'PCS'}. Requested: ${qty} ${product.unit || 'PCS'}.`
-      );
-    }
+    const companyId = dto.companyId || product.companyId;
 
     return await this.prisma.$transaction(async (tx) => {
-      let remainingToDeduct = qty;
-      for (const fg of fgRecords) {
-        if (remainingToDeduct <= 0) break;
-        const currentAvail = Number(fg.availableQuantity || 0);
-        const deduct = Math.min(currentAvail, remainingToDeduct);
-        const newAvail = currentAvail - deduct;
-        const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
-
-        await tx.finishedGoods.update({
-          where: { id: fg.id },
-          data: {
-            availableQuantity: newAvail,
-            quantity: newQty,
-            status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
-          },
-        });
-        remainingToDeduct -= deduct;
-      }
-
-      // Record Inventory Transaction
-      const comp = await tx.company.findFirst();
-      const warehouse = await tx.warehouse.findFirst();
-      if (comp && warehouse) {
-        await tx.inventoryTransaction.create({
-          data: {
-            companyId: comp.id,
-            productId: product.id,
-            warehouseId: warehouse.id,
-            type: 'OUT',
-            quantity: qty,
-            referenceType: 'FINISHED_GOODS_STOCK_OUT',
-            referenceId: dto.reason || 'MANUAL_STOCK_OUT',
-          },
-        });
-      }
+      await this.inventoryService.stockOutFinishedGoods(
+        tx,
+        companyId,
+        product.id,
+        qty,
+        'MANUAL',
+        dto.reason || 'MANUAL_STOCK_OUT',
+        null,
+        dto.reason || 'MANUAL_STOCK_OUT',
+        userId || 'system',
+        'Manual stock out from UI'
+      );
 
       return { success: true, message: `Successfully issued -${qty} ${product.unit || 'PCS'}` };
     });
@@ -1153,113 +1096,23 @@ export class ProductionWorkflowService {
       throw new NotFoundException('Finished Good product not found');
     }
 
+    const companyId = dto.companyId || product.companyId;
+
     return await this.prisma.$transaction(async (tx) => {
-      const fgRecords = await tx.finishedGoods.findMany({
-        where: { productId: product.id },
-      });
-
-      const currentTotal = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
-      const diff = newStock - currentTotal;
-
-      if (fgRecords.length > 0) {
-        const primary = fgRecords[0];
-        await tx.finishedGoods.update({
-          where: { id: primary.id },
-          data: {
-            quantity: newStock,
-            availableQuantity: newStock,
-            status: newStock <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
-          },
-        });
-
-        for (let i = 1; i < fgRecords.length; i++) {
-          await tx.finishedGoods.update({
-            where: { id: fgRecords[i].id },
-            data: {
-              quantity: 0,
-              availableQuantity: 0,
-              status: 'OUT_OF_STOCK',
-            },
-          });
-        }
-      } else {
-        let plan = await tx.productionPlan.findFirst();
-        if (!plan) {
-          let salesOrder = await tx.salesOrder.findFirst();
-          if (!salesOrder) {
-            let customer = await tx.customer.findFirst();
-            if (!customer) {
-              const comp = await tx.company.findFirst();
-              customer = await tx.customer.create({
-                data: {
-                  companyId: comp?.id || 'default-company',
-                  companyName: 'Internal Stock Customer',
-                  customerCode: `CUST-${Date.now().toString().slice(-4)}`,
-                },
-              });
-            }
-            salesOrder = await tx.salesOrder.create({
-              data: {
-                orderNumber: `SO-STOCK-${Date.now().toString().slice(-5)}`,
-                customerId: customer.id,
-                status: 'CONFIRMED',
-                totalAmount: 0,
-                subtotal: 0,
-                taxableAmount: 0,
-                createdById: userId || 'system',
-              },
-            });
-          }
-          plan = await tx.productionPlan.create({
-            data: {
-              planNumber: `PP-STOCK-${Date.now().toString().slice(-5)}`,
-              salesOrderId: salesOrder.id,
-              status: 'APPROVED',
-            },
-          });
-        }
-
-        const wo = await tx.workOrder.create({
-          data: {
-            workOrderNumber: `WO-STOCK-${Date.now().toString().slice(-5)}`,
-            productionPlanId: plan.id,
-            quantity: newStock,
-            status: 'READY_FOR_DISPATCH',
-          },
-        });
-
-        await tx.finishedGoods.create({
-          data: {
-            workOrderId: wo.id,
-            productId: product.id,
-            quantity: newStock,
-            availableQuantity: newStock,
-            unit: product.unit || 'PCS',
-            status: newStock <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
-            receivedById: userId,
-          },
-        });
-      }
-
-      // Record Inventory Transaction
-      const comp = await tx.company.findFirst();
-      const warehouse = await tx.warehouse.findFirst();
-      if (comp && warehouse) {
-        await tx.inventoryTransaction.create({
-          data: {
-            companyId: comp.id,
-            productId: product.id,
-            warehouseId: warehouse.id,
-            type: 'ADJUSTMENT',
-            quantity: Math.abs(diff),
-            referenceType: `ADJUSTMENT_${diff >= 0 ? 'IN' : 'OUT'}`,
-            referenceId: dto.reason,
-          },
-        });
-      }
+      await this.inventoryService.adjustFinishedGoods(
+        tx,
+        companyId,
+        product.id,
+        newStock,
+        dto.reason,
+        userId || 'system'
+      );
 
       return { success: true, message: `Adjusted physical stock to ${newStock} ${product.unit || 'PCS'}` };
     });
   }
-}
 
+  async getFinishedGoodsHistory(companyId: string, productId: string) {
+    return this.inventoryService.getFinishedGoodsHistory(companyId, productId);
+  }
+}

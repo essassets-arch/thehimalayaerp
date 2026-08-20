@@ -236,6 +236,7 @@ export class DispatchService {
               },
               data: {
                 quantity: { decrement: deduct },
+                reservedQuantity: { decrement: deduct },
               },
             });
 
