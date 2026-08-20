@@ -64,6 +64,13 @@ export class SuperAdminController {
       throw new ForbiddenException('Access Denied: Insufficient permissions to view the Live User Map.');
     }
 
+    const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isSuperAdmin = normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'SUPER_ADMIN_ROLE' || normalizedRole === 'SUPER_ADMIN_PORTAL';
+
+    if (isSuperAdmin) {
+      return this.locationService.getLiveUsers();
+    }
+
     return this.locationService.getLiveUsers(user.companyId);
   }
 

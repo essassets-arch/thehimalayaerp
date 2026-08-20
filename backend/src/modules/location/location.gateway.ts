@@ -78,6 +78,11 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
         const roomName = `company:${companyId}:live-users`;
         await socket.join(roomName);
         this.logger.log(`Admin ${socket.data.user.email} joined real-time dashboard room: ${roomName}`);
+
+        if (isSuperAdmin) {
+          await socket.join('global:live-users');
+          this.logger.log(`Super Admin ${socket.data.user.email} joined global real-time room: global:live-users`);
+        }
       }
 
       this.logger.log(`User connected: ${socket.data.user.email} (${socket.id})`);
@@ -94,11 +99,14 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       const companyId = socket.data.user.companyId;
       const roomName = `company:${companyId}:live-users`;
       
-      this.server.to(roomName).emit('device:disconnected', {
+      const disconnectData = {
         userId: socket.data.user.userId,
         socketId: socket.id,
         disconnectedAt: new Date().toISOString(),
-      });
+      };
+
+      this.server.to(roomName).emit('device:disconnected', disconnectData);
+      this.server.to('global:live-users').emit('device:disconnected', disconnectData);
     }
   }
 
@@ -119,7 +127,7 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       socket.data.sessionId = result.sessionId;
 
       const roomName = `company:${user.companyId}:live-users`;
-      this.server.to(roomName).emit('device:connected', {
+      const payload = {
         userId: user.userId,
         email: user.email,
         name: user.name || 'User',
@@ -134,7 +142,10 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
         locationPermission: dto.locationPermission || 'PROMPT',
         lastSeenAt: new Date().toISOString(),
         status: 'ONLINE',
-      });
+      };
+
+      this.server.to(roomName).emit('device:connected', payload);
+      this.server.to('global:live-users').emit('device:connected', payload);
 
       return { success: true, sessionId: result.sessionId };
     } catch (err: any) {
@@ -158,12 +169,15 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       await this.locationService.heartbeat(user.userId, body.sessionId);
 
       const roomName = `company:${user.companyId}:live-users`;
-      this.server.to(roomName).emit('device:heartbeat', {
+      const payload = {
         userId: user.userId,
         sessionId: body.sessionId,
         lastSeenAt: new Date().toISOString(),
         status: 'ONLINE',
-      });
+      };
+
+      this.server.to(roomName).emit('device:heartbeat', payload);
+      this.server.to('global:live-users').emit('device:heartbeat', payload);
 
       return { success: true };
     } catch (err: any) {
@@ -187,7 +201,7 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       const loc = await this.locationService.updateLocation(user.userId, user.companyId, dto);
 
       const roomName = `company:${user.companyId}:live-users`;
-      this.server.to(roomName).emit('user:location:update', {
+      const payload = {
         userId: user.userId,
         sessionId: dto.sessionId,
         latitude: Number(loc.latitude),
@@ -198,7 +212,10 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
         batteryLevel: dto.batteryLevel,
         capturedAt: dto.capturedAt,
         status: 'ONLINE',
-      });
+      };
+
+      this.server.to(roomName).emit('user:location:update', payload);
+      this.server.to('global:live-users').emit('user:location:update', payload);
 
       return { success: true };
     } catch (err: any) {
@@ -223,12 +240,15 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       await this.locationService.updatePermission(user.userId, dto.sessionId, dto.locationPermission);
 
       const roomName = `company:${user.companyId}:live-users`;
-      this.server.to(roomName).emit('device:permission:update', {
+      const payload = {
         userId: user.userId,
         sessionId: dto.sessionId,
         locationPermission: dto.locationPermission,
         status: 'ONLINE',
-      });
+      };
+
+      this.server.to(roomName).emit('device:permission:update', payload);
+      this.server.to('global:live-users').emit('device:permission:update', payload);
 
       return { success: true };
     } catch (err: any) {

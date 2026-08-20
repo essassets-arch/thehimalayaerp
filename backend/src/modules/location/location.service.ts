@@ -297,18 +297,20 @@ export class LocationService {
   }
 
   /**
-   * Fetch all user sessions and their locations for the company.
+   * Fetch all user sessions and their locations for the company, or all companies if companyId is omitted.
    */
-  async getLiveUsers(companyId: string): Promise<LiveUserResponse[]> {
+  async getLiveUsers(companyId?: string): Promise<LiveUserResponse[]> {
     const now = new Date();
     const onlineCutoff = new Date(now.getTime() - ONLINE_THRESHOLD_SECONDS * 1000);
     const recentCutoff = new Date(now.getTime() - RECENT_THRESHOLD_SECONDS * 1000);
 
+    const whereClause: any = { isActive: true };
+    if (companyId) {
+      whereClause.companyId = companyId;
+    }
+
     const users = await this.prisma.user.findMany({
-      where: {
-        companyId,
-        isActive: true,
-      },
+      where: whereClause,
       select: {
         id: true,
         name: true,
