@@ -376,9 +376,37 @@ export class QuotationsService {
         );
       if (dto.items)
         await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+      // 1. If leadId is present or updated, update the associated Lead's name, group, GST details
+      const targetLeadId = dto.leadId !== undefined ? dto.leadId : quotation.leadId;
+      if (targetLeadId) {
+        await tx.lead.update({
+          where: { id: targetLeadId },
+          data: {
+            companyName: dto.customerName !== undefined ? dto.customerName : undefined,
+            groupName: dto.groupName !== undefined ? dto.groupName : undefined,
+            gstName: dto.gstName !== undefined ? dto.gstName : undefined,
+            gstNumber: dto.gstNumber !== undefined ? dto.gstNumber : undefined,
+          },
+        });
+      }
+
+      // 2. If customerId is present or updated, update the associated Customer's name and GST
+      const targetCustomerId = dto.customerId !== undefined ? dto.customerId : quotation.customerId;
+      if (targetCustomerId) {
+        await tx.customer.update({
+          where: { id: targetCustomerId },
+          data: {
+            companyName: dto.customerName !== undefined ? dto.customerName : undefined,
+            gstin: dto.gstNumber !== undefined ? dto.gstNumber : undefined,
+          },
+        });
+      }
+
       return tx.quotation.update({
         where: { id },
         data: {
+          leadId: dto.leadId !== undefined ? dto.leadId : undefined,
+          customerId: dto.customerId !== undefined ? dto.customerId : undefined,
           validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
           remarks: dto.remarks,
           paymentTerms: paymentTermInfo.paymentTerms !== undefined ? paymentTermInfo.paymentTerms : undefined,
