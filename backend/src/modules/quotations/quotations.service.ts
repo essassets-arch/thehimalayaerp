@@ -323,7 +323,53 @@ export class QuotationsService {
         throw new BadRequestException('Only DRAFT or NEW quotations can be edited');
       }
       const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
-      const totals = dto.items ? this.calculate(dto.items) : null;
+
+      const resolvedItems = dto.items
+        ? await Promise.all(
+            (dto.items || []).map(async (item: any) => {
+              let product = await tx.product.findFirst({
+                where: {
+                  isActive: true,
+                  OR: [
+                    ...(item.productId
+                      ? [{ id: item.productId }, { publicId: item.productId }]
+                      : []),
+                    ...(item.productCode
+                      ? [{ sku: item.productCode }, { publicId: item.productCode }]
+                      : []),
+                    ...(item.productName
+                      ? [
+                          {
+                            name: {
+                              equals: item.productName,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+                select: { id: true },
+              });
+
+              if (!product) {
+                product = await tx.product.findFirst({
+                  where: { isActive: true },
+                  select: { id: true },
+                });
+              }
+
+              if (!product) {
+                throw new BadRequestException(
+                  `Product "${item.productName || item.productCode || item.productId || 'Unknown'}" was not found in the product database.`,
+                );
+              }
+              return { ...item, productId: product.id };
+            }),
+          )
+        : null;
+
+      const totals = resolvedItems ? this.calculate(resolvedItems) : null;
       if (dto.items && !totals?.processedItems.length)
         throw new BadRequestException(
           'At least one quotation item is required',
