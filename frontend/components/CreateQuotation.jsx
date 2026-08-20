@@ -155,17 +155,42 @@ export default function CreateQuotation({
   const getInitialItems = () => {
     const sourceItems = quotationDraft ? (Array.isArray(quotationDraft.detailedItems) ? quotationDraft.detailedItems : (Array.isArray(quotationDraft.items) ? quotationDraft.items : null)) : null;
     if (sourceItems && sourceItems.length > 0) {
-      return sourceItems.map((item, idx) => ({
-        id: idx + 1,
-        productName: item.productName || item.name || '',
-        productDetails: item.productDetails || item.description || item.specification || '',
-        quantity: item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1),
-        unitPrice: item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 100),
-        discount: item.discount || 0,
-        tax: item.tax !== undefined ? item.tax : 18,
-        productId: item.productId || item.productCode || item.code,
-        code: item.code || item.productCode || ''
-      }));
+      return sourceItems.map((item, idx) => {
+        const qty = Number(item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1));
+        const price = Number(item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 100));
+        const gross = qty * price;
+        
+        let discountPct = 0;
+        const discountAmt = Number(item.discountAmount !== undefined ? item.discountAmount : (item.discount || 0));
+        if (gross > 0 && discountAmt > 0) {
+          discountPct = Math.round((discountAmt / gross) * 100);
+          if (discountPct > 100) discountPct = 0; // Guard against raw percentage storage fallback
+        } else if (item.discount !== undefined && item.discount > 0 && item.discount <= 100 && discountAmt === item.discount) {
+          discountPct = item.discount;
+        }
+
+        let taxPct = 18;
+        const taxAmt = Number(item.taxAmount !== undefined ? item.taxAmount : (item.tax || 0));
+        const taxable = gross - discountAmt;
+        if (taxable > 0 && taxAmt > 0) {
+          taxPct = Math.round((taxAmt / taxable) * 100);
+          if (taxPct > 100) taxPct = 18; // Guard against raw percentage storage fallback
+        } else if (item.tax !== undefined && item.tax <= 100) {
+          taxPct = item.tax;
+        }
+
+        return {
+          id: idx + 1,
+          productName: item.productName || item.name || '',
+          productDetails: item.productDetails || item.description || item.specification || '',
+          quantity: qty,
+          unitPrice: price,
+          discount: discountPct,
+          tax: taxPct,
+          productId: item.productId || item.productCode || item.code,
+          code: item.code || item.productCode || ''
+        };
+      });
     }
     return [
       { 

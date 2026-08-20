@@ -126,9 +126,40 @@ export function useQuotations(showToast, autoLoad = true) {
           });
         }
       } else {
+        const rawItems = Array.isArray(updatedData.detailedItems) && updatedData.detailedItems.length > 0
+          ? updatedData.detailedItems
+          : Array.isArray(updatedData.items)
+          ? updatedData.items
+          : [];
+
+        const mappedItems = rawItems.map((item) => {
+          const quantity = Number(item.quantity || item.qty || 0);
+          const unitPrice = Number(item.unitPrice || item.rate || item.price || 0);
+          const gross = quantity * unitPrice;
+          const discPct = Number(item.discount || 0);
+          const taxPct = item.tax !== undefined ? Number(item.tax) : 18;
+          const discount = gross * (discPct / 100);
+          const tax = (gross - discount) * (taxPct / 100);
+          return {
+            productId: item.productId || item.productCode || item.code || undefined,
+            productName: item.productName || item.name || 'Custom Product',
+            productCode: item.productCode || item.code || undefined,
+            description: item.productDetails || item.specification || item.description || item.productName || item.name || '',
+            quantity,
+            unitPrice,
+            discount,
+            tax,
+          };
+        });
+
+        const patchPayload = {
+          ...updatedData,
+          items: mappedItems,
+        };
+
         await backendFetch(`/api/backend/crm/quotations/${quotationId}`, {
           method: 'PATCH',
-          body: updatedData,
+          body: patchPayload,
         });
       }
       await loadQuotations();
