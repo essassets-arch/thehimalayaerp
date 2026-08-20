@@ -44,7 +44,7 @@ echo " ✅ PostgreSQL healthy."
 
 echo ""
 echo "💾 Step 4a: Taking automated database backup before applying migrations..."
-./scripts/backup-db.sh || true
+bash ./scripts/backup-db.sh || true
 
 echo ""
 echo "⚙️ Step 4b: Running Prisma database migrations..."
