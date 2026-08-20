@@ -175,7 +175,7 @@ export default function CreateQuotation({
     isGstRegistered: quotationDraft && (quotationDraft.isGstRegistered === false || quotationDraft.gstNumber === '') ? 'NO' : 'YES',
     gstNumber: quotationDraft ? (quotationDraft.gstNumber || '') : '',
     gstName: quotationDraft ? (quotationDraft.gstName || quotationDraft.customerName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
-    validTill: quotationDraft ? (quotationDraft.validTill || quotationDraft.validityDate || defaultValidTill()) : defaultValidTill(),
+    validTill: quotationDraft ? (formatInputDate(quotationDraft.validTill || quotationDraft.validityDate) || defaultValidTill()) : defaultValidTill(),
     paymentTerms: quotationDraft ? (quotationDraft.paymentTerms || '15 Days') : '15 Days',
     items: getInitialItems(),
     transportCharge: quotationDraft ? (quotationDraft.transportCharge !== undefined && quotationDraft.transportCharge !== null ? quotationDraft.transportCharge : (quotationDraft.expectedTransportationCost !== undefined && quotationDraft.expectedTransportationCost !== null ? quotationDraft.expectedTransportationCost : '')) : '',

@@ -612,6 +612,7 @@ export default function QuotationsView({
   if (editingQuotation) {
     return (
       <CreateQuotation
+        key={`edit-${editingQuotation.id}`}
         leads={leads}
         customers={customers}
         editingQuotation={editingQuotation}
