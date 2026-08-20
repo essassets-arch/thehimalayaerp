@@ -527,8 +527,9 @@ export default function CreateQuotation({
           productId: item.productId || item.productCode || `PRD-${Date.now()}`,
           productName: item.name || item.productName || 'Custom Product',
           productCode: item.productCode || item.productId || '',
-          specification: item.description || item.specification || '',
-          productDetails: item.description || item.specification || '',
+          description: item.productDetails || item.description || item.specification || '',
+          specification: item.productDetails || item.description || item.specification || '',
+          productDetails: item.productDetails || item.description || item.specification || '',
           quantity: itemQty,
           unitPrice: itemUnitPrice,
           discount: discPct,
@@ -545,6 +546,7 @@ export default function CreateQuotation({
       totalAmount: Math.round(grandTotal),
       date: new Date().toISOString().split('T')[0],
       validTill,
+      validUntil: validTill,
       paymentTerms,
       notes: notes.trim(),
       source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : undefined),
@@ -558,22 +560,9 @@ export default function CreateQuotation({
       let success = false;
       try {
         if (editingQuotation && onUpdateQuotation) {
-          const itemsDescription = items.map(item => item.productDetails ? `${item.productName} (${item.productDetails}) (x${item.quantity})` : `${item.productName} (x${item.quantity})`).join(', ');
-          
           await onUpdateQuotation(editingQuotation.id, {
             ...payload,
-            items: itemsDescription,
-            detailedItems: items.map(item => ({
-              id: item.id,
-              productName: item.productName,
-              productDetails: item.productDetails,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discount: item.discount,
-              tax: item.tax,
-              productId: item.productId,
-              code: item.code
-            }))
+            detailedItems: payload.items
           });
           success = true;
           onCancel();
