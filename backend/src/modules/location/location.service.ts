@@ -4,8 +4,8 @@ import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationDto } from './dto/location-update.dto';
 import { LocationPermissionState, ClientType } from '@prisma/client';
 
-export const ONLINE_THRESHOLD_SECONDS = 60;
-export const RECENT_THRESHOLD_SECONDS = 300;
+export const ONLINE_THRESHOLD_SECONDS = 90; // 90 seconds window for active heartbeat
+export const RECENT_THRESHOLD_SECONDS = 300; // 5 minutes window for recently active
 
 export interface LiveUserResponse {
   userId: string;
@@ -411,11 +411,20 @@ export class LocationService {
 
     if (!user || !user.role) return false;
 
-    const normalizedRole = String(user.role.code || '').toUpperCase().replace(/[\s-]+/g, '_');
-    if (normalizedRole === 'SUPER_ADMIN') return true;
+    const normalizedRole = String(user.role.code || user.role.name || '').toUpperCase().replace(/[\s-]+/g, '_');
+    if (
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole.includes('ADMIN') ||
+      normalizedRole.includes('PLANT_HEAD') ||
+      normalizedRole.includes('HR') ||
+      normalizedRole.includes('SALES') ||
+      normalizedRole.includes('MANAGER') ||
+      normalizedRole.includes('DIRECTOR')
+    ) return true;
 
     const perms = user.role.rolePermissions.map((rp) => rp.permission.code);
-    return perms.includes('LIVE_USER_MAP_VIEW');
+    return perms.includes('LIVE_USER_MAP_VIEW') || perms.includes('SUPER_ADMIN') || perms.includes('ADMIN');
   }
 
   /**
@@ -437,11 +446,20 @@ export class LocationService {
 
     if (!user || !user.role) return false;
 
-    const normalizedRole = String(user.role.code || '').toUpperCase().replace(/[\s-]+/g, '_');
-    if (normalizedRole === 'SUPER_ADMIN') return true;
+    const normalizedRole = String(user.role.code || user.role.name || '').toUpperCase().replace(/[\s-]+/g, '_');
+    if (
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole.includes('ADMIN') ||
+      normalizedRole.includes('PLANT_HEAD') ||
+      normalizedRole.includes('HR') ||
+      normalizedRole.includes('SALES') ||
+      normalizedRole.includes('MANAGER') ||
+      normalizedRole.includes('DIRECTOR')
+    ) return true;
 
     const perms = user.role.rolePermissions.map((rp) => rp.permission.code);
-    return perms.includes('USER_LOCATION_HISTORY_VIEW');
+    return perms.includes('USER_LOCATION_HISTORY_VIEW') || perms.includes('LIVE_USER_MAP_VIEW') || perms.includes('SUPER_ADMIN') || perms.includes('ADMIN');
   }
 
   /**
