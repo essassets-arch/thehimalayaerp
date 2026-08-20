@@ -414,7 +414,7 @@ export class QuotationsService {
             companyName: dto.customerName !== undefined ? dto.customerName : undefined,
             groupName: dto.groupName !== undefined ? dto.groupName : undefined,
             gstName: dto.gstName !== undefined ? dto.gstName : undefined,
-            gstNumber: dto.gstNumber !== undefined ? dto.gstNumber : undefined,
+            gstNumber: dto.gstNumber !== undefined ? (dto.gstNumber || null) : undefined,
           },
         });
       }
@@ -426,7 +426,7 @@ export class QuotationsService {
           where: { id: targetCustomerId },
           data: {
             companyName: dto.customerName !== undefined ? dto.customerName : undefined,
-            gstin: dto.gstNumber !== undefined ? dto.gstNumber : undefined,
+            gstin: dto.gstNumber !== undefined ? (dto.gstNumber || null) : undefined,
           },
         });
       }
