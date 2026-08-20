@@ -141,6 +141,17 @@ export default function CreateQuotation({
     return d.toISOString().split('T')[0];
   };
 
+  const formatInputDate = (dateVal) => {
+    if (!dateVal) return '';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
   const getInitialItems = () => {
     const sourceItems = quotationDraft ? (Array.isArray(quotationDraft.detailedItems) ? quotationDraft.detailedItems : (Array.isArray(quotationDraft.items) ? quotationDraft.items : null)) : null;
     if (sourceItems && sourceItems.length > 0) {
