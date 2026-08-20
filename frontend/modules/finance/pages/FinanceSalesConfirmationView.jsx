@@ -494,7 +494,6 @@ export default function FinanceSalesConfirmationView() {
               <tr>
                 {activeTab !== 'Payment Outstanding' && activeTab !== 'Closed Orders' && <th className="px-4 py-3">Conf. ID</th>}
                 <th className="px-4 py-3">Order ID</th>
-                <th className="px-4 py-3">Invoice #</th>
                 <th className="px-4 py-3">Customer</th>
                 {activeTab !== 'Payment Outstanding' && activeTab !== 'Closed Orders' && (
                   <>
@@ -524,7 +523,6 @@ export default function FinanceSalesConfirmationView() {
                       <td className="px-4 py-3 font-medium text-gray-900">{r.confirmationId}</td>
                     )}
                     <td className="px-4 py-3 text-gray-500">{r.orderId}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.invoiceNo}</td>
                     <td className="px-4 py-3">{r.customerName}</td>
                     
                     {r.type === 'CONFIRMATION' && (

@@ -19,6 +19,7 @@ export default function OutstandingView() {
   const user = useAuthStore((s) => s.user);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshCounter, setRefreshCounter] = useState(0);
   const [activePreset, setActivePreset] = useState('All');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [minOutstanding, setMinOutstanding] = useState('');
@@ -62,6 +63,18 @@ export default function OutstandingView() {
     },
   });
 
+  React.useEffect(() => {
+    const handleStorage = () => {
+      setRefreshCounter((prev) => prev + 1);
+      refetchOrders();
+      refetchPayments();
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [refetchOrders, refetchPayments]);
+
   const orders = useMemo(() => {
     const combined = [...backendOrders, ...localOrders];
     return combined.filter((order, index, list) => {
@@ -76,19 +89,44 @@ export default function OutstandingView() {
   const outstandingList = useMemo(() => {
     return orders.map((o) => {
       const totalAmount = Number(o.grandTotal ?? o.totalAmount ?? 0);
+      
+      // 1. Backend verified payments
       const backendPaidAmount = backendPayments
         .filter((payment) =>
           String(payment.salesOrderId || payment.salesOrder?.id || '') === String(o.id) &&
           ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(payment.status || '').toUpperCase())
         )
         .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+      // 2. Local state verified payments
       const localPaidAmount = localCustomerPayments
         .filter((payment) =>
           String(payment.orderId || '') === String(o.id) &&
           payment.verificationStatus === 'FINANCE_VERIFIED'
         )
         .reduce((sum, payment) => sum + Number(payment.paymentAmount || 0), 0);
-      const paidAmount = backendPaidAmount || localPaidAmount;
+
+      // 3. LocalStorage confirmations verified payments
+      let storagePaidAmount = 0;
+      try {
+        const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
+        if (raw) {
+          const list = JSON.parse(raw);
+          storagePaidAmount = list
+            .filter((c) => {
+              const orderIdKey = String(c.orderId || c.orderNo || '').replace(/^ORD-/, '').trim().toLowerCase();
+              const oIdKey = String(o.id || o.orderNo || '').replace(/^ORD-/, '').trim().toLowerCase();
+              return orderIdKey === oIdKey && c.status === 'FINANCE_VERIFIED';
+            })
+            .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+        }
+      } catch (e) {}
+
+      // 4. Order object's own pre-calculated paid field
+      const orderSelfPaid = Number(o.verifiedPaidAmount || 0);
+
+      // Take maximum to avoid double counting across local sync targets
+      const paidAmount = Math.max(backendPaidAmount, localPaidAmount, storagePaidAmount, orderSelfPaid);
       const outstanding = Math.max(totalAmount - paidAmount, 0);
 
       // Days Overdue
@@ -118,7 +156,7 @@ export default function OutstandingView() {
         reminderSent: followUps.some((f) => f.orderId === o.id)
       };
     }).filter((item) => item.outstanding > 0);
-  }, [orders, backendPayments, localCustomerPayments, followUps]);
+  }, [orders, backendPayments, localCustomerPayments, followUps, refreshCounter]);
 
   const salesmen = useMemo(() => Array.from(new Set(
     outstandingList.map((item) => item.salesPerson).filter((name) => name && name !== 'N/A')
