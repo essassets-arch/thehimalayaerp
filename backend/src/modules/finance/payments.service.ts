@@ -90,6 +90,32 @@ export class PaymentsService {
       },
       include: {
         customer: true,
+        quotation: {
+          select: {
+            paymentTerms: true,
+            paymentTermDays: true,
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            invoiceDate: true,
+            dueDate: true,
+            totalAmount: true,
+            status: true,
+          },
+        },
+        customerPayments: {
+          select: {
+            id: true,
+            paymentNo: true,
+            amount: true,
+            status: true,
+            receivedAt: true,
+            verifiedAt: true,
+          },
+        },
         dispatches: {
           select: {
             status: true,
@@ -119,17 +145,46 @@ export class PaymentsService {
         .map((dispatch) => dispatch.deliveredAt)
         .filter((date): date is Date => Boolean(date))
         .sort((left, right) => right.getTime() - left.getTime())[0];
+
+      const invoice = order.invoices?.[0];
+      const invoiceDate = invoice?.invoiceDate || deliveredAt || order.orderDate || order.createdAt;
+      const rawPaymentTerms = order.quotation?.paymentTerms || '';
+      const isAdvance = String(rawPaymentTerms).toLowerCase().includes('advance');
+      const paymentTermsDays = isAdvance ? 0 : (order.paymentTermsDays ?? order.quotation?.paymentTermDays ?? 15);
+      const paymentTerms = isAdvance ? 'Advance' : (rawPaymentTerms || `${paymentTermsDays} Days`);
+
+      let dueDate: Date | null = null;
+      if (invoice?.dueDate) {
+        dueDate = invoice.dueDate;
+      } else if (invoiceDate) {
+        dueDate = isAdvance ? new Date(invoiceDate) : new Date(new Date(invoiceDate).getTime() + paymentTermsDays * 86400000);
+      }
+
+      // Calculate verified paid amount from verified payments
+      const verifiedPaidAmount = order.customerPayments
+        ?.filter((cp) => ['VERIFIED', 'FINANCE_VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(cp.status || '').toUpperCase()))
+        ?.reduce((sum, cp) => sum + Number(cp.amount || 0), 0) || 0;
+
+      const totalAmount = Number(order.totalAmount || 0);
+      const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
+
       return {
         id: order.id,
         orderNo: order.orderNumber,
         orderId: order.orderNumber,
-        invoiceNo: `INV-${order.orderNumber}`,
+        invoiceNo: invoice?.invoiceNumber || `INV-${order.orderNumber}`,
+        invoiceDate: invoiceDate ? new Date(invoiceDate).toISOString() : undefined,
+        paymentTerms,
+        paymentTermsDays,
+        paymentDueDate: dueDate ? dueDate.toISOString() : undefined,
         customerId: order.customerId,
         customerName: order.customer.companyName,
         salespersonId: order.createdById,
         salesperson: salespersonNames.get(order.createdById) || 'Unassigned',
-        grandTotal: Number(order.totalAmount),
-        totalAmount: Number(order.totalAmount),
+        grandTotal: totalAmount,
+        totalAmount: totalAmount,
+        verifiedPaidAmount,
+        balanceAmount,
         dispatchStatus: 'DELIVERED',
         deliveredAt: deliveredAt?.toISOString(),
         podUrl: deliveredDispatches.find((dispatch) => dispatch.podUrl)?.podUrl,

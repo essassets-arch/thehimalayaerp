@@ -806,9 +806,11 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     <th>Customer</th>
                     <th>Delivery Date</th>
                     <th>Payment Terms</th>
-                    <th>Payment Due Date</th>
+                    <th>Due Date</th>
                     <th>Remaining Days</th>
                     <th style={{ textAlign: 'right' }}>Total Amount</th>
+                    <th style={{ textAlign: 'right' }}>Paid Amount</th>
+                    <th style={{ textAlign: 'right' }}>Pending Amount</th>
                     <th>Status</th>
                     <th>Reminder</th>
                     <th style={{ textAlign: 'right' }}>Action</th>
@@ -816,7 +818,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 </thead>
                 <tbody>
                   {pendingRows.length === 0 ? (
-                    <tr><td colSpan="11" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
+                    <tr><td colSpan="13" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
                   ) : (
                     pendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
@@ -834,20 +836,69 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                         const last = rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
                         return last?.followup_note ? `"${String(last.followup_note).slice(0, 60)}${String(last.followup_note).length > 60 ? '…' : ''}"` : '-';
                       })();
+
+                      const isAdv = String(o.payment_terms || '').toLowerCase().includes('advance');
+                      const remDays = o.remaining_days;
+
                       return (
                         <tr key={o.id}>
                           <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.order_number}</td>
                           <td data-label="Invoice No" style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.invoice_number}</td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
-                          <td data-label="Payment Terms" style={{ fontWeight: 700, color: '#0284c7' }}>{o.payment_terms || '15 Days'}</td>
-                          <td data-label="Payment Due Date">{isoDate(o.payment_due_date) || '—'}</td>
-                          <td data-label="Remaining Days" style={{ fontWeight: 700, color: Number(o.remaining_days) < 0 ? '#dc2626' : (Number(o.remaining_days) === 0 ? '#d97706' : '#334155') }}>
-                            {o.remaining_days === null ? '—' : (o.remaining_days === 0 && String(o.payment_terms).toLowerCase().includes('advance') ? '0 Days (Advance)' : o.remaining_days)}
+                          <td data-label="Payment Terms">
+                            <span style={{
+                              fontWeight: 700,
+                              color: isAdv ? '#0284c7' : '#2563eb',
+                              background: isAdv ? '#e0f2fe' : '#eff6ff',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                            }}>
+                              {o.payment_terms || '15 Days'}
+                            </span>
+                          </td>
+                          <td data-label="Due Date" style={{ fontSize: '12px', fontWeight: 600 }}>{isoDate(o.payment_due_date) || '—'}</td>
+                          <td data-label="Remaining Days">
+                            {isAdv ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#E0F2FE', color: '#0284C7', border: '1px solid #BAE6FD' }}>
+                                ⚡ Advance
+                              </span>
+                            ) : remDays === null ? (
+                              <span style={{ color: '#94a3b8' }}>—</span>
+                            ) : remDays > 0 ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: remDays <= 3 ? '#FEF3C7' : '#DCFCE7', color: remDays <= 3 ? '#D97706' : '#16A34A', border: `1px solid ${remDays <= 3 ? '#FDE68A' : '#BBF7D0'}` }}>
+                                🟢 {remDays} {remDays === 1 ? 'Day' : 'Days'}
+                              </span>
+                            ) : remDays === 0 ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A' }}>
+                                🟡 Due Today
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
+                                🔴 Overdue {Math.abs(remDays)}d
+                              </span>
+                            )}
                           </td>
                           <td data-label="Total Amount" style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
-                          <td data-label="Status" style={{ fontWeight: 800 }}>{paymentLabel}</td>
-                          <td data-label="Reminder" style={{ whiteSpace: 'nowrap' }}>{o.reminder_label}</td>
+                          <td data-label="Paid Amount" style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{formatINR(paid)}</td>
+                          <td data-label="Pending Amount" style={{ textAlign: 'right', fontWeight: 900, color: bal > 0 ? '#dc2626' : '#16a34a' }}>{formatINR(bal)}</td>
+                          <td data-label="Status" style={{ fontWeight: 800 }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: paymentKey === 'PAID' ? '#dcfce7' : (paymentKey === 'PARTIALLY_PAID' ? '#dbeafe' : '#fef3c7'),
+                              color: paymentKey === 'PAID' ? '#166534' : (paymentKey === 'PARTIALLY_PAID' ? '#1e40af' : '#92400e'),
+                            }}>
+                              {paymentLabel}
+                            </span>
+                          </td>
+                          <td data-label="Reminder" style={{ whiteSpace: 'nowrap', fontSize: '12px', color: '#475569' }}>{o.reminder_label}</td>
                           <td data-label="Action" style={{ textAlign: 'right' }}>
                             {paymentKey === 'AWAITING_FINANCE_VERIFICATION' ? (
                               <span style={{ fontWeight: 800, color: '#d97706', whiteSpace: 'nowrap' }}>⏳ Verification Pending</span>
