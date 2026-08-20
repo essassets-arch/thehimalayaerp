@@ -169,16 +169,32 @@ export default function CreateQuotation({
     ];
   };
 
+  const resolvePaymentTerms = (q) => {
+    if (!q) return '15 Days';
+    return q.paymentTerms || q.payment_terms || '15 Days';
+  };
+
+  const resolveTransportCost = (q) => {
+    if (!q) return '';
+    if (q.expectedTransportationCost !== undefined && q.expectedTransportationCost !== null) {
+      return q.expectedTransportationCost;
+    }
+    if (q.transportCharge !== undefined && q.transportCharge !== null) {
+      return q.transportCharge;
+    }
+    return '';
+  };
+
   const emptyQuotationForm = {
     customerName: quotationDraft ? (quotationDraft.customerName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
     groupName: quotationDraft ? (quotationDraft.groupName || quotationDraft.group_name || '') : '',
     isGstRegistered: quotationDraft && (quotationDraft.isGstRegistered === false || quotationDraft.gstNumber === '') ? 'NO' : 'YES',
     gstNumber: quotationDraft ? (quotationDraft.gstNumber || '') : '',
     gstName: quotationDraft ? (quotationDraft.gstName || quotationDraft.customerName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
-    validTill: quotationDraft ? (formatInputDate(quotationDraft.validTill || quotationDraft.validityDate) || defaultValidTill()) : defaultValidTill(),
-    paymentTerms: quotationDraft ? (quotationDraft.paymentTerms || '15 Days') : '15 Days',
+    validTill: quotationDraft ? (formatInputDate(quotationDraft.validUntil || quotationDraft.validTill || quotationDraft.validityDate) || defaultValidTill()) : defaultValidTill(),
+    paymentTerms: resolvePaymentTerms(quotationDraft),
     items: getInitialItems(),
-    transportCharge: quotationDraft ? (quotationDraft.transportCharge !== undefined && quotationDraft.transportCharge !== null ? quotationDraft.transportCharge : (quotationDraft.expectedTransportationCost !== undefined && quotationDraft.expectedTransportationCost !== null ? quotationDraft.expectedTransportationCost : '')) : '',
+    transportCharge: resolveTransportCost(quotationDraft),
     notes: quotationDraft?.notes || ''
   };
 
