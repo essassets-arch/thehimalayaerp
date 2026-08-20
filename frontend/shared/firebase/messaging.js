@@ -55,6 +55,9 @@ const sendTokenToServer = async (fcmToken) => {
  */
 export const deactivateFCMToken = async () => {
   const currentToken = localStorage.getItem('registered_fcm_token');
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('fcm_registration_failed');
+  }
   if (!currentToken) return;
 
   try {
@@ -82,6 +85,10 @@ export const deactivateFCMToken = async () => {
  */
 export const initializePushNotifications = async () => {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return;
+  }
+
+  if (localStorage.getItem('fcm_registration_failed') === 'true') {
     return;
   }
 
@@ -153,5 +160,8 @@ export const initializePushNotifications = async () => {
     });
   } catch (err) {
     console.warn('[Firebase Client] Error setting up push notifications:', err.message);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('fcm_registration_failed', 'true');
+    }
   }
 };
