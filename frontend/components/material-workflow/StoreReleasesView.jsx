@@ -80,7 +80,7 @@ export default function StoreReleasesView() {
     const map = new Map();
     fallbackDemoRequests.forEach(req => map.set(req.id, req));
     (allRequests || []).forEach(req => {
-      if (req.status !== 'PENDING_PLANT_HEAD_APPROVAL' && req.status !== 'PLANT_HEAD_REJECTED') {
+      if (['PLANT_HEAD_APPROVED', 'STORE_APPROVED', 'ISSUED_TO_PRODUCTION'].includes(req.status)) {
         map.set(req.id, req);
       }
     });
@@ -307,7 +307,7 @@ export default function StoreReleasesView() {
           request.items.forEach((item, idx) => {
             const details = getItemQtyDetails(request, item, idx);
             cardTotalSending += details.currentInput;
-            cardTotalRemaining += details.newRemaining;
+            cardTotalRemaining += details.totalRemaining;
             if (details.cumulativeIssued > 0) cardAnyIssued = true;
           });
         });
@@ -316,7 +316,7 @@ export default function StoreReleasesView() {
           ? 'Issued Complete'
           : cardAnyIssued
             ? `Partially Issued (${cardTotalRemaining} Units Remaining)`
-            : 'Ready for Production Planning';
+            : 'Ready for Issue';
 
         return (
           <section key={orderId} className="store-release-card">
@@ -406,8 +406,8 @@ export default function StoreReleasesView() {
                             <span>{details.cumulativeIssued} {item.unit}</span>
                           )}
                         </td>
-                        <td data-label="Remaining Qty" style={{ fontWeight: '700', color: details.newRemaining > 0 ? '#d97706' : '#16a34a' }}>
-                          {details.newRemaining} {item.unit}
+                        <td data-label="Remaining Qty" style={{ fontWeight: '700', color: details.totalRemaining > 0 ? '#d97706' : '#16a34a' }}>
+                          {details.totalRemaining} {item.unit}
                         </td>
                         <td data-label="Department">
                           {activeTab === 'pending' ? (
