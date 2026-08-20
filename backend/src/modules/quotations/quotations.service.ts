@@ -24,7 +24,7 @@ export class QuotationsService {
     role?: string,
   ) {
     const scope = getQuotationSalesScope(userId, role);
-    return this.prisma.quotation.findMany({
+    const quotations = await this.prisma.quotation.findMany({
       where: {
         ...scope,
         deletedAt: null,
@@ -41,6 +41,23 @@ export class QuotationsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const customerIds = quotations
+      .map((q) => q.customerId)
+      .filter((id): id is string => !!id);
+
+    const customers = customerIds.length
+      ? await this.prisma.customer.findMany({
+          where: { id: { in: customerIds } },
+        })
+      : [];
+
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+
+    return quotations.map((q) => ({
+      ...q,
+      customer: q.customerId ? customerMap.get(q.customerId) || null : null,
+    }));
   }
 
   async getQuotation(
@@ -72,7 +89,16 @@ export class QuotationsService {
       },
     });
     if (!quotation) throw new NotFoundException('Quotation not found');
-    return quotation;
+    let customer: any = null;
+    if (quotation.customerId) {
+      customer = await this.prisma.customer.findFirst({
+        where: { id: quotation.customerId },
+      });
+    }
+    return {
+      ...quotation,
+      customer,
+    };
   }
 
   private calculate(items: any[]) {
@@ -319,8 +345,11 @@ export class QuotationsService {
         include: { workflowState: true },
       });
       if (!quotation) throw new NotFoundException('Quotation not found');
-      if (!['DRAFT', 'NEW'].includes(quotation.workflowState?.code || '')) {
-        throw new BadRequestException('Only DRAFT or NEW quotations can be edited');
+      const lockedStates = ['APPROVED', 'QUOTATION_APPROVED', 'CONVERTED', 'CONVERTED_TO_SO', 'REJECTED', 'QUOTATION_REJECTED', 'CANCELLED', 'SUPERSEDED'];
+      if (lockedStates.includes(quotation.workflowState?.code || '')) {
+        throw new BadRequestException(
+          `Quotations in state "${quotation.workflowState?.code || 'unknown'}" are locked and cannot be edited`,
+        );
       }
       const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
 
