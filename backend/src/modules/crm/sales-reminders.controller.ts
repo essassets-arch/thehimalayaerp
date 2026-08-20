@@ -4,7 +4,7 @@ import { UseGuards, Controller, Get, Post, Put, Patch, Delete, Query, Req, Body,
 import { PrismaService } from '../../database/prisma.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
-import { getFollowUpSalesScope } from '../../common/utils/rbac.util';
+import { getFollowUpSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
 
 /** Dynamic reminder feed and CRUD operations used by the Sales workspace. */
 @Controller('sales/reminders')
@@ -20,16 +20,33 @@ export class SalesRemindersController {
     @Query('status') status?: string,
     @Query('sourceType') sourceType?: string,
     @Query('search') search?: string,
+    @Query('module') moduleParam?: string,
   ) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
     const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const scope = getFollowUpSalesScope(userId, req.user?.role);
+
+    const isFinance = moduleParam === 'Finance';
+    const isSales = moduleParam === 'Sales';
+
+    const moduleTypeFilter = isFinance
+      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
+      : isSales
+      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
+      : (req.user?.role === 'FINANCE_EXECUTIVE' || req.user?.role === 'FINANCE_MANAGER')
+      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
+      : isSalespersonScopedRole(req.user?.role)
+      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
+      : undefined;
+
+    const moduleWhere = moduleTypeFilter ? { moduleType: moduleTypeFilter } : {};
 
     // Fetch all for counts
     const allReminders = await this.prisma.followUp.findMany({
       where: {
         companyId: String(companyId),
         ...scope,
+        ...moduleWhere,
       },
     });
 
@@ -44,12 +61,13 @@ export class SalesRemindersController {
     const whereClause: any = {
       companyId: String(companyId),
       ...scope,
+      ...moduleWhere,
     };
 
     if (status) {
       whereClause.status = status;
     }
-    if (sourceType) {
+    if (sourceType && sourceType !== 'All') {
       const norm = normalizeSourceType(sourceType);
       whereClause.moduleType = norm.moduleType;
     }
@@ -120,14 +138,43 @@ export class SalesRemindersController {
 
   @Get()
   @RequirePermissions('sales.leads.read')
-  async list(@Req() req: any, @Query('status') status?: string) {
+  async list(
+    @Req() req: any,
+    @Query('status') status?: string,
+    @Query('module_type') moduleType?: string,
+    @Query('module') moduleParam?: string,
+  ) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const scope = getFollowUpSalesScope(userId, req.user?.role);
+
+    const isFinance = moduleParam === 'Finance';
+    const isSales = moduleParam === 'Sales';
+
+    const moduleTypeFilter = isFinance
+      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
+      : isSales
+      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
+      : (req.user?.role === 'FINANCE_EXECUTIVE' || req.user?.role === 'FINANCE_MANAGER')
+      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
+      : isSalespersonScopedRole(req.user?.role)
+      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
+      : undefined;
+
+    const whereClause: any = {
+      companyId: String(companyId),
+      ...(status ? { status } : {}),
+      ...scope,
+    };
+
+    if (moduleType) {
+      whereClause.moduleType = moduleType;
+    } else if (moduleTypeFilter) {
+      whereClause.moduleType = moduleTypeFilter;
+    }
+
     const reminders = await this.prisma.followUp.findMany({
-      where: {
-        ...(status ? { status } : {}),
-        ...scope,
-      },
+      where: whereClause,
       orderBy: { reminderAt: 'asc' },
     });
 

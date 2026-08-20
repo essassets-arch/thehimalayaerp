@@ -33,8 +33,8 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
   const fetchDailyTasks = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch all reminders without date/status restrictions to build consistent frontend categories
-      const res = await remindersService.getDaily({});
+      // Fetch reminders scoped by module (Finance vs Sales)
+      const res = await remindersService.getDaily({ module });
       if (res.success && res.data) {
         setDailyData({
           items: res.data.items || [],
@@ -46,7 +46,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [module]);
 
   useEffect(() => {
     fetchDailyTasks();
@@ -79,14 +79,35 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
   const selectedDateKey = toDateKey(targetDate);
   const now = new Date();
 
-  // 1. Filter reminders by active module tab (Leads, Quotations, Samples, Payments)
+  // 1. Strict module isolation and tab filtering
   const sourceFilteredTasks = (dailyData.items || []).filter(task => {
+    const sType = String(task.sourceType || task.moduleType || '').toUpperCase();
+
+    if (module === 'Finance') {
+      const isFinanceType = ['PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE', 'FINANCE'].includes(sType);
+      if (!isFinanceType) return false;
+
+      if (activeTab === 'All') return true;
+      if (activeTab === 'Payments') return ['PAYMENT', 'PAYMENT_FOLLOWUP', 'INVOICE'].includes(sType);
+      if (activeTab === 'Orders') return ['ORDER', 'SALESORDER'].includes(sType);
+      return true;
+    } else if (module === 'Sales') {
+      const isSalesType = ['LEAD', 'QUOTATION', 'SAMPLE', 'SAMPLEREQUEST'].includes(sType);
+      if (!isSalesType) return false;
+
+      if (activeTab === 'All') return true;
+      if (activeTab === 'Leads') return sType === 'LEAD';
+      if (activeTab === 'Quotations') return sType === 'QUOTATION';
+      if (activeTab === 'Samples') return sType === 'SAMPLE' || sType === 'SAMPLEREQUEST';
+      return true;
+    }
+
     if (activeTab === 'All') return true;
-    const sType = String(task.sourceType).toUpperCase();
     if (activeTab === 'Leads') return sType === 'LEAD';
     if (activeTab === 'Quotations') return sType === 'QUOTATION';
     if (activeTab === 'Samples') return sType === 'SAMPLE' || sType === 'SAMPLEREQUEST';
-    if (activeTab === 'Payments') return sType === 'PAYMENT' || sType === 'PAYMENT_FOLLOWUP' || sType === 'SALESORDER';
+    if (activeTab === 'Payments') return ['PAYMENT', 'PAYMENT_FOLLOWUP', 'INVOICE'].includes(sType);
+    if (activeTab === 'Orders') return ['ORDER', 'SALESORDER'].includes(sType);
     return true;
   });
 
@@ -126,12 +147,14 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
 
   // 4. Map filtered list to expected TaskCard schema
   const mappedTasks = filteredTasks.map(item => {
-    let type = 'Lead';
-    const sType = String(item.sourceType).toUpperCase();
+    let type = module === 'Finance' ? 'Payment' : 'Lead';
+    const sType = String(item.sourceType || item.moduleType || '').toUpperCase();
     if (sType === 'LEAD') type = 'Lead';
     else if (sType === 'SAMPLE' || sType === 'SAMPLEREQUEST') type = 'Sample';
     else if (sType === 'QUOTATION') type = 'Quotation';
-    else if (sType === 'PAYMENT' || sType === 'PAYMENT_FOLLOWUP' || sType === 'SALESORDER') type = 'Payment';
+    else if (sType === 'PAYMENT' || sType === 'PAYMENT_FOLLOWUP') type = 'Payment';
+    else if (sType === 'SALESORDER' || sType === 'ORDER') type = 'Order';
+    else if (sType === 'INVOICE') type = 'Payment';
 
     const itemDate = new Date(item.reminderAt);
     const isOverdue = item.status === 'Pending' && item.reminderAt && itemDate < now && toDateKey(item.reminderAt) !== toDateKey(now);
@@ -144,7 +167,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
       status: isOverdue ? 'Overdue' : (item.status === 'Completed' ? 'Completed' : 'Pending'),
       followUpDate: item.reminderAt ? toDateKey(item.reminderAt) : targetDate,
       notes: `${item.title}: ${item.description || 'No notes'}`,
-      amount: 0,
+      amount: item.amount || 0,
       rawEntity: item
     };
   });
@@ -177,10 +200,18 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
     const prefix = taskId.split('-')[0];
     const sourceId = taskId.replace(`${prefix}-`, '');
 
-    if (prefix === 'REM' && completeReminder) {
-      const res = await completeReminder(sourceId);
-      if (res && res.success) {
-        await fetchDailyTasks();
+    if (prefix === 'REM') {
+      if (completeReminder) {
+        const res = await completeReminder(sourceId);
+        if (res && res.success) {
+          await fetchDailyTasks();
+        }
+      } else {
+        const res = await remindersService.complete(sourceId);
+        if (res && res.success) {
+          await fetchDailyTasks();
+          if (showToast) showToast('Task marked completed');
+        }
       }
     }
   };
@@ -199,11 +230,19 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
     const prefix = taskId.split('-')[0];
     const sourceId = taskId.replace(`${prefix}-`, '');
 
-    if (prefix === 'REM' && updateReminder) {
-      const res = await updateReminder(sourceId, { reminderDate: rescheduleDate });
-      if (res && res.success) {
-        await fetchDailyTasks();
-        showToast(`Task rescheduled to ${rescheduleDate}`);
+    if (prefix === 'REM') {
+      if (updateReminder) {
+        const res = await updateReminder(sourceId, { reminderDate: rescheduleDate });
+        if (res && res.success) {
+          await fetchDailyTasks();
+          if (showToast) showToast(`Task rescheduled to ${rescheduleDate}`);
+        }
+      } else {
+        const res = await remindersService.update(sourceId, { reminderDate: rescheduleDate });
+        if (res && res.success) {
+          await fetchDailyTasks();
+          if (showToast) showToast(`Task rescheduled to ${rescheduleDate}`);
+        }
       }
     }
     setRescheduleTask(null);
@@ -399,13 +438,15 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
         <div className="hero-top-row">
           <div>
             <span style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-lime-brand)', letterSpacing: '1px' }}>
-              Sales Operations Hub
+              {module === 'Finance' ? 'Finance Operations Hub' : 'Sales Operations Hub'}
             </span>
             <h1 className="brand-title" style={{ fontSize: '26px', marginTop: '4px' }}>
-              🎯 Daily Action Center
+              {module === 'Finance' ? '💰 Finance Action Center' : '🎯 Daily Action Center'}
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', marginTop: '4px', fontWeight: '500' }}>
-              Data-driven follow-ups, confirmation checks, sample feedback, and outstanding receipts.
+              {module === 'Finance'
+                ? 'Payment collections, customer follow-ups, overdue invoices, and receipt confirmations.'
+                : 'Data-driven follow-ups, confirmation checks, sample feedback, and outstanding receipts.'}
             </p>
           </div>
           
@@ -427,7 +468,6 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
               value={targetDate} 
               onChange={(e) => {
                 setTargetDate(e.target.value);
-                setCompletedSessionTasks([]); // Reset completions for new date
               }}
               style={{
                 border: 'none',
@@ -477,7 +517,7 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Overdue Action</span>
             <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '6px', borderRadius: '50%' }}>
-              <Clock size={16} className={dailyData.summary.overdue > 0 ? 'animate-pulse' : ''} />
+              <Clock size={16} className={overdueTasks.length > 0 ? 'animate-pulse' : ''} />
             </div>
           </div>
           <div style={{ marginTop: '12px' }}>
@@ -514,10 +554,10 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           <div className="filter-tab-bar">
             {[
               { id: 'All', label: 'All Tasks', bg: 'var(--color-accent-teal)', color: '#ffffff', border: '1px solid var(--color-accent-teal)' },
+              { id: 'Payments', label: '💰 Payments & Follow-ups', bg: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' },
+              { id: 'Orders', label: '🏭 Orders & Invoices', bg: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' },
               { id: 'Leads', label: '📞 Leads', bg: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' },
               { id: 'Quotations', label: '📄 Quotations', bg: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' },
-              { id: 'Payments', label: '💰 Payments', bg: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' },
-              { id: 'Orders', label: '🏭 Orders & Prod.', bg: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' },
               { id: 'Samples', label: '🧪 Samples', bg: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd' }
             ].filter(tab => {
               if (module === 'Finance') {
@@ -649,80 +689,130 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           </div>
         </div>
 
-        {/* Right Side: At Risk Deals */}
+        {/* Right Side: At Risk Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-          <div className="app-card" style={{
-            background: '#ffffff',
-            border: '1px solid var(--color-border)',
-            borderRadius: '20px',
-            padding: '20px',
-            boxShadow: 'var(--shadow-premium)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
-              <AlertCircle size={18} />
-              <span style={{ fontSize: '14px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>At Risk Deals</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {atRiskLeads.map((lead) => (
-                <div key={lead.id} style={{
-                  background: '#fff5f5', border: '1px solid #fee2e2',
-                  borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px'
-                }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {lead.companyName}
-                    </span>
-                    <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
-                      Followup overdue since {lead.followUpDate}
-                    </span>
+          {module === 'Finance' ? (
+            <div className="app-card" style={{
+              background: '#ffffff',
+              border: '1px solid var(--color-border)',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: 'var(--shadow-premium)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
+                <AlertCircle size={18} />
+                <span style={{ fontSize: '14px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Overdue Collections</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {overdueTasks.slice(0, 6).map((task) => (
+                  <div key={task.id} style={{
+                    background: '#fff5f5', border: '1px solid #fee2e2',
+                    borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px'
+                  }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {task.customerName || 'Customer'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
+                        Overdue since {toDateKey(task.reminderAt)} • {task.title}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => typeof navigate === 'function' ? navigate('/finance/payments') : navigate?.push?.('/finance/payments')}
+                      style={{
+                        background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px',
+                        borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Follow-up
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => typeof navigate === 'function' ? navigate('/sales/leads') : navigate?.push?.('/sales/leads')}
-                    style={{
-                      background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px',
-                      borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    Contact
-                  </button>
-                </div>
-              ))}
-              {atRiskQuotes.map((q) => (
-                <div key={q.id} style={{
-                  background: '#fff5f5', border: '1px solid #fee2e2',
-                  borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px'
-                }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {q.customerName}
-                    </span>
-                    <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
-                      Proposal expires on {q.validTill}
-                    </span>
+                ))}
+                {overdueTasks.length === 0 && (
+                  <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: '600' }}>
+                    No overdue payment follow-ups.
                   </div>
-                  <button 
-                    onClick={() => typeof navigate === 'function' ? navigate('/sales/quotations') : navigate?.push?.('/sales/quotations')}
-                    style={{
-                      background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px',
-                      borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    Renew
-                  </button>
-                </div>
-              ))}
-              {atRiskLeads.length === 0 && atRiskQuotes.length === 0 && (
-                <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: '600' }}>
-                  No immediate risks detected.
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="app-card" style={{
+              background: '#ffffff',
+              border: '1px solid var(--color-border)',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: 'var(--shadow-premium)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
+                <AlertCircle size={18} />
+                <span style={{ fontSize: '14px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>At Risk Deals</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {atRiskLeads.map((lead) => (
+                  <div key={lead.id} style={{
+                    background: '#fff5f5', border: '1px solid #fee2e2',
+                    borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px'
+                  }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {lead.companyName}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
+                        Followup overdue since {lead.followUpDate}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => typeof navigate === 'function' ? navigate('/sales/leads') : navigate?.push?.('/sales/leads')}
+                      style={{
+                        background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px',
+                        borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Contact
+                    </button>
+                  </div>
+                ))}
+                {atRiskQuotes.map((q) => (
+                  <div key={q.id} style={{
+                    background: '#fff5f5', border: '1px solid #fee2e2',
+                    borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px'
+                  }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {q.customerName}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
+                        Proposal expires on {q.validTill}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => typeof navigate === 'function' ? navigate('/sales/quotations') : navigate?.push?.('/sales/quotations')}
+                      style={{
+                        background: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 12px',
+                        borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Renew
+                    </button>
+                  </div>
+                ))}
+                {atRiskLeads.length === 0 && atRiskQuotes.length === 0 && (
+                  <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: '600' }}>
+                    No immediate risks detected.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

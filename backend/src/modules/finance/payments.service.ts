@@ -100,8 +100,7 @@ export class PaymentsService {
           select: {
             id: true,
             invoiceNumber: true,
-            invoiceDate: true,
-            dueDate: true,
+            createdAt: true,
             totalAmount: true,
             status: true,
           },
@@ -147,16 +146,14 @@ export class PaymentsService {
         .sort((left, right) => right.getTime() - left.getTime())[0];
 
       const invoice = order.invoices?.[0];
-      const invoiceDate = invoice?.invoiceDate || deliveredAt || order.orderDate || order.createdAt;
+      const invoiceDate = invoice?.createdAt || deliveredAt || order.createdAt;
       const rawPaymentTerms = order.quotation?.paymentTerms || '';
       const isAdvance = String(rawPaymentTerms).toLowerCase().includes('advance');
       const paymentTermsDays = isAdvance ? 0 : (order.paymentTermsDays ?? order.quotation?.paymentTermDays ?? 15);
       const paymentTerms = isAdvance ? 'Advance' : (rawPaymentTerms || `${paymentTermsDays} Days`);
 
       let dueDate: Date | null = null;
-      if (invoice?.dueDate) {
-        dueDate = invoice.dueDate;
-      } else if (invoiceDate) {
+      if (invoiceDate) {
         dueDate = isAdvance ? new Date(invoiceDate) : new Date(new Date(invoiceDate).getTime() + paymentTermsDays * 86400000);
       }
 
