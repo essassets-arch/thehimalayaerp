@@ -1,6 +1,5 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import html2canvas from 'html2canvas';
 import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
 
@@ -876,58 +875,33 @@ export const exportExecutiveReportPDF = (reportData, dateRangeLabel) => {
 
 
 
-/**
- * Generate PDF for a Quotation
- */
-const exportQuotationPreviewPDF = async (quotation, returnBlob, sourceElement) => {
-  const preview = sourceElement.cloneNode(true);
-  preview.querySelectorAll('.sheet-actions').forEach((element) => element.remove());
-  Object.assign(preview.style, {
-    position: 'fixed',
-    top: '0',
-    left: '-10000px',
-    width: `${sourceElement.offsetWidth}px`,
-    maxWidth: 'none',
-    maxHeight: 'none',
-    height: 'auto',
-    overflow: 'visible',
-    margin: '0',
-    borderRadius: '0',
-    zIndex: '-1'
-  });
-  document.body.appendChild(preview);
+/** Shared quotation totals used by both the preview and the A4 PDF renderer. */
+export const calculateQuotationTotals = (items = [], transportationCost = 0) => {
+  const totals = items.reduce((result, item) => {
+    const quantity = Number(item.quantity ?? item.qty ?? 0);
+    const rate = Number(item.unitPrice ?? item.rate ?? item.price ?? 0);
+    const discountPercent = Number(item.discount ?? item.discountPercent ?? 0);
+    const gstPercent = Number(item.tax ?? item.gstPercent ?? 0);
+    const lineSubtotal = quantity * rate;
+    const lineDiscount = lineSubtotal * discountPercent / 100;
+    const lineTaxable = lineSubtotal - lineDiscount;
+    result.subtotal += lineSubtotal;
+    result.discountAmount += lineDiscount;
+    result.gstAmount += lineTaxable * gstPercent / 100;
+    return result;
+  }, { subtotal: 0, discountAmount: 0, gstAmount: 0 });
 
-  try {
-    const canvas = await html2canvas(preview, {
-      backgroundColor: '#ffffff',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      windowWidth: preview.scrollWidth,
-      windowHeight: preview.scrollHeight
-    });
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const scale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
-    const imageWidth = canvas.width * scale;
-    const imageHeight = canvas.height * scale;
-
-    doc.addImage(canvas.toDataURL('image/png'), 'PNG', (pageWidth - imageWidth) / 2, 0, imageWidth, imageHeight);
-
-    if (returnBlob) return doc.output('blob');
-    doc.save(`Quotation_${quotation.quotationNo || quotation.id || 'Draft'}.pdf`);
-    return true;
-  } finally {
-    preview.remove();
-  }
+  const transport = Number(transportationCost) || 0;
+  return {
+    ...totals,
+    transportationCost: transport,
+    grandTotal: totals.subtotal - totals.discountAmount + totals.gstAmount + transport
+  };
 };
 
-export const exportQuotationPDF = (quotation, returnBlob = false, sourceElement = null) => {
+/** Generate a fixed-geometry, PDF-native A4 quotation. */
+export const exportQuotationPDF = (quotation, returnBlob = false) => {
   if (!quotation) return null;
-  if (sourceElement && typeof document !== 'undefined') {
-    return exportQuotationPreviewPDF(quotation, returnBlob, sourceElement);
-  }
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -1102,19 +1076,17 @@ export const exportQuotationPDF = (quotation, returnBlob = false, sourceElement 
     items = quotation.items;
   }
 
-  let itemsSubtotal = 0;
-  let totalTax = 0;
+  const transportationCost = Number(quotation.transportCharge ?? quotation.expectedTransportationCost ?? 0);
+  const quotationTotals = calculateQuotationTotals(items, transportationCost);
 
   const tableRows = items.map((item, idx) => {
     const qty = Number(item.quantity) || 1;
     const rate = Number(item.unitPrice || item.price) || 0;
     const taxRate = Number(item.tax) || 0;
     const sub = qty * rate;
-    const taxAmt = sub * (taxRate / 100);
-    const tot = sub + taxAmt;
-
-    itemsSubtotal += sub;
-    totalTax += taxAmt;
+    const discount = sub * (Number(item.discount ?? item.discountPercent ?? 0) / 100);
+    const taxAmt = (sub - discount) * (taxRate / 100);
+    const tot = sub - discount + taxAmt;
 
     return [
       idx + 1,
@@ -1126,7 +1098,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false, sourceElement 
     ];
   });
 
-  const grandTotal = itemsSubtotal + totalTax;
+  const { subtotal: itemsSubtotal, gstAmount: totalTax, grandTotal } = quotationTotals;
 
   autoTable(doc, {
     head: [['#', 'PRODUCT DETAILS', 'QTY', 'RATE', 'TAX (GST)', 'TOTAL']],
@@ -1153,10 +1125,10 @@ export const exportQuotationPDF = (quotation, returnBlob = false, sourceElement 
   }
 
   doc.setFillColor(248, 250, 252);
-  doc.rect(pageWidth - margin - 70, y, 70, 17, 'F');
+  doc.rect(pageWidth - margin - 70, y, 70, 22, 'F');
   doc.setDrawColor(241, 245, 249);
   doc.setLineWidth(0.3);
-  doc.rect(pageWidth - margin - 70, y, 70, 17, 'D');
+  doc.rect(pageWidth - margin - 70, y, 70, 22, 'D');
 
   doc.setFontSize(9.5);
   doc.setTextColor(71, 85, 105);
@@ -1167,16 +1139,19 @@ export const exportQuotationPDF = (quotation, returnBlob = false, sourceElement 
   doc.text('GST Amount:', pageWidth - margin - 66, y + 9);
   doc.text(`Rs. ${totalTax.toFixed(2)}`, pageWidth - margin - 4, y + 9, { align: 'right' });
 
+  doc.text('Transportation:', pageWidth - margin - 66, y + 13.5);
+  doc.text(`Rs. ${transportationCost.toFixed(2)}`, pageWidth - margin - 4, y + 13.5, { align: 'right' });
+
   // Grand Total Highlighted Blue Box
   doc.setFillColor(59, 130, 246);
-  doc.rect(pageWidth - margin - 70, y + 12.5, 70, 4.5, 'F');
+  doc.rect(pageWidth - margin - 70, y + 17.5, 70, 4.5, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(255, 255, 255);
-  doc.text('Grand Total:', pageWidth - margin - 66, y + 16);
-  doc.text(`Rs. ${grandTotal.toFixed(2)}`, pageWidth - margin - 4, y + 16, { align: 'right' });
+  doc.text('Grand Total:', pageWidth - margin - 66, y + 21);
+  doc.text(`Rs. ${grandTotal.toFixed(2)}`, pageWidth - margin - 4, y + 21, { align: 'right' });
 
-  y += 22;
+  y += 27;
 
   // 7. TERMS AND CONDITIONS Section
   if (y > 245) {

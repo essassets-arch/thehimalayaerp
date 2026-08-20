@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { exportQuotationPDF } from '../services/export.service';
+import { useState, useEffect, useMemo } from 'react';
+import { calculateQuotationTotals, exportQuotationPDF } from '../services/export.service';
 import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare } from 'lucide-react';
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
@@ -49,7 +49,6 @@ export default function QuotationsView({
   const search = (searchQuery !== undefined && searchQuery !== null) ? searchQuery : localSearch;
   const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
   const [selectedQuotation, setSelectedQuotation] = useState(null);
-  const quotationSheetRef = useRef(null);
   const [filter, setFilter] = useState('All');
   const [reminderBucket, setReminderBucket] = useState('Today');
   const [reminderModal, setReminderModal] = useState(null);
@@ -152,8 +151,14 @@ export default function QuotationsView({
       tax: Number(item.tax ?? item.gstPercent ?? 0),
     }));
   };
-  const quotationTotal = (quotation) =>
-    Number(quotation?.totalAmount ?? quotation?.grandTotal ?? 0);
+  const quotationTotal = (quotation) => {
+    const rows = quotationDetailItems(quotation);
+    if (!rows.length) return Number(quotation?.totalAmount ?? quotation?.grandTotal ?? 0);
+    return calculateQuotationTotals(
+      rows,
+      quotation?.transportCharge ?? quotation?.expectedTransportationCost ?? 0
+    ).grandTotal;
+  };
   const quotationDiscount = (quotation) => {
     const rows = quotationDetailItems(quotation);
     if (!rows.length) return Number(quotation?.discount || 0);
@@ -576,13 +581,13 @@ export default function QuotationsView({
   // Resolve detailed item rows
   const itemsList = selectedQuotation ? quotationDetailItems(selectedQuotation) : [];
 
-  const calculatedSubtotal = itemsList.reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0);
-  const discountAmt = itemsList.reduce((sum, item) => sum + (((item.quantity || 0) * (item.unitPrice || 0)) * (item.discount || 0) / 100), 0);
-  const calculatedTaxAmt = itemsList.reduce((sum, item) => {
-    const sub = (item.quantity || 0) * (item.unitPrice || 0);
-    const disc = sub * (item.discount || 0) / 100;
-    return sum + ((sub - disc) * (item.tax !== undefined ? item.tax : 18) / 100);
-  }, 0);
+  const quotationTotals = calculateQuotationTotals(
+    itemsList,
+    selectedQuotation?.transportCharge ?? selectedQuotation?.expectedTransportationCost ?? 0
+  );
+  const calculatedSubtotal = quotationTotals.subtotal;
+  const discountAmt = quotationTotals.discountAmount;
+  const calculatedTaxAmt = quotationTotals.gstAmount;
 
   // ── Show Inline Create Quotation Form (uses CreateQuotation component) ──
   if (showCreateForm) {
@@ -1443,7 +1448,6 @@ export default function QuotationsView({
           `}</style>
           <div
             className="invoice-sheet-modal"
-            ref={quotationSheetRef}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Curved Header Banner Wave */}
@@ -1792,7 +1796,7 @@ export default function QuotationsView({
                   className="btn-small btn-outline-small"
                   onClick={async () => {
                     try {
-                      await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST }, false, quotationSheetRef.current);
+                      await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST });
                       Swal.fire('Downloaded', 'Quotation PDF has been downloaded.', 'success');
                     } catch (err) {
                       console.error('Error generating PDF:', err);
@@ -1809,7 +1813,7 @@ export default function QuotationsView({
                   onClick={async () => {
                     try {
                       // 1. Generate the PDF blob
-                      const pdfBlob = await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST }, true, quotationSheetRef.current);
+                      const pdfBlob = await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST }, true);
                       
                       // 2. Prepare sharing data
                       const file = new File([pdfBlob], `Quotation_${selectedQuotation.quotationNo || 'Draft'}.pdf`, { type: 'application/pdf' });
