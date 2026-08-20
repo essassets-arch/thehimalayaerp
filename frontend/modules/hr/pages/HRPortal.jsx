@@ -128,6 +128,7 @@ export default function HRPortal() {
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [rosterInspectDate, setRosterInspectDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [simLogs, setSimLogs] = useState([]);
+  const [rosterEmployeeFilter, setRosterEmployeeFilter] = useState('All');
 
   const [shiftPolicies, setShiftPolicies] = useState({
     'HR': { checkIn: '09:00 AM', checkOut: '06:00 PM', grace: 15 },
@@ -731,7 +732,7 @@ export default function HRPortal() {
     const getFilteredLogs = (logs) => {
       const todayStr = new Date().toLocaleDateString('en-CA'); // Returns YYYY-MM-DD in local time
       
-      return logs.filter(log => {
+      let filtered = logs.filter(log => {
         if (filterPeriod === 'all') return true;
         
         if (filterPeriod === 'today') {
@@ -757,6 +758,12 @@ export default function HRPortal() {
         }
         return true;
       });
+
+      if (rosterEmployeeFilter && rosterEmployeeFilter !== 'All') {
+        filtered = filtered.filter(log => log.id === rosterEmployeeFilter);
+      }
+
+      return filtered;
     };
 
     const formattedLogs = getFilteredLogs(rawFormattedLogs);
@@ -1170,6 +1177,22 @@ export default function HRPortal() {
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Filter by Employee</label>
+                  <select
+                    value={rosterEmployeeFilter}
+                    onChange={(e) => {
+                      setRosterEmployeeFilter(e.target.value);
+                      setSelectedLogPreview(null);
+                    }}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px', fontWeight: '600', background: '#fff' }}
+                  >
+                    <option value="All">All Employees</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name || emp.fullName} ({emp.id})</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Audit Target Date</label>
                   <input 

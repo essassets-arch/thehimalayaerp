@@ -181,6 +181,7 @@ export default function SuperAdminPortal() {
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [rosterInspectDate, setRosterInspectDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [simLogs, setSimLogs] = useState([]);
+  const [rosterEmployeeFilter, setRosterEmployeeFilter] = useState('All');
 
 
 
@@ -7423,7 +7424,7 @@ export default function SuperAdminPortal() {
       const simDayStr = simDate ? new Date(simDate).toDateString() : '';
       const customDayStr = customFilterDate ? new Date(customFilterDate).toDateString() : '';
       
-      return logs.filter(log => {
+      let filtered = logs.filter(log => {
         if (filterPeriod === 'all') return true;
         
         const logDate = log.timestamp ? new Date(log.timestamp) : new Date(log.date || now);
@@ -7445,6 +7446,12 @@ export default function SuperAdminPortal() {
         }
         return true;
       });
+
+      if (rosterEmployeeFilter && rosterEmployeeFilter !== 'All') {
+        filtered = filtered.filter(log => log.id === rosterEmployeeFilter);
+      }
+
+      return filtered;
     };
 
     const formattedLogs = getFilteredLogs(rawFormattedLogs);
@@ -7718,6 +7725,23 @@ export default function SuperAdminPortal() {
                       style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px', fontWeight: '600', background: '#fff' }} 
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Filter Logs by Employee</label>
+                  <select
+                    value={rosterEmployeeFilter}
+                    onChange={(e) => {
+                      setRosterEmployeeFilter(e.target.value);
+                      setSelectedLogPreview(null);
+                    }}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px', fontWeight: '600', background: '#fff' }}
+                  >
+                    <option value="All">All Employees</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>

@@ -537,12 +537,22 @@ export class ProcurementService {
         const currentYear = new Date().getFullYear();
         const seqKey = `${po.companyId}_GOODS_RECEIPT_${currentYear}`;
         const prefix = `GRN-${currentYear}-`;
-        const grnNo = await this.sequenceService.generateNextWithTx(
-          tx,
-          seqKey,
-          prefix,
-          6,
-        );
+        let grnNo;
+        let isUnique = false;
+        while (!isUnique) {
+          grnNo = await this.sequenceService.generateNextWithTx(
+            tx,
+            seqKey,
+            prefix,
+            6,
+          );
+          const existing = await tx.goodsReceiptNote.findUnique({
+            where: { publicId: grnNo },
+          });
+          if (!existing) {
+            isUnique = true;
+          }
+        }
 
         const grn = await tx.goodsReceiptNote.create({
           data: {
@@ -731,12 +741,22 @@ export class ProcurementService {
       const currentYear = new Date().getFullYear();
       const seqKey = `${companyId}_PURCHASE_INDENT_${currentYear}`;
       const prefix = `IND-${currentYear}-`;
-      const indentNo = await this.sequenceService.generateNextWithTx(
-        tx,
-        seqKey,
-        prefix,
-        6,
-      );
+      let indentNo;
+      let isUnique = false;
+      while (!isUnique) {
+        indentNo = await this.sequenceService.generateNextWithTx(
+          tx,
+          seqKey,
+          prefix,
+          6,
+        );
+        const existing = await tx.purchaseIndent.findUnique({
+          where: { publicId: indentNo },
+        });
+        if (!existing) {
+          isUnique = true;
+        }
+      }
 
       const itemsToCreate: any[] = [];
       for (const i of dto.items) {
@@ -1069,12 +1089,22 @@ export class ProcurementService {
       const currentYear = new Date().getFullYear();
       const seqKey = `${indent.companyId}_PURCHASE_ORDER_DRAFT_${currentYear}`;
       const prefix = `PO-DRAFT-${currentYear}-`;
-      const draftPoNo = await this.sequenceService.generateNextWithTx(
-        tx,
-        seqKey,
-        prefix,
-        6,
-      );
+      let draftPoNo;
+      let isUnique = false;
+      while (!isUnique) {
+        draftPoNo = await this.sequenceService.generateNextWithTx(
+          tx,
+          seqKey,
+          prefix,
+          6,
+        );
+        const existing = await tx.purchaseOrder.findUnique({
+          where: { publicId: draftPoNo },
+        });
+        if (!existing) {
+          isUnique = true;
+        }
+      }
 
       let subtotal = new Prisma.Decimal(0);
       let gstAmount = new Prisma.Decimal(0);
@@ -1239,12 +1269,21 @@ export class ProcurementService {
         const currentYear = new Date().getFullYear();
         const seqKey = `${row.companyId}_PURCHASE_ORDER_${currentYear}`;
         const prefix = `PO-${currentYear}-`;
-        finalPoNo = await this.sequenceService.generateNextWithTx(
-          tx,
-          seqKey,
-          prefix,
-          6,
-        );
+        let isUnique = false;
+        while (!isUnique) {
+          finalPoNo = await this.sequenceService.generateNextWithTx(
+            tx,
+            seqKey,
+            prefix,
+            6,
+          );
+          const existing = await tx.purchaseOrder.findUnique({
+            where: { publicId: finalPoNo },
+          });
+          if (!existing) {
+            isUnique = true;
+          }
+        }
       }
 
       const updateData: any = {
