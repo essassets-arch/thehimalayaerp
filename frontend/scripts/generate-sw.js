@@ -13,16 +13,18 @@ try {
 
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // In production builds, we fail loudly if Firebase credentials are missing.
+  // In production builds, we log a warning instead of failing the build if Firebase credentials are missing.
   if (isProduction && (!apiKey || !projectId || !messagingSenderId || !appId)) {
-    console.error('================================================================');
-    console.error('🔴 CRITICAL BUILD ERROR: Missing required Firebase credentials!');
-    console.error('================================================================');
-    console.error(`NEXT_PUBLIC_FIREBASE_API_KEY: ${apiKey ? 'PRESENT' : 'MISSING'}`);
-    console.error(`NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${projectId ? 'PRESENT' : 'MISSING'}`);
-    console.error(`NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${messagingSenderId ? 'PRESENT' : 'MISSING'}`);
-    console.error(`NEXT_PUBLIC_FIREBASE_APP_ID: ${appId ? 'PRESENT' : 'MISSING'}`);
-    throw new Error('Missing required Firebase environment variables for production build.');
+    console.warn('================================================================');
+    console.warn('⚠️  WARNING: Missing required Firebase credentials!');
+    console.warn('================================================================');
+    console.warn(`NEXT_PUBLIC_FIREBASE_API_KEY: ${apiKey ? 'PRESENT' : 'MISSING'}`);
+    console.warn(`NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${projectId ? 'PRESENT' : 'MISSING'}`);
+    console.warn(`NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${messagingSenderId ? 'PRESENT' : 'MISSING'}`);
+    console.warn(`NEXT_PUBLIC_FIREBASE_APP_ID: ${appId ? 'PRESENT' : 'MISSING'}`);
+    console.warn('[Firebase SW Generator] Firebase push notifications will be disabled in this build.');
+    console.warn('To enable, configure the missing environment variables during build time.');
+    console.warn('================================================================');
   }
 
   // Fallback defaults only for development mode when environment is not set
