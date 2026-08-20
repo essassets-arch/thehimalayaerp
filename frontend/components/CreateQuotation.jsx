@@ -57,7 +57,9 @@ export default function CreateQuotation({
   isSuperSales = false,
   basePath = '/sales',
   mode,
-  maxPaymentTermDays
+  maxPaymentTermDays,
+  editingQuotation = null,
+  onUpdateQuotation = null
 }) {
   const { user } = useAuth();
   const userRole = user?.role?.trim();
@@ -122,9 +124,9 @@ export default function CreateQuotation({
     }
   }, [targetLeadId, targetQuotationId, legacyQuotationDraft, erpState, router, erpStore, onCancel]);
   
-  const quotationDraft = targetQuotationId
+  const quotationDraft = editingQuotation || (targetQuotationId
     ? erpState?.sales?.quotations?.find((q) => q.id === targetQuotationId || q.quotationId === targetQuotationId)
-    : legacyQuotationDraft;
+    : legacyQuotationDraft);
 
   const productCatalog = erpState?.productCatalog || [];
 
@@ -140,17 +142,18 @@ export default function CreateQuotation({
   };
 
   const getInitialItems = () => {
-    if (quotationDraft && Array.isArray(quotationDraft.items) && quotationDraft.items.length > 0) {
-      return quotationDraft.items.map((item, idx) => ({
+    const sourceItems = quotationDraft ? (Array.isArray(quotationDraft.detailedItems) ? quotationDraft.detailedItems : (Array.isArray(quotationDraft.items) ? quotationDraft.items : null)) : null;
+    if (sourceItems && sourceItems.length > 0) {
+      return sourceItems.map((item, idx) => ({
         id: idx + 1,
-        productName: item.name || item.productName || '',
-        productDetails: item.description || item.productDetails || '',
-        quantity: item.qty || item.quantity || 1,
-        unitPrice: item.rate || item.price || item.unitPrice || 100,
+        productName: item.productName || item.name || '',
+        productDetails: item.productDetails || item.description || item.specification || '',
+        quantity: item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1),
+        unitPrice: item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 100),
         discount: item.discount || 0,
         tax: item.tax !== undefined ? item.tax : 18,
-        productId: item.productId,
-        code: item.code
+        productId: item.productId || item.productCode || item.code,
+        code: item.code || item.productCode || ''
       }));
     }
     return [
@@ -167,19 +170,19 @@ export default function CreateQuotation({
   };
 
   const emptyQuotationForm = {
-    customerName: quotationDraft ? (quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
+    customerName: quotationDraft ? (quotationDraft.customerName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
     groupName: quotationDraft ? (quotationDraft.groupName || quotationDraft.group_name || '') : '',
-    isGstRegistered: quotationDraft && quotationDraft.gstNumber === '' ? 'NO' : 'YES',
+    isGstRegistered: quotationDraft && (quotationDraft.isGstRegistered === false || quotationDraft.gstNumber === '') ? 'NO' : 'YES',
     gstNumber: quotationDraft ? (quotationDraft.gstNumber || '') : '',
-    gstName: quotationDraft ? (quotationDraft.gstName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
-    validTill: defaultValidTill(),
-    paymentTerms: '15 Days',
+    gstName: quotationDraft ? (quotationDraft.gstName || quotationDraft.customerName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
+    validTill: quotationDraft ? (quotationDraft.validTill || quotationDraft.validityDate || defaultValidTill()) : defaultValidTill(),
+    paymentTerms: quotationDraft ? (quotationDraft.paymentTerms || '15 Days') : '15 Days',
     items: getInitialItems(),
     transportCharge: quotationDraft ? (quotationDraft.transportCharge !== undefined && quotationDraft.transportCharge !== null ? quotationDraft.transportCharge : (quotationDraft.expectedTransportationCost !== undefined && quotationDraft.expectedTransportationCost !== null ? quotationDraft.expectedTransportationCost : '')) : '',
     notes: quotationDraft?.notes || ''
   };
 
-  const draftKey = `erp_draft_create_quotation_${targetQuotationId || targetLeadId || 'new'}`;
+  const draftKey = `erp_draft_create_quotation_${editingQuotation ? `edit-${editingQuotation.id}` : (targetQuotationId || targetLeadId || 'new')}`;
 
   const { formData, setFormData, clearDraft } = useFormDraft({
     draftKey,
@@ -550,11 +553,31 @@ export default function CreateQuotation({
       customerId: selectedCustomerRecord?.type === 'Customer' ? selectedCustomerRecord.id : undefined
     };
 
-    setIsSubmitting(true);
+     setIsSubmitting(true);
     const submitResult = async () => {
       let success = false;
       try {
-        if (targetQuotationId) {
+        if (editingQuotation && onUpdateQuotation) {
+          const itemsDescription = items.map(item => item.productDetails ? `${item.productName} (${item.productDetails}) (x${item.quantity})` : `${item.productName} (x${item.quantity})`).join(', ');
+          
+          await onUpdateQuotation(editingQuotation.id, {
+            ...payload,
+            items: itemsDescription,
+            detailedItems: items.map(item => ({
+              id: item.id,
+              productName: item.productName,
+              productDetails: item.productDetails,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              tax: item.tax,
+              productId: item.productId,
+              code: item.code
+            }))
+          });
+          success = true;
+          onCancel();
+        } else if (targetQuotationId) {
           const res = finalizeQuotation(targetQuotationId, payload);
           if (res.success) {
             success = true;
@@ -574,7 +597,9 @@ export default function CreateQuotation({
       
       if (success) {
         clearDraft();
-        clearQuotationDraft();
+        if (!editingQuotation) {
+          clearQuotationDraft();
+        }
       }
     };
     submitResult();
@@ -588,14 +613,16 @@ export default function CreateQuotation({
             type="button" 
             className="card-top-icon-btn" 
             onClick={() => {
-              clearQuotationDraft();
+              if (!editingQuotation) {
+                clearQuotationDraft();
+              }
               onCancel();
             }} 
             style={{ width: '36px', height: '36px', background: '#f1f3f5', color: '#000' }}
           >
             <ArrowLeft size={16} />
           </button>
-          <h2 className="module-title">Compose Full Quotation Proposal</h2>
+          <h2 className="module-title">{editingQuotation ? 'Edit Quotation Proposal' : 'Compose Full Quotation Proposal'}</h2>
         </div>
       </div>
 
@@ -1088,12 +1115,16 @@ export default function CreateQuotation({
 
         {/* Action Buttons */}
         <div className="form-actions">
-          <button data-testid="quotation-submit" type="submit" className="form-submit-btn">Publish Quotation Proposal</button>
+          <button data-testid="quotation-submit" type="submit" className="form-submit-btn">
+            {editingQuotation ? 'Update Quotation Proposal' : 'Publish Quotation Proposal'}
+          </button>
           <button 
             type="button" 
             className="btn-small btn-outline-small" 
             onClick={() => {
-              clearQuotationDraft();
+              if (!editingQuotation) {
+                clearQuotationDraft();
+              }
               onCancel();
             }}
           >
