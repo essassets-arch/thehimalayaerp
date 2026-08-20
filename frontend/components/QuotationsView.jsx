@@ -1436,22 +1436,6 @@ export default function QuotationsView({
                   className="btn-small btn-outline-small"
                   onClick={async () => {
                     try {
-                      await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST });
-                      Swal.fire('Downloaded', 'Quotation PDF has been downloaded.', 'success');
-                    } catch (err) {
-                      console.error('Error generating PDF:', err);
-                      Swal.fire('Error', 'Failed to generate PDF.', 'error');
-                    }
-                  }}
-                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Download size={14} /> Download PDF
-                </button>
-                <button
-                  type="button"
-                  className="btn-small btn-outline-small"
-                  onClick={async () => {
-                    try {
                       Swal.fire({
                         title: 'Generating Image...',
                         text: 'Please wait while we render a high-quality image.',
@@ -1473,61 +1457,6 @@ export default function QuotationsView({
                   style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
                   <Image size={14} /> Download Image
-                </button>
-                <button
-                  type="button"
-                  className="btn-small btn-outline-small"
-                  onClick={async () => {
-                    try {
-                      // 1. Generate the PDF blob
-                      const pdfBlob = await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST }, true);
-                      
-                      // 2. Prepare sharing data
-                      const file = new File([pdfBlob], `Quotation_${selectedQuotation.quotationNo || 'Draft'}.pdf`, { type: 'application/pdf' });
-                      const shareData = {
-                        title: `Quotation ${selectedQuotation.quotationNo}`,
-                        text: `Here is the quotation for ${selectedQuotation.customerName}.`,
-                        files: [file]
-                      };
-                      
-                      // 3. Try native share with files
-                      if (navigator.canShare && navigator.canShare(shareData)) {
-                        await navigator.share(shareData);
-                        return;
-                      }
-                      
-                      // Fallback text if file sharing is not supported
-                      const textShareData = {
-                        title: `Quotation ${selectedQuotation.quotationNo}`,
-                        text: `Here is the quotation for ${selectedQuotation.customerName}.`,
-                        url: window.location.href
-                      };
-                      
-                      if (navigator.share) {
-                        await navigator.share(textShareData);
-                      } else {
-                        throw new Error("Share API not supported");
-                      }
-                    } catch (err) {
-                      console.log('Native share failed or unsupported, using fallback popup:', err);
-                      const encodedText = encodeURIComponent(`Here is the quotation for ${selectedQuotation.customerName}: ${window.location.href}`);
-                      Swal.fire({
-                        title: 'Share Quotation PDF',
-                        html: `
-                            <div style="display:flex; flex-direction:column; gap:12px; margin-top: 10px;">
-                              <a href="https://wa.me/?text=${encodedText}" target="_blank" style="background:#25D366; color:#fff; text-decoration:none; padding:12px; border-radius:8px; font-weight:bold; display:flex; justify-content:center; align-items:center; gap:8px;">Share on WhatsApp</a>
-                              <a href="mailto:?subject=Quotation%20${selectedQuotation.quotationNo}&body=${encodedText}" style="background:#ea4335; color:#fff; text-decoration:none; padding:12px; border-radius:8px; font-weight:bold; display:flex; justify-content:center; align-items:center; gap:8px;">Share via Email</a>
-                            </div>
-                          `,
-                        showConfirmButton: false,
-                        showCloseButton: true,
-                        customClass: { popup: 'swal-premium-popup', title: 'swal-premium-title' }
-                      });
-                    }
-                  }}
-                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Share2 size={14} /> Share PDF
                 </button>
                 <button
                   type="button"
