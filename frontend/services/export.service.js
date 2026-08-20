@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as htmlToImage from 'html-to-image';
 import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
 
@@ -1280,4 +1281,71 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
 
   doc.save(`Quotation_${quotation.quotationNo || quotation.id || 'Draft'}.pdf`);
   return true;
+};
+
+/**
+ * Export a DOM element to a high-quality PNG image (⭐ NEW)
+ */
+export const exportQuotationImage = async (elementId, filename = 'quotation.png') => {
+  const element = document.getElementById(elementId);
+  if (!element) {
+    throw new Error(`Element with id "${elementId}" not found`);
+  }
+
+  // Use html-to-image with higher pixelRatio for premium sharpness
+  return await htmlToImage.toPng(element, {
+    pixelRatio: 3, // Premium quality (3x density)
+    backgroundColor: '#ffffff', // Guarantee solid white background
+    style: {
+      borderRadius: '0' // Clear border radius on the printout
+    }
+  }).then((dataUrl) => {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return dataUrl;
+  });
+};
+
+/**
+ * Share a DOM element as a PNG image via Web Share API or fallback (⭐ NEW)
+ */
+export const shareQuotationImage = async (elementId, quotationNo = 'Draft', customerName = 'Customer') => {
+  const element = document.getElementById(elementId);
+  if (!element) {
+    throw new Error(`Element with id "${elementId}" not found`);
+  }
+
+  // Generate high quality PNG
+  const dataUrl = await htmlToImage.toPng(element, {
+    pixelRatio: 3,
+    backgroundColor: '#ffffff',
+    style: {
+      borderRadius: '0'
+    }
+  });
+
+  // Convert base64 data URL to blob
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+
+  // Create File object
+  const file = new File([blob], `Quotation_${quotationNo}.png`, { type: 'image/png' });
+  const shareData = {
+    title: `Quotation ${quotationNo}`,
+    text: `Here is the quotation for ${customerName}.`,
+    files: [file]
+  };
+
+  // Check if native file sharing is supported
+  if (navigator.canShare && navigator.canShare(shareData)) {
+    await navigator.share(shareData);
+    return { success: true };
+  }
+  
+  // If native file sharing is not supported, return the file/blob so the caller can display a custom fallback dialog
+  return { success: false, file, blob, dataUrl };
 };
