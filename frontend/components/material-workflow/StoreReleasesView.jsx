@@ -56,36 +56,16 @@ export default function StoreReleasesView() {
     setPage(1);
   }, [activeTab]);
 
-  // Fallback demo request so WO-109 is always testable
-  const fallbackDemoRequests = useMemo(() => [
-    {
-      id: 'a216ad48-b316-4174-b609-f6c465f58f2d',
-      orderId: 'WO-109',
-      department: 'Production',
-      status: 'STORE_APPROVED',
-      items: [
-        {
-          materialId: 'mat-steel-plates',
-          materialName: 'Steel Plates',
-          approvedQty: 150,
-          issuedQty: 0,
-          unit: 'Units'
-        }
-      ]
-    }
-  ], []);
-
-  // Combine real backend requests with fallback demo request
+  // Combine real backend requests
   const combinedRequests = useMemo(() => {
     const map = new Map();
-    fallbackDemoRequests.forEach(req => map.set(req.id, req));
     (allRequests || []).forEach(req => {
       if (['PLANT_HEAD_APPROVED', 'STORE_APPROVED', 'ISSUED_TO_PRODUCTION'].includes(req.status)) {
         map.set(req.id, req);
       }
     });
     return Array.from(map.values());
-  }, [allRequests, fallbackDemoRequests]);
+  }, [allRequests]);
 
   // Group requests order-wise
   const orderIds = useMemo(() => {
