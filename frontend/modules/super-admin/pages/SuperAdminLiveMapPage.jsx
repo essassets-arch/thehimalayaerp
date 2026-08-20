@@ -258,7 +258,7 @@ export default function SuperAdminLiveMapPage() {
       }
       const script = document.createElement('script');
       script.id = 'google-maps-api-script';
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,places`;
       script.async = true;
       script.defer = true;
       script.addEventListener('load', () => setMapsLoaded(true));

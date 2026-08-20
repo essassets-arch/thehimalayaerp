@@ -207,13 +207,16 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   };
 
   const parseAddress = (addr) => {
-    if (!addr) return { addressLine1: '', city: '', stateName: 'Gujarat', pincode: '' };
-    if (typeof addr === 'string') return { addressLine1: addr, city: '', stateName: 'Gujarat', pincode: '' };
+    if (!addr) return { addressLine1: '', city: '', stateName: 'Gujarat', pincode: '', latitude: null, longitude: null, googlePlaceId: '' };
+    if (typeof addr === 'string') return { addressLine1: addr, city: '', stateName: 'Gujarat', pincode: '', latitude: null, longitude: null, googlePlaceId: '' };
     return {
       addressLine1: addr.addressLine1 ?? addr.line1 ?? addr.address ?? '',
       city: addr.city ?? '',
       stateName: addr.stateName ?? addr.state ?? 'Gujarat',
       pincode: addr.pincode ?? addr.zip ?? '',
+      latitude: addr.latitude ?? addr.lat ?? null,
+      longitude: addr.longitude ?? addr.lng ?? null,
+      googlePlaceId: addr.googlePlaceId ?? addr.placeId ?? '',
     };
   };
 
@@ -245,6 +248,9 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     city: parsedAddr.city,
     stateName: parsedAddr.stateName,
     pincode: parsedAddr.pincode,
+    latitude: parsedAddr.latitude,
+    longitude: parsedAddr.longitude,
+    googlePlaceId: parsedAddr.googlePlaceId,
     sampleRequired: editingLead?.sampleRequired ?? false,
     expectedTransportationCost: Number(editingLead?.expectedTransportationCost ?? 0),
     items: initialItems,
@@ -268,7 +274,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   const {
     leadDate, projectName, groupName, companyName, gstNumber, siteInchargeName, siteInchargeMobile, officeContact,
     email, remarks, addressLine1, city, stateName, pincode, sampleRequired, expectedTransportationCost,
-    items, sampleItems, submitAction
+    items, sampleItems, submitAction, latitude, longitude, googlePlaceId
   } = formData;
 
   const updateField = (field, value) => {
@@ -292,6 +298,9 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   const setCity = (val) => updateField('city', val);
   const setStateName = (val) => updateField('stateName', val);
   const setPincode = (val) => updateField('pincode', val);
+  const setLatitude = (val) => updateField('latitude', val);
+  const setLongitude = (val) => updateField('longitude', val);
+  const setGooglePlaceId = (val) => updateField('googlePlaceId', val);
   const setSampleRequired = (val) => updateField('sampleRequired', val);
   const setExpectedTransportationCost = (val) => updateField('expectedTransportationCost', val);
   const setItems = (val) => updateField('items', val);
@@ -301,6 +310,242 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   const salesExecutive = user?.name || 'Alex Carter';
   const chiefDirector = editingLead?.chiefDirector || 'Director Rajesh';
   const itemIdCounter = useRef(2);
+
+  const [mapsLoaded, setMapsLoaded] = useState(false);
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const inputRef = useRef(null);
+  const autocompleteRef = useRef(null);
+
+  // Load Google Maps JavaScript API with Places and Geometry libraries
+  useEffect(() => {
+    if (!apiKey) {
+      console.warn('Google Maps API key is not configured.');
+      return;
+    }
+    if (window.google && window.google.maps && window.google.maps.places) {
+      setMapsLoaded(true);
+      return;
+    }
+    const existing = document.getElementById('google-maps-api-script');
+    if (existing) {
+      const handleLoad = () => {
+        if (window.google && window.google.maps && window.google.maps.places) {
+          setMapsLoaded(true);
+        }
+      };
+      existing.addEventListener('load', handleLoad);
+      if (window.google && window.google.maps && window.google.maps.places) {
+        setMapsLoaded(true);
+      }
+      return () => existing.removeEventListener('load', handleLoad);
+    }
+
+    const script = document.createElement('script');
+    script.id = 'google-maps-api-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,places`;
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', () => {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        setMapsLoaded(true);
+      }
+    });
+    document.body.appendChild(script);
+  }, [apiKey]);
+
+  // Set up Autocomplete and handle places select
+  useEffect(() => {
+    if (!mapsLoaded || !inputRef.current) return;
+
+    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+      componentRestrictions: { country: 'in' },
+      fields: ['address_components', 'geometry', 'formatted_address', 'place_id'],
+      types: ['geocode', 'establishment']
+    });
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (!place || !place.address_components) return;
+
+      let streetNumber = '';
+      let route = '';
+      let sublocality = '';
+      let locality = '';
+      let adminArea2 = '';
+      let state = '';
+      let postalCode = '';
+
+      place.address_components.forEach(component => {
+        const types = component.types;
+        if (types.includes('street_number')) streetNumber = component.long_name;
+        if (types.includes('route')) route = component.long_name;
+        if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
+          if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
+          else sublocality = component.long_name;
+        }
+        if (types.includes('locality')) locality = component.long_name;
+        if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+        if (types.includes('administrative_area_level_1')) state = component.long_name;
+        if (types.includes('postal_code')) postalCode = component.long_name;
+      });
+
+      const addressParts = [];
+      if (streetNumber) addressParts.push(streetNumber);
+      if (route) addressParts.push(route);
+      if (sublocality) addressParts.push(sublocality);
+
+      let line1 = addressParts.join(', ');
+      if (!line1) {
+        line1 = place.name || (place.formatted_address ? place.formatted_address.split(',')[0] : '');
+      }
+
+      const cityVal = locality || adminArea2 || sublocality || '';
+      const stateVal = state || '';
+      const pincodeVal = postalCode || '';
+
+      setFormData(prev => ({
+        ...prev,
+        addressLine1: line1,
+        city: cityVal,
+        stateName: stateVal,
+        pincode: pincodeVal,
+        latitude: place.geometry?.location ? place.geometry.location.lat() : null,
+        longitude: place.geometry?.location ? place.geometry.location.lng() : null,
+        googlePlaceId: place.place_id || ''
+      }));
+    });
+
+    autocompleteRef.current = autocomplete;
+
+    // Prevent form submission on enter key inside address autocomplete
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        const pacContainer = document.querySelector('.pac-container');
+        if (pacContainer && window.getComputedStyle(pacContainer).display !== 'none') {
+          e.preventDefault();
+        }
+      }
+    };
+    const inputElement = inputRef.current;
+    inputElement.addEventListener('keydown', handleKeyDown);
+    return () => {
+      inputElement.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mapsLoaded]);
+
+  // Use current geolocation coordinates and geocode them
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    Swal.fire({
+      title: 'Fetching location...',
+      text: 'Please allow location access if prompted.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude: lat, longitude: lng } = position.coords;
+
+        if (window.google && window.google.maps) {
+          const geocoder = new window.google.maps.Geocoder();
+          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+            Swal.close();
+            if (status === 'OK' && results[0]) {
+              const place = results[0];
+
+              let streetNumber = '';
+              let route = '';
+              let sublocality = '';
+              let locality = '';
+              let adminArea2 = '';
+              let state = '';
+              let postalCode = '';
+
+              place.address_components.forEach(component => {
+                const types = component.types;
+                if (types.includes('street_number')) streetNumber = component.long_name;
+                if (types.includes('route')) route = component.long_name;
+                if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
+                  if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
+                  else sublocality = component.long_name;
+                }
+                if (types.includes('locality')) locality = component.long_name;
+                if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+                if (types.includes('administrative_area_level_1')) state = component.long_name;
+                if (types.includes('postal_code')) postalCode = component.long_name;
+              });
+
+              const addressParts = [];
+              if (streetNumber) addressParts.push(streetNumber);
+              if (route) addressParts.push(route);
+              if (sublocality) addressParts.push(sublocality);
+
+              let line1 = addressParts.join(', ');
+              if (!line1) {
+                line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
+              }
+
+              const cityVal = locality || adminArea2 || sublocality || '';
+              const stateVal = state || '';
+              const pincodeVal = postalCode || '';
+
+              setFormData(prev => ({
+                ...prev,
+                addressLine1: line1,
+                city: cityVal,
+                stateName: stateVal,
+                pincode: pincodeVal,
+                latitude: lat,
+                longitude: lng,
+                googlePlaceId: place.place_id || ''
+              }));
+
+              Swal.fire({
+                icon: 'success',
+                title: 'Location Updated',
+                text: 'Your delivery address has been autofilled.',
+                timer: 1500,
+                showConfirmButton: false
+              });
+            } else {
+              Swal.fire({
+                icon: 'error',
+                title: 'Reverse Geocoding Failed',
+                text: 'Could not determine address for your coordinates. Please enter manually.'
+              });
+            }
+          });
+        } else {
+          Swal.close();
+          alert('Google Maps library is not loaded. Please try again.');
+        }
+      },
+      (error) => {
+        Swal.close();
+        let errorMsg = 'Could not retrieve your location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Location permission was denied. Please check your browser settings.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location information is unavailable.';
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'The request to get your location timed out.';
+        }
+        Swal.fire({
+          icon: 'error',
+          title: 'Permission Denied / Error',
+          text: errorMsg
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   // Sync sampleItems whenever items (product list) changes
   useEffect(() => {
@@ -426,7 +671,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         city: city.trim(),
         state: stateName.trim(),
         country: 'India',
-        pincode: pincode.trim()
+        pincode: pincode.trim(),
+        latitude: latitude !== undefined ? latitude : null,
+        longitude: longitude !== undefined ? longitude : null,
+        googlePlaceId: googlePlaceId || null
       },
 
       sampleRequired,
@@ -717,7 +965,51 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
               <div className="form-group">
                 <label className="form-label">Address Line 1 *</label>
-                <input data-testid="lead-address" type="text" className="form-input" placeholder="e.g. Sector 62, Noida Industrial Area" value={addressLine1} onChange={e => setAddressLine1(e.target.value)} required />
+                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                  <input
+                    ref={inputRef}
+                    data-testid="lead-address"
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Sector 62, Noida Industrial Area"
+                    value={addressLine1}
+                    onChange={e => setAddressLine1(e.target.value)}
+                    style={{ flex: 1 }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentLocation}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '0 16px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(99, 102, 241, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.2)';
+                    }}
+                  >
+                    <MapPin size={15} />
+                    <span>Use Current Location</span>
+                  </button>
+                </div>
               </div>
 
               <div className="form-row-three">
