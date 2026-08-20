@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { exportQuotationPDF } from '../services/export.service';
-import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical } from 'lucide-react';
+import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare } from 'lucide-react';
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
 import { useERPStore } from '../shared/context/ERPContext';
@@ -49,6 +49,7 @@ export default function QuotationsView({
   const search = (searchQuery !== undefined && searchQuery !== null) ? searchQuery : localSearch;
   const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
   const [selectedQuotation, setSelectedQuotation] = useState(null);
+  const quotationSheetRef = useRef(null);
   const [filter, setFilter] = useState('All');
   const [reminderBucket, setReminderBucket] = useState('Today');
   const [reminderModal, setReminderModal] = useState(null);
@@ -1392,17 +1393,28 @@ export default function QuotationsView({
             }
             @media (max-width: 640px) {
               .quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex {
-                flex-direction: column;
+                flex-direction: column !important;
                 align-items: flex-start !important;
-                gap: 12px;
+                gap: 12px !important;
               }
-              .quotation-sheet-mobile-flex > div:nth-child(2),
-              .quotation-footer-flex > div:nth-child(2) {
-                align-self: flex-start;
-                text-align: left !important;
+              .quotation-sheet-right-meta {
+                align-self: flex-start !important;
+                align-items: flex-start !important;
+                width: 100% !important;
+              }
+              .quotation-footer-contact {
+                flex-direction: column !important;
+                align-items: center !important;
+                gap: 8px !important;
+                height: auto !important;
+                padding: 20px 16px !important;
+              }
+              .quotation-footer-wave-wrapper {
+                height: auto !important;
+                min-height: 100px !important;
               }
               .invoice-sheet-modal {
-                padding: 16px !important;
+                padding: 0 !important;
               }
             }
             .invoice-sheet-modal {
@@ -1410,255 +1422,362 @@ export default function QuotationsView({
               overflow-y: auto;
               width: 840px;
               max-width: 100%;
-              padding: 28px 32px;
+              padding: 0 !important;
               box-sizing: border-box;
               background: #ffffff;
               border-radius: 16px;
               margin: auto;
             }
+            .term-number {
+              width: 22px;
+              height: 22px;
+              border-radius: 4px;
+              background: #e0f2fe;
+              color: #0284c7;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 11px;
+              fontWeight: 700;
+            }
           `}</style>
           <div
             className="invoice-sheet-modal"
+            ref={quotationSheetRef}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Sheet Branding Header - Himalaya Letterhead */}
-            <div className="sheet-header quotation-sheet-mobile-flex" style={{ marginBottom: '14px' }}>
-              <div>
-                <h1 style={{ fontSize: '18px', fontWeight: '800', color: '#0F2C59', margin: 0, fontFamily: 'sans-serif', letterSpacing: '-0.2px' }}>
-                  Himalaya Composites &amp; Precast Pvt Ltd
-                </h1>
-                <p style={{ fontSize: '10.5px', fontWeight: '700', color: '#0F2C59', margin: '2px 0 6px 0', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
-                  FORMERLY KNOWN AS AKBERALI PRECAST PVT LTD
-                </p>
-                <div style={{ fontSize: '10.5px', color: '#1e293b', fontWeight: '600', lineHeight: '1.45' }}>
-                  <p style={{ margin: 0 }}>PLOT NO.25&amp;26, SURVEY NO.35(OLD-27-A), EVOKE INDUSTRIAL PARK,</p>
-                  <p style={{ margin: 0 }}>BAREJA KHEDA ROAD, MALARPURA,KHEDA,GUJARAT</p>
-                  <p style={{ margin: 0 }}>GSTIN/UIN: <span style={{ fontWeight: '700' }}>24AAICH3332B1Z6</span></p>
-                  <p style={{ margin: 0 }}>E-Mail : <a href="mailto:info@thehimalaya.co.in" style={{ color: '#0F2C59', textDecoration: 'underline' }}>info@thehimalaya.co.in</a></p>
+            {/* Curved Header Banner Wave */}
+            <div style={{ position: 'relative', width: '100%', height: '150px', overflow: 'hidden', margin: 0, padding: 0 }}>
+              <svg viewBox="0 0 840 150" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+                {/* Light wave behind */}
+                <path d="M 0 0 L 840 0 L 840 30 C 600 15, 450 120, 0 130 Z" fill="#3b82f6" opacity="0.25" />
+                {/* Main dark wave */}
+                <path d="M 0 0 L 840 0 L 840 15 C 600 5, 450 105, 0 115 Z" fill="#002e5d" />
+                {/* White cutout ellipse background for logo */}
+                <ellipse cx="80" cy="20" rx="180" ry="115" fill="#ffffff" />
+              </svg>
+              {/* Content inside wave (Original Himalaya Logo) */}
+              <div style={{ position: 'relative', zIndex: 2, padding: '20px 32px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', boxSizing: 'border-box' }}>
+                <img src="/himalaya-logo-trimmed.png" alt="Himalaya Logo" style={{ height: '62px', width: 'auto', objectFit: 'contain' }} />
+                <div style={{ background: '#ffffff', color: '#002e5d', fontSize: '9px', fontWeight: '800', padding: '2px 8px', borderRadius: '3px', marginTop: '4px', letterSpacing: '0.5px' }}>
+                  COMPOSITES &amp; PRECAST PVT LTD
+                </div>
+                <div style={{ color: '#ffffff', fontSize: '8.5px', fontWeight: '700', marginTop: '6px', letterSpacing: '0.8px' }}>
+                  STRENGTH. DURABILITY. TRUST.
                 </div>
               </div>
-              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: '4px' }}>
-                <img src="/himalaya-logo-trimmed.png" alt="Himalaya Logo" style={{ height: '65px', width: 'auto', objectFit: 'contain' }} />
-              </div>
             </div>
 
-            {/* Horizontal Solid Branding Divider */}
-            <hr style={{ border: 'none', borderTop: '2px solid #000000', margin: '0 0 16px 0' }} />
-
-            {/* Document Title & Ref Banner */}
-            <div className="quotation-sheet-title-flex">
-              <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', letterSpacing: '0.5px', margin: 0, textTransform: 'uppercase' }}>QUOTATION</h2>
-              <p style={{ fontSize: '13px', color: '#475569', fontWeight: '700', margin: 0 }}>Ref: QT-2026-{selectedQuotation.id || selectedQuotation.quotationNo}</p>
-            </div>
-
-            {/* Client Coordinates & Invoice Details */}
-            <div className="sheet-meta">
-              <div>
-                <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Quoted To:</p>
-                <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{selectedQuotation.customerName}</p>
-                <p style={{ margin: '2px 0 0 0', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>
-                <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>
-              </div>
-              <div style={{ textAlign: 'right', fontWeight: '500', color: '#475569' }}>
-                <p style={{ margin: 0 }}><strong>Quotation Date:</strong> {selectedQuotation.date || selectedQuotation.createdAt?.slice(0, 10) || '—'}</p>
-                <p style={{ margin: '4px 0 0 0' }}><strong>Payment Terms:</strong> {quotationPaymentTerms(selectedQuotation)}</p>
-                <p style={{ margin: '4px 0 0 0' }}><strong>Revision:</strong> Version 1</p>
-              </div>
-            </div>
-
-            {/* Items Table */}
-            <div className="crm-table-container" style={{ margin: '0 0 20px 0', border: '1px solid #eaeaea', overflowX: 'auto' }}>
-              <table className="crm-table responsive-table" style={{ border: 'none', minWidth: '600px' }}>
-                <thead>
-                  <tr style={{ background: '#f8f9fa' }}>
-                    <th style={{ padding: '12px 16px', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Product Details</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Qty</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Rate</th>
-                    {/* Discount column removed as per request */}
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Tax (GST)</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '700', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itemsList.map((item, index) => {
-                    const itemSubtotal = item.quantity * item.unitPrice;
-                    const discountValue = itemSubtotal * (item.discount || 0) / 100;
-                    const taxable = itemSubtotal - discountValue;
-                    const taxValue = taxable * (item.tax !== undefined ? item.tax : 18) / 100;
-                    const itemTotal = taxable + taxValue;
-
-                    return (
-                      <tr key={index}>
-                        <td data-label="Product Details">
-                          <div style={{ fontWeight: '700', color: '#1e293b' }}>{item.productName}</div>
-                          {item.productDetails && (
-                            <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
-                          )}
-                          <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
-                        </td>
-                        <td data-label="Qty" style={{ textAlign: 'center', fontWeight: '600', color: '#334155' }}>{item.quantity}</td>
-                        <td data-label="Rate" style={{ textAlign: 'center', fontWeight: '600', color: '#334155' }}>{formatINR(item.unitPrice)}</td>
-                        {/* Discount cell removed as per request */}
-                        <td data-label="Tax (GST)" style={{ textAlign: 'center', fontWeight: '600', color: '#5E6B82' }}>{item.tax !== undefined ? item.tax : 18}%</td>
-                        <td data-label="Total" style={{ textAlign: 'right', fontWeight: '800', color: '#1e293b' }}>{formatINR(itemTotal)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Calculations Invoice Summary panel */}
-            <div className="sheet-summary">
-              <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#475569', fontWeight: '500' }}>
-                <span>Items Subtotal:</span>
-                <span style={{ fontWeight: '600', color: '#1e293b' }}>{formatINR(calculatedSubtotal)}</span>
-              </div>
-              {/* Discount Applied row removed as per request */}
-              <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#475569', fontWeight: '500' }}>
-                <span>GST Amount:</span>
-                <span style={{ fontWeight: '600', color: '#1e293b' }}>{formatINR(calculatedTaxAmt)}</span>
-              </div>
-              {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) >= 0) && (
-                <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '13.5px', color: '#0369a1', fontWeight: '500' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Truck size={12} /> Expected Transportation Cost:</span>
-                  <span style={{ fontWeight: '600' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
-                </div>
-              )}
-              <div style={{ display: 'flex', width: '260px', justifyContent: 'space-between', fontSize: '16px', fontWeight: '800', color: '#1e293b', borderTop: '1px solid #eaeaea', paddingTop: '8px', marginTop: '4px' }}>
-                <span>Grand Total:</span>
-                <span style={{ color: '#1e293b', fontSize: '17px' }}>{formatINR(quotationTotal(selectedQuotation))}</span>
-              </div>
-            </div>
-
-            {/* Embedded styles for Terms & Clients */}
-            <style dangerouslySetInnerHTML={{__html: `
-              .terms-container {
-                padding: 10px 16px;
-                background: #ffffff;
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-              }
-              .term-item {
-                display: flex;
-                align-items: flex-start;
-                padding: 4px 0;
-              }
-              .term-number {
-                width: 40px;
-                font-weight: 600;
-                color: #1e293b;
-              }
-              .term-text {
-                flex: 1;
-                color: #1e293b;
-              }
+            {/* Inner Content Area with standard padding */}
+            <div style={{ padding: '16px 32px 28px 32px' }}>
               
-              .clients-container {
-                padding: 16px 24px;
-                background: #ffffff;
-                display: flex;
-                justify-content: space-around;
-                align-items: center;
-                flex-wrap: wrap;
-                gap: 20px;
-              }
+              {/* Upper Section: Company Details (Left) and Ref & Meta (Right) */}
+              <div className="quotation-sheet-mobile-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '14px' }}>
+                <div style={{ flex: 1 }}>
+                  <h1 style={{ fontSize: '18px', fontWeight: '850', color: '#002e5d', margin: 0, fontFamily: 'sans-serif' }}>
+                    Himalaya Composites &amp; Precast Pvt Ltd
+                  </h1>
+                  <p style={{ fontSize: '10px', fontWeight: '750', color: '#0284c7', margin: '2px 0 8px 0', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                    FORMERLY KNOWN AS AKBERALI PRECAST PVT LTD
+                  </p>
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600', lineHeight: '1.45', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <p style={{ margin: 0, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <MapPin size={13} color="#0284c7" style={{ marginTop: '2px', flexShrink: 0 }} />
+                      <span>PLOT NO.25&amp;26, SURVEY NO.35(OLD-27-A), EVOKE INDUSTRIAL PARK, BAREJA KHEDA ROAD, MALARPURA, KHEDA, GUJARAT</span>
+                    </p>
+                    <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FileText size={13} color="#0284c7" />
+                      <span>GSTIN/UIN: <span style={{ fontWeight: '750', color: '#1e293b' }}>24AAICH3332B1Z6</span></span>
+                    </p>
+                  </div>
+                </div>
 
-              @media (max-width: 640px) {
-                .clients-container {
-                  display: grid;
-                  grid-template-columns: repeat(2, 1fr);
-                  gap: 24px 16px;
-                  justify-items: center;
-                  padding: 24px 16px;
-                }
-                .clients-container img {
-                  max-height: 40px !important;
-                }
-              }
-            `}} />
+                <div className="quotation-sheet-right-meta" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                  {/* QUOTATION ribbon header */}
+                  <div style={{ display: 'inline-flex', alignItems: 'stretch', borderRadius: '6px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }}>
+                    <div style={{ background: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px' }}>
+                      <FileText size={16} color="#ffffff" />
+                    </div>
+                    <div style={{ background: '#002e5d', color: '#ffffff', padding: '8px 24px 8px 16px', fontWeight: '800', fontSize: '15px', letterSpacing: '0.5px', clipPath: 'polygon(0 0, 100% 0, 90% 100%, 0 100%)' }}>
+                      QUOTATION
+                    </div>
+                  </div>
 
-            {/* Terms & Conditions Section */}
-            <div style={{ marginTop: '24px', border: '1px solid #1e293b' }}>
-              <div style={{ background: '#1e293b', color: '#ffffff', padding: '6px 12px', fontWeight: '700', fontSize: '13px', textDecoration: 'underline', letterSpacing: '0.5px' }}>
-                TERMS AND CONDITIONS :-
+                  <p style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700', margin: '2px 0 6px 0' }}>
+                    Ref: QT-2026-{selectedQuotation.id || selectedQuotation.quotationNo}
+                  </p>
+
+                  {/* Stacked Meta Info */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '180px', marginTop: '4px' }}>
+                    {/* Date Card */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Calendar size={15} color="#0284c7" />
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '9px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.2px' }}>Quotation Date</p>
+                        <p style={{ margin: 0, fontSize: '11.5px', color: '#0f2c59', fontWeight: '700' }}>
+                          {selectedQuotation.date || selectedQuotation.createdAt?.slice(0, 10) || '—'}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Payment Terms Card */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <CreditCard size={15} color="#0284c7" />
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '9px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.2px' }}>Payment Terms</p>
+                        <p style={{ margin: 0, fontSize: '11.5px', color: '#0f2c59', fontWeight: '700' }}>
+                          {quotationPaymentTerms(selectedQuotation)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="terms-container">
-                <div className="term-item">
-                  <div className="term-number">1</div>
-                  <div className="term-text">Payment Terms</div>
+
+              {/* Styled horizontal banner "QUOTED TO:" */}
+              <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', margin: '18px 0', overflow: 'hidden', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                <div style={{ background: '#002e5d', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', flexShrink: 0 }}>
+                  <User size={20} color="#ffffff" />
                 </div>
-                <div className="term-item">
-                  <div className="term-number">2</div>
-                  <div className="term-text">Unloading at Client scope &amp; breakage risk &amp; responsibility</div>
+                <div style={{ padding: '10px 16px', flex: 1, position: 'relative', zIndex: 2 }}>
+                  <p style={{ margin: 0, fontSize: '9px', fontWeight: '700', color: '#64748b', letterSpacing: '0.5px' }}>QUOTED TO:</p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '15px', fontWeight: '800', color: '#0f2c59' }}>{selectedQuotation.customerName}</p>
+                  {clientAddress && <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>}
+                  {clientGST && <p style={{ margin: '4px 0 0 0', fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>}
                 </div>
-                <div className="term-item">
-                  <div className="term-number">3</div>
-                  <div className="term-text">Delivery timeline</div>
+                {/* Faint watermark outline background on the right */}
+                <div style={{ position: 'absolute', right: 0, bottom: 0, top: 0, width: '160px', opacity: 0.08, pointerEvents: 'none', zIndex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '4px' }}>
+                  <img src="/himalaya-logo-mark.png" alt="watermark" style={{ height: '85%', width: 'auto', objectFit: 'contain' }} />
                 </div>
-                <div className="term-item">
-                  <div className="term-number">4</div>
-                  <div className="term-text">Any Dispute Shall Be Subject To Ahmedabad Jurisdiction</div>
+              </div>
+
+              {/* Items Table */}
+              <div className="crm-table-container" style={{ margin: '0 0 16px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                <table className="crm-table responsive-table" style={{ border: 'none', minWidth: '600px', borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr style={{ background: '#002e5d', color: '#ffffff' }}>
+                      <th style={{ padding: '12px 14px', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '40px', textAlign: 'center', background: '#002e5d' }}>#</th>
+                      <th style={{ padding: '12px 14px', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', textAlign: 'left', background: '#002e5d' }}>Product Details</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '60px', background: '#002e5d' }}>Qty</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '100px', background: '#002e5d' }}>Rate</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '100px', background: '#002e5d' }}>Tax (GST)</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '120px', background: '#002e5d' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemsList.map((item, index) => {
+                      const itemSubtotal = item.quantity * item.unitPrice;
+                      const discountValue = itemSubtotal * (item.discount || 0) / 100;
+                      const taxable = itemSubtotal - discountValue;
+                      const taxValue = taxable * (item.tax !== undefined ? item.tax : 18) / 100;
+                      const itemTotal = taxable + taxValue;
+
+                      return (
+                        <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td data-label="#" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>{index + 1}</td>
+                          <td data-label="Product Details" style={{ padding: '12px 14px' }}>
+                            <div style={{ fontWeight: '700', color: '#0f2c59' }}>{item.productName}</div>
+                            {item.productDetails && (
+                              <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
+                            )}
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
+                          </td>
+                          <td data-label="Qty" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#0f2c59' }}>{item.quantity}</td>
+                          <td data-label="Rate" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '600', color: '#334155' }}>{formatINR(item.unitPrice)}</td>
+                          <td data-label="Tax (GST)" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>{item.tax !== undefined ? item.tax : 18}%</td>
+                          <td data-label="Total" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0f2c59' }}>{formatINR(itemTotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Calculations Invoice Summary panel */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', margin: '14px 0 20px 0', gap: '6px' }}>
+                {/* Subtotal row */}
+                <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', border: '1px solid #f1f5f9', borderRadius: '6px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0f2fe' }}>
+                      <FileText size={12} color="#0284c7" />
+                    </span>
+                    Items Subtotal:
+                  </span>
+                  <span style={{ fontWeight: '700', color: '#0f2c59' }}>{formatINR(calculatedSubtotal)}</span>
                 </div>
-                <div className="term-item">
-                  <div className="term-number">5</div>
-                  <div className="term-text">Manufacturer Test Report shall be provided</div>
+
+                {/* GST row */}
+                <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', border: '1px solid #f1f5f9', borderRadius: '6px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0f2fe' }}>
+                      <Percent size={12} color="#0284c7" />
+                    </span>
+                    GST Amount:
+                  </span>
+                  <span style={{ fontWeight: '700', color: '#0f2c59' }}>{formatINR(calculatedTaxAmt)}</span>
                 </div>
-                <div className="term-item">
-                  <div className="term-number">6</div>
-                  <div className="term-text">Different Colour Options available at additional 10% cost</div>
+
+                {/* Expected Transportation Cost */}
+                {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) >= 0) && (
+                  <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', border: '1px solid #f0fdf4', borderRadius: '6px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0369a1', fontWeight: '600' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0fdf4' }}>
+                        <Truck size={12} color="#0369a1" />
+                      </span>
+                      Expected Transportation Cost:
+                    </span>
+                    <span style={{ fontWeight: '700', color: '#0369a1' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
+                  </div>
+                )}
+
+                {/* Grand Total row */}
+                <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#3b82f6', borderRadius: '6px', color: '#ffffff', boxShadow: '0 2px 4px rgba(59, 130, 246, 0.15)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '800' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.2)' }}>
+                      <ShieldCheck size={13} color="#ffffff" />
+                    </span>
+                    Grand Total:
+                  </span>
+                  <span style={{ fontWeight: '900', fontSize: '16px' }}>{formatINR(quotationTotal(selectedQuotation))}</span>
                 </div>
+              </div>
+
+              {/* Terms & Conditions Section */}
+              <div style={{ marginTop: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', background: '#002e5d', color: '#ffffff', padding: '10px 16px', gap: '8px', fontWeight: '700', fontSize: '12.5px' }}>
+                  <div style={{ background: '#0284c7', width: '22px', height: '22px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <CheckSquare size={13} color="#ffffff" />
+                  </div>
+                  TERMS AND CONDITIONS :-
+                </div>
+                <div className="terms-container" style={{ padding: '12px 16px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {[
+                    "Payment Terms",
+                    "Unloading at Client scope & breakage risk & responsibility",
+                    "Delivery timeline",
+                    "Any Dispute Shall Be Subject To Ahmedabad Jurisdiction",
+                    "Manufacturer Test Report shall be provided",
+                    "Different Colour Options available at additional 10% cost"
+                  ].map((term, i) => (
+                    <div key={i} className="term-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '5px 0', borderBottom: i < 5 ? '1px dashed #f1f5f9' : 'none' }}>
+                      <div className="term-number">
+                        {i + 1}
+                      </div>
+                      <div className="term-text" style={{ fontSize: '12px', color: '#1e293b', fontWeight: '600' }}>{term}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Valuable Clients Section */}
+              <div style={{ marginTop: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', background: '#002e5d', color: '#ffffff', padding: '10px 16px', gap: '8px', fontWeight: '750', fontSize: '12.5px' }}>
+                  <div style={{ background: '#3b82f6', width: '22px', height: '22px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Star size={13} color="#ffffff" fill="#ffffff" />
+                  </div>
+                  VALUABLE CLIENTS
+                </div>
+                <div className="clients-container" style={{ padding: '16px 20px', background: '#ffffff', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                  {/* Reliance Logo */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <img src="/client-logos/reliance-logo.png" alt="Reliance Industries Limited" style={{ maxHeight: '42px', maxWidth: '120px', objectFit: 'contain' }} />
+                  </div>
+                  {/* Adani Logo */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <img src="/client-logos/adani-logo.png" alt="adani" style={{ maxHeight: '36px', maxWidth: '110px', objectFit: 'contain' }} />
+                  </div>
+                  {/* L&T Logo */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <img src="/client-logos/lt-logo.png" alt="L&T" style={{ maxHeight: '40px', maxWidth: '100px', objectFit: 'contain' }} />
+                  </div>
+                  {/* A.SHRIDHAR Logo */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <img src="/client-logos/ashridhar-logo.png" alt="A.SHRIDHAR" style={{ maxHeight: '38px', maxWidth: '120px', objectFit: 'contain' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sign-off & Authorised Signatory Footer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '24px', paddingBottom: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* Circular Seal SVG */}
+                  <svg width="80" height="80" viewBox="0 0 100 100" style={{ marginRight: '8px', flexShrink: 0 }}>
+                    <defs>
+                      <path id="seal-text-path-top" d="M 16 50 A 34 34 0 0 1 84 50" fill="none" />
+                      <path id="seal-text-path-bottom" d="M 84 50 A 34 34 0 0 1 16 50" fill="none" />
+                    </defs>
+                    <circle cx="50" cy="50" r="48" fill="none" stroke="#002e5d" strokeWidth="1.5" />
+                    <circle cx="50" cy="50" r="44" fill="none" stroke="#002e5d" strokeWidth="0.8" strokeDasharray="1.5,1.5" />
+                    <circle cx="50" cy="50" r="34" fill="none" stroke="#002e5d" strokeWidth="1" />
+                    {/* Mountains in the center */}
+                    <g transform="translate(34, 34) scale(0.08)" fill="#002e5d">
+                      <path d="M120 220 L180 80 L230 180 L280 60 L380 220 Z" />
+                      <path d="M180 80 L210 140 L230 180" stroke="#ffffff" strokeWidth="3" />
+                    </g>
+                    <text fontSize="5.8" fontWeight="800" fill="#002e5d">
+                      <textPath href="#seal-text-path-top" startOffset="50%" textAnchor="middle">
+                        STRENGTH • DURABILITY • TRUST
+                      </textPath>
+                    </text>
+                    <text fontSize="7.8" fontWeight="950" fill="#002e5d">
+                      <textPath href="#seal-text-path-bottom" startOffset="50%" textAnchor="middle">
+                        HIMALAYA
+                      </textPath>
+                    </text>
+                  </svg>
+                  
+                  <div style={{ fontSize: '12.5px', color: '#334155', fontStyle: 'italic', lineHeight: '1.5' }}>
+                    <p style={{ margin: 0, fontWeight: '500' }}>Thanks and waiting for your valued order</p>
+                    <p style={{ margin: '4px 0 0 0', fontWeight: '600' }}>Yours truly,</p>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right', color: '#1e293b' }}>
+                  <p style={{ margin: 0, fontWeight: '800', fontSize: '13px', color: '#002e5d' }}>
+                    For Himalaya Composites &amp; Precast Pvt Ltd
+                  </p>
+                  <p style={{ margin: '2px 0 0 0', fontStyle: 'italic', fontSize: '11px', color: '#475569' }}>
+                    (Formerly known as Akberali Precast Pvt Ltd)
+                  </p>
+                  {/* Styled vector cursive signature path */}
+                  <div style={{ height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '15px' }}>
+                    <svg width="100" height="30" viewBox="0 0 100 30" style={{ opacity: 0.85 }}>
+                      <path d="M 8 22 C 20 8, 28 4, 36 18 C 44 26, 48 4, 56 15 C 64 26, 72 18, 88 20" fill="none" stroke="#002e5d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M 24 15 L 72 15" fill="none" stroke="#002e5d" strokeWidth="1.2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <p style={{ margin: 0, fontWeight: '800', fontSize: '12.5px', color: '#1e293b', borderTop: '1px solid #e2e8f0', paddingTop: '4px', display: 'inline-block' }}>
+                    Authorised Signatory
+                  </p>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Curved Footer Wave with Contact Info */}
+            <div className="quotation-footer-wave-wrapper" style={{ position: 'relative', width: '100%', height: '76px', overflow: 'hidden', marginTop: '18px', background: '#002e5d' }}>
+              <svg viewBox="0 0 840 76" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+                <path d="M 0 10 C 245 -2, 560 26, 840 2 L 840 31 C 565 54, 255 24, 0 38 Z" fill="#3b82f6" opacity="0.28" />
+                <path d="M 0 22 C 255 6, 560 45, 840 18 L 840 76 L 0 76 Z" fill="#002e5d" />
+              </svg>
+              <div className="quotation-footer-contact" style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '100%', boxSizing: 'border-box', padding: '30px 34px 10px', color: '#ffffff', fontSize: '11.5px', fontWeight: '700' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
+                  <Phone size={13} color="#ffffff" fill="#ffffff" /> +91 98795 22226
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
+                  <Mail size={13} color="#ffffff" /> info@himalayacomposites.com
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
+                  <Globe size={13} color="#ffffff" /> www.himalayacomposites.com
+                </span>
               </div>
             </div>
 
-            {/* Valuable Clients Section */}
-            <div style={{ marginTop: '16px', border: '1px solid #1e293b' }}>
-              <div style={{ background: '#1e293b', color: '#ffffff', padding: '6px 12px', textAlign: 'center', fontWeight: '700', fontSize: '13px', textDecoration: 'underline', letterSpacing: '0.5px' }}>
-                VALUABLE CLIENTS
-              </div>
-              <div className="clients-container">
-                {/* Reliance Logo */}
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <img src="/client-logos/reliance-logo.png" alt="Reliance Industries Limited" style={{ maxHeight: '48px', maxWidth: '140px', objectFit: 'contain' }} />
-                </div>
-                {/* Adani Logo */}
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <img src="/client-logos/adani-logo.png" alt="adani" style={{ maxHeight: '42px', maxWidth: '130px', objectFit: 'contain' }} />
-                </div>
-                {/* L&T Logo */}
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <img src="/client-logos/lt-logo.png" alt="L&T" style={{ maxHeight: '46px', maxWidth: '110px', objectFit: 'contain' }} />
-                </div>
-                {/* A.SHRIDHAR Logo */}
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <img src="/client-logos/ashridhar-logo.png" alt="A.SHRIDHAR" style={{ maxHeight: '44px', maxWidth: '140px', objectFit: 'contain' }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Sign-off & Authorised Signatory Footer */}
-            <div className="quotation-footer-flex" style={{ marginTop: '28px', marginBottom: '20px', paddingBottom: '12px' }}>
-              <div style={{ fontSize: '13px', color: '#1e293b', fontStyle: 'italic', lineHeight: '1.6' }}>
-                <p style={{ margin: 0 }}>Thanks and waiting for your valued order</p>
-                <p style={{ margin: '8px 0 0 0' }}>Yours truly,</p>
-              </div>
-              <div style={{ textAlign: 'right', color: '#1e293b' }}>
-                <p style={{ margin: 0, fontWeight: '800', fontSize: '14px', color: '#0F2C59' }}>
-                  For Himalaya Composites &amp; Precast Pvt Ltd
-                </p>
-                <p style={{ margin: '2px 0 0 0', fontStyle: 'italic', fontSize: '12px', color: '#475569' }}>
-                  (Formerly known as Akberali Precast Pvt Ltd)
-                </p>
-                <div style={{ height: '45px' }}></div>
-                <p style={{ margin: 0, fontWeight: '800', fontSize: '13px', color: '#1e293b' }}>
-                  Authorised Signatory
-                </p>
-              </div>
-            </div>
-
-            {/* Close / Convert Action controls */}
-            <div className="sheet-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            {/* Close / Convert Action controls wrapper */}
+            <div className="sheet-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '16px 32px 20px 32px', boxSizing: 'border-box', background: '#fafafa', borderTop: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   type="button"
@@ -1671,9 +1790,9 @@ export default function QuotationsView({
                 <button
                   type="button"
                   className="btn-small btn-outline-small"
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      exportQuotationPDF(selectedQuotation);
+                      await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST }, false, quotationSheetRef.current);
                       Swal.fire('Downloaded', 'Quotation PDF has been downloaded.', 'success');
                     } catch (err) {
                       console.error('Error generating PDF:', err);
@@ -1690,7 +1809,7 @@ export default function QuotationsView({
                   onClick={async () => {
                     try {
                       // 1. Generate the PDF blob
-                      const pdfBlob = exportQuotationPDF(selectedQuotation, true);
+                      const pdfBlob = await exportQuotationPDF({ ...selectedQuotation, clientAddress, clientGST }, true, quotationSheetRef.current);
                       
                       // 2. Prepare sharing data
                       const file = new File([pdfBlob], `Quotation_${selectedQuotation.quotationNo || 'Draft'}.pdf`, { type: 'application/pdf' });

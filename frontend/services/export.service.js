@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
 
@@ -878,8 +879,55 @@ export const exportExecutiveReportPDF = (reportData, dateRangeLabel) => {
 /**
  * Generate PDF for a Quotation
  */
-export const exportQuotationPDF = (quotation, returnBlob = false) => {
+const exportQuotationPreviewPDF = async (quotation, returnBlob, sourceElement) => {
+  const preview = sourceElement.cloneNode(true);
+  preview.querySelectorAll('.sheet-actions').forEach((element) => element.remove());
+  Object.assign(preview.style, {
+    position: 'fixed',
+    top: '0',
+    left: '-10000px',
+    width: `${sourceElement.offsetWidth}px`,
+    maxWidth: 'none',
+    maxHeight: 'none',
+    height: 'auto',
+    overflow: 'visible',
+    margin: '0',
+    borderRadius: '0',
+    zIndex: '-1'
+  });
+  document.body.appendChild(preview);
+
+  try {
+    const canvas = await html2canvas(preview, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: preview.scrollWidth,
+      windowHeight: preview.scrollHeight
+    });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const scale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+    const imageWidth = canvas.width * scale;
+    const imageHeight = canvas.height * scale;
+
+    doc.addImage(canvas.toDataURL('image/png'), 'PNG', (pageWidth - imageWidth) / 2, 0, imageWidth, imageHeight);
+
+    if (returnBlob) return doc.output('blob');
+    doc.save(`Quotation_${quotation.quotationNo || quotation.id || 'Draft'}.pdf`);
+    return true;
+  } finally {
+    preview.remove();
+  }
+};
+
+export const exportQuotationPDF = (quotation, returnBlob = false, sourceElement = null) => {
   if (!quotation) return null;
+  if (sourceElement && typeof document !== 'undefined') {
+    return exportQuotationPreviewPDF(quotation, returnBlob, sourceElement);
+  }
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -889,65 +937,164 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
-  let y = 20;
+  let y = 35;
 
-  // Header - Himalaya Branding
-  doc.setFontSize(16);
+  // Resolve client information passed from parent
+  const clientAddress = quotation.clientAddress || '';
+  const clientGST = quotation.clientGST || '';
+
+  // 1. Draw Curved Header Waves in PDF
+  doc.setFillColor(59, 130, 246); // Light blue
+  doc.rect(0, 0, 160, 15, 'F');
+  doc.ellipse(50, -10, 190, 52, 'F');
+
+  doc.setFillColor(0, 46, 93); // Dark blue
+  doc.rect(0, 0, 140, 12, 'F');
+  doc.ellipse(40, -15, 180, 50, 'F');
+
+  // Draw white cutout ellipse behind the logo
+  doc.setFillColor(255, 255, 255);
+  doc.ellipse(25, 4, 30, 20, 'F');
+
+  // Try to find the logo on screen to convert it to a base64 data URL
+  let originalLogoData = null;
+  if (typeof document !== 'undefined') {
+    const logoImg = document.querySelector('img[alt="Himalaya Logo"]');
+    if (logoImg) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = logoImg.naturalWidth || logoImg.width || 500;
+        canvas.height = logoImg.naturalHeight || logoImg.height || 150;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(logoImg, 0, 0);
+        originalLogoData = canvas.toDataURL('image/png');
+      } catch (e) {
+        console.error('Error rendering logo for PDF:', e);
+      }
+    }
+  }
+
+  // Draw logo if available, else text fallback
+  if (originalLogoData) {
+    doc.addImage(originalLogoData, 'PNG', 14, 8, 38, 11);
+  } else {
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('HIMALAYA', 14, 15);
+  }
+
+  // Draw logo tagline under it
+  doc.setFillColor(255, 255, 255);
+  doc.rect(14, 21, 48, 4, 'F');
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 46, 93);
+  doc.text('COMPOSITES & PRECAST PVT LTD', 15, 24);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(6.5);
+  doc.text('STRENGTH. DURABILITY. TRUST.', 14, 28);
+
+  // 2. Company Details (Left Column)
+  y = 40;
+  doc.setFontSize(15);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 44, 89);
   doc.text('Himalaya Composites & Precast Pvt Ltd', margin, y);
-  
-  y += 5;
-  doc.setFontSize(8);
+
+  y += 4.5;
+  doc.setFontSize(9.5);
+  doc.setTextColor(2, 132, 199); // Light blue
   doc.text('FORMERLY KNOWN AS AKBERALI PRECAST PVT LTD', margin, y);
-  
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(30, 41, 59);
-  doc.text('PLOT NO.25&26, SURVEY NO.35(OLD-27-A), EVOKE INDUSTRIAL PARK', margin, y);
-  y += 4;
-  doc.text('BAREJA KHEDA ROAD, MALARPURA,KHEDA,GUJARAT', margin, y);
-  y += 4;
-  doc.text('GSTIN/UIN: 24AAICH3332B1Z6', margin, y);
-  
-  y += 8;
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.5);
-  doc.line(margin, y, pageWidth - margin, y);
-  
-  y += 10;
 
-  // Title and Reference
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('QUOTATION', margin, y);
-
-  doc.setFontSize(10);
-  doc.text(`Ref: QT-2026-${quotation.id || quotation.quotationNo}`, pageWidth - margin, y, { align: 'right' });
-
-  y += 10;
-
-  // Client Details
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(94, 107, 130);
-  doc.text('QUOTED TO:', margin, y);
-  
-  y += 5;
-  doc.setFontSize(11);
-  doc.setTextColor(30, 41, 59);
-  doc.text(quotation.customerName || 'Customer', margin, y);
-
-  // Dates and Terms
-  doc.setFontSize(9);
+  y += 4.5;
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`Quotation Date: ${quotation.date || quotation.createdAt?.slice(0, 10) || 'N/A'}`, pageWidth - margin, y - 5, { align: 'right' });
-  doc.text(`Payment Terms: ${quotation.paymentTerms || 'N/A'}`, pageWidth - margin, y, { align: 'right' });
+  doc.text('PLOT NO.25&26, SURVEY NO.35(OLD-27-A), EVOKE INDUSTRIAL PARK,', margin, y);
+  y += 3.5;
+  doc.text('BAREJA KHEDA ROAD, MALARPURA, KHEDA, GUJARAT', margin, y);
+  
+  y += 4;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text('GSTIN/UIN: 24AAICH3332B1Z6', margin, y);
 
-  y += 10;
+  // 3. Document Title and Reference (Right Column)
+  // Draw Quotation ribbon shape
+  doc.setFillColor(2, 132, 199);
+  doc.rect(pageWidth - margin - 45, 34, 10, 8, 'F'); // Left box
+  doc.setFillColor(0, 46, 93);
+  doc.rect(pageWidth - margin - 35, 34, 35, 8, 'F'); // Right banner
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text('QUOTATION', pageWidth - margin - 17, 39.5, { align: 'center' });
 
-  // Table Data
+  doc.setTextColor(71, 85, 105);
+  doc.setFontSize(8.5);
+  doc.text(`Ref: QT-2026-${quotation.id || quotation.quotationNo}`, pageWidth - margin, 47, { align: 'right' });
+
+  // Metadata boxes (stacked on the right) - Balanced
+  // Date box
+  doc.setFillColor(224, 242, 254); // Light blue bg
+  doc.rect(pageWidth - margin - 42, 53, 8, 8, 'F');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.setFont('helvetica', 'normal');
+  doc.text('QUOTATION DATE', pageWidth - margin - 32, 56.5);
+  doc.setFontSize(10);
+  doc.setTextColor(15, 44, 89);
+  doc.setFont('helvetica', 'bold');
+  doc.text(quotation.date || quotation.createdAt?.slice(0, 10) || 'N/A', pageWidth - margin - 32, 60.5);
+
+  // Payment Terms box
+  doc.setFillColor(224, 242, 254);
+  doc.rect(pageWidth - margin - 42, 63, 8, 8, 'F');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.setFont('helvetica', 'normal');
+  doc.text('PAYMENT TERMS', pageWidth - margin - 32, 66.5);
+  doc.setFontSize(10);
+  doc.setTextColor(15, 44, 89);
+  doc.setFont('helvetica', 'bold');
+  doc.text(quotation.paymentTerms || 'N/A', pageWidth - margin - 32, 70.5);
+
+  // 4. Quoted To Banner (Full Width) - Balanced
+  y = 77;
+  doc.setFillColor(0, 46, 93);
+  const quotedToHeight = 20;
+  doc.rect(margin, y, 10, quotedToHeight, 'F'); // Left blue box
+  doc.setFillColor(248, 250, 252);
+  doc.rect(margin + 10, y, pageWidth - 2 * margin - 10, quotedToHeight, 'F'); // Main box
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.rect(margin, y, pageWidth - 2 * margin, quotedToHeight, 'D');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('QUOTED TO:', margin + 14, y + 4);
+
+  doc.setFontSize(11.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 44, 89);
+  doc.text(quotation.customerName || 'Customer', margin + 14, y + 9);
+
+  let detailText = '';
+  if (clientAddress) detailText += clientAddress;
+  if (clientGST) detailText += (detailText ? '  |  ' : '') + `GST: ${clientGST}`;
+  
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  const clientDetailLines = doc.splitTextToSize(detailText || 'No billing details available.', pageWidth - (2 * margin) - 28);
+  doc.text(clientDetailLines.slice(0, 2), margin + 14, y + 14);
+
+  y += quotedToHeight + 6;
+
+  // 5. Product Table Data
   let items = [];
   if (Array.isArray(quotation.detailedItems) && quotation.detailedItems.length > 0) {
     items = quotation.detailedItems;
@@ -971,7 +1118,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
 
     return [
       idx + 1,
-      item.productName || item.name || 'Item',
+      [item.productName || item.name || 'Item', item.productDetails, item.code ? `Code: ${item.code}` : ''].filter(Boolean).join('\n'),
       qty,
       `Rs. ${rate.toFixed(2)}`,
       `${taxRate}%`,
@@ -986,10 +1133,10 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     body: tableRows,
     startY: y,
     theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 3 },
-    headStyles: { fillColor: [241, 243, 245], textColor: [71, 85, 105], fontStyle: 'bold' },
+    styles: { fontSize: 9.5, cellPadding: 2.8, valign: 'middle' },
+    headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 },
     columnStyles: {
-      0: { cellWidth: 10 },
+      0: { cellWidth: 10, halign: 'center' },
       2: { halign: 'center' },
       3: { halign: 'right' },
       4: { halign: 'center' },
@@ -997,37 +1144,51 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     }
   });
 
-  y = doc.lastAutoTable.finalY + 10;
+  y = doc.lastAutoTable.finalY + 6;
 
-  // Totals
-  doc.setFontSize(10);
-  doc.setTextColor(30, 41, 59);
-  doc.text('Items Subtotal:', pageWidth - 60, y);
-  doc.text(`Rs. ${itemsSubtotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-  
-  y += 6;
-  doc.text('GST Amount:', pageWidth - 60, y);
-  doc.text(`Rs. ${totalTax.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-
-  y += 8;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Grand Total:', pageWidth - 60, y);
-  doc.text(`Rs. ${grandTotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-
-  y += 10;
-  
-  if (y > 230) {
+  // 6. Totals Box Panel - Compact
+  if (y > 255) {
     doc.addPage();
     y = 20;
   }
 
-  // TERMS AND CONDITIONS
+  doc.setFillColor(248, 250, 252);
+  doc.rect(pageWidth - margin - 70, y, 70, 17, 'F');
+  doc.setDrawColor(241, 245, 249);
+  doc.setLineWidth(0.3);
+  doc.rect(pageWidth - margin - 70, y, 70, 17, 'D');
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Items Subtotal:', pageWidth - margin - 66, y + 4.5);
+  doc.text(`Rs. ${itemsSubtotal.toFixed(2)}`, pageWidth - margin - 4, y + 4.5, { align: 'right' });
+
+  doc.text('GST Amount:', pageWidth - margin - 66, y + 9);
+  doc.text(`Rs. ${totalTax.toFixed(2)}`, pageWidth - margin - 4, y + 9, { align: 'right' });
+
+  // Grand Total Highlighted Blue Box
+  doc.setFillColor(59, 130, 246);
+  doc.rect(pageWidth - margin - 70, y + 12.5, 70, 4.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  doc.text('Grand Total:', pageWidth - margin - 66, y + 16);
+  doc.text(`Rs. ${grandTotal.toFixed(2)}`, pageWidth - margin - 4, y + 16, { align: 'right' });
+
+  y += 22;
+
+  // 7. TERMS AND CONDITIONS Section
+  if (y > 245) {
+    doc.addPage();
+    y = 20;
+  }
+
   autoTable(doc, {
     startY: y,
     theme: 'grid',
     head: [[ { content: 'TERMS AND CONDITIONS :-', colSpan: 2 } ]],
-    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+    headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold' },
     body: [
       ['1', 'Payment Terms'],
       ['2', 'Unloading at Client scope & breakage risk & responsibility'],
@@ -1037,57 +1198,106 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
       ['6', 'Different Colour Options available at additional 10% cost']
     ],
     columnStyles: {
-      0: { cellWidth: 10, fontStyle: 'bold' }
+      0: { cellWidth: 10, fontStyle: 'bold', halign: 'center', fillColor: [224, 242, 254], textColor: [2, 132, 199] }
     },
-    styles: { fontSize: 9, cellPadding: 3, textColor: [30, 41, 59] }
+    styles: { fontSize: 9.5, cellPadding: 2.2, textColor: [30, 41, 59] },
+    headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 }
   });
-  
-  y = doc.lastAutoTable.finalY + 8;
-  
-  if (y > 230) {
+
+  y = doc.lastAutoTable.finalY + 6;
+
+  // 8. VALUABLE CLIENTS Section
+  if (y > 245) {
     doc.addPage();
     y = 20;
   }
 
-  // VALUABLE CLIENTS Header
   autoTable(doc, {
     startY: y,
     theme: 'grid',
     head: [['VALUABLE CLIENTS']],
-    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+    headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 9.5 },
     body: [[' ']], 
-    bodyStyles: { minCellHeight: 25 }
+    bodyStyles: { minCellHeight: 12 }
   });
-  
-  const clientsY = doc.lastAutoTable.finalY - 20;
+
+  const clientsY = doc.lastAutoTable.finalY - 11;
   const logoSpace = (pageWidth - 2 * margin) / 4;
-  
-  if (clientLogos['reliance-logo']) doc.addImage(clientLogos['reliance-logo'], 'PNG', margin + (logoSpace * 0) + 5, clientsY, 26, 12);
-  if (clientLogos['adani-logo']) doc.addImage(clientLogos['adani-logo'], 'PNG', margin + (logoSpace * 1) + 5, clientsY, 22, 9);
-  if (clientLogos['lt-logo']) doc.addImage(clientLogos['lt-logo'], 'PNG', margin + (logoSpace * 2) + 12, clientsY, 12, 12);
-  if (clientLogos['ashridhar-logo']) doc.addImage(clientLogos['ashridhar-logo'], 'PNG', margin + (logoSpace * 3) + 5, clientsY, 28, 9);
-  
-  y = doc.lastAutoTable.finalY + 15;
-  
+
+  if (clientLogos['reliance-logo']) doc.addImage(clientLogos['reliance-logo'], 'PNG', margin + (logoSpace * 0) + 5, clientsY, 22, 10);
+  if (clientLogos['adani-logo']) doc.addImage(clientLogos['adani-logo'], 'PNG', margin + (logoSpace * 1) + 5, clientsY, 18, 7.5);
+  if (clientLogos['lt-logo']) doc.addImage(clientLogos['lt-logo'], 'PNG', margin + (logoSpace * 2) + 12, clientsY, 10, 10);
+  if (clientLogos['ashridhar-logo']) doc.addImage(clientLogos['ashridhar-logo'], 'PNG', margin + (logoSpace * 3) + 5, clientsY, 24, 7.5);
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 9. Footer Signature & Brand Seal
   if (y > 260) {
     doc.addPage();
     y = 20;
   }
 
-  // Footer Signature
+  // Draw circular brand seal - Compact
+  doc.setDrawColor(0, 46, 93);
+  doc.setLineWidth(0.4);
+  doc.circle(margin + 10, y + 9, 8, 'S');
+  doc.circle(margin + 10, y + 9, 7.2, 'S');
+  doc.circle(margin + 10, y + 9, 5.6, 'S');
+  doc.setFontSize(4);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 46, 93);
+  doc.text('HIMALAYA', margin + 10, y + 9.5, { align: 'center' });
+  doc.setFontSize(2.8);
+  doc.text('STRENGTH•DURABILITY', margin + 10, y + 11.5, { align: 'center' });
+
+  // Thanks note
   doc.setFontSize(10);
   doc.setFont('helvetica', 'italic');
-  doc.text('Thanks and waiting for your valued order', margin, y);
-  y += 5;
-  doc.text('Yours truly,', margin, y);
+  doc.setTextColor(30, 41, 59);
+  doc.text('Thanks and waiting for your valued order', margin + 24, y + 6);
+  doc.text('Yours truly,', margin + 24, y + 11);
 
+  // Authorised Signatory Footer
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('For Himalaya Composites & Precast Pvt Ltd', pageWidth - margin, y, { align: 'right' });
-  
-  y += 20;
+  doc.setTextColor(15, 44, 89);
+  doc.text('For Himalaya Composites & Precast Pvt Ltd', pageWidth - margin, y + 4, { align: 'right' });
+
+  // Cursive loops signature drawing
+  doc.setDrawColor(0, 46, 93);
+  doc.setLineWidth(0.4);
+  doc.line(pageWidth - margin - 32, y + 12, pageWidth - margin - 5, y + 13);
+  doc.line(pageWidth - margin - 28, y + 13, pageWidth - margin - 24, y + 8);
+  doc.line(pageWidth - margin - 24, y + 8, pageWidth - margin - 20, y + 15);
+  doc.line(pageWidth - margin - 20, y + 15, pageWidth - margin - 16, y + 10);
+
   doc.setFontSize(10);
-  doc.text('Authorised Signatory', pageWidth - margin, y, { align: 'right' });
+  doc.setTextColor(30, 41, 59);
+  doc.text('Authorised Signatory', pageWidth - margin, y + 18, { align: 'right' });
+
+  // 10. Loop over all pages to draw background footers and page numbers
+  const totalPages = doc.internal.getNumberOfPages();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    
+    // Draw wave footer background
+    doc.setFillColor(59, 130, 246); // Light blue
+    doc.rect(0, pageHeight - 14, pageWidth, 14, 'F');
+    doc.setFillColor(0, 46, 93); // Dark blue
+    doc.rect(0, pageHeight - 11, pageWidth, 11, 'F');
+
+    // Contact details text centered
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('+91 98795 22226  |  info@himalayacomposites.com  |  www.himalayacomposites.com', pageWidth / 2, pageHeight - 4.5, { align: 'center' });
+    
+    // Page numbering right-aligned
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 4.5, { align: 'right' });
+  }
 
   if (returnBlob) {
     return doc.output('blob');
