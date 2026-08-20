@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import { useNotificationStore } from '@/store/notificationStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,31 +13,15 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  isRead: boolean;
-  createdAt: string;
-}
-
 export function NotificationBell() {
-  const { data: notifications = [] } = useQuery({
-    queryKey: ['notifications', 'unread'],
-    queryFn: async () => {
-      // In a real app, you would query the specific user's notifications
-      // For this prototype, we'll just mock it or query a stub endpoint
-      try {
-        const res = await axios.get<Notification[]>('/api/backend/notifications/unread');
-        return res.data;
-      } catch (e) {
-        return []; // Fallback for prototype
-      }
-    },
-    refetchInterval: 30000, // Poll every 30s
-  });
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationStore(
+    useShallow((s) => ({
+      notifications: s.notifications,
+      unreadCount: s.unreadCount,
+      markAsRead: s.markAsRead,
+      markAllAsRead: s.markAllAsRead,
+    }))
+  );
 
   return (
     <Popover>
@@ -53,7 +37,10 @@ export function NotificationBell() {
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <h4 className="text-sm font-semibold">Notifications</h4>
           {unreadCount > 0 && (
-            <span className="text-xs text-blue-600 hover:underline cursor-pointer">
+            <span 
+              className="text-xs text-blue-600 hover:underline cursor-pointer"
+              onClick={() => markAllAsRead()}
+            >
               Mark all read
             </span>
           )}
@@ -71,6 +58,11 @@ export function NotificationBell() {
                   className={`p-4 flex flex-col gap-1 cursor-pointer transition-colors hover:bg-gray-50 ${
                     !notification.isRead ? 'bg-blue-50/50' : 'bg-white'
                   }`}
+                  onClick={() => {
+                    if (!notification.isRead) {
+                      markAsRead(notification.id);
+                    }
+                  }}
                 >
                   <div className="flex justify-between items-start gap-2">
                     <span className="text-sm font-medium text-gray-900 leading-tight">

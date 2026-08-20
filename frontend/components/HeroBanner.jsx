@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
 import { Search, Calendar, Bell, BellOff, ArrowUpRight, X, AlertTriangle, CheckCircle2, Info, Zap, UserCheck, Camera, Clock, LogOut, LogIn, UserX, ShieldCheck, MapPin, Navigation, RefreshCw, Fingerprint } from 'lucide-react';
 import { useAuth } from '../shared/context/AuthContext';
+import { useAuthStore } from '@/store/authStore';
 import { useNotifications } from '../shared/context/NotificationContext';
 import Swal from 'sweetalert2';
 import { apiClient } from '../lib/apiClient';
@@ -13,9 +14,12 @@ import { getBackendAssetUrl } from '../lib/assetUrl';
 
 // Notification category icon/color map
 const getPriorityMeta = (priority, read) => {
-  if (priority === 'High' || priority === 'Critical')
+  const normalized = String(priority || 'MEDIUM').toUpperCase();
+  if (normalized === 'CRITICAL')
     return { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', Icon: AlertTriangle };
-  if (priority === 'Medium')
+  if (normalized === 'HIGH')
+    return { color: '#f97316', bg: 'rgba(249,115,22,0.1)', Icon: AlertTriangle };
+  if (normalized === 'MEDIUM')
     return { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', Icon: Zap };
   return { color: '#10b981', bg: 'rgba(16,185,129,0.08)', Icon: Info };
 };
@@ -94,6 +98,7 @@ export default function HeroBanner({
   
   // Interactive Header Dropdown/Modal States
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [showPunchModal, setShowPunchModal] = useState(false);
   const [punchStatus, setPunchStatus] = useState({ isPunchedIn: false, punchInTime: null, punchOutTime: null, lastPhoto: null });
 
@@ -486,6 +491,31 @@ export default function HeroBanner({
     setShowCalendarModal(false);
     if (willOpen) {
       setNotifFilter('All'); // always reset to All tab on fresh open
+    }
+  };
+
+  const sendTestNotification = async () => {
+    if (isSendingTestNotification) return;
+    setIsSendingTestNotification(true);
+    try {
+      const token = localStorage.getItem('token') || useAuthStore.getState().accessToken;
+      const response = await fetch('/api/backend/notifications/test-push', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || result.error || 'Unable to create test notification.');
+      }
+      await fetchNotifications();
+      if (result.data?.pushDelivered === false) {
+        console.warn('[Notifications] Bell test created, but FCM has no registered device token.');
+      }
+    } catch (error) {
+      console.error('[Notifications] Test notification failed:', error);
+      alert(error?.message || 'Unable to send test notification.');
+    } finally {
+      setIsSendingTestNotification(false);
     }
   };
 
@@ -892,6 +922,18 @@ export default function HeroBanner({
                     </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button
+                        onClick={sendTestNotification}
+                        disabled={isSendingTestNotification}
+                        title="Create a test bell notification and send an FCM push"
+                        style={{
+                          background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb',
+                          borderRadius: '8px', padding: '4px 8px', fontSize: '10px', fontWeight: '700',
+                          cursor: isSendingTestNotification ? 'wait' : 'pointer', opacity: isSendingTestNotification ? 0.7 : 1,
+                        }}
+                      >
+                        {isSendingTestNotification ? 'Sending...' : 'Test alert'}
+                      </button>
+                      <button
                         onClick={markAllAsRead}
                         disabled={isMarkingAllRead || unreadCount === 0}
                         style={{
@@ -1041,7 +1083,7 @@ export default function HeroBanner({
                                 border: `1px solid ${color}30`,
                                 whiteSpace: 'nowrap', flexShrink: 0,
                               }}>
-                                {n.priority || 'Normal'}
+                                {String(n.priority || 'MEDIUM').toUpperCase()}
                               </span>
                             </div>
                             <p style={{
@@ -1054,8 +1096,8 @@ export default function HeroBanner({
                             </p>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', alignItems: 'center' }}>
                               <span style={{ fontSize: '10px', color: '#8893A7', fontWeight: '500' }}>
-                                {n.department && <span style={{ marginRight: '6px', color: '#5E6B82', fontWeight: '600' }}>#{n.department}</span>}
-                                {formatRelativeTime(n.created_at || n.date)}
+                                <span style={{ marginRight: '6px', color: '#5E6B82', fontWeight: '700' }}>#{n.module || 'SYSTEM'}</span>
+                                {formatRelativeTime(n.createdAt || n.created_at || n.date)}
                               </span>
                               {!n.is_read && (
                                 <span style={{

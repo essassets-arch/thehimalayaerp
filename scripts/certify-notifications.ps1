@@ -48,6 +48,11 @@ $Failed = 0
 $Warnings = 0
 $Skipped = 0
 
+$script:fcmSuccessCount = 0
+$script:fcmFailureCount = 0
+$script:fcmErrors = @()
+$script:fcmDeliveryStatus = "SKIP"
+
 $Results = @()
 
 # ------------------------------------------------
@@ -253,15 +258,14 @@ if ($loginToken) {
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 (async () => {
-  const company = await prisma.company.findFirst();
   const user = await prisma.user.findFirst({ where: { email: 'admin@himalayaerp.com' } });
-  if (company && user) {
+  if (user) {
     await prisma.notification.upsert({
       where: { id: 'test-notif-123' },
       update: { isRead: false },
       create: {
         id: 'test-notif-123',
-        companyId: company.id,
+        companyId: user.companyId,
         userId: user.id,
         type: 'TEST_NOTIF',
         title: 'Test Notification',
@@ -274,7 +278,7 @@ const prisma = new PrismaClient();
 "@
         $jsCode | Out-File -FilePath $tempJs -Encoding utf8
         $oldDbUrl = $env:DATABASE_URL
-        $env:DATABASE_URL = 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public'
+        $env:DATABASE_URL = 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public'
         node $tempJs | Out-Null
         $env:DATABASE_URL = $oldDbUrl
         Remove-Item -Path $tempJs -ErrorAction Ignore
@@ -283,7 +287,7 @@ const prisma = new PrismaClient();
         $notifsRes = Invoke-RestMethod -Uri "$BACKEND_URL/notifications" -Method Get -Headers $userHeaders -TimeoutSec 5
         $notifs = if ($notifsRes.data) { $notifsRes.data } else { $notifsRes }
         
-        $notifsList = @(if ($notifs.items) { $notifs.items } else { $notifs })
+        $notifsList = @($notifs.items)
         Pass "Fetch notifications API returned successfully" "Count: $($notifsList.Count)"
 
         # 2. Fetch Unread Count
@@ -341,7 +345,64 @@ if ($loginToken) {
             Fail "Register FCM device token API failed"
         }
 
-        # 2. De-register Token (Clean up)
+        # 2. Get Push Status Diagnostics
+        $statusRes = Invoke-RestMethod -Uri "$BACKEND_URL/notifications/push-status" -Method Get -Headers $userHeaders -TimeoutSec 5
+        $statusObj = if ($statusRes.data) { $statusRes.data } else { $statusRes }
+        if ($statusObj.firebaseProjectId) {
+            Pass "Get push status diagnostics API succeeded" "Project: $($statusObj.firebaseProjectId), Registered: $($statusObj.registeredDeviceTokens)"
+        } else {
+            Fail "Get push status diagnostics API failed"
+        }
+
+        # 3. Test Push POST
+        $testPushBody = @{} | ConvertTo-Json
+        $testPushRes = Invoke-RestMethod -Uri "$BACKEND_URL/notifications/test-push" -Method Post -Headers $userHeaders -Body $testPushBody -ContentType "application/json" -TimeoutSec 5
+        $testPushObj = if ($testPushRes.data) { $testPushRes.data } else { $testPushRes }
+        if ($testPushRes.success) {
+            Pass "POST test-push API call succeeded" "TokensCount: $($testPushObj.tokensCount)"
+            if ($testPushObj.fcmResult) {
+                $fcm = $testPushObj.fcmResult
+                $fcmErrors = @()
+                if ($fcm.responses) {
+                    foreach ($resp in $fcm.responses) {
+                        if (-not $resp.success -and $resp.error) {
+                            $fcmErrors += "Error Code: $($resp.error.code)`n       Error Message: $($resp.error.message)"
+                        }
+                    }
+                }
+                
+                $script:fcmSuccessCount = $fcm.successCount
+                $script:fcmFailureCount = $fcm.failureCount
+                $script:fcmErrors = $fcmErrors
+                
+                if ($fcm.successCount -gt 0) {
+                    Pass "FCM send result details" "SuccessCount: $($fcm.successCount), FailureCount: $($fcm.failureCount)"
+                    $script:fcmDeliveryStatus = "PASS"
+                } else {
+                    $script:Failed++
+                    Write-Host "[FAIL] FCM send result details" -ForegroundColor Red
+                    Write-Host "       SuccessCount: $($fcm.successCount)" -ForegroundColor Yellow
+                    Write-Host "       FailureCount: $($fcm.failureCount)" -ForegroundColor Yellow
+                    foreach ($err in $fcmErrors) {
+                        Write-Host "       $err" -ForegroundColor Yellow
+                    }
+                    $script:Results += [PSCustomObject]@{
+                        Status = "FAIL"
+                        Test = "FCM send result details"
+                        Details = "SuccessCount: 0, FailureCount: $($fcm.failureCount)"
+                    }
+                    $script:fcmDeliveryStatus = "FAIL"
+                }
+            } else {
+                $script:fcmDeliveryStatus = "FAIL"
+                Fail "FCM send result details" "fcmResult payload was missing from API response"
+            }
+        } else {
+            $script:fcmDeliveryStatus = "FAIL"
+            Warn "POST test-push API call failed (FCM error or mock credentials)" "Error: $($testPushRes.error)"
+        }
+
+        # 4. De-register Token (Clean up)
         $deregisterBody = @{
             token = $mockToken
         } | ConvertTo-Json
@@ -416,6 +477,17 @@ Write-Section "7. FRONTEND CLIENT-SIDE SETUP VALIDATION"
 
 # 1. Service Worker check
 $swPath = Join-Path $FRONTEND "public/firebase-messaging-sw.js"
+if (-not (Test-Path $swPath)) {
+    Write-Host "Service worker file not found. Triggering build-time SW generation..." -ForegroundColor DarkGray
+    Push-Location $FRONTEND
+    try {
+        node scripts/generate-sw.js | Out-Null
+    } catch {
+        Write-Host "Failed to generate SW: $_" -ForegroundColor Yellow
+    }
+    Pop-Location
+}
+
 if (Test-Path $swPath) {
     $swContent = Get-Content -Path $swPath -Raw
     if ($swContent -match "onBackgroundMessage" -and $swContent -match "notificationclick") {
@@ -468,32 +540,158 @@ foreach ($wf in $workflows) {
     }
 }
 
+
+# ------------------------------------------------
+# 9. E2E BROWSER NOTIFICATION TESTS (PLAYWRIGHT)
+# ------------------------------------------------
+Write-Section "9. E2E BROWSER NOTIFICATION CERTIFICATION (PLAYWRIGHT)"
+
+$playwrightResultJson = Join-Path $BACKEND "scratch-playwright-result.json"
+Remove-Item -Path $playwrightResultJson -ErrorAction Ignore
+
+Push-Location $FRONTEND
+try {
+    Write-Host "Running Playwright E2E browser notification tests..." -ForegroundColor DarkGray
+    npx playwright test tests/browser/certification/notifications.spec.ts --project=desktop-chromium
+    if ($LASTEXITCODE -eq 0) {
+        Pass "E2E Playwright browser notification certification passed"
+    } else {
+        Fail "E2E Playwright browser notification certification failed" "Playwright test exited with code: $LASTEXITCODE"
+    }
+} catch {
+    Fail "Failed to execute Playwright browser tests" "Error: $_"
+}
+Pop-Location
+
 # ------------------------------------------------
 # SUMMARY & CERTIFICATION SCORE
 # ------------------------------------------------
 Write-Section "HIMALAYA ERP NOTIFICATION CERTIFICATION RESULT"
 
-$Total = $Passed + $Failed + $Warnings + $Skipped
-$Score = 0
-if ($Passed -gt 0 -or $Failed -gt 0) {
-    $Score = [Math]::Round(($Passed / ($Passed + $Failed)) * 100)
+function Get-TestStatus($pattern, $default = "N/A") {
+    $matched = $script:Results | Where-Object { $_.Test -match $pattern } | Select-Object -First 1
+    if ($matched) { return $matched.Status }
+    return $default
 }
 
-Write-Host "PASS    : $Passed" -ForegroundColor Green
-Write-Host "FAIL    : $Failed" -ForegroundColor Red
-Write-Host "WARNING : $Warnings" -ForegroundColor Yellow
-Write-Host "SKIPPED : $Skipped" -ForegroundColor Gray
-$scoreColor = if ($Passed -gt 0 -and $Failed -eq 0) { "Green" } else { "Red" }
-Write-Host "Certification Score: $Score%" -ForegroundColor $scoreColor
+# Parse Playwright results
+$realTokenObtained = "SKIP"
+$realTokenRegistered = "SKIP"
+$realFcmSuccessCount = 0
+$realFcmFailureCount = 0
+$realFcmDeliveryStatus = "SKIP"
+$realFcmErrors = @()
+
+if (Test-Path $playwrightResultJson) {
+    try {
+        $playwrightResult = Get-Content -Path $playwrightResultJson -Raw | ConvertFrom-Json
+        $realTokenObtained = if ($playwrightResult.realTokenObtained) { "PASS" } else { "FAIL" }
+        $realTokenRegistered = if ($playwrightResult.realTokenRegistered) { "PASS" } else { "FAIL" }
+        $realFcmSuccessCount = $playwrightResult.fcmSuccessCount
+        $realFcmFailureCount = $playwrightResult.fcmFailureCount
+        $realFcmDeliveryStatus = $playwrightResult.fcmDeliveryStatus
+        $realFcmErrors = @($playwrightResult.errors)
+    } catch {}
+}
+
+# Calculate Infrastructure metrics declaratively from Results list
+$infraFailedCount = ($script:Results | Where-Object { $_.Status -eq "FAIL" -and $_.Test -notmatch "FCM send result details" }).Count
+
+$infraPassedCount = $Passed
+$infraTotal = $infraPassedCount + $infraFailedCount + $Warnings + $Skipped
+
+$infraScore = 0
+if ($infraPassedCount -gt 0 -or $infraFailedCount -gt 0) {
+    $infraScore = [Math]::Round(($infraPassedCount / ($infraPassedCount + $infraFailedCount)) * 100)
+}
+
+Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host " HIMALAYA ERP NOTIFICATION CERTIFICATION" -ForegroundColor Cyan
+Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host " CORE INFRASTRUCTURE" -ForegroundColor White
+Write-Host " --------------------------------------------" -ForegroundColor DarkGray
+Write-Host " PASS    : $infraPassedCount" -ForegroundColor Green
+Write-Host " FAIL    : $infraFailedCount" -ForegroundColor Red
+Write-Host " WARNING : $Warnings" -ForegroundColor Yellow
+Write-Host " SKIPPED : $Skipped" -ForegroundColor Gray
+Write-Host ""
+Write-Host " Browser setup:              $(Get-TestStatus 'Firebase Client SDK|messaging.js')" -ForegroundColor White
+Write-Host " Bell APIs:                  $(Get-TestStatus 'Fetch notifications')" -ForegroundColor White
+Write-Host " Firebase Admin:             $(Get-TestStatus 'Firebase Admin credentials')" -ForegroundColor White
+Write-Host " Token registration:         $(Get-TestStatus 'Register FCM device token')" -ForegroundColor White
+Write-Host " Service Worker:             $(Get-TestStatus 'firebase-messaging-sw.js')" -ForegroundColor White
+Write-Host ""
+Write-Host " FCM MOCK DELIVERY TEST" -ForegroundColor White
+Write-Host " --------------------------------------------" -ForegroundColor DarkGray
+Write-Host " FCM Send Attempt (Mock):    $(Get-TestStatus 'POST test-push')" -ForegroundColor White
+Write-Host " FCM Success (Mock):         $($script:fcmSuccessCount)" -ForegroundColor Green
+Write-Host " FCM Failure (Mock):         $($script:fcmFailureCount)" -ForegroundColor Red
+Write-Host " FCM Delivery (Mock):        $($script:fcmDeliveryStatus)" -ForegroundColor $(if ($script:fcmDeliveryStatus -eq "PASS") { "Green" } else { "Red" })
+Write-Host ""
+Write-Host " FCM REAL DEVICE DELIVERY TEST" -ForegroundColor White
+Write-Host " --------------------------------------------" -ForegroundColor DarkGray
+Write-Host " Real Token Obtained:        $realTokenObtained" -ForegroundColor $(if ($realTokenObtained -eq "PASS") { "Green" } else { "Red" })
+Write-Host " Real Token Registered:      $realTokenRegistered" -ForegroundColor $(if ($realTokenRegistered -eq "PASS") { "Green" } else { "Red" })
+Write-Host " FCM Success (Real):         $realFcmSuccessCount" -ForegroundColor Green
+Write-Host " FCM Failure (Real):         $realFcmFailureCount" -ForegroundColor Red
+Write-Host " FCM Delivery (Real):        $realFcmDeliveryStatus" -ForegroundColor $(if ($realFcmDeliveryStatus -eq "PASS") { "Green" } else { "Red" })
+if ($realFcmErrors.Count -gt 0) {
+    Write-Host " Real Delivery Errors:" -ForegroundColor Yellow
+    foreach ($err in $realFcmErrors) {
+        Write-Host "   $err" -ForegroundColor Yellow
+    }
+}
+Write-Host ""
+Write-Host " Overall:" -ForegroundColor White
+Write-Host " --------------------------------------------" -ForegroundColor DarkGray
+Write-Host " Infrastructure:             $infraScore%" -ForegroundColor $(if ($infraScore -eq 100) { "Green" } else { "Red" })
+Write-Host " Actual Push Delivery:       $realFcmDeliveryStatus" -ForegroundColor $(if ($realFcmDeliveryStatus -eq "PASS") { "Green" } else { "Red" })
+
+$finalStatus = "PASSED"
+if ($infraFailedCount -gt 0 -or $realFcmDeliveryStatus -ne "PASS") {
+    $finalStatus = "FAILED"
+}
+Write-Host " FINAL STATUS:               $finalStatus" -ForegroundColor $(if ($finalStatus -eq "PASSED") { "Green" } else { "Red" })
+Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host ""
 
-if ($Failed -eq 0) {
+# Clean up test-created tokens in the database
+Write-Host "Cleaning up test-created tokens from database..." -ForegroundColor DarkGray
+$cleanupJs = Join-Path $ROOT "backend/scratch-cleanup-tokens.js"
+$cleanupCode = @"
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+(async () => {
+  const result = await prisma.fcmDeviceToken.deleteMany({
+    where: {
+      OR: [
+        { token: 'PLAYWRIGHT_TEST_MOCK_FCM_TOKEN_XYZ_987' },
+        { token: { startsWith: 'PLAYWRIGHT_TEST_MOCK' } },
+        { token: { startsWith: 'cKNgQc9' } },
+        { token: { startsWith: 'cAcSSZs' } }
+      ]
+    }
+  });
+  console.log('Cleanup completed. Deleted ' + result.count + ' test token(s).');
+})().catch(e => console.error(e)).finally(() => prisma.`$disconnect());
+"@
+$cleanupCode | Out-File -FilePath $cleanupJs -Encoding utf8
+$oldDbUrl = $env:DATABASE_URL
+$env:DATABASE_URL = 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5433/himalaya_erp?schema=public'
+node $cleanupJs | Out-Null
+$env:DATABASE_URL = $oldDbUrl
+Remove-Item -Path $cleanupJs -ErrorAction Ignore
+Remove-Item -Path $playwrightResultJson -ErrorAction Ignore
+Write-Host ""
+
+if ($finalStatus -eq "PASSED") {
     Write-Host "==============================================" -ForegroundColor Green
-    Write-Host " CORE NOTIFICATION CERTIFICATION PASSED" -ForegroundColor Green
+    Write-Host " HIMALAYA ERP NOTIFICATION CERTIFICATION PASSED" -ForegroundColor Green
     Write-Host "==============================================" -ForegroundColor Green
 } else {
     Write-Host "==============================================" -ForegroundColor Red
-    Write-Host " CORE NOTIFICATION CERTIFICATION FAILED" -ForegroundColor Red
+    Write-Host " HIMALAYA ERP NOTIFICATION CERTIFICATION FAILED" -ForegroundColor Red
     Write-Host "==============================================" -ForegroundColor Red
     Exit 1
 }

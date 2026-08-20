@@ -2786,27 +2786,38 @@ model Notification {
   id         String             @id @default(uuid())
   companyId  String
   userId     String // Recipient
-  type       String             @default("GENERAL")
-  title      String
-  message    String
+    type       String             @default("GENERAL")
+    module     String             @default("SYSTEM")
+    priority   NotificationPriority @default(MEDIUM)
+    title      String
+    message    String
   route      String?
   entityType String? // Optional — links notification to a document
-  entityId   String?
+    entityId   String?
+    actorUserId String?
+    actorName   String?
   eventKey   String?            @unique
-  isRead     Boolean            @default(false)
-  status     NotificationStatus @default(UNREAD)
-  readAt     DateTime?
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @default(now()) @updatedAt
+  isRead          Boolean            @default(false)
+  status          NotificationStatus @default(UNREAD)
+  readAt          DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @default(now()) @updatedAt
+  fcmMessageId    String?
+  fcmStatus       String?            @default("PENDING")
+  fcmError        String?
+  fcmAttemptedAt  DateTime?
+  fcmSuccessCount Int                @default(0)
+  fcmFailureCount Int                @default(0)
 
-  company    Company            @relation(fields: [companyId], references: [id])
-  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company         Company            @relation(fields: [companyId], references: [id])
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([companyId, userId, isRead, createdAt])
   @@index([userId, status])
   @@index([userId, createdAt])
   @@index([companyId])
-  @@index([entityType, entityId])
+    @@index([entityType, entityId])
+    @@index([companyId, userId, priority, createdAt])
   @@index([eventKey])
 }
 
@@ -2839,6 +2850,13 @@ enum NotificationStatus {
   UNREAD
   READ
   ARCHIVED
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }
 
 enum RecruitmentPriority {

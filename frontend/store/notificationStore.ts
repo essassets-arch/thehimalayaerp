@@ -5,6 +5,8 @@ interface NotificationItem {
   companyId: string;
   userId: string;
   type: string;
+  module?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   title: string;
   message: string;
   route?: string;
@@ -38,7 +40,7 @@ const getStoreToken = () => {
   if (!token && hasAuthStorage) {
     try {
       const auth = JSON.parse(hasAuthStorage);
-      token = auth?.state?.token;
+      token = auth?.state?.accessToken || auth?.state?.token;
     } catch (e) {}
   }
   return token;
@@ -77,6 +79,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         set({
           notifications: items.map((n: any) => ({
             ...n,
+            module: n.module || 'SYSTEM',
+            priority: n.priority || 'MEDIUM',
             isRead: Boolean(n.isRead ?? n.is_read),
             is_read: Boolean(n.isRead ?? n.is_read),
           })),
@@ -176,6 +180,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         companyId: notification.companyId || '',
         userId: notification.userId || '',
         type: notification.type || 'GENERAL',
+        module: notification.module || 'SYSTEM',
+        priority: notification.priority || 'MEDIUM',
         title: notification.title || 'Notification',
         message: notification.message || '',
         route: notification.route,

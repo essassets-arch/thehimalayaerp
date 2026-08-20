@@ -10,11 +10,20 @@ export class FirebasePushService implements OnModuleInit {
   private readonly logger = new Logger(FirebasePushService.name);
   private firebaseApp: App | null = null;
   private isConfigured = false;
+  private projectId = '';
 
   constructor(private readonly prisma: PrismaService) {}
 
   onModuleInit() {
     this.initFirebase();
+  }
+
+  getIsConfigured(): boolean {
+    return this.isConfigured;
+  }
+
+  getProjectId(): string {
+    return this.projectId || process.env.FIREBASE_PROJECT_ID || 'himalaya-c9d06';
   }
 
   private initFirebase() {
@@ -23,6 +32,8 @@ export class FirebasePushService implements OnModuleInit {
       if (existingApps.length > 0) {
         this.firebaseApp = existingApps[0]!;
         this.isConfigured = true;
+        const config = this.firebaseApp.options as any;
+        this.projectId = config?.projectId || config?.project_id || '';
         return;
       }
 
@@ -32,30 +43,15 @@ export class FirebasePushService implements OnModuleInit {
       if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
         try {
           credentialObj = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-          this.logger.log('Loaded Firebase Admin credential from FIREBASE_SERVICE_ACCOUNT_JSON env var.');
+          this.projectId = credentialObj.project_id || credentialObj.projectId || '';
         } catch (e: any) {
           this.logger.error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ${e.message}`);
         }
       }
 
-      // 2. Check if FIREBASE_SERVICE_ACCOUNT_PATH file path is provided or exists locally
+      // 2. Fallback to individual env vars (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY)
       if (!credentialObj) {
-        const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 'firebase-service-account.json';
-        const absolutePath = path.isAbsolute(saPath) ? saPath : path.join(process.cwd(), saPath);
-        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-          try {
-            const fileContent = fs.readFileSync(absolutePath, 'utf8');
-            credentialObj = JSON.parse(fileContent);
-            this.logger.log(`Loaded Firebase Admin credential from file: ${absolutePath}`);
-          } catch (e: any) {
-            this.logger.warn(`Could not parse Firebase service account file at ${absolutePath}: ${e.message}`);
-          }
-        }
-      }
-
-      // 3. Fallback to individual env vars (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY)
-      if (!credentialObj) {
-        const projectId = process.env.FIREBASE_PROJECT_ID || 'himalaya-c9d06';
+        const pId = process.env.FIREBASE_PROJECT_ID || 'himalaya-c9d06';
         let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
         let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
@@ -67,15 +63,31 @@ export class FirebasePushService implements OnModuleInit {
             privateKey = privateKey.replace(/\\n/g, '\n');
           }
           credentialObj = {
-            projectId,
+            projectId: pId,
             clientEmail,
             privateKey,
           };
+          this.projectId = pId;
+        }
+      }
+
+      // 3. Fallback to FIREBASE_SERVICE_ACCOUNT_PATH file path or local file
+      if (!credentialObj) {
+        const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 'firebase-service-account.json';
+        const absolutePath = path.isAbsolute(saPath) ? saPath : path.join(process.cwd(), saPath);
+        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+          try {
+            const fileContent = fs.readFileSync(absolutePath, 'utf8');
+            credentialObj = JSON.parse(fileContent);
+            this.projectId = credentialObj.project_id || credentialObj.projectId || '';
+          } catch (e: any) {
+            this.logger.warn(`Could not parse Firebase service account file at ${absolutePath}: ${e.message}`);
+          }
         }
       }
 
       if (!credentialObj) {
-        this.logger.log('Firebase push credentials missing. FCM push disabled; DB notifications remain fully functional.');
+        this.logger.log('[Firebase Admin] Credentials missing. FCM push disabled; DB notifications remain fully functional.');
         this.isConfigured = false;
         return;
       }
@@ -85,9 +97,10 @@ export class FirebasePushService implements OnModuleInit {
       });
 
       this.isConfigured = true;
-      this.logger.log(`Firebase Admin SDK initialized successfully for project: ${credentialObj.project_id || credentialObj.projectId || 'himalaya-c9d06'}`);
+      this.logger.log('[Firebase Admin] Initialized successfully');
+      this.logger.log(`[Firebase Admin] Project: ${this.getProjectId()}`);
     } catch (err: any) {
-      this.logger.error(`Failed to initialize Firebase Admin SDK: ${err?.message || err}`);
+      this.logger.error(`[Firebase Admin] Failed to initialize: ${err?.message || err}`);
       this.isConfigured = false;
     }
   }
@@ -98,9 +111,9 @@ export class FirebasePushService implements OnModuleInit {
     title: string,
     body: string,
     data: Record<string, string> = {},
-  ): Promise<void> {
+  ): Promise<any> {
     if (!this.isConfigured || !this.firebaseApp) {
-      return;
+      return null;
     }
 
     try {
@@ -110,7 +123,7 @@ export class FirebasePushService implements OnModuleInit {
       });
 
       if (deviceTokens.length === 0) {
-        return;
+        return null;
       }
 
       const tokens = deviceTokens.map((t) => t.token);
@@ -143,7 +156,7 @@ export class FirebasePushService implements OnModuleInit {
           ) {
             invalidTokens.push(tokens[index]);
           } else {
-            this.logger.warn(`FCM delivery error for token index ${index}: ${resp.error.message}`);
+            this.logger.warn(`FCM delivery error for token index ${index} (${errorCode}): ${resp.error.message}`);
           }
         }
       });
@@ -154,8 +167,11 @@ export class FirebasePushService implements OnModuleInit {
           where: { token: { in: invalidTokens } },
         });
       }
+
+      return response;
     } catch (err: any) {
       this.logger.error(`Error delivering FCM push to user ${userId}: ${err?.message || err}`);
+      throw err;
     }
   }
 }

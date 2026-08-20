@@ -142,9 +142,19 @@ export class NotificationsController {
   }
 
   /**
+   * Health check and push notifications diagnostic info.
+   */
+  @Get('push-status')
+  async getPushStatus(@Req() req: any) {
+    const userId = req.user?.sub;
+    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    return this.notificationsService.getPushStatus(userId, companyId);
+  }
+
+  /**
    * Test push notifications for current logged in user.
    */
-  @Get('test-push')
+  @Post('test-push')
   async testPush(@Req() req: any) {
     const userId = req.user?.sub;
     const companyId = req.user?.companyId || req.headers['x-company-id'];

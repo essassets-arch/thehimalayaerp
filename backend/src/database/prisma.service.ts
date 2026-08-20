@@ -68,6 +68,18 @@ export class PrismaService
     try {
       const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
 
+      // Ensure target company exists first to avoid FKEY violations
+      let targetCompany = await this.company.findUnique({ where: { id: companyId } });
+      if (!targetCompany) {
+        targetCompany = await this.company.create({
+          data: {
+            id: companyId,
+            publicId: 'COM-001',
+            name: 'Himalaya Corp',
+          }
+        });
+      }
+
       // 1. Align all existing company partitions
       await this.user.updateMany({
         where: { companyId: { not: companyId } },

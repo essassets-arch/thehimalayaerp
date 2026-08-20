@@ -2,9 +2,7 @@ import { getToken, onMessage, isSupported, getMessaging } from 'firebase/messagi
 import { app } from './firebase';
 import { useNotificationStore } from '@/store/notificationStore';
 
-const VAPID_KEY =
-  process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
-  'BHQC5Wf2yNHjsOGWK4iASVj23eO3PS3Gexyil7nMgzCw3VM79o-YVry_9CxhO8VHc-omcJ7optmdrxLwE2R-uB0';
+const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return null;
@@ -13,7 +11,7 @@ const getAuthToken = () => {
   if (!token && hasAuthStorage) {
     try {
       const auth = JSON.parse(hasAuthStorage);
-      token = auth?.state?.token;
+      token = auth?.state?.accessToken || auth?.state?.token;
     } catch (e) {}
   }
   return token;
@@ -40,10 +38,12 @@ const sendTokenToServer = async (fcmToken) => {
       }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (res.ok || data.success) {
       console.log('[Firebase Client] Token registered successfully on backend.');
       localStorage.setItem('registered_fcm_token', fcmToken);
+    } else {
+      console.warn('[Firebase Client] Backend rejected FCM token registration:', res.status, data);
     }
   } catch (err) {
     console.warn('[Firebase Client] Failed to register token on backend:', err.message);
@@ -113,10 +113,12 @@ export const initializePushNotifications = async () => {
 
     if (fcmToken) {
       console.log('[Firebase Client] FCM token obtained.');
-      const savedToken = localStorage.getItem('registered_fcm_token');
-      if (savedToken !== fcmToken) {
-        await sendTokenToServer(fcmToken);
-      }
+      // Always upsert the token for the authenticated user.  A local marker
+      // only tells us that this browser obtained a token before; it cannot
+      // prove the backend still has a row (database reset, logout, cleanup,
+      // or a different user on the same browser).  This also refreshes
+      // lastSeenAt on each browser refresh.
+      await sendTokenToServer(fcmToken);
     }
 
     // 4. Foreground FCM Listener: Refetches Bell unread list/count and shows toast
@@ -132,6 +134,21 @@ export const initializePushNotifications = async () => {
       }
       if (store.showToast && body) {
         store.showToast(`${title}: ${body}`);
+      }
+
+      // FCM does not automatically display a system notification while the
+      // page is in the foreground.  Show it explicitly so foreground and
+      // background deliveries have the same visible behaviour.
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(title, {
+            body,
+            icon: '/icon.png',
+            data: { route: payload.data?.route || '/' },
+          });
+        } catch (error) {
+          console.warn('[Firebase Client] Unable to display foreground notification:', error);
+        }
       }
     });
   } catch (err) {

@@ -364,14 +364,19 @@ export class ExpenseService {
     if (notificationRecipientId) {
       const targetUser = await this.prisma.user.findUnique({ where: { id: notificationRecipientId } });
       if (targetUser) {
-        await this.prisma.notification.create({
-          data: {
+        await this.notificationsService?.notifyUser({
             companyId: activeCompanyId,
             userId: notificationRecipientId,
+            type: 'EXPENSE_CLAIM_APPROVED',
+            module: 'FINANCE',
+            priority: 'MEDIUM',
             title: notificationTitle,
             message: notificationMessage,
-            status: 'UNREAD'
-          }
+            entityType: 'EXPENSE',
+            entityId: id,
+            actorUserId: userId,
+            actorName: reviewerName,
+            eventKey: `EXPENSE_CLAIM_APPROVED:${id}:${notificationRecipientId}`,
         });
       }
     }
@@ -415,14 +420,19 @@ export class ExpenseService {
 
       const targetUser = await this.prisma.user.findUnique({ where: { id: employeeUserId } });
       if (targetUser) {
-        await this.prisma.notification.create({
-          data: {
+        await this.notificationsService?.notifyUser({
             companyId: activeCompanyId,
             userId: employeeUserId,
+            type: 'EXPENSE_CLAIM_REJECTED',
+            module: 'FINANCE',
+            priority: 'HIGH',
             title: 'Expense Claim Rejected',
             message: `Your expense claim of ₹${expense.amount} has been declined. Remarks: ${body.remarks || 'No remarks provided.'}`,
-            status: 'UNREAD'
-          }
+            entityType: 'EXPENSE',
+            entityId: id,
+            actorUserId: userId,
+            actorName: reviewerName,
+            eventKey: `EXPENSE_CLAIM_REJECTED:${id}:${employeeUserId}`,
         });
       }
 

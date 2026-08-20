@@ -75,6 +75,14 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         if (typeof window !== 'undefined') {
           try {
+            // Deactivate FCM token on logout
+            try {
+              const { deactivateFCMToken } = require('@/shared/firebase/messaging');
+              deactivateFCMToken().catch((e: any) => console.warn('[authStore] Failed to deactivate FCM token:', e));
+            } catch (err) {
+              console.warn('[authStore] Could not load FCM messaging module for deactivation:', err);
+            }
+
             sessionStorage.clear();
             localStorage.removeItem('token');
             localStorage.removeItem('himalaya_token');

@@ -113,6 +113,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-AIzaSyCKsMYkWC3yhiKNt5VQuRhxOogrGwTh_DA}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-himalaya-c9d06.firebaseapp.com}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-himalaya-c9d06}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-himalaya-c9d06.firebasestorage.app}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-478469947785}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-1:478469947785:web:bb56793c56cd6e91b7e158}
+        NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${NEXT_PUBLIC_FIREBASE_VAPID_KEY:-BFcUKdC5mGzG-Tyy1z-X1PxTrlY3nPJ-GZc9PhokyE1-g7xfnMUb24gzb3kGLCvsnVftzjIJ9sJpljR8cR1Yl2s}
     container_name: himalaya-local-frontend
     restart: unless-stopped
     environment:

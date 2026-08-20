@@ -59,3 +59,4 @@ playwright-report/
 
 # Firebase credentials
 backend/firebase-service-account.json
+frontend/public/firebase-messaging-sw.js
