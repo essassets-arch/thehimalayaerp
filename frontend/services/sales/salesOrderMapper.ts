@@ -41,6 +41,11 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     customerId: typeof source.customerId === 'string' ? source.customerId : '',
     customerName: typeof source.customerName === 'string' ? source.customerName : '',
     customerCode: typeof source.customerCode === 'string' ? source.customerCode : null,
+    salesperson: typeof source.salesperson === 'string'
+      ? source.salesperson
+      : (isRecord(source.salesExecutive) && typeof source.salesExecutive.name === 'string')
+        ? source.salesExecutive.name
+        : 'Sales User',
     customer: isRecord(source.customer) ? {
       id: typeof source.customer.id === 'string' ? source.customer.id : '',
       name: typeof source.customer.name === 'string' ? source.customer.name : (typeof source.customer.companyName === 'string' ? source.customer.companyName : ''),

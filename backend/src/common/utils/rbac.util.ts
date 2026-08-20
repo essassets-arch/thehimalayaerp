@@ -6,7 +6,6 @@ export function isRestrictedRole(role?: string): boolean {
   const restrictedRoles = [
     'SALES_EXECUTIVE',
     'SALES_INTERN',
-    'SUPER_SALES',
     'PLANT_HEAD',
     'PRODUCTION_OPERATOR',
     'DISPATCH_EXECUTIVE',
@@ -20,7 +19,7 @@ export function isRestrictedRole(role?: string): boolean {
 export function isSalespersonScopedRole(role?: string): boolean {
   if (!role) return false;
   const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
-  return ['SUPER_SALES', 'SALES_EXECUTIVE', 'SALES_INTERN'].includes(normalizedRole);
+  return ['SALES_EXECUTIVE', 'SALES_INTERN'].includes(normalizedRole);
 }
 
 export function canAssignSalesOwner(role?: string): boolean {

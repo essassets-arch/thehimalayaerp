@@ -67,7 +67,13 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   }, [dateFrom, dateTo]);
 
   // Role detection
-  const isSalesAdmin = user?.role === 'Sales Admin' || user?.role === 'Super Admin' || user?.role === 'Admin';
+  const isSalesAdmin = 
+    user?.role === 'Sales Admin' || 
+    user?.role === 'Super Admin' || 
+    user?.role === 'Admin' || 
+    user?.role === 'SUPER_SALES' || 
+    user?.role === 'SuperSales' || 
+    String(user?.role).toLowerCase().includes('supersales');
   const myName = user?.name || '';
 
   // Data Filtering based on Role and Date Range

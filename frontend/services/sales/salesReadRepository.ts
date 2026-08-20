@@ -10,12 +10,19 @@ export interface SalesOrderItem {
   deliveredQuantity: number;
   returnedQuantity: number;
   replacedQuantity: number;
+  availableForReturn?: number;
+  availableForReplacement?: number;
   fulfillment?: {
     orderedQty: number;
     availableFG: number;
     fgAllocatableQty: number;
     productionRequiredQty: number;
     activeReservedQty: number;
+    productionCommittedQty?: number;
+    alreadyDispatchedQty?: number;
+    pendingDirectDispatchQty?: number;
+    pendingProductionQty?: number;
+    fulfillmentState?: string;
   };
 }
 
@@ -30,6 +37,13 @@ export interface SalesOrder {
   customerId: string;
   customerName: string;
   customerCode: string | null;
+  salesperson?: string;
+  customer?: {
+    id?: string;
+    name: string;
+    companyName: string;
+    customerCode?: string | null;
+  } | null;
 
   items: SalesOrderItem[];
 

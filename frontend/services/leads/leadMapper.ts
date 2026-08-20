@@ -56,7 +56,7 @@ export function mapBackendLeadToFrontend(backend: any): FrontendLead {
     expectedQuantities: backend.requiredQty ? String(backend.requiredQty) : '',
     notes: backend.remarks || '',
     createdAt: backend.createdAt || new Date().toISOString(),
-    salesperson: backend.salesperson || 'Sales User',
+    salesperson: backend.salesperson || backend.salesExecutive?.name || 'Sales User',
     nextReminder: backend.nextReminder || backend.nextReminderAt,
     timeline: backend.timeline,
   };
