@@ -128,7 +128,7 @@ export class QuotationsService {
   private validateAndExtractPaymentTerms(
     dto: any,
     userRole?: string,
-  ): { paymentTerms?: string; paymentTermDays?: number } {
+  ): { paymentTerms?: string; paymentTermDays?: number | null } {
     let days: number | undefined = undefined;
     if (
       dto.paymentTermDays !== undefined &&
@@ -162,7 +162,7 @@ export class QuotationsService {
       const paymentTerms = dto.paymentTerms || `${days} Days`;
       return { paymentTerms, paymentTermDays: days };
     } else if (dto.paymentTerms) {
-      return { paymentTerms: String(dto.paymentTerms) };
+      return { paymentTerms: String(dto.paymentTerms), paymentTermDays: null };
     }
 
     return {};
@@ -437,7 +437,7 @@ export class QuotationsService {
           leadId: dto.leadId !== undefined ? dto.leadId : undefined,
           customerId: dto.customerId !== undefined ? dto.customerId : undefined,
           validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
-          remarks: dto.remarks,
+          remarks: dto.remarks !== undefined ? dto.remarks : (dto.notes !== undefined ? dto.notes : undefined),
           paymentTerms: paymentTermInfo.paymentTerms !== undefined ? paymentTermInfo.paymentTerms : undefined,
           paymentTermDays: paymentTermInfo.paymentTermDays !== undefined ? paymentTermInfo.paymentTermDays : undefined,
           updatedById: userId,
