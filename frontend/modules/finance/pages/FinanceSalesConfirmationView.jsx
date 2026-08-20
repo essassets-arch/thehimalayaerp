@@ -183,7 +183,7 @@ export default function FinanceSalesConfirmationView() {
       }).map((o) => ({
         type: 'ORDER',
         id: o.id,
-        orderId: o.id,
+        orderId: o.orderNo || o.orderNumber || o.id,
         invoiceNo: o.invoiceNo || 'Pending',
         customerName: o.customerName,
         salesperson: o.salesperson,
@@ -198,7 +198,7 @@ export default function FinanceSalesConfirmationView() {
       result = orders.filter((o) => o.commercialStatus === 'ORDER_CLOSED').map((o) => ({
         type: 'ORDER',
         id: o.id,
-        orderId: o.id,
+        orderId: o.orderNo || o.orderNumber || o.id,
         invoiceNo: o.invoiceNo || 'Pending',
         customerName: o.customerName,
         salesperson: o.salesperson,
@@ -245,7 +245,7 @@ export default function FinanceSalesConfirmationView() {
         return {
           type: 'CONFIRMATION',
           id: c.id,
-          orderId: c.orderId,
+          orderId: o.orderNo || o.orderNumber || c.orderId,
           confirmationId: c.id,
           invoiceNo: o.invoiceNo || (o.invoice_number ? o.invoice_number : `INV-${String(c.orderId).replace(/^ORD-/, '').slice(-6)}`),
           customerName: o.customerName || o.customer_name || o.customer?.name || c.orderSnapshot?.customerName || 'Unknown',

@@ -43,6 +43,7 @@ import ModulePlaceholder from '../../../components/common/ModulePlaceholder';
 import { isPlanningHistoryOrder, normalizeStatus } from '@/store/domains/shared/workflowUtils';
 import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
 import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
+import AttendanceView from '../../../shared/components/AttendanceView';
 
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
@@ -5266,8 +5267,9 @@ export default function PlantHeadPortal() {
       {currentView === 'indent-approvals' && <MaterialIndentApproval />}
       {currentView === 'leave-approvals' && <LeaveApprovalView roleMode="PLANT_HEAD" />}
       {currentView === 'daily-reports' && <DailyReportHistoryView roleMode="PLANT_HEAD" />}
+      {currentView === 'attendance' && <AttendanceView />}
 
-      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals', 'daily-reports'].includes(currentView) && (
+      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance'].includes(currentView) && (
         <ModulePlaceholder
           title="Module Not Available"
           description="This Plant Head feature is not implemented yet."
