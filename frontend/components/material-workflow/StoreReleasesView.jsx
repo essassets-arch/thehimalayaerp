@@ -108,7 +108,7 @@ export default function StoreReleasesView() {
         currentInput = 0;
       } else {
         const parsed = Number(rawInput);
-        currentInput = isNaN(parsed) ? 0 : Math.max(0, Math.min(totalRemaining, parsed));
+        currentInput = isNaN(parsed) ? 0 : Math.max(0, parsed);
       }
     } else {
       currentInput = totalRemaining;
@@ -153,7 +153,7 @@ export default function StoreReleasesView() {
     }
     const num = Number(value);
     if (isNaN(num)) return;
-    const clamped = Math.max(0, Math.min(maxQty, num));
+    const clamped = Math.max(0, num);
     setInputQuantities((prev) => ({ ...prev, [itemKey]: String(clamped) }));
   };
 
@@ -365,26 +365,12 @@ export default function StoreReleasesView() {
                               <input
                                 type="number"
                                 min="0"
-                                max={details.totalRemaining}
-                                disabled={details.isFullyIssued || details.totalRemaining === 0}
+                                className="store-release-qty-input"
                                 value={details.rawInput}
-                                onChange={(e) => handleInputChange(itemKey, details.totalRemaining, e.target.value)}
-                                style={{
-                                  width: '90px',
-                                  padding: '6px 10px',
-                                  borderRadius: '6px',
-                                  border: '1.5px solid #3b82f6',
-                                  fontSize: '14px',
-                                  fontWeight: '800',
-                                  color: '#0f172a',
-                                  background: (details.isFullyIssued || details.totalRemaining === 0) ? '#f1f5f9' : '#ffffff',
-                                  outline: 'none',
-                                  textAlign: 'center',
-                                  cursor: (details.isFullyIssued || details.totalRemaining === 0) ? 'not-allowed' : 'text'
-                                }}
+                                onChange={(e) => handleInputChange(itemKey, Infinity, e.target.value)}
                               />
                               <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>{item.unit}</span>
-                              {!details.isFullyIssued && details.totalRemaining > 0 && (
+                              {details.totalRemaining > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => handleInputChange(itemKey, details.totalRemaining, String(details.totalRemaining))}
@@ -416,20 +402,10 @@ export default function StoreReleasesView() {
                             <>
                               <input
                                 type="text"
+                                className="store-release-dept-input"
                                 list={`depts-${itemKey}`}
                                 value={currentDept}
                                 onChange={(e) => setRowDepartments((prev) => ({ ...prev, [itemKey]: e.target.value }))}
-                                style={{
-                                  padding: '6px 10px',
-                                  borderRadius: '6px',
-                                  border: '1.5px solid #cbd5e1',
-                                  background: '#ffffff',
-                                  fontSize: '13px',
-                                  fontWeight: '600',
-                                  color: '#0f172a',
-                                  width: '140px',
-                                  outline: 'none'
-                                }}
                               />
                               <datalist id={`depts-${itemKey}`}>
                                 {ISSUE_TARGET_DEPARTMENTS.map((dept) => (
@@ -460,21 +436,9 @@ export default function StoreReleasesView() {
                           <td data-label="Action">
                             <button
                               type="button"
-                              disabled={details.isFullyIssued || details.totalRemaining === 0 || details.currentInput <= 0}
+                              disabled={details.currentInput <= 0}
                               onClick={() => issueRowItem(request, item, index, currentDept, details.currentInput)}
-                              style={{
-                                padding: '8px 14px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                background: details.newRemaining === 0 ? '#059669' : '#2563eb',
-                                color: '#ffffff',
-                                fontWeight: '700',
-                                fontSize: '12px',
-                                cursor: (details.isFullyIssued || details.totalRemaining === 0 || details.currentInput <= 0) ? 'not-allowed' : 'pointer',
-                                opacity: (details.isFullyIssued || details.totalRemaining === 0 || details.currentInput <= 0) ? 0.5 : 1,
-                                transition: 'all 0.15s ease',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                              }}
+                              className="store-release-btn"
                             >
                               Issue to Production
                             </button>
