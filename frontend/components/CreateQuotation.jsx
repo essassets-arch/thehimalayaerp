@@ -576,10 +576,10 @@ export default function CreateQuotation({
       validUntil: validTill,
       paymentTerms,
       notes: notes.trim(),
-      source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : undefined),
-      sourceId: isSampleSource ? sourceId : (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : undefined)),
-      leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : undefined)),
-      customerId: selectedCustomerRecord?.type === 'Customer' ? selectedCustomerRecord.id : undefined
+      source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : (editingQuotation?.leadId ? 'LEAD' : undefined)),
+      sourceId: isSampleSource ? sourceId : (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
+      leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
+      customerId: selectedCustomerRecord?.type === 'Customer' ? selectedCustomerRecord.id : (editingQuotation?.customerId || undefined)
     };
 
      setIsSubmitting(true);
