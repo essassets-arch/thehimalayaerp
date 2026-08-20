@@ -499,7 +499,6 @@ export default function FinanceSalesConfirmationView() {
                   <>
                     <th>Payment Amt</th>
                     <th>Date</th>
-                    <th>Method / Ref</th>
                   </>
                 )}
                 <th>Total Amt</th>
@@ -544,12 +543,6 @@ export default function FinanceSalesConfirmationView() {
                           <span style={{ fontWeight: 700, color: '#0F172A', fontSize: '13.5px' }}>₹{r.paymentAmount?.toLocaleString('en-IN')}</span>
                         </td>
                         <td style={{ color: '#475569', fontSize: '12px' }}>{r.paymentDate?.split('T')[0]}</td>
-                        <td>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <span style={{ fontWeight: 600, fontSize: '12px', color: '#334155' }}>{r.paymentMethod}</span>
-                            <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: 'monospace' }}>{r.transactionRef || '—'}</span>
-                          </div>
-                        </td>
                       </>
                     )}
 
