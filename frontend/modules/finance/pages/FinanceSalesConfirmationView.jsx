@@ -490,122 +490,153 @@ export default function FinanceSalesConfirmationView() {
         {/* Table */}
         <div className="finance-verification-table-wrap">
           <table className="payment-verification-table">
-            <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
+            <thead>
               <tr>
-                {activeTab !== 'Payment Outstanding' && activeTab !== 'Closed Orders' && <th className="px-4 py-3">Conf. ID</th>}
-                <th className="px-4 py-3">Order ID</th>
-                <th className="px-4 py-3">Customer</th>
+                {activeTab !== 'Payment Outstanding' && activeTab !== 'Closed Orders' && <th>Conf. ID</th>}
+                <th>Order ID</th>
+                <th>Customer</th>
                 {activeTab !== 'Payment Outstanding' && activeTab !== 'Closed Orders' && (
                   <>
-                    <th className="px-4 py-3">Payment Amt</th>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Method / Ref</th>
+                    <th>Payment Amt</th>
+                    <th>Date</th>
+                    <th>Method / Ref</th>
                   </>
                 )}
-                <th className="px-4 py-3">Total Amt</th>
-                <th className="px-4 py-3">Verified Amt</th>
-                <th className="px-4 py-3">Pending Amt</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th>Total Amt</th>
+                <th>Verified Amt</th>
+                <th>Pending Amt</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
-                    No records found in this tab.
+                  <td colSpan={12} style={{ padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '32px' }}>📭</span>
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>No records found in this tab.</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 rows.map((r, idx) => (
-                  <tr key={r.id + idx} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr key={r.id + idx}>
                     {r.type === 'CONFIRMATION' && (
-                      <td className="px-4 py-3 font-medium text-gray-900">{r.confirmationId}</td>
+                      <td>
+                        <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#6366F1', background: '#EEF2FF', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                          {r.confirmationId}
+                        </span>
+                      </td>
                     )}
-                    <td className="px-4 py-3 text-gray-500">{r.orderId}</td>
-                    <td className="px-4 py-3">{r.customerName}</td>
-                    
+                    <td>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '12.5px', color: '#1E3A8A' }}>
+                        {r.orderId}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: '#1E293B' }}>{r.customerName}</span>
+                    </td>
+
                     {r.type === 'CONFIRMATION' && (
                       <>
-                        <td className="px-4 py-3 font-semibold">₹{r.paymentAmount?.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3">{r.paymentDate?.split('T')[0]}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col text-xs text-gray-500">
-                            <span>{r.paymentMethod}</span>
-                            <span>{r.transactionRef || '-'}</span>
+                        <td>
+                          <span style={{ fontWeight: 700, color: '#0F172A', fontSize: '13.5px' }}>₹{r.paymentAmount?.toLocaleString('en-IN')}</span>
+                        </td>
+                        <td style={{ color: '#475569', fontSize: '12px' }}>{r.paymentDate?.split('T')[0]}</td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontWeight: 600, fontSize: '12px', color: '#334155' }}>{r.paymentMethod}</span>
+                            <span style={{ fontSize: '11px', color: '#94A3B8', fontFamily: 'monospace' }}>{r.transactionRef || '—'}</span>
                           </div>
                         </td>
                       </>
                     )}
 
-                    <td className="px-4 py-3">₹{r.totalAmount?.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3 text-green-600 font-medium">₹{r.verifiedAmount?.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3 text-red-600 font-medium">₹{r.pendingAmount?.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                        ${r.status?.includes('VERIFIED') ? 'bg-green-100 text-green-700' : ''}
-                        ${r.status?.includes('PENDING') || r.status?.includes('RECORDED') ? 'bg-yellow-100 text-yellow-700' : ''}
-                        ${r.status?.includes('REJECTED') ? 'bg-red-100 text-red-700' : ''}
-                        ${r.status === 'CLOSED' ? 'bg-gray-200 text-gray-700' : ''}
-                        ${r.status === 'FULLY_PAID' ? 'bg-green-100 text-green-800' : ''}
-                        ${r.status === 'PARTIALLY_PAID' ? 'bg-blue-100 text-blue-800' : ''}
-                      `}>
+                    <td style={{ fontWeight: 600, color: '#334155' }}>₹{r.totalAmount?.toLocaleString('en-IN')}</td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: '#16A34A' }}>₹{r.verifiedAmount?.toLocaleString('en-IN')}</span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: r.pendingAmount > 0 ? '#DC2626' : '#16A34A' }}>₹{r.pendingAmount?.toLocaleString('en-IN')}</span>
+                    </td>
+                    <td>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        ...(r.status?.includes('VERIFIED') && !r.status?.includes('UN') ? { background: '#D1FAE5', color: '#065F46' } :
+                          r.status?.includes('PENDING') || r.status?.includes('RECORDED') ? { background: '#FEF3C7', color: '#92400E' } :
+                          r.status?.includes('REJECTED') || r.status?.includes('BOUNCED') ? { background: '#FEE2E2', color: '#991B1B' } :
+                          r.status === 'CLOSED' ? { background: '#F1F5F9', color: '#475569' } :
+                          r.status === 'FULLY_PAID' ? { background: '#D1FAE5', color: '#065F46' } :
+                          r.status === 'PARTIALLY_PAID' ? { background: '#DBEAFE', color: '#1E40AF' } :
+                          r.status === 'PENDING' ? { background: '#FEF3C7', color: '#92400E' } :
+                          { background: '#F1F5F9', color: '#475569' })
+                      }}>
+                        {r.status?.includes('VERIFIED') && !r.status?.includes('UN') && <span>✓</span>}
+                        {r.status?.includes('PENDING') || r.status?.includes('RECORDED') ? '⏳' : ''}
+                        {r.status?.includes('REJECTED') || r.status?.includes('BOUNCED') ? '✕' : ''}
                         {r.status?.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td style={{ textAlign: 'right' }}>
                       <div className="payment-verification-actions">
-                      <button
-                        type="button"
-                        title="View Details"
-                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
-                        onClick={() => Swal.fire({
-                          title: `Payment ${r.confirmationId || r.orderId}`,
-                          text: [
-                            `Order: ${r.orderId}`,
-                            `Customer: ${r.customerName}`,
-                            `Payment: ₹${Number(r.paymentAmount || 0).toLocaleString('en-IN')}`,
-                            `Method: ${r.paymentMethod || '—'}`,
-                            `Reference: ${r.transactionRef || '—'}`,
-                            `Status: ${String(r.status || '').replaceAll('_', ' ')}`,
-                          ].join('\n'),
-                          confirmButtonText: 'Close',
-                        })}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      
-                      {r.type === 'CONFIRMATION' && r.paymentProof && (
                         <button
                           type="button"
-                          title="View Proof"
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors"
-                          onClick={() => window.open(r.paymentProof, '_blank', 'noopener,noreferrer')}
+                          title="View Details"
+                          onClick={() => Swal.fire({
+                            title: `Payment ${r.confirmationId || r.orderId}`,
+                            text: [
+                              `Order: ${r.orderId}`,
+                              `Customer: ${r.customerName}`,
+                              `Payment: ₹${Number(r.paymentAmount || 0).toLocaleString('en-IN')}`,
+                              `Method: ${r.paymentMethod || '—'}`,
+                              `Reference: ${r.transactionRef || '—'}`,
+                              `Status: ${String(r.status || '').replaceAll('_', ' ')}`,
+                            ].join('\n'),
+                            confirmButtonText: 'Close',
+                          })}
                         >
-                          <FileText className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </button>
-                      )}
 
-                      {r.type === 'CONFIRMATION' && (r.status === 'FINANCE_VERIFICATION_PENDING' || r.status === 'SALES_PAYMENT_RECORDED') && (
-                        <>
+                        {r.type === 'CONFIRMATION' && r.paymentProof && (
                           <button
-                            onClick={() => handleApprove(r.confirmationId)}
-                            disabled={isProcessing}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors inline-flex items-center gap-1"
-                            title="Approve"
+                            type="button"
+                            title="View Proof"
+                            onClick={() => window.open(r.paymentProof, '_blank', 'noopener,noreferrer')}
                           >
-                            <CheckCircle2 className="w-4 h-4" /> {isProcessing ? 'Processing...' : 'Approve'}
+                            <FileText className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => setRejectModal(r)}
-                            disabled={isProcessing}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors inline-flex items-center gap-1"
-                            title="Reject"
-                          >
-                            <XCircle className="w-4 h-4" /> Reject
-                          </button>
-                        </>
-                      )}
+                        )}
+
+                        {r.type === 'CONFIRMATION' && (r.status === 'FINANCE_VERIFICATION_PENDING' || r.status === 'SALES_PAYMENT_RECORDED') && (
+                          <>
+                            <button
+                              onClick={() => handleApprove(r.confirmationId)}
+                              disabled={isProcessing}
+                              style={{ background: '#16A34A', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: isProcessing ? 0.5 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
+                              title="Approve"
+                            >
+                              <CheckCircle2 className="w-4 h-4" /> {isProcessing ? 'Processing...' : 'Approve'}
+                            </button>
+                            <button
+                              onClick={() => setRejectModal(r)}
+                              disabled={isProcessing}
+                              style={{ background: '#DC2626', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: isProcessing ? 0.5 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
+                              title="Reject"
+                            >
+                              <XCircle className="w-4 h-4" /> Reject
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

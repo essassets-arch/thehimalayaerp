@@ -1952,9 +1952,9 @@ textarea {
 .payment-verification-table-card {
   overflow: hidden;
   background: #fff;
-  border: 1px solid #DCE5F0;
+  border: 1px solid #E2EAF4;
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.04), 0 10px 32px -4px rgba(15, 23, 42, 0.08);
 }
 
 .finance-verification-tabs {
@@ -2028,26 +2028,27 @@ textarea {
 
 .payment-verification-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
 }
 
 .payment-verification-table th {
-  padding: 13px 16px;
-  color: #475569;
-  background: #F5FAFE;
-  border-bottom: 1px solid #DCE5F0;
-  font-size: 11px;
+  padding: 14px 18px;
+  color: #64748B;
+  background: linear-gradient(180deg, #F8FAFF 0%, #F1F5FB 100%);
+  border-bottom: 2px solid #E2EAF4;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: .035em;
+  letter-spacing: .06em;
   text-align: left;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .payment-verification-table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 15px 18px;
+  border-bottom: 1px solid #F1F5FB;
   vertical-align: middle;
 }
 
@@ -2081,38 +2082,47 @@ textarea {
   z-index: 2;
   min-width: 215px;
   background: #fff;
-  box-shadow: -8px 0 14px -12px rgba(15, 23, 42, .45);
+  box-shadow: -6px 0 18px -8px rgba(15, 23, 42, .18);
+  transition: background 0.15s ease;
 }
 
 .payment-verification-table th:last-child {
   z-index: 3;
-  background: #F5FAFE;
+  background: linear-gradient(180deg, #F8FAFF 0%, #F1F5FB 100%);
 }
 
 .payment-verification-table tbody tr:hover td:last-child {
-  background: #F5FAFE;
+  background: #F6F9FF;
 }
 
-.payment-verification-table tbody tr:hover {
-  background: #F5FAFE;
+.payment-verification-table tbody tr:hover td {
+  background: #F6F9FF;
 }
 
 .payment-verification-actions {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 7px;
+  gap: 6px;
   white-space: nowrap;
 }
 
 .payment-verification-actions button {
   box-sizing: border-box;
   min-height: 32px;
-  padding: 6px 10px;
-  border-radius: 7px;
+  padding: 6px 12px;
+  border-radius: 8px;
   font-size: 12px;
+  font-weight: 700;
   line-height: 1;
   white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.payment-verification-actions button:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  opacity: 0.9;
 }
 
 .payment-verification-actions button[title="View Details"],
