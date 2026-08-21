@@ -82,8 +82,7 @@ test.describe('Daily Production Report E2E Flow', () => {
     await firstRowInputs.nth(2).fill('25');
 
     // Verify set quantity column shows 25 in the UI
-    const setQtyCell = page.locator('tbody tr').first().locator('td').nth(10);
-    await expect(setQtyCell).toContainText('25');
+    await expect(firstRowInputs.nth(4)).toHaveValue('25');
     console.log('Set quantity is 25!');
 
     // 3. Submit the report
@@ -230,8 +229,7 @@ test.describe('Daily Production Report E2E Flow', () => {
     await editFirstRowInputs.nth(0).fill('30');
     await editFirstRowInputs.nth(2).fill('30');
 
-    const updatedSetCell = page.locator('tbody tr').first().locator('td').nth(10);
-    await expect(updatedSetCell).toContainText('30');
+    await expect(editFirstRowInputs.nth(4)).toHaveValue('30');
 
     console.log('Submitting updated report...');
     await page.getByRole('button', { name: 'Submit Daily Report' }).click();

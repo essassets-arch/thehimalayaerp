@@ -77,7 +77,7 @@ export class QuotationsService {
       include: {
         workflowState: true,
         salesExecutive: { select: { id: true, name: true, email: true } },
-        items: true,
+        items: { include: { product: true } },
         lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
         parentQuotation: true,
         childQuotations: {
@@ -280,13 +280,13 @@ export class QuotationsService {
         leadId: dto.leadId,
         customerId: dto.customerId,
         salesExecutiveId: resolvedSalesExecutiveId,
-        validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+        validUntil: dto.validUntil ? new Date(dto.validUntil) : (dto.validTill ? new Date(dto.validTill) : null),
         subtotal: totals.subtotal,
         discount: totals.discount,
         tax: totals.tax,
         total: totals.total,
         expectedTransportationCost: Number(dto.expectedTransportationCost ?? dto.transportCharge ?? 0),
-        remarks: dto.remarks,
+        remarks: dto.remarks !== undefined ? dto.remarks : (dto.notes !== undefined ? dto.notes : null),
         paymentTerms: paymentTermInfo.paymentTerms,
         paymentTermDays: paymentTermInfo.paymentTermDays,
         workflowStateId: initialState.id,
@@ -294,7 +294,7 @@ export class QuotationsService {
         items: {
           create: totals.processedItems.map((item: any) => ({
             productId: item.productId,
-            description: item.description,
+            description: item.description || item.specification || item.productDetails || '',
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discount: item.discount || 0,
@@ -416,7 +416,7 @@ export class QuotationsService {
             gstName: dto.gstName !== undefined ? dto.gstName : undefined,
             gstNumber: dto.gstNumber !== undefined ? (dto.gstNumber || null) : undefined,
           },
-        });
+        }).catch(() => {});
       }
 
       // 2. If customerId is present or updated, update the associated Customer's name and GST
@@ -428,20 +428,34 @@ export class QuotationsService {
             companyName: dto.customerName !== undefined ? dto.customerName : undefined,
             gstin: dto.gstNumber !== undefined ? (dto.gstNumber || null) : undefined,
           },
-        });
+        }).catch(() => {});
       }
 
-      return tx.quotation.update({
+      const validUntilDate = dto.validUntil !== undefined
+        ? (dto.validUntil ? new Date(dto.validUntil) : null)
+        : (dto.validTill !== undefined ? (dto.validTill ? new Date(dto.validTill) : null) : undefined);
+
+      const expectedTransportationCost =
+        dto.expectedTransportationCost !== undefined && dto.expectedTransportationCost !== null
+          ? Number(dto.expectedTransportationCost)
+          : (dto.transportCharge !== undefined && dto.transportCharge !== null ? Number(dto.transportCharge) : undefined);
+
+      const remarks =
+        dto.remarks !== undefined
+          ? dto.remarks
+          : (dto.notes !== undefined ? dto.notes : (dto.termsAndNotes !== undefined ? dto.termsAndNotes : undefined));
+
+      const updated = await tx.quotation.update({
         where: { id },
         data: {
           leadId: dto.leadId !== undefined ? dto.leadId : undefined,
           customerId: dto.customerId !== undefined ? dto.customerId : undefined,
-          validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
-          remarks: dto.remarks !== undefined ? dto.remarks : (dto.notes !== undefined ? dto.notes : undefined),
+          validUntil: validUntilDate,
+          remarks: remarks,
           paymentTerms: paymentTermInfo.paymentTerms !== undefined ? paymentTermInfo.paymentTerms : undefined,
           paymentTermDays: paymentTermInfo.paymentTermDays !== undefined ? paymentTermInfo.paymentTermDays : undefined,
           updatedById: userId,
-          expectedTransportationCost: dto.expectedTransportationCost !== undefined || dto.transportCharge !== undefined ? Number(dto.expectedTransportationCost ?? dto.transportCharge ?? 0) : undefined,
+          expectedTransportationCost: expectedTransportationCost,
           ...(totals
             ? {
                 subtotal: totals.subtotal,
@@ -451,7 +465,7 @@ export class QuotationsService {
                 items: {
                   create: totals.processedItems.map((item: any) => ({
                     productId: item.productId,
-                    description: item.description,
+                    description: item.description || item.specification || item.productDetails || '',
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
                     discount: item.discount || 0,
@@ -462,8 +476,24 @@ export class QuotationsService {
               }
             : {}),
         },
-        include: { workflowState: true, items: true },
+        include: {
+          workflowState: true,
+          salesExecutive: { select: { id: true, name: true, email: true } },
+          items: { include: { product: true } },
+          lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
+        },
       });
+
+      let customer: any = null;
+      if (updated.customerId) {
+        customer = await tx.customer.findFirst({
+          where: { id: updated.customerId },
+        });
+      }
+      return {
+        ...updated,
+        customer,
+      };
     });
   }
 

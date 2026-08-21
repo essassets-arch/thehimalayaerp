@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Body,
   Param,
   Query,
@@ -67,6 +68,7 @@ export class QuotationsController {
   }
 
   @Patch(':id')
+  @Put(':id')
   @RequirePermissions('crm.quotations.update')
   async updateQuotation(
     @Param('id') id: string,

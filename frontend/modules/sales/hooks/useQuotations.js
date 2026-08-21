@@ -3,35 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import { backendFetch } from '../../../lib/backendFetch';
-
-const statusLabel = (code) => {
-  const value = String(code || 'DRAFT').toUpperCase();
-  if (value === 'CONVERTED_TO_SO') return 'Converted';
-  return value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' ');
-};
-
-const normalizeQuotation = (quotation) => ({
-  ...quotation,
-  id: quotation.id,
-  quotationNo: quotation.quotationNumber,
-  customerName: quotation.lead?.companyName || quotation.customer?.companyName || '',
-  groupName: quotation.lead?.groupName || '',
-  gstName: quotation.lead?.gstName || quotation.lead?.companyName || '',
-  gstNumber: quotation.lead?.gstNumber || '',
-  status: statusLabel(quotation.workflowState?.code),
-  validTill: quotation.validUntil,
-  totalAmount: Number(quotation.total || 0),
-  grandTotal: Number(quotation.total || 0),
-  detailedItems: (quotation.items || []).map((item) => ({
-    productId: item.productId,
-    productName: item.product?.name || item.description || 'Product',
-    productDetails: item.description || item.product?.description || '',
-    quantity: Number(item.quantity || 0),
-    unitPrice: Number(item.unitPrice || 0),
-    discountAmount: Number(item.discount || 0),
-    taxAmount: Number(item.tax || 0),
-  })),
-});
+import { normalizeQuotation } from '../../../services/sales/quotationNormalizer';
 
 export function useQuotations(showToast, autoLoad = true) {
   const [quotations, setQuotations] = useState([]);
@@ -73,6 +45,7 @@ export function useQuotations(showToast, autoLoad = true) {
           productName: item.productName || item.name || 'Custom Product',
           productCode: item.productCode || item.code || undefined,
           description: item.productDetails || item.specification || item.description || item.productName || item.name || '',
+          specification: item.productDetails || item.specification || item.description || '',
           quantity,
           unitPrice,
           discount,
@@ -80,15 +53,25 @@ export function useQuotations(showToast, autoLoad = true) {
         };
       });
 
+      const payload = {
+        leadId: qData.leadId,
+        customerId: qData.customerId,
+        customerName: qData.customerName,
+        groupName: qData.groupName,
+        gstName: qData.gstName,
+        gstNumber: qData.gstNumber,
+        validUntil: qData.validTill || qData.validUntil,
+        remarks: qData.notes !== undefined ? qData.notes : qData.remarks,
+        paymentTerms: qData.paymentTerms,
+        paymentTermDays: qData.paymentTermDays,
+        expectedTransportationCost: Number(qData.expectedTransportationCost ?? qData.transportCharge ?? 0),
+        transportCharge: Number(qData.transportCharge ?? qData.expectedTransportationCost ?? 0),
+        items,
+      };
+
       const created = await backendFetch('/api/backend/crm/quotations', {
         method: 'POST',
-        body: {
-          leadId: qData.leadId,
-          customerId: qData.customerId,
-          validUntil: qData.validTill,
-          remarks: qData.notes,
-          items,
-        },
+        body: payload,
       });
       showToast?.('Quotation created and saved to database.');
       await loadQuotations();
@@ -145,6 +128,7 @@ export function useQuotations(showToast, autoLoad = true) {
             productName: item.productName || item.name || 'Custom Product',
             productCode: item.productCode || item.code || undefined,
             description: item.productDetails || item.specification || item.description || item.productName || item.name || '',
+            specification: item.productDetails || item.specification || item.description || '',
             quantity,
             unitPrice,
             discount,
@@ -154,6 +138,16 @@ export function useQuotations(showToast, autoLoad = true) {
 
         const patchPayload = {
           ...updatedData,
+          customerName: updatedData.customerName,
+          groupName: updatedData.groupName,
+          gstName: updatedData.gstName,
+          gstNumber: updatedData.gstNumber,
+          validUntil: updatedData.validTill || updatedData.validUntil,
+          remarks: updatedData.notes !== undefined ? updatedData.notes : updatedData.remarks,
+          paymentTerms: updatedData.paymentTerms,
+          paymentTermDays: updatedData.paymentTermDays,
+          expectedTransportationCost: Number(updatedData.expectedTransportationCost ?? updatedData.transportCharge ?? 0),
+          transportCharge: Number(updatedData.transportCharge ?? updatedData.expectedTransportationCost ?? 0),
           items: mappedItems,
         };
 

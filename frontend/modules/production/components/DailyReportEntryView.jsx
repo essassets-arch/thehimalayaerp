@@ -226,11 +226,15 @@ export default function DailyReportEntryView({
     const totalWeight = coverWeight + frameWeight;
 
     const coversPerSet = Math.max(1, parseInt(row.coversPerSet) || 1);
-    const framesPerSet = Math.max(1, parseInt(row.framesPerSet) || 1);
+    const framesPerSet = row.framesPerSet !== undefined && row.framesPerSet !== null ? parseInt(row.framesPerSet) : 1;
 
-    const setsFromCovers = Math.floor(coverQty / coversPerSet);
-    const setsFromFrames = frameQty > 0 ? Math.floor(frameQty / framesPerSet) : 0;
-    const setQty = Math.min(setsFromCovers, setsFromFrames);
+    let calculatedSets = Math.floor(coverQty / coversPerSet);
+    if (framesPerSet > 0) {
+      const setsFromFrames = Math.floor(frameQty / framesPerSet);
+      calculatedSets = Math.min(calculatedSets, setsFromFrames);
+    }
+
+    const setQty = row.isSetQtyCustom ? (parseInt(row.setQty) || 0) : calculatedSets;
 
     return {
       ...row,
@@ -582,6 +586,22 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         isFrameWeightCustom: isCustom
       });
       updated[rowIndex] = newRow;
+      return updated;
+    });
+  };
+
+  // Direct Edit of Set Qty (Override Auto-Calculation)
+  const handleSetQtyChange = (rowIndex, value) => {
+    setRows(prevRows => {
+      const updated = [...prevRows];
+      const curRow = updated[rowIndex];
+      const isCustom = value !== '';
+      const numVal = isCustom ? Math.max(0, parseInt(value) || 0) : 0;
+      updated[rowIndex] = {
+        ...curRow,
+        setQty: numVal,
+        isSetQtyCustom: isCustom
+      };
       return updated;
     });
   };
@@ -1684,8 +1704,26 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                   </td>
 
                   {/* Set Qty */}
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#059669' }}>
-                    {row.setQty}
+                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={row.setQty}
+                      disabled={isReadOnly}
+                      onChange={(e) => handleSetQtyChange(index, e.target.value)}
+                      className="form-input"
+                      style={{
+                        width: '100%',
+                        margin: 0,
+                        textAlign: 'right',
+                        fontWeight: '900',
+                        fontSize: '13px',
+                        color: '#059669',
+                        background: 'rgba(16, 185, 129, 0.06)',
+                        borderColor: 'rgba(16, 185, 129, 0.3)'
+                      }}
+                    />
                   </td>
 
                   {/* Actions */}

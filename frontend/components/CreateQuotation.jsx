@@ -153,7 +153,14 @@ export default function CreateQuotation({
   };
 
   const getInitialItems = () => {
-    const sourceItems = quotationDraft ? (Array.isArray(quotationDraft.detailedItems) ? quotationDraft.detailedItems : (Array.isArray(quotationDraft.items) ? quotationDraft.items : null)) : null;
+    const sourceItems = quotationDraft
+      ? (Array.isArray(quotationDraft.detailedItems) && quotationDraft.detailedItems.length > 0
+          ? quotationDraft.detailedItems
+          : (Array.isArray(quotationDraft.items) && quotationDraft.items.length > 0
+              ? quotationDraft.items
+              : null))
+      : null;
+
     if (sourceItems && sourceItems.length > 0) {
       return sourceItems.map((item, idx) => {
         const qty = Number(item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1));
@@ -161,34 +168,57 @@ export default function CreateQuotation({
         const gross = qty * price;
         
         let discountPct = 0;
-        const discountAmt = Number(item.discountAmount !== undefined ? item.discountAmount : (item.discount || 0));
-        if (gross > 0 && discountAmt > 0) {
-          discountPct = Math.round((discountAmt / gross) * 100);
-          if (discountPct > 100) discountPct = 0; // Guard against raw percentage storage fallback
-        } else if (item.discount !== undefined && item.discount > 0 && item.discount <= 100 && discountAmt === item.discount) {
-          discountPct = item.discount;
+        if (item.discountPercent !== undefined && item.discountPercent !== null) {
+          discountPct = Number(item.discountPercent);
+        } else if (item.discountAmount !== undefined && item.discountAmount !== null && gross > 0) {
+          discountPct = Math.round((Number(item.discountAmount) / gross) * 100);
+        } else if (item.discount !== undefined && item.discount !== null) {
+          const rawDisc = Number(item.discount);
+          if (gross > 0 && rawDisc > 100) {
+            discountPct = Math.round((rawDisc / gross) * 100);
+          } else {
+            discountPct = rawDisc;
+          }
         }
+        if (discountPct > 100) discountPct = 0;
 
         let taxPct = 18;
-        const taxAmt = Number(item.taxAmount !== undefined ? item.taxAmount : (item.tax || 0));
-        const taxable = gross - discountAmt;
-        if (taxable > 0 && taxAmt > 0) {
-          taxPct = Math.round((taxAmt / taxable) * 100);
-          if (taxPct > 100) taxPct = 18; // Guard against raw percentage storage fallback
-        } else if (item.tax !== undefined && item.tax <= 100) {
-          taxPct = item.tax;
+        if (item.taxPercent !== undefined && item.taxPercent !== null) {
+          taxPct = Number(item.taxPercent);
+        } else if (item.taxAmount !== undefined && item.taxAmount !== null) {
+          const discountAmt = gross * (discountPct / 100);
+          const taxable = gross - discountAmt;
+          if (taxable > 0) {
+            taxPct = Math.round((Number(item.taxAmount) / taxable) * 100);
+          }
+        } else if (item.tax !== undefined && item.tax !== null) {
+          const rawTax = Number(item.tax);
+          const discountAmt = gross * (discountPct / 100);
+          const taxable = gross - discountAmt;
+          if (taxable > 0 && rawTax > 100) {
+            taxPct = Math.round((rawTax / taxable) * 100);
+          } else {
+            taxPct = rawTax;
+          }
         }
+        if (taxPct > 100) taxPct = 18;
+
+        const spec = item.specification ?? item.productDetails ?? item.description ?? item.product?.description ?? '';
+        const productName = item.productName ?? item.product?.name ?? item.name ?? item.description ?? '';
+        const code = item.product?.sku ?? item.productCode ?? item.code ?? item.productId ?? '';
+        const productId = item.productId ?? item.product?.id ?? code;
 
         return {
-          id: idx + 1,
-          productName: item.productName || item.name || '',
-          productDetails: item.productDetails || item.description || item.specification || '',
+          id: item.id || idx + 1,
+          productName,
+          productDetails: spec,
+          specification: spec,
           quantity: qty,
           unitPrice: price,
           discount: discountPct,
           tax: taxPct,
-          productId: item.productId || item.productCode || item.code,
-          code: item.code || item.productCode || ''
+          productId,
+          code,
         };
       });
     }
@@ -197,6 +227,7 @@ export default function CreateQuotation({
         id: 1, 
         productName: prefilledProduct || '', 
         productDetails: '',
+        specification: '',
         quantity: prefilledQuantity || 1, 
         unitPrice: prefilledPrice || 100,
         discount: 0,
@@ -207,31 +238,33 @@ export default function CreateQuotation({
 
   const resolvePaymentTerms = (q) => {
     if (!q) return '15 Days';
-    return q.paymentTerms || q.payment_terms || '15 Days';
+    return q.paymentTerms ?? q.payment_terms ?? '15 Days';
   };
 
   const resolveTransportCost = (q) => {
-    if (!q) return '';
+    if (!q) return 0;
     if (q.expectedTransportationCost !== undefined && q.expectedTransportationCost !== null) {
-      return q.expectedTransportationCost;
+      return Number(q.expectedTransportationCost);
     }
     if (q.transportCharge !== undefined && q.transportCharge !== null) {
-      return q.transportCharge;
+      return Number(q.transportCharge);
     }
-    return '';
+    return 0;
   };
 
   const emptyQuotationForm = {
-    customerName: quotationDraft ? (quotationDraft.customerName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
-    groupName: quotationDraft ? (quotationDraft.groupName || quotationDraft.group_name || '') : '',
-    isGstRegistered: quotationDraft && (quotationDraft.isGstRegistered === false || quotationDraft.gstNumber === '') ? 'NO' : 'YES',
-    gstNumber: quotationDraft ? (quotationDraft.gstNumber || '') : '',
-    gstName: quotationDraft ? (quotationDraft.gstName || quotationDraft.customerName || quotationDraft.customer || quotationDraft.company || '') : prefilledCustomer,
-    validTill: quotationDraft ? (formatInputDate(quotationDraft.validUntil || quotationDraft.validTill || quotationDraft.validityDate) || defaultValidTill()) : defaultValidTill(),
+    customerName: quotationDraft ? (quotationDraft.customerName ?? quotationDraft.customer ?? quotationDraft.company ?? '') : prefilledCustomer,
+    groupName: quotationDraft ? (quotationDraft.groupName ?? quotationDraft.group_name ?? '') : '',
+    isGstRegistered: quotationDraft
+      ? (quotationDraft.isGstRegistered === false || quotationDraft.isGstRegistered === 'NO' || quotationDraft.gstNumber === '' ? 'NO' : 'YES')
+      : 'YES',
+    gstNumber: quotationDraft ? (quotationDraft.gstNumber ?? quotationDraft.gst_number ?? '') : '',
+    gstName: quotationDraft ? (quotationDraft.gstName ?? quotationDraft.gst_name ?? quotationDraft.customerName ?? quotationDraft.customer ?? quotationDraft.company ?? '') : prefilledCustomer,
+    validTill: quotationDraft ? (formatInputDate(quotationDraft.validUntil ?? quotationDraft.validTill ?? quotationDraft.validityDate) || defaultValidTill()) : defaultValidTill(),
     paymentTerms: resolvePaymentTerms(quotationDraft),
     items: getInitialItems(),
     transportCharge: resolveTransportCost(quotationDraft),
-    notes: quotationDraft?.notes || ''
+    notes: quotationDraft?.notes ?? quotationDraft?.remarks ?? quotationDraft?.termsAndNotes ?? ''
   };
 
   const draftKey = `erp_draft_create_quotation_${editingQuotation ? `edit-${editingQuotation.id}` : (targetQuotationId || targetLeadId || 'new')}`;
@@ -343,6 +376,10 @@ export default function CreateQuotation({
   };
 
   useEffect(() => {
+    // CRITICAL: Disable automatic Lead/Customer lookups when editing an existing Quotation!
+    // The persisted Quotation record is the sole source of truth in edit mode.
+    if (editingQuotation) return;
+
     if (!customerName.trim()) {
       if (gstNumber !== '') setGstNumber('');
       if (gstName !== '') setGstName('');
@@ -600,7 +637,10 @@ export default function CreateQuotation({
       validTill,
       validUntil: validTill,
       paymentTerms,
+      paymentTermDays: editingQuotation?.paymentTermDays,
       notes: notes.trim(),
+      remarks: notes.trim(),
+      termsAndNotes: notes.trim(),
       source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : (editingQuotation?.leadId ? 'LEAD' : undefined)),
       sourceId: isSampleSource ? sourceId : (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
       leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
@@ -668,7 +708,29 @@ export default function CreateQuotation({
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {isSampleSource && (
+        {editingQuotation && (
+          <div className="lead-source-banner" style={{
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            color: '#2563eb',
+            fontSize: '13.5px',
+            fontWeight: '500',
+            marginBottom: '20px'
+          }}>
+            <span style={{ fontSize: '16px' }}>📝</span>
+            <span>Editing Quotation <strong>#{editingQuotation.quotationNumber || editingQuotation.quotationNo || editingQuotation.id}</strong>{editingQuotation.leadId ? ` (Origin: Lead #${(() => {
+              const leadObj = leads.find(l => l.id === editingQuotation.leadId);
+              return leadObj?.leadNumber || displayEntityId(editingQuotation.leadId);
+            })()})` : ''} — loading complete saved quotation details.</span>
+          </div>
+        )}
+
+        {!editingQuotation && isSampleSource && (
           <div className="sample-source-banner" style={{
             background: 'rgba(14, 165, 233, 0.1)',
             border: '1px solid rgba(14, 165, 233, 0.25)',
@@ -686,7 +748,7 @@ export default function CreateQuotation({
           </div>
         )}
 
-        {isLeadSource && (
+        {!editingQuotation && !isSampleSource && isLeadSource && (
           <div className="lead-source-banner" style={{
             background: 'rgba(14, 165, 233, 0.1)',
             border: '1px solid rgba(14, 165, 233, 0.25)',
