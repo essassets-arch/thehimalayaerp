@@ -110,23 +110,18 @@ export const initializePushNotifications = async () => {
       return;
     }
 
-    // Convert VAPID key to standard base64 with correct padding for window.atob safety
-    let cleanVapidKey = VAPID_KEY;
-    if (cleanVapidKey && typeof cleanVapidKey === 'string') {
-      cleanVapidKey = cleanVapidKey.trim().replace(/^['"]|['"]$/g, '');
-      if (cleanVapidKey !== 'undefined' && cleanVapidKey !== 'null' && cleanVapidKey !== '') {
-        cleanVapidKey = cleanVapidKey.replace(/-/g, '+').replace(/_/g, '/');
-        const pad = cleanVapidKey.length % 4;
-        if (pad) {
-          cleanVapidKey += '='.repeat(4 - pad);
-        }
-        console.log('[Firebase Client] Sanitized VAPID Key:', cleanVapidKey);
-      } else {
-        cleanVapidKey = undefined;
+    const validateVapidKey = (value) => {
+      const key = value?.trim().replace(/^['"]|['"]$/g, ''); // strip any accidental quotes
+      if (!key || key === 'undefined' || key === 'null') {
+        throw new Error("NEXT_PUBLIC_FIREBASE_VAPID_KEY is missing or invalid");
       }
-    } else {
-      cleanVapidKey = undefined;
-    }
+      if (!/^[A-Za-z0-9_-]+$/.test(key)) {
+        throw new Error("NEXT_PUBLIC_FIREBASE_VAPID_KEY contains invalid Base64URL characters");
+      }
+      return key;
+    };
+
+    const cleanVapidKey = validateVapidKey(VAPID_KEY);
 
     // 3. Fetch FCM token
     const fcmToken = await getToken(messagingInstance, {
