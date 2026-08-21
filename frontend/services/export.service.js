@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as htmlToImage from 'html-to-image';
+import html2canvas from 'html2canvas';
+import { saveAs } from 'file-saver';
 import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
 
@@ -987,17 +989,10 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     doc.text('HIMALAYA', 14, 15);
   }
 
-  // Draw logo tagline under it
-  doc.setFillColor(255, 255, 255);
-  doc.rect(14, 21, 48, 4, 'F');
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 46, 93);
-  doc.text('COMPOSITES & PRECAST PVT LTD', 15, 24);
-
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(6.5);
-  doc.text('STRENGTH. DURABILITY. TRUST.', 14, 28);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('STRENGTH. DURABILITY. TRUST.', 14, 22);
 
   // 2. Company Details (Left Column)
   y = 40;
@@ -1329,26 +1324,32 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
-  // Create an off-screen clone with exact canonical dimensions (840px)
-  // This guarantees that whether exported on a mobile phone, tablet, or desktop,
-  // the output PNG image is always the pristine, un-squished, high-resolution desktop document.
+  // Create isolated off-screen wrapper at (0, 0) with negative z-index
+  const wrapper = document.createElement('div');
+  wrapper.id = `${elementId}-export-wrapper`;
+  wrapper.style.position = 'fixed';
+  wrapper.style.top = '0';
+  wrapper.style.left = '0';
+  wrapper.style.width = '840px';
+  wrapper.style.zIndex = '-9999';
+  wrapper.style.pointerEvents = 'none';
+  wrapper.style.opacity = '1';
+  wrapper.style.visibility = 'visible';
+  wrapper.style.overflow = 'hidden';
+  wrapper.style.background = '#ffffff';
+
   const clone = element.cloneNode(true);
   clone.id = `${elementId}-export-clone`;
-  clone.style.setProperty('width', '840px', 'important');
-  clone.style.setProperty('min-width', '840px', 'important');
-  clone.style.setProperty('max-width', '840px', 'important');
-  clone.style.setProperty('position', 'fixed', 'important');
-  clone.style.setProperty('left', '-99999px', 'important');
-  clone.style.setProperty('top', '0', 'important');
-  clone.style.setProperty('transform', 'none', 'important');
-  clone.style.setProperty('border-radius', '0', 'important');
-  clone.style.setProperty('margin', '0', 'important');
-  clone.style.setProperty('padding', '0', 'important');
-  clone.style.setProperty('box-sizing', 'border-box', 'important');
-  clone.style.setProperty('background', '#ffffff', 'important');
-  clone.style.setProperty('z-index', '-99999', 'important');
-  clone.style.setProperty('opacity', '1', 'important');
-  clone.style.setProperty('visibility', 'visible', 'important');
+  clone.style.width = '840px';
+  clone.style.minWidth = '840px';
+  clone.style.maxWidth = '840px';
+  clone.style.transform = 'none';
+  clone.style.borderRadius = '0';
+  clone.style.margin = '0';
+  clone.style.padding = '0';
+  clone.style.boxSizing = 'border-box';
+  clone.style.background = '#ffffff';
+  clone.style.display = 'block';
 
   // Enforce desktop row layouts on all clone sections
   const mobileFlexRows = clone.querySelectorAll('.quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex');
@@ -1382,39 +1383,87 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     footerWave.style.setProperty('min-height', '76px', 'important');
   }
 
-  document.body.appendChild(clone);
+  // Enforce pristine tabular formatting on all tables in the clone
+  clone.querySelectorAll('table').forEach(t => {
+    t.style.setProperty('display', 'table', 'important');
+    t.style.setProperty('width', '100%', 'important');
+    t.style.setProperty('border-collapse', 'collapse', 'important');
+  });
+  clone.querySelectorAll('thead').forEach(th => th.style.setProperty('display', 'table-header-group', 'important'));
+  clone.querySelectorAll('tbody').forEach(tb => tb.style.setProperty('display', 'table-row-group', 'important'));
+  clone.querySelectorAll('tr').forEach(tr => {
+    tr.style.setProperty('display', 'table-row', 'important');
+    tr.style.setProperty('background', 'transparent', 'important');
+    tr.style.setProperty('border', 'none', 'important');
+  });
+  clone.querySelectorAll('td').forEach(td => {
+    td.style.setProperty('display', 'table-cell', 'important');
+    td.style.setProperty('width', 'auto', 'important');
+  });
+  clone.querySelectorAll('th').forEach(th => {
+    th.style.setProperty('display', 'table-cell', 'important');
+  });
+
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
 
   try {
-    // Ensure all images inside the clone are loaded before capture
+    if (document.fonts && document.fonts.ready) {
+      try {
+        await document.fonts.ready;
+      } catch { /* proceed */ }
+    }
+
     const images = Array.from(clone.querySelectorAll('img'));
     await Promise.all(images.map(img => {
-      if (img.complete) return Promise.resolve();
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
       return new Promise((resolve) => {
         img.onload = resolve;
         img.onerror = resolve;
       });
     }));
 
-    const dataUrl = await htmlToImage.toPng(clone, {
-      pixelRatio: 3, // 3x high-resolution crispness for print quality
-      width: 840,
-      backgroundColor: '#ffffff',
-      style: {
-        borderRadius: '0',
-        transform: 'none',
-      }
-    });
+    let dataUrl;
+    try {
+      dataUrl = await htmlToImage.toPng(clone, {
+        pixelRatio: 2.5,
+        width: 840,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+        style: {
+          borderRadius: '0',
+          transform: 'none',
+        }
+      });
+    } catch (primaryErr) {
+      console.warn('htmlToImage capture failed, falling back to html2canvas:', primaryErr);
+      const canvas = await html2canvas(clone, {
+        scale: 2.5,
+        width: 840,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false
+      });
+      dataUrl = canvas.toDataURL('image/png');
+    }
 
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      saveAs(blob, filename);
+    } catch {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
     return dataUrl;
   } finally {
-    if (clone && clone.parentNode) {
-      clone.parentNode.removeChild(clone);
+    if (wrapper && wrapper.parentNode) {
+      wrapper.parentNode.removeChild(wrapper);
     }
   }
 };
@@ -1428,23 +1477,31 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
+  const wrapper = document.createElement('div');
+  wrapper.id = `${elementId}-share-wrapper`;
+  wrapper.style.position = 'fixed';
+  wrapper.style.top = '0';
+  wrapper.style.left = '0';
+  wrapper.style.width = '840px';
+  wrapper.style.zIndex = '-9999';
+  wrapper.style.pointerEvents = 'none';
+  wrapper.style.opacity = '1';
+  wrapper.style.visibility = 'visible';
+  wrapper.style.overflow = 'hidden';
+  wrapper.style.background = '#ffffff';
+
   const clone = element.cloneNode(true);
   clone.id = `${elementId}-share-clone`;
-  clone.style.setProperty('width', '840px', 'important');
-  clone.style.setProperty('min-width', '840px', 'important');
-  clone.style.setProperty('max-width', '840px', 'important');
-  clone.style.setProperty('position', 'fixed', 'important');
-  clone.style.setProperty('left', '-99999px', 'important');
-  clone.style.setProperty('top', '0', 'important');
-  clone.style.setProperty('transform', 'none', 'important');
-  clone.style.setProperty('border-radius', '0', 'important');
-  clone.style.setProperty('margin', '0', 'important');
-  clone.style.setProperty('padding', '0', 'important');
-  clone.style.setProperty('box-sizing', 'border-box', 'important');
+  clone.style.width = '840px';
+  clone.style.minWidth = '840px';
+  clone.style.maxWidth = '840px';
+  clone.style.transform = 'none';
+  clone.style.borderRadius = '0';
+  clone.style.margin = '0';
+  clone.style.padding = '0';
+  clone.style.boxSizing = 'border-box';
   clone.style.background = '#ffffff';
-  clone.style.setProperty('z-index', '-99999', 'important');
-  clone.style.setProperty('opacity', '1', 'important');
-  clone.style.setProperty('visibility', 'visible', 'important');
+  clone.style.display = 'block';
 
   const mobileFlexRows = clone.querySelectorAll('.quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex');
   mobileFlexRows.forEach(el => {
@@ -1477,27 +1534,68 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
     footerWave.style.setProperty('min-height', '76px', 'important');
   }
 
-  document.body.appendChild(clone);
+  clone.querySelectorAll('table').forEach(t => {
+    t.style.setProperty('display', 'table', 'important');
+    t.style.setProperty('width', '100%', 'important');
+    t.style.setProperty('border-collapse', 'collapse', 'important');
+  });
+  clone.querySelectorAll('thead').forEach(th => th.style.setProperty('display', 'table-header-group', 'important'));
+  clone.querySelectorAll('tbody').forEach(tb => tb.style.setProperty('display', 'table-row-group', 'important'));
+  clone.querySelectorAll('tr').forEach(tr => {
+    tr.style.setProperty('display', 'table-row', 'important');
+    tr.style.setProperty('background', 'transparent', 'important');
+    tr.style.setProperty('border', 'none', 'important');
+  });
+  clone.querySelectorAll('td').forEach(td => {
+    td.style.setProperty('display', 'table-cell', 'important');
+    td.style.setProperty('width', 'auto', 'important');
+  });
+  clone.querySelectorAll('th').forEach(th => {
+    th.style.setProperty('display', 'table-cell', 'important');
+  });
+
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
 
   try {
+    if (document.fonts && document.fonts.ready) {
+      try {
+        await document.fonts.ready;
+      } catch { /* proceed */ }
+    }
+
     const images = Array.from(clone.querySelectorAll('img'));
     await Promise.all(images.map(img => {
-      if (img.complete) return Promise.resolve();
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
       return new Promise((resolve) => {
         img.onload = resolve;
         img.onerror = resolve;
       });
     }));
 
-    const dataUrl = await htmlToImage.toPng(clone, {
-      pixelRatio: 3,
-      width: 840,
-      backgroundColor: '#ffffff',
-      style: {
-        borderRadius: '0',
-        transform: 'none',
-      }
-    });
+    let dataUrl;
+    try {
+      dataUrl = await htmlToImage.toPng(clone, {
+        pixelRatio: 2.5,
+        width: 840,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+        style: {
+          borderRadius: '0',
+          transform: 'none',
+        }
+      });
+    } catch (primaryErr) {
+      console.warn('htmlToImage capture failed, falling back to html2canvas:', primaryErr);
+      const canvas = await html2canvas(clone, {
+        scale: 2.5,
+        width: 840,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false
+      });
+      dataUrl = canvas.toDataURL('image/png');
+    }
 
     const response = await fetch(dataUrl);
     const blob = await response.blob();
@@ -1515,8 +1613,8 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
     
     return { success: false, file, blob, dataUrl };
   } finally {
-    if (clone && clone.parentNode) {
-      clone.parentNode.removeChild(clone);
+    if (wrapper && wrapper.parentNode) {
+      wrapper.parentNode.removeChild(wrapper);
     }
   }
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { calculateQuotationTotals, exportQuotationPDF, exportQuotationImage, shareQuotationImage } from '../services/export.service';
 import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -52,6 +52,27 @@ export default function QuotationsView({
   const [filter, setFilter] = useState('All');
   const [reminderBucket, setReminderBucket] = useState('Today');
   const [reminderModal, setReminderModal] = useState(null);
+
+  const [previewZoomMode, setPreviewZoomMode] = useState('fit'); // 'fit' | 'full'
+  const [previewScale, setPreviewScale] = useState(1);
+  const [sheetHeight, setSheetHeight] = useState(1150);
+  const quotationSheetRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectedQuotation) return;
+    const calculateScale = () => {
+      if (typeof window === 'undefined') return;
+      const availableWidth = Math.min(window.innerWidth - 24, 840);
+      const scale = availableWidth < 840 ? availableWidth / 840 : 1;
+      setPreviewScale(scale);
+      if (quotationSheetRef.current) {
+        setSheetHeight(quotationSheetRef.current.scrollHeight || 1150);
+      }
+    };
+    calculateScale();
+    window.addEventListener('resize', calculateScale);
+    return () => window.removeEventListener('resize', calculateScale);
+  }, [selectedQuotation, previewZoomMode]);
 
   // ── Inline Create Quotation Form toggle ──
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -976,6 +997,48 @@ export default function QuotationsView({
               font-size: 11px;
               font-weight: 700;
             }
+            .quotation-preview-container table,
+            .quotation-items-table,
+            .doc-table {
+              display: table !important;
+              width: 100% !important;
+              min-width: 560px !important;
+              border-collapse: collapse !important;
+            }
+            .quotation-preview-container thead,
+            .quotation-items-table thead,
+            .doc-table thead {
+              display: table-header-group !important;
+            }
+            .quotation-preview-container tbody,
+            .quotation-items-table tbody,
+            .doc-table tbody {
+              display: table-row-group !important;
+            }
+            .quotation-preview-container tr,
+            .quotation-items-table tr,
+            .doc-table tr {
+              display: table-row !important;
+              background: transparent !important;
+            }
+            .quotation-preview-container th,
+            .quotation-items-table th,
+            .doc-table th {
+              display: table-cell !important;
+              vertical-align: middle !important;
+            }
+            .quotation-preview-container td,
+            .quotation-items-table td,
+            .doc-table td {
+              display: table-cell !important;
+              vertical-align: middle !important;
+            }
+            .quotation-preview-container td::before,
+            .quotation-items-table td::before,
+            .doc-table td::before {
+              display: none !important;
+              content: none !important;
+            }
             @media (max-width: 640px) {
               .quotation-document-viewport {
                 justify-content: flex-start;
@@ -1011,42 +1074,69 @@ export default function QuotationsView({
             className="quotation-sheet-modal-container"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Mobile zoom toggle toolbar */}
+            {previewScale < 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoomMode(m => m === 'fit' ? 'full' : 'fit')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#2F4375', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  {previewZoomMode === 'fit' ? '🔍 Zoom to 100%' : '📱 Fit to Mobile Screen'}
+                </button>
+                <span style={{ fontSize: '11px', color: '#334155', fontWeight: '700' }}>
+                  {previewZoomMode === 'fit' ? `Fitted View (${Math.round(previewScale * 100)}%)` : 'Full 840px A4 Document'}
+                </span>
+              </div>
+            )}
+
             {/* Scrollable Viewport to maintain exact 840px crisp geometry without squishing on mobile */}
             <div className="quotation-document-viewport">
               <div
-                id="quotation-printable-area"
                 style={{
-                  width: '840px',
-                  minWidth: '840px',
-                  maxWidth: '840px',
-                  background: '#ffffff',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                  boxSizing: 'border-box'
+                  width: (previewZoomMode === 'fit' && previewScale < 1) ? `${Math.round(840 * previewScale)}px` : '840px',
+                  height: (previewZoomMode === 'fit' && previewScale < 1) ? `${Math.round(sheetHeight * previewScale)}px` : 'auto',
+                  overflow: (previewZoomMode === 'fit' && previewScale < 1) ? 'hidden' : 'visible',
+                  margin: '0 auto',
+                  flexShrink: 0,
+                  transition: 'width 0.15s ease, height 0.15s ease'
                 }}
               >
-              {/* Curved Header Banner Wave */}
-            <div style={{ position: 'relative', width: '100%', height: '150px', overflow: 'hidden', margin: 0, padding: 0 }}>
-              <svg viewBox="0 0 840 150" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
-                {/* Light wave behind */}
-                <path d="M 0 0 L 840 0 L 840 30 C 600 15, 450 120, 0 130 Z" fill="#3b82f6" opacity="0.25" />
-                {/* Main dark wave */}
-                <path d="M 0 0 L 840 0 L 840 15 C 600 5, 450 105, 0 115 Z" fill="#002e5d" />
-                {/* White cutout ellipse background for logo */}
-                <ellipse cx="80" cy="20" rx="180" ry="115" fill="#ffffff" />
-              </svg>
-              {/* Content inside wave (Original Himalaya Logo) */}
-              <div style={{ position: 'relative', zIndex: 2, padding: '20px 32px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', boxSizing: 'border-box' }}>
-                <img src="/himalaya-logo-trimmed.png" alt="Himalaya Logo" style={{ height: '62px', width: 'auto', objectFit: 'contain' }} />
-                <div style={{ background: '#ffffff', color: '#002e5d', fontSize: '9px', fontWeight: '800', padding: '2px 8px', borderRadius: '3px', marginTop: '4px', letterSpacing: '0.5px' }}>
-                  COMPOSITES &amp; PRECAST PVT LTD
-                </div>
-                <div style={{ color: '#ffffff', fontSize: '8.5px', fontWeight: '700', marginTop: '6px', letterSpacing: '0.8px' }}>
-                  STRENGTH. DURABILITY. TRUST.
-                </div>
-              </div>
-            </div>
+                <div
+                  ref={quotationSheetRef}
+                  id="quotation-printable-area"
+                  className="quotation-preview-container"
+                  style={{
+                    width: '840px',
+                    minWidth: '840px',
+                    maxWidth: '840px',
+                    background: '#ffffff',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                    boxSizing: 'border-box',
+                    transform: (previewZoomMode === 'fit' && previewScale < 1) ? `scale(${previewScale})` : 'none',
+                    transformOrigin: 'top left',
+                  }}
+                >
+                  {/* Curved Header Banner Wave */}
+                  <div style={{ position: 'relative', width: '100%', height: '150px', overflow: 'hidden', margin: 0, padding: 0 }}>
+                    <svg viewBox="0 0 840 150" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+                      {/* Light wave behind */}
+                      <path d="M 0 0 L 840 0 L 840 30 C 600 15, 450 120, 0 130 Z" fill="#3b82f6" opacity="0.25" />
+                      {/* Main dark wave */}
+                      <path d="M 0 0 L 840 0 L 840 15 C 600 5, 450 105, 0 115 Z" fill="#002e5d" />
+                      {/* White cutout ellipse background for logo */}
+                      <ellipse cx="80" cy="20" rx="180" ry="115" fill="#ffffff" />
+                    </svg>
+                    {/* Content inside wave (Original Himalaya Logo) */}
+                    <div style={{ position: 'relative', zIndex: 2, padding: '20px 32px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', boxSizing: 'border-box' }}>
+                      <img src="/himalaya-logo-trimmed.png" alt="Himalaya Logo" style={{ height: '75px', width: 'auto', objectFit: 'contain' }} />
+                      <div style={{ color: '#ffffff', fontSize: '8.5px', fontWeight: '700', marginTop: '6px', letterSpacing: '0.8px' }}>
+                        STRENGTH. DURABILITY. TRUST.
+                      </div>
+                    </div>
+                  </div>
 
             {/* Inner Content Area with standard padding */}
             <div style={{ padding: '16px 32px 28px 32px' }}>
@@ -1136,7 +1226,7 @@ export default function QuotationsView({
 
               {/* Items Table */}
               <div className="crm-table-container" style={{ margin: '0 0 16px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-                <table className="crm-table responsive-table" style={{ border: 'none', minWidth: '600px', borderCollapse: 'collapse', width: '100%' }}>
+                <table className="quotation-items-table doc-table" style={{ border: 'none', minWidth: '600px', borderCollapse: 'collapse', width: '100%' }}>
                   <thead>
                     <tr style={{ background: '#002e5d', color: '#ffffff' }}>
                       <th style={{ padding: '12px 14px', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '40px', textAlign: 'center', background: '#002e5d' }}>#</th>
@@ -1157,18 +1247,18 @@ export default function QuotationsView({
 
                       return (
                         <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td data-label="#" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>{index + 1}</td>
-                          <td data-label="Product Details" style={{ padding: '12px 14px' }}>
+                          <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>{index + 1}</td>
+                          <td style={{ padding: '12px 14px' }}>
                             <div style={{ fontWeight: '700', color: '#0f2c59' }}>{item.productName}</div>
                             {item.productDetails && (
                               <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
                             )}
                             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
                           </td>
-                          <td data-label="Qty" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#0f2c59' }}>{item.quantity}</td>
-                          <td data-label="Rate" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '600', color: '#334155' }}>{formatINR(item.unitPrice)}</td>
-                          <td data-label="Tax (GST)" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>{item.tax !== undefined ? item.tax : 18}%</td>
-                          <td data-label="Total" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0f2c59' }}>{formatINR(itemTotal)}</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#0f2c59' }}>{item.quantity}</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '600', color: '#334155' }}>{formatINR(item.unitPrice)}</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>{item.tax !== undefined ? item.tax : 18}%</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0f2c59' }}>{formatINR(itemTotal)}</td>
                         </tr>
                       );
                     })}
