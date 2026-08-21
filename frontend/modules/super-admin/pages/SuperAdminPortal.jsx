@@ -7210,7 +7210,7 @@ export default function SuperAdminPortal() {
       case 'map':
         return <SuperAdminLiveMapPage />;
       case 'attendance':
-        return renderAttendanceWorkspace();
+        return <AttendanceView />;
       case 'profile':
         return <MyProfileView />;
       case 'expense-management':

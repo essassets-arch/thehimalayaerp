@@ -1359,6 +1359,9 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       return <CustomerComplaintManagement mode="sales" orders={orders} currentUser={user} />;
 
     case 'reports':
+      if (mode === 'SUPER_SALES' || overrideBasePath === '/supersales') {
+        return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />;
+      }
       return <ReportsView leads={leads} orders={orders} payments={payments} customers={customers} user={user} />;
 
     default:

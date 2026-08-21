@@ -40,7 +40,6 @@ export const navigationConfig = {
     { id: 'payment-history', label: 'Payment History', icon: History, path: '/supersales/payment-history', group: 'SuperSales' },
     { id: 'customers', label: 'Customers', icon: UserCheck, path: '/supersales/customers', group: 'SuperSales' },
     { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/supersales/customer-complaints', group: 'SuperSales' },
-    { id: 'reports', label: 'Reports', icon: BarChart3, path: '/supersales/reports' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/supersales/profile' }
   ],
 
