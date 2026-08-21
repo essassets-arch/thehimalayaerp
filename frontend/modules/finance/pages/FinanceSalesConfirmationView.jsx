@@ -9,6 +9,7 @@ import { useERPStore } from '../../../store/erpStore';
 import Swal from 'sweetalert2';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
+import { getBackendAssetUrl } from '../../../lib/assetUrl';
 
 const formatINR = (value) => {
   const num = Number(value || 0);
@@ -842,7 +843,7 @@ export default function FinanceSalesConfirmationView() {
                       boxSizing: 'border-box',
                     }}>
                       <img
-                        src={verifyModal.payment.proofUrl}
+                        src={getBackendAssetUrl(verifyModal.payment.proofUrl)}
                         alt="Payment Proof"
                         style={{
                           maxWidth: '100%',
@@ -851,14 +852,14 @@ export default function FinanceSalesConfirmationView() {
                           borderRadius: '6px',
                           cursor: 'zoom-in',
                         }}
-                        onClick={() => window.open(verifyModal.payment.proofUrl, '_blank')}
+                        onClick={() => window.open(getBackendAssetUrl(verifyModal.payment.proofUrl), '_blank')}
                         title="Click to view full image in new tab"
                       />
                     </div>
                   )}
 
                   <a
-                    href={verifyModal.payment.proofUrl}
+                    href={getBackendAssetUrl(verifyModal.payment.proofUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -1255,7 +1256,7 @@ export default function FinanceSalesConfirmationView() {
                                 <td style={{ padding: '12px', textAlign: 'center' }}>
                                   {h.proofUrl ? (
                                     <a
-                                      href={h.proofUrl}
+                                      href={getBackendAssetUrl(h.proofUrl)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{

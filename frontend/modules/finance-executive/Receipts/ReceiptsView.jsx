@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { Image as ImageIcon, Printer, RefreshCw, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
+import { getBackendAssetUrl } from '../../../lib/assetUrl';
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 const date = (value) => value ? new Date(value).toLocaleDateString('en-IN') : '—';
@@ -133,7 +134,7 @@ export default function ReceiptsView() {
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                       <button onClick={() => handleReceipt(receipt)} className="btn-small btn-primary-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Printer size={13} /> View / Print</button>
-                      {receipt.proofUrl && <button onClick={() => window.open(receipt.proofUrl, '_blank', 'noopener,noreferrer')} className="btn-small btn-outline-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ImageIcon size={13} /> Proof</button>}
+                      {receipt.proofUrl && <button onClick={() => window.open(getBackendAssetUrl(receipt.proofUrl), '_blank', 'noopener,noreferrer')} className="btn-small btn-outline-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ImageIcon size={13} /> Proof</button>}
                     </div>
                   </td>
                 </tr>
