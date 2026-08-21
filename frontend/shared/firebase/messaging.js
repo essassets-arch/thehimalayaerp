@@ -111,12 +111,20 @@ export const initializePushNotifications = async () => {
 
     // Convert VAPID key to standard base64 with correct padding for window.atob safety
     let cleanVapidKey = VAPID_KEY;
-    if (cleanVapidKey) {
-      cleanVapidKey = cleanVapidKey.replace(/-/g, '+').replace(/_/g, '/');
-      const pad = cleanVapidKey.length % 4;
-      if (pad) {
-        cleanVapidKey += '='.repeat(4 - pad);
+    if (cleanVapidKey && typeof cleanVapidKey === 'string') {
+      cleanVapidKey = cleanVapidKey.trim().replace(/^['"]|['"]$/g, '');
+      if (cleanVapidKey !== 'undefined' && cleanVapidKey !== 'null' && cleanVapidKey !== '') {
+        cleanVapidKey = cleanVapidKey.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = cleanVapidKey.length % 4;
+        if (pad) {
+          cleanVapidKey += '='.repeat(4 - pad);
+        }
+        console.log('[Firebase Client] Sanitized VAPID Key:', cleanVapidKey);
+      } else {
+        cleanVapidKey = undefined;
       }
+    } else {
+      cleanVapidKey = undefined;
     }
 
     // 3. Fetch FCM token
