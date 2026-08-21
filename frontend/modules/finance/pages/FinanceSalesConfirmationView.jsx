@@ -221,7 +221,7 @@ export default function FinanceSalesConfirmationView() {
         marginBottom: '24px'
       }}>
         {/* Pending Verification */}
-        <div style={{
+        <div className="finance-kpi-card" style={{
           background: '#FFFFFF',
           border: '1px solid #FDE68A',
           borderRadius: '14px',
@@ -243,7 +243,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Due Soon */}
-        <div style={{
+        <div className="finance-kpi-card" style={{
           background: '#FFFFFF',
           border: '1px solid #E2E8F0',
           borderRadius: '14px',
@@ -265,7 +265,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Due Today */}
-        <div style={{
+        <div className="finance-kpi-card" style={{
           background: '#FFFFFF',
           border: '1px solid #FED7AA',
           borderRadius: '14px',
@@ -287,7 +287,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Overdue */}
-        <div style={{
+        <div className="finance-kpi-card" style={{
           background: '#FFFFFF',
           border: '1px solid #FECACA',
           borderRadius: '14px',
@@ -309,7 +309,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Partially Paid */}
-        <div style={{
+        <div className="finance-kpi-card" style={{
           background: '#FFFFFF',
           border: '1px solid #BFDBFE',
           borderRadius: '14px',
@@ -331,7 +331,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Total Outstanding */}
-        <div style={{
+        <div className="finance-kpi-card" style={{
           background: '#FFFFFF',
           border: '1px solid #E2E8F0',
           borderRadius: '14px',
@@ -371,7 +371,7 @@ export default function FinanceSalesConfirmationView() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={activeTab === tab.id ? 'active' : ''}
+              className={`finance-verification-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
               style={{
                 padding: '8px 16px',
                 borderRadius: '20px',
@@ -424,6 +424,7 @@ export default function FinanceSalesConfirmationView() {
               <select
                 value={paymentTermsFilter}
                 onChange={(e) => setPaymentTermsFilter(e.target.value)}
+                className="finance-verification-select"
                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600 }}
               >
                 <option value="All">All Terms</option>
@@ -443,6 +444,7 @@ export default function FinanceSalesConfirmationView() {
               <select
                 value={dueStateFilter}
                 onChange={(e) => setDueStateFilter(e.target.value)}
+                className="finance-verification-select"
                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600 }}
               >
                 <option value="All">All Due States</option>
@@ -728,67 +730,150 @@ export default function FinanceSalesConfirmationView() {
 
       {/* ── Verify Payment Confirmation Modal (Section 16) ─────────────────── */}
       {verifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-100">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-green-50/70">
-              <h2 className="text-xl font-bold text-green-900 flex items-center gap-2">
-                <ShieldCheck className="w-6 h-6 text-green-600" /> Verify Customer Payment
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '512px',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #F1F5F9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#F0FDF4',
+            }}>
+              <h2 style={{
+                fontSize: '18px',
+                fontWeight: 800,
+                color: '#166534',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                margin: 0,
+              }}>
+                <ShieldCheck style={{ width: '24px', height: '24px', color: '#16A34A' }} /> Verify Customer Payment
               </h2>
-              <button onClick={() => setVerifyModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
+              <button
+                onClick={() => setVerifyModal(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  fontWeight: 600,
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
             </div>
             
-            <div className="p-6 space-y-4 text-sm">
-              <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', fontSize: '13px' }}>
-                  <span className="text-gray-500 font-semibold">Order Number:</span>
-                  <span className="font-bold text-blue-900 font-mono">{verifyModal.order?.orderNumber}</span>
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '10px 16px', fontSize: '13.5px', color: '#475569' }}>
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Order Number:</span>
+                  <span style={{ fontWeight: 800, color: '#1E3A8A', fontFamily: 'monospace', fontSize: '14px' }}>{verifyModal.order?.orderNumber}</span>
 
-                  <span className="text-gray-500 font-semibold">Customer:</span>
-                  <span className="font-bold text-gray-800">{verifyModal.order?.customerName}</span>
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Customer:</span>
+                  <span style={{ fontWeight: 700, color: '#1E293B' }}>{verifyModal.order?.customerName}</span>
 
-                  <span className="text-gray-500 font-semibold">Payment Amount:</span>
-                  <span className="font-extrabold text-green-700 text-base">{formatINR(verifyModal.payment?.amount)}</span>
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Payment Amount:</span>
+                  <span style={{ fontWeight: 900, color: '#16A34A', fontSize: '16px' }}>{formatINR(verifyModal.payment?.amount)}</span>
 
-                  <span className="text-gray-500 font-semibold">Method:</span>
-                  <span className="font-semibold text-gray-800">{verifyModal.payment?.method || 'BANK_TRANSFER'}</span>
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Method:</span>
+                  <span style={{ fontWeight: 700, color: '#334155' }}>{verifyModal.payment?.method || 'BANK_TRANSFER'}</span>
 
-                  <span className="text-gray-500 font-semibold">Reference/UTR:</span>
-                  <span className="font-mono text-gray-800 font-bold">{verifyModal.payment?.transactionReference || verifyModal.payment?.paymentNo || '—'}</span>
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Reference/UTR:</span>
+                  <span style={{ fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>{verifyModal.payment?.transactionReference || verifyModal.payment?.paymentNo || '—'}</span>
 
-                  <span className="text-gray-500 font-semibold">Current Paid:</span>
-                  <span className="text-gray-700">{formatINR(verifyModal.order?.verifiedPaidAmount)}</span>
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Current Paid:</span>
+                  <span style={{ fontWeight: 600, color: '#334155' }}>{formatINR(verifyModal.order?.verifiedPaidAmount)}</span>
 
-                  <span className="text-gray-500 font-semibold">Current Balance:</span>
-                  <span className="font-bold text-red-600">{formatINR(verifyModal.order?.outstandingAmount)}</span>
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Current Balance:</span>
+                  <span style={{ fontWeight: 700, color: '#DC2626' }}>{formatINR(verifyModal.order?.outstandingAmount)}</span>
 
-                  <span className="text-gray-500 font-semibold">New Balance:</span>
-                  <span className="font-extrabold text-indigo-700">
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>New Balance:</span>
+                  <span style={{ fontWeight: 900, color: '#4F46E5', fontSize: '15px' }}>
                     {formatINR(Math.max(0, Number(verifyModal.order?.outstandingAmount || 0) - Number(verifyModal.payment?.amount || 0)))}
                   </span>
                 </div>
               </div>
 
               {verifyModal.payment?.proofUrl && (
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Attached Proof Document</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Attached Proof Document</label>
                   <a
                     href={verifyModal.payment.proofUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-semibold text-xs bg-blue-50 px-3 py-2 rounded-lg border border-blue-200"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      alignSelf: 'flex-start',
+                      gap: '8px',
+                      color: '#2563EB',
+                      textDecoration: 'none',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      background: '#EFF6FF',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #BFDBFE',
+                      transition: 'all 0.15s ease',
+                    }}
                   >
-                    <FileText className="w-4 h-4" /> View Payment Proof Document <ArrowUpRight className="w-3.5 h-3.5" />
+                    <FileText style={{ width: '16px', height: '16px' }} /> View Payment Proof Document <ArrowUpRight style={{ width: '14px', height: '14px' }} />
                   </a>
                 </div>
               )}
             </div>
 
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-100 bg-gray-50">
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+              padding: '16px 24px',
+              borderTop: '1px solid #F1F5F9',
+              background: '#F8FAFC',
+            }}>
               <button
                 type="button"
                 onClick={() => setVerifyModal(null)}
                 disabled={isProcessing}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold text-sm transition-colors"
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  color: '#475569',
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
+                }}
               >
                 Cancel
               </button>
@@ -796,9 +881,22 @@ export default function FinanceSalesConfirmationView() {
                 type="button"
                 onClick={() => handleVerify(verifyModal.payment.id, verifyModal.order.orderNumber)}
                 disabled={isProcessing}
-                className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm transition-colors shadow-md flex items-center gap-2"
+                style={{
+                  padding: '8px 20px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: '#FFFFFF',
+                  background: '#16A34A',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'background 0.15s ease',
+                }}
               >
-                <Check className="w-4 h-4" /> {isProcessing ? 'Verifying...' : 'Confirm & Verify Payment'}
+                <Check style={{ width: '16px', height: '16px' }} /> {isProcessing ? 'Verifying...' : 'Confirm & Verify Payment'}
               </button>
             </div>
           </div>
@@ -807,50 +905,141 @@ export default function FinanceSalesConfirmationView() {
 
       {/* ── Reject Payment Modal (Section 19) ───────────────────────────────── */}
       {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-100">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50/70">
-              <h2 className="text-xl font-bold text-red-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-600" /> Reject Customer Payment
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '448px',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #F1F5F9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#FEF2F2',
+            }}>
+              <h2 style={{
+                fontSize: '18px',
+                fontWeight: 800,
+                color: '#991B1B',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                margin: 0,
+              }}>
+                <AlertTriangle style={{ width: '20px', height: '20px', color: '#DC2626' }} /> Reject Customer Payment
               </h2>
-              <button onClick={() => setRejectModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
+              <button
+                onClick={() => setRejectModal(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  fontWeight: 600,
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
             </div>
             
-            <form onSubmit={handleReject} className="p-6 space-y-4">
-              <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '13px' }}>
-                <div><strong>Order:</strong> <span className="font-mono text-blue-900 font-bold">{rejectModal.order?.orderNumber}</span></div>
-                <div><strong>Payment Ref:</strong> <span className="font-mono font-semibold">{rejectModal.payment?.paymentNo}</span></div>
-                <div><strong>Amount:</strong> <span className="font-bold text-red-600">{formatINR(rejectModal.payment?.amount)}</span></div>
+            <form onSubmit={handleReject} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
+              <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '13.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div><strong>Order:</strong> <span style={{ fontFamily: 'monospace', color: '#1E3A8A', fontWeight: 800, marginLeft: '4px' }}>{rejectModal.order?.orderNumber}</span></div>
+                <div><strong>Payment Ref:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700, marginLeft: '4px' }}>{rejectModal.payment?.paymentNo}</span></div>
+                <div><strong>Amount:</strong> <span style={{ fontWeight: 800, color: '#DC2626', marginLeft: '4px' }}>{formatINR(rejectModal.payment?.amount)}</span></div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Rejection Reason <span className="text-red-500">*</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Rejection Reason <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <textarea 
                   name="rejectionReason" 
                   required 
-                  className="w-full px-3 py-2 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm" 
-                  rows={3} 
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #FCA5A5',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '13.5px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    minHeight: '80px',
+                    background: '#FFFDFD',
+                  }}
                   placeholder="e.g. Transaction reference does not match bank statement, insufficient credit, fake UTR..."
                 ></textarea>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                paddingTop: '16px',
+                borderTop: '1px solid #F1F5F9',
+              }}>
                 <button
                   type="button"
                   onClick={() => setRejectModal(null)}
                   disabled={isProcessing}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-semibold text-sm transition-colors"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#475569',
+                    background: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm transition-colors shadow-md flex items-center gap-2"
+                  style={{
+                    padding: '8px 20px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    color: '#FFFFFF',
+                    background: '#DC2626',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'background 0.15s ease',
+                  }}
                 >
-                  <XCircle className="w-4 h-4" /> {isProcessing ? 'Rejecting...' : 'Confirm Rejection'}
+                  <XCircle style={{ width: '16px', height: '16px' }} /> {isProcessing ? 'Rejecting...' : 'Confirm Rejection'}
                 </button>
               </div>
             </form>
@@ -860,128 +1049,196 @@ export default function FinanceSalesConfirmationView() {
 
       {/* ── Complete Payment History Modal (Section 20 & 31) ───────────────── */}
       {historyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl border border-gray-100 max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '768px',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #F1F5F9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#F8FAFC',
+            }}>
               <div>
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-blue-600" /> Complete Payment History & Verification
+                <h2 style={{
+                  fontSize: '18px',
+                  fontWeight: 800,
+                  color: '#0F172A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  margin: 0,
+                }}>
+                  <DollarSign style={{ width: '20px', height: '20px', color: '#2563EB' }} /> Complete Payment History & Verification
                 </h2>
-                <div className="text-xs text-gray-500 font-mono mt-0.5">{historyModal.orderNumber}</div>
+                <div style={{ fontSize: '11px', color: '#64748B', fontFamily: 'monospace', marginTop: '2px' }}>{historyModal.orderNumber}</div>
               </div>
-              <button onClick={() => setHistoryModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
+              <button
+                onClick={() => setHistoryModal(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  fontWeight: 600,
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
             </div>
 
-            <div className="p-6 space-y-6 overflow-y-auto flex-1 text-sm">
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {isLoadingHistory ? (
-                <div className="py-12 text-center text-gray-500 flex flex-col items-center gap-3">
-                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                <div style={{ padding: '48px 0', textAlign: 'center', color: '#64748B', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                  <RefreshCw style={{ width: '32px', height: '32px', color: '#2563EB', animation: 'spin 1s linear infinite' }} />
                   <span>Loading payment details...</span>
                 </div>
               ) : !orderHistoryData ? (
-                <div className="py-12 text-center text-gray-400">Order details could not be loaded.</div>
+                <div style={{ padding: '48px 0', textAlign: 'center', color: '#94A3B8' }}>Order details could not be loaded.</div>
               ) : (
                 <>
                   {/* Order & Summary Cards */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
                     <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                      <div className="text-xs text-gray-500 font-semibold">Order Total</div>
-                      <div className="text-base font-extrabold text-gray-900 mt-1">{formatINR(orderHistoryData.summary?.orderTotal)}</div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>Order Total</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', marginTop: '4px' }}>{formatINR(orderHistoryData.summary?.orderTotal)}</div>
                     </div>
-                    <div style={{ background: '#DCFCE7', padding: '12px', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
-                      <div className="text-xs text-green-700 font-semibold">Verified Paid</div>
-                      <div className="text-base font-extrabold text-green-900 mt-1">{formatINR(orderHistoryData.summary?.verifiedPaid)}</div>
+                    <div style={{ background: '#F0FDF4', padding: '12px', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#166534' }}>Verified Paid</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#14532D', marginTop: '4px' }}>{formatINR(orderHistoryData.summary?.verifiedPaid)}</div>
                     </div>
-                    <div style={{ background: '#FEF3C7', padding: '12px', borderRadius: '10px', border: '1px solid #FDE68A' }}>
-                      <div className="text-xs text-yellow-800 font-semibold">Pending Verification</div>
-                      <div className="text-base font-extrabold text-yellow-900 mt-1">{formatINR(orderHistoryData.summary?.pendingVerification)}</div>
+                    <div style={{ background: '#FFFDF5', padding: '12px', borderRadius: '10px', border: '1px solid #FDE68A' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#854D0E' }}>Pending Verification</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#713F12', marginTop: '4px' }}>{formatINR(orderHistoryData.summary?.pendingVerification)}</div>
                     </div>
-                    <div style={{ background: '#FEE2E2', padding: '12px', borderRadius: '10px', border: '1px solid #FECACA' }}>
-                      <div className="text-xs text-red-700 font-semibold">Outstanding Balance</div>
-                      <div className="text-base font-extrabold text-red-900 mt-1">{formatINR(orderHistoryData.summary?.outstandingAmount)}</div>
+                    <div style={{ background: '#FEF2F2', padding: '12px', borderRadius: '10px', border: '1px solid #FECACA' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#991B1B' }}>Outstanding Balance</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#7F1D1D', marginTop: '4px' }}>{formatINR(orderHistoryData.summary?.outstandingAmount)}</div>
                     </div>
                   </div>
 
                   {/* Payment Timeline Table */}
                   <div>
-                    <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-blue-600" /> Chronological Payment Records
+                    <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Clock style={{ width: '16px', height: '16px', color: '#2563EB' }} /> Chronological Payment Records
                     </h3>
 
                     {(!orderHistoryData.history || orderHistoryData.history.length === 0) ? (
-                      <div className="p-8 text-center bg-gray-50 rounded-xl text-gray-400">
+                      <div style={{ padding: '32px', textAlign: 'center', background: '#F8FAFC', borderRadius: '12px', color: '#94A3B8' }}>
                         No payments recorded for this order yet.
                       </div>
                     ) : (
-                      <div className="border border-gray-200 rounded-xl overflow-hidden">
-                        <table className="w-full text-xs text-left border-collapse">
-                          <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                      <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                          <thead style={{ background: '#F8FAFC', color: '#475569', fontWeight: 700, borderBottom: '1px solid #E2E8F0' }}>
                             <tr>
-                              <th className="p-3">Date</th>
-                              <th className="p-3 text-right">Amount</th>
-                              <th className="p-3">Method / Ref</th>
-                              <th className="p-3">Submitted By</th>
-                              <th className="p-3">Status</th>
-                              <th className="p-3">Audit Details</th>
-                              <th className="p-3 text-center">Proof</th>
+                              <th style={{ padding: '10px 12px', minWidth: '95px' }}>Date</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'right', minWidth: '95px' }}>Amount</th>
+                              <th style={{ padding: '10px 12px', minWidth: '140px' }}>Method / Ref</th>
+                              <th style={{ padding: '10px 12px', minWidth: '110px' }}>Submitted By</th>
+                              <th style={{ padding: '10px 12px', minWidth: '110px' }}>Status</th>
+                              <th style={{ padding: '10px 12px', minWidth: '180px' }}>Audit Details</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', minWidth: '80px' }}>Proof</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-100">
+                          <tbody style={{ verticalAlign: 'middle' }}>
                             {orderHistoryData.history.map((h, i) => (
-                              <tr key={h.id || i} className="hover:bg-gray-50/50">
-                                <td className="p-3 font-semibold text-gray-700">
+                              <tr key={h.id || i} style={{ borderBottom: i === orderHistoryData.history.length - 1 ? 'none' : '1px solid #F1F5F9' }}>
+                                <td style={{ padding: '12px', fontWeight: 600, color: '#475569' }}>
                                   {h.receivedAt ? String(h.receivedAt).split('T')[0] : '—'}
                                 </td>
-                                <td className="p-3 text-right font-extrabold text-gray-900">
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: 800, color: '#0F172A' }}>
                                   {formatINR(h.amount)}
                                 </td>
-                                <td className="p-3">
-                                  <div className="font-semibold text-gray-800">{h.method}</div>
-                                  <div className="font-mono text-gray-500 text-[11px]">{h.transactionReference || h.paymentNo}</div>
+                                <td style={{ padding: '12px' }}>
+                                  <div style={{ fontWeight: 700, color: '#334155' }}>{h.method}</div>
+                                  <div style={{ fontFamily: 'monospace', color: '#64748B', fontSize: '10.5px', marginTop: '2px' }}>{h.transactionReference || h.paymentNo}</div>
                                 </td>
-                                <td className="p-3 text-gray-600">
+                                <td style={{ padding: '12px', color: '#475569' }}>
                                   {h.submittedByName || 'Sales User'}
                                 </td>
-                                <td className="p-3">
-                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                                    h.status === 'VERIFIED' ? 'bg-green-100 text-green-800' :
-                                    h.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }`}>
+                                <td style={{ padding: '12px' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '2px',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontWeight: 800,
+                                    fontSize: '10px',
+                                    textTransform: 'uppercase',
+                                    ...(h.status === 'VERIFIED' ? { background: '#D1FAE5', color: '#065F46' } :
+                                      h.status === 'REJECTED' ? { background: '#FEE2E2', color: '#991B1B' } :
+                                      { background: '#FEF3C7', color: '#92400E' })
+                                  }}>
                                     {h.status === 'VERIFIED' && '✓ '}
                                     {h.status === 'REJECTED' && '✕ '}
                                     {h.status}
                                   </span>
                                 </td>
-                                <td className="p-3 text-gray-600">
+                                <td style={{ padding: '12px', color: '#475569', fontSize: '11.5px' }}>
                                   {h.status === 'VERIFIED' && (
                                     <div>
-                                      <span className="font-semibold">By:</span> {h.verifiedByName || 'Finance User'}
-                                      <div className="text-[10px] text-gray-400">{h.verifiedAt ? new Date(h.verifiedAt).toLocaleString() : ''}</div>
+                                      <span style={{ fontWeight: 600 }}>By:</span> {h.verifiedByName || 'Finance User'}
+                                      <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '2px' }}>{h.verifiedAt ? new Date(h.verifiedAt).toLocaleString() : ''}</div>
                                     </div>
                                   )}
                                   {h.status === 'REJECTED' && (
-                                    <div className="text-red-700">
-                                      <div className="font-bold">Reason: {h.rejectionReason}</div>
-                                      <div className="text-[10px] text-gray-400">By: {h.rejectedByName || 'Finance'} on {h.rejectedAt ? new Date(h.rejectedAt).toLocaleString() : ''}</div>
+                                    <div style={{ color: '#991B1B' }}>
+                                      <div style={{ fontWeight: 700 }}>Reason: {h.rejectionReason}</div>
+                                      <div style={{ fontSize: '10px', color: '#FCA5A5', marginTop: '2px' }}>By: {h.rejectedByName || 'Finance'} on {h.rejectedAt ? new Date(h.rejectedAt).toLocaleString() : ''}</div>
                                     </div>
                                   )}
                                   {h.status !== 'VERIFIED' && h.status !== 'REJECTED' && (
-                                    <span className="text-yellow-700 italic">Awaiting verification</span>
+                                    <span style={{ color: '#D97706', fontStyle: 'italic' }}>Awaiting verification</span>
                                   )}
                                 </td>
-                                <td className="p-3 text-center">
+                                <td style={{ padding: '12px', textAlign: 'center' }}>
                                   {h.proofUrl ? (
                                     <a
                                       href={h.proofUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        color: '#2563EB',
+                                        fontWeight: 700,
+                                        textDecoration: 'none',
+                                      }}
                                     >
-                                      <FileText className="w-3.5 h-3.5" /> Proof
+                                      <FileText style={{ width: '14px', height: '14px' }} /> Proof
                                     </a>
                                   ) : (
-                                    <span className="text-gray-300">—</span>
+                                    <span style={{ color: '#CBD5E1' }}>—</span>
                                   )}
                                 </td>
                               </tr>
@@ -995,11 +1252,27 @@ export default function FinanceSalesConfirmationView() {
               )}
             </div>
 
-            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid #F1F5F9',
+              background: '#F8FAFC',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}>
               <button
                 type="button"
                 onClick={() => setHistoryModal(null)}
-                className="px-5 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 font-semibold text-sm transition-colors"
+                style={{
+                  padding: '8px 18px',
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
+                }}
               >
                 Close History
               </button>
