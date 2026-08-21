@@ -1321,7 +1321,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
 };
 
 /**
- * Export a DOM element to a high-quality PNG image (⭐ NEW)
+ * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 840px LAYOUT ON ANY DEVICE)
  */
 export const exportQuotationImage = async (elementId, filename = 'quotation.png') => {
   const element = document.getElementById(elementId);
@@ -1329,14 +1329,82 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
-  // Use html-to-image with higher pixelRatio for premium sharpness
-  return await htmlToImage.toPng(element, {
-    pixelRatio: 3, // Premium quality (3x density)
-    backgroundColor: '#ffffff', // Guarantee solid white background
-    style: {
-      borderRadius: '0' // Clear border radius on the printout
-    }
-  }).then((dataUrl) => {
+  // Create an off-screen clone with exact canonical dimensions (840px)
+  // This guarantees that whether exported on a mobile phone, tablet, or desktop,
+  // the output PNG image is always the pristine, un-squished, high-resolution desktop document.
+  const clone = element.cloneNode(true);
+  clone.id = `${elementId}-export-clone`;
+  clone.style.setProperty('width', '840px', 'important');
+  clone.style.setProperty('min-width', '840px', 'important');
+  clone.style.setProperty('max-width', '840px', 'important');
+  clone.style.setProperty('position', 'fixed', 'important');
+  clone.style.setProperty('left', '-99999px', 'important');
+  clone.style.setProperty('top', '0', 'important');
+  clone.style.setProperty('transform', 'none', 'important');
+  clone.style.setProperty('border-radius', '0', 'important');
+  clone.style.setProperty('margin', '0', 'important');
+  clone.style.setProperty('padding', '0', 'important');
+  clone.style.setProperty('box-sizing', 'border-box', 'important');
+  clone.style.setProperty('background', '#ffffff', 'important');
+  clone.style.setProperty('z-index', '-99999', 'important');
+  clone.style.setProperty('opacity', '1', 'important');
+  clone.style.setProperty('visibility', 'visible', 'important');
+
+  // Enforce desktop row layouts on all clone sections
+  const mobileFlexRows = clone.querySelectorAll('.quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex');
+  mobileFlexRows.forEach(el => {
+    el.style.setProperty('display', 'flex', 'important');
+    el.style.setProperty('flex-direction', 'row', 'important');
+    el.style.setProperty('justify-content', 'space-between', 'important');
+    el.style.setProperty('align-items', 'flex-start', 'important');
+  });
+
+  const rightMeta = clone.querySelector('.quotation-sheet-right-meta');
+  if (rightMeta) {
+    rightMeta.style.setProperty('align-self', 'flex-end', 'important');
+    rightMeta.style.setProperty('align-items', 'flex-end', 'important');
+    rightMeta.style.setProperty('width', 'auto', 'important');
+  }
+
+  const footerContact = clone.querySelector('.quotation-footer-contact');
+  if (footerContact) {
+    footerContact.style.setProperty('display', 'flex', 'important');
+    footerContact.style.setProperty('flex-direction', 'row', 'important');
+    footerContact.style.setProperty('justify-content', 'space-between', 'important');
+    footerContact.style.setProperty('align-items', 'center', 'important');
+    footerContact.style.setProperty('height', '100%', 'important');
+    footerContact.style.setProperty('padding', '30px 34px 10px', 'important');
+  }
+
+  const footerWave = clone.querySelector('.quotation-footer-wave-wrapper');
+  if (footerWave) {
+    footerWave.style.setProperty('height', '76px', 'important');
+    footerWave.style.setProperty('min-height', '76px', 'important');
+  }
+
+  document.body.appendChild(clone);
+
+  try {
+    // Ensure all images inside the clone are loaded before capture
+    const images = Array.from(clone.querySelectorAll('img'));
+    await Promise.all(images.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    }));
+
+    const dataUrl = await htmlToImage.toPng(clone, {
+      pixelRatio: 3, // 3x high-resolution crispness for print quality
+      width: 840,
+      backgroundColor: '#ffffff',
+      style: {
+        borderRadius: '0',
+        transform: 'none',
+      }
+    });
+
     const link = document.createElement('a');
     link.href = dataUrl;
     link.download = filename;
@@ -1344,11 +1412,15 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     link.click();
     document.body.removeChild(link);
     return dataUrl;
-  });
+  } finally {
+    if (clone && clone.parentNode) {
+      clone.parentNode.removeChild(clone);
+    }
+  }
 };
 
 /**
- * Share a DOM element as a PNG image via Web Share API or fallback (⭐ NEW)
+ * Share a DOM element as a PNG image via Web Share API or fallback (⭐ GUARANTEED CANONICAL 840px LAYOUT ON ANY DEVICE)
  */
 export const shareQuotationImage = async (elementId, quotationNo = 'Draft', customerName = 'Customer') => {
   const element = document.getElementById(elementId);
@@ -1356,33 +1428,95 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
-  // Generate high quality PNG
-  const dataUrl = await htmlToImage.toPng(element, {
-    pixelRatio: 3,
-    backgroundColor: '#ffffff',
-    style: {
-      borderRadius: '0'
-    }
+  const clone = element.cloneNode(true);
+  clone.id = `${elementId}-share-clone`;
+  clone.style.setProperty('width', '840px', 'important');
+  clone.style.setProperty('min-width', '840px', 'important');
+  clone.style.setProperty('max-width', '840px', 'important');
+  clone.style.setProperty('position', 'fixed', 'important');
+  clone.style.setProperty('left', '-99999px', 'important');
+  clone.style.setProperty('top', '0', 'important');
+  clone.style.setProperty('transform', 'none', 'important');
+  clone.style.setProperty('border-radius', '0', 'important');
+  clone.style.setProperty('margin', '0', 'important');
+  clone.style.setProperty('padding', '0', 'important');
+  clone.style.setProperty('box-sizing', 'border-box', 'important');
+  clone.style.background = '#ffffff';
+  clone.style.setProperty('z-index', '-99999', 'important');
+  clone.style.setProperty('opacity', '1', 'important');
+  clone.style.setProperty('visibility', 'visible', 'important');
+
+  const mobileFlexRows = clone.querySelectorAll('.quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex');
+  mobileFlexRows.forEach(el => {
+    el.style.setProperty('display', 'flex', 'important');
+    el.style.setProperty('flex-direction', 'row', 'important');
+    el.style.setProperty('justify-content', 'space-between', 'important');
+    el.style.setProperty('align-items', 'flex-start', 'important');
   });
 
-  // Convert base64 data URL to blob
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
-
-  // Create File object
-  const file = new File([blob], `Quotation_${quotationNo}.png`, { type: 'image/png' });
-  const shareData = {
-    title: `Quotation ${quotationNo}`,
-    text: `Here is the quotation for ${customerName}.`,
-    files: [file]
-  };
-
-  // Check if native file sharing is supported
-  if (navigator.canShare && navigator.canShare(shareData)) {
-    await navigator.share(shareData);
-    return { success: true };
+  const rightMeta = clone.querySelector('.quotation-sheet-right-meta');
+  if (rightMeta) {
+    rightMeta.style.setProperty('align-self', 'flex-end', 'important');
+    rightMeta.style.setProperty('align-items', 'flex-end', 'important');
+    rightMeta.style.setProperty('width', 'auto', 'important');
   }
-  
-  // If native file sharing is not supported, return the file/blob so the caller can display a custom fallback dialog
-  return { success: false, file, blob, dataUrl };
+
+  const footerContact = clone.querySelector('.quotation-footer-contact');
+  if (footerContact) {
+    footerContact.style.setProperty('display', 'flex', 'important');
+    footerContact.style.setProperty('flex-direction', 'row', 'important');
+    footerContact.style.setProperty('justify-content', 'space-between', 'important');
+    footerContact.style.setProperty('align-items', 'center', 'important');
+    footerContact.style.setProperty('height', '100%', 'important');
+    footerContact.style.setProperty('padding', '30px 34px 10px', 'important');
+  }
+
+  const footerWave = clone.querySelector('.quotation-footer-wave-wrapper');
+  if (footerWave) {
+    footerWave.style.setProperty('height', '76px', 'important');
+    footerWave.style.setProperty('min-height', '76px', 'important');
+  }
+
+  document.body.appendChild(clone);
+
+  try {
+    const images = Array.from(clone.querySelectorAll('img'));
+    await Promise.all(images.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    }));
+
+    const dataUrl = await htmlToImage.toPng(clone, {
+      pixelRatio: 3,
+      width: 840,
+      backgroundColor: '#ffffff',
+      style: {
+        borderRadius: '0',
+        transform: 'none',
+      }
+    });
+
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const file = new File([blob], `Quotation_${quotationNo}.png`, { type: 'image/png' });
+    const shareData = {
+      title: `Quotation ${quotationNo}`,
+      text: `Here is the quotation for ${customerName}.`,
+      files: [file]
+    };
+
+    if (navigator.canShare && navigator.canShare(shareData)) {
+      await navigator.share(shareData);
+      return { success: true };
+    }
+    
+    return { success: false, file, blob, dataUrl };
+  } finally {
+    if (clone && clone.parentNode) {
+      clone.parentNode.removeChild(clone);
+    }
+  }
 };

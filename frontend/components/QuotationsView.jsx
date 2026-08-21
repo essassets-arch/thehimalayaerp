@@ -929,67 +929,40 @@ export default function QuotationsView({
           className="modal-overlay active"
           onClick={() => setSelectedQuotation(null)}
           style={{
-            padding: '24px 16px',
+            padding: '12px 8px',
             overflowY: 'auto',
             display: 'flex',
-            justify: 'center',
+            justifyContent: 'center',
             alignItems: 'flex-start',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            zIndex: 9999
           }}
         >
           <style>{`
-            .quotation-sheet-mobile-flex {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-start;
-            }
-            .quotation-sheet-title-flex {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 20px;
-            }
-            .quotation-footer-flex {
-               display: flex;
-               justify-content: space-between;
-               align-items: flex-end;
-            }
-            @media (max-width: 640px) {
-              .quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex {
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                gap: 12px !important;
-              }
-              .quotation-sheet-right-meta {
-                align-self: flex-start !important;
-                align-items: flex-start !important;
-                width: 100% !important;
-              }
-              .quotation-footer-contact {
-                flex-direction: column !important;
-                align-items: center !important;
-                gap: 8px !important;
-                height: auto !important;
-                padding: 20px 16px !important;
-              }
-              .quotation-footer-wave-wrapper {
-                height: auto !important;
-                min-height: 100px !important;
-              }
-              .invoice-sheet-modal {
-                padding: 0 !important;
-              }
-            }
-            .invoice-sheet-modal {
-              max-height: calc(100vh - 48px);
-              overflow-y: auto;
-              width: 840px;
-              max-width: 100%;
+            .quotation-sheet-modal-container {
+              max-height: calc(100vh - 24px);
+              width: 860px;
+              max-width: calc(100vw - 16px);
               padding: 0 !important;
               box-sizing: border-box;
               background: #ffffff;
               border-radius: 16px;
               margin: auto;
+              display: flex;
+              flex-direction: column;
+              overflow: hidden;
+              box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+              border: 1px solid #dce5f0;
+            }
+            .quotation-document-viewport {
+              flex: 1;
+              overflow-y: auto;
+              overflow-x: auto;
+              -webkit-overflow-scrolling: touch;
+              background: #f1f5f9;
+              display: flex;
+              justify-content: center;
+              padding: 12px 0;
             }
             .term-number {
               width: 22px;
@@ -1001,15 +974,58 @@ export default function QuotationsView({
               align-items: center;
               justify-content: center;
               font-size: 11px;
-              fontWeight: 700;
+              font-weight: 700;
+            }
+            @media (max-width: 640px) {
+              .quotation-document-viewport {
+                justify-content: flex-start;
+                padding: 6px 0;
+              }
+              .sheet-actions {
+                padding: 10px 12px !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 8px !important;
+              }
+              .sheet-actions-btn-group {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 6px !important;
+                width: 100% !important;
+              }
+              .sheet-actions-btn-group button {
+                width: 100% !important;
+                justify-content: center !important;
+                padding: 8px 6px !important;
+                font-size: 11.5px !important;
+              }
+              .sheet-actions-primary-btn {
+                width: 100% !important;
+                justify-content: center !important;
+                padding: 10px !important;
+                font-size: 13px !important;
+              }
             }
           `}</style>
           <div
-            className="invoice-sheet-modal"
+            className="quotation-sheet-modal-container"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Wrapper for image export to capture only the document area */}
-            <div id="quotation-printable-area" style={{ background: '#ffffff', borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
+            {/* Scrollable Viewport to maintain exact 840px crisp geometry without squishing on mobile */}
+            <div className="quotation-document-viewport">
+              <div
+                id="quotation-printable-area"
+                style={{
+                  width: '840px',
+                  minWidth: '840px',
+                  maxWidth: '840px',
+                  background: '#ffffff',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                  boxSizing: 'border-box'
+                }}
+              >
               {/* Curved Header Banner Wave */}
             <div style={{ position: 'relative', width: '100%', height: '150px', overflow: 'hidden', margin: 0, padding: 0 }}>
               <svg viewBox="0 0 840 150" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
@@ -1323,15 +1339,16 @@ export default function QuotationsView({
             </div>
 
             </div> {/* End of #quotation-printable-area */}
+            </div> {/* End of .quotation-document-viewport */}
 
             {/* Close / Convert Action controls wrapper */}
-            <div className="sheet-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '16px 32px 20px 32px', boxSizing: 'border-box', background: '#fafafa', borderTop: '1px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="sheet-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '14px 24px', boxSizing: 'border-box', background: '#ffffff', borderTop: '1px solid #e2e8f0', zIndex: 10 }}>
+              <div className="sheet-actions-btn-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="btn-small btn-outline-small"
                   onClick={() => setSelectedQuotation(null)}
-                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0 }}
+                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0 }}
                 >
                   Close Preview
                 </button>
@@ -1359,7 +1376,7 @@ export default function QuotationsView({
                       Swal.fire('Error', 'Failed to generate image.', 'error');
                     }
                   }}
-                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
                   <Image size={14} /> Download Image
                 </button>
@@ -1403,7 +1420,7 @@ export default function QuotationsView({
                       Swal.fire('Error', 'Failed to share image.', 'error');
                     }
                   }}
-                  style={{ padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
                   <Share2 size={14} /> Share Image
                 </button>
@@ -1413,7 +1430,7 @@ export default function QuotationsView({
                 <div>
                   <button
                     type="button"
-                    className="btn-small btn-primary-small"
+                    className="btn-small btn-primary-small sheet-actions-primary-btn"
                     onClick={() => handleSendQuotationClick(selectedQuotation)}
                     style={{ background: '#2F4375', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
                   >
@@ -1424,7 +1441,7 @@ export default function QuotationsView({
                 <div>
                   <button
                     type="button"
-                    className="btn-small btn-primary-small"
+                    className="btn-small btn-primary-small sheet-actions-primary-btn"
                     onClick={() => handleConvertToOrderClick(selectedQuotation, true)}
                     style={{ background: '#00a877', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
                   >
