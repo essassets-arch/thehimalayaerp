@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { join, resolve, normalize, basename, extname } from 'path';
-import { existsSync, mkdirSync, statSync, createReadStream } from 'fs';
+import { existsSync, mkdirSync, statSync, createReadStream, readdirSync } from 'fs';
 import { writeFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 
@@ -69,9 +69,21 @@ export class FilesService {
     // 2. Direct subpath inside uploads
     possiblePaths.push(join(this.uploadsRoot, clean));
 
-    // 3. Search known subdirectories by filename
+    // 3. Search subdirectories by filename (static fallbacks + dynamically scanned folders)
     const fileNameOnly = basename(clean);
-    const subDirs = ['pod', 'attachments', 'brand-analysis', 'employees', 'attendance', 'qc', 'dispatch', 'receipts'];
+    let subDirs = ['pod', 'attachments', 'brand-analysis', 'employees', 'attendance', 'qc', 'dispatch', 'receipts', 'payment-proof', 'payments'];
+    try {
+      if (existsSync(this.uploadsRoot)) {
+        const items = readdirSync(this.uploadsRoot, { withFileTypes: true });
+        const dynamicDirs = items
+          .filter(item => item.isDirectory())
+          .map(item => item.name);
+        subDirs = Array.from(new Set([...subDirs, ...dynamicDirs]));
+      }
+    } catch (e) {
+      // Fallback to static list on error
+    }
+
     for (const sub of subDirs) {
       possiblePaths.push(join(this.uploadsRoot, sub, fileNameOnly));
     }

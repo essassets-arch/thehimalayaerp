@@ -32,6 +32,7 @@ export default function FinanceSalesConfirmationView() {
   const [verifyModal, setVerifyModal] = useState(null); // { payment, order }
   const [rejectModal, setRejectModal] = useState(null); // { payment, order }
   const [historyModal, setHistoryModal] = useState(null); // { orderId }
+  const [verifyImageError, setVerifyImageError] = useState(false);
 
   // ── Fetch verification queue from backend ──────────────────────────────────
   const {
@@ -676,7 +677,10 @@ export default function FinanceSalesConfirmationView() {
                           {hasPending && firstPending && (
                             <>
                               <button
-                                onClick={() => setVerifyModal({ payment: firstPending, order: r })}
+                                onClick={() => {
+                                  setVerifyImageError(false);
+                                  setVerifyModal({ payment: firstPending, order: r });
+                                }}
                                 disabled={isProcessing}
                                 style={{
                                   background: '#16A34A',
@@ -776,7 +780,10 @@ export default function FinanceSalesConfirmationView() {
                 <ShieldCheck style={{ width: '24px', height: '24px', color: '#16A34A' }} /> Verify Customer Payment
               </h2>
               <button
-                onClick={() => setVerifyModal(null)}
+                onClick={() => {
+                  setVerifyModal(null);
+                  setVerifyImageError(false);
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -828,7 +835,7 @@ export default function FinanceSalesConfirmationView() {
                   <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Attached Proof Document</label>
                   
                   {/* Image Preview Container */}
-                  {/\.(png|jpe?g|gif|webp|bmp|svg)/i.test(verifyModal.payment.proofUrl.split('?')[0]) && (
+                  {/\.(png|jpe?g|gif|webp|bmp|svg)/i.test(verifyModal.payment.proofUrl.split('?')[0]) && !verifyImageError ? (
                     <div style={{
                       width: '100%',
                       maxHeight: '260px',
@@ -853,10 +860,29 @@ export default function FinanceSalesConfirmationView() {
                           cursor: 'zoom-in',
                         }}
                         onClick={() => window.open(getBackendAssetUrl(verifyModal.payment.proofUrl), '_blank')}
+                        onError={() => setVerifyImageError(true)}
                         title="Click to view full image in new tab"
                       />
                     </div>
-                  )}
+                  ) : verifyModal.payment?.proofUrl && verifyImageError ? (
+                    <div style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      background: '#FFFBEB',
+                      border: '1px solid #FDE68A',
+                      borderRadius: '10px',
+                      color: '#B45309',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxSizing: 'border-box',
+                    }}>
+                      <AlertTriangle style={{ width: '18px', height: '18px', flexShrink: 0, color: '#D97706' }} />
+                      <span>Proof image not found on server or access expired.</span>
+                    </div>
+                  ) : null}
 
                   <a
                     href={getBackendAssetUrl(verifyModal.payment.proofUrl)}
@@ -894,7 +920,10 @@ export default function FinanceSalesConfirmationView() {
             }}>
               <button
                 type="button"
-                onClick={() => setVerifyModal(null)}
+                onClick={() => {
+                  setVerifyModal(null);
+                  setVerifyImageError(false);
+                }}
                 disabled={isProcessing}
                 style={{
                   padding: '8px 16px',
