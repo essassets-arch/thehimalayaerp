@@ -1,38 +1,31 @@
 import { test, expect } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 
+const PG_DATABASE_URL =
+  process.env.EXTERNAL_TEST_STACK === 'true'
+    ? (process.env.EXTERNAL_DATABASE_URL || process.env.DATABASE_URL)
+    : (process.env.TEST_DATABASE_URL || process.env.DATABASE_URL);
+
+if (!PG_DATABASE_URL) {
+  throw new Error('TEST_DATABASE_URL, EXTERNAL_DATABASE_URL, or DATABASE_URL must be provided for database ledger cleanup in tests');
+}
+
 test.describe('Daily Production Report E2E Flow', () => {
   test.beforeEach(async () => {
     const prisma = new PrismaClient({
       datasources: {
         db: {
-          url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public'
+          url: PG_DATABASE_URL
         }
       }
     });
     try {
-      // Find today's daily reports and clear items & entries
-      const reports = await prisma.productionDailyReport.findMany({
-        where: {
-          shift: 'Morning',
-        }
-      });
-      for (const r of reports) {
-        await prisma.productionDailyReportItem.deleteMany({ where: { reportId: r.id } });
-        await prisma.productionDailyReport.delete({ where: { id: r.id } });
-      }
-
-      // Also reset any finished goods ledger entries for the target product
-      const product = await prisma.product.findFirst({
-        where: { sku: 'HIMALAYAFRPWGC600X900LD', companyId: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' }
-      });
-      if (product) {
-        await prisma.finishedGoods.deleteMany({
-          where: { productId: product.id }
-        });
-      }
-    } catch (e) {
-      console.log('Cleanup error (ignored):', e);
+      console.log('--- EXECUTING BEFORE_EACH CLEANUP URL:', PG_DATABASE_URL);
+      const sh = await prisma.stockHistory.deleteMany({});
+      const fg = await prisma.finishedGoods.deleteMany({});
+      const pi = await prisma.productionDailyReportItem.deleteMany({});
+      const pr = await prisma.productionDailyReport.deleteMany({});
+      console.log(`Deleted SH: ${sh.count}, FG: ${fg.count}, PI: ${pi.count}, PR: ${pr.count}`);
     } finally {
       await prisma.$disconnect();
     }
@@ -57,7 +50,7 @@ test.describe('Daily Production Report E2E Flow', () => {
     // 2. Go to daily-report form
     console.log('Navigating to daily production report page...');
     await page.goto('/production/daily-report');
-    await page.waitForTimeout(5000); // Wait for hydration to complete
+    await page.waitForTimeout(3000); // Wait for hydration to complete
 
     // Fill supervisor name
     console.log('Filling supervisor name...');
@@ -66,8 +59,6 @@ test.describe('Daily Production Report E2E Flow', () => {
     // Find first row product search input and search for the target product code
     console.log('Searching product HIMALAYAFRPWGC600X900LD...');
     const productInputs = page.locator('input[placeholder="Search product or type custom name..."]');
-    console.log('Matching product inputs count:', await productInputs.count());
-    
     const productInput = productInputs.first();
     await productInput.click();
     await page.waitForTimeout(300);
@@ -95,13 +86,13 @@ test.describe('Daily Production Report E2E Flow', () => {
 
     // Handle confirm dialog
     console.log('Confirming submission on SweetAlert...');
-    const confirmButton = page.locator('.swal2-confirm');
+    const confirmButton = page.locator('.swal2-popup.swal2-icon-question .swal2-confirm, .swal2-confirm');
     await confirmButton.waitFor({ state: 'visible' });
     await confirmButton.click();
 
     // Handle success dialog
     console.log('Waiting for success dialog...');
-    const successConfirmButton = page.locator('.swal2-confirm');
+    const successConfirmButton = page.locator('.swal2-popup.swal2-icon-success .swal2-confirm');
     await successConfirmButton.waitFor({ state: 'visible' });
     await successConfirmButton.click();
     console.log('Report submitted successfully!');

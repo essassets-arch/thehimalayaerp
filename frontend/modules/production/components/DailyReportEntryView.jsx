@@ -835,6 +835,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
 
   // Submit Report
   const handleSubmitReport = async () => {
+    if (submitting || saving) return;
     const validItems = rows.filter(r => r.productId || r.customProductName);
     if (validItems.length === 0) {
       Swal.fire({

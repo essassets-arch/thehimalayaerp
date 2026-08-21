@@ -122,6 +122,8 @@ export default function FinishedGoodsStockView({
       const payload = await backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 });
       return Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   // Fetch Finished Goods Dispatch History from PostgreSQL backend

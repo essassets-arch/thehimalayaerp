@@ -690,22 +690,27 @@ export class ProductionDailyReportService {
         }
       }
 
-      // Post stock for each item in the report
+      // Post stock for each product in the report (grouped by productId)
+      const productSetsMap = new Map<string, number>();
       for (const item of items) {
         if (item.productId && item.setQty > 0) {
-          await this.inventoryService.stockInFinishedGoods(
-            tx,
-            companyId,
-            item.productId,
-            item.setQty,
-            'PRODUCTION_REPORT',
-            id,
-            item.id,
-            report.reportNo,
-            userId,
-            `Production Report submission ${report.reportNo}`
-          );
+          productSetsMap.set(item.productId, (productSetsMap.get(item.productId) || 0) + item.setQty);
         }
+      }
+
+      for (const [productId, setQty] of productSetsMap.entries()) {
+        await this.inventoryService.stockInFinishedGoods(
+          tx,
+          companyId,
+          productId,
+          setQty,
+          'PRODUCTION_REPORT',
+          id,
+          null,
+          report.reportNo,
+          userId,
+          `Production Report submission ${report.reportNo}`
+        );
       }
 
       const updated = await tx.productionDailyReport.update({

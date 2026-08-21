@@ -63,7 +63,7 @@ async function performBackendFetch<T = unknown>(
     for (const delay of retryDelays) {
       if (![502, 503, 504].includes(res.status)) break;
       await new Promise((resolve) => setTimeout(resolve, delay));
-      res = await fetch(url, fetchOpts);
+      res = await fetch(targetUrl, fetchOpts);
     }
   }
 
@@ -76,7 +76,7 @@ async function performBackendFetch<T = unknown>(
       if (opts.body !== undefined && method !== 'GET') {
         retryOpts.body = opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body);
       }
-      res = await fetch(url, retryOpts);
+      res = await fetch(targetUrl, retryOpts);
     }
   }
 
@@ -165,6 +165,11 @@ export function backendFetch<T = unknown>(
   }
 
   const cacheTtlMs = opts.cacheTtlMs ?? 30_000;
+  if (cacheTtlMs <= 0) {
+    readCache.delete(url);
+    return performBackendFetch<T>(url, opts);
+  }
+
   const cached = readCache.get(url);
   if (cached && cached.expiresAt > Date.now()) {
     return Promise.resolve(cached.data as T);
@@ -176,9 +181,7 @@ export function backendFetch<T = unknown>(
 
   const request = performBackendFetch<T>(url, opts)
     .then((data) => {
-      if (cacheTtlMs > 0) {
-        readCache.set(url, { data, expiresAt: Date.now() + cacheTtlMs });
-      }
+      readCache.set(url, { data, expiresAt: Date.now() + cacheTtlMs });
       return data;
     })
     .finally(() => {
