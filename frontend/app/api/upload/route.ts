@@ -1,13 +1,20 @@
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const IMAGE_EXTENSIONS: Record<string, string> = {
+const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25 MB
+const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "image/gif": "gif",
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
 };
 
 export async function POST(request: Request) {
@@ -17,52 +24,50 @@ export async function POST(request: Request) {
 
     if (!(file instanceof File)) {
       return NextResponse.json(
-        { message: "Please choose a delivery image." },
+        { message: "Please select a file to upload." },
         { status: 400 },
       );
     }
 
-    const extension = IMAGE_EXTENSIONS[file.type];
-    if (!extension) {
-      return NextResponse.json(
-        { message: "Only JPG, PNG and WebP images are supported." },
-        { status: 415 },
-      );
-    }
+    const extension = EXTENSIONS[file.type] || path.extname(file.name).replace('.', '') || "jpg";
 
     if (file.size > MAX_IMAGE_SIZE) {
       return NextResponse.json(
-        { message: "Image must be 5 MB or smaller." },
+        { message: "File must be 25 MB or smaller." },
         { status: 413 },
       );
     }
 
-    const category =
-      formData.get("category") === "pod" ? "pod" : "attachments";
+    const category = (formData.get("category") as string) || "attachments";
     const fileName = `${randomUUID()}.${extension}`;
-    const uploadDirectory = path.join(
-      process.cwd(),
-      "public",
-      "uploads",
-      category,
-    );
+    const buffer = Buffer.from(await file.arrayBuffer());
 
-    await mkdir(uploadDirectory, { recursive: true });
-    await writeFile(
-      path.join(uploadDirectory, fileName),
-      Buffer.from(await file.arrayBuffer()),
-    );
+    // 1. Write to frontend public/uploads
+    const frontendDir = path.join(process.cwd(), "public", "uploads", category);
+    await mkdir(frontendDir, { recursive: true });
+    await writeFile(path.join(frontendDir, fileName), buffer);
+
+    // 2. Write to backend uploads for backend file serving parity
+    try {
+      const backendDir = path.join(process.cwd(), "..", "backend", "uploads", category);
+      await mkdir(backendDir, { recursive: true });
+      await writeFile(path.join(backendDir, fileName), buffer);
+    } catch {
+      // Non-fatal if backend directory path is different in standalone container
+    }
 
     return NextResponse.json({
       file_id: fileName,
       url: `/uploads/${category}/${fileName}`,
+      serveUrl: `/api/backend/files/serve/${category}/${fileName}`,
       mime: file.type,
       size: file.size,
+      name: file.name,
     });
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json(
-      { message: "The image could not be uploaded." },
+      { message: "The file could not be uploaded." },
       { status: 500 },
     );
   }

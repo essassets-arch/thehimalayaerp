@@ -9,66 +9,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, Legend 
 } from 'recharts';
 
-function ResponsiveChart({ height: defaultHeight, children }) {
-  const ref = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: defaultHeight });
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    if (!ref.current) return;
-    
-    const updateSize = () => {
-      if (ref.current) {
-        const rect = ref.current.getBoundingClientRect();
-        if (rect.width > 0) {
-          setDimensions({
-            width: Math.floor(rect.width),
-            height: rect.height > 0 ? Math.floor(rect.height) : defaultHeight
-          });
-        }
-      }
-    };
-    updateSize();
-
-    const observer = new ResizeObserver((entries) => {
-      if (!entries || entries.length === 0) return;
-      const { width: newWidth, height: newHeight } = entries[0].contentRect;
-      let measuredHeight = newHeight;
-      if (measuredHeight === 0 && ref.current) {
-        measuredHeight = ref.current.getBoundingClientRect().height;
-      }
-      if (newWidth > 0) {
-        setDimensions({
-          width: Math.floor(newWidth),
-          height: measuredHeight > 0 ? Math.floor(measuredHeight) : defaultHeight
-        });
-      }
-    });
-
-    observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [defaultHeight]);
-
-  if (!mounted) {
-    return <div className="responsive-chart-container" style={{ height: `${defaultHeight}px`, width: '100%', position: 'relative' }} />;
-  }
-
-  return (
-    <div 
-      ref={ref} 
-      className="responsive-chart-container" 
-      style={{ 
-        width: '100%', 
-        '--default-chart-height': `${defaultHeight}px`,
-        height: 'var(--chart-height, var(--default-chart-height))',
-        position: 'relative' 
-      }}
-    >
-      {dimensions.width > 0 && cloneElement(children, { width: dimensions.width, height: dimensions.height })}
-    </div>
-  );
-}
+import ResponsiveChart from '../../../shared/components/ResponsiveChart';
 
 import * as Lucide from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';

@@ -11,68 +11,9 @@ import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './SalesAnalyticsPage.css';
 import { exportSalesReportPDF, exportFinanceReportPDF, exportInventoryReportPDF } from '../../../services/export.service';
 
+import ResponsiveChart from '../../../shared/components/ResponsiveChart';
+
 const CHART_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B"];
-
-function ResponsiveChart({ height: defaultHeight, children }) {
-  const ref = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: defaultHeight });
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    if (!ref.current) return;
-    
-    const updateSize = () => {
-      if (ref.current) {
-        const rect = ref.current.getBoundingClientRect();
-        if (rect.width > 0) {
-          setDimensions({
-            width: Math.floor(rect.width),
-            height: rect.height > 0 ? Math.floor(rect.height) : defaultHeight
-          });
-        }
-      }
-    };
-    updateSize();
-
-    const observer = new ResizeObserver((entries) => {
-      if (!entries || entries.length === 0) return;
-      const { width: newWidth, height: newHeight } = entries[0].contentRect;
-      let measuredHeight = newHeight;
-      if (measuredHeight === 0 && ref.current) {
-        measuredHeight = ref.current.getBoundingClientRect().height;
-      }
-      if (newWidth > 0) {
-        setDimensions({
-          width: Math.floor(newWidth),
-          height: measuredHeight > 0 ? Math.floor(measuredHeight) : defaultHeight
-        });
-      }
-    });
-
-    observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [defaultHeight]);
-
-  if (!mounted) {
-    return <div className="responsive-chart-container" style={{ height: `${defaultHeight}px`, width: '100%', position: 'relative' }} />;
-  }
-
-  return (
-    <div 
-      ref={ref} 
-      className="responsive-chart-container" 
-      style={{ 
-        width: '100%', 
-        '--default-chart-height': `${defaultHeight}px`,
-        height: 'var(--chart-height, var(--default-chart-height))',
-        position: 'relative' 
-      }}
-    >
-      {dimensions.width > 0 && cloneElement(children, { width: dimensions.width, height: dimensions.height })}
-    </div>
-  );
-}
 
 export default function SalesAnalyticsPage() {
   const { activeDates, filters } = useSuperAdminFilter();
@@ -515,12 +456,16 @@ export default function SalesAnalyticsPage() {
       <div className="sa-double-grid">
         <div className="sa-card">
           <h3 className="sa-card-title">Gross billing &amp; Receipts Curve</h3>
-          <ResponsiveChart height={300}>
-            <ComposedChart data={payments.trends || []}>
+          <ResponsiveChart
+            height={320}
+            emptyTitle="No billing or receipts in selected period"
+            emptySubtitle="Billings and collections curves will appear as transactions are processed."
+          >
+            <ComposedChart data={payments.trends && payments.trends.length > 0 ? payments.trends : [{ period: 'Current', orderValue: orderValue, collections: collectedAmount }]}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
               <XAxis dataKey="period" stroke="#64748b" style={{ fontSize: '11px' }} />
               <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
-              <Tooltip />
+              <Tooltip formatter={(value) => formatCurrency(Number(value) || 0)} />
               <Legend />
               <Area type="monotone" dataKey="orderValue" name="Billings" stroke="#6366f1" fill="rgba(99, 102, 241, 0.1)" />
               <Line type="monotone" dataKey="collections" name="Receipts" stroke="#10B981" strokeWidth={2.5} />
@@ -530,17 +475,21 @@ export default function SalesAnalyticsPage() {
 
         <div className="sa-card">
           <h3 className="sa-card-title">Opportunity Pipeline Potentials</h3>
-          <ResponsiveChart height={300}>
+          <ResponsiveChart
+            height={320}
+            emptyTitle="No active pipeline potentials recorded"
+            emptySubtitle="Open quotes, leads and confirmed orders will populate this chart."
+          >
             <BarChart data={[
-              { name: 'Leads potential', val: quoteValue * 1.5 },
-              { name: 'Open Quotes', val: quoteValue },
-              { name: 'Confirmed orders', val: orderValue }
+              { name: 'Leads Potential', val: Math.max(0, quoteValue * 1.5) },
+              { name: 'Open Quotes', val: Math.max(0, quoteValue) },
+              { name: 'Confirmed Orders', val: Math.max(0, orderValue) }
             ]}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
               <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />
               <YAxis stroke="#64748b" style={{ fontSize: '11px' }} />
-              <Tooltip />
-              <Bar dataKey="val" name="Potential Value" fill="#6366f1" radius={[4, 4, 0, 0]}>
+              <Tooltip formatter={(value) => formatCurrency(Number(value) || 0)} />
+              <Bar dataKey="val" name="Potential Value" fill="#6366f1" radius={[6, 6, 0, 0]}>
                 <Cell fill="#8B5CF6" />
                 <Cell fill="#6366F1" />
                 <Cell fill="#10B981" />

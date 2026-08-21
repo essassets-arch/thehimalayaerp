@@ -60,6 +60,7 @@ import { AttendanceRequestModule } from './modules/attendance-request/attendance
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { SearchModule } from './modules/search/search.module';
 import { LocationModule } from './modules/location/location.module';
+import { FilesModule } from './modules/files/files.module';
 
 @Module({
   imports: [
@@ -124,6 +125,7 @@ import { LocationModule } from './modules/location/location.module';
     AttendanceModule,
     SearchModule,
     LocationModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [
