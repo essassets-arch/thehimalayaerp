@@ -462,22 +462,27 @@ export class ProductionDailyReportService {
     id: string,
     dto: UpdateDailyReportDto,
   ) {
-    const report = await this.prisma.productionDailyReport.findFirst({
-      where: { id, companyId },
-    });
-
-    if (!report) {
-      throw new NotFoundException(`Report with ID ${id} not found`);
-    }
-
-    if (report.status === 'APPROVED') {
-      throw new ForbiddenException(`Cannot edit an APPROVED production report`);
-    }
-
-    const reportDate = dto.reportDate ? new Date(dto.reportDate) : report.reportDate;
-    reportDate.setHours(0, 0, 0, 0);
-
     return this.prisma.$transaction(async (tx) => {
+      // 1. Lock report row row-level to prevent concurrent writes
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId", "totalCovers", "totalFrames", "totalSets", "totalCoverWeight", "totalFrameWeight", "totalWeight", "reportDate", "shift", "supervisorName"
+        FROM "ProductionDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
+
+      if (!report || report.companyId !== companyId) {
+        throw new NotFoundException(`Report with ID ${id} not found`);
+      }
+
+      if (report.status === 'APPROVED') {
+        throw new ForbiddenException(`Cannot edit an APPROVED production report`);
+      }
+
+      const reportDate = dto.reportDate ? new Date(dto.reportDate) : new Date(report.reportDate);
+      reportDate.setHours(0, 0, 0, 0);
+
       let itemsUpdate: any = {};
 
       let totalCovers = report.totalCovers;
@@ -486,6 +491,22 @@ export class ProductionDailyReportService {
       let totalCoverWeight = report.totalCoverWeight;
       let totalFrameWeight = report.totalFrameWeight;
       let totalWeight = report.totalWeight;
+
+      // Track old items for stock adjustment if the report is already submitted
+      const isSubmitted = report.status === 'SUBMITTED';
+      const oldItemsMap = new Map<string, number>();
+
+      if (isSubmitted) {
+        const existingItems = await tx.productionDailyReportItem.findMany({
+          where: { reportId: id }
+        });
+        for (const item of existingItems) {
+          if (item.productId) {
+            const current = oldItemsMap.get(item.productId) || 0;
+            oldItemsMap.set(item.productId, current + Number(item.setQty || 0));
+          }
+        }
+      }
 
       if (dto.items !== undefined) {
         const processed = await this.processItemsData(dto.items, companyId);
@@ -504,6 +525,68 @@ export class ProductionDailyReportService {
         itemsUpdate = {
           create: processed.processedItems,
         };
+
+        if (isSubmitted) {
+          const newItemsMap = new Map<string, number>();
+          for (const item of processed.processedItems) {
+            if (item.productId) {
+              const current = newItemsMap.get(item.productId) || 0;
+              newItemsMap.set(item.productId, current + Number(item.setQty || 0));
+            }
+          }
+
+          // 1. Process new or updated products
+          for (const [productId, newQty] of newItemsMap.entries()) {
+            const oldQty = oldItemsMap.get(productId) || 0;
+            const diff = newQty - oldQty;
+            if (diff > 0) {
+              await this.inventoryService.stockInFinishedGoods(
+                tx,
+                companyId,
+                productId,
+                diff,
+                'PRODUCTION_REPORT_UPDATE',
+                id,
+                null,
+                report.reportNo,
+                userId,
+                `Adjustment (+${diff}) from Daily Report update`
+              );
+            } else if (diff < 0) {
+              await this.inventoryService.stockOutFinishedGoods(
+                tx,
+                companyId,
+                productId,
+                Math.abs(diff),
+                'PRODUCTION_REPORT_UPDATE',
+                id,
+                null,
+                report.reportNo,
+                userId,
+                `Adjustment (${diff}) from Daily Report update`
+              );
+            }
+            oldItemsMap.delete(productId);
+          }
+
+          // 2. Process products completely removed
+          for (const [productId, oldQty] of oldItemsMap.entries()) {
+            if (oldQty > 0) {
+              await this.inventoryService.stockOutFinishedGoods(
+                tx,
+                companyId,
+                productId,
+                oldQty,
+                'PRODUCTION_REPORT_UPDATE',
+                id,
+                null,
+                report.reportNo,
+                userId,
+                `Adjustment (-${oldQty}) - product removed from Daily Report`
+              );
+            }
+          }
+        }
       }
 
       const updated = await tx.productionDailyReport.update({
@@ -565,29 +648,38 @@ export class ProductionDailyReportService {
    */
   async submitReport(companyId: string, userId: string, id: string) {
     return this.prisma.$transaction(async (tx) => {
-      const report = await tx.productionDailyReport.findUnique({
-        where: { id },
-        include: { items: true },
-      });
+      // 1. Lock the report row row-level to prevent concurrent updates
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId"
+        FROM "ProductionDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
 
       if (!report || report.companyId !== companyId) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
-      if (report.items.length === 0) {
-        throw new BadRequestException(`Cannot submit an empty report with no production rows`);
+      if (report.status === 'SUBMITTED' || report.stockPostedAt !== null) {
+        throw new BadRequestException(`Report ${report.reportNo} is already submitted and stock has been posted.`);
       }
 
       if (report.status !== 'DRAFT' && report.status !== 'REOPENED') {
         throw new BadRequestException(`Only DRAFT or REOPENED reports can be submitted (current status: ${report.status})`);
       }
 
-      if (report.stockPostedAt) {
-        throw new BadRequestException(`Stock has already been posted for this report`);
+      // Fetch items for validation and submission
+      const items = await tx.productionDailyReportItem.findMany({
+        where: { reportId: id }
+      });
+
+      if (items.length === 0) {
+        throw new BadRequestException(`Cannot submit an empty report with no production rows`);
       }
 
       // Validate rows
-      for (const item of report.items) {
+      for (const item of items) {
         if (item.coverQty < 0 || item.frameQty < 0 || item.setQty < 0) {
           throw new BadRequestException(`Invalid negative quantity found in line item Sr #${item.srNo}`);
         }
@@ -597,7 +689,7 @@ export class ProductionDailyReportService {
       }
 
       // Post stock for each item in the report
-      for (const item of report.items) {
+      for (const item of items) {
         if (item.productId && item.setQty > 0) {
           await this.inventoryService.stockInFinishedGoods(
             tx,
@@ -605,7 +697,7 @@ export class ProductionDailyReportService {
             item.productId,
             item.setQty,
             'PRODUCTION_REPORT',
-            report.id,
+            id,
             item.id,
             report.reportNo,
             userId,
@@ -674,16 +766,19 @@ export class ProductionDailyReportService {
 
     return updated;
   }
-
   /**
    * Reopen report.
    */
   async reopenReport(companyId: string, userId: string, id: string) {
     return this.prisma.$transaction(async (tx) => {
-      const report = await tx.productionDailyReport.findUnique({
-        where: { id },
-        include: { items: true },
-      });
+      // 1. Lock report row row-level to prevent concurrent writes
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId"
+        FROM "ProductionDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
 
       if (!report || report.companyId !== companyId) {
         throw new NotFoundException(`Report with ID ${id} not found`);
@@ -693,8 +788,14 @@ export class ProductionDailyReportService {
         throw new BadRequestException(`Cannot reopen report in ${report.status} status`);
       }
 
+      // Fetch items to reverse stock
+      const items = await tx.productionDailyReportItem.findMany({
+        where: { reportId: id }
+      });
+      const reportWithItems = { ...report, items };
+
       // Reverse stock if it was posted
-      await this.reverseProductionStock(tx, report, companyId, userId);
+      await this.reverseProductionStock(tx, reportWithItems, companyId, userId);
 
       const updated = await tx.productionDailyReport.update({
         where: { id },
@@ -724,10 +825,14 @@ export class ProductionDailyReportService {
    */
   async cancelReport(companyId: string, userId: string, id: string) {
     return this.prisma.$transaction(async (tx) => {
-      const report = await tx.productionDailyReport.findUnique({
-        where: { id },
-        include: { items: true },
-      });
+      // 1. Lock report row row-level to prevent concurrent writes
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId"
+        FROM "ProductionDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
 
       if (!report || report.companyId !== companyId) {
         throw new NotFoundException(`Report with ID ${id} not found`);
@@ -737,8 +842,14 @@ export class ProductionDailyReportService {
         throw new BadRequestException(`Only SUBMITTED or APPROVED reports can be cancelled (current status: ${report.status})`);
       }
 
+      // Fetch items to reverse stock
+      const items = await tx.productionDailyReportItem.findMany({
+        where: { reportId: id }
+      });
+      const reportWithItems = { ...report, items };
+
       // Reverse stock if it was posted
-      await this.reverseProductionStock(tx, report, companyId, userId);
+      await this.reverseProductionStock(tx, reportWithItems, companyId, userId);
 
       const updated = await tx.productionDailyReport.update({
         where: { id },

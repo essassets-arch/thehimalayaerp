@@ -743,6 +743,14 @@ export class ProductionWorkflowService {
 
     const rawList = [...mappedExisting, ...syntheticRecords];
 
+    // Query PRODUCTION_IN totals grouped by productId to calculate productionIn and openingStock
+    const prodInSums = await this.prisma.stockHistory.groupBy({
+      by: ['productId'],
+      where: { event: 'PRODUCTION_IN' },
+      _sum: { quantity: true },
+    });
+    const prodInMap = new Map(prodInSums.map((g: any) => [g.productId, Number(g._sum.quantity || 0)]));
+
     // Deduplicate & aggregate by productCode or productId
     const groupedMap = new Map<string, any>();
 
@@ -761,6 +769,8 @@ export class ProductionWorkflowService {
           customerName: item.customerName || 'Internal Stock',
           quantity: 0,
           availableQuantity: 0,
+          productionIn: 0,
+          openingStock: 0,
           unit: (item.unit || item.product?.unit || 'PCS').toUpperCase(),
           status: 'AVAILABLE',
           receivedAt: item.receivedAt || new Date().toISOString(),
@@ -773,6 +783,10 @@ export class ProductionWorkflowService {
       const existing = groupedMap.get(key);
       existing.quantity += Number(item.quantity || 0);
       existing.availableQuantity += Number(item.availableQuantity || 0);
+
+      const prodInVal = prodInMap.get(item.productId) || 0;
+      existing.productionIn = prodInVal;
+      existing.openingStock = Math.max(0, existing.availableQuantity - prodInVal);
 
       const minStock = Number(item.product?.minimumStock || 0);
       if (existing.availableQuantity <= 0) {
@@ -799,6 +813,7 @@ export class ProductionWorkflowService {
     for (const p of fgProducts) {
       const key = p.sku || p.publicId;
       if (!groupedMap.has(key)) {
+        const prodInVal = prodInMap.get(p.id) || 0;
         groupedMap.set(key, {
           id: `fg-prod-${p.id}`,
           workOrderId: `WO-STOCK-${p.sku}`,
@@ -811,6 +826,8 @@ export class ProductionWorkflowService {
           customerName: 'Internal Stock',
           quantity: 0,
           availableQuantity: 0,
+          productionIn: prodInVal,
+          openingStock: 0,
           unit: (p.unit || 'SET').toUpperCase(),
           status: 'OUT_OF_STOCK',
           receivedAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),

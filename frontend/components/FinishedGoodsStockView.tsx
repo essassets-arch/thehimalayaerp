@@ -602,11 +602,10 @@ export default function FinishedGoodsStockView({
                 <tr>
                   <th>Item Code</th>
                   <th>Item / Description Name</th>
-                  <th>Product Type</th>
-                  <th>Dispatch Category</th>
-                  <th>Total Stock</th>
-                  <th>Avail Qty</th>
+                  <th>Opening Stock</th>
+                  <th>Production In</th>
                   <th>Reserved Qty</th>
+                  <th>Available Stock</th>
                   <th>Stock Status</th>
                   <th className={styles.actionsHeader}>Actions</th>
                 </tr>
@@ -614,13 +613,13 @@ export default function FinishedGoodsStockView({
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
                       Loading live stock data...
                     </td>
                   </tr>
                 ) : paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
                       No finished goods stock items found.
                     </td>
                   </tr>
@@ -635,14 +634,17 @@ export default function FinishedGoodsStockView({
                         <td data-label="Item / Description Name" className={styles.productName}>
                           {row.productName}
                         </td>
-                        <td data-label="Product Type">{row.productType}</td>
-                        <td data-label="Dispatch Category">{row.dispatchCategory}</td>
-                        <td data-label="Total Stock">
-                          <strong>{Number(row.quantity).toLocaleString()}</strong>
+                        <td data-label="Opening Stock">
+                          {Number((row as any).openingStock || 0).toLocaleString()}
                         </td>
-                        <td data-label="Avail Qty">{Number(row.availableQuantity).toLocaleString()}</td>
+                        <td data-label="Production In" style={{ color: "#16a34a", fontWeight: 700 }}>
+                          +{Number((row as any).productionIn || 0).toLocaleString()}
+                        </td>
                         <td data-label="Reserved Qty" style={{ color: "#64748b" }}>
                           {Number(row.reservedQuantity).toLocaleString()}
+                        </td>
+                        <td data-label="Available Stock">
+                          <strong>{Number(row.availableQuantity).toLocaleString()}</strong>
                         </td>
                         <td data-label="Stock Status">
                           <span className={`${styles.status} ${isOut ? styles.outOfStock : styles.inStock}`}>
