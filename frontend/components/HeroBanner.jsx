@@ -816,7 +816,7 @@ export default function HeroBanner({
           <Search size={15} strokeWidth={1.75} style={{ color: searchLoading ? '#3BAEEB' : 'rgba(255, 255, 255, 0.8)', transition: 'color 0.2s' }} />
           <input 
             type="text" 
-            placeholder="Search leads, orders, invoices... (⌘K)" 
+            placeholder={isMobile ? "Search leads, orders..." : "Search leads, orders, invoices... (⌘K)"} 
             id="searchInput" 
             ref={searchInputRef}
             value={searchQuery}

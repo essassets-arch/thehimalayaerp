@@ -1112,29 +1112,49 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                     />
                   </div>
 
-                  <input
-                    data-testid="lead-estimated-quantity"
-                    type="number"
-                    className="form-input"
-                    min="1"
-                    value={item.quantity}
-                    onChange={e => handleRowChange(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
-                    required
-                    style={{ textAlign: 'center', padding: '9px 8px' }}
-                  />
+                  <div className="lead-product-qty-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                    <label className="mobile-only" style={{ fontSize: '11px', fontWeight: '800', color: '#1d4ed8', display: 'none', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}>
+                      <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>QTY</span>
+                      Quantity *
+                    </label>
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <input
+                        data-testid="lead-estimated-quantity"
+                        type="number"
+                        className="form-input"
+                        min="1"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={e => handleRowChange(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
+                        required
+                        style={{ textAlign: 'center', padding: '9px 8px', fontWeight: '700', color: '#1e293b', background: '#eff6ff', border: '1.5px solid #93c5fd', borderRadius: '8px' }}
+                      />
+                    </div>
+                  </div>
 
-                  <input
-                    type="number"
-                    className="form-input"
-                    min="0"
-                    value={item.unitPrice}
-                    onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
-                    required
-                    style={{ textAlign: 'center', padding: '9px 8px' }}
-                  />
+                  <div className="lead-product-price-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                    <label className="mobile-only" style={{ fontSize: '11px', fontWeight: '800', color: '#15803d', display: 'none', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>₹</span>
+                      Unit Price *
+                    </label>
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <input
+                        data-testid="lead-unit-price"
+                        type="number"
+                        className="form-input"
+                        min="0"
+                        placeholder="₹ Price"
+                        value={item.unitPrice}
+                        onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
+                        required
+                        style={{ textAlign: 'center', padding: '9px 8px', fontWeight: '700', color: '#1e293b', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '8px' }}
+                      />
+                    </div>
+                  </div>
 
-                  <div className="lead-product-grid-total" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px', color: '#24345C', minHeight: '42px' }}>
-                    {formatINR(calculateItemTotal(item))}
+                  <div className="lead-product-grid-total" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px', color: '#24345C', minHeight: '42px', gap: '6px' }}>
+                    <span className="mobile-only" style={{ display: 'none', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Total:</span>
+                    <span>{formatINR(calculateItemTotal(item))}</span>
                   </div>
 
                   <div className="lead-product-grid-action">
