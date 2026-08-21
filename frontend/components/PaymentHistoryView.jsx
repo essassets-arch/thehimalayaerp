@@ -413,7 +413,7 @@ export default function PaymentHistoryView({
       </div>
 
       {/* Main Payment History Table */}
-      <div className="crm-table-container" style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+      <div className="crm-table-container" style={{ borderRadius: '12px', overflowX: 'auto', border: '1px solid #e2e8f0' }}>
         <table className="crm-table responsive-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '12px', textTransform: 'uppercase', color: '#475569', textAlign: 'left' }}>

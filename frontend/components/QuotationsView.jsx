@@ -793,7 +793,7 @@ export default function QuotationsView({
       {!isRemindersView && (
         <div className="mobile-only quotations-mobile-list" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
           <style>{`
-            @media (max-width: 640px) {
+            @media (max-width: 768px) {
               .desktop-only { display: none !important; }
               .mobile-only.quotations-mobile-list { display: flex !important; }
             }
@@ -1119,7 +1119,7 @@ export default function QuotationsView({
               </div>
 
               {/* Items Table */}
-              <div className="crm-table-container" style={{ margin: '0 0 16px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+              <div className="crm-table-container" style={{ margin: '0 0 16px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                 <table className="crm-table responsive-table" style={{ border: 'none', minWidth: '600px', borderCollapse: 'collapse', width: '100%' }}>
                   <thead>
                     <tr style={{ background: '#002e5d', color: '#ffffff' }}>

@@ -1144,7 +1144,7 @@ export default function LeadsView({
       {!isRemindersView && (
         <div className="mobile-only leads-mobile-list" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
           <style>{`
-            @media (max-width: 640px) {
+            @media (max-width: 768px) {
               .desktop-only { display: none !important; }
               .mobile-only.leads-mobile-list { display: flex !important; }
             }

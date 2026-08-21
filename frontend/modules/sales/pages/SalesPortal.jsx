@@ -186,7 +186,7 @@ function EditLeadContainer({
   }
 
   return (
-    <div data-testid="sales-create-lead-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div data-testid="sales-create-lead-page" className="sales-portal-view">
       <CreateLead
         key={leadToEdit ? `edit-${leadToEdit.id}` : 'new'}
         leads={leads}
@@ -965,14 +965,14 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
     case 'dashboard':
       return (
-        <div data-testid="sales-dashboard-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="sales-dashboard-page" className="sales-portal-view">
           <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />
         </div>
       );
 
     case 'leads':
       return (
-        <div data-testid="sales-leads-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="sales-leads-page" className="sales-portal-view">
           <O2PWorkflowBanner accentColor="#3b82f6" />
           <LeadsView
             leads={leads}
@@ -998,7 +998,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
     case 'create-lead': {
       return (
-        <div data-testid="sales-create-lead-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="sales-create-lead-page" className="sales-portal-view">
           <CreateLead
             key="new"
             leads={leads}
@@ -1063,7 +1063,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
     case 'samples':
       return (
-        <div data-testid="sales-samples-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="sales-samples-page" className="sales-portal-view">
           <SamplesView
             samples={samples}
             onUpdateSampleStatus={updateSampleStatus}
@@ -1080,7 +1080,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
     case 'quotations':
       return (
-        <div data-testid="sales-quotations-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="sales-quotations-page" className="sales-portal-view">
           <O2PWorkflowBanner accentColor="#8b5cf6" />
           <QuotationsView
             quotations={quotations}
@@ -1110,7 +1110,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
     case 'create-quotation':
       return (
-        <div data-testid="sales-create-quotation-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="sales-create-quotation-page" className="sales-portal-view">
           <CreateQuotation
             key={prefillQuotationData?.id || 'new'}
             leads={leads}
@@ -1282,7 +1282,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       };
 
       return (
-        <div data-testid="sales-orders-page" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="sales-orders-page" className="sales-portal-view">
           <O2PWorkflowBanner accentColor="#a855f7" />
           <OrdersView
             orders={orders}

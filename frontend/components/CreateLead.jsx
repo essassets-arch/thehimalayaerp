@@ -970,16 +970,14 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group-full">
-                  <label className="form-label">Logged In Sales Representative</label>
-                  <div className="form-input" style={{ background: '#F5FAFE', color: '#475569', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontWeight: '600', border: '1px solid #DCE5F0', height: 'auto', minHeight: '38px', padding: '10px 14px' }}>
-                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', flexShrink: 0 }}></span>
-                    <span>
-                      <strong>{user?.name || 'Alex Carter'}</strong>
-                      {loginTime ? ` logged in on ${loginTime.date} at ${loginTime.time}` : ' logging in...'}
-                    </span>
-                  </div>
+              <div className="form-group">
+                <label className="form-label">Logged In Sales Representative</label>
+                <div style={{ background: '#F5FAFE', color: '#475569', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontWeight: '600', border: '1px solid #DCE5F0', borderRadius: '10px', minHeight: '44px', padding: '10px 14px', lineHeight: '1.4', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}>
+                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', flexShrink: 0 }}></span>
+                  <span style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                    <strong>{user?.name || 'Alex Carter'}</strong>
+                    {loginTime ? ` logged in on ${loginTime.date} at ${loginTime.time}` : ' logging in...'}
+                  </span>
                 </div>
               </div>
 

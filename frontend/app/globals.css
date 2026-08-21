@@ -168,8 +168,20 @@ textarea {
 .app-container {
   display: flex;
   width: 100%;
+  min-width: 0;
   height: 100vh;
   overflow: hidden;
+  overflow-x: hidden;
+}
+
+/* ── SALES PORTAL VIEW WRAPPER ── */
+/* Used by SalesPortal.jsx for each route case instead of height:100% inline style */
+.sales-portal-view {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 /* ── SIDEBAR ── */
@@ -333,6 +345,8 @@ textarea {
   min-width: 0;
   /* Ensure content never exceeds viewport width */
   width: 100%;
+  /* Prevent flex children from creating horizontal overflow */
+  box-sizing: border-box;
 }
 
 .main-viewport > * {
@@ -3778,18 +3792,25 @@ textarea {
   }
 
   /* Responsive Tables converting to Cards */
+  /* crm-table-container keeps overflow-x:auto — this is correct for horizontal scroll */
+  /* Only strip its card-chrome (border/shadow/bg) so the transparent background shows through */
   .crm-table-container {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     margin-top: 8px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
-  .main-viewport>.app-card {
+  /* Only strip .app-card chrome when it is directly inside main-viewport AND wrapping a crm module.
+     Do NOT strip if the card itself contains meaningful content (Sales pages use .app-card inside
+     a .sales-portal-view which is never a direct child of .main-viewport). */
+  .main-viewport > .app-card:not(:has(.sales-portal-view)):not(:has(.app-card)) {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    padding: 0 16px !important;
+    padding: 0 !important;
     margin: 0 !important;
   }
 
@@ -4118,10 +4139,11 @@ textarea {
     grid-template-columns: 1fr !important;
   }
 
-  /* ── MAIN VIEWPORT: tighter mobile padding ── */
+  /* ── MAIN VIEWPORT: tighter mobile padding with side breathing room ── */
   .main-viewport {
-    padding: 0 0 88px 0 !important;
+    padding: 12px 12px 24px !important;
     gap: 12px !important;
+    overflow-x: hidden !important;
   }
 
   /* ── APP CARD: tighter padding on mobile ── */
@@ -6765,25 +6787,48 @@ body.notification-open {
     font-size: 12px !important;
   }
 
-  .form-input,
-  .form-select,
-  .form-control,
+  input.form-input,
+  input.form-control,
+  select.form-select,
+  select.form-control,
   input[type="text"],
   input[type="email"],
   input[type="number"],
   input[type="tel"],
-  select,
-  textarea {
-    height: 44px !important;  /* iOS minimum touch target */
-    font-size: 16px !important; /* prevents iOS auto-zoom on focus */
+  input[type="password"],
+  input[type="date"],
+  select {
+    height: 44px !important;
+    font-size: 16px !important;
     border-radius: 10px !important;
     padding: 10px 12px !important;
     width: 100% !important;
   }
 
-  textarea {
+  div.form-input,
+  div.form-control,
+  div.form-display,
+  .form-input:not(input):not(select):not(textarea) {
+    height: auto !important;
+    min-height: 44px !important;
+    font-size: 14px !important;
+    border-radius: 10px !important;
+    padding: 10px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+  }
+
+  textarea,
+  textarea.form-input,
+  textarea.form-textarea {
     height: auto !important;
     min-height: 80px !important;
+    font-size: 16px !important;
+    border-radius: 10px !important;
+    padding: 10px 12px !important;
+    width: 100% !important;
   }
 
   /* ── 11. FORM ACTIONS ── */
@@ -8320,5 +8365,275 @@ body, #root, .app-container {
 
   .brand-analysis-quantity {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SALES MODULE RESPONSIVE — v2
+   CSS-first foundation for the complete /sales module.
+   All rules are additive and do not change desktop layout.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── SALES PORTAL VIEW: full flex chain with no-overflow guarantee ── */
+.sales-portal-view {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* ── SALES TABLE WRAPPER: isolate horizontal scroll to table only, never page ── */
+.sales-table-wrapper {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.sales-table-wrapper::-webkit-scrollbar {
+  height: 4px;
+}
+
+.sales-table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.15);
+  border-radius: 2px;
+}
+
+/* ── SALES PAGE HEADER: stacks title + actions on mobile ── */
+.sales-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ── SALES RESPONSIVE GRIDS ── */
+.sales-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sales-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sales-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ── SALES MOBILE: unified breakpoint at 768px ── */
+@media (max-width: 768px) {
+
+  /* Prevent the app from scrolling horizontally */
+  .app-container,
+  .main-viewport,
+  .sales-portal-view {
+    overflow-x: hidden;
+  }
+
+  /* Sales portal view fills width properly */
+  .sales-portal-view {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* ── DESKTOP-ONLY / MOBILE-ONLY toggle at 768px ── */
+  /* These classes are used in LeadsView, OrdersView, QuotationsView, SamplesView */
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: flex !important;
+  }
+
+  /* mobile-only lists (leads-mobile-list etc.) specifically */
+  .mobile-only.leads-mobile-list,
+  .mobile-only.orders-mobile-list,
+  .mobile-only.quotations-mobile-list,
+  .mobile-only.samples-mobile-list {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* ── SALES PAGE HEADER: stack on mobile ── */
+  .sales-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .sales-page-header > *:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── SALES RESPONSIVE GRIDS collapse ── */
+  .sales-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .sales-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .sales-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* ── ALL CARDS: min-width: 0 to prevent overflow ── */
+  .sales-portal-view .app-card,
+  .sales-portal-view .kpi-card {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* ── SALES DIALOGS / MODALS: constrain to viewport ── */
+  /* Sales quotation / order detail sheet modals */
+  div[style*="width: '800px'"],
+  div[style*="width: '760px'"],
+  div[style*="width: '720px'"],
+  div[style*="width: '700px'"],
+  div[style*="width: '680px'"],
+  div[style*="width: '660px'"],
+  div[style*="width: '640px'"],
+  div[style*="width: '620px'"],
+  div[style*="width: '600px'"],
+  div[style*="width: '580px'"],
+  div[style*="width: '560px'"],
+  div[style*="width: '540px'"],
+  div[style*="width: '520px'"],
+  div[style*="width: '500px'"] {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: 90dvh !important;
+    overflow-y: auto !important;
+  }
+
+  /* ── SALES DASHBOARD: stat card grids 4→2 on mobile ── */
+  /* DashboardView inline repeat(4, 1fr) grids caught here */
+  div[style*="repeat(4, 1fr)"],
+  div[style*="repeat(4,1fr)"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* ── HERO BANNER on mobile ── */
+  .hero-banner {
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  /* ── SALES-SPECIFIC TABLE WRAPPERS ── */
+  /* crm-table-container is already overflow-x: auto; ensure table has min-width not the page */
+  .crm-table-container .crm-table {
+    min-width: 700px;
+  }
+
+  /* Inside modals/detail panels, tables should not have a forced min-width */
+  .modal-box .crm-table-container .crm-table,
+  .modal-overlay .crm-table-container .crm-table {
+    min-width: 0 !important;
+  }
+
+  /* ── BUTTON ACTIONS on mobile: full-width where needed ── */
+  .sales-portal-view .module-actions > button,
+  .sales-portal-view .module-actions > a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ── KPIS: 2-column minimum, not 4 ── */
+  .sales-portal-view .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  /* ── QUOTATION/ORDER FORM GRIDS: always 1 column on mobile ── */
+  .quotation-customer-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── SALES MOBILE CARD ITEMS: consistent sizing ── */
+  .leads-mobile-list > div,
+  .orders-mobile-list > div,
+  .quotations-mobile-list > div,
+  .samples-mobile-list > div {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* ── TABLET (769px– 1024px): sidebar stays, content gains breathing room ── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .main-viewport {
+    padding: 16px 16px 28px;
+    gap: 18px;
+  }
+
+  .sales-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sales-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Dashboard stat grids on tablet */
+  div[style*="repeat(4, 1fr)"],
+  div[style*="repeat(4,1fr)"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+}
+
+/* ── 320px ULTRA-NARROW PHONES ── */
+@media (max-width: 360px) {
+  .sales-grid-4,
+  .sales-grid-3,
+  .sales-grid-2 {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .main-viewport {
+    padding: 8px 8px 20px !important;
+    gap: 8px !important;
+  }
+
+  /* All modals at 320px */
+  .modal-box {
+    width: calc(100vw - 16px) !important;
+    max-height: 95dvh !important;
+    border-radius: 12px !important;
+    overflow-y: auto !important;
+  }
+
+  /* Dashboard repeat(2, 1fr) collapses to 1fr at 320px */
+  .sales-portal-view div[style*="repeat(2, 1fr)"],
+  .sales-portal-view div[style*="repeat(2,1fr)"] {
+    grid-template-columns: 1fr !important;
   }
 }

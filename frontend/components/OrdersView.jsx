@@ -891,7 +891,7 @@ export default function OrdersView({
       {/* Mobile Card Layout */}
       <div className="mobile-only orders-mobile-list" style={{ display: 'none', flexDirection: 'column', gap: '16px' }}>
         <style>{`
-          @media (max-width: 640px) {
+          @media (max-width: 768px) {
             .desktop-only { display: none !important; }
             .mobile-only.orders-mobile-list { display: flex !important; }
           }
