@@ -71,7 +71,7 @@ export default function FinishedGoodsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["finished-goods"],
     queryFn: async () => {
-      const payload = await backendFetch<any>("/api/backend/production/finished-goods");
+      const payload = await backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 });
       return Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
     },
   });

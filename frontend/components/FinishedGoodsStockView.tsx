@@ -119,7 +119,7 @@ export default function FinishedGoodsStockView({
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["finished-goods-all-stock"],
     queryFn: async () => {
-      const payload = await backendFetch<any>("/api/backend/production/finished-goods");
+      const payload = await backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 });
       return Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
     },
   });
@@ -128,7 +128,7 @@ export default function FinishedGoodsStockView({
   const { data: historyData, isLoading: isHistoryLoading } = useQuery({
     queryKey: ["finished-goods-dispatch-history"],
     queryFn: async () => {
-      const payload = await backendFetch<any>("/api/backend/logistics/dispatches/finished-goods-history");
+      const payload = await backendFetch<any>("/api/backend/logistics/dispatches/finished-goods-history", { cacheTtlMs: 0 });
       return Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
     },
     enabled: activeTab === "history",

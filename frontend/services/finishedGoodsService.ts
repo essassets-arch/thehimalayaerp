@@ -12,5 +12,6 @@ export async function getFinishedGoods(params?: any) {
 
   return backendFetch(`/api/backend/production/finished-goods${suffix}`, {
     method: "GET",
+    cacheTtlMs: 0,
   });
 }
