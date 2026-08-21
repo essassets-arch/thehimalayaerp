@@ -1428,7 +1428,8 @@ export default function QuotationsView({
               </div>
             </div>
 
-            </div> {/* End of #quotation-printable-area */}
+                </div> {/* End of #quotation-printable-area */}
+              </div> {/* End of scaling container */}
             </div> {/* End of .quotation-document-viewport */}
 
             {/* Close / Convert Action controls wrapper */}
