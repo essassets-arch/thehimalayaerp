@@ -88,9 +88,6 @@ export const initializePushNotifications = async () => {
     return;
   }
 
-  if (localStorage.getItem('fcm_registration_failed') === 'true') {
-    return;
-  }
 
   try {
     const supported = await isSupported();
