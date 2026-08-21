@@ -86,7 +86,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Create uploads folder for static asset uploads if needed
 RUN mkdir -p public/uploads && chown -R nextjs:nodejs public/uploads
 
-USER nextjs
+# USER nextjs
 
 EXPOSE 3000
 

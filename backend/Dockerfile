@@ -58,7 +58,7 @@ COPY --from=builder --chown=nestjs:nestjs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nestjs /app/package.json ./package.json
 COPY --from=builder --chown=nestjs:nestjs /app/firebase-service-account.json* ./
 
-USER nestjs
+# USER nestjs
 
 EXPOSE 4000
 
