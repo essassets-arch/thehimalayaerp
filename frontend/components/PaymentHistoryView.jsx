@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { backendFetch } from '../lib/backendFetch';
 import { useERPStore } from '../store/erpStore';
 import Swal from 'sweetalert2';
+import { getBackendAssetUrl } from '../lib/assetUrl';
 import './erp-premium-ui.css';
 
 export default function PaymentHistoryView({ 
@@ -630,10 +631,10 @@ export default function PaymentHistoryView({
             <div style={{ flex: 1, overflow: 'auto', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               {previewProofRecord.proofUrl && !imgFailed && typeof previewProofRecord.proofUrl === 'string' && (previewProofRecord.proofUrl.startsWith('http') || previewProofRecord.proofUrl.startsWith('data:') || previewProofRecord.proofUrl.startsWith('/')) ? (
                 previewProofRecord.proofUrl.endsWith('.pdf') ? (
-                  <iframe src={previewProofRecord.proofUrl} style={{ width: '100%', height: '500px', border: 'none' }} title="Proof PDF" />
+                  <iframe src={getBackendAssetUrl(previewProofRecord.proofUrl)} style={{ width: '100%', height: '500px', border: 'none' }} title="Proof PDF" />
                 ) : (
                   <img
-                    src={previewProofRecord.proofUrl}
+                    src={getBackendAssetUrl(previewProofRecord.proofUrl)}
                     onError={() => setImgFailed(true)}
                     alt="Payment Proof"
                     style={{ maxWidth: '100%', maxHeight: '550px', objectFit: 'contain', borderRadius: '8px' }}

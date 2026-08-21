@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { useERP } from '../shared/context/ERPContext';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
+import { getBackendAssetUrl } from '../lib/assetUrl';
 import {
   formatReminderDate,
   formatReminderTime,
@@ -225,6 +226,7 @@ export default function SamplesView({
       return;
     }
 
+    const resolvedDoc = getBackendAssetUrl(doc);
     const docType = getDocType(doc);
     if (docType === 'image') {
       Swal.fire({
@@ -232,13 +234,13 @@ export default function SamplesView({
         html: `
           <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%;">
             <div style="border: 1px solid #D6E2F0; border-radius: 8px; padding: 8px; background: #F5FAFE; max-width: 100%; display: flex; justify-content: center;">
-              <img src="${doc}" alt="Dispatch Document" style="max-width: 100%; max-height: 450px; object-fit: contain; border-radius: 6px;" />
+              <img src="${resolvedDoc}" alt="Dispatch Document" style="max-width: 100%; max-height: 450px; object-fit: contain; border-radius: 6px;" />
             </div>
             <div style="display: flex; gap: 12px; justify-content: center; width: 100%;">
               <button id="swal-download-btn" class="swal-premium-confirm-btn" style="display: inline-flex; align-items: center; gap: 4px; border: none; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: bold;">
                 ⬇ Download
               </button>
-              <a href="${doc}" target="_blank" class="swal-premium-cancel-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 10px 18px; border-radius: 8px; font-weight: bold;">
+              <a href="${resolvedDoc}" target="_blank" class="swal-premium-cancel-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 10px 18px; border-radius: 8px; font-weight: bold;">
                 ↗ Open in New Tab
               </a>
               <button class="swal-premium-cancel-btn" style="border: none; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: bold;" onclick="Swal.close()">
@@ -265,13 +267,13 @@ export default function SamplesView({
         html: `
           <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%;">
             <div style="border: 1px solid #D6E2F0; border-radius: 8px; overflow: hidden; background: #F5FAFE; width: 100%; height: 500px;">
-              <iframe src="${doc}" style="width:100%; height:100%; border:none;" title="Dispatch Document Preview"></iframe>
+              <iframe src="${resolvedDoc}" style="width:100%; height:100%; border:none;" title="Dispatch Document Preview"></iframe>
             </div>
             <div style="display: flex; gap: 12px; justify-content: center; width: 100%;">
               <button id="swal-download-btn" class="swal-premium-confirm-btn" style="display: inline-flex; align-items: center; gap: 4px; border: none; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: bold;">
                 ⬇ Download
               </button>
-              <a href="${doc}" target="_blank" class="swal-premium-cancel-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 10px 18px; border-radius: 8px; font-weight: bold;">
+              <a href="${resolvedDoc}" target="_blank" class="swal-premium-cancel-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 10px 18px; border-radius: 8px; font-weight: bold;">
                 ↗ Open in New Tab
               </a>
               <button class="swal-premium-cancel-btn" style="border: none; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: bold;" onclick="Swal.close()">
@@ -294,14 +296,15 @@ export default function SamplesView({
         }
       });
     } else {
-      window.open(doc, '_blank');
+      window.open(resolvedDoc, '_blank');
     }
   };
 
   const downloadDispatchDocument = (doc, sampleId) => {
     if (!doc) return;
+    const resolvedDoc = getBackendAssetUrl(doc);
     const link = document.createElement('a');
-    link.href = doc;
+    link.href = resolvedDoc;
     link.download = `dispatch-doc-${formatSampleId(sampleId)}`;
     link.click();
   };
@@ -801,7 +804,7 @@ export default function SamplesView({
                       }}
                     >
                       <img
-                        src={podImage}
+                        src={getBackendAssetUrl(podImage)}
                         alt="Proof of Delivery"
                         style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '8px' }}
                       />
@@ -833,12 +836,12 @@ export default function SamplesView({
                   )}
                   {sample.retrievalStatus === 'Retrieved' && sample.retrievalDetails?.returnPod && (
                     <img
-                      src={sample.retrievalDetails.returnPod}
+                      src={getBackendAssetUrl(sample.retrievalDetails.returnPod)}
                       alt="Proof of Return"
                       style={{ width: '100px', height: '72px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #D6E2F0', background: '#fff', cursor: 'pointer', marginTop: '6px' }}
                       onClick={() => {
                         Swal.fire({
-                          imageUrl: sample.retrievalDetails.returnPod,
+                          imageUrl: getBackendAssetUrl(sample.retrievalDetails.returnPod),
                           imageAlt: 'Proof of Return',
                           title: `Return Proof — ${formatSampleId(sample.id)}`,
                           confirmButtonText: 'Close',
@@ -1358,7 +1361,7 @@ export default function SamplesView({
                       <div style={{ border: '1px solid #DCE5F0', borderRadius: '10px', padding: '14px', background: '#F5FAFE', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                         {getDocType(dispatchDoc) === 'image' ? (
                           <img 
-                            src={dispatchDoc} 
+                            src={getBackendAssetUrl(dispatchDoc)} 
                             alt="Dispatch Uploaded Image" 
                             style={{ maxWidth: '100%', maxHeight: '350px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer', border: '1px solid #D6E2F0', background: '#fff' }}
                             onClick={() => showDispatchDocument(dispatchDoc, sample.id)}
