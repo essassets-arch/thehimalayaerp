@@ -823,8 +823,40 @@ export default function FinanceSalesConfirmationView() {
               </div>
 
               {verifyModal.payment?.proofUrl && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Attached Proof Document</label>
+                  
+                  {/* Image Preview Container */}
+                  {/\.(png|jpe?g|gif|webp|bmp|svg)/i.test(verifyModal.payment.proofUrl.split('?')[0]) && (
+                    <div style={{
+                      width: '100%',
+                      maxHeight: '260px',
+                      overflow: 'hidden',
+                      borderRadius: '10px',
+                      border: '1px solid #E2E8F0',
+                      background: '#F8FAFC',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '8px',
+                      boxSizing: 'border-box',
+                    }}>
+                      <img
+                        src={verifyModal.payment.proofUrl}
+                        alt="Payment Proof"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '244px',
+                          objectFit: 'contain',
+                          borderRadius: '6px',
+                          cursor: 'zoom-in',
+                        }}
+                        onClick={() => window.open(verifyModal.payment.proofUrl, '_blank')}
+                        title="Click to view full image in new tab"
+                      />
+                    </div>
+                  )}
+
                   <a
                     href={verifyModal.payment.proofUrl}
                     target="_blank"
