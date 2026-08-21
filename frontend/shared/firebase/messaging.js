@@ -87,6 +87,7 @@ export const initializePushNotifications = async () => {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return;
   }
+  console.log('[Firebase Client] Raw VAPID_KEY from env:', VAPID_KEY);
 
 
   try {
