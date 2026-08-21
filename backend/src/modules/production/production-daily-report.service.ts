@@ -563,7 +563,8 @@ export class ProductionDailyReportService {
                 null,
                 report.reportNo,
                 userId,
-                `Adjustment (${diff}) from Daily Report update`
+                `Adjustment (${diff}) from Daily Report update`,
+                'PRODUCTION_REVERSAL'
               );
             }
             oldItemsMap.delete(productId);
@@ -582,7 +583,8 @@ export class ProductionDailyReportService {
                 null,
                 report.reportNo,
                 userId,
-                `Adjustment (-${oldQty}) - product removed from Daily Report`
+                `Adjustment (-${oldQty}) - product removed from Daily Report`,
+                'PRODUCTION_REVERSAL'
               );
             }
           }

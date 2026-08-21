@@ -743,13 +743,29 @@ export class ProductionWorkflowService {
 
     const rawList = [...mappedExisting, ...syntheticRecords];
 
-    // Query PRODUCTION_IN totals grouped by productId to calculate productionIn and openingStock
-    const prodInSums = await this.prisma.stockHistory.groupBy({
-      by: ['productId'],
-      where: { event: 'PRODUCTION_IN' },
+    // Query StockHistory totals grouped by productId and event to calculate productionIn and dispatchVal
+    const stockHistorySums = await this.prisma.stockHistory.groupBy({
+      by: ['productId', 'event'],
+      where: {
+        event: {
+          in: ['PRODUCTION_IN', 'PRODUCTION_REVERSAL', 'DISPATCH_OUT', 'DISPATCH_REVERSAL']
+        }
+      },
       _sum: { quantity: true },
     });
-    const prodInMap = new Map(prodInSums.map((g: any) => [g.productId, Number(g._sum.quantity || 0)]));
+
+    const prodInMap = new Map<string, number>();
+    const dispatchMap = new Map<string, number>();
+
+    for (const g of stockHistorySums) {
+      const pId = g.productId;
+      const qty = Number(g._sum.quantity || 0);
+      if (g.event === 'PRODUCTION_IN' || g.event === 'PRODUCTION_REVERSAL') {
+        prodInMap.set(pId, (prodInMap.get(pId) || 0) + qty);
+      } else if (g.event === 'DISPATCH_OUT' || g.event === 'DISPATCH_REVERSAL') {
+        dispatchMap.set(pId, (dispatchMap.get(pId) || 0) + qty);
+      }
+    }
 
     // Deduplicate & aggregate by productCode or productId
     const groupedMap = new Map<string, any>();
@@ -785,8 +801,9 @@ export class ProductionWorkflowService {
       existing.availableQuantity += Number(item.availableQuantity || 0);
 
       const prodInVal = prodInMap.get(item.productId) || 0;
+      const dispatchVal = dispatchMap.get(item.productId) || 0;
       existing.productionIn = prodInVal;
-      existing.openingStock = Math.max(0, existing.availableQuantity - prodInVal);
+      existing.openingStock = Math.max(0, existing.quantity - prodInVal - dispatchVal);
 
       const minStock = Number(item.product?.minimumStock || 0);
       if (existing.availableQuantity <= 0) {
@@ -827,7 +844,7 @@ export class ProductionWorkflowService {
           quantity: 0,
           availableQuantity: 0,
           productionIn: prodInVal,
-          openingStock: 0,
+          openingStock: Math.max(0, 0 - prodInVal - (dispatchMap.get(p.id) || 0)),
           unit: (p.unit || 'SET').toUpperCase(),
           status: 'OUT_OF_STOCK',
           receivedAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
