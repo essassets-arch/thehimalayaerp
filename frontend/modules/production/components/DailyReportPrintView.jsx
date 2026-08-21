@@ -14,7 +14,7 @@ export default function DailyReportPrintView({ reportId, onBack, title, isDispat
     if (!reportId) return;
     try {
       setLoading(true);
-      const data = await backendFetch(`/api/backend/production/daily-reports/${reportId}`);
+      const data = await backendFetch(`/api/backend/production/daily-reports/${reportId}`, { cacheTtlMs: 0 });
       setReport(data);
     } catch (err) {
       console.error('[DailyReportPrintView] Error fetching report details:', err);

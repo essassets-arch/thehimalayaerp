@@ -124,7 +124,7 @@ export default function DailyReportEntryView({
     if (!id) return;
     try {
       setLoading(true);
-      const data = await backendFetch(`${baseApiUrl}/${id}`);
+      const data = await backendFetch(`${baseApiUrl}/${id}`, { cacheTtlMs: 0 });
       if (data) {
         setCurrentReportId(data.id);
         setReportNo(data.reportNo);
@@ -139,17 +139,18 @@ export default function DailyReportEntryView({
           const loadedRows = data.items.map((item, idx) => ({
             id: item.id || `row-${idx + 1}`,
             productId: item.productId,
+            customProductName: item.customProductName || '',
             size: item.size || item.product?.size || '',
             type: item.type || item.product?.type || '',
             capacity: item.capacity || item.product?.capacity || '',
             coverQty: item.coverQty || 0,
             coverUnitWeight: Number(item.coverUnitWeight || item.product?.coverUnitWeight || 0),
             coverWeight: Number(item.coverWeight || 0),
-            actualCoverWeight: item.actualCoverWeight !== null ? String(item.actualCoverWeight) : '',
+            actualCoverWeight: item.actualCoverWeight !== null && item.actualCoverWeight !== undefined ? String(item.actualCoverWeight) : '',
             frameQty: item.frameQty || 0,
             frameUnitWeight: Number(item.frameUnitWeight || item.product?.frameUnitWeight || 0),
             frameWeight: Number(item.frameWeight || 0),
-            actualFrameWeight: item.actualFrameWeight !== null ? String(item.actualFrameWeight) : '',
+            actualFrameWeight: item.actualFrameWeight !== null && item.actualFrameWeight !== undefined ? String(item.actualFrameWeight) : '',
             weightOverrideReason: item.weightOverrideReason || '',
             setQty: item.setQty || 0,
             totalWeight: Number(item.totalWeight || 0),
@@ -170,13 +171,13 @@ export default function DailyReportEntryView({
     } finally {
       setLoading(false);
     }
-  }, [todayStr]);
+  }, [baseApiUrl, todayStr]);
 
   // Check Duplicate Warning on Date/Shift change
   const checkDuplicateReport = useCallback(async (d, s) => {
     if (!d || !s) return;
     try {
-      const res = await backendFetch(`${baseApiUrl}/check-duplicate?date=${d}&shift=${s}`);
+      const res = await backendFetch(`${baseApiUrl}/check-duplicate?date=${d}&shift=${s}`, { cacheTtlMs: 0 });
       if (res?.exists && res?.report?.id !== currentReportId) {
         Swal.fire({
           icon: 'info',
@@ -197,10 +198,11 @@ export default function DailyReportEntryView({
   }, [fetchProducts]);
 
   useEffect(() => {
-    if (reportId) {
-      fetchReport(reportId);
+    const editId = reportId || searchParams?.get('edit') || searchParams?.get('id');
+    if (editId) {
+      fetchReport(editId);
     }
-  }, [reportId, fetchReport]);
+  }, [reportId, searchParams, fetchReport]);
 
   // Recalculate Row Values
   const calculateRowValues = (row) => {
@@ -960,6 +962,124 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
     }
   };
 
+  const handleReopenReport = async () => {
+    if (!currentReportId) return;
+    const confirm = await Swal.fire({
+      title: 'Reopen Daily Production Report?',
+      text: 'This will reverse the finished goods stock posted from this report in the inventory ledger and return the report to REOPENED so it can be edited.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#2563eb',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, Reopen Report',
+      cancelButtonText: 'Cancel'
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setLoading(true);
+      const res = await backendFetch(`${baseApiUrl}/${currentReportId}/reopen`, {
+        method: 'POST'
+      });
+      if (res) {
+        setStatus(res.status);
+        setLastUpdated(res.updatedAt);
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        Swal.fire({
+          icon: 'success',
+          title: 'Report Reopened',
+          text: `Daily Report ${res.reportNo} is now reopened for editing. Posted production stock has been reversed.`
+        });
+      }
+    } catch (err) {
+      console.error('[DailyReport] Reopen Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Reopen Failed',
+        text: err.message || 'Unable to reopen report'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelReport = async () => {
+    if (!currentReportId) return;
+    const confirm = await Swal.fire({
+      title: 'Cancel Daily Production Report?',
+      text: 'This will reverse the finished goods stock posted from this report in the inventory ledger and mark the report as CANCELLED.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      confirmButtonText: 'Yes, Cancel Report',
+      cancelButtonText: 'No, Keep Report'
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setLoading(true);
+      const res = await backendFetch(`${baseApiUrl}/${currentReportId}/cancel`, {
+        method: 'POST'
+      });
+      if (res) {
+        setStatus(res.status);
+        setLastUpdated(res.updatedAt);
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        Swal.fire({
+          icon: 'success',
+          title: 'Report Cancelled',
+          text: `Daily Report ${res.reportNo} cancelled and stock reversed successfully.`
+        });
+      }
+    } catch (err) {
+      console.error('[DailyReport] Cancel Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Cancel Failed',
+        text: err.message || 'Unable to cancel report'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewReport = () => {
+    setCurrentReportId(null);
+    setReportNo('Draft (Auto-generated on save)');
+    setReportDate(todayStr);
+    setShift('Morning');
+    setSupervisorName('');
+    setStatus('DRAFT');
+    setLastUpdated(null);
+    setApprovedBy(null);
+    setRows([
+      {
+        id: 'row-1',
+        productId: '',
+        customProductName: '',
+        size: '',
+        type: '',
+        capacity: '',
+        coverQty: 0,
+        coverUnitWeight: 0,
+        coverWeight: 0,
+        actualCoverWeight: '',
+        frameQty: 0,
+        frameUnitWeight: 0,
+        frameWeight: 0,
+        actualFrameWeight: '',
+        weightOverrideReason: '',
+        setQty: 0,
+        totalWeight: 0,
+        coversPerSet: 1,
+        framesPerSet: 1,
+        remarks: ''
+      }
+    ]);
+  };
+
   // Status Badge Rendering
   const renderStatusBadge = (st) => {
     let bg = 'rgba(100, 116, 139, 0.1)';
@@ -1003,7 +1123,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
     );
   };
 
-  const isReadOnly = status === 'SUBMITTED' || status === 'APPROVED';
+  const isReadOnly = status === 'SUBMITTED' || status === 'APPROVED' || status === 'CANCELLED';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
@@ -1074,6 +1194,77 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             >
               <Printer size={16} /> Print / Export PDF
             </button>
+          )}
+
+          {isReadOnly && (
+            <>
+              {(status === 'SUBMITTED' || status === 'APPROVED') && (
+                <button
+                  type="button"
+                  onClick={handleReopenReport}
+                  disabled={loading}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 18px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    color: '#ffffff',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
+                  }}
+                >
+                  <RefreshCw size={16} /> Reopen Report
+                </button>
+              )}
+
+              {(status === 'SUBMITTED' || status === 'APPROVED') && (
+                <button
+                  type="button"
+                  onClick={handleCancelReport}
+                  disabled={loading}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 18px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: '#dc2626',
+                    color: '#ffffff',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <X size={16} /> Cancel Report
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleNewReport}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  border: '1px solid #D6E2F0',
+                  background: '#ffffff',
+                  color: '#24345C',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: 'pointer'
+                }}
+              >
+                <Plus size={16} /> New Report
+              </button>
+            </>
           )}
 
           {!isReadOnly && (

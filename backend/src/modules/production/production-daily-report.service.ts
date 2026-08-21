@@ -198,7 +198,7 @@ export class ProductionDailyReportService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (query.preset) {
+    if (query.preset && query.preset.toLowerCase() !== 'all') {
       const presetLower = query.preset.toLowerCase();
       if (presetLower === 'today') {
         start = new Date(today);

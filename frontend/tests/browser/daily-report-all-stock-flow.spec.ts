@@ -112,7 +112,100 @@ test.describe('Daily Production Report E2E Flow', () => {
 
     await expect(prodInCell).toContainText('25');
     await expect(availStockCell).toContainText('25');
+    console.log('Verified All Stock: Production In = +25, Available Stock = 25');
 
-    console.log('E2E Production Stock Update Flow successfully verified!');
+    // 5. Navigate to Daily Report History page
+    console.log('Navigating to Daily Report History page...');
+    await page.goto('/production/daily-report/history');
+    await page.waitForTimeout(2000);
+
+    // Verify history table contains the submitted report with 25 sets
+    const historyRow = page.locator('tbody tr').filter({ hasText: 'E2E Supervisor' }).first();
+    await expect(historyRow).toBeVisible();
+    await expect(historyRow).toContainText('SUBMITTED');
+    await expect(historyRow.locator('td').nth(7)).toContainText('25');
+    console.log('Verified Daily Report History row contains SUBMITTED and 25 sets!');
+
+    // 6. Test Inspect Modal (Read Only)
+    console.log('Opening inspection detail modal...');
+    await historyRow.locator('button[title*="Inspect Details"]').click();
+    const modal = page.locator('div[style*="max-width: 900px"], div[style*="maxWidth: 900px"]').first();
+    await expect(modal).toBeVisible();
+    await expect(modal).toContainText('HIMALAYA FRP WGC 600X900 LD');
+    await modal.getByRole('button', { name: 'Close' }).click();
+    await expect(modal).toBeHidden();
+    console.log('Detail inspection modal verified!');
+
+    // 7. Test Reopen Action from History (Reverses Stock)
+    console.log('Clicking Reopen Report button on History row...');
+    await historyRow.locator('button[title*="Reopen Report"]').click();
+    const reopenConfirmBtn = page.locator('.swal2-popup.swal2-icon-warning .swal2-confirm');
+    await reopenConfirmBtn.waitFor({ state: 'visible' });
+    await reopenConfirmBtn.click();
+
+    const reopenSuccessBtn = page.locator('.swal2-popup.swal2-icon-success .swal2-confirm');
+    await reopenSuccessBtn.waitFor({ state: 'visible' });
+    await reopenSuccessBtn.click();
+    console.log('Report reopened successfully!');
+
+    // Verify status changed to REOPENED in History table
+    await expect(historyRow).toContainText('REOPENED');
+
+    // 8. Verify All Stock is reversed back to 0
+    console.log('Verifying stock reversal in All Stock view...');
+    await page.goto('/production/all-stock');
+    const stockRowAfterReopen = page.locator('tbody tr', { hasText: 'HIMALAYAFRPWGC600X900LD' });
+    await expect(stockRowAfterReopen).toBeVisible();
+    await expect(stockRowAfterReopen.locator('td').nth(3)).toContainText('0');
+    await expect(stockRowAfterReopen.locator('td').nth(5)).toContainText('0');
+    console.log('Verified stock reversed to 0 in All Stock view!');
+
+    // 9. Navigate back to History and click Edit on the REOPENED report
+    console.log('Navigating back to History to click Edit...');
+    await page.goto('/production/daily-report/history');
+    await page.waitForTimeout(2000);
+    const reopenedHistoryRow = page.locator('tbody tr').filter({ hasText: 'E2E Supervisor' }).first();
+    await reopenedHistoryRow.locator('button[title*="Edit Report"]').click();
+
+    // 10. Verify Edit form is loaded with existing quantities, update to 30 sets and submit
+    console.log('Updating report quantities from 25 to 30 sets...');
+    await page.waitForTimeout(2000);
+    const editFirstRowInputs = page.locator('tbody tr').first().locator('input[type="number"]');
+    await editFirstRowInputs.nth(0).fill('30');
+    await editFirstRowInputs.nth(2).fill('30');
+
+    const updatedSetCell = page.locator('tbody tr').first().locator('td').nth(10);
+    await expect(updatedSetCell).toContainText('30');
+
+    console.log('Submitting updated report...');
+    await page.getByRole('button', { name: 'Submit Daily Report' }).click();
+    const editSubmitConfirm = page.locator('.swal2-popup.swal2-icon-question .swal2-confirm, .swal2-confirm');
+    await editSubmitConfirm.waitFor({ state: 'visible' });
+    await editSubmitConfirm.click();
+
+    const editSubmitSuccess = page.locator('.swal2-popup.swal2-icon-success .swal2-confirm');
+    await editSubmitSuccess.waitFor({ state: 'visible' });
+    await editSubmitSuccess.click();
+    console.log('Updated report submitted successfully!');
+
+    // 11. Verify All Stock now reflects 30 sets
+    console.log('Verifying updated stock in All Stock view...');
+    await page.goto('/production/all-stock');
+    const finalStockRow = page.locator('tbody tr', { hasText: 'HIMALAYAFRPWGC600X900LD' });
+    await expect(finalStockRow).toBeVisible();
+    await expect(finalStockRow.locator('td').nth(3)).toContainText('30');
+    await expect(finalStockRow.locator('td').nth(5)).toContainText('30');
+    console.log('Verified All Stock now shows Production In = +30, Available Stock = 30!');
+
+    // 12. Verify History page shows SUBMITTED with 30 sets
+    console.log('Verifying History page shows 30 sets and SUBMITTED...');
+    await page.goto('/production/daily-report/history');
+    await page.waitForTimeout(2000);
+    const finalHistoryRow = page.locator('tbody tr').filter({ hasText: 'E2E Supervisor' }).first();
+    await expect(finalHistoryRow).toBeVisible();
+    await expect(finalHistoryRow).toContainText('SUBMITTED');
+    await expect(finalHistoryRow.locator('td').nth(7)).toContainText('30');
+
+    console.log('Full Daily Report -> History -> Reopen Reversal -> Edit -> Resubmit -> All Stock pipeline completely verified!');
   });
 });

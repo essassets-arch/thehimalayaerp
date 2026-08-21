@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
 import Swal from 'sweetalert2';
 import {
@@ -23,7 +24,8 @@ import {
   X,
   Lock,
   FileText,
-  Download
+  Download,
+  Trash2
 } from 'lucide-react';
 
 export default function DailyReportHistoryView({
@@ -37,6 +39,7 @@ export default function DailyReportHistoryView({
   onEditReport,
   onViewReport
 }) {
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState([]);
 
@@ -79,7 +82,7 @@ export default function DailyReportHistoryView({
       if (statusFilter !== 'All') params.set('status', statusFilter);
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
 
-      const res = await backendFetch(`${baseApiUrl}?${params.toString()}`);
+      const res = await backendFetch(`${baseApiUrl}?${params.toString()}`, { cacheTtlMs: 0 });
       if (res) {
         setReports(res.items || []);
         setTotal(res.total || 0);
@@ -91,7 +94,7 @@ export default function DailyReportHistoryView({
     } finally {
       setLoading(false);
     }
-  }, [page, limit, preset, startDate, endDate, shiftFilter, statusFilter, searchQuery]);
+  }, [baseApiUrl, page, limit, preset, startDate, endDate, shiftFilter, statusFilter, searchQuery]);
 
   useEffect(() => {
     fetchHistory();
@@ -100,7 +103,7 @@ export default function DailyReportHistoryView({
   const openReportModal = async (reportId) => {
     try {
       setLoadingModalDetail(true);
-      const data = await backendFetch(`${baseApiUrl}/${reportId}`);
+      const data = await backendFetch(`${baseApiUrl}/${reportId}`, { cacheTtlMs: 0 });
       setSelectedReportModal(data);
     } catch (err) {
       console.error('[DailyReportHistory] Error opening detail modal:', err);
@@ -189,14 +192,55 @@ export default function DailyReportHistoryView({
     };
   }, [reports]);
 
+  const handleReopenReport = async (reportId) => {
+    const confirm = await Swal.fire({
+      title: 'Reopen Daily Production Report?',
+      text: 'This will reverse the finished goods stock posted from this report in the inventory ledger and return the report to REOPENED so it can be edited.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#2563eb',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, Reopen Report',
+      cancelButtonText: 'No, Keep Submitted'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setLoading(true);
+      const res = await backendFetch(`${baseApiUrl}/${reportId}/reopen`, {
+        method: 'POST'
+      });
+      if (res) {
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        Swal.fire({
+          icon: 'success',
+          title: 'Report Reopened',
+          text: `Daily Report ${res.reportNo} reopened and posted stock reversed successfully.`
+        });
+        fetchHistory();
+      }
+    } catch (err) {
+      console.error('[DailyReportHistory] Reopen Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Reopen Failed',
+        text: err.message || 'Unable to reopen report'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCancelReport = async (reportId) => {
     const confirm = await Swal.fire({
       title: 'Cancel Daily Report?',
-      text: 'This will reverse the associated stock changes. Stock cannot become negative.',
+      text: 'This will reverse the associated stock changes in the finished goods ledger. Stock cannot become negative.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
+      cancelButtonColor: '#64748b',
       confirmButtonText: 'Yes, Cancel Report',
       cancelButtonText: 'No, Keep Report'
     });
@@ -209,6 +253,8 @@ export default function DailyReportHistoryView({
         method: 'POST'
       });
       if (res) {
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
         Swal.fire({
           icon: 'success',
           title: 'Report Cancelled',
@@ -222,6 +268,43 @@ export default function DailyReportHistoryView({
         icon: 'error',
         title: 'Cancellation Failed',
         text: err.message || 'Unable to cancel report'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteReport = async (reportId) => {
+    const confirm = await Swal.fire({
+      title: 'Delete Draft Report?',
+      text: 'This draft report will be permanently removed.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, Delete Draft',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setLoading(true);
+      await backendFetch(`${baseApiUrl}/${reportId}`, {
+        method: 'DELETE'
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'Draft Deleted',
+        text: 'Draft production report removed.'
+      });
+      fetchHistory();
+    } catch (err) {
+      console.error('[DailyReportHistory] Delete Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Delete Failed',
+        text: err.message || 'Unable to delete draft'
       });
     } finally {
       setLoading(false);
@@ -561,6 +644,7 @@ export default function DailyReportHistoryView({
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Report No</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Date</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Shift</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Supervisor</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Rows</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Covers</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frames</th>
@@ -574,13 +658,13 @@ export default function DailyReportHistoryView({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
                     Loading production history records...
                   </td>
                 </tr>
               ) : reports.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
                     No production reports found matching current filters.
                   </td>
                 </tr>
@@ -626,6 +710,11 @@ export default function DailyReportHistoryView({
                       {/* Shift */}
                       <td style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>
                         {report.shift || 'Morning'}
+                      </td>
+
+                      {/* Supervisor */}
+                      <td style={{ padding: '12px 16px', fontWeight: '600', color: '#334155' }}>
+                        {report.supervisorName || '—'}
                       </td>
 
                       {/* Rows */}
@@ -678,11 +767,22 @@ export default function DailyReportHistoryView({
                           {!isReadOnly && (report.status === 'DRAFT' || report.status === 'REOPENED') && onEditReport && (
                             <button
                               type="button"
-                              title="Edit Draft Report"
+                              title="Edit Report"
                               onClick={() => onEditReport(report.id)}
                               style={{ background: 'rgba(245, 158, 11, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#d97706', cursor: 'pointer' }}
                             >
                               <Edit size={14} />
+                            </button>
+                          )}
+
+                          {!isReadOnly && (report.status === 'SUBMITTED' || report.status === 'APPROVED') && (
+                            <button
+                              type="button"
+                              title="Reopen Report (Reverses Stock & Allows Edit)"
+                              onClick={() => handleReopenReport(report.id)}
+                              style={{ background: 'rgba(37, 99, 235, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#2563eb', cursor: 'pointer' }}
+                            >
+                              <RefreshCw size={14} />
                             </button>
                           )}
 
@@ -694,6 +794,17 @@ export default function DailyReportHistoryView({
                               style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#dc2626', cursor: 'pointer' }}
                             >
                               <X size={14} />
+                            </button>
+                          )}
+
+                          {!isReadOnly && report.status === 'DRAFT' && (
+                            <button
+                              type="button"
+                              title="Delete Draft"
+                              onClick={() => handleDeleteReport(report.id)}
+                              style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#dc2626', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={14} />
                             </button>
                           )}
 
@@ -962,44 +1073,113 @@ export default function DailyReportHistoryView({
                 <Printer size={15} /> Printable Page
               </button>
 
-              {!isReadOnly && (selectedReportModal.status === 'SUBMITTED' || selectedReportModal.status === 'APPROVED') && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {!isReadOnly && (selectedReportModal.status === 'DRAFT' || selectedReportModal.status === 'REOPENED') && onEditReport && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const id = selectedReportModal.id;
+                      setSelectedReportModal(null);
+                      onEditReport(id);
+                    }}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Edit Report
+                  </button>
+                )}
+
+                {!isReadOnly && (selectedReportModal.status === 'SUBMITTED' || selectedReportModal.status === 'APPROVED') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleReopenReport(selectedReportModal.id);
+                      setSelectedReportModal(null);
+                    }}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Reopen Report
+                  </button>
+                )}
+
+                {!isReadOnly && (selectedReportModal.status === 'SUBMITTED' || selectedReportModal.status === 'APPROVED') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCancelReport(selectedReportModal.id);
+                      setSelectedReportModal(null);
+                    }}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel Report
+                  </button>
+                )}
+
+                {!isReadOnly && selectedReportModal.status === 'DRAFT' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDeleteReport(selectedReportModal.id);
+                      setSelectedReportModal(null);
+                    }}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Delete Draft
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => {
-                    handleCancelReport(selectedReportModal.id);
-                    setSelectedReportModal(null);
-                  }}
+                  onClick={() => setSelectedReportModal(null)}
                   style={{
                     padding: '9px 18px',
                     borderRadius: '8px',
-                    border: 'none',
-                    background: '#dc2626',
-                    color: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
                     fontSize: '13px',
                     fontWeight: '700',
                     cursor: 'pointer'
                   }}
                 >
-                  Cancel Report
+                  Close
                 </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setSelectedReportModal(null)}
-                style={{
-                  padding: '9px 18px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#475569',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                Close
-              </button>
+              </div>
             </div>
 
           </div>
