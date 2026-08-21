@@ -189,6 +189,7 @@ function CreatePaymentForm() {
                 customerName: String(customerName || 'today new lead'),
                 amount: Number(amountReceived),
                 paymentMode: paymentMode,
+                method: paymentMode,
                 transactionReference: referenceNumber,
                 remarks: remarks,
                 proofUrl: proofUrl
@@ -370,7 +371,7 @@ function CreatePaymentForm() {
 
                     {/* 2. Transaction Inputs */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-                        <div className="form-group" style={{ display: 'none' }}>
+                        <div className="form-group">
                             <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Payment Mode *</label>
                             <select 
                                 value={paymentMode}
@@ -401,7 +402,7 @@ function CreatePaymentForm() {
                             />
                         </div>
 
-                        <div className="form-group" style={{ display: 'none' }}>
+                        <div className="form-group">
                             <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Transaction Ref / UTR No *</label>
                             <input 
                                 type="text"
@@ -414,7 +415,7 @@ function CreatePaymentForm() {
                             />
                         </div>
 
-                        <div className="form-group" style={{ display: 'none' }}>
+                        <div className="form-group">
                             <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Payment Date *</label>
                             <input 
                                 type="date"
@@ -426,7 +427,7 @@ function CreatePaymentForm() {
                             />
                         </div>
 
-                        <div className="form-group" style={{ display: 'none' }}>
+                        <div className="form-group">
                             <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Bank Name / Branch</label>
                             <input 
                                 type="text"

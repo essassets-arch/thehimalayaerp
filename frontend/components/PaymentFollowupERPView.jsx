@@ -349,6 +349,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
           customerId: order.customerId || 'unknown',
           amount: Number(formValues.amount),
           proofUrl: proofUrl,
+          method: formValues.mode,
+          transactionReference: formValues.ref,
+          remarks: formValues.remarks,
         };
 
         await backendFetch('/api/backend/finance/payments/sales-record', {
