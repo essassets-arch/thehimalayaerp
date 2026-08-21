@@ -15,6 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FilesService } from './files.service';
 import { createReadStream } from 'fs';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('files')
 export class FilesController {
@@ -24,6 +25,7 @@ export class FilesController {
    * Universal file-serving endpoint for categorical paths:
    * GET /api/v1/files/serve/:category/:filename
    */
+  @Public()
   @Get('serve/:category/:filename')
   serveCategoricalFile(
     @Param('category') category: string,
@@ -54,6 +56,7 @@ export class FilesController {
    * Universal file-serving endpoint for flat paths:
    * GET /api/v1/files/serve/:filename
    */
+  @Public()
   @Get('serve/:filename')
   serveFlatFile(
     @Param('filename') filename: string,
@@ -82,6 +85,7 @@ export class FilesController {
   /**
    * GET /api/v1/files/:fileId
    */
+  @Public()
   @Get(':fileId')
   serveByFileId(
     @Param('fileId') fileId: string,

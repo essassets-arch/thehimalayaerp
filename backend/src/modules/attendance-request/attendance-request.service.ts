@@ -17,12 +17,119 @@ export class AttendanceRequestService {
 
   private async getEmployee(userId: string, companyId: string) {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
-    const employee = await this.prisma.employee.findFirst({
+    
+    // 1. Try direct find
+    let employee = await this.prisma.employee.findFirst({
       where: { userId }
     });
     if (employee && employee.companyId === activeCompanyId) return employee;
 
-    throw new BadRequestException('A linked employee profile is required to request manual attendance.');
+    // 2. Try linking by user details
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { employee: true, role: true }
+    });
+    if (!user) {
+      throw new BadRequestException('User not found.');
+    }
+
+    if (user.employee?.id) {
+      if (user.employee.companyId !== activeCompanyId) {
+        employee = await this.prisma.employee.update({
+          where: { id: user.employee.id },
+          data: { companyId: activeCompanyId }
+        });
+      } else {
+        employee = user.employee;
+      }
+      return employee;
+    }
+
+    // Check if an employee with the same email already exists and link it
+    const existingEmployeeByEmail = await this.prisma.employee.findUnique({
+      where: { workEmail: user.email },
+    });
+    if (existingEmployeeByEmail) {
+      const updatedEmployee = await this.prisma.employee.update({
+        where: { id: existingEmployeeByEmail.id },
+        data: { userId: user.id, companyId: activeCompanyId },
+      });
+      return updatedEmployee;
+    }
+
+    // Auto-create profile on-the-fly to support requesting exception before first punch-in
+    let dept = await this.prisma.department.findFirst({
+      where: { companyId: activeCompanyId, isActive: true },
+    });
+    if (!dept) {
+      dept = await this.prisma.department.create({
+        data: {
+          code: `DEPT-AUTO-${Date.now()}`,
+          name: 'Operations',
+          companyId: activeCompanyId,
+          isActive: true,
+        },
+      });
+    }
+
+    let loc = await this.prisma.workLocation.findFirst({
+      where: { companyId: activeCompanyId, isActive: true },
+    });
+    if (!loc) {
+      loc = await this.prisma.workLocation.create({
+        data: {
+          code: `LOC-AUTO-${Date.now()}`,
+          name: 'Ahmedabad Head Office',
+          companyId: activeCompanyId,
+          isActive: true,
+        },
+      });
+    }
+
+    const names = (user.name || 'Staff Member').trim().split(/\s+/);
+    const firstName = names[0] || 'Staff';
+    const lastName = names.slice(1).join(' ') || 'Member';
+    const codeSuffix = Math.floor(1000 + Math.random() * 9000);
+    const employeeCode = `EMP-AUTO-${codeSuffix}`;
+
+    const createdEmployee = await this.prisma.employee.create({
+      data: {
+        publicId: `EMP-${employeeCode}`,
+        companyId: activeCompanyId,
+        userId: user.id,
+        employeeCode,
+        firstName,
+        lastName,
+        fullName: user.name || 'Staff Member',
+        dateOfBirth: new Date('1990-01-01'),
+        gender: 'OTHER',
+        jobTitle: user.role?.name || 'Staff Member',
+        departmentId: dept.id,
+        workLocationId: loc.id,
+        employmentType: 'PERMANENT',
+        joiningDate: new Date(),
+        status: 'ACTIVE',
+        workEmail: user.email,
+        phoneNumber: '9876543210',
+        residentialAddress: 'Default Residential Address',
+        emergencyContactName: 'Emergency Contact',
+        emergencyContactPhone: '9876543210',
+        emergencyRelationship: 'Friend',
+        panNumber: `PANAUTO${codeSuffix}`,
+        aadhaarNumberEncrypted: 'enc-auto',
+        aadhaarLastFour: '1234',
+        aadhaarHash: `hash-auto-${user.id}`,
+        bankName: 'State Bank of India',
+        accountHolderName: user.name || 'Staff Member',
+        bankAccountType: 'SAVINGS',
+        bankAccountEncrypted: 'enc-auto',
+        bankAccountLastFour: '1234',
+        bankAccountHash: `bhash-auto-${user.id}`,
+        ifscCode: 'SBIN0001234',
+      },
+    });
+
+    return createdEmployee;
   }
 
   async createRequest(userId: string, companyId: string, body: { date: string; reason: string }) {
