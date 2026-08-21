@@ -178,14 +178,7 @@ export default function DailyReportEntryView({
     if (!d || !s) return;
     try {
       const res = await backendFetch(`${baseApiUrl}/check-duplicate?date=${d}&shift=${s}`, { cacheTtlMs: 0 });
-      if (res?.exists && res?.report?.id !== currentReportId) {
-        Swal.fire({
-          icon: 'info',
-          title: 'Existing Report Loaded',
-          text: `A production report (${res.report.reportNo}) already exists for ${d} [${s} shift] and has been loaded.`,
-          timer: 3000,
-          showConfirmButton: false
-        });
+      if (res?.exists && res?.report?.id && res?.report?.id !== currentReportId) {
         fetchReport(res.report.id);
       }
     } catch {
@@ -201,8 +194,10 @@ export default function DailyReportEntryView({
     const editId = reportId || searchParams?.get('edit') || searchParams?.get('id');
     if (editId) {
       fetchReport(editId);
+    } else {
+      checkDuplicateReport(reportDate, shift);
     }
-  }, [reportId, searchParams, fetchReport]);
+  }, [reportId, searchParams, reportDate, shift, fetchReport, checkDuplicateReport]);
 
   // Recalculate Row Values
   const calculateRowValues = (row) => {
@@ -809,16 +804,19 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                          err.message?.toLowerCase().includes('conflict');
       if (isConflict) {
         try {
-          const check = await backendFetch(`${baseApiUrl}/check-duplicate?date=${reportDate}&shift=${shift}`);
-          if (check?.exists) {
-            Swal.fire({
-              icon: 'info',
-              title: 'Conflict Resolved',
-              text: 'Another session created this report. Loading the existing report details...',
-              timer: 3000,
-              showConfirmButton: false
+          const check = await backendFetch(`${baseApiUrl}/check-duplicate?date=${reportDate}&shift=${shift}`, { cacheTtlMs: 0 });
+          if (check?.exists && check?.report?.id) {
+            const result = await Swal.fire({
+              icon: 'warning',
+              title: 'Report Already Exists',
+              text: `A production report (${check.report.reportNo}) already exists for ${reportDate} [${shift} shift] with status '${check.report.status}'. Would you like to load this report?`,
+              showCancelButton: true,
+              confirmButtonText: 'Yes, Load Existing Report',
+              cancelButtonText: 'Cancel'
             });
-            fetchReport(check.report.id);
+            if (result.isConfirmed) {
+              fetchReport(check.report.id);
+            }
             return;
           }
         } catch (checkErr) {
@@ -936,16 +934,19 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                          err.message?.toLowerCase().includes('conflict');
       if (isConflict) {
         try {
-          const check = await backendFetch(`${baseApiUrl}/check-duplicate?date=${reportDate}&shift=${shift}`);
-          if (check?.exists) {
-            Swal.fire({
-              icon: 'info',
-              title: 'Conflict Resolved',
-              text: 'Another session created this report. Loading the existing report details...',
-              timer: 3000,
-              showConfirmButton: false
+          const check = await backendFetch(`${baseApiUrl}/check-duplicate?date=${reportDate}&shift=${shift}`, { cacheTtlMs: 0 });
+          if (check?.exists && check?.report?.id) {
+            const result = await Swal.fire({
+              icon: 'warning',
+              title: 'Report Already Exists',
+              text: `A production report (${check.report.reportNo}) already exists for ${reportDate} [${shift} shift] with status '${check.report.status}'. Would you like to load and view/edit this report?`,
+              showCancelButton: true,
+              confirmButtonText: 'Yes, Load Existing Report',
+              cancelButtonText: 'Cancel'
             });
-            fetchReport(check.report.id);
+            if (result.isConfirmed) {
+              fetchReport(check.report.id);
+            }
             return;
           }
         } catch (checkErr) {

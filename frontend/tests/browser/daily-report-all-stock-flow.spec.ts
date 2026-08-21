@@ -52,6 +52,12 @@ test.describe('Daily Production Report E2E Flow', () => {
     await page.goto('/production/daily-report');
     await page.waitForTimeout(3000); // Wait for hydration to complete
 
+    // Set a clean, dedicated date to guarantee testing fresh new report creation
+    const testDate = '2026-09-15';
+    console.log(`Setting unique report date to ${testDate}...`);
+    await page.locator('input[type="date"]').fill(testDate);
+    await page.waitForTimeout(500);
+
     // Fill supervisor name
     console.log('Filling supervisor name...');
     await page.locator('input[placeholder="e.g. Ravi Sharma"]').fill('E2E Supervisor');
@@ -97,6 +103,47 @@ test.describe('Daily Production Report E2E Flow', () => {
     await successConfirmButton.click();
     console.log('Report submitted successfully!');
 
+    // 3b. DIRECT POSTGRESQL DATABASE ASSERTIONS
+    console.log('Directly querying PostgreSQL to verify persisted records & ledger entries...');
+    const prisma = new PrismaClient({
+      datasources: { db: { url: PG_DATABASE_URL } }
+    });
+    try {
+      const dbReport = await prisma.productionDailyReport.findFirst({
+        where: { shift: 'Morning' },
+        include: { items: true }
+      });
+      expect(dbReport).not.toBeNull();
+      expect(dbReport?.status).toBe('SUBMITTED');
+      expect(dbReport?.items.length).toBeGreaterThan(0);
+      expect(dbReport?.items[0].setQty).toBe(25);
+      expect(dbReport?.items[0].coverQty).toBe(25);
+      expect(dbReport?.items[0].frameQty).toBe(25);
+      console.log('Database verified: ProductionDailyReport status = SUBMITTED, Item setQty = 25');
+
+      const targetProductId = dbReport?.items[0].productId!;
+      const dbFinishedGoods = await prisma.finishedGoods.findFirst({
+        where: { productId: targetProductId }
+      });
+      expect(dbFinishedGoods).not.toBeNull();
+      expect(Number(dbFinishedGoods?.quantity)).toBe(25);
+      expect(Number(dbFinishedGoods?.availableQuantity)).toBe(25);
+      console.log('Database verified: FinishedGoods quantity = 25, availableQuantity = 25');
+
+      const dbStockHistory = await prisma.stockHistory.findFirst({
+        where: {
+          productId: targetProductId,
+          event: 'PRODUCTION_IN'
+        }
+      });
+      expect(dbStockHistory).not.toBeNull();
+      expect(Number(dbStockHistory?.quantity)).toBe(25);
+      expect(dbStockHistory?.sourceType).toBe('PRODUCTION_REPORT');
+      console.log('Database verified: StockHistory PRODUCTION_IN quantity = +25, sourceType = PRODUCTION_REPORT');
+    } finally {
+      await prisma.$disconnect();
+    }
+
     // 4. Navigate to All Stock page
     console.log('Navigating to All Stock view...');
     await page.goto('/production/all-stock');
@@ -113,6 +160,15 @@ test.describe('Daily Production Report E2E Flow', () => {
     await expect(prodInCell).toContainText('25');
     await expect(availStockCell).toContainText('25');
     console.log('Verified All Stock: Production In = +25, Available Stock = 25');
+
+    // 4b. Verify reload does not duplicate stock
+    console.log('Reloading All Stock page to verify idempotency / no double-counting...');
+    await page.reload();
+    const reloadedRow = page.locator('tbody tr', { hasText: 'HIMALAYAFRPWGC600X900LD' });
+    await expect(reloadedRow).toBeVisible();
+    await expect(reloadedRow.locator('td').nth(3)).toContainText('25');
+    await expect(reloadedRow.locator('td').nth(5)).toContainText('25');
+    console.log('Verified All Stock reload idempotency: still 25!');
 
     // 5. Navigate to Daily Report History page
     console.log('Navigating to Daily Report History page...');

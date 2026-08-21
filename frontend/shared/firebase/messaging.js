@@ -113,15 +113,19 @@ export const initializePushNotifications = async () => {
     const validateVapidKey = (value) => {
       const key = value?.trim().replace(/^['"]|['"]$/g, ''); // strip any accidental quotes
       if (!key || key === 'undefined' || key === 'null') {
-        throw new Error("NEXT_PUBLIC_FIREBASE_VAPID_KEY is missing or invalid");
+        return null;
       }
       if (!/^[A-Za-z0-9_-]+$/.test(key)) {
-        throw new Error("NEXT_PUBLIC_FIREBASE_VAPID_KEY contains invalid Base64URL characters");
+        console.warn("[Firebase Client] NEXT_PUBLIC_FIREBASE_VAPID_KEY contains invalid characters. Push notifications disabled.");
+        return null;
       }
       return key;
     };
 
     const cleanVapidKey = validateVapidKey(VAPID_KEY);
+    if (!cleanVapidKey) {
+      return;
+    }
 
     // 3. Fetch FCM token
     const fcmToken = await getToken(messagingInstance, {
