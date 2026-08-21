@@ -200,6 +200,11 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
     try {
       const loc = await this.locationService.updateLocation(user.userId, user.companyId, dto);
 
+      if (loc?.isSuspiciousJump) {
+        this.logger.warn(`Filtered suspicious jump broadcast for user ${user.userId}`);
+        return { success: true, filtered: true, message: 'Suspicious GPS jump filtered' };
+      }
+
       const roomName = `company:${user.companyId}:live-users`;
       const payload = {
         userId: user.userId,

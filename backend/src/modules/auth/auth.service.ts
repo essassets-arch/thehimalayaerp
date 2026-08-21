@@ -122,6 +122,12 @@ export class AuthService {
       });
     }
 
+    // Auto-provision canonical default permissions for the role
+    const permissions = await this.usersService.ensureDefaultPermissions(
+      user.role.id,
+      user.role.code,
+    );
+
     const tokens = await this.getTokens(
       user.id,
       user.email,
@@ -133,10 +139,6 @@ export class AuthService {
       tokens.refreshToken,
       ipAddress,
       userAgent,
-    );
-
-    const permissions = user.role.rolePermissions.map(
-      (rp) => rp.permission.code,
     );
 
     return {

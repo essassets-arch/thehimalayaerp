@@ -57,20 +57,44 @@ export class PaymentFollowupEngineService implements OnApplicationBootstrap, OnM
   }
 
   private scheduleNextMidnightScan() {
+    const timezone = process.env.APP_TIMEZONE || 'Asia/Kolkata';
     const now = new Date();
-    const nextRun = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 1, 0, 0); // 00:01:00 AM next day
-    const msUntilNext = Math.max(1000, nextRun.getTime() - now.getTime());
+    
+    // Get current date parts in configured business timezone
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour12: false,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    });
+    const parts = dtf.formatToParts(now);
+    const partMap: Record<string, number> = {};
+    for (const p of parts) {
+      if (p.type !== 'literal') partMap[p.type] = parseInt(p.value, 10);
+    }
 
-    this.logger.log(`Next scheduled daily payment follow-up scan in ${Math.round(msUntilNext / 60000)} minutes (${nextRun.toISOString()})`);
+    const currentHour = partMap.hour || 0;
+    const currentMinute = partMap.minute || 0;
+    const currentSecond = partMap.second || 0;
+
+    // Seconds until next midnight (00:01:00)
+    const secondsPassedToday = currentHour * 3600 + currentMinute * 60 + currentSecond;
+    const targetSeconds = 24 * 3600 + 60; // 00:01:00 AM next day
+    const secondsUntilMidnight = targetSeconds - secondsPassedToday;
+    const msUntilNext = Math.max(5000, secondsUntilMidnight * 1000);
+
+    this.logger.log(`[Scheduler Timezone: ${timezone}] Next scheduled daily payment follow-up scan in ${Math.round(msUntilNext / 60000)} minutes`);
 
     this.dailyTimer = setTimeout(() => {
-      this.runDailyFollowUpScan()
-        .catch((err) => {
-          this.logger.error(`Scheduled midnight daily payment scan failed: ${err?.message || err}`);
-        })
-        .finally(() => {
-          this.scheduleNextMidnightScan();
-        });
+      this.runDailyFollowUpScan().catch((err) => {
+        this.logger.error(`Scheduled daily payment scan failed: ${err?.message || err}`);
+      });
+      // Re-schedule for following midnight
+      this.scheduleNextMidnightScan();
     }, msUntilNext);
   }
 
@@ -349,15 +373,21 @@ export class PaymentFollowupEngineService implements OnApplicationBootstrap, OnM
    * for fully paid orders, and generates idempotent multi-channel notifications.
    */
   public async runDailyFollowUpScan(companyId?: string, targetDate?: Date, forceScan = false) {
+    const timezone = process.env.APP_TIMEZONE || 'Asia/Kolkata';
     const today = targetDate || new Date();
-    const todayDateKey = today.toISOString().split('T')[0];
+    const todayDateKey = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(today);
     const scanLockKey = `SCAN:${companyId || 'GLOBAL'}:${todayDateKey}`;
 
-    // Distributed multi-instance lock: Check if today's scan has already run
+    // Distributed multi-instance lock: Check if today's scan has already run or is running
     if (!forceScan) {
       const alreadyExecuted = await this.prisma.auditLog.findFirst({
         where: {
-          action: 'DAILY_PAYMENT_SCAN_COMPLETED',
+          action: { in: ['DAILY_PAYMENT_SCAN_COMPLETED', 'DAILY_PAYMENT_SCAN_RUNNING'] },
           entityType: 'SystemScheduler',
           entityId: scanLockKey,
         },
@@ -372,6 +402,17 @@ export class PaymentFollowupEngineService implements OnApplicationBootstrap, OnM
           date: todayDateKey,
         };
       }
+
+      // Atomically reserve the execution lock for this instance
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: 'SYSTEM_SCHEDULER',
+          action: 'DAILY_PAYMENT_SCAN_RUNNING',
+          entityType: 'SystemScheduler',
+          entityId: scanLockKey,
+          companyId: companyId || undefined,
+        },
+      }).catch(() => null);
     }
 
     this.logger.log(`Starting daily payment follow-up scan for date ${todayDateKey}...`);

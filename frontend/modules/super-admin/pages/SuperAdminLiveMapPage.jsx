@@ -396,14 +396,24 @@ export default function SuperAdminLiveMapPage() {
   // 1. Fetch live users snapshot (REST)
   const fetchSnapshot = useCallback(async () => {
     try {
-      const data = await backendFetch('/super-admin/live-users');
+      let data = await backendFetch('/super-admin/live-users');
+      if (!data || !Array.isArray(data)) {
+        data = await backendFetch('/location/live-users');
+      }
       setUsersData(data || []);
       setLoading(false);
       return data || [];
     } catch (err) {
-      console.error('Error fetching live users snapshot:', err);
-      setLoading(false);
-      return [];
+      try {
+        const data = await backendFetch('/location/live-users');
+        setUsersData(data || []);
+        setLoading(false);
+        return data || [];
+      } catch (fallbackErr) {
+        console.error('Error fetching live users snapshot:', fallbackErr);
+        setLoading(false);
+        return [];
+      }
     }
   }, []);
 

@@ -237,14 +237,10 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         (res: any) => {
           if (res?.success && res.sessionId) {
             setSessionId(res.sessionId);
-            
-            // Check if policy has been accepted already
-            const accepted = window.localStorage.getItem('himalaya_location_policy_accepted');
-            if (accepted === 'true') {
-              startTracking();
-            } else {
-              setShowNotice(true);
-            }
+            startTracking();
+          } else if (res?.sessionId) {
+            setSessionId(res.sessionId);
+            startTracking();
           }
         }
       );

@@ -148,13 +148,24 @@ export class LocationService {
   }
 
   /**
-   * Save coordinates, updating LatestUserLocation and lastSeenAt
+   * Save coordinates, updating LatestUserLocation and lastSeenAt with validation and sanity filtering
    */
   async updateLocation(
     userId: string,
     companyId: string,
     dto: UpdateLocationDto,
   ): Promise<any> {
+    // 1. Strict Coordinate Bounds & Accuracy Validation
+    if (dto.latitude < -90 || dto.latitude > 90) {
+      throw new BadRequestException('Invalid latitude coordinate: must be between -90 and 90');
+    }
+    if (dto.longitude < -180 || dto.longitude > 180) {
+      throw new BadRequestException('Invalid longitude coordinate: must be between -180 and 180');
+    }
+    if (dto.accuracy !== null && dto.accuracy !== undefined && dto.accuracy <= 0) {
+      throw new BadRequestException('GPS accuracy must be a positive number');
+    }
+
     const session = await this.prisma.deviceSession.findUnique({
       where: { sessionId: dto.sessionId },
     });
@@ -164,14 +175,20 @@ export class LocationService {
     }
 
     const now = new Date();
-    const captured = new Date(dto.capturedAt);
+    const captured = new Date(dto.capturedAt || now);
+
+    // Reject timestamps far in future or past
+    const timeDiffMs = captured.getTime() - now.getTime();
+    if (timeDiffMs > 10 * 60 * 1000) {
+      throw new BadRequestException('GPS timestamp cannot be in the future');
+    }
 
     const existingLocation = await this.prisma.latestUserLocation.findUnique({
       where: { deviceSessionId: session.id },
     });
 
     if (existingLocation && captured <= existingLocation.capturedAt) {
-      // Stale coordinate update: skip coordinates write but keep presence/permission active
+      // Stale coordinate update: keep presence active without writing older coordinates
       await this.prisma.deviceSession.update({
         where: { id: session.id },
         data: {
@@ -182,6 +199,42 @@ export class LocationService {
       return existingLocation;
     }
 
+    // 2. Impossible GPS Jump / Teleportation Filter
+    const maxSpeedMps = Number(process.env.MAX_GPS_SPEED_MPS) || 55.5; // ~200 km/h max realistic ground speed
+    if (existingLocation && existingLocation.latitude && existingLocation.longitude) {
+      const distance = this.calculateDistance(
+        Number(existingLocation.latitude),
+        Number(existingLocation.longitude),
+        dto.latitude,
+        dto.longitude,
+      );
+      const elapsedSeconds = Math.max(1, (captured.getTime() - new Date(existingLocation.capturedAt).getTime()) / 1000);
+      const calculatedSpeed = distance / elapsedSeconds;
+
+      // If speed exceeds 200 km/h over more than 500 meters in a short interval, filter as suspicious jump
+      if (distance > 500 && elapsedSeconds < 300 && calculatedSpeed > maxSpeedMps) {
+        this.logger.warn(
+          `[GPS Jump Filtered] Suspicious GPS jump for user ${userId}: moved ${Math.round(distance)}m in ${elapsedSeconds}s (${Math.round(calculatedSpeed * 3.6)} km/h). Rejecting coordinate warping.`,
+        );
+
+        // Keep session heartbeat alive without jumping the marker
+        await this.prisma.deviceSession.update({
+          where: { id: session.id },
+          data: {
+            lastSeenAt: now,
+            locationPermission: 'GRANTED',
+          },
+        });
+
+        return {
+          ...existingLocation,
+          isSuspiciousJump: true,
+          jumpDistanceMeters: Math.round(distance),
+        };
+      }
+    }
+
+    // 3. Persist Validated Coordinates to Database
     const location = await this.prisma.latestUserLocation.upsert({
       where: { deviceSessionId: session.id },
       create: {
@@ -211,7 +264,7 @@ export class LocationService {
       },
     });
 
-    // Sampling location history: protect against poor GPS accuracy
+    // 4. Sampling location history: protect against poor GPS accuracy
     const maxAccuracyThreshold = Number(process.env.LOCATION_HISTORY_MAX_ACCURACY_METERS) || 100;
     const samplingDistanceMeters = Number(process.env.LOCATION_HISTORY_SAMPLING_DISTANCE_METERS) || 20;
     const samplingTimeSeconds = Number(process.env.LOCATION_HISTORY_SAMPLING_TIME_SECONDS) || 60;
@@ -264,7 +317,7 @@ export class LocationService {
       where: { id: session.id },
       data: {
         lastSeenAt: now,
-        locationPermission: 'GRANTED', // Implied granted if sending location
+        locationPermission: 'GRANTED',
       },
     });
 
@@ -338,8 +391,15 @@ export class LocationService {
           status = 'RECENTLY_ACTIVE';
         }
 
+        const heartbeatAgeSeconds = Math.max(0, Math.round((now.getTime() - new Date(ds.lastSeenAt).getTime()) / 1000));
+        let gpsStatus: 'ACTIVE' | 'STALE' | 'UNAVAILABLE' = 'UNAVAILABLE';
+        let gpsAgeSeconds: number | null = null;
+
         let locationData: any = null;
         if (ds.latestLocation) {
+          gpsAgeSeconds = Math.max(0, Math.round((now.getTime() - new Date(ds.latestLocation.capturedAt).getTime()) / 1000));
+          gpsStatus = gpsAgeSeconds <= 120 ? 'ACTIVE' : 'STALE';
+
           locationData = {
             latitude: Number(ds.latestLocation.latitude),
             longitude: Number(ds.latestLocation.longitude),
@@ -348,6 +408,8 @@ export class LocationService {
             heading: ds.latestLocation.heading,
             batteryLevel: ds.latestLocation.batteryLevel,
             capturedAt: ds.latestLocation.capturedAt,
+            gpsAgeSeconds,
+            gpsStatus,
           };
         }
 
@@ -361,6 +423,9 @@ export class LocationService {
           clientType: ds.clientType,
           locationPermission: ds.locationPermission,
           lastSeenAt: ds.lastSeenAt,
+          heartbeatAgeSeconds,
+          gpsStatus,
+          gpsAgeSeconds,
           status,
           location: locationData,
         };
