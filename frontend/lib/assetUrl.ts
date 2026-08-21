@@ -28,24 +28,35 @@ export function getBackendAssetUrl(path?: string | null): string {
   // 4. Clean leading slashes and API prefix duplicates
   cleaned = cleaned.replace(/^\/?(api\/(backend|v1)\/)?/i, '');
 
+  let resolved = '';
+
   // 5. If it points to uploads directory
   if (cleaned.startsWith('uploads/')) {
     const subPath = cleaned.replace(/^uploads\//i, '');
-    return `/api/backend/files/serve/${subPath}`;
+    resolved = `/api/backend/files/serve/${subPath}`;
   }
-
   // 6. If it already points to files/serve
-  if (cleaned.startsWith('files/serve/')) {
-    return `/api/backend/${cleaned}`;
+  else if (cleaned.startsWith('files/serve/')) {
+    resolved = `/api/backend/${cleaned}`;
   }
-
   // 7. If it's a relative path starting with a category or filename
-  if (cleaned.includes('/')) {
-    return `/api/backend/files/serve/${cleaned}`;
+  else if (cleaned.includes('/')) {
+    resolved = `/api/backend/files/serve/${cleaned}`;
+  }
+  // 8. Raw filename or UUID (e.g. 'f9a2e38c.jpg')
+  else {
+    resolved = `/api/backend/files/serve/${cleaned}`;
   }
 
-  // 8. Raw filename or UUID (e.g. 'f9a2e38c.jpg')
-  return `/api/backend/files/serve/${cleaned}`;
+  if (typeof window !== 'undefined') {
+    const token = window.sessionStorage.getItem('token') || window.localStorage.getItem('token');
+    if (token) {
+      const separator = resolved.includes('?') ? '&' : '?';
+      return `${resolved}${separator}token=${encodeURIComponent(token)}`;
+    }
+  }
+
+  return resolved;
 }
 
 export function getFileDownloadUrl(path?: string | null, downloadName?: string): string {
