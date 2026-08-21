@@ -140,7 +140,9 @@ export default function FinishedGoodsStockView({
       .map((item: any) => {
         const quantity = Number(item.quantity ?? 0);
         const availableQuantity = Number(item.availableQuantity ?? item.quantity ?? 0);
-        const reservedQuantity = Math.max(0, quantity - availableQuantity);
+        const reservedQuantity = Number(item.reservedQuantity ?? 0);
+        const openingStock = Number(item.openingStock ?? 0);
+        const productionIn = Number(item.productionIn ?? 0);
 
         const productObj = item.product || item.workOrder?.salesOrderItem?.product;
         const productType = productObj?.productType || item.productType || "MANUFACTURING";
@@ -176,6 +178,8 @@ export default function FinishedGoodsStockView({
           quantity,
           availableQuantity,
           reservedQuantity,
+          openingStock,
+          productionIn,
           unit: (item.unit || item.product?.unit || "PCS").toUpperCase(),
           status: item.status || "AVAILABLE",
           receivedAt: item.receivedAt || item.date || item.createdAt || new Date().toISOString(),

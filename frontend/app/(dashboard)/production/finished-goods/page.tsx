@@ -137,6 +137,7 @@ export default function FinishedGoodsPage() {
       });
       toast.success(`Stock ${adjustType === 'IN' ? 'added (+)' : 'reduced (-)'} successfully!`);
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+      queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
       setIsAdjustModalOpen(false);
     } catch (err) {
       toast.error("Failed to adjust stock quantity");
@@ -160,6 +161,7 @@ export default function FinishedGoodsPage() {
       });
       toast.success("Work Order sent to Dispatch successfully!");
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+      queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
       queryClient.invalidateQueries({ queryKey: ["dispatch-orders"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send to dispatch");
@@ -219,11 +221,13 @@ export default function FinishedGoodsPage() {
 
       toast.success(`Added ${formData.productName} (${formData.quantity} ${isCustomUnitActive ? customUnit : formData.unit}) to Finished Goods Stock!`);
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+      queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
       setIsAddModalOpen(false);
     } catch (err) {
       // Fallback for resilient UI display
       toast.success(`Registered finishing product ${formData.productName} into stock!`);
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+      queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
       setIsAddModalOpen(false);
     } finally {
       setIsSubmitting(false);

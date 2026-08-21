@@ -28,6 +28,8 @@ import {
   Info
 } from 'lucide-react';
 
+import { useQueryClient } from '@tanstack/react-query';
+
 export default function DailyReportEntryView({
   reportId,
   onNavigateToHistory,
@@ -40,6 +42,7 @@ export default function DailyReportEntryView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -784,6 +787,10 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         setStatus(response.status || 'DRAFT');
         setLastUpdated(response.updatedAt);
 
+        // Invalidate finished goods cache
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+
         Swal.fire({
           icon: 'success',
           title: 'Draft Saved',
@@ -907,6 +914,11 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
       if (submitted) {
         setStatus(submitted.status);
         setLastUpdated(submitted.updatedAt);
+
+        // Invalidate finished goods cache
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+
         Swal.fire({
           icon: 'success',
           title: 'Report Submitted',
