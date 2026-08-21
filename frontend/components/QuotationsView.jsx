@@ -1287,12 +1287,13 @@ export default function QuotationsView({
                   <p style={{ margin: '2px 0 0 0', fontStyle: 'italic', fontSize: '11px', color: '#475569' }}>
                     (Formerly known as Akberali Precast Pvt Ltd)
                   </p>
-                  {/* Styled vector cursive signature path */}
-                  <div style={{ height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '15px' }}>
-                    <svg width="100" height="30" viewBox="0 0 100 30" style={{ opacity: 0.85 }}>
-                      <path d="M 8 22 C 20 8, 28 4, 36 18 C 44 26, 48 4, 56 15 C 64 26, 72 18, 88 20" fill="none" stroke="#002e5d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M 24 15 L 72 15" fill="none" stroke="#002e5d" strokeWidth="1.2" strokeLinecap="round" />
-                    </svg>
+                  {/* Authorised Signature Image */}
+                  <div style={{ height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '6px' }}>
+                    <img
+                      src="/himalaya-signature.png"
+                      alt="Authorised Signature"
+                      style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
+                    />
                   </div>
                   <p style={{ margin: 0, fontWeight: '800', fontSize: '12.5px', color: '#1e293b', borderTop: '1px solid #e2e8f0', paddingTop: '4px', display: 'inline-block' }}>
                     Authorised Signatory

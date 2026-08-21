@@ -931,9 +931,10 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
   doc.setFillColor(255, 255, 255);
   doc.ellipse(25, 4, 30, 20, 'F');
 
-  // Try to find the logo and stamp on screen to convert it to a base64 data URL
+  // Try to find the logo, stamp, and signature on screen to convert it to a base64 data URL
   let originalLogoData = null;
   let originalStampData = null;
+  let originalSignatureData = null;
   if (typeof document !== 'undefined') {
     const logoImg = document.querySelector('img[alt="Himalaya Logo"]');
     if (logoImg) {
@@ -959,6 +960,19 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
         originalStampData = canvas.toDataURL('image/png');
       } catch (e) {
         console.error('Error rendering stamp for PDF:', e);
+      }
+    }
+    const sigImg = document.querySelector('img[alt="Authorised Signature"]');
+    if (sigImg) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = sigImg.naturalWidth || sigImg.width || 400;
+        canvas.height = sigImg.naturalHeight || sigImg.height || 200;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(sigImg, 0, 0);
+        originalSignatureData = canvas.toDataURL('image/png');
+      } catch (e) {
+        console.error('Error rendering signature for PDF:', e);
       }
     }
   }
@@ -1258,13 +1272,17 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
   doc.setTextColor(15, 44, 89);
   doc.text('For Himalaya Composites & Precast Pvt Ltd', pageWidth - margin, y + 4, { align: 'right' });
 
-  // Cursive loops signature drawing
-  doc.setDrawColor(0, 46, 93);
-  doc.setLineWidth(0.4);
-  doc.line(pageWidth - margin - 32, y + 12, pageWidth - margin - 5, y + 13);
-  doc.line(pageWidth - margin - 28, y + 13, pageWidth - margin - 24, y + 8);
-  doc.line(pageWidth - margin - 24, y + 8, pageWidth - margin - 20, y + 15);
-  doc.line(pageWidth - margin - 20, y + 15, pageWidth - margin - 16, y + 10);
+  // Authorised Signature Image
+  if (originalSignatureData) {
+    doc.addImage(originalSignatureData, 'PNG', pageWidth - margin - 35, y + 6, 30, 11);
+  } else {
+    doc.setDrawColor(0, 46, 93);
+    doc.setLineWidth(0.4);
+    doc.line(pageWidth - margin - 32, y + 12, pageWidth - margin - 5, y + 13);
+    doc.line(pageWidth - margin - 28, y + 13, pageWidth - margin - 24, y + 8);
+    doc.line(pageWidth - margin - 24, y + 8, pageWidth - margin - 20, y + 15);
+    doc.line(pageWidth - margin - 20, y + 15, pageWidth - margin - 16, y + 10);
+  }
 
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
