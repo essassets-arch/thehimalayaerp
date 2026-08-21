@@ -70,19 +70,19 @@ export default function FinanceBrandAnalysis() {
         <p className="m-theme-subtitle">Review approved requests and provide commercial analysis</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        <div style={{ background: '#fef3c7', padding: '20px', borderRadius: '12px', border: '1px solid #fde68a' }}>
-          <div style={{ fontSize: '14px', color: '#92400e', fontWeight: '600' }}>Pending Analysis</div>
-          <div style={{ fontSize: '32px', color: '#b45309', fontWeight: 'bold' }}>{pendingCount}</div>
+      <div className="brand-analysis-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ background: '#fef3c7', padding: '16px 20px', borderRadius: '12px', border: '1px solid #fde68a' }}>
+          <div style={{ fontSize: '13px', color: '#92400e', fontWeight: '600' }}>Pending Analysis</div>
+          <div style={{ fontSize: '26px', color: '#b45309', fontWeight: 'bold', marginTop: '4px' }}>{pendingCount}</div>
         </div>
-        <div style={{ background: '#d1fae5', padding: '20px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
-          <div style={{ fontSize: '14px', color: '#065f46', fontWeight: '600' }}>Completed Analysis</div>
-          <div style={{ fontSize: '32px', color: '#047857', fontWeight: 'bold' }}>{historyCount}</div>
+        <div style={{ background: '#d1fae5', padding: '16px 20px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+          <div style={{ fontSize: '13px', color: '#065f46', fontWeight: '600' }}>Completed Analysis</div>
+          <div style={{ fontSize: '26px', color: '#047857', fontWeight: 'bold', marginTop: '4px' }}>{historyCount}</div>
         </div>
       </div>
 
       <div className="m-theme-table-container">
-        <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="brand-analysis-filter-bar" style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', gap: '20px' }}>
             {['Pending', 'History'].map(tab => (
               <button
@@ -100,7 +100,7 @@ export default function FinanceBrandAnalysis() {
               </button>
             ))}
           </div>
-          <div style={{ position: 'relative', width: '250px' }}>
+          <div style={{ position: 'relative', width: '250px', flex: '1 1 auto', minWidth: '180px' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
             <input 
               type="text" 

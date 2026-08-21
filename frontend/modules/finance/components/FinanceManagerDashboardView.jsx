@@ -549,7 +549,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: "var(--font-main), 'Plus Jakarta Sans', Inter, sans-serif", color: '#0F172A' }}>
 
       {/* Header Banner */}
-      <div style={{
+      <div className="finance-dashboard-header" style={{
         background: '#FFFFFF',
         border: '1px solid #E2E8F0',
         borderRadius: '16px',
@@ -583,7 +583,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="finance-dashboard-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{
             background: '#F8FAFC',
             border: '1px solid #E2E8F0',

@@ -8782,6 +8782,63 @@ body, #root, .app-container {
     padding-bottom: 4px !important;
   }
 
+  /* ── FINANCE MODULE RESPONSIVE STYLES ── */
+  .finance-dashboard-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 14px !important;
+    padding: 16px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .finance-dashboard-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .finance-dashboard-actions > div,
+  .finance-dashboard-actions > button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .finance-kpi-card {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .finance-kpi-card > div:first-child {
+    width: 38px !important;
+    height: 38px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .finance-kpi-card svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .finance-kpi-card div[style*="fontSize: '22px'"],
+  .finance-kpi-card div[style*="font-size: 22px"] {
+    font-size: 18px !important;
+  }
+
+  .brand-analysis-filter-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px !important;
+  }
+
+  .brand-analysis-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+
   /* ── QUOTATION/ORDER FORM GRIDS: always 1 column on mobile ── */
   .quotation-customer-grid {
     grid-template-columns: 1fr !important;

@@ -312,15 +312,12 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
           .daily-task-stats-grid {
             gap: 12px !important;
           }
-          .stats-card {
-            padding: 12px 16px !important;
-          }
-          .hero-banner.compact .hero-top-row, .hero-top-row {
+          .daily-task-hero-top-row {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: 16px !important;
           }
-          .hero-top-row > div {
+          .daily-task-hero-top-row > div {
             width: 100% !important;
           }
         }
@@ -434,8 +431,8 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
       `}} />
 
       {/* ── HEADER BANNER ── */}
-      <div className="hero-banner compact" style={{ minHeight: 'auto' }}>
-        <div className="hero-top-row">
+      <div className="daily-task-hero-banner hero-banner compact" style={{ minHeight: 'auto' }}>
+        <div className="daily-task-hero-top-row">
           <div>
             <span style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-lime-brand)', letterSpacing: '1px' }}>
               {module === 'Finance' ? 'Finance Operations Hub' : 'Sales Operations Hub'}
