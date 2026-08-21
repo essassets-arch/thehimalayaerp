@@ -394,13 +394,25 @@ export default function FinanceSalesConfirmationView() {
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 320px', maxWidth: '400px' }}>
             <div style={{ position: 'relative', width: '100%' }}>
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: '#94A3B8' }} />
               <input
                 type="text"
                 placeholder="Search Order No, Customer, Salesperson, Ref..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                style={{
+                  width: '100%',
+                  paddingLeft: '38px',
+                  paddingRight: '16px',
+                  paddingTop: '8px',
+                  paddingBottom: '8px',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontSize: '13.5px',
+                  background: '#FFFFFF',
+                  color: '#1E293B',
+                }}
               />
             </div>
           </div>
@@ -449,20 +461,20 @@ export default function FinanceSalesConfirmationView() {
           <table className="payment-verification-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontWeight: 700 }}>
-                <th style={{ padding: '12px 14px' }}>Order Number</th>
-                <th style={{ padding: '12px 14px' }}>Customer</th>
-                <th style={{ padding: '12px 14px' }}>Salesperson</th>
-                <th style={{ padding: '12px 14px' }}>Order Date</th>
-                <th style={{ padding: '12px 14px' }}>Payment Terms</th>
-                <th style={{ padding: '12px 14px' }}>Start Date</th>
-                <th style={{ padding: '12px 14px' }}>Due Date</th>
-                <th style={{ padding: '12px 14px' }}>Elapsed / Status</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Order Total</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Paid Amount</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Outstanding</th>
-                <th style={{ padding: '12px 14px' }}>Payment Status</th>
-                <th style={{ padding: '12px 14px' }}>Verification</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
+                <th style={{ padding: '12px 14px', minWidth: '150px' }}>Order Number</th>
+                <th style={{ padding: '12px 14px', minWidth: '160px' }}>Customer</th>
+                <th style={{ padding: '12px 14px', minWidth: '130px' }}>Salesperson</th>
+                <th style={{ padding: '12px 14px', minWidth: '110px' }}>Order Date</th>
+                <th style={{ padding: '12px 14px', minWidth: '120px' }}>Payment Terms</th>
+                <th style={{ padding: '12px 14px', minWidth: '110px' }}>Start Date</th>
+                <th style={{ padding: '12px 14px', minWidth: '110px' }}>Due Date</th>
+                <th style={{ padding: '12px 14px', minWidth: '130px' }}>Elapsed / Status</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Order Total</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Paid Amount</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Outstanding</th>
+                <th style={{ padding: '12px 14px', minWidth: '130px' }}>Payment Status</th>
+                <th style={{ padding: '12px 14px', minWidth: '130px' }}>Verification</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '240px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
