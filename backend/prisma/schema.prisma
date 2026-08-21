@@ -1152,7 +1152,14 @@ model SalesOrder {
   freightAmount                Decimal          @default(0) @db.Decimal(18, 2)
   totalAmount                  Decimal          @db.Decimal(18, 2)
   currency                     String           @default("INR")
+  paymentTerms                 String?
+  paymentTermDays              Int?
   paymentTermsDays             Int?
+  paymentTermStartDate         DateTime?        @default(now())
+  paymentDueDate               DateTime?
+  paidAmount                   Decimal          @default(0) @db.Decimal(18, 2)
+  outstandingAmount            Decimal?         @db.Decimal(18, 2)
+  paymentStatus                String?          @default("PENDING")
   deliveryTerms                String?
   billingAddress               Json?
   shippingAddress              Json?
@@ -2659,6 +2666,12 @@ model CustomerPayment {
   receivedAt      DateTime      @default(now())
   verifiedAt      DateTime?
   verifiedById    String?
+  method          String?
+  transactionReference String?
+  rejectionReason String?
+  rejectedById    String?
+  rejectedAt      DateTime?
+  remarks         String?
   createdById     String?
   createdAt       DateTime      @default(now())
 

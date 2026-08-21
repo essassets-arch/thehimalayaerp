@@ -7,6 +7,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
   Req,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
@@ -17,10 +18,14 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Get()
+  @Get('verification-queue')
   @RequirePermissions('finance.payment.read')
-  async listPayments(@Req() req: any) {
-    return this.paymentsService.listPayments(req.user?.sub, req.user?.role);
+  async getVerificationQueue(@Query() query: any, @Req() req: any) {
+    return this.paymentsService.getVerificationQueue(
+      query,
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Get('sales-recorded')
@@ -38,16 +43,44 @@ export class PaymentsController {
     return this.paymentsService.listDeliveredOrders();
   }
 
+  @Get('order/:orderId/history')
+  @RequirePermissions('finance.payment.read')
+  async getOrderPaymentHistory(@Param('orderId') orderId: string) {
+    return this.paymentsService.getOrderPaymentHistory(orderId);
+  }
+
+  @Post('run-daily-followup')
+  @RequirePermissions('finance.payment.update')
+  async runDailyFollowup(@Req() req: any) {
+    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    return this.paymentsService.runDailyFollowUpScan(companyId);
+  }
+
   @Get(':id')
   @RequirePermissions('finance.payment.read')
   async getPayment(@Param('id') id: string, @Req() req: any) {
     return this.paymentsService.getPayment(id, req.user?.sub, req.user?.role);
   }
 
+  @Get()
+  @RequirePermissions('finance.payment.read')
+  async listPayments(@Req() req: any) {
+    return this.paymentsService.listPayments(req.user?.sub, req.user?.role);
+  }
+
   @Post()
   @RequirePermissions('finance.payment.create')
   async createPayment(
-    @Body() dto: { customerId: string; amount: number },
+    @Body()
+    dto: {
+      customerId: string;
+      salesOrderId?: string;
+      amount: number;
+      method?: string;
+      transactionReference?: string;
+      proofUrl?: string;
+      remarks?: string;
+    },
     @Req() req: any,
   ) {
     return this.paymentsService.createPayment(dto, req.user?.sub);
@@ -62,6 +95,9 @@ export class PaymentsController {
       salesOrderId: string;
       amount: number;
       proofUrl: string;
+      method?: string;
+      transactionReference?: string;
+      remarks?: string;
     },
     @Req() req: any,
   ) {
@@ -78,6 +114,16 @@ export class PaymentsController {
   @RequirePermissions('finance.payment.update')
   async verifyPayment(@Param('id') id: string, @Req() req: any) {
     return this.paymentsService.verifyPayment(id, req.user?.sub);
+  }
+
+  @Post(':id/reject')
+  @RequirePermissions('finance.payment.update')
+  async rejectPayment(
+    @Param('id') id: string,
+    @Body() dto: { rejectionReason: string; remarks?: string },
+    @Req() req: any,
+  ) {
+    return this.paymentsService.rejectPayment(id, dto, req.user?.sub);
   }
 
   @Post(':id/allocate')
@@ -101,6 +147,6 @@ export class PaymentsController {
     @Body() dto: { remarks?: string },
     @Req() req: any,
   ) {
-    return this.paymentsService.markBounced(id, dto.remarks, req.user?.sub);
+    return this.paymentsService.markBounced(id, dto?.remarks, req.user?.sub);
   }
 }

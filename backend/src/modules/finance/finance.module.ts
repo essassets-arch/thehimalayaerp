@@ -9,6 +9,7 @@ import { CreditService } from './credit.service';
 import { FinanceSalesAnalyticsController } from './finance-sales-analytics.controller';
 import { FinanceSalesAnalyticsService } from './finance-sales-analytics.service';
 import { FinanceSalesAnalyticsMetricService } from './finance-sales-analytics-metric.service';
+import { PaymentFollowupEngineService } from './payment-followup-engine.service';
 import { WorkflowModule } from '../workflow/workflow.module';
 
 @Module({
@@ -22,12 +23,13 @@ import { WorkflowModule } from '../workflow/workflow.module';
   providers: [
     InvoicesService,
     PaymentsService,
+    PaymentFollowupEngineService,
     LedgerService,
     CreditService,
     FinanceSalesAnalyticsService,
     FinanceSalesAnalyticsMetricService,
   ],
-  exports: [LedgerService, CreditService, FinanceSalesAnalyticsService],
+  exports: [LedgerService, CreditService, FinanceSalesAnalyticsService, PaymentFollowupEngineService, PaymentsService],
 })
 export class FinanceModule {}
 

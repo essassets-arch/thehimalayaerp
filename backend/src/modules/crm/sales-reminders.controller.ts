@@ -33,10 +33,6 @@ export class SalesRemindersController {
       ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
       : isSales
       ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
-      : (req.user?.role === 'FINANCE_EXECUTIVE' || req.user?.role === 'FINANCE_MANAGER')
-      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
-      : isSalespersonScopedRole(req.user?.role)
-      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
       : undefined;
 
     const moduleWhere = moduleTypeFilter ? { moduleType: moduleTypeFilter } : {};
@@ -154,10 +150,6 @@ export class SalesRemindersController {
     const moduleTypeFilter = isFinance
       ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
       : isSales
-      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
-      : (req.user?.role === 'FINANCE_EXECUTIVE' || req.user?.role === 'FINANCE_MANAGER')
-      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
-      : isSalespersonScopedRole(req.user?.role)
       ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
       : undefined;
 

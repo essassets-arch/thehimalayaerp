@@ -169,6 +169,72 @@ export class SalesService {
     };
   }
 
+  async listDeliveredPendingPayment(userId?: string, role?: string) {
+    const isSalesperson = isSalespersonScopedRole(role);
+    const scope = isSalesperson && userId ? { salesExecutiveId: userId } : {};
+
+    const orders = await this.prisma.salesOrder.findMany({
+      where: {
+        deletedAt: null,
+        status: { not: 'CANCELLED' },
+        ...scope,
+      },
+      include: {
+        customer: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
+        quotation: { select: { paymentTerms: true, paymentTermDays: true } },
+        invoices: {
+          select: { id: true, invoiceNumber: true, createdAt: true, totalAmount: true, status: true },
+        },
+        customerPayments: {
+          select: { id: true, paymentNo: true, amount: true, status: true, receivedAt: true, verifiedAt: true },
+        },
+        dispatches: {
+          select: { status: true, deliveredAt: true, podUrl: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map((order) => {
+      const verifiedPaidAmount = (order.customerPayments || [])
+        .filter((p) =>
+          ['VERIFIED', 'FINANCE_VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(
+            String(p.status || '').toUpperCase(),
+          ),
+        )
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+      const totalAmount = Number(order.totalAmount || 0);
+      const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
+
+      return {
+        id: order.id,
+        order_number: order.orderNumber,
+        orderNumber: order.orderNumber,
+        customerId: order.customerId,
+        customer_name: order.customer?.companyName || 'Customer',
+        customerName: order.customer?.companyName || 'Customer',
+        salesperson: order.salesExecutive?.name || 'Sales Executive',
+        grand_total: totalAmount,
+        grandTotal: totalAmount,
+        totalAmount,
+        verified_paid_amount: verifiedPaidAmount,
+        verifiedPaidAmount,
+        balance_amount: balanceAmount,
+        balanceAmount,
+        paymentTerms: order.paymentTerms || `${order.paymentTermDays || 15} Days`,
+        paymentDueDate: order.paymentDueDate?.toISOString(),
+        paymentStatus:
+          balanceAmount <= 0 && totalAmount > 0
+            ? 'PAID'
+            : verifiedPaidAmount > 0
+            ? 'PARTIALLY_PAID'
+            : 'PENDING',
+      };
+    });
+  }
+
   private calculateTotals(items: any[]) {
     let subtotal = new Decimal(0);
     let taxableAmountTotal = new Decimal(0);
@@ -239,22 +305,33 @@ export class SalesService {
         products.map((product) => [product.id, product]),
       );
       let quotationSalesExecutiveId: string | null = null;
+      let quotationPaymentTerms: string | null = null;
+      let quotationPaymentTermDays: number | null = null;
+      let quotationPaymentTermStartDate: Date | null = null;
       if (dto.quotationId) {
         const quoteObj = await tx.quotation.findFirst({
           where: { id: dto.quotationId, ...getQuotationSalesScope(userId, role) },
-          select: { salesExecutiveId: true, createdById: true },
+          select: { salesExecutiveId: true, createdById: true, paymentTerms: true, paymentTermDays: true, createdAt: true },
         });
         if (!quoteObj && isSalespersonScopedRole(role)) {
           throw new NotFoundException('Quotation not found');
         }
         if (quoteObj) {
           quotationSalesExecutiveId = quoteObj.salesExecutiveId || quoteObj.createdById;
+          quotationPaymentTerms = quoteObj.paymentTerms;
+          quotationPaymentTermDays = quoteObj.paymentTermDays;
+          quotationPaymentTermStartDate = (quoteObj as any).paymentTermStartDate || quoteObj.createdAt;
         }
       }
       const isManager = canAssignSalesOwner(role);
       const resolvedSalesExecutiveId = isManager
         ? ((dto as any).salesExecutiveId || quotationSalesExecutiveId || userId)
         : (quotationSalesExecutiveId || userId);
+
+      const resolvedTermDays = dto.paymentTermsDays || quotationPaymentTermDays || (quotationPaymentTerms ? parseInt(String(quotationPaymentTerms).match(/\d+/)?.[0] || '15', 10) : 15);
+      const resolvedPaymentTerms = (dto as any).paymentTerms || quotationPaymentTerms || `${resolvedTermDays} Days`;
+      const resolvedStartDate = (dto as any).paymentTermStartDate ? new Date((dto as any).paymentTermStartDate) : (quotationPaymentTermStartDate || (dto.orderDate ? new Date(dto.orderDate) : new Date()));
+      const resolvedDueDate = (dto as any).paymentDueDate ? new Date((dto as any).paymentDueDate) : new Date(resolvedStartDate.getTime() + resolvedTermDays * 86400000);
 
       const order = await tx.salesOrder.create({
         data: {
@@ -265,6 +342,14 @@ export class SalesService {
           orderDate: dto.orderDate ? new Date(dto.orderDate) : new Date(),
           customerPurchaseOrderNo: dto.customerPurchaseOrderNo,
           workflowStateId: initialState.id,
+          paymentTerms: resolvedPaymentTerms,
+          paymentTermDays: resolvedTermDays,
+          paymentTermsDays: resolvedTermDays,
+          paymentTermStartDate: resolvedStartDate,
+          paymentDueDate: resolvedDueDate,
+          paidAmount: 0,
+          outstandingAmount: totals.totalAmount,
+          paymentStatus: 'PENDING',
           // Single unified status — roll-up status fields were removed in the modular refactor.
           // Production, dispatch, invoice, payment summaries are computed from child documents.
           status: SalesOrderStatus.DRAFT,

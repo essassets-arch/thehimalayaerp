@@ -3,11 +3,11 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, CheckCircle2, XCircle, Eye, FileText, Download, DollarSign, Clock, AlertTriangle,
-  TrendingDown, ShieldCheck, AlertCircle, Calendar, ArrowUpRight
+  TrendingDown, ShieldCheck, AlertCircle, Calendar, ArrowUpRight, Filter, RefreshCw, ChevronRight, User, Check
 } from 'lucide-react';
 import { useERPStore } from '../../../store/erpStore';
 import Swal from 'sweetalert2';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
 
 const formatINR = (value) => {
@@ -16,605 +16,211 @@ const formatINR = (value) => {
 };
 
 export default function FinanceSalesConfirmationView() {
+  const queryClient = useQueryClient();
   const state = useERPStore((s) => s.state);
   const verifyFinancePayment = useERPStore((s) => s.verifyFinancePayment);
   const rejectFinancePayment = useERPStore((s) => s.rejectFinancePayment);
-  const [isProcessing, setIsProcessing] = React.useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const localOrders = state.sales?.orders || [];
-  const { data: backendPayments = [], refetch: refetchBackendPayments } = useQuery({
-    queryKey: ['finance-sales-payment-confirmations'],
-    queryFn: async () => {
-      const response = await backendFetch('/api/backend/finance/payments');
-      const records = Array.isArray(response) ? response : response?.data;
-      return Array.isArray(records) ? records : [];
-    },
-  });
-  const { data: backendDeliveredOrders = [] } = useQuery({
-    queryKey: ['finance-delivered-sales-orders'],
-    queryFn: async () => {
-      const response = await backendFetch('/api/backend/finance/payments/delivered-orders');
-      const records = Array.isArray(response) ? response : response?.data;
-      return Array.isArray(records) ? records : [];
-    },
-  });
-  const orders = React.useMemo(() => {
-    const combined = [...backendDeliveredOrders, ...localOrders];
-    return combined.filter((order, index, list) => {
-      const key = String(order.id || order.orderNo || order.orderId || '');
-      return list.findIndex((candidate) =>
-        String(candidate.id || candidate.orderNo || candidate.orderId || '') === key
-      ) === index;
-    });
-  }, [backendDeliveredOrders, localOrders]);
-
-  const calculateVerifiedPaidAmount = (orderId, confirmations) => {
-    const normId = String(orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
-    const list = confirmations || [];
-    return list
-      .filter((payment) => {
-        const normPId = String(payment.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
-        return normPId === normId && (payment.status === 'FINANCE_VERIFIED' || payment.status === 'VERIFIED');
-      })
-      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  };
-
-  const calculatePendingAmount = (order, confirmations) => {
-    const total = Number(order.grandTotal ?? order.totalAmount ?? 0);
-    const paid = calculateVerifiedPaidAmount(order.id || order.orderNo || order.orderNumber, confirmations);
-    return Math.max(total - paid, 0);
-  };
-
-  const calculateOrderPaymentTerms = (o) => {
-    const deliveryDate = o.deliveredAt || o.delivered_at || o.actualDeliveryDate || o.deliveredDate;
-    const invoiceDate = o.invoiceDate || o.invoice_date || deliveryDate || o.createdAt;
-    const rawTerms = o.paymentTerms || o.payment_terms || o.quotation?.paymentTerms || '';
-    const isAdvance = String(rawTerms).toLowerCase().includes('advance') || String(o.payment_terms || '').toLowerCase().includes('advance');
-    const termDays = isAdvance ? 0 : (Number(o.paymentTermsDays ?? o.payment_terms_days ?? o.paymentTermDays ?? (String(rawTerms).match(/\d+/)?.[0] || 15)) || 15);
-    const displayTerms = isAdvance ? 'Advance' : (rawTerms || `${termDays} Days`);
-
-    let dueDateValue = null;
-    if (o.paymentDueDate || o.payment_due_date) {
-      dueDateValue = new Date(o.paymentDueDate || o.payment_due_date);
-    } else if (invoiceDate) {
-      const base = new Date(invoiceDate);
-      dueDateValue = isAdvance ? base : new Date(base.getTime() + termDays * 86400000);
-    }
-
-    let remainingDays = null;
-    let reminderLabel = 'Not scheduled';
-    if (isAdvance) {
-      remainingDays = 0;
-      reminderLabel = 'Advance (Immediate)';
-    } else if (dueDateValue) {
-      const todayMid = new Date();
-      todayMid.setHours(0, 0, 0, 0);
-      const dueMid = new Date(dueDateValue);
-      dueMid.setHours(0, 0, 0, 0);
-      remainingDays = Math.round((dueMid.getTime() - todayMid.getTime()) / 86400000);
-
-      if (remainingDays > 0) {
-        reminderLabel = `Due in ${remainingDays} Day${remainingDays === 1 ? '' : 's'}`;
-      } else if (remainingDays === 0) {
-        reminderLabel = 'Due Today';
-      } else {
-        reminderLabel = `Overdue by ${Math.abs(remainingDays)} Day${Math.abs(remainingDays) === 1 ? '' : 's'}`;
-      }
-    }
-
-    return {
-      deliveryDate: deliveryDate ? String(deliveryDate).split('T')[0] : null,
-      invoiceDate: invoiceDate ? String(invoiceDate).split('T')[0] : null,
-      dueDate: dueDateValue ? dueDateValue.toISOString().split('T')[0] : null,
-      paymentTerms: displayTerms,
-      termDays,
-      isAdvance,
-      remainingDays,
-      reminderLabel,
-    };
-  };
-
-  const paymentConfirmations = React.useMemo(() => {
-    const getStorageConfirmations = () => {
-      try {
-        const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
-        if (raw) {
-          const list = JSON.parse(raw);
-          return list.map((c) => ({
-            id: c.id || `PC-${Date.now()}`,
-            orderId: c.orderId || c.orderNo,
-            amount: Number(c.amount || 0),
-            paymentDate: c.createdAt || new Date().toISOString(),
-            method: c.paymentMode || c.method || 'BANK_TRANSFER',
-            transactionReference: c.referenceNumber || c.transactionReference || 'UTR-88992233',
-            proofDocument: c.proofDocument || c.proofUrl,
-            status: c.status || 'FINANCE_VERIFICATION_PENDING',
-            financeRemarks: c.remarks,
-            createdAt: c.createdAt,
-            source: 'local_storage',
-            orderSnapshot: {
-              id: c.orderId || c.orderNo,
-              orderNo: c.orderNo || c.orderNumber || c.orderId,
-              invoiceNo: `INV-${String(c.orderNo || c.orderId).replace(/^ORD-/, '').slice(-6)}`,
-              customerName: c.customerName || 'Customer',
-              salesperson: 'Sales',
-              grandTotal: Number(c.amount || 0),
-              totalAmount: Number(c.amount || 0),
-            },
-          }));
-        }
-      } catch {}
-      return [];
-    };
-
-    const localConfirmations = (state.finance?.customerPayments || []).map((p) => ({
-      id: p.id,
-      orderId: p.orderId,
-      amount: p.paymentAmount,
-      paymentDate: p.paymentDate,
-      method: p.paymentMode === 'Bank Transfer' ? 'BANK_TRANSFER' : (p.paymentMode === 'Cheque' ? 'CHEQUE' : (p.paymentMode === 'Cash' ? 'CASH' : 'ONLINE')),
-      transactionReference: p.transactionReference || p.chequeNumber || p.referenceNumber,
-      proofDocument: p.paymentProof?.[0],
-      status: p.verificationStatus,
-      financeRemarks: p.rejectionReason || p.remarks,
-      verifiedBy: p.verifiedBy,
-      verifiedAt: p.verifiedAt,
-      createdAt: p.recordedAt,
-      source: 'local',
-    }));
-    const persistedConfirmations = backendPayments
-      .filter((payment) => payment.salesOrderId)
-      .map((payment) => {
-        const backendStatus = String(payment.status || '').toUpperCase();
-        const status =
-          ['UNDER_VERIFICATION', 'SUBMITTED', 'RECEIVED'].includes(backendStatus)
-            ? 'FINANCE_VERIFICATION_PENDING'
-            : ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(backendStatus)
-              ? 'FINANCE_VERIFIED'
-              : backendStatus === 'BOUNCED'
-                ? 'FINANCE_REJECTED'
-                : backendStatus;
-        return {
-          id: payment.id,
-          orderId: payment.salesOrderId,
-          amount: Number(payment.amount || 0),
-          paymentDate: payment.receivedAt || payment.createdAt,
-          method: payment.method || 'BANK_TRANSFER',
-          transactionReference: payment.paymentNo,
-          proofDocument: payment.proofUrl,
-          status,
-          verifiedAt: payment.verifiedAt,
-          createdAt: payment.createdAt,
-          source: 'backend',
-          orderSnapshot: {
-            id: payment.salesOrder?.id || payment.salesOrderId,
-            orderNo: payment.salesOrder?.orderNumber,
-            invoiceNo: `INV-${payment.salesOrder?.orderNumber || payment.salesOrderId}`,
-            customerName: payment.customer?.companyName || payment.customer?.name || 'Unknown',
-            salesperson: 'Sales',
-            grandTotal: Number(payment.salesOrder?.totalAmount || 0),
-            totalAmount: Number(payment.salesOrder?.totalAmount || 0),
-          },
-        };
-      });
-
-    const all = [...persistedConfirmations, ...localConfirmations, ...getStorageConfirmations()];
-    const getPriority = (item) => (item.source === 'backend' ? 3 : item.source === 'local' ? 2 : 1);
-    const map = new Map();
-    all.forEach((item) => {
-      const normOrder = String(item.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
-      if (!normOrder) return;
-      const ref = String(item.transactionReference || '').replace(/^UTR-88992233$/, '').trim().toLowerCase();
-      const key = `${normOrder}_${item.amount}_${item.status}${ref ? `_${ref}` : ''}`;
-      if (!map.has(key)) {
-        map.set(key, item);
-      } else {
-        const existing = map.get(key);
-        if (getPriority(item) > getPriority(existing)) {
-          map.set(key, item);
-        }
-      }
-    });
-
-    return Array.from(map.values());
-  }, [state.finance?.customerPayments, backendPayments]);
-
-  const [activeTab, setActiveTab] = useState('Payment Outstanding');
+  const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [rejectModal, setRejectModal] = useState(null);
+  const [paymentTermsFilter, setPaymentTermsFilter] = useState('All');
+  const [dueStateFilter, setDueStateFilter] = useState('All');
 
-  // Top Summary Statistics
-  const stats = useMemo(() => {
-    let totalOutstanding = 0;
-    let awaitingVerifCount = 0;
-    let awaitingVerifAmount = 0;
-    let overdueCount = 0;
-    let overdueAmount = 0;
-    let totalVerified = 0;
+  // Modals state
+  const [verifyModal, setVerifyModal] = useState(null); // { payment, order }
+  const [rejectModal, setRejectModal] = useState(null); // { payment, order }
+  const [historyModal, setHistoryModal] = useState(null); // { orderId }
 
-    orders.forEach((o) => {
-      const isDelivered = String(o.dispatchStatus || '').toUpperCase() === 'DELIVERED' || Boolean(o.deliveredAt);
-      const pending = calculatePendingAmount(o, paymentConfirmations);
-      if (isDelivered && pending > 0 && o.commercialStatus !== 'ORDER_CLOSED') {
-        totalOutstanding += pending;
-        const terms = calculateOrderPaymentTerms(o);
-        if (terms.remainingDays !== null && terms.remainingDays < 0) {
-          overdueCount++;
-          overdueAmount += pending;
-        }
-      }
-    });
+  // ── Fetch verification queue from backend ──────────────────────────────────
+  const {
+    data: queueData,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ['finance-verification-queue', activeTab, paymentTermsFilter, dueStateFilter, searchQuery],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (activeTab !== 'All') params.append('tab', activeTab);
+      if (paymentTermsFilter !== 'All') params.append('paymentTerms', paymentTermsFilter);
+      if (dueStateFilter !== 'All') params.append('dueState', dueStateFilter);
+      if (searchQuery) params.append('search', searchQuery);
 
-    paymentConfirmations.forEach((c) => {
-      if (c.status === 'FINANCE_VERIFICATION_PENDING' || c.status === 'SALES_PAYMENT_RECORDED') {
-        awaitingVerifCount++;
-        awaitingVerifAmount += Number(c.amount || 0);
-      } else if (c.status === 'FINANCE_VERIFIED' || c.status === 'VERIFIED') {
-        totalVerified += Number(c.amount || 0);
-      }
-    });
+      const response = await backendFetch(`/api/backend/finance/payments/verification-queue?${params.toString()}`);
+      const data = response?.data || response;
+      return data || { summary: {}, rows: [] };
+    },
+  });
 
-    return {
-      totalOutstanding,
-      awaitingVerifCount,
-      awaitingVerifAmount,
-      overdueCount,
-      overdueAmount,
-      totalVerified,
-    };
-  }, [orders, paymentConfirmations]);
+  // Fetch complete history when history modal is opened
+  const { data: orderHistoryData, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['finance-order-history', historyModal?.orderId],
+    queryFn: async () => {
+      if (!historyModal?.orderId) return null;
+      const response = await backendFetch(`/api/backend/finance/payments/order/${historyModal.orderId}/history`);
+      return response?.data || response;
+    },
+    enabled: Boolean(historyModal?.orderId),
+  });
 
-  // Derive unified row objects depending on the tab context
-  const rows = useMemo(() => {
-    let result = [];
-    
-    if (activeTab === 'Payment Outstanding') {
-      // Base on orders with pendingAmount > 0
-      result = orders.filter((o) => {
-        const pending = calculatePendingAmount(o, paymentConfirmations);
-        const isDelivered =
-          String(o.dispatchStatus || '').toUpperCase() === 'DELIVERED' ||
-          Boolean(o.deliveredAt);
-        return isDelivered && pending > 0 && o.commercialStatus !== 'ORDER_CLOSED';
-      }).map((o) => {
-        const terms = calculateOrderPaymentTerms(o);
-        return {
-          type: 'ORDER',
-          id: o.id,
-          orderId: o.orderNo || o.orderNumber || o.id,
-          invoiceNo: o.invoiceNo || `INV-${String(o.orderNo || o.id).replace(/^ORD-/, '')}`,
-          customerName: o.customerName,
-          salesperson: o.salesperson,
-          deliveryDate: terms.deliveryDate,
-          invoiceDate: terms.invoiceDate,
-          paymentTerms: terms.paymentTerms,
-          dueDate: terms.dueDate,
-          remainingDays: terms.remainingDays,
-          reminderLabel: terms.reminderLabel,
-          isAdvance: terms.isAdvance,
-          totalAmount: o.grandTotal ?? o.totalAmount,
-          verifiedAmount: calculateVerifiedPaidAmount(o.id, paymentConfirmations),
-          pendingAmount: calculatePendingAmount(o, paymentConfirmations),
-          status: o.paymentStatus || 'PENDING'
-        };
-      });
-    } 
-    else if (activeTab === 'Closed Orders') {
-      // Base on orders that are ORDER_CLOSED or fully paid
-      result = orders.filter((o) => o.commercialStatus === 'ORDER_CLOSED' || calculatePendingAmount(o, paymentConfirmations) <= 0).map((o) => {
-        const terms = calculateOrderPaymentTerms(o);
-        return {
-          type: 'ORDER',
-          id: o.id,
-          orderId: o.orderNo || o.orderNumber || o.id,
-          invoiceNo: o.invoiceNo || `INV-${String(o.orderNo || o.id).replace(/^ORD-/, '')}`,
-          customerName: o.customerName,
-          salesperson: o.salesperson,
-          deliveryDate: terms.deliveryDate,
-          invoiceDate: terms.invoiceDate,
-          paymentTerms: terms.paymentTerms,
-          dueDate: terms.dueDate,
-          remainingDays: terms.remainingDays,
-          reminderLabel: terms.reminderLabel,
-          totalAmount: o.grandTotal ?? o.totalAmount,
-          verifiedAmount: calculateVerifiedPaidAmount(o.id, paymentConfirmations),
-          pendingAmount: 0,
-          status: 'CLOSED'
-        };
-      });
-    }
-    else {
-      // Based on payment confirmations
-      let filteredConfirmations = [];
-      if (activeTab === 'Sales Confirmations') {
-        filteredConfirmations = paymentConfirmations.filter((c) => c.status === 'FINANCE_VERIFICATION_PENDING' || c.status === 'SALES_PAYMENT_RECORDED');
-      } else if (activeTab === 'Verified Payments') {
-        filteredConfirmations = paymentConfirmations.filter((c) => c.status === 'FINANCE_VERIFIED' || c.status === 'VERIFIED');
-      } else if (activeTab === 'Rejected Payments') {
-        filteredConfirmations = paymentConfirmations.filter((c) => c.status === 'FINANCE_REJECTED' || c.status === 'BOUNCED');
-      }
+  const summary = queueData?.summary || {
+    pendingVerificationCount: 0,
+    dueSoonCount: 0,
+    dueTodayCount: 0,
+    overdueCount: 0,
+    partiallyPaidCount: 0,
+    totalOutstanding: 0,
+    totalVerified: 0,
+  };
 
-      // Deduplicate confirmations per order/amount/status
-      const getPriority = (item) => (item.source === 'backend' ? 3 : item.source === 'local' ? 2 : 1);
-      const map = new Map();
-      filteredConfirmations.forEach((confirmation) => {
-        const normOrder = String(confirmation.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
-        const key = `${normOrder}|${confirmation.amount}|${confirmation.status}`;
-        if (!map.has(key)) {
-          map.set(key, confirmation);
-        } else {
-          const existing = map.get(key);
-          if (getPriority(confirmation) > getPriority(existing)) {
-            map.set(key, confirmation);
-          }
-        }
-      });
-      filteredConfirmations = Array.from(map.values());
+  const rows = queueData?.rows || [];
 
-      result = filteredConfirmations.map((c) => {
-        const normCId = String(c.orderId || '').replace(/^ORD-/, '').trim().toLowerCase();
-        const o = orders.find((ord) => {
-          const normOId = String(ord.id || ord.orderNo || ord.orderNumber || '').replace(/^ORD-/, '').trim().toLowerCase();
-          return normOId === normCId;
-        }) || c.orderSnapshot || {};
-        const terms = calculateOrderPaymentTerms(o);
-
-        return {
-          type: 'CONFIRMATION',
-          id: c.id,
-          orderId: o.orderNo || o.orderNumber || c.orderId,
-          confirmationId: c.id,
-          invoiceNo: o.invoiceNo || (o.invoice_number ? o.invoice_number : `INV-${String(c.orderId).replace(/^ORD-/, '').slice(-6)}`),
-          customerName: o.customerName || o.customer_name || o.customer?.name || c.orderSnapshot?.customerName || 'Unknown',
-          salesperson: o.salesperson || c.orderSnapshot?.salesperson || 'Sales',
-          paymentAmount: c.amount,
-          paymentDate: c.paymentDate ? String(c.paymentDate).split('T')[0] : '—',
-          paymentMethod: c.method,
-          transactionRef: c.transactionReference,
-          paymentProof: c.proofDocument,
-          paymentTerms: terms.paymentTerms,
-          dueDate: terms.dueDate,
-          remainingDays: terms.remainingDays,
-          reminderLabel: terms.reminderLabel,
-          totalAmount: o.grandTotal || o.totalAmount || c.amount,
-          verifiedAmount: calculateVerifiedPaidAmount(c.orderId, paymentConfirmations),
-          pendingAmount: calculatePendingAmount(o, paymentConfirmations),
-          status: c.status,
-          remarks: c.financeRemarks,
-          rawConfirmation: c
-        };
-      });
-    }
-
-    // Apply text search
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((r) => 
-        r.orderId?.toLowerCase().includes(q) || 
-        r.confirmationId?.toLowerCase().includes(q) || 
-        r.customerName?.toLowerCase().includes(q) ||
-        r.invoiceNo?.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [orders, paymentConfirmations, activeTab, searchQuery]);
-
-  const handleApprove = async (confirmationId) => {
-    const confirmation = paymentConfirmations.find((item) => item.id === confirmationId);
+  // ── Action: Handle Payment Verification ───────────────────────────────────
+  const handleVerify = async (paymentId, orderRef) => {
     const result = await Swal.fire({
       icon: 'question',
-      title: 'Approve Payment?',
-      text: `Verify ₹${Number(confirmation?.amount || 0).toLocaleString('en-IN')} for ${confirmation?.orderSnapshot?.orderNo || confirmation?.orderId || 'this order'}?`,
+      title: 'Verify Payment?',
+      text: `Confirm verification for payment ${verifyModal?.payment?.paymentNo || paymentId} on ${orderRef || 'this order'}?`,
       showCancelButton: true,
-      confirmButtonText: 'Approve Payment',
+      confirmButtonText: 'Yes, Verify Payment',
       cancelButtonText: 'Cancel',
+      confirmButtonColor: '#16A34A',
     });
     if (!result.isConfirmed) return;
+
     setIsProcessing(true);
     try {
-      let processed = false;
+      await backendFetch(`/api/backend/finance/payments/${paymentId}/verify`, {
+        method: 'POST',
+      });
 
-      // 1. Try Backend if source is backend or not PC- local ID
-      if (confirmation?.source === 'backend' || (confirmationId && !String(confirmationId).startsWith('PC-'))) {
-        try {
-          await backendFetch(`/api/backend/finance/payments/${confirmationId}/verify`, {
-            method: 'POST',
-          });
-          processed = true;
-        } catch (backendErr) {
-          console.warn('Backend payment verification failed, falling back to local handlers:', backendErr);
+      // Synchronize client cache & local state if available
+      try {
+        if (typeof verifyFinancePayment === 'function') {
+          verifyFinancePayment(paymentId, 'Finance Team');
         }
-      }
+      } catch {}
 
-      // 2. Try Store action
-      if (!processed && typeof verifyFinancePayment === 'function') {
-        try {
-          verifyFinancePayment(confirmationId, 'Finance Team');
-          processed = true;
-        } catch (storeErr) {
-          console.warn('Store verifyFinancePayment failed:', storeErr);
-        }
-      }
+      setVerifyModal(null);
+      await queryClient.invalidateQueries({ queryKey: ['finance-verification-queue'] });
+      await queryClient.invalidateQueries({ queryKey: ['finance-order-history'] });
+      await refetch();
 
-      // 3. Update localStorage confirmations if source is local_storage or fallback
-      if (confirmation || !processed) {
-        try {
-          const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
-          if (raw) {
-            const list = JSON.parse(raw);
-            const updated = list.map((c) => {
-              if (c.id === confirmationId || c.orderId === confirmation?.orderId || c.orderNo === confirmation?.orderId) {
-                return {
-                  ...c,
-                  status: 'FINANCE_VERIFIED',
-                  paymentStatus: 'PAID',
-                  verifiedAt: new Date().toISOString(),
-                };
-              }
-              return c;
-            });
-            localStorage.setItem('himalaya_sales_payment_confirmations', JSON.stringify(updated));
-            processed = true;
-          }
-        } catch (lsErr) {
-          console.warn('LocalStorage payment update error:', lsErr);
-        }
-
-        // Also sync order payment status in himalaya_erp_store if available
-        try {
-          const rawStore = localStorage.getItem('himalaya_erp_store');
-          if (rawStore) {
-            const parsedStore = JSON.parse(rawStore);
-            if (parsedStore?.state?.sales?.orders) {
-              parsedStore.state.sales.orders = parsedStore.state.sales.orders.map((ord) => {
-                if (ord.id === confirmation?.orderId || ord.orderNo === confirmation?.orderId || ord.orderNumber === confirmation?.orderId) {
-                  return {
-                    ...ord,
-                    paymentStatus: 'PAID',
-                    verifiedPaidAmount: Number(confirmation?.amount || ord.grandTotal || ord.totalAmount || 0),
-                    balanceAmount: 0,
-                  };
-                }
-                return ord;
-              });
-              localStorage.setItem('himalaya_erp_store', JSON.stringify(parsedStore));
-            }
-          }
-        } catch {}
-      }
-
-      if (!processed && !confirmation) {
-        throw new Error('Cannot find this payment record. It may have already been processed.');
-      }
-
-      await refetchBackendPayments();
-      await Swal.fire({ icon: 'success', title: 'Payment Verified ✓', text: 'The payment has been verified and the order balance updated.', timer: 1800, showConfirmButton: false });
+      await Swal.fire({
+        icon: 'success',
+        title: 'Payment Verified ✓',
+        text: 'The payment has been verified and order balances updated in real time.',
+        timer: 2000,
+        showConfirmButton: false,
+      });
     } catch (err) {
-      await Swal.fire({ icon: 'error', title: 'Verification Failed', text: err?.message || String(err) });
+      await Swal.fire({
+        icon: 'error',
+        title: 'Verification Failed',
+        text: err?.message || 'Payment verification failed. Please try again.',
+      });
     } finally {
       setIsProcessing(false);
     }
   };
 
+  // ── Action: Handle Payment Rejection ───────────────────────────────────────
   const handleReject = async (e) => {
     e.preventDefault();
     if (!rejectModal) return;
     const fd = new FormData(e.target);
-    const remarks = String(fd.get('remarks') || '');
+    const rejectionReason = String(fd.get('rejectionReason') || '').trim();
+
+    if (!rejectionReason) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Reason Required',
+        text: 'Please provide a clear reason for rejecting this payment.',
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      const confirmationId = rejectModal.confirmationId;
-      const confirmation = paymentConfirmations.find((item) => item.id === confirmationId);
-      let processed = false;
+      await backendFetch(`/api/backend/finance/payments/${rejectModal.payment.id}/reject`, {
+        method: 'POST',
+        body: { rejectionReason },
+      });
 
-      // 1. Try Backend if source is backend or not PC- local ID
-      if (confirmation?.source === 'backend' || (confirmationId && !String(confirmationId).startsWith('PC-'))) {
-        try {
-          await backendFetch(`/api/backend/finance/payments/${confirmationId}/bounce`, {
-            method: 'POST',
-            body: { remarks },
-          });
-          processed = true;
-        } catch (backendErr) {
-          console.warn('Backend payment rejection failed, falling back to local handlers:', backendErr);
+      try {
+        if (typeof rejectFinancePayment === 'function') {
+          rejectFinancePayment(rejectModal.payment.id, rejectionReason, 'Finance Team');
         }
-      }
-
-      // 2. Try Store action
-      if (!processed && typeof rejectFinancePayment === 'function') {
-        try {
-          rejectFinancePayment(confirmationId, remarks, 'Finance Team');
-          processed = true;
-        } catch (storeErr) {
-          console.warn('Store rejectFinancePayment failed:', storeErr);
-        }
-      }
-
-      // 3. Update localStorage confirmations if source is local_storage or fallback
-      if (confirmation || !processed) {
-        try {
-          const raw = localStorage.getItem('himalaya_sales_payment_confirmations');
-          if (raw) {
-            const list = JSON.parse(raw);
-            const updated = list.map((c) => {
-              if (c.id === confirmationId || c.orderId === confirmation?.orderId || c.orderNo === confirmation?.orderId) {
-                return {
-                  ...c,
-                  status: 'FINANCE_REJECTED',
-                  paymentStatus: 'BOUNCED',
-                  financeRemarks: remarks,
-                  remarks,
-                  rejectedAt: new Date().toISOString(),
-                };
-              }
-              return c;
-            });
-            localStorage.setItem('himalaya_sales_payment_confirmations', JSON.stringify(updated));
-            processed = true;
-          }
-        } catch (lsErr) {
-          console.warn('LocalStorage payment rejection error:', lsErr);
-        }
-      }
-
-      if (!processed && !confirmation) {
-        throw new Error('Cannot find this payment record. It may have already been processed.');
-      }
+      } catch {}
 
       setRejectModal(null);
-      await refetchBackendPayments();
-      await Swal.fire({ icon: 'success', title: 'Payment Rejected', text: 'The payment has been marked as bounced. Sales can submit a corrected payment confirmation.', timer: 1800, showConfirmButton: false });
+      await queryClient.invalidateQueries({ queryKey: ['finance-verification-queue'] });
+      await queryClient.invalidateQueries({ queryKey: ['finance-order-history'] });
+      await refetch();
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Payment Rejected',
+        text: 'The payment has been rejected and the assigned salesperson has been notified.',
+        timer: 2000,
+        showConfirmButton: false,
+      });
     } catch (err) {
-      await Swal.fire({ icon: 'error', title: 'Rejection Failed', text: err?.message || String(err) });
+      await Swal.fire({
+        icon: 'error',
+        title: 'Rejection Failed',
+        text: err?.message || 'Payment rejection failed. Please try again.',
+      });
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="finance-verification-page w-full" style={{ width: '100%', maxWidth: '100%', padding: '20px', boxSizing: 'border-box' }}>
+    <div className="finance-verification-page w-full" style={{ width: '100%', maxWidth: '100%', padding: '24px', boxSizing: 'border-box' }}>
       
-      {/* Header */}
-      <div className="finance-verification-header" style={{ marginBottom: '20px' }}>
+      {/* ── Page Header ────────────────────────────────────────────────────── */}
+      <div className="finance-verification-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <DollarSign className="w-7 h-7 text-blue-600" />
-            Finance Payment Verification & Outstanding
+          <h1 className="text-2xl font-bold text-gray-900" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <DollarSign className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-200" />
+            Finance Payment Verification & Follow-Up Engine
           </h1>
-          <p className="text-gray-500 mt-1">
-            Real-time reconciliation of client payments, credit term tracking, and collection verification.
+          <p className="text-gray-500 mt-1 text-sm">
+            Authoritative source of truth for payment verification, credit terms tracking, overdue follow-up, and real-time ledger settlement.
           </p>
         </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isLoading}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 16px',
+            borderRadius: '10px',
+            border: '1px solid #CBD5E1',
+            background: '#FFFFFF',
+            fontSize: '13px',
+            fontWeight: 700,
+            color: '#334155',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+          }}
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh Live Data
+        </button>
       </div>
 
-      {/* ── Top Summary KPI Cards ────────────────────────────────────────── */}
+      {/* ── Top Summary KPI Cards (Section 13) ──────────────────────────────── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '16px',
         marginBottom: '24px'
       }}>
-        {/* Total Outstanding */}
-        <div style={{
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
-            <TrendingDown className="w-6 h-6" />
-          </div>
-          <div>
-            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Total Outstanding Balance</div>
-            <div style={{ fontSize: '19px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>{formatINR(stats.totalOutstanding)}</div>
-          </div>
-        </div>
-
-        {/* Awaiting Verification */}
+        {/* Pending Verification */}
         <div style={{
           background: '#FFFFFF',
           border: '1px solid #FDE68A',
@@ -629,12 +235,58 @@ export default function FinanceSalesConfirmationView() {
             <Clock className="w-6 h-6" />
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: '#B45309', fontWeight: 600 }}>Awaiting Verification ({stats.awaitingVerifCount})</div>
-            <div style={{ fontSize: '19px', fontWeight: 800, color: '#92400E', marginTop: '2px' }}>{formatINR(stats.awaitingVerifAmount)}</div>
+            <div style={{ fontSize: '12px', color: '#B45309', fontWeight: 600 }}>Pending Verification</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#92400E', marginTop: '2px' }}>
+              {summary.pendingVerificationCount || 0}
+            </div>
           </div>
         </div>
 
-        {/* Overdue Amount */}
+        {/* Due Soon */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: '14px',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+        }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
+            <Calendar className="w-6 h-6" />
+          </div>
+          <div>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Due Soon</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
+              {summary.dueSoonCount || 0}
+            </div>
+          </div>
+        </div>
+
+        {/* Due Today */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #FED7AA',
+          borderRadius: '14px',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+        }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#FFEDD5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C' }}>
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div>
+            <div style={{ fontSize: '12px', color: '#C2410C', fontWeight: 600 }}>Due Today</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#9A3412', marginTop: '2px' }}>
+              {summary.dueTodayCount || 0}
+            </div>
+          </div>
+        </div>
+
+        {/* Overdue */}
         <div style={{
           background: '#FFFFFF',
           border: '1px solid #FECACA',
@@ -649,15 +301,17 @@ export default function FinanceSalesConfirmationView() {
             <AlertCircle className="w-6 h-6" />
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: '#B91C1C', fontWeight: 600 }}>Overdue Collections ({stats.overdueCount})</div>
-            <div style={{ fontSize: '19px', fontWeight: 800, color: '#991B1B', marginTop: '2px' }}>{formatINR(stats.overdueAmount)}</div>
+            <div style={{ fontSize: '12px', color: '#B91C1C', fontWeight: 600 }}>Overdue Orders</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#991B1B', marginTop: '2px' }}>
+              {summary.overdueCount || 0}
+            </div>
           </div>
         </div>
 
-        {/* Total Verified */}
+        {/* Partially Paid */}
         <div style={{
           background: '#FFFFFF',
-          border: '1px solid #BBF7D0',
+          border: '1px solid #BFDBFE',
           borderRadius: '14px',
           padding: '16px 20px',
           display: 'flex',
@@ -665,25 +319,54 @@ export default function FinanceSalesConfirmationView() {
           gap: '14px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
         }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16A34A' }}>
-            <ShieldCheck className="w-6 h-6" />
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
+            <TrendingDown className="w-6 h-6" />
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: '#15803D', fontWeight: 600 }}>Verified Collections</div>
-            <div style={{ fontSize: '19px', fontWeight: 800, color: '#166534', marginTop: '2px' }}>{formatINR(stats.totalVerified)}</div>
+            <div style={{ fontSize: '12px', color: '#1D4ED8', fontWeight: 600 }}>Partially Paid</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#1E40AF', marginTop: '2px' }}>
+              {summary.partiallyPaidCount || 0}
+            </div>
+          </div>
+        </div>
+
+        {/* Total Outstanding */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: '14px',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+        }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F172A' }}>
+            <DollarSign className="w-6 h-6" />
+          </div>
+          <div>
+            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Total Outstanding</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
+              {formatINR(summary.totalOutstanding)}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="payment-verification-table-card w-full" style={{ width: '100%', maxWidth: '100%', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', overflow: 'hidden' }}>
-        {/* Tabs */}
+      {/* ── Main Content Card ──────────────────────────────────────────────── */}
+      <div className="payment-verification-table-card w-full" style={{ width: '100%', maxWidth: '100%', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+        
+        {/* Tabs (Section 11 & 12) */}
         <div className="finance-verification-tabs" style={{ padding: '12px 16px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[
-            { id: 'Payment Outstanding', label: 'Payment Outstanding' },
-            { id: 'Sales Confirmations', label: `Sales Confirmations (${stats.awaitingVerifCount})` },
-            { id: 'Verified Payments', label: 'Verified Payments' },
-            { id: 'Rejected Payments', label: 'Rejected Payments' },
-            { id: 'Closed Orders', label: 'Closed Orders' }
+            { id: 'All', label: 'All' },
+            { id: 'Pending Verification', label: `Pending Verification (${summary.pendingVerificationCount || 0})` },
+            { id: 'Due Soon', label: `Due Soon (${summary.dueSoonCount || 0})` },
+            { id: 'Due Today', label: `Due Today (${summary.dueTodayCount || 0})` },
+            { id: 'Overdue', label: `Overdue (${summary.overdueCount || 0})` },
+            { id: 'Partially Paid', label: `Partially Paid (${summary.partiallyPaidCount || 0})` },
+            { id: 'Verified', label: 'Verified' },
+            { id: 'Rejected', label: 'Rejected' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -698,7 +381,7 @@ export default function FinanceSalesConfirmationView() {
                 border: activeTab === tab.id ? '1px solid #2563EB' : '1px solid #E2E8F0',
                 background: activeTab === tab.id ? '#2563EB' : '#FFFFFF',
                 color: activeTab === tab.id ? '#FFFFFF' : '#475569',
-                transition: 'all 0.15s ease'
+                transition: 'all 0.15s ease',
               }}
             >
               {tab.label}
@@ -706,102 +389,141 @@ export default function FinanceSalesConfirmationView() {
           ))}
         </div>
 
-        {/* Toolbar */}
-        <div className="finance-verification-toolbar" style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="finance-verification-search" style={{ position: 'relative', maxWidth: '380px', width: '100%' }}>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by Order ID, Invoice, Customer..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
+        {/* Toolbar & Filters (Section 14 & 15) */}
+        <div className="finance-verification-toolbar" style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 320px', maxWidth: '400px' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search Order No, Customer, Salesperson, Ref..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
           </div>
-          <button
-            onClick={() => refetchBackendPayments()}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '8px',
-              border: '1px solid #CBD5E1',
-              background: '#FFFFFF',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: '#334155',
-              cursor: 'pointer'
-            }}
-          >
-            ↻ Refresh Data
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Payment Terms Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Terms:</label>
+              <select
+                value={paymentTermsFilter}
+                onChange={(e) => setPaymentTermsFilter(e.target.value)}
+                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600 }}
+              >
+                <option value="All">All Terms</option>
+                <option value="7 Days">7 Days</option>
+                <option value="15 Days">15 Days</option>
+                <option value="20 Days">20 Days</option>
+                <option value="30 Days">30 Days</option>
+                <option value="90 Days">90 Days</option>
+                <option value="Custom">Custom</option>
+                <option value="Advance">Advance</option>
+              </select>
+            </div>
+
+            {/* Due State Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Due State:</label>
+              <select
+                value={dueStateFilter}
+                onChange={(e) => setDueStateFilter(e.target.value)}
+                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600 }}
+              >
+                <option value="All">All Due States</option>
+                <option value="Upcoming">Upcoming</option>
+                <option value="Due Soon">Due Soon</option>
+                <option value="Due Today">Due Today</option>
+                <option value="Overdue">Overdue</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        {/* Table */}
+        {/* ── Payment Table (Section 13 & 14) ────────────────────────────────── */}
         <div className="finance-verification-table-wrap" style={{ overflowX: 'auto' }}>
           <table className="payment-verification-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontWeight: 700 }}>
-                {activeTab !== 'Payment Outstanding' && activeTab !== 'Closed Orders' && <th style={{ padding: '12px 14px' }}>Conf. ID</th>}
-                <th style={{ padding: '12px 14px' }}>Order ID</th>
-                <th style={{ padding: '12px 14px' }}>Invoice No</th>
+                <th style={{ padding: '12px 14px' }}>Order Number</th>
                 <th style={{ padding: '12px 14px' }}>Customer</th>
-                <th style={{ padding: '12px 14px' }}>Delivery / Inv Date</th>
+                <th style={{ padding: '12px 14px' }}>Salesperson</th>
+                <th style={{ padding: '12px 14px' }}>Order Date</th>
                 <th style={{ padding: '12px 14px' }}>Payment Terms</th>
+                <th style={{ padding: '12px 14px' }}>Start Date</th>
                 <th style={{ padding: '12px 14px' }}>Due Date</th>
-                <th style={{ padding: '12px 14px' }}>Remaining Days</th>
-                {activeTab !== 'Payment Outstanding' && activeTab !== 'Closed Orders' && (
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Payment Amt</th>
-                )}
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Total Amount</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Verified Paid</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Pending Balance</th>
-                <th style={{ padding: '12px 14px' }}>Status</th>
+                <th style={{ padding: '12px 14px' }}>Elapsed / Status</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Order Total</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Paid Amount</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Outstanding</th>
+                <th style={{ padding: '12px 14px' }}>Payment Status</th>
+                <th style={{ padding: '12px 14px' }}>Verification</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={14} style={{ padding: '48px 24px', textAlign: 'center', color: '#64748B' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>Loading payment records...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={14} style={{ padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '32px' }}>📭</span>
-                      <span style={{ fontWeight: 600, fontSize: '14px' }}>No records found in this tab.</span>
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>No orders found matching the filter criteria.</span>
                     </div>
                   </td>
                 </tr>
               ) : (
                 rows.map((r, idx) => {
-                  const remDays = r.remainingDays;
-                  const isAdv = r.isAdvance || String(r.paymentTerms || '').toLowerCase().includes('advance');
+                  const hasPending = (r.pendingPayments || []).length > 0;
+                  const firstPending = r.pendingPayments?.[0];
+                  const remDays = r.daysRemaining;
+                  const isAdv = String(r.paymentTerms || '').toLowerCase().includes('advance');
 
                   return (
-                    <tr key={r.id + idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      {r.type === 'CONFIRMATION' && (
-                        <td style={{ padding: '12px 14px' }}>
-                          <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#6366F1', background: '#EEF2FF', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                            {r.confirmationId}
-                          </span>
-                        </td>
-                      )}
+                    <tr key={r.orderId + idx} style={{ borderBottom: '1px solid #F1F5F9', background: hasPending ? '#FFFBEB' : '#FFFFFF' }}>
+                      {/* Order Number */}
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '12.5px', color: '#1E3A8A' }}>
-                          {r.orderId}
+                          {r.orderNumber}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: '#334155' }}>
-                        {r.invoiceNo || '—'}
-                      </td>
+
+                      {/* Customer */}
                       <td style={{ padding: '12px 14px' }}>
                         <div style={{ fontWeight: 700, color: '#1E293B' }}>{r.customerName}</div>
-                        <div style={{ fontSize: '11px', color: '#64748B' }}>By: {r.salesperson}</div>
                       </td>
+
+                      {/* Salesperson */}
                       <td style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
-                        {r.deliveryDate || r.invoiceDate || '—'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <User className="w-3.5 h-3.5 text-gray-400" />
+                          <span>{r.salespersonName || 'Unassigned'}</span>
+                        </div>
                       </td>
+
+                      {/* Order Date */}
+                      <td style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
+                        {r.orderDate ? String(r.orderDate).split('T')[0] : '—'}
+                      </td>
+
+                      {/* Payment Terms */}
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{
                           fontWeight: 700,
-                          color: isAdv ? '#0284c7' : '#2563eb',
-                          background: isAdv ? '#e0f2fe' : '#eff6ff',
+                          color: isAdv ? '#0284C7' : '#2563EB',
+                          background: isAdv ? '#E0F2FE' : '#EFF6FF',
                           padding: '3px 8px',
                           borderRadius: '6px',
                           fontSize: '11.5px',
@@ -809,46 +531,62 @@ export default function FinanceSalesConfirmationView() {
                           {r.paymentTerms || '15 Days'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#334155' }}>
-                        {r.dueDate || '—'}
+
+                      {/* Start Date */}
+                      <td style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
+                        {r.paymentTermStartDate ? String(r.paymentTermStartDate).split('T')[0] : '—'}
                       </td>
+
+                      {/* Due Date */}
+                      <td style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#334155' }}>
+                        {r.paymentDueDate ? String(r.paymentDueDate).split('T')[0] : '—'}
+                      </td>
+
+                      {/* Elapsed / Due Status */}
                       <td style={{ padding: '12px 14px' }}>
-                        {isAdv ? (
+                        {r.dueState === 'COMPLETED' ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#DCFCE7', color: '#16A34A', border: '1px solid #BBF7D0' }}>
+                            ✓ Settled
+                          </span>
+                        ) : isAdv ? (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#E0F2FE', color: '#0284C7', border: '1px solid #BAE6FD' }}>
                             ⚡ Advance
                           </span>
-                        ) : remDays === null ? (
-                          <span style={{ color: '#94a3b8' }}>—</span>
-                        ) : remDays > 0 ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: remDays <= 3 ? '#FEF3C7' : '#DCFCE7', color: remDays <= 3 ? '#D97706' : '#16A34A', border: `1px solid ${remDays <= 3 ? '#FDE68A' : '#BBF7D0'}` }}>
-                            🟢 {remDays} {remDays === 1 ? 'Day' : 'Days'}
+                        ) : r.dueState === 'OVERDUE' ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
+                            🔴 Overdue {r.daysOverdue}d
                           </span>
-                        ) : remDays === 0 ? (
+                        ) : r.dueState === 'DUE_TODAY' ? (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A' }}>
                             🟡 Due Today
                           </span>
+                        ) : r.dueState === 'DUE_SOON' ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A' }}>
+                            🟠 Due in {remDays}d
+                          </span>
                         ) : (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
-                            🔴 Overdue {Math.abs(remDays)}d
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800, background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0' }}>
+                            ⚪ In {remDays}d
                           </span>
                         )}
                       </td>
 
-                      {r.type === 'CONFIRMATION' && (
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#0F172A' }}>
-                          {formatINR(r.paymentAmount)}
-                        </td>
-                      )}
-
+                      {/* Order Total */}
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#334155' }}>
-                        {formatINR(r.totalAmount)}
+                        {formatINR(r.orderTotal)}
                       </td>
+
+                      {/* Paid Amount */}
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#16A34A' }}>
-                        {formatINR(r.verifiedAmount)}
+                        {formatINR(r.verifiedPaidAmount)}
                       </td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 900, color: r.pendingAmount > 0 ? '#DC2626' : '#16A34A' }}>
-                        {formatINR(r.pendingAmount)}
+
+                      {/* Outstanding Amount */}
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 900, color: r.outstandingAmount > 0 ? '#DC2626' : '#16A34A' }}>
+                        {formatINR(r.outstandingAmount)}
                       </td>
+
+                      {/* Payment Status */}
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{
                           display: 'inline-flex',
@@ -860,82 +598,74 @@ export default function FinanceSalesConfirmationView() {
                           fontWeight: 800,
                           letterSpacing: '0.03em',
                           textTransform: 'uppercase',
-                          ...(r.status?.includes('VERIFIED') && !r.status?.includes('UN') ? { background: '#D1FAE5', color: '#065F46' } :
-                            r.status?.includes('PENDING') || r.status?.includes('RECORDED') ? { background: '#FEF3C7', color: '#92400E' } :
-                            r.status?.includes('REJECTED') || r.status?.includes('BOUNCED') ? { background: '#FEE2E2', color: '#991B1B' } :
-                            r.status === 'CLOSED' ? { background: '#F1F5F9', color: '#475569' } :
-                            r.status === 'FULLY_PAID' ? { background: '#D1FAE5', color: '#065F46' } :
-                            r.status === 'PARTIALLY_PAID' ? { background: '#DBEAFE', color: '#1E40AF' } :
-                            r.status === 'PENDING' ? { background: '#FEF3C7', color: '#92400E' } :
-                            { background: '#F1F5F9', color: '#475569' })
+                          ...(r.paymentStatus === 'PAID' ? { background: '#D1FAE5', color: '#065F46' } :
+                            r.paymentStatus === 'PARTIALLY_PAID' ? { background: '#DBEAFE', color: '#1E40AF' } :
+                            r.paymentStatus === 'OVERDUE' ? { background: '#FEE2E2', color: '#991B1B' } :
+                            { background: '#FEF3C7', color: '#92400E' })
                         }}>
-                          {r.status?.includes('VERIFIED') && !r.status?.includes('UN') && <span>✓</span>}
-                          {r.status?.includes('PENDING') || r.status?.includes('RECORDED') ? '⏳' : ''}
-                          {r.status?.includes('REJECTED') || r.status?.includes('BOUNCED') ? '✕' : ''}
-                          {r.status?.replace(/_/g, ' ')}
+                          {r.paymentStatus?.replace(/_/g, ' ')}
                         </span>
                       </td>
+
+                      {/* Verification Status */}
+                      <td style={{ padding: '12px 14px' }}>
+                        {hasPending ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            fontSize: '10.5px',
+                            fontWeight: 800,
+                            background: '#FEF3C7',
+                            color: '#92400E',
+                            border: '1px solid #FDE68A'
+                          }}>
+                            ⏳ {formatINR(firstPending?.amount)} ({r.pendingPayments.length})
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>
+                            {r.verificationStatus?.replace(/_/g, ' ') || 'None'}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          
+                          {/* View Full History */}
                           <button
                             type="button"
-                            title="View Details"
+                            title="View Payment History & Audit"
                             style={{
                               background: '#F1F5F9',
                               border: '1px solid #E2E8F0',
                               borderRadius: '6px',
-                              padding: '6px',
+                              padding: '6px 10px',
                               cursor: 'pointer',
-                              color: '#475569'
+                              color: '#334155',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
                             }}
-                            onClick={() => Swal.fire({
-                              title: `Payment & Terms — ${r.orderId}`,
-                              html: `
-                                <div style="text-align: left; font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
-                                  <div><strong>Order No:</strong> ${r.orderId}</div>
-                                  <div><strong>Invoice No:</strong> ${r.invoiceNo || '—'}</div>
-                                  <div><strong>Customer:</strong> ${r.customerName}</div>
-                                  <div><strong>Payment Terms:</strong> ${r.paymentTerms}</div>
-                                  <div><strong>Due Date:</strong> ${r.dueDate || '—'} (${r.reminderLabel})</div>
-                                  <div><strong>Total Amount:</strong> ${formatINR(r.totalAmount)}</div>
-                                  <div><strong>Verified Paid:</strong> ${formatINR(r.verifiedAmount)}</div>
-                                  <div><strong>Pending Due:</strong> <span style="color:#DC2626; font-weight:800;">${formatINR(r.pendingAmount)}</span></div>
-                                  ${r.paymentMethod ? `<div><strong>Method:</strong> ${r.paymentMethod}</div>` : ''}
-                                  ${r.transactionRef ? `<div><strong>Ref/UTR:</strong> ${r.transactionRef}</div>` : ''}
-                                </div>
-                              `,
-                              confirmButtonText: 'Close',
-                            })}
+                            onClick={() => setHistoryModal({ orderId: r.orderId, orderNumber: r.orderNumber })}
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" /> History
                           </button>
 
-                          {r.type === 'CONFIRMATION' && r.paymentProof && (
-                            <button
-                              type="button"
-                              title="View Proof"
-                              style={{
-                                background: '#EFF6FF',
-                                border: '1px solid #BFDBFE',
-                                borderRadius: '6px',
-                                padding: '6px',
-                                cursor: 'pointer',
-                                color: '#2563EB'
-                              }}
-                              onClick={() => window.open(r.paymentProof, '_blank', 'noopener,noreferrer')}
-                            >
-                              <FileText className="w-4 h-4" />
-                            </button>
-                          )}
-
-                          {r.type === 'CONFIRMATION' && (r.status === 'FINANCE_VERIFICATION_PENDING' || r.status === 'SALES_PAYMENT_RECORDED') && (
+                          {/* Verify / Reject Actions for Pending Payments */}
+                          {hasPending && firstPending && (
                             <>
                               <button
-                                onClick={() => handleApprove(r.confirmationId)}
+                                onClick={() => setVerifyModal({ payment: firstPending, order: r })}
                                 disabled={isProcessing}
                                 style={{
                                   background: '#16A34A',
-                                  color: '#fff',
+                                  color: '#FFFFFF',
                                   border: 'none',
                                   borderRadius: '6px',
                                   padding: '6px 12px',
@@ -944,19 +674,19 @@ export default function FinanceSalesConfirmationView() {
                                   gap: '4px',
                                   fontSize: '12px',
                                   fontWeight: 700,
-                                  opacity: isProcessing ? 0.5 : 1,
-                                  cursor: isProcessing ? 'not-allowed' : 'pointer'
+                                  cursor: 'pointer',
                                 }}
-                                title="Approve"
+                                title="Verify Payment"
                               >
-                                <CheckCircle2 className="w-4 h-4" /> {isProcessing ? '...' : 'Approve'}
+                                <CheckCircle2 className="w-4 h-4" /> Verify
                               </button>
+
                               <button
-                                onClick={() => setRejectModal(r)}
+                                onClick={() => setRejectModal({ payment: firstPending, order: r })}
                                 disabled={isProcessing}
                                 style={{
                                   background: '#DC2626',
-                                  color: '#fff',
+                                  color: '#FFFFFF',
                                   border: 'none',
                                   borderRadius: '6px',
                                   padding: '6px 10px',
@@ -965,10 +695,9 @@ export default function FinanceSalesConfirmationView() {
                                   gap: '4px',
                                   fontSize: '12px',
                                   fontWeight: 700,
-                                  opacity: isProcessing ? 0.5 : 1,
-                                  cursor: isProcessing ? 'not-allowed' : 'pointer'
+                                  cursor: 'pointer',
                                 }}
-                                title="Reject"
+                                title="Reject Payment"
                               >
                                 <XCircle className="w-4 h-4" /> Reject
                               </button>
@@ -985,36 +714,284 @@ export default function FinanceSalesConfirmationView() {
         </div>
       </div>
 
-      {/* Reject Modal */}
+      {/* ── Verify Payment Confirmation Modal (Section 16) ─────────────────── */}
+      {verifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-100">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-green-50/70">
+              <h2 className="text-xl font-bold text-green-900 flex items-center gap-2">
+                <ShieldCheck className="w-6 h-6 text-green-600" /> Verify Customer Payment
+              </h2>
+              <button onClick={() => setVerifyModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
+            </div>
+            
+            <div className="p-6 space-y-4 text-sm">
+              <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', fontSize: '13px' }}>
+                  <span className="text-gray-500 font-semibold">Order Number:</span>
+                  <span className="font-bold text-blue-900 font-mono">{verifyModal.order?.orderNumber}</span>
+
+                  <span className="text-gray-500 font-semibold">Customer:</span>
+                  <span className="font-bold text-gray-800">{verifyModal.order?.customerName}</span>
+
+                  <span className="text-gray-500 font-semibold">Payment Amount:</span>
+                  <span className="font-extrabold text-green-700 text-base">{formatINR(verifyModal.payment?.amount)}</span>
+
+                  <span className="text-gray-500 font-semibold">Method:</span>
+                  <span className="font-semibold text-gray-800">{verifyModal.payment?.method || 'BANK_TRANSFER'}</span>
+
+                  <span className="text-gray-500 font-semibold">Reference/UTR:</span>
+                  <span className="font-mono text-gray-800 font-bold">{verifyModal.payment?.transactionReference || verifyModal.payment?.paymentNo || '—'}</span>
+
+                  <span className="text-gray-500 font-semibold">Current Paid:</span>
+                  <span className="text-gray-700">{formatINR(verifyModal.order?.verifiedPaidAmount)}</span>
+
+                  <span className="text-gray-500 font-semibold">Current Balance:</span>
+                  <span className="font-bold text-red-600">{formatINR(verifyModal.order?.outstandingAmount)}</span>
+
+                  <span className="text-gray-500 font-semibold">New Balance:</span>
+                  <span className="font-extrabold text-indigo-700">
+                    {formatINR(Math.max(0, Number(verifyModal.order?.outstandingAmount || 0) - Number(verifyModal.payment?.amount || 0)))}
+                  </span>
+                </div>
+              </div>
+
+              {verifyModal.payment?.proofUrl && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Attached Proof Document</label>
+                  <a
+                    href={verifyModal.payment.proofUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-semibold text-xs bg-blue-50 px-3 py-2 rounded-lg border border-blue-200"
+                  >
+                    <FileText className="w-4 h-4" /> View Payment Proof Document <ArrowUpRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-100 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setVerifyModal(null)}
+                disabled={isProcessing}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 font-semibold text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVerify(verifyModal.payment.id, verifyModal.order.orderNumber)}
+                disabled={isProcessing}
+                className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm transition-colors shadow-md flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" /> {isProcessing ? 'Verifying...' : 'Confirm & Verify Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Payment Modal (Section 19) ───────────────────────────────── */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50/50">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-100">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50/70">
               <h2 className="text-xl font-bold text-red-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" /> Reject Payment
+                <AlertTriangle className="w-5 h-5 text-red-600" /> Reject Customer Payment
               </h2>
-              <button onClick={() => setRejectModal(null)} className="text-gray-400 hover:text-gray-600">×</button>
+              <button onClick={() => setRejectModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
             </div>
+            
             <form onSubmit={handleReject} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmation ID</label>
-                <input type="text" disabled value={rejectModal.confirmationId} className="w-full px-3 py-2 border rounded-lg bg-gray-50 text-gray-500" />
+              <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '13px' }}>
+                <div><strong>Order:</strong> <span className="font-mono text-blue-900 font-bold">{rejectModal.order?.orderNumber}</span></div>
+                <div><strong>Payment Ref:</strong> <span className="font-mono font-semibold">{rejectModal.payment?.paymentNo}</span></div>
+                <div><strong>Amount:</strong> <span className="font-bold text-red-600">{formatINR(rejectModal.payment?.amount)}</span></div>
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Remarks</label>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Rejection Reason <span className="text-red-500">*</span>
+                </label>
                 <textarea 
-                  name="remarks" 
+                  name="rejectionReason" 
                   required 
-                  className="w-full px-3 py-2 border border-red-200 rounded-lg focus:ring-red-500 focus:border-red-500" 
+                  className="w-full px-3 py-2 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm" 
                   rows={3} 
-                  placeholder="State the reason for rejection (e.g. UTR mismatch, insufficient credit)..."
+                  placeholder="e.g. Transaction reference does not match bank statement, insufficient credit, fake UTR..."
                 ></textarea>
               </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setRejectModal(null)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Confirm Rejection</button>
+                <button
+                  type="button"
+                  onClick={() => setRejectModal(null)}
+                  disabled={isProcessing}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-semibold text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessing}
+                  className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm transition-colors shadow-md flex items-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" /> {isProcessing ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Complete Payment History Modal (Section 20 & 31) ───────────────── */}
+      {historyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl border border-gray-100 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-blue-600" /> Complete Payment History & Verification
+                </h2>
+                <div className="text-xs text-gray-500 font-mono mt-0.5">{historyModal.orderNumber}</div>
+              </div>
+              <button onClick={() => setHistoryModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
+            </div>
+
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 text-sm">
+              {isLoadingHistory ? (
+                <div className="py-12 text-center text-gray-500 flex flex-col items-center gap-3">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                  <span>Loading payment details...</span>
+                </div>
+              ) : !orderHistoryData ? (
+                <div className="py-12 text-center text-gray-400">Order details could not be loaded.</div>
+              ) : (
+                <>
+                  {/* Order & Summary Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                    <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                      <div className="text-xs text-gray-500 font-semibold">Order Total</div>
+                      <div className="text-base font-extrabold text-gray-900 mt-1">{formatINR(orderHistoryData.summary?.orderTotal)}</div>
+                    </div>
+                    <div style={{ background: '#DCFCE7', padding: '12px', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
+                      <div className="text-xs text-green-700 font-semibold">Verified Paid</div>
+                      <div className="text-base font-extrabold text-green-900 mt-1">{formatINR(orderHistoryData.summary?.verifiedPaid)}</div>
+                    </div>
+                    <div style={{ background: '#FEF3C7', padding: '12px', borderRadius: '10px', border: '1px solid #FDE68A' }}>
+                      <div className="text-xs text-yellow-800 font-semibold">Pending Verification</div>
+                      <div className="text-base font-extrabold text-yellow-900 mt-1">{formatINR(orderHistoryData.summary?.pendingVerification)}</div>
+                    </div>
+                    <div style={{ background: '#FEE2E2', padding: '12px', borderRadius: '10px', border: '1px solid #FECACA' }}>
+                      <div className="text-xs text-red-700 font-semibold">Outstanding Balance</div>
+                      <div className="text-base font-extrabold text-red-900 mt-1">{formatINR(orderHistoryData.summary?.outstandingAmount)}</div>
+                    </div>
+                  </div>
+
+                  {/* Payment Timeline Table */}
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-600" /> Chronological Payment Records
+                    </h3>
+
+                    {(!orderHistoryData.history || orderHistoryData.history.length === 0) ? (
+                      <div className="p-8 text-center bg-gray-50 rounded-xl text-gray-400">
+                        No payments recorded for this order yet.
+                      </div>
+                    ) : (
+                      <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-xs text-left border-collapse">
+                          <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                            <tr>
+                              <th className="p-3">Date</th>
+                              <th className="p-3 text-right">Amount</th>
+                              <th className="p-3">Method / Ref</th>
+                              <th className="p-3">Submitted By</th>
+                              <th className="p-3">Status</th>
+                              <th className="p-3">Audit Details</th>
+                              <th className="p-3 text-center">Proof</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {orderHistoryData.history.map((h, i) => (
+                              <tr key={h.id || i} className="hover:bg-gray-50/50">
+                                <td className="p-3 font-semibold text-gray-700">
+                                  {h.receivedAt ? String(h.receivedAt).split('T')[0] : '—'}
+                                </td>
+                                <td className="p-3 text-right font-extrabold text-gray-900">
+                                  {formatINR(h.amount)}
+                                </td>
+                                <td className="p-3">
+                                  <div className="font-semibold text-gray-800">{h.method}</div>
+                                  <div className="font-mono text-gray-500 text-[11px]">{h.transactionReference || h.paymentNo}</div>
+                                </td>
+                                <td className="p-3 text-gray-600">
+                                  {h.submittedByName || 'Sales User'}
+                                </td>
+                                <td className="p-3">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
+                                    h.status === 'VERIFIED' ? 'bg-green-100 text-green-800' :
+                                    h.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {h.status === 'VERIFIED' && '✓ '}
+                                    {h.status === 'REJECTED' && '✕ '}
+                                    {h.status}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-gray-600">
+                                  {h.status === 'VERIFIED' && (
+                                    <div>
+                                      <span className="font-semibold">By:</span> {h.verifiedByName || 'Finance User'}
+                                      <div className="text-[10px] text-gray-400">{h.verifiedAt ? new Date(h.verifiedAt).toLocaleString() : ''}</div>
+                                    </div>
+                                  )}
+                                  {h.status === 'REJECTED' && (
+                                    <div className="text-red-700">
+                                      <div className="font-bold">Reason: {h.rejectionReason}</div>
+                                      <div className="text-[10px] text-gray-400">By: {h.rejectedByName || 'Finance'} on {h.rejectedAt ? new Date(h.rejectedAt).toLocaleString() : ''}</div>
+                                    </div>
+                                  )}
+                                  {h.status !== 'VERIFIED' && h.status !== 'REJECTED' && (
+                                    <span className="text-yellow-700 italic">Awaiting verification</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center">
+                                  {h.proofUrl ? (
+                                    <a
+                                      href={h.proofUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" /> Proof
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-300">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setHistoryModal(null)}
+                className="px-5 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 font-semibold text-sm transition-colors"
+              >
+                Close History
+              </button>
+            </div>
           </div>
         </div>
       )}

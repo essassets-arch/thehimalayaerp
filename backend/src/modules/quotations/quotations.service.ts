@@ -779,6 +779,11 @@ export class QuotationsService {
         0
       );
 
+      const termDays = quotation.paymentTermDays || (quotation.paymentTerms ? parseInt(String(quotation.paymentTerms).match(/\d+/)?.[0] || '15', 10) : 15);
+      const paymentTermsStr = quotation.paymentTerms || `${termDays} Days`;
+      const termStartDate = (quotation as any).paymentTermStartDate || quotation.createdAt || new Date();
+      const termDueDate = new Date(new Date(termStartDate).getTime() + termDays * 86400000);
+
       // Snapshot exactly from quotation items
       const salesOrder = await tx.salesOrder.create({
         data: {
@@ -789,7 +794,14 @@ export class QuotationsService {
           salesExecutiveId: quotation.salesExecutiveId || quotation.createdById || quotation.lead?.salesExecutiveId || quotation.lead?.createdById || userId,
           workflowStateId: soInitialState?.id,
           createdById: userId,
-          paymentTermsDays: quotation.paymentTermDays || (quotation.paymentTerms ? parseInt(String(quotation.paymentTerms).match(/\d+/)?.[0] || '0', 10) : undefined) || undefined,
+          paymentTerms: paymentTermsStr,
+          paymentTermDays: termDays,
+          paymentTermsDays: termDays,
+          paymentTermStartDate: termStartDate,
+          paymentDueDate: termDueDate,
+          paidAmount: 0,
+          outstandingAmount: quotation.total,
+          paymentStatus: 'PENDING',
           subtotal: quotation.subtotal,
           discountAmount: quotation.discount,
           taxAmount: quotation.tax,
