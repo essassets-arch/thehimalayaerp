@@ -931,8 +931,9 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
   doc.setFillColor(255, 255, 255);
   doc.ellipse(25, 4, 30, 20, 'F');
 
-  // Try to find the logo on screen to convert it to a base64 data URL
+  // Try to find the logo and stamp on screen to convert it to a base64 data URL
   let originalLogoData = null;
+  let originalStampData = null;
   if (typeof document !== 'undefined') {
     const logoImg = document.querySelector('img[alt="Himalaya Logo"]');
     if (logoImg) {
@@ -945,6 +946,19 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
         originalLogoData = canvas.toDataURL('image/png');
       } catch (e) {
         console.error('Error rendering logo for PDF:', e);
+      }
+    }
+    const stampImg = document.querySelector('img[alt="Himalaya Seal Stamp"]');
+    if (stampImg) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = stampImg.naturalWidth || stampImg.width || 300;
+        canvas.height = stampImg.naturalHeight || stampImg.height || 300;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(stampImg, 0, 0);
+        originalStampData = canvas.toDataURL('image/png');
+      } catch (e) {
+        console.error('Error rendering stamp for PDF:', e);
       }
     }
   }
@@ -1009,7 +1023,8 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
 
   doc.setTextColor(71, 85, 105);
   doc.setFontSize(8.5);
-  doc.text(`Ref: QT-2026-${quotation.id || quotation.quotationNo}`, pageWidth - margin, 47, { align: 'right' });
+  const qNumber = quotation.quotationNumber || quotation.quotation_number || quotation.quotationNo || (quotation.id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(quotation.id)) ? quotation.id : `QTN-${String(quotation.id || '').slice(0, 8).toUpperCase()}`);
+  doc.text(`Ref: ${qNumber}`, pageWidth - margin, 47, { align: 'right' });
 
   // Metadata boxes (stacked on the right) - Balanced
   // Date box
@@ -1213,18 +1228,22 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     y = 20;
   }
 
-  // Draw circular brand seal - Compact
-  doc.setDrawColor(0, 46, 93);
-  doc.setLineWidth(0.4);
-  doc.circle(margin + 10, y + 9, 8, 'S');
-  doc.circle(margin + 10, y + 9, 7.2, 'S');
-  doc.circle(margin + 10, y + 9, 5.6, 'S');
-  doc.setFontSize(4);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 46, 93);
-  doc.text('HIMALAYA', margin + 10, y + 9.5, { align: 'center' });
-  doc.setFontSize(2.8);
-  doc.text('STRENGTH•DURABILITY', margin + 10, y + 11.5, { align: 'center' });
+  // Draw circular brand seal stamp
+  if (originalStampData) {
+    doc.addImage(originalStampData, 'PNG', margin + 2, y, 18, 18);
+  } else {
+    doc.setDrawColor(0, 46, 93);
+    doc.setLineWidth(0.4);
+    doc.circle(margin + 10, y + 9, 8, 'S');
+    doc.circle(margin + 10, y + 9, 7.2, 'S');
+    doc.circle(margin + 10, y + 9, 5.6, 'S');
+    doc.setFontSize(4);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 46, 93);
+    doc.text('HIMALAYA', margin + 10, y + 9.5, { align: 'center' });
+    doc.setFontSize(2.8);
+    doc.text('STRENGTH•DURABILITY', margin + 10, y + 11.5, { align: 'center' });
+  }
 
   // Thanks note
   doc.setFontSize(10);
@@ -1279,7 +1298,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     return doc.output('blob');
   }
 
-  doc.save(`Quotation_${quotation.quotationNo || quotation.id || 'Draft'}.pdf`);
+  doc.save(`Quotation_${String(qNumber).replace(/[\/\\]/g, '_') || 'Draft'}.pdf`);
   return true;
 };
 

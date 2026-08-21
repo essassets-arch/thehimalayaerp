@@ -178,6 +178,24 @@ export default function QuotationsView({
       .map((milestone) => `${milestone.label} ${milestone.percentage}%`)
       .join(', ');
   };
+  const resolveQuotationNumber = (q) => {
+    if (!q) return '—';
+    const num = q.quotationNumber || q.quotation_number || q.quotationNo;
+    if (num && typeof num === 'string' && num.trim()) {
+      return num.trim();
+    }
+    if (q.id) {
+      const idStr = String(q.id).trim();
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
+        return `QTN-${idStr.slice(0, 8).toUpperCase()}`;
+      }
+      if (idStr.startsWith('QT-') || idStr.startsWith('QTN-') || idStr.startsWith('HCCL/')) {
+        return idStr;
+      }
+      return `QTN-${idStr}`;
+    }
+    return 'QTN-DRAFT';
+  };
   const resolveQuotationCustomerName = (q) => {
     if (!q) return '—';
     return (
@@ -288,7 +306,7 @@ export default function QuotationsView({
   const handleUpdateStatusClick = (qId, newStatus, textAction) => {
     Swal.fire({
       title: `${textAction} Quotation?`,
-      text: `Are you sure you want to set the status of quotation #QTN-${qId} to "${newStatus}"?`,
+      text: `Are you sure you want to set the status of quotation #${resolveQuotationNumber({ id: qId }).replace(/^#/, '')} to "${newStatus}"?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: `Yes, ${textAction}`,
@@ -309,9 +327,10 @@ export default function QuotationsView({
   };
 
   const handleConvertToOrderClick = (qtn, closePreview = false) => {
+    const qNum = resolveQuotationNumber(qtn).replace(/^#/, '');
     Swal.fire({
       title: 'Book Purchase Order?',
-      text: `Are you sure you want to convert quotation #QTN-${qtn.id} into a Purchase Order for "${qtn.customerName}"?`,
+      text: `Are you sure you want to convert quotation #${qNum} into a Purchase Order for "${qtn.customerName}"?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Book Order',
@@ -335,9 +354,10 @@ export default function QuotationsView({
   };
 
   const handleSendQuotationClick = (qtn) => {
+    const qNum = resolveQuotationNumber(qtn).replace(/^#/, '');
     Swal.fire({
       title: 'Send Quotation?',
-      text: `Send quotation #QTN-${qtn.id} to "${qtn.customerName}"?`,
+      text: `Send quotation #${qNum} to "${qtn.customerName}"?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Send',
@@ -401,9 +421,13 @@ export default function QuotationsView({
     const custName = q.customerName || '';
     const qItems = quotationItemsText(q);
     const status = q.status || '';
-    const searchString = typeof search === 'string' ? search : '';
-    const matchesSearch = custName.toLowerCase().includes(searchString.toLowerCase()) ||
-      qItems.toLowerCase().includes(searchString.toLowerCase());
+    const qNum = resolveQuotationNumber(q);
+    const searchString = typeof search === 'string' ? search.toLowerCase() : '';
+    const matchesSearch = !searchString ||
+      custName.toLowerCase().includes(searchString) ||
+      qItems.toLowerCase().includes(searchString) ||
+      qNum.toLowerCase().includes(searchString) ||
+      String(q.id || '').toLowerCase().includes(searchString);
     const matchesFilter = filter === 'All' || status === filter;
     return matchesSearch && matchesFilter;
   });
@@ -656,7 +680,7 @@ export default function QuotationsView({
               ) : (
                 displayedQuotations.map((q) => (
                   <tr key={q.id}>
-                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{q.quotationNumber || (String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`)}</td>
+                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{resolveQuotationNumber(q).replace(/^#/, '')}</td>
                     <td data-label="Customer Name" style={{ fontWeight: '600' }}>{resolveQuotationCustomerName(q)}</td>
                     <td data-label="Product / Items">{quotationItemsText(q)}</td>
                     <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
@@ -785,7 +809,7 @@ export default function QuotationsView({
                   {/* Header Row */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span onClick={() => setSelectedQuotation(q)} style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>
-                      #{q.quotationNumber || (String(q.id || '').startsWith('QTN-') ? q.id : `QTN-${q.id}`)}
+                      #{resolveQuotationNumber(q).replace(/^#/, '')}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {canConvertQuotation(q.status) ? (
@@ -1044,7 +1068,7 @@ export default function QuotationsView({
                   </div>
 
                   <p style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700', margin: '2px 0 6px 0' }}>
-                    Ref: QT-2026-{selectedQuotation.id || selectedQuotation.quotationNo}
+                    Ref: {resolveQuotationNumber(selectedQuotation)}
                   </p>
 
                   {/* Stacked Meta Info */}
@@ -1243,31 +1267,12 @@ export default function QuotationsView({
               {/* Sign-off & Authorised Signatory Footer */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '24px', paddingBottom: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {/* Circular Seal SVG */}
-                  <svg width="80" height="80" viewBox="0 0 100 100" style={{ marginRight: '8px', flexShrink: 0 }}>
-                    <defs>
-                      <path id="seal-text-path-top" d="M 16 50 A 34 34 0 0 1 84 50" fill="none" />
-                      <path id="seal-text-path-bottom" d="M 84 50 A 34 34 0 0 1 16 50" fill="none" />
-                    </defs>
-                    <circle cx="50" cy="50" r="48" fill="none" stroke="#002e5d" strokeWidth="1.5" />
-                    <circle cx="50" cy="50" r="44" fill="none" stroke="#002e5d" strokeWidth="0.8" strokeDasharray="1.5,1.5" />
-                    <circle cx="50" cy="50" r="34" fill="none" stroke="#002e5d" strokeWidth="1" />
-                    {/* Mountains in the center */}
-                    <g transform="translate(34, 34) scale(0.08)" fill="#002e5d">
-                      <path d="M120 220 L180 80 L230 180 L280 60 L380 220 Z" />
-                      <path d="M180 80 L210 140 L230 180" stroke="#ffffff" strokeWidth="3" />
-                    </g>
-                    <text fontSize="5.8" fontWeight="800" fill="#002e5d">
-                      <textPath href="#seal-text-path-top" startOffset="50%" textAnchor="middle">
-                        STRENGTH • DURABILITY • TRUST
-                      </textPath>
-                    </text>
-                    <text fontSize="7.8" fontWeight="950" fill="#002e5d">
-                      <textPath href="#seal-text-path-bottom" startOffset="50%" textAnchor="middle">
-                        HIMALAYA
-                      </textPath>
-                    </text>
-                  </svg>
+                  {/* Official Company Seal Stamp */}
+                  <img
+                    src="/himalaya-stamp.png"
+                    alt="Himalaya Seal Stamp"
+                    style={{ width: '84px', height: '84px', objectFit: 'contain', marginRight: '8px', flexShrink: 0 }}
+                  />
                   
                   <div style={{ fontSize: '12.5px', color: '#334155', fontStyle: 'italic', lineHeight: '1.5' }}>
                     <p style={{ margin: 0, fontWeight: '500' }}>Thanks and waiting for your valued order</p>
@@ -1342,8 +1347,9 @@ export default function QuotationsView({
                           Swal.showLoading();
                         }
                       });
-                      const filename = `Quotation_${selectedQuotation.quotationNo || selectedQuotation.id || 'Draft'}.png`;
-                      await exportQuotationImage('quotation-printable-area', filename);
+                      const qNo = resolveQuotationNumber(selectedQuotation);
+                      const safeFilename = `Quotation_${String(qNo).replace(/[\/\\]/g, '_') || 'Draft'}.png`;
+                      await exportQuotationImage('quotation-printable-area', safeFilename);
                       Swal.close();
                       Swal.fire('Success', 'Quotation image downloaded successfully.', 'success');
                     } catch (err) {
@@ -1370,7 +1376,7 @@ export default function QuotationsView({
                         }
                       });
                       
-                      const qNo = selectedQuotation.quotationNo || selectedQuotation.id || 'Draft';
+                      const qNo = resolveQuotationNumber(selectedQuotation);
                       const res = await shareQuotationImage('quotation-printable-area', qNo, selectedQuotation.customerName);
                       Swal.close();
                       
