@@ -2148,6 +2148,47 @@ textarea {
   background: #f1f5f9;
 }
 
+/* Premium KPI Card effects */
+.finance-kpi-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+}
+.finance-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Premium Tab button effects */
+.finance-verification-tab-btn {
+  transition: all 0.15s ease-in-out;
+}
+.finance-verification-tab-btn:hover {
+  background-color: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
+  color: #1E293B !important;
+}
+.finance-verification-tab-btn.active:hover {
+  background-color: #1D4ED8 !important;
+  border-color: #1D4ED8 !important;
+  color: #FFFFFF !important;
+}
+
+/* Premium Select filter dropdowns */
+.finance-verification-select {
+  transition: all 0.15s ease;
+  cursor: pointer;
+  color: #334155;
+  outline: none;
+}
+.finance-verification-select:hover {
+  border-color: #94A3B8 !important;
+  background-color: #F8FAFC !important;
+}
+.finance-verification-select:focus {
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+}
+
 .payment-detail-modal {
   color: var(--color-text-primary, #24345C);
   text-align: left;
