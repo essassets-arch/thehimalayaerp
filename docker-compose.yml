@@ -116,7 +116,7 @@ services:
     ports:
       - "127.0.0.1:4001:4000"
     volumes:
-      - ./uploads:/app/uploads
+      - uploads_data:/app/uploads
     networks:
       - erp-network
     depends_on:
@@ -162,7 +162,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - ./uploads:/app/public/uploads
+      - uploads_data:/app/public/uploads
     networks:
       - erp-network
     depends_on:
@@ -206,9 +206,10 @@ services:
         max-size: "10m"
         max-file: "5"
 
-# ── Persistent Storage Volumes ────────────────────────────────────────────────
 volumes:
   postgres_data:
+    driver: local
+  uploads_data:
     driver: local
   caddy_data:
     driver: local

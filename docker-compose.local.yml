@@ -94,7 +94,7 @@ services:
     ports:
       - "127.0.0.1:4000:4000"
     volumes:
-      - ./uploads:/app/uploads
+      - uploads_local_data:/app/uploads
     networks:
       - erp-local-network
     depends_on:
@@ -143,7 +143,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - ./uploads:/app/public/uploads
+      - uploads_local_data:/app/public/uploads
     networks:
       - erp-local-network
     depends_on:
@@ -184,6 +184,8 @@ services:
 
 volumes:
   postgres_local_data:
+    driver: local
+  uploads_local_data:
     driver: local
   pgadmin_local_data:
     driver: local
