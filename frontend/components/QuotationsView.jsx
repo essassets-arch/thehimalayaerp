@@ -1002,36 +1002,56 @@ export default function QuotationsView({
             .doc-table {
               display: table !important;
               width: 100% !important;
-              min-width: 560px !important;
+              min-width: 600px !important;
               border-collapse: collapse !important;
+              table-layout: auto !important;
+              background: #ffffff !important;
             }
             .quotation-preview-container thead,
             .quotation-items-table thead,
             .doc-table thead {
               display: table-header-group !important;
             }
+            .quotation-preview-container thead tr,
+            .quotation-items-table thead tr,
+            .doc-table thead tr {
+              display: table-row !important;
+              background: #002e5d !important;
+            }
             .quotation-preview-container tbody,
             .quotation-items-table tbody,
             .doc-table tbody {
               display: table-row-group !important;
             }
-            .quotation-preview-container tr,
-            .quotation-items-table tr,
-            .doc-table tr {
+            .quotation-preview-container tbody tr,
+            .quotation-items-table tbody tr,
+            .doc-table tbody tr {
               display: table-row !important;
               background: transparent !important;
+              border-bottom: 1px solid #f1f5f9 !important;
             }
             .quotation-preview-container th,
             .quotation-items-table th,
             .doc-table th {
               display: table-cell !important;
+              background: #002e5d !important;
+              color: #ffffff !important;
               vertical-align: middle !important;
+              padding: 12px 14px !important;
+              font-weight: 700 !important;
+              font-size: 10.5px !important;
+              text-transform: uppercase !important;
             }
             .quotation-preview-container td,
             .quotation-items-table td,
             .doc-table td {
               display: table-cell !important;
               vertical-align: middle !important;
+              padding: 12px 14px !important;
+              background: transparent !important;
+              box-shadow: none !important;
+              border: none !important;
+              border-bottom: 1px solid #f1f5f9 !important;
             }
             .quotation-preview-container td::before,
             .quotation-items-table td::before,
@@ -1225,7 +1245,7 @@ export default function QuotationsView({
               </div>
 
               {/* Items Table */}
-              <div className="crm-table-container" style={{ margin: '0 0 16px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+              <div className="quotation-table-container" style={{ margin: '0 0 16px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                 <table className="quotation-items-table doc-table" style={{ border: 'none', minWidth: '600px', borderCollapse: 'collapse', width: '100%' }}>
                   <thead>
                     <tr style={{ background: '#002e5d', color: '#ffffff' }}>

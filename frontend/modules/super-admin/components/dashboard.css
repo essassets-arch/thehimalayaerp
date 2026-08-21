@@ -1376,26 +1376,22 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .sa-table.responsive-table,
-  .responsive-table {
+  .super-dashboard .sa-table.responsive-table {
     min-width: 100% !important;
     width: 100% !important;
     display: block !important;
   }
 
-  .sa-table.responsive-table thead,
-  .responsive-table thead {
+  .super-dashboard .sa-table.responsive-table thead {
     display: none !important;
   }
 
-  .sa-table.responsive-table tbody,
-  .responsive-table tbody {
+  .super-dashboard .sa-table.responsive-table tbody {
     display: block !important;
     width: 100% !important;
   }
 
-  .sa-table.responsive-table tr,
-  .responsive-table tr {
+  .super-dashboard .sa-table.responsive-table tr {
     display: block !important;
     width: 100% !important;
     background: #ffffff !important;
@@ -1407,8 +1403,7 @@
     box-sizing: border-box !important;
   }
 
-  .sa-table.responsive-table td,
-  .responsive-table td {
+  .super-dashboard .sa-table.responsive-table td {
     display: flex !important;
     justify-content: space-between !important;
     align-items: center !important;
@@ -1421,14 +1416,12 @@
     box-sizing: border-box !important;
   }
 
-  .sa-table.responsive-table td:last-child,
-  .responsive-table td:last-child {
+  .super-dashboard .sa-table.responsive-table td:last-child {
     border-bottom: none !important;
     padding-bottom: 0 !important;
   }
 
-  .sa-table.responsive-table td::before,
-  .responsive-table td::before {
+  .super-dashboard .sa-table.responsive-table td::before {
     content: attr(data-label) !important;
     font-weight: 700 !important;
     color: #5E6B82 !important;
