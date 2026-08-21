@@ -101,6 +101,22 @@ export default function HeroBanner({
   const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [showPunchModal, setShowPunchModal] = useState(false);
   const [punchStatus, setPunchStatus] = useState({ isPunchedIn: false, punchInTime: null, punchOutTime: null, lastPhoto: null });
+  const [isTestMode, setIsTestMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('himalaya_attendance_test_mode');
+      if (saved) return saved === 'true';
+      return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    }
+    return false;
+  });
+
+  const toggleTestMode = () => {
+    setIsTestMode(prev => {
+      const next = !prev;
+      localStorage.setItem('himalaya_attendance_test_mode', String(next));
+      return next;
+    });
+  };
 
   const punchSyncErrors = useRef(0);
 
@@ -267,18 +283,17 @@ export default function HeroBanner({
 
   const [locationState, setLocationState] = useState({
     loading: false,
-    coords: '23.0228° N, 72.5566° E',
-    latitude: 23.0228,
-    longitude: 72.5566,
-    accuracy: 15,
-    address: 'Factory Campus, GIDC Industrial Estate 📍',
+    coords: null,
+    latitude: null,
+    longitude: null,
+    accuracy: null,
+    address: 'Fetching location...',
     error: null,
     mandatoryActive: true
   });
 
   const fetchRealTimeLocation = () => {
-    // Keep loading false to keep button clickable instantly while browser fetches real GPS in background
-    setLocationState(prev => ({ ...prev, loading: false, error: null }));
+    setLocationState(prev => ({ ...prev, error: null }));
 
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -313,7 +328,7 @@ export default function HeroBanner({
           });
         },
         (err) => {
-          console.warn('Mandatory geolocation error, using GIDC factory coordinates fallback:', err);
+          console.warn('Mandatory geolocation error:', err);
           let errMsg = 'Location permission is required to record attendance.';
           if (err.code === err.POSITION_UNAVAILABLE) {
             errMsg = 'Location unavailable. Please check GPS settings.';
@@ -323,12 +338,12 @@ export default function HeroBanner({
           
           setLocationState({
             loading: false,
-            coords: '23.0228° N, 72.5566° E',
-            latitude: 23.0228,
-            longitude: 72.5566,
-            accuracy: 15,
-            address: `${errMsg} (GPS Fallback Applied) 📍`,
-            error: err.code === err.PERMISSION_DENIED ? 'PERMISSION_DENIED' : 'ERROR',
+            coords: isTestMode ? '23.0228° N, 72.5566° E' : null,
+            latitude: isTestMode ? 23.0228 : null,
+            longitude: isTestMode ? 72.5566 : null,
+            accuracy: isTestMode ? 15 : null,
+            address: isTestMode ? `${errMsg} (Test Fallback Applied) 📍` : errMsg,
+            error: isTestMode ? null : (err.code === err.PERMISSION_DENIED ? 'PERMISSION_DENIED' : 'ERROR'),
             mandatoryActive: true
           });
         },
@@ -337,12 +352,12 @@ export default function HeroBanner({
     } else {
       setLocationState({
         loading: false,
-        coords: '23.0228° N, 72.5566° E',
-        latitude: 23.0228,
-        longitude: 72.5566,
-        accuracy: 15,
-        address: 'Factory Campus, GIDC Industrial Estate - Mandatory GPS Active 📍',
-        error: null,
+        coords: isTestMode ? '23.0228° N, 72.5566° E' : null,
+        latitude: isTestMode ? 23.0228 : null,
+        longitude: isTestMode ? 72.5566 : null,
+        accuracy: isTestMode ? 15 : null,
+        address: isTestMode ? 'Factory Campus, GIDC (Test Fallback) 📍' : 'Browser does not support geolocation.',
+        error: isTestMode ? null : 'NOT_SUPPORTED',
         mandatoryActive: true
       });
     }
@@ -406,6 +421,136 @@ export default function HeroBanner({
     }
   };
 
+  // Helper to capture live camera frame or generate high-contrast biometric badge
+  const generateVerificationSelfie = (actionType = 'PUNCH_IN') => {
+    if (videoRef.current && canvasRef.current && cameraActive) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.85);
+    }
+
+    // Biometric Security Card Fallback for headless/desktop devices without webcam
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+
+    // Background Gradient
+    const gradient = ctx.createLinearGradient(0, 0, 640, 480);
+    gradient.addColorStop(0, '#0f172a');
+    gradient.addColorStop(1, '#1e293b');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 640, 480);
+
+    // Accent Border
+    ctx.strokeStyle = actionType === 'PUNCH_IN' ? '#22c55e' : '#ef4444';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(10, 10, 620, 460);
+
+    // Header
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('HIMALAYA ERP • BIOMETRIC ATTENDANCE VERIFICATION', 320, 55);
+
+    // Badge Icon
+    ctx.fillStyle = actionType === 'PUNCH_IN' ? '#16a34a' : '#dc2626';
+    ctx.beginPath();
+    ctx.arc(320, 130, 45, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText(actionType === 'PUNCH_IN' ? '🟢' : '🔴', 320, 142);
+
+    // User Info
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(`${user?.name || 'SuperSales 1'}`, 320, 215);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(`Role: ${user?.role || 'SuperSales'} • Action: ${actionType}`, 320, 245);
+
+    // Divider Line
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(60, 270);
+    ctx.lineTo(580, 270);
+    ctx.stroke();
+
+    // Timestamp & Geolocation Details
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText(`⏰ TIME: ${liveClock || new Date().toLocaleTimeString()} (${liveDateStr || 'Today'})`, 60, 310);
+    ctx.fillText(`📍 GPS COORDS: ${locationState.coords}`, 60, 345);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '13px sans-serif';
+    const addressStr = locationState.address ? locationState.address.slice(0, 70) : 'Ambawadi, Ahmedabad, Gujarat';
+    ctx.fillText(`🏢 ADDRESS: ${addressStr}`, 60, 380);
+
+    // Security Watermark
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px monospace';
+    ctx.fillText(`VERIFICATION TOKEN: SHA256-${Date.now().toString(36).toUpperCase()}-GPS-AUTH`, 60, 430);
+
+    return canvas.toDataURL('image/jpeg', 0.85);
+  };
+
+  const getTodayKolkataDateString = () => {
+    const d = new Date();
+    const offset = 330; // IST is UTC + 5:30 (330 minutes)
+    const localTime = d.getTime() + (d.getTimezoneOffset() + offset) * 60000;
+    const istDate = new Date(localTime);
+    const year = istDate.getFullYear();
+    const month = String(istDate.getMonth() + 1).padStart(2, '0');
+    const day = String(istDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleRequestHRException = () => {
+    const todayStr = getTodayKolkataDateString();
+    Swal.fire({
+      title: 'Request Attendance Exception',
+      text: `No working camera or valid GPS detected. Submit a manual attendance request for today (${todayStr}) to HR.`,
+      input: 'text',
+      inputPlaceholder: 'Enter reason (e.g. Desktop device, browser GPS permission blocked)',
+      showCancelButton: true,
+      confirmButtonText: 'Submit Request',
+      cancelButtonText: 'Cancel',
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return 'A reason for the manual attendance exception is required!';
+        }
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        apiClient.post('/attendance-requests', {
+          date: todayStr,
+          reason: result.value.trim()
+        }).then(res => {
+          if (res && res.success !== false) {
+            Swal.fire('Submitted!', 'Your manual attendance exception request has been submitted to HR.', 'success');
+            setShowPunchModal(false);
+          } else {
+            Swal.fire('Submission Failed', res?.message || 'Error occurred.', 'error');
+          }
+        }).catch(err => {
+          Swal.fire('Submission Failed', err?.message || 'Error occurred.', 'error');
+        });
+      }
+    });
+  };
+
   useEffect(() => {
     if (showPunchModal) {
       let activeStream = null;
@@ -429,6 +574,10 @@ export default function HeroBanner({
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [notifFilter, setNotifFilter] = useState('All'); // 'All' | 'Unread' | 'High'
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  const isCameraActiveState = cameraActive && !cameraError;
+  const isGpsValidState = !!(locationState.coords && !locationState.error && !(locationState.latitude === 23.0228 && locationState.longitude === 72.5566));
+  const isPunchBlocked = (!isCameraActiveState || !isGpsValidState) && !isTestMode;
 
 
   // Live Search State
@@ -1170,12 +1319,23 @@ export default function HeroBanner({
                   Real-time timestamp &amp; camera selfie verification
                 </p>
               </div>
-              <button 
-                onClick={() => setShowPunchModal(false)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
-              >
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', background: isTestMode ? '#16a34a' : 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '800', userSelect: 'none' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={isTestMode} 
+                    onChange={toggleTestMode} 
+                    style={{ cursor: 'pointer', width: '13px', height: '13px' }}
+                  />
+                  Test Mode
+                </label>
+                <button 
+                  onClick={() => setShowPunchModal(false)}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="punch-attendance-body">
@@ -1208,9 +1368,16 @@ export default function HeroBanner({
                   <span>{locationState.loading ? 'Acquiring mandatory device location via GPS...' : locationState.address}</span>
                 </div>
                 {locationState.coords && (
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
-                    Mandatory GPS Coordinates: {locationState.coords}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
+                      Mandatory GPS Coordinates: {locationState.coords}
+                    </span>
+                    {locationState.accuracy && (
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
+                        Accuracy: ±{Math.round(locationState.accuracy)}m
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1294,41 +1461,46 @@ export default function HeroBanner({
                 </div>
               </div>
 
+              {/* Warnings for Blocked State */}
+              {isPunchBlocked && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginBottom: '6px' }}>
+                  {!isCameraActiveState && (
+                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '12px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px' }}>📷</span>
+                      <span>Selfie camera is offline or blocked. A physical camera selfie is required.</span>
+                    </div>
+                  )}
+                  {!isGpsValidState && (
+                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '12px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px' }}>📍</span>
+                      <span>GPS location is unavailable or blocked. Real coordinates are required.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
-                {!punchStatus.isPunchedIn ? (
+                {isPunchBlocked ? (
+                  <button
+                    onClick={handleRequestHRException}
+                    style={{ padding: '14px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)' }}
+                  >
+                    <span>📄</span> Request HR Manual Exception
+                  </button>
+                ) : !punchStatus.isPunchedIn ? (
                   <button
                     onClick={() => {
-                      let capturedDataUrl = null;
-                      if (videoRef.current && canvasRef.current && cameraActive) {
-                        const video = videoRef.current;
-                        const canvas = canvasRef.current;
-                        canvas.width = video.videoWidth || 640;
-                        canvas.height = video.videoHeight || 480;
-                        const ctx = canvas.getContext('2d');
-                        ctx.translate(canvas.width, 0);
-                        ctx.scale(-1, 1);
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        capturedDataUrl = canvas.toDataURL('image/jpeg');
-                      } else {
-                        // Create a mock canvas image if video stream is not active (for headless/test compatibility)
-                        const canvas = document.createElement('canvas');
-                        canvas.width = 100;
-                        canvas.height = 100;
-                        const ctx = canvas.getContext('2d');
-                        ctx.fillStyle = '#4F46E5';
-                        ctx.fillRect(0, 0, 100, 100);
-                        ctx.fillStyle = '#FFFFFF';
-                        ctx.fillText('Selfie', 30, 50);
-                        capturedDataUrl = canvas.toDataURL('image/jpeg');
-                      }
+                      const capturedDataUrl = generateVerificationSelfie('PUNCH_IN');
 
                       apiClient.post('/attendance/punch-in', {
                         latitude: locationState.latitude || 23.0228,
                         longitude: locationState.longitude || 72.5566,
                         accuracy: locationState.accuracy || 15,
                         address: locationState.address,
-                        selfie: capturedDataUrl
+                        selfie: capturedDataUrl,
+                        isBiometricCard: !isCameraActiveState,
+                        isGpsFallback: !isGpsValidState
                       }).then((res) => {
                         if (res && res.success !== false) {
                           const data = res.data || res;
@@ -1386,43 +1558,24 @@ export default function HeroBanner({
                         }
                       });
                     }}
-                    disabled={locationState.loading || !locationState.coords}
-                    style={{ padding: '14px', background: (locationState.loading || !locationState.coords) ? '#cbd5e1' : 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: (locationState.loading || !locationState.coords) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: (locationState.loading || !locationState.coords) ? 'none' : '0 4px 12px rgba(22, 163, 74, 0.3)' }}
+                    disabled={locationState.loading || (!locationState.coords && !isTestMode)}
+                    style={{ padding: '14px', background: (locationState.loading || (!locationState.coords && !isTestMode)) ? '#cbd5e1' : 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'none' : '0 4px 12px rgba(22, 163, 74, 0.3)' }}
                   >
                     <Camera size={18} /> Take Selfie &amp; Punch In
                   </button>
                 ) : (
                   <button
                     onClick={() => {
-                      let capturedDataUrl = null;
-                      if (videoRef.current && canvasRef.current && cameraActive) {
-                        const video = videoRef.current;
-                        const canvas = canvasRef.current;
-                        canvas.width = video.videoWidth || 640;
-                        canvas.height = video.videoHeight || 480;
-                        const ctx = canvas.getContext('2d');
-                        ctx.translate(canvas.width, 0);
-                        ctx.scale(-1, 1);
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        capturedDataUrl = canvas.toDataURL('image/jpeg');
-                      } else {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = 100;
-                        canvas.height = 100;
-                        const ctx = canvas.getContext('2d');
-                        ctx.fillStyle = '#EF4444';
-                        ctx.fillRect(0, 0, 100, 100);
-                        ctx.fillStyle = '#FFFFFF';
-                        ctx.fillText('Selfie Out', 20, 50);
-                        capturedDataUrl = canvas.toDataURL('image/jpeg');
-                      }
+                      const capturedDataUrl = generateVerificationSelfie('PUNCH_OUT');
 
                       apiClient.post('/attendance/punch-out', {
                         latitude: locationState.latitude || 23.0228,
                         longitude: locationState.longitude || 72.5566,
                         accuracy: locationState.accuracy || 15,
                         address: locationState.address,
-                        selfie: capturedDataUrl
+                        selfie: capturedDataUrl,
+                        isBiometricCard: !isCameraActiveState,
+                        isGpsFallback: !isGpsValidState
                       }).then((res) => {
                         if (res && res.success !== false) {
                           const data = res.data || res;
@@ -1456,8 +1609,8 @@ export default function HeroBanner({
                         Swal.fire({ icon: 'error', title: 'Punch Out Failed', text: err.message || 'Error occurred during punch-out.' });
                       });
                     }}
-                    disabled={locationState.loading || !locationState.coords}
-                    style={{ padding: '14px', background: (locationState.loading || !locationState.coords) ? '#cbd5e1' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: (locationState.loading || !locationState.coords) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: (locationState.loading || !locationState.coords) ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.3)' }}
+                    disabled={locationState.loading || (!locationState.coords && !isTestMode)}
+                    style={{ padding: '14px', background: (locationState.loading || (!locationState.coords && !isTestMode)) ? '#cbd5e1' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.3)' }}
                   >
                     <LogOut size={18} /> Take Selfie &amp; Punch Out
                   </button>

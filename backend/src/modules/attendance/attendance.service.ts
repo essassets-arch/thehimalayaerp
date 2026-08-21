@@ -184,8 +184,31 @@ export class AttendanceService {
     if (latitude === undefined || longitude === undefined) {
       throw new BadRequestException('Valid GPS coordinates are required');
     }
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      throw new BadRequestException('Invalid GPS coordinates values.');
+    }
     if (!selfie) {
       throw new BadRequestException('Camera selfie verification is required');
+    }
+
+    const testMode = process.env.ATTENDANCE_TEST_MODE === 'true' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+
+    if (body.isBiometricCard && !testMode) {
+      throw new BadRequestException('Physical camera selfie verification is required in production.');
+    }
+
+    if ((body.isGpsFallback || (latitude === 23.0228 && longitude === 72.5566)) && !testMode) {
+      throw new BadRequestException('Real GPS location coordinates are required for attendance. GPS mock/fallback is rejected.');
+    }
+
+    if (accuracy !== undefined && accuracy !== null) {
+      const accuracyVal = Number(accuracy);
+      if (accuracyVal <= 0) {
+        throw new BadRequestException('GPS accuracy must be a positive number.');
+      }
+      if (accuracyVal > 50 && !testMode) {
+        throw new BadRequestException(`GPS accuracy of ${Math.round(accuracyVal)}m exceeds the 50m maximum threshold. Please wait for a stronger GPS signal.`);
+      }
     }
 
     const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
@@ -249,8 +272,31 @@ export class AttendanceService {
     if (latitude === undefined || longitude === undefined) {
       throw new BadRequestException('Valid GPS coordinates are required');
     }
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      throw new BadRequestException('Invalid GPS coordinates values.');
+    }
     if (!selfie) {
       throw new BadRequestException('Camera selfie verification is required');
+    }
+
+    const testMode = process.env.ATTENDANCE_TEST_MODE === 'true' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+
+    if (body.isBiometricCard && !testMode) {
+      throw new BadRequestException('Physical camera selfie verification is required in production.');
+    }
+
+    if ((body.isGpsFallback || (latitude === 23.0228 && longitude === 72.5566)) && !testMode) {
+      throw new BadRequestException('Real GPS location coordinates are required for attendance. GPS mock/fallback is rejected.');
+    }
+
+    if (accuracy !== undefined && accuracy !== null) {
+      const accuracyVal = Number(accuracy);
+      if (accuracyVal <= 0) {
+        throw new BadRequestException('GPS accuracy must be a positive number.');
+      }
+      if (accuracyVal > 50 && !testMode) {
+        throw new BadRequestException(`GPS accuracy of ${Math.round(accuracyVal)}m exceeds the 50m maximum threshold. Please wait for a stronger GPS signal.`);
+      }
     }
 
     const savedSelfieUrl = saveBase64Image(selfie, 'attendance');

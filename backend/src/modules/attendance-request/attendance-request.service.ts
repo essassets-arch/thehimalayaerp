@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { getKolkataDate } from '../attendance/attendance.service';
 
 @Injectable()
 export class AttendanceRequestService {
@@ -19,26 +20,46 @@ export class AttendanceRequestService {
     const employee = await this.prisma.employee.findFirst({
       where: { userId }
     });
-    if (employee) return employee;
-    
-    // Fallback user check
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    return {
-      id: userId,
-      fullName: user?.name || 'User',
-      companyId: activeCompanyId,
-    };
+    if (employee && employee.companyId === activeCompanyId) return employee;
+
+    throw new BadRequestException('A linked employee profile is required to request manual attendance.');
   }
 
   async createRequest(userId: string, companyId: string, body: { date: string; reason: string }) {
     const employee = await this.getEmployee(userId, companyId);
-    
+    if (!body?.date || !body?.reason?.trim()) {
+      throw new BadRequestException('Attendance date and reason are required.');
+    }
+
+    // Date-only browser values are interpreted as a Kolkata calendar date.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+      throw new BadRequestException('Attendance date must be a valid calendar date.');
+    }
+    const requestDate = new Date(`${body.date}T00:00:00.000+05:30`);
+    if (Number.isNaN(requestDate.getTime()) || requestDate > getKolkataDate().endOfDay) {
+      throw new BadRequestException('Manual attendance cannot be requested for a future date.');
+    }
+
+    const existingPending = await this.prisma.manualAttendanceRequest.findFirst({
+      where: {
+        employeeId: employee.id,
+        date: {
+          gte: getKolkataDate(requestDate).startOfDay,
+          lte: getKolkataDate(requestDate).endOfDay,
+        },
+        status: 'PENDING',
+      },
+    });
+    if (existingPending) {
+      throw new BadRequestException('A manual attendance request for this date is already pending.');
+    }
+
     // Create the manual request
     const request = await this.prisma.manualAttendanceRequest.create({
       data: {
         employeeId: employee.id,
-        date: new Date(body.date),
-        reason: body.reason,
+        date: requestDate,
+        reason: body.reason.trim(),
         status: 'PENDING',
       },
       include: {
@@ -122,8 +143,10 @@ export class AttendanceRequestService {
       throw new ForbiddenException('Only HR can approve attendance requests.');
     }
 
-    const request = await this.prisma.manualAttendanceRequest.findUnique({
-      where: { id }
+    const activeCompanyId = await this.getActiveCompanyId(companyId);
+    const request = await this.prisma.manualAttendanceRequest.findFirst({
+      where: { id, employee: { companyId: activeCompanyId } },
+      include: { employee: true },
     });
     if (!request) {
       throw new NotFoundException('Attendance request not found.');
@@ -132,12 +155,33 @@ export class AttendanceRequestService {
       throw new BadRequestException('Request is not in PENDING status.');
     }
 
-    return this.prisma.manualAttendanceRequest.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        remarks: body.remarks || 'Approved by HR'
-      }
+    const attendanceDate = getKolkataDate(request.date).startOfDay;
+    return this.prisma.$transaction(async (tx) => {
+      // Never overwrite an actual punch record.  A manual approval fills a missing day only.
+      await tx.attendance.upsert({
+        where: {
+          employeeId_attendanceDate: {
+            employeeId: request.employeeId,
+            attendanceDate,
+          },
+        },
+        create: {
+          companyId: request.employee.companyId,
+          employeeId: request.employeeId,
+          userId: request.employee.userId || request.employeeId,
+          attendanceDate,
+          status: 'PRESENT',
+        },
+        update: {},
+      });
+
+      return tx.manualAttendanceRequest.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          remarks: body.remarks?.trim() || 'Approved by HR',
+        },
+      });
     });
   }
 
@@ -150,8 +194,9 @@ export class AttendanceRequestService {
       throw new ForbiddenException('Only HR can reject attendance requests.');
     }
 
-    const request = await this.prisma.manualAttendanceRequest.findUnique({
-      where: { id }
+    const activeCompanyId = await this.getActiveCompanyId(companyId);
+    const request = await this.prisma.manualAttendanceRequest.findFirst({
+      where: { id, employee: { companyId: activeCompanyId } },
     });
     if (!request) {
       throw new NotFoundException('Attendance request not found.');
@@ -164,7 +209,7 @@ export class AttendanceRequestService {
       where: { id },
       data: {
         status: 'REJECTED',
-        remarks: body.remarks || 'Rejected by HR'
+        remarks: body.remarks?.trim() || 'Rejected by HR'
       }
     });
   }

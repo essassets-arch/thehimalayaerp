@@ -11,6 +11,7 @@ import {
 import Swal from 'sweetalert2';
 import DataTable from './DataTable';
 import { getBackendAssetUrl } from '../../lib/assetUrl';
+import SecureImage from './SecureImage';
 
 export default function MyProfileView() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -684,7 +685,7 @@ export default function MyProfileView() {
                         render: (row) => (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {row.selfieUrl ? (
-                              <img src={getBackendAssetUrl(row.selfieUrl)} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
+                              <SecureImage src={row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} fallbackText="Selfie unavailable" />
                             ) : (
                               <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
                                 <Camera size={14} color="#64748b" />
