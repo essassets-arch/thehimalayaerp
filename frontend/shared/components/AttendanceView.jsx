@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import { employeesService } from '../../services/hr/employeesService';
 import { getBackendAssetUrl } from '../../lib/assetUrl';
+import SecureImage from './SecureImage';
 import DataTable from './DataTable';
 import StatusBadge from './StatusBadge';
 import { exportToCSV } from '../../services/export.service';
@@ -697,7 +698,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                       render: (row) => (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
-                            <img src={getBackendAssetUrl(row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl)} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} />
+                            <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} fallbackText="N/A" allowZoom={false} />
                           ) : (
                             <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
                               <Camera size={14} color="#64748b" />
@@ -845,13 +846,13 @@ export default function AttendanceView({ employees: propEmployees }) {
                     <div style={{ display: 'flex', gap: '8px', width: '100%', height: '100%', flex: 1 }}>
                       {activePreview?.punchInSelfieUrl ? (
                         <div style={{ flex: 1, position: 'relative', height: '100%', borderRadius: '8px', overflow: 'hidden' }}>
-                          <img src={getBackendAssetUrl(activePreview.punchInSelfieUrl)} alt="Punch In Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <SecureImage src={activePreview.punchInSelfieUrl} alt="Punch In Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallbackText="Selfie Missing" />
                           <div style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.75)', color: '#10B981', fontSize: '9px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.3)', letterSpacing: '0.5px' }}>PUNCH IN</div>
                         </div>
                       ) : null}
                       {activePreview?.punchOutSelfieUrl ? (
                         <div style={{ flex: 1, position: 'relative', height: '100%', borderRadius: '8px', overflow: 'hidden' }}>
-                          <img src={getBackendAssetUrl(activePreview.punchOutSelfieUrl)} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <SecureImage src={activePreview.punchOutSelfieUrl} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallbackText="Selfie Missing" />
                           <div style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.75)', color: '#EF4444', fontSize: '9px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.3)', letterSpacing: '0.5px' }}>PUNCH OUT</div>
                         </div>
                       ) : (
@@ -866,7 +867,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                   ) : (
                     activePreview?.selfieUrl ? (
                       <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative' }}>
-                        <img src={getBackendAssetUrl(activePreview.selfieUrl)} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                        <SecureImage src={activePreview.selfieUrl} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} fallbackText="Selfie Missing" />
                       </div>
                     ) : (
                       <div style={{ textAlign: 'center', color: '#64748B', padding: '24px' }}>
