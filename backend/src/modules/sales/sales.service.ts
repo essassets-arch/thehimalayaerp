@@ -208,6 +208,14 @@ export class SalesService {
       const totalAmount = Number(order.totalAmount || 0);
       const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
 
+      const deliveredDispatches = (order.dispatches || []).filter((d) =>
+        ['DELIVERED', 'COMPLETED'].includes(String(d.status || '').toUpperCase()),
+      );
+      const deliveredAt = deliveredDispatches
+        .map((d) => d.deliveredAt)
+        .filter((date): date is Date => Boolean(date))
+        .sort((left, right) => right.getTime() - left.getTime())[0];
+
       return {
         id: order.id,
         order_number: order.orderNumber,
@@ -223,6 +231,8 @@ export class SalesService {
         verifiedPaidAmount,
         balance_amount: balanceAmount,
         balanceAmount,
+        delivered_at: deliveredAt ? deliveredAt.toISOString() : undefined,
+        deliveredAt: deliveredAt ? deliveredAt.toISOString() : undefined,
         paymentTerms: order.paymentTerms || `${order.paymentTermDays || 15} Days`,
         paymentDueDate: order.paymentDueDate?.toISOString(),
         paymentStatus:
