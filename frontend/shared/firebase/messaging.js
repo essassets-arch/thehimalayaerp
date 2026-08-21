@@ -109,10 +109,20 @@ export const initializePushNotifications = async () => {
       return;
     }
 
+    // Convert VAPID key to standard base64 with correct padding for window.atob safety
+    let cleanVapidKey = VAPID_KEY;
+    if (cleanVapidKey) {
+      cleanVapidKey = cleanVapidKey.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = cleanVapidKey.length % 4;
+      if (pad) {
+        cleanVapidKey += '='.repeat(4 - pad);
+      }
+    }
+
     // 3. Fetch FCM token
     const fcmToken = await getToken(messagingInstance, {
       serviceWorkerRegistration: swRegistration,
-      vapidKey: VAPID_KEY,
+      vapidKey: cleanVapidKey,
     });
 
     if (fcmToken) {
