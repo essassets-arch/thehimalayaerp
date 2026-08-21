@@ -642,8 +642,17 @@ export class ProductionWorkflowService {
       }
     }
 
-    const fgWhere: any = {};
+    const fgWhere: any = {
+      product: {
+        companyId: companyId ? companyId : undefined,
+      },
+    };
     const woWhere: any = {
+      salesOrderItem: {
+        product: {
+          companyId: companyId ? companyId : undefined,
+        },
+      },
       OR: [
         { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] } },
         { qcInspections: { some: { status: { in: ['PASSED', 'APPROVED'] } } } },
@@ -651,8 +660,8 @@ export class ProductionWorkflowService {
     };
 
     if (userCategory) {
-      fgWhere.product = { dispatchCategory: userCategory };
-      woWhere.salesOrderItem = { product: { dispatchCategory: userCategory } };
+      fgWhere.product.dispatchCategory = userCategory;
+      woWhere.salesOrderItem.product.dispatchCategory = userCategory;
     }
 
     const records = await this.prisma.finishedGoods.findMany({
@@ -747,12 +756,14 @@ export class ProductionWorkflowService {
     const stockHistorySums = await this.prisma.stockHistory.groupBy({
       by: ['productId', 'event'],
       where: {
+        companyId: companyId ? companyId : undefined,
         event: {
           in: ['PRODUCTION_IN', 'PRODUCTION_REVERSAL', 'DISPATCH_OUT', 'DISPATCH_REVERSAL']
         }
       },
       _sum: { quantity: true },
     });
+
 
     const prodInMap = new Map<string, number>();
     const dispatchMap = new Map<string, number>();
@@ -800,11 +811,6 @@ export class ProductionWorkflowService {
       existing.quantity += Number(item.quantity || 0);
       existing.availableQuantity += Number(item.availableQuantity || 0);
 
-      const prodInVal = prodInMap.get(item.productId) || 0;
-      const dispatchVal = dispatchMap.get(item.productId) || 0;
-      existing.productionIn = prodInVal;
-      existing.openingStock = Math.max(0, existing.quantity - prodInVal - dispatchVal);
-
       const minStock = Number(item.product?.minimumStock || 0);
       if (existing.availableQuantity <= 0) {
         existing.status = 'OUT_OF_STOCK';
@@ -830,7 +836,6 @@ export class ProductionWorkflowService {
     for (const p of fgProducts) {
       const key = p.sku || p.publicId;
       if (!groupedMap.has(key)) {
-        const prodInVal = prodInMap.get(p.id) || 0;
         groupedMap.set(key, {
           id: `fg-prod-${p.id}`,
           workOrderId: `WO-STOCK-${p.sku}`,
@@ -843,14 +848,25 @@ export class ProductionWorkflowService {
           customerName: 'Internal Stock',
           quantity: 0,
           availableQuantity: 0,
-          productionIn: prodInVal,
-          openingStock: Math.max(0, 0 - prodInVal - (dispatchMap.get(p.id) || 0)),
+          productionIn: 0,
+          openingStock: 0,
           unit: (p.unit || 'SET').toUpperCase(),
           status: 'OUT_OF_STOCK',
           receivedAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
           receivedById: null,
           product: p,
         });
+      }
+    }
+
+    // Post-aggregation pass to set correct ledger metrics
+    for (const existing of groupedMap.values()) {
+      const pId = existing.productId;
+      if (pId) {
+        const prodInVal = prodInMap.get(pId) || 0;
+        const dispatchVal = dispatchMap.get(pId) || 0;
+        existing.productionIn = prodInVal;
+        existing.openingStock = Math.max(0, existing.quantity - prodInVal - dispatchVal);
       }
     }
 
