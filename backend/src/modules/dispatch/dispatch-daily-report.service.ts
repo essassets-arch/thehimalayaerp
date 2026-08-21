@@ -367,21 +367,6 @@ export class DispatchDailyReportService {
     const reportDate = new Date(dto.reportDate);
     reportDate.setHours(0, 0, 0, 0);
 
-    const existing = await this.prisma.dispatchDailyReport.findFirst({
-      where: {
-        companyId,
-        reportDate,
-        shift: dto.shift || 'Morning',
-        dispatchType,
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException(
-        `A dispatch report (${existing.reportNo}) already exists for date ${dto.reportDate} and shift '${dto.shift || 'Morning'}'.`,
-      );
-    }
-
     const { key, prefix } = this.getSequencePrefix(reportDate, dispatchType);
 
     return this.prisma.$transaction(async (tx) => {

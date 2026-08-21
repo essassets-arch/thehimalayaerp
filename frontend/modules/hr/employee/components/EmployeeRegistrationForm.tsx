@@ -220,6 +220,9 @@ export default function EmployeeRegistrationForm() {
       additionalDocuments: [],
       photograph: '',
       signature: '',
+      sameAsPresentAddress: false,
+      companyPhone: '',
+      permanentAddress: '',
     },
   });
 
@@ -352,6 +355,15 @@ export default function EmployeeRegistrationForm() {
       setValue('bankAccountHolder', watchedName, { shouldDirty: false });
     }
   }, [watchedName, setValue, watch]);
+
+  // Auto-sync permanent address when "Same as Present Address" is checked
+  const sameAsPresent = watch('sameAsPresentAddress');
+  const watchedResidential = watch('residentialAddress');
+  useEffect(() => {
+    if (sameAsPresent) {
+      setValue('permanentAddress', watchedResidential || '', { shouldDirty: false });
+    }
+  }, [sameAsPresent, watchedResidential, setValue]);
 
   // Draft auto-save
   const formValues = watch();
@@ -513,7 +525,9 @@ export default function EmployeeRegistrationForm() {
         workEmail: data.email,
         personalEmail: data.personalEmail || undefined,
         phoneNumber: normalizeIndianPhone(data.phone),
+        companyPhoneNumber: data.companyPhone ? normalizeIndianPhone(data.companyPhone) : undefined,
         residentialAddress: data.residentialAddress,
+        permanentAddress: data.sameAsPresentAddress ? data.residentialAddress : (data.permanentAddress || data.residentialAddress),
         emergencyContactName: data.emergencyName,
         emergencyContactPhone: normalizeIndianPhone(data.emergencyPhone),
         emergencyRelationship: data.emergencyRelationship,
@@ -561,7 +575,7 @@ export default function EmployeeRegistrationForm() {
         workEmail: 'email', panNumber: 'pan', aadhaarNumber: 'aadhaar',
         departmentId: 'department', workLocationId: 'workLocation',
         reportingManagerId: 'managerId', dateOfBirth: 'dob',
-        phoneNumber: 'phone', confirmAccountNumber: 'confirmBankAccount',
+        phoneNumber: 'phone', companyPhoneNumber: 'companyPhone', confirmAccountNumber: 'confirmBankAccount',
       };
       const field = backendToForm[err?.field] || err?.field;
       if (field) setError(field, { type: 'server', message: msg });
@@ -793,7 +807,7 @@ export default function EmployeeRegistrationForm() {
               </div>
 
               {/* Contact Channels */}
-              <div className="reg-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div className="reg-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                 <FormField label="Work Email" required error={errors.email?.message as string}>
                   <input type="email" {...register('email')} style={inputStyle(!!errors.email)} placeholder="rahul@himalaya.com" />
                 </FormField>
@@ -803,16 +817,61 @@ export default function EmployeeRegistrationForm() {
                 <FormField label="Mobile Phone Number" required error={errors.phone?.message as string}>
                   <input {...register('phone')} style={inputStyle(!!errors.phone)} placeholder="9876500000" maxLength={12} />
                 </FormField>
+                <FormField label="Company Number" error={errors.companyPhone?.message as string} hint="Official SIM / Work Phone">
+                  <input {...register('companyPhone')} style={inputStyle(!!errors.companyPhone)} placeholder="e.g. 9876500001 (optional)" maxLength={12} />
+                </FormField>
               </div>
 
-              {/* Address */}
-              <FormField label="Residential Address" required error={errors.residentialAddress?.message as string}>
-                <textarea
-                  {...register('residentialAddress')}
-                  style={{ ...inputStyle(!!errors.residentialAddress), minHeight: '90px', fontFamily: 'inherit', resize: 'vertical' }}
-                  placeholder="Enter complete permanent / present residential address (Street, City, State, PIN)"
-                />
-              </FormField>
+              {/* 2 Addresses: Present & Permanent */}
+              <div className="reg-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <FormField label="Present / Current Address" required error={errors.residentialAddress?.message as string}>
+                  <textarea
+                    {...register('residentialAddress')}
+                    style={{ ...inputStyle(!!errors.residentialAddress), minHeight: '90px', fontFamily: 'inherit', resize: 'vertical' }}
+                    placeholder="Enter present / current residential address (Street, City, State, PIN)"
+                  />
+                </FormField>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', letterSpacing: '0.01em' }}>
+                      Permanent Address
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: '600', color: '#2563eb', cursor: 'pointer', userSelect: 'none' }}>
+                      <input
+                        type="checkbox"
+                        {...register('sameAsPresentAddress')}
+                        onChange={(e) => {
+                          register('sameAsPresentAddress').onChange(e);
+                          if (e.target.checked) {
+                            setValue('permanentAddress', getValues('residentialAddress') || '', { shouldDirty: true });
+                          }
+                        }}
+                      />
+                      Same as Present Address
+                    </label>
+                  </div>
+                  <textarea
+                    {...register('permanentAddress')}
+                    disabled={sameAsPresent}
+                    style={{
+                      ...inputStyle(!!errors.permanentAddress),
+                      minHeight: '90px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      background: sameAsPresent ? '#f8fafc' : '#ffffff',
+                      color: sameAsPresent ? '#64748b' : '#0f172a',
+                      cursor: sameAsPresent ? 'not-allowed' : 'text'
+                    }}
+                    placeholder={sameAsPresent ? 'Synced with Present / Current Address' : 'Enter permanent residential address (Street, City, State, PIN)'}
+                  />
+                  {errors.permanentAddress && (
+                    <span style={{ fontSize: '11.5px', color: '#ef4444', marginTop: '2px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
+                      <AlertCircle size={12} /> {errors.permanentAddress?.message as string}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

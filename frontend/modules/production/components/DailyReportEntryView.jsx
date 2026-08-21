@@ -104,6 +104,12 @@ export default function DailyReportEntryView({
     reason: ''
   });
 
+  // Multi-Product Selection Modal State
+  const [showMultiProductModal, setShowMultiProductModal] = useState(false);
+  const [multiProductSearch, setMultiProductSearch] = useState('');
+  const [multiProductTypeFilter, setMultiProductTypeFilter] = useState('ALL');
+  const [selectedMultiProductIds, setSelectedMultiProductIds] = useState([]);
+
   // Fetch Products Master
   const fetchProducts = useCallback(async () => {
     try {
@@ -118,6 +124,25 @@ export default function DailyReportEntryView({
       setLoadingProducts(false);
     }
   }, []);
+
+  const productTypes = useMemo(() => {
+    const types = new Set();
+    products.forEach(p => {
+      if (p.type) types.add(p.type);
+    });
+    return Array.from(types);
+  }, [products]);
+
+  const filteredCatalogProducts = useMemo(() => {
+    return products.filter(p => {
+      if (multiProductTypeFilter !== 'ALL' && p.type !== multiProductTypeFilter) return false;
+      if (!multiProductSearch.trim()) return true;
+      const q = multiProductSearch.toLowerCase().trim();
+      const qParts = q.split(/\s+/).filter(Boolean);
+      const fullStr = `${p.name || ''} ${p.sku || ''} ${p.size || ''} ${p.type || ''} ${p.capacity || ''} ${p.variantDetails || ''}`.toLowerCase();
+      return qParts.every(part => fullStr.includes(part));
+    });
+  }, [products, multiProductTypeFilter, multiProductSearch]);
 
   // Fetch Existing Report if Editing
   const fetchReport = useCallback(async (id) => {
@@ -173,19 +198,6 @@ export default function DailyReportEntryView({
     }
   }, [baseApiUrl, todayStr]);
 
-  // Check Duplicate Warning on Date/Shift change
-  const checkDuplicateReport = useCallback(async (d, s) => {
-    if (!d || !s) return;
-    try {
-      const res = await backendFetch(`${baseApiUrl}/check-duplicate?date=${d}&shift=${s}`, { cacheTtlMs: 0 });
-      if (res?.exists && res?.report?.id && res?.report?.id !== currentReportId) {
-        fetchReport(res.report.id);
-      }
-    } catch {
-      // Best effort check
-    }
-  }, [baseApiUrl, currentReportId, fetchReport]);
-
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
@@ -194,10 +206,8 @@ export default function DailyReportEntryView({
     const editId = reportId || searchParams?.get('edit') || searchParams?.get('id');
     if (editId) {
       fetchReport(editId);
-    } else {
-      checkDuplicateReport(reportDate, shift);
     }
-  }, [reportId, searchParams, reportDate, shift, fetchReport, checkDuplicateReport]);
+  }, [reportId, searchParams, fetchReport]);
 
   // Recalculate Row Values
   const calculateRowValues = (row) => {
@@ -247,7 +257,7 @@ export default function DailyReportEntryView({
     };
   };
 
-function SmartProductCombobox({ value, customProductName, disabled, products, onChange, onCustomNameChange }) {
+function SmartProductCombobox({ value, disabled, products, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 360 });
@@ -276,27 +286,31 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         return; // Already matched
       }
     }
-    if (customProductName && customProductName.toLowerCase().trim() === query.toLowerCase().trim()) {
-      return; // Already custom name
-    }
 
-    // Find match
+    // Find exact match by name or SKU
     const exact = products.find(p => p.name?.toLowerCase().trim() === query.toLowerCase().trim() || p.sku?.toLowerCase().trim() === query.toLowerCase().trim());
     if (exact) {
       onChange(exact);
     } else {
-      onCustomNameChange(query.trim());
+      // Revert to current selected product name or clear if no catalog match
+      if (value) {
+        const p = products.find(prod => prod.id === value);
+        setQuery(p ? p.name : '');
+      } else {
+        setQuery('');
+        onChange(null);
+      }
     }
-  }, [query, value, customProductName, products, onChange, onCustomNameChange]);
+  }, [query, value, products, onChange]);
 
   useEffect(() => {
     if (value) {
       const p = products.find(prod => prod.id === value);
       if (p) setQuery(p.name);
-    } else if (customProductName) {
-      setQuery(customProductName);
+    } else {
+      setQuery('');
     }
-  }, [value, customProductName, products]);
+  }, [value, products]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -326,26 +340,44 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
   }, [isOpen, updateCoords, handleBlurValidation]);
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return products.slice(0, 50);
+    if (!query.trim()) return products.slice(0, 60);
     const q = query.toLowerCase().trim();
-    return products.filter(p => (
-      (p.name && p.name.toLowerCase().includes(q)) ||
-      (p.sku && p.sku.toLowerCase().includes(q)) ||
-      (p.size && p.size.toLowerCase().includes(q)) ||
-      (p.type && p.type.toLowerCase().includes(q)) ||
-      (p.capacity && p.capacity.toLowerCase().includes(q))
-    )).slice(0, 50);
+    const qParts = q.split(/\s+/).filter(Boolean);
+    return products
+      .map(p => {
+        const fullStr = `${p.name || ''} ${p.sku || ''} ${p.size || ''} ${p.type || ''} ${p.capacity || ''} ${p.variantDetails || ''} ${p.category || ''} ${p.description || ''}`.toLowerCase();
+        let matchesAll = true;
+        let score = 0;
+        for (const part of qParts) {
+          if (fullStr.includes(part)) {
+            score += 10;
+            if (p.name?.toLowerCase().includes(part)) score += 15;
+            if (p.size?.toLowerCase().includes(part)) score += 20;
+            if (p.type?.toLowerCase().includes(part)) score += 20;
+            if (p.capacity?.toLowerCase().includes(part)) score += 20;
+          } else {
+            const normFull = fullStr.replace(/[\s\-_xX]/g, '');
+            const normPart = part.replace(/[\s\-_xX]/g, '');
+            if (normPart.length >= 3 && normFull.includes(normPart)) {
+              score += 15;
+            } else {
+              matchesAll = false;
+              break;
+            }
+          }
+        }
+        return { product: p, score, matchesAll };
+      })
+      .filter(item => item.matchesAll)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.product)
+      .slice(0, 60);
   }, [products, query]);
 
   const handleSelectProduct = (prod) => {
     setQuery(prod.name);
     setIsOpen(false);
     onChange(prod);
-  };
-
-  const handleSelectCustom = () => {
-    setIsOpen(false);
-    onCustomNameChange(query);
   };
 
   return (
@@ -355,7 +387,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
           ref={inputRef}
           type="text"
           disabled={disabled}
-          placeholder="Search product or type custom name..."
+          placeholder="Search product from catalog..."
           value={query}
           onFocus={() => {
             if (!disabled) {
@@ -372,7 +404,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             }
           }}
           onBlur={() => {
-            // Wait slightly for click events in the popover to register
             setTimeout(() => {
               handleBlurValidation();
             }, 200);
@@ -385,8 +416,8 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             fontWeight: '700',
             color: '#0f172a',
             paddingRight: '28px',
-            background: value ? 'rgba(59, 130, 246, 0.04)' : (customProductName ? 'rgba(245, 158, 11, 0.04)' : '#ffffff'),
-            borderColor: value ? 'rgba(59, 130, 246, 0.4)' : (customProductName ? 'rgba(245, 158, 11, 0.4)' : '#cbd5e1')
+            background: value ? 'rgba(59, 130, 246, 0.04)' : '#ffffff',
+            borderColor: value ? 'rgba(59, 130, 246, 0.4)' : '#cbd5e1'
           }}
         />
         {query && !disabled && (
@@ -421,7 +452,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             top: `${coords.top}px`,
             left: `${coords.left}px`,
             width: `${coords.width}px`,
-            maxHeight: '300px',
+            maxHeight: '320px',
             overflowY: 'auto',
             background: '#ffffff',
             border: '1.5px solid #cbd5e1',
@@ -431,33 +462,9 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             padding: '6px'
           }}
         >
-          {query.trim() && (
-            <div
-              onClick={handleSelectCustom}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                background: 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                color: '#b45309',
-                fontSize: '12.5px',
-                fontWeight: '700',
-                marginBottom: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                wordBreak: 'break-word'
-              }}
-            >
-              <span>✍️ Use custom product name:</span>
-              <strong style={{ color: '#0f172a' }}>"{query}"</strong>
-            </div>
-          )}
-
           {filtered.length === 0 ? (
-            <div style={{ padding: '12px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
-              No catalog product matched "{query}". Click above to use custom name.
+            <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
+              No catalog product matched "{query}". Please search by size (e.g. 300x300), type (MHC), or capacity (B125).
             </div>
           ) : (
             filtered.map((prod) => (
@@ -490,6 +497,8 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                   {prod.size && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Size: {prod.size}</span>}
                   {prod.type && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Type: {prod.type}</span>}
                   {prod.capacity && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Cap: {prod.capacity}</span>}
+                  <span style={{ color: '#475569', fontWeight: '700' }}>Cover: {prod.coverUnitWeight || prod.weight || 0} kg</span>
+                  <span style={{ color: '#475569', fontWeight: '700' }}>Frame: {prod.frameUnitWeight || 0} kg</span>
                 </div>
               </div>
             ))
@@ -507,7 +516,7 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
       const updated = [...prevRows];
       const curRow = updated[rowIndex];
       if (!selectedProd) {
-        updated[rowIndex] = { ...curRow, productId: '', customProductName: '' };
+        updated[rowIndex] = { ...curRow, productId: '', size: '', type: '', capacity: '', coverUnitWeight: 0, frameUnitWeight: 0 };
         return updated;
       }
 
@@ -519,7 +528,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
       const newRow = calculateRowValues({
         ...curRow,
         productId: selectedProd.id,
-        customProductName: '',
         size: selectedProd.size || selectedProd.variantDetails || curRow.size || '',
         type: selectedProd.type || selectedProd.brand || curRow.type || '',
         capacity: selectedProd.capacity || curRow.capacity || '',
@@ -529,20 +537,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         framesPerSet
       });
 
-      updated[rowIndex] = newRow;
-      return updated;
-    });
-  };
-
-  const handleCustomProductName = (rowIndex, name) => {
-    setRows(prevRows => {
-      const updated = [...prevRows];
-      const curRow = updated[rowIndex];
-      const newRow = calculateRowValues({
-        ...curRow,
-        productId: '',
-        customProductName: name,
-      });
       updated[rowIndex] = newRow;
       return updated;
     });
@@ -750,12 +744,12 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
 
   // Save Draft
   const handleSaveDraft = async () => {
-    const validItems = rows.filter(r => r.productId || r.customProductName);
+    const validItems = rows.filter(r => r.productId);
     if (validItems.length === 0) {
       Swal.fire({
         icon: 'warning',
-        title: 'No Product Specified',
-        text: 'Please select a product or type a custom product name for at least one production row.'
+        title: 'No Product Selected',
+        text: 'Please select a catalog product for at least one production row.'
       });
       return;
     }
@@ -769,7 +763,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         items: rows.map((r, idx) => ({
           srNo: idx + 1,
           productId: r.productId || null,
-          customProductName: r.customProductName || null,
           size: r.size,
           type: r.type,
           capacity: r.capacity,
@@ -856,12 +849,12 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
   // Submit Report
   const handleSubmitReport = async () => {
     if (submitting || saving) return;
-    const validItems = rows.filter(r => r.productId || r.customProductName);
+    const validItems = rows.filter(r => r.productId);
     if (validItems.length === 0) {
       Swal.fire({
         icon: 'warning',
         title: 'Validation Error',
-        text: 'Please select a product or enter a custom product name for at least one production row.'
+        text: 'Please select a catalog product for at least one production row.'
       });
       return;
     }
@@ -897,7 +890,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         items: rows.map((r, idx) => ({
           srNo: idx + 1,
           productId: r.productId || null,
-          customProductName: r.customProductName || null,
           size: r.size,
           type: r.type,
           capacity: r.capacity,
@@ -1077,9 +1069,8 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
     setApprovedBy(null);
     setRows([
       {
-        id: 'row-1',
+        id: `row-${Date.now()}`,
         productId: '',
-        customProductName: '',
         size: '',
         type: '',
         capacity: '',
@@ -1099,6 +1090,85 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         remarks: ''
       }
     ]);
+    const targetPath = isDispatch
+      ? (dispatchType === 'DISPATCH_1' ? '/dispatch/daily-report' : '/dispatch-2/daily-report')
+      : '/production/daily-report';
+    router.replace(targetPath);
+  };
+
+  const handleAddMultipleProducts = (selectedList) => {
+    if (!selectedList || selectedList.length === 0) return;
+
+    setRows(prevRows => {
+      let nextRows = [...prevRows];
+      const isFirstRowBlank = nextRows.length === 1 && !nextRows[0].productId;
+      let startIdx = 0;
+
+      if (isFirstRowBlank) {
+        const firstProd = selectedList[0];
+        const coverUnitWeight = Number(firstProd.coverUnitWeight || firstProd.weight || 0);
+        const frameUnitWeight = Number(firstProd.frameUnitWeight || 0);
+        const coversPerSet = firstProd.coversPerSet || 1;
+        const framesPerSet = firstProd.framesPerSet || 1;
+
+        nextRows[0] = calculateRowValues({
+          ...nextRows[0],
+          productId: firstProd.id,
+          size: firstProd.size || firstProd.variantDetails || '',
+          type: firstProd.type || firstProd.brand || '',
+          capacity: firstProd.capacity || '',
+          coverUnitWeight,
+          frameUnitWeight,
+          coversPerSet,
+          framesPerSet
+        });
+        startIdx = 1;
+      }
+
+      for (let i = startIdx; i < selectedList.length; i++) {
+        const prod = selectedList[i];
+        const coverUnitWeight = Number(prod.coverUnitWeight || prod.weight || 0);
+        const frameUnitWeight = Number(prod.frameUnitWeight || 0);
+        const coversPerSet = prod.coversPerSet || 1;
+        const framesPerSet = prod.framesPerSet || 1;
+
+        const newRow = calculateRowValues({
+          id: `row-${Date.now()}-${i}`,
+          productId: prod.id,
+          size: prod.size || prod.variantDetails || '',
+          type: prod.type || prod.brand || '',
+          capacity: prod.capacity || '',
+          coverQty: 0,
+          coverUnitWeight,
+          coverWeight: 0,
+          actualCoverWeight: '',
+          frameQty: 0,
+          frameUnitWeight,
+          frameWeight: 0,
+          actualFrameWeight: '',
+          weightOverrideReason: '',
+          setQty: 0,
+          totalWeight: 0,
+          coversPerSet,
+          framesPerSet,
+          remarks: ''
+        });
+        nextRows.push(newRow);
+      }
+
+      return nextRows;
+    });
+
+    setShowMultiProductModal(false);
+    setSelectedMultiProductIds([]);
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: `Added ${selectedList.length} product${selectedList.length > 1 ? 's' : ''} to entries`,
+      showConfirmButton: false,
+      timer: 2000
+    });
   };
 
   // Status Badge Rendering
@@ -1217,6 +1287,29 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             </button>
           )}
 
+          {/* Always available "+ New Report" button */}
+          <button
+            type="button"
+            onClick={handleNewReport}
+            title="Create a fresh blank daily report"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 18px',
+              borderRadius: '10px',
+              border: '1.5px solid #2F4375',
+              background: currentReportId ? '#2F4375' : '#ffffff',
+              color: currentReportId ? '#ffffff' : '#2F4375',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: currentReportId ? '0 4px 10px rgba(47, 67, 117, 0.2)' : 'none'
+            }}
+          >
+            <Plus size={16} /> New Report
+          </button>
+
           {isReadOnly && (
             <>
               {(status === 'SUBMITTED' || status === 'APPROVED') && (
@@ -1265,26 +1358,6 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                   <X size={16} /> Cancel Report
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={handleNewReport}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 18px',
-                  borderRadius: '10px',
-                  border: '1px solid #D6E2F0',
-                  background: '#ffffff',
-                  color: '#24345C',
-                  fontSize: '13px',
-                  fontWeight: '800',
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={16} /> New Report
-              </button>
             </>
           )}
 
@@ -1517,12 +1590,14 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
         overflow: 'hidden'
       }}>
         <div style={{
-          padding: '16px 24px',
+          padding: '14px 24px',
           borderBottom: '1px solid var(--color-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(248, 250, 252, 0.6)'
+          background: 'rgba(248, 250, 252, 0.6)',
+          gap: '12px',
+          flexWrap: 'wrap'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={18} style={{ color: 'var(--color-primary)' }} />
@@ -1534,8 +1609,52 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
             </span>
           </div>
 
-          <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-            Press <kbd style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '1px 5px', borderRadius: '4px' }}>Ctrl + Enter</kbd> to add row
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {!isReadOnly && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowMultiProductModal(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #3b82f6',
+                    background: 'rgba(59, 130, 246, 0.08)',
+                    color: '#2563eb',
+                    fontSize: '12.5px',
+                    fontWeight: '800',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Boxes size={15} /> + Add Multiple Products
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddRow}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #2F4375',
+                    background: '#2F4375',
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: '800',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={15} /> + Add Row
+                </button>
+              </>
+            )}
+            <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+              Press <kbd style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '1px 5px', borderRadius: '4px' }}>Ctrl + Enter</kbd> to add row
+            </div>
           </div>
         </div>
 
@@ -1575,11 +1694,9 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                   <td style={{ padding: '10px 14px' }}>
                     <SmartProductCombobox
                       value={row.productId}
-                      customProductName={row.customProductName}
                       disabled={isReadOnly}
                       products={products}
                       onChange={(selectedProd) => handleProductSelect(index, selectedProd)}
-                      onCustomNameChange={(customName) => handleCustomProductName(index, customName)}
                     />
                   </td>
 
@@ -1755,17 +1872,18 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
           </table>
         </div>
 
-        {/* ADD ROW BUTTON */}
+        {/* ADD ROW & MULTI-PRODUCT BUTTONS */}
         {!isReadOnly && (
-          <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border)', background: '#fafafa' }}>
+          <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border)', background: '#fafafa', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={handleAddRow}
               style={{
+                flex: '1 1 200px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '10px 20px',
+                padding: '11px 20px',
                 borderRadius: '10px',
                 border: '1.5px dashed #2F4375',
                 background: 'rgba(47, 67, 117, 0.04)',
@@ -1773,11 +1891,32 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
                 fontSize: '13px',
                 fontWeight: '800',
                 cursor: 'pointer',
-                width: '100%',
                 justifyContent: 'center'
               }}
             >
               <Plus size={16} /> {isDispatch ? 'Add Dispatch Row' : 'Add Production Row'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowMultiProductModal(true)}
+              style={{
+                flex: '1 1 240px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '11px 20px',
+                borderRadius: '10px',
+                border: '1.5px solid #2563eb',
+                background: '#eff6ff',
+                color: '#2563eb',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                justifyContent: 'center'
+              }}
+            >
+              <Boxes size={16} /> + Select Multiple Products from Catalog
             </button>
           </div>
         )}
@@ -1925,6 +2064,283 @@ function SmartProductCombobox({ value, customProductName, disabled, products, on
               >
                 Apply Override
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MULTI-PRODUCT SELECTION MODAL ── */}
+      {showMultiProductModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 100000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '18px',
+            width: '100%',
+            maxWidth: '780px',
+            maxHeight: '90vh',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#f8fafc'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '900', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Boxes size={20} style={{ color: '#2563eb' }} /> Select Products to Add to Report
+                </h3>
+                <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                  Search and check multiple products from catalog to automatically insert their rows
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMultiProductModal(false);
+                  setSelectedMultiProductIds([]);
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Search & Filters */}
+            <div style={{ padding: '14px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type="text"
+                    placeholder="Search by name, size (e.g. 300x300), type (MHC), capacity (B125)..."
+                    value={multiProductSearch}
+                    onChange={e => setMultiProductSearch(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13.5px',
+                      fontWeight: '600',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {multiProductSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setMultiProductSearch('')}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#94a3b8'
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Pills */}
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginRight: '4px' }}>Type:</span>
+                <button
+                  type="button"
+                  onClick={() => setMultiProductTypeFilter('ALL')}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    border: '1px solid',
+                    borderColor: multiProductTypeFilter === 'ALL' ? '#2563eb' : '#e2e8f0',
+                    background: multiProductTypeFilter === 'ALL' ? '#2563eb' : '#ffffff',
+                    color: multiProductTypeFilter === 'ALL' ? '#ffffff' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  All ({products.length})
+                </button>
+                {productTypes.map(t => {
+                  const count = products.filter(p => p.type === t).length;
+                  const isSel = multiProductTypeFilter === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setMultiProductTypeFilter(t)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        border: '1px solid',
+                        borderColor: isSel ? '#2563eb' : '#e2e8f0',
+                        background: isSel ? '#2563eb' : '#ffffff',
+                        color: isSel ? '#ffffff' : '#475569',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {t} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Product List */}
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '420px', padding: '12px 24px' }}>
+              {filteredCatalogProducts.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                  No products matched your search "{multiProductSearch}".
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {filteredCatalogProducts.map(prod => {
+                    const isChecked = selectedMultiProductIds.includes(prod.id);
+                    return (
+                      <div
+                        key={prod.id}
+                        onClick={() => {
+                          setSelectedMultiProductIds(prev =>
+                            prev.includes(prod.id)
+                              ? prev.filter(id => id !== prod.id)
+                              : [...prev, prod.id]
+                          );
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          border: '1.5px solid',
+                          borderColor: isChecked ? '#3b82f6' : '#e2e8f0',
+                          background: isChecked ? 'rgba(59, 130, 246, 0.05)' : '#ffffff',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#2563eb' }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{prod.name}</strong>
+                            {prod.sku && (
+                              <span style={{ fontSize: '11px', fontFamily: 'monospace', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                                {prod.sku}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', fontSize: '11.5px', color: '#64748b', marginTop: '4px', flexWrap: 'wrap' }}>
+                            {prod.size && <span style={{ background: '#f1f5f9', padding: '2px 7px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>Size: {prod.size}</span>}
+                            {prod.type && <span style={{ background: '#f1f5f9', padding: '2px 7px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>Type: {prod.type}</span>}
+                            {prod.capacity && <span style={{ background: '#f1f5f9', padding: '2px 7px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>Cap: {prod.capacity}</span>}
+                            <span style={{ color: '#475569', fontWeight: '700' }}>Cover Wt: {prod.coverUnitWeight || prod.weight || 0} kg</span>
+                            <span style={{ color: '#475569', fontWeight: '700' }}>Frame Wt: {prod.frameUnitWeight || 0} kg</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '14px 24px',
+              borderTop: '1px solid #e2e8f0',
+              background: '#f8fafc',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allFilteredIds = filteredCatalogProducts.map(p => p.id);
+                    setSelectedMultiProductIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+                  }}
+                  style={{ background: 'none', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}
+                >
+                  Select All Filtered ({filteredCatalogProducts.length})
+                </button>
+                {selectedMultiProductIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMultiProductIds([])}
+                    style={{ background: 'none', border: 'none', padding: '6px 10px', fontSize: '12px', fontWeight: '700', color: '#dc2626', cursor: 'pointer' }}
+                  >
+                    Clear ({selectedMultiProductIds.length})
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMultiProductModal(false);
+                    setSelectedMultiProductIds([]);
+                  }}
+                  style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={selectedMultiProductIds.length === 0}
+                  onClick={() => {
+                    const selectedList = products.filter(p => selectedMultiProductIds.includes(p.id));
+                    handleAddMultipleProducts(selectedList);
+                  }}
+                  style={{
+                    padding: '9px 22px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: selectedMultiProductIds.length === 0 ? '#94a3b8' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    color: '#ffffff',
+                    fontWeight: '800',
+                    fontSize: '13px',
+                    cursor: selectedMultiProductIds.length === 0 ? 'not-allowed' : 'pointer',
+                    boxShadow: selectedMultiProductIds.length > 0 ? '0 4px 12px rgba(37, 99, 235, 0.25)' : 'none'
+                  }}
+                >
+                  Add Selected ({selectedMultiProductIds.length}) Products
+                </button>
+              </div>
             </div>
           </div>
         </div>

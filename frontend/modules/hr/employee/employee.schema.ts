@@ -55,6 +55,17 @@ export const employeeRegistrationSchema = z
       .string()
       .transform((v) => v.replace(/\D/g, ''))
       .refine((v) => v.length >= 10 && v.length <= 12, 'Phone must be 10–12 digits'),
+    companyPhone: z
+      .string()
+      .optional()
+      .refine(
+        (val) => {
+          if (!val || val.trim() === '') return true;
+          const clean = val.replace(/\D/g, '');
+          return clean.length >= 10 && clean.length <= 12;
+        },
+        'Company Phone must be 10–12 digits'
+      ),
     dob: z
       .string()
       .min(1, 'Date of Birth is mandatory')
@@ -62,7 +73,9 @@ export const employeeRegistrationSchema = z
     gender: z.enum(['Male', 'Female', 'Other', 'Prefer not to say'], {
       message: 'Gender is mandatory',
     }),
-    residentialAddress: z.string().min(1, 'Residential Address is mandatory').trim(),
+    residentialAddress: z.string().min(1, 'Present / Residential Address is mandatory').trim(),
+    sameAsPresentAddress: z.boolean().optional().default(false),
+    permanentAddress: z.string().optional(),
 
     // Emergency Contact
     emergencyName: z.string().min(1, 'Emergency Contact Name is mandatory').trim(),
@@ -167,9 +180,12 @@ export const employeeDraftSchema = z.object({
   email: z.string().optional(),
   personalEmail: z.string().optional(),
   phone: z.string().optional(),
+  companyPhone: z.string().optional(),
   dob: z.string().optional(),
   gender: z.string().optional(),
   residentialAddress: z.string().optional(),
+  permanentAddress: z.string().optional(),
+  sameAsPresentAddress: z.boolean().optional(),
   emergencyName: z.string().optional(),
   emergencyPhone: z.string().optional(),
   emergencyRelationship: z.string().optional(),

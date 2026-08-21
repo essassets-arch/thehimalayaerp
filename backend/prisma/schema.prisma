@@ -667,7 +667,9 @@ model Employee {
   workEmail              String                             @unique
   personalEmail          String?
   phoneNumber            String
+  companyPhoneNumber     String?
   residentialAddress     String
+  permanentAddress       String?
   emergencyContactName   String
   emergencyContactPhone  String
   emergencyRelationship  String

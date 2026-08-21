@@ -49,9 +49,13 @@ export interface Employee {
   email: string; // Work email
   personalEmail?: string;
   phone: string;
+  companyPhone?: string; // Company / Work phone number
+  companyPhoneNumber?: string; // Alias
   dob: string;
   gender: 'Male' | 'Female' | 'Other' | 'Prefer not to say';
-  residentialAddress: string;
+  residentialAddress: string; // Present / Current residential address
+  permanentAddress?: string; // Permanent residential address
+  sameAsPresentAddress?: boolean;
   
   // Emergency Contact
   emergencyName: string;

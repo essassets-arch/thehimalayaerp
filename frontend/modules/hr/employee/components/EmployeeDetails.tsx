@@ -45,6 +45,8 @@ export default function EmployeeDetails({ id }: { id: string }) {
       setForm({
         ...employee,
         personalEmail: employee.personalEmail || '',
+        companyPhoneNumber: employee.companyPhoneNumber || '',
+        permanentAddress: employee.permanentAddress || '',
         branchName: employee.branchName || '',
       });
       setEditing(true);
@@ -58,6 +60,8 @@ export default function EmployeeDetails({ id }: { id: string }) {
     setForm({
       ...employee,
       personalEmail: employee.personalEmail || '',
+      companyPhoneNumber: employee.companyPhoneNumber || '',
+      permanentAddress: employee.permanentAddress || '',
       branchName: employee.branchName || '',
     });
     setEditing(true);
@@ -73,7 +77,9 @@ export default function EmployeeDetails({ id }: { id: string }) {
         jobTitle: form.jobTitle,
         personalEmail: form.personalEmail || null,
         phoneNumber: form.phoneNumber,
+        companyPhoneNumber: form.companyPhoneNumber || null,
         residentialAddress: form.residentialAddress,
+        permanentAddress: form.permanentAddress || form.residentialAddress,
         emergencyContactName: form.emergencyContactName,
         emergencyContactPhone: form.emergencyContactPhone,
         emergencyRelationship: form.emergencyRelationship,
@@ -170,9 +176,13 @@ export default function EmployeeDetails({ id }: { id: string }) {
           <Card title="Contact information">
             <Field label="Work email">{v(employee.workEmail)}</Field>
             <Field label="Personal email">{v(employee.personalEmail)}</Field>
-            <Field label="Phone">{v(employee.phoneNumber)}</Field>
-            <Field label="Address" wide>
+            <Field label="Mobile phone">{v(employee.phoneNumber)}</Field>
+            <Field label="Company phone">{v(employee.companyPhoneNumber)}</Field>
+            <Field label="Present address" wide>
               {v(employee.residentialAddress)}
+            </Field>
+            <Field label="Permanent address" wide>
+              {v(employee.permanentAddress || employee.residentialAddress)}
             </Field>
           </Card>
           <Card title="Emergency contact">
@@ -211,7 +221,8 @@ export default function EmployeeDetails({ id }: { id: string }) {
             <h2>Edit employee</h2>
             {[
               ['jobTitle', 'Job title'],
-              ['phoneNumber', 'Phone'],
+              ['phoneNumber', 'Mobile Phone'],
+              ['companyPhoneNumber', 'Company Phone'],
               ['personalEmail', 'Personal email'],
               ['emergencyContactName', 'Emergency name'],
               ['emergencyContactPhone', 'Emergency phone'],
@@ -224,8 +235,12 @@ export default function EmployeeDetails({ id }: { id: string }) {
               </label>
             ))}
             <label className={styles.full}>
-              Address
+              Present Address
               <textarea value={form.residentialAddress || ''} onChange={(e) => set('residentialAddress', e.target.value)} />
+            </label>
+            <label className={styles.full}>
+              Permanent Address
+              <textarea value={form.permanentAddress || ''} onChange={(e) => set('permanentAddress', e.target.value)} />
             </label>
             <div className={styles.actions}>
               <button onClick={() => setEditing(false)}>Cancel</button>

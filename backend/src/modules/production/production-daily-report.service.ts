@@ -385,25 +385,11 @@ export class ProductionDailyReportService {
 
   /**
    * Create a new Daily Production Report in DRAFT state.
+   * Multiple reports per day and shift are supported.
    */
   async createReport(companyId: string, userId: string, dto: CreateDailyReportDto) {
     const reportDate = new Date(dto.reportDate);
     reportDate.setHours(0, 0, 0, 0);
-
-    // Check duplicate
-    const existing = await this.prisma.productionDailyReport.findFirst({
-      where: {
-        companyId,
-        reportDate,
-        shift: dto.shift || 'Morning',
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException(
-        `A production report (${existing.reportNo}) already exists for date ${dto.reportDate} and shift '${dto.shift || 'Morning'}'.`,
-      );
-    }
 
     const { key, prefix } = this.getSequencePrefix(reportDate);
 
