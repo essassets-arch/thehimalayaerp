@@ -5,51 +5,82 @@
 -- multiple migrations, each migration adding only one value to
 -- the enum.
 
+-- ALTER TYPE "StockHistoryEvent" ADD VALUE 'PRODUCTION_IN';
+-- ALTER TYPE "StockHistoryEvent" ADD VALUE 'ADJUSTMENT_IN';
+-- ALTER TYPE "StockHistoryEvent" ADD VALUE 'ADJUSTMENT_OUT';
+-- ALTER TYPE "StockHistoryEvent" ADD VALUE 'RESERVATION';
+-- ALTER TYPE "StockHistoryEvent" ADD VALUE 'RELEASE';
 
-ALTER TYPE "StockHistoryEvent" ADD VALUE 'PRODUCTION_IN';
-ALTER TYPE "StockHistoryEvent" ADD VALUE 'ADJUSTMENT_IN';
-ALTER TYPE "StockHistoryEvent" ADD VALUE 'ADJUSTMENT_OUT';
-ALTER TYPE "StockHistoryEvent" ADD VALUE 'RESERVATION';
-ALTER TYPE "StockHistoryEvent" ADD VALUE 'RELEASE';
+-- Ensure StockHistoryEvent enum type exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StockHistoryEvent') THEN
+    CREATE TYPE "StockHistoryEvent" AS ENUM ('STOCK_IN', 'RESERVE', 'UNRESERVE', 'DISPATCH_OUT', 'QC_RECEIPT', 'ADJUSTMENT', 'RETURN_IN');
+  END IF;
+END
+$$;
+
+-- Ensure StockHistory table exists
+CREATE TABLE IF NOT EXISTS "StockHistory" (
+    "id" TEXT NOT NULL,
+    "companyId" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "quantity" DECIMAL(18,3) NOT NULL,
+    "salesOrderId" TEXT,
+    "salesOrderItemId" TEXT,
+    "allocationId" TEXT,
+    "dispatchId" TEXT,
+    "event" "StockHistoryEvent" NOT NULL,
+    "actor" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "StockHistory_pkey" PRIMARY KEY ("id")
+);
+
+-- Ensure StockHistory indices exist
+CREATE INDEX IF NOT EXISTS "StockHistory_companyId_productId_createdAt_idx" ON "StockHistory"("companyId", "productId", "createdAt");
+CREATE INDEX IF NOT EXISTS "StockHistory_salesOrderId_idx" ON "StockHistory"("salesOrderId");
+CREATE INDEX IF NOT EXISTS "StockHistory_allocationId_idx" ON "StockHistory"("allocationId");
+CREATE INDEX IF NOT EXISTS "StockHistory_dispatchId_idx" ON "StockHistory"("dispatchId");
 
 -- AlterTable
-ALTER TABLE "CustomerPayment" ADD COLUMN     "method" TEXT,
-ADD COLUMN     "rejectedAt" TIMESTAMP(3),
-ADD COLUMN     "rejectedById" TEXT,
-ADD COLUMN     "rejectionReason" TEXT,
-ADD COLUMN     "remarks" TEXT,
-ADD COLUMN     "transactionReference" TEXT;
+ALTER TABLE "CustomerPayment" ADD COLUMN IF NOT EXISTS "method" TEXT;
+ALTER TABLE "CustomerPayment" ADD COLUMN IF NOT EXISTS "rejectedAt" TIMESTAMP(3);
+ALTER TABLE "CustomerPayment" ADD COLUMN IF NOT EXISTS "rejectedById" TEXT;
+ALTER TABLE "CustomerPayment" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
+ALTER TABLE "CustomerPayment" ADD COLUMN IF NOT EXISTS "remarks" TEXT;
+ALTER TABLE "CustomerPayment" ADD COLUMN IF NOT EXISTS "transactionReference" TEXT;
 
 -- AlterTable
-ALTER TABLE "FinishedGoods" ADD COLUMN     "reservedQuantity" DECIMAL(65,30) NOT NULL DEFAULT 0;
+ALTER TABLE "FinishedGoods" ADD COLUMN IF NOT EXISTS "reservedQuantity" DECIMAL(65,30) NOT NULL DEFAULT 0;
 
 -- AlterTable
-ALTER TABLE "ProductionDailyReport" ADD COLUMN     "stockPostedAt" TIMESTAMP(3),
-ADD COLUMN     "stockPostedBy" TEXT,
-ADD COLUMN     "stockTransactionId" TEXT;
+ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "stockPostedAt" TIMESTAMP(3);
+ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "stockPostedBy" TEXT;
+ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "stockTransactionId" TEXT;
 
 -- AlterTable
-ALTER TABLE "SalesOrder" ADD COLUMN     "outstandingAmount" DECIMAL(18,2),
-ADD COLUMN     "paidAmount" DECIMAL(18,2) NOT NULL DEFAULT 0,
-ADD COLUMN     "paymentDueDate" TIMESTAMP(3),
-ADD COLUMN     "paymentStatus" TEXT DEFAULT 'PENDING',
-ADD COLUMN     "paymentTermDays" INTEGER,
-ADD COLUMN     "paymentTermStartDate" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
-ADD COLUMN     "paymentTerms" TEXT;
+ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "outstandingAmount" DECIMAL(18,2);
+ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paidAmount" DECIMAL(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentDueDate" TIMESTAMP(3);
+ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT DEFAULT 'PENDING';
+ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentTermDays" INTEGER;
+ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentTermStartDate" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentTerms" TEXT;
 
 -- AlterTable
-ALTER TABLE "StockHistory" ADD COLUMN     "afterAvailableQuantity" DECIMAL(18,3),
-ADD COLUMN     "afterQuantity" DECIMAL(18,3),
-ADD COLUMN     "beforeAvailableQuantity" DECIMAL(18,3),
-ADD COLUMN     "beforeQuantity" DECIMAL(18,3),
-ADD COLUMN     "referenceNumber" TEXT,
-ADD COLUMN     "remarks" TEXT,
-ADD COLUMN     "sourceId" TEXT,
-ADD COLUMN     "sourceItemId" TEXT,
-ADD COLUMN     "sourceType" TEXT;
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "afterAvailableQuantity" DECIMAL(18,3);
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "afterQuantity" DECIMAL(18,3);
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "beforeAvailableQuantity" DECIMAL(18,3);
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "beforeQuantity" DECIMAL(18,3);
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "referenceNumber" TEXT;
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "remarks" TEXT;
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "sourceId" TEXT;
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "sourceItemId" TEXT;
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "sourceType" TEXT;
 
 -- CreateTable
-CREATE TABLE "DispatchDailyReport" (
+CREATE TABLE IF NOT EXISTS "DispatchDailyReport" (
     "id" TEXT NOT NULL,
     "reportNo" TEXT NOT NULL,
     "reportDate" TIMESTAMP(3) NOT NULL,
@@ -82,7 +113,7 @@ CREATE TABLE "DispatchDailyReport" (
 );
 
 -- CreateTable
-CREATE TABLE "DispatchDailyReportItem" (
+CREATE TABLE IF NOT EXISTS "DispatchDailyReportItem" (
     "id" TEXT NOT NULL,
     "reportId" TEXT NOT NULL,
     "productId" TEXT,
@@ -110,31 +141,40 @@ CREATE TABLE "DispatchDailyReportItem" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DispatchDailyReport_reportNo_key" ON "DispatchDailyReport"("reportNo");
+CREATE UNIQUE INDEX IF NOT EXISTS "DispatchDailyReport_reportNo_key" ON "DispatchDailyReport"("reportNo");
 
 -- CreateIndex
-CREATE INDEX "DispatchDailyReport_companyId_status_idx" ON "DispatchDailyReport"("companyId", "status");
+CREATE INDEX IF NOT EXISTS "DispatchDailyReport_companyId_status_idx" ON "DispatchDailyReport"("companyId", "status");
 
 -- CreateIndex
-CREATE INDEX "DispatchDailyReport_reportDate_idx" ON "DispatchDailyReport"("reportDate");
+CREATE INDEX IF NOT EXISTS "DispatchDailyReport_reportDate_idx" ON "DispatchDailyReport"("reportDate");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DispatchDailyReport_companyId_reportDate_shift_dispatchType_key" ON "DispatchDailyReport"("companyId", "reportDate", "shift", "dispatchType");
+CREATE UNIQUE INDEX IF NOT EXISTS "DispatchDailyReport_companyId_reportDate_shift_dispatchType_key" ON "DispatchDailyReport"("companyId", "reportDate", "shift", "dispatchType");
 
 -- CreateIndex
-CREATE INDEX "DispatchDailyReportItem_reportId_idx" ON "DispatchDailyReportItem"("reportId");
+CREATE INDEX IF NOT EXISTS "DispatchDailyReportItem_reportId_idx" ON "DispatchDailyReportItem"("reportId");
 
 -- CreateIndex
-CREATE INDEX "DispatchDailyReportItem_productId_idx" ON "DispatchDailyReportItem"("productId");
+CREATE INDEX IF NOT EXISTS "DispatchDailyReportItem_productId_idx" ON "DispatchDailyReportItem"("productId");
 
 -- AddForeignKey
-ALTER TABLE "DispatchDailyReport" ADD CONSTRAINT "DispatchDailyReport_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'DispatchDailyReport_companyId_fkey') THEN
+    ALTER TABLE "DispatchDailyReport" ADD CONSTRAINT "DispatchDailyReport_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'DispatchDailyReport_createdById_fkey') THEN
+    ALTER TABLE "DispatchDailyReport" ADD CONSTRAINT "DispatchDailyReport_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
 
--- AddForeignKey
-ALTER TABLE "DispatchDailyReport" ADD CONSTRAINT "DispatchDailyReport_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'DispatchDailyReportItem_reportId_fkey') THEN
+    ALTER TABLE "DispatchDailyReportItem" ADD CONSTRAINT "DispatchDailyReportItem_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "DispatchDailyReport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
--- AddForeignKey
-ALTER TABLE "DispatchDailyReportItem" ADD CONSTRAINT "DispatchDailyReportItem_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "DispatchDailyReport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "DispatchDailyReportItem" ADD CONSTRAINT "DispatchDailyReportItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'DispatchDailyReportItem_productId_fkey') THEN
+    ALTER TABLE "DispatchDailyReportItem" ADD CONSTRAINT "DispatchDailyReportItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END
+$$;
