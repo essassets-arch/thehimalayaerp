@@ -53,8 +53,15 @@ export class FilesService {
   public resolveFile(targetPathOrId: string, category?: string): FileResolveResult | null {
     if (!targetPathOrId) return null;
 
+    let clean = targetPathOrId;
+    try {
+      clean = decodeURIComponent(targetPathOrId);
+    } catch (e) {
+      // Fallback if not decodable
+    }
+
     // Clean leading slashes, localhost URLs, and api prefixes
-    let clean = targetPathOrId.replace(/^https?:\/\/[^\/]+/i, '');
+    clean = clean.replace(/^https?:\/\/[^\/]+/i, '');
     clean = clean.replace(/^\/?(api\/(backend|v1)\/)?(uploads|files\/serve)\/?/i, '');
     clean = normalize(clean).replace(/^(\.\.[\/\\])+/, ''); // Strip directory traversal
 
