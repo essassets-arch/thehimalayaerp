@@ -3,6 +3,8 @@ import { procurementRequest } from './procurementClient';
 export const purchaseOrderService = {
   list: (query?: Record<string, any>) => procurementRequest('purchase-orders', 'GET', undefined, { query }),
   financeQueue: (query?: Record<string, any>) => procurementRequest('finance/po-requests', 'GET', undefined, { query }),
+  plantHeadQueue: (query?: Record<string, any>) => procurementRequest('plant-head/purchase-approvals', 'GET', undefined, { query }),
+  plantHeadHistory: (query?: Record<string, any>) => procurementRequest('plant-head/purchase-history', 'GET', undefined, { query }),
   superAdminQueue: (query?: Record<string, any>) => procurementRequest('super-admin/po-requests', 'GET', undefined, { query }),
   superAdminHistory: (query?: Record<string, any>) => procurementRequest('super-admin/po-history', 'GET', undefined, { query }),
   createFromIndent: (indentId: string, data: unknown) => {

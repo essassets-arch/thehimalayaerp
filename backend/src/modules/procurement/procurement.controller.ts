@@ -57,6 +57,18 @@ export class ProcurementController {
     return this.service.indentQueue(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
+  @Get('plant-head/purchase-approvals')
+  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
+  plantHeadPurchaseQueue(@Req() r: any, @Query() q: any) {
+    return this.service.plantHeadPurchaseQueue(r.user?.companyId, q);
+  }
+  @RequirePermissions('procurement.procurement.read')
+  @Get('plant-head/purchase-history')
+  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
+  plantHeadPurchaseHistory(@Req() r: any, @Query() q: any) {
+    return this.service.plantHeadPurchaseHistory(r.user?.companyId, q);
+  }
+  @RequirePermissions('procurement.procurement.read')
   @Get('finance/po-requests')
   @Roles('FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER')
   financeQueue(@Req() r: any, @Query() q: any) {

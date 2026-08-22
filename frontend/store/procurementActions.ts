@@ -322,6 +322,12 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
   const isLocalOrDemoIndent = !indentId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(indentId);
 
   const poId = poData.id || `PO-DRAFT-${Date.now()}`;
+  const totalAmountNum = Number(poData.totalAmount || 0);
+  let localStatus = 'DRAFT';
+  if (totalAmountNum <= 10000) {
+    localStatus = 'FINANCE_APPROVED';
+  }
+
   const newPO = {
     id: poId,
     poNumber: poId,
@@ -331,12 +337,12 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
     vendorName: poData.vendorName || poData.supplierName || 'Selected Vendor',
     vendorId: poData.vendorId || poData.supplierId,
     supplierId: poData.supplierId || poData.vendorId,
-    status: 'DRAFT',
+    status: localStatus,
     paymentTerms: poData.paymentTerms || '30 Days Net',
     expectedDeliveryDate: poData.expectedDeliveryDate || poData.expectedDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-    totalAmount: Number(poData.totalAmount || 0),
-    subtotal: Number(poData.totalAmount || 0) * 0.82,
-    gstAmount: Number(poData.totalAmount || 0) * 0.18,
+    totalAmount: totalAmountNum,
+    subtotal: totalAmountNum * 0.82,
+    gstAmount: totalAmountNum * 0.18,
     freight: Number(poData.freight || 0),
     items: poData.items || [],
     createdAt: new Date().toISOString(),
@@ -363,7 +369,7 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
 
   const payload = {
     supplierId: poData.supplierId || poData.vendorId,
-    totalAmount: Number(poData.totalAmount || 0),
+    totalAmount: totalAmountNum,
     freight: Number(poData.freight || 0),
     otherCharges: Number(poData.otherCharges || 0),
     paymentTerms: poData.paymentTerms || '',
@@ -391,11 +397,24 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
 
 const isLocalId = (id: string) => !id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) || id.startsWith('PO-') || id.startsWith('INDENT-');
 
-export async function submitPurchaseOrder(poId: string, actorName: string) {
+export async function submitPurchaseOrder(poId: string, actorName: string = 'Finance') {
+  const store = useERPStore.getState();
+  const po = store.state.purchaseOrders?.find((p: any) => p.id === poId || p.poNumber === poId || p.publicId === poId);
+  const totalVal = Number(po?.totalAmount || po?.grandTotal || po?.value || 0);
+
+  let targetStatus = 'PENDING_SUPER_ADMIN_APPROVAL';
+  if (totalVal <= 10000) {
+    targetStatus = 'FINANCE_APPROVED';
+  } else if (totalVal <= 15000) {
+    targetStatus = 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL';
+  } else {
+    targetStatus = 'PENDING_SUPER_ADMIN_APPROVAL';
+  }
+
   const updateLocal = () => {
     useERPStore.setState((prev: any) => {
       const pos = prev.state?.purchaseOrders || prev.state?.procurement?.purchaseOrders || [];
-      const updated = pos.map((p: any) => (p.id === poId || p.poNumber === poId || p.publicId === poId) ? { ...p, status: 'PENDING_SUPER_ADMIN_APPROVAL' } : p);
+      const updated = pos.map((p: any) => (p.id === poId || p.poNumber === poId || p.publicId === poId) ? { ...p, status: targetStatus } : p);
       return {
         state: {
           ...prev.state,
@@ -407,16 +426,44 @@ export async function submitPurchaseOrder(poId: string, actorName: string) {
         }
       };
     });
-    return { success: true, id: poId, status: 'PENDING_SUPER_ADMIN_APPROVAL' };
+    return { success: true, id: poId, status: targetStatus };
   };
 
   if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
 
-  const store = useERPStore.getState();
-  const po = store.state.purchaseOrders?.find((p: any) => p.id === poId);
   const version = po?.version;
   try {
     const res = await purchaseOrderService.action(poId, 'submit', {}, version);
+    await syncProcurementData();
+    return res;
+  } catch (err: any) {
+    throw err;
+  }
+}
+
+export async function plantHeadApprovePurchaseOrder(poId: string, remarks: string = 'Approved by Plant Head', actorName: string = 'Plant Head') {
+  if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
+
+  const store = useERPStore.getState();
+  const po = store.state.purchaseOrders?.find((p: any) => p.id === poId || p.poNumber === poId || p.publicId === poId);
+  const version = po?.version;
+  try {
+    const res = await purchaseOrderService.action(poId, 'plant-head-approve', { remarks }, version);
+    await syncProcurementData();
+    return res;
+  } catch (err: any) {
+    throw err;
+  }
+}
+
+export async function plantHeadRejectPurchaseOrder(poId: string, remarks: string, actorName: string = 'Plant Head') {
+  if (isLocalId(poId)) throw new Error('A persisted Purchase Order ID is required.');
+
+  const store = useERPStore.getState();
+  const po = store.state.purchaseOrders?.find((p: any) => p.id === poId || p.poNumber === poId || p.publicId === poId);
+  const version = po?.version;
+  try {
+    const res = await purchaseOrderService.action(poId, 'plant-head-reject', { remarks }, version);
     await syncProcurementData();
     return res;
   } catch (err: any) {

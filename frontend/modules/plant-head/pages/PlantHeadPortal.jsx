@@ -36,6 +36,7 @@ import { PlantHeadMaterialAnalytics } from './PlantHeadMaterialAnalytics';
 import { PlantHeadDailySummary } from './PlantHeadDailySummary';
 import PlantHeadMaterialApprovalView from '../../../components/material-workflow/PlantHeadMaterialApprovalView';
 import MaterialIndentApproval from '../../procurement/plant-head/MaterialIndentApproval';
+import PurchaseApproval from './PurchaseApproval';
 import { SEEDED_INVENTORY_ITEMS } from '../../../shared/data/inventoryMasterData';
 import { useO2PWorkflow } from '../../../shared/hooks/useO2PWorkflow';
 import PlantHeadCommandDashboard from '../../../components/PlantHeadCommandDashboard';
@@ -5265,11 +5266,12 @@ export default function PlantHeadPortal() {
       {currentView === 'edit-material' && renderEditMaterialPage()}
       {currentView === 'profile' && <MyProfileView />}
       {currentView === 'indent-approvals' && <MaterialIndentApproval />}
+      {currentView === 'purchase-approvals' && <PurchaseApproval />}
       {currentView === 'leave-approvals' && <LeaveApprovalView roleMode="PLANT_HEAD" />}
       {currentView === 'daily-reports' && <DailyReportHistoryView roleMode="PLANT_HEAD" />}
       {currentView === 'attendance' && <AttendanceView />}
 
-      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance'].includes(currentView) && (
+      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance'].includes(currentView) && (
         <ModulePlaceholder
           title="Module Not Available"
           description="This Plant Head feature is not implemented yet."

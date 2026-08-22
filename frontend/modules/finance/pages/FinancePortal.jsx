@@ -1924,10 +1924,22 @@ export default function FinancePortal({ initialView, forceView }) {
       try {
         await createPurchaseOrderFromIndent(selectedPO.id, poPayload);
         await syncData();
+        await refreshPurchaseOrders();
         setServerPurchaseIndents((current) => current.filter((indent) => indent.id !== selectedPO.id));
-        showToast('Draft PO created successfully!');
-        setSelectedPO(null);
-        setActiveTab('Draft POs');
+        
+        if (totalAmount <= 10000) {
+          showToast(`PO created & directly approved (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). No approval step required!`, 'success');
+          setSelectedPO(null);
+          setActiveTab('Approved POs');
+        } else if (totalAmount <= 15000) {
+          showToast(`PO created (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Routed to Plant Head for approval.`, 'info');
+          setSelectedPO(null);
+          setActiveTab('Draft POs');
+        } else {
+          showToast(`PO created (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Routed to Super Admin for approval.`, 'info');
+          setSelectedPO(null);
+          setActiveTab('Draft POs');
+        }
       } catch (error) {
         showToast(error?.message || 'Unable to create the draft PO.');
       }
@@ -2085,6 +2097,37 @@ export default function FinancePortal({ initialView, forceView }) {
                 <span style={{ fontWeight: 800, fontSize: '15px', color: '#24345C' }}>Grand Total (Price):</span>
                 <span style={{ fontWeight: 900, fontSize: '16px', color: '#4F46E5' }}>₹{displayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
+
+              {/* Dynamic Approval Routing Indicator */}
+              <div style={{
+                marginTop: '6px',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: displayTotal <= 10000 ? '1px solid #86efac' : displayTotal <= 15000 ? '1px solid #fde047' : '1px solid #c7d2fe',
+                background: displayTotal <= 10000 ? '#f0fdf4' : displayTotal <= 15000 ? '#fefce8' : '#eef2ff',
+                color: displayTotal <= 10000 ? '#166534' : displayTotal <= 15000 ? '#854d0e' : '#3730a3',
+                fontSize: '12.5px',
+                lineHeight: '1.5'
+              }}>
+                {displayTotal <= 10000 && (
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '13px', color: '#15803d', marginBottom: '2px' }}>⚡ Direct Finance Approval (≤ ₹10,000)</strong>
+                    No approval step required. This PO will be directly approved upon creation and will appear immediately in <strong>Approved POs</strong> ready for placement.
+                  </div>
+                )}
+                {displayTotal > 10000 && displayTotal <= 15000 && (
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '13px', color: '#a16207', marginBottom: '2px' }}>🛡️ Plant Head Approval Required (₹10,001 – ₹15,000)</strong>
+                    This PO falls in the Plant Head bracket and will be routed to <strong>Plant Head &gt; Purchase Approvals</strong> before returning to Approved POs.
+                  </div>
+                )}
+                {displayTotal > 15000 && (
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '13px', color: '#4338ca', marginBottom: '2px' }}>👑 Super Admin Approval Required (&gt; ₹15,000)</strong>
+                    This PO exceeds ₹15,000 and will be submitted to the <strong>Super Admin</strong> for executive purchase approval before returning to Approved POs.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2101,7 +2144,7 @@ export default function FinancePortal({ initialView, forceView }) {
               type="submit"
               style={{ padding: '12px 28px', border: 'none', background: '#2F4375', color: '#ffffff', borderRadius: '10px', fontSize: '15px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(47, 67, 117, 0.3)', transition: 'all 0.15s' }}
             >
-              <FileText size={18} /> Create Draft PO
+              <FileText size={18} /> {displayTotal <= 10000 ? 'Create & Directly Approve PO' : 'Create Draft PO'}
             </button>
           </div>
         </form>
@@ -2110,20 +2153,28 @@ export default function FinancePortal({ initialView, forceView }) {
   };
 
   const renderDraftPOsTab = () => {
-    // A PO created from an approved indent is shown here until Super Admin
-    // approves it. Older editable drafts and returned POs remain here too.
-    const draftPOs = purchaseOrders.filter(po => ['DRAFT', 'SUPER_ADMIN_REJECTED', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(po.status));
-    const historyPOs = purchaseOrders.filter(po => po.status === 'PENDING_SUPER_ADMIN_APPROVAL' || po.status === 'SUPER_ADMIN_APPROVED');
+    // Drafts and pending approval POs
+    const draftPOs = purchaseOrders.filter(po => ['DRAFT', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'].includes(po.status));
+    const historyPOs = purchaseOrders.filter(po => ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_APPROVED', 'SUPER_ADMIN_APPROVED', 'FINANCE_APPROVED'].includes(po.status));
     
     const displayedPOs = draftPOsSubTab === 'Pending Drafts' ? draftPOs : historyPOs;
 
     const handleSubmitForApproval = async (po) => {
       try {
+        const total = Number(po.totalAmount || po.grandTotal || po.value || 0);
         await submitPurchaseOrder(po.id);
         await syncData();
-        showToast(`PO ${po.poNumber || po.publicId || po.id} sent to Super Admin for approval`);
+        await refreshPurchaseOrders();
+        if (total <= 10000) {
+          showToast(`PO ${po.poNumber || po.publicId || po.id} directly approved and moved to Approved POs.`);
+          setActiveTab('Approved POs');
+        } else if (total <= 15000) {
+          showToast(`PO ${po.poNumber || po.publicId || po.id} sent to Plant Head for approval.`);
+        } else {
+          showToast(`PO ${po.poNumber || po.publicId || po.id} sent to Super Admin for approval.`);
+        }
       } catch (error) {
-        showToast(error?.message || 'Unable to send the PO for approval.');
+        showToast(error?.message || 'Unable to submit the PO.');
       }
     };
 
@@ -2148,28 +2199,61 @@ export default function FinancePortal({ initialView, forceView }) {
             { header: 'PO ID', accessor: 'id', render: row => <strong>{row.poNumber || row.publicId || row.id}</strong> },
             { header: 'Indent ID', accessor: 'purchaseIndentId', render: row => row.purchaseIndentId || row.indentId || 'N/A' },
             { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
+            { header: 'Amount', accessor: 'totalAmount', render: row => {
+              const val = Number(row.totalAmount || row.grandTotal || 0);
+              return <strong style={{ color: '#059669' }}>₹{val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>;
+            } },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> },
             { header: 'Remarks', accessor: 'rejectionReason' }
           ]}
           data={displayedPOs}
-          actions={row => draftPOsSubTab === 'Pending Drafts' && ['DRAFT', 'SUPER_ADMIN_REJECTED'].includes(row.status) ? (
-            <button
-              style={{
-                background: '#24345C',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '6px 14px',
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: '12px',
-                transition: 'background 0.15s'
-              }}
-              onClick={() => handleSubmitForApproval(row)}
-            >
-              Send to Super Admin
-            </button>
-          ) : undefined}
+          actions={row => {
+            const total = Number(row.totalAmount || row.grandTotal || row.value || 0);
+            if (draftPOsSubTab === 'Pending Drafts' && ['DRAFT', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'].includes(row.status)) {
+              let btnText = 'Send to Super Admin';
+              let btnBg = '#24345C';
+              if (total <= 10000) {
+                btnText = '⚡ Direct Approve';
+                btnBg = '#059669';
+              } else if (total <= 15000) {
+                btnText = '🛡️ Send to Plant Head';
+                btnBg = '#D97706';
+              }
+              return (
+                <button
+                  style={{
+                    background: btnBg,
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '6px 14px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    transition: 'background 0.15s'
+                  }}
+                  onClick={() => handleSubmitForApproval(row)}
+                >
+                  {btnText}
+                </button>
+              );
+            }
+            if (row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL') {
+              return (
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#D97706', background: '#FEF3C7', padding: '4px 10px', borderRadius: '8px', border: '1px solid #FDE68A' }}>
+                  ⏳ With Plant Head
+                </span>
+              );
+            }
+            if (row.status === 'PENDING_SUPER_ADMIN_APPROVAL') {
+              return (
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#4F46E5', background: '#EEF2FF', padding: '4px 10px', borderRadius: '8px', border: '1px solid #C7D2FE' }}>
+                  ⏳ With Super Admin
+                </span>
+              );
+            }
+            return undefined;
+          }}
           emptyMessage={draftPOsSubTab === 'Pending Drafts' ? "No draft POs found." : "No submitted POs found."}
         />
       </div>
@@ -2182,8 +2266,8 @@ export default function FinancePortal({ initialView, forceView }) {
         .filter(Boolean)
         .map(po => [po.id || po.publicId || po.poNumber, po]),
     ).values());
-    const activePOs = livePOs.filter(po => po.status === 'SUPER_ADMIN_APPROVED');
-    const historyPOs = livePOs.filter(po => ['ORDERED', 'PO_ISSUED', 'PARTIALLY_DELIVERED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
+    const activePOs = livePOs.filter(po => ['SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED'].includes(po.status));
+    const historyPOs = livePOs.filter(po => ['ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'PARTIALLY_DELIVERED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
     
     const displayedPOs = approvedPOsSubTab === 'Approved' ? activePOs : historyPOs;
 
@@ -2375,7 +2459,16 @@ export default function FinancePortal({ initialView, forceView }) {
                 
                 return <span style={{ fontWeight: 800, color: '#16a34a' }}>{grandVal ? `₹${grandVal.toLocaleString()}` : '₹0'}</span>;
             } },
-            { header: 'Approved By', accessor: 'approvedBy', render: row => <span style={{ fontWeight: 600, color: '#475569' }}>{row.approvedBy || row.history?.slice(-1)[0]?.actor || 'Super Admin'}</span> },
+            { header: 'Approval Authority', accessor: 'status', render: row => {
+              const total = Number(row.totalAmount || row.grandTotal || row.value || 0);
+              if (row.status === 'FINANCE_APPROVED' || total <= 10000) {
+                return <span style={{ fontSize: '11px', fontWeight: 800, color: '#059669', background: '#ECFDF5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #A7F3D0' }}>⚡ Direct Finance (≤ ₹10k)</span>;
+              }
+              if (row.status === 'PLANT_HEAD_PURCHASE_APPROVED' || (total > 10000 && total <= 15000)) {
+                return <span style={{ fontSize: '11px', fontWeight: 800, color: '#D97706', background: '#FFFBEB', padding: '3px 8px', borderRadius: '6px', border: '1px solid #FDE68A' }}>🛡️ Plant Head (₹10k–₹15k)</span>;
+              }
+              return <span style={{ fontSize: '11px', fontWeight: 800, color: '#4F46E5', background: '#EEF2FF', padding: '3px 8px', borderRadius: '6px', border: '1px solid #C7D2FE' }}>👑 Super Admin (&gt; ₹15k)</span>;
+            } },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
           data={displayedPOs}
@@ -2569,8 +2662,8 @@ export default function FinancePortal({ initialView, forceView }) {
       showToast('Vendor acceptance simulated!');
     };
 
-    const pendingPOsList = purchaseOrders.filter(po => ['PENDING_SUPER_ADMIN_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE_APPROVAL', 'PLANT_HEAD_APPROVED'].includes(po.status));
-    const historyPOsList = purchaseOrders.filter(po => ['SUPER_ADMIN_APPROVED', 'SUPER_ADMIN_REJECTED', 'PO_ISSUED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED', 'APPROVED', 'REJECTED'].includes(po.status));
+    const pendingPOsList = purchaseOrders.filter(po => ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE_APPROVAL'].includes(po.status));
+    const historyPOsList = purchaseOrders.filter(po => ['SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED', 'SUPER_ADMIN_REJECTED', 'PLANT_HEAD_PURCHASE_REJECTED', 'PO_ISSUED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED', 'APPROVED', 'REJECTED'].includes(po.status));
 
     let filteredData = purchaseOrders;
     if (filterType === 'PENDING_APPROVAL') {
@@ -2578,7 +2671,7 @@ export default function FinancePortal({ initialView, forceView }) {
     } else if (filterType === 'CLOSED') {
       filteredData = purchaseOrders.filter(po => ['RECEIVED', 'PARTIALLY_RECEIVED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED', 'FINANCE_AUDIT_APPROVED'].includes(po.status));
     } else if (filterType === 'HISTORY') {
-      filteredData = purchaseOrders.filter(po => ['PO_CLOSED', 'CLOSED', 'PURCHASE_COMPLETED', 'SUPER_ADMIN_APPROVED', 'PENDING_SUPER_ADMIN_APPROVAL'].includes(po.status));
+      filteredData = purchaseOrders.filter(po => ['PO_CLOSED', 'CLOSED', 'PURCHASE_COMPLETED', 'SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED'].includes(po.status));
     }
 
     return (
@@ -2598,7 +2691,7 @@ export default function FinancePortal({ initialView, forceView }) {
                 fontSize: '14px'
               }}
             >
-              Pending Super Admin Approval ({pendingPOsList.length})
+              Pending Approval ({pendingPOsList.length})
             </button>
             <button
               onClick={() => setPendingApprovalSubTab('History')}
@@ -2613,7 +2706,7 @@ export default function FinancePortal({ initialView, forceView }) {
                 fontSize: '14px'
               }}
             >
-              Approval History (Sent to Super Admin) ({historyPOsList.length})
+              Approval History ({historyPOsList.length})
             </button>
           </div>
         ) : (
@@ -2708,6 +2801,11 @@ export default function FinancePortal({ initialView, forceView }) {
                   >
                     🚀 Send to Super Admin
                   </button>
+                )}
+                {row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL' && (
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '4px 12px', borderRadius: '12px', border: '1px solid #fde68a' }}>
+                    ⏳ Sent to Plant Head
+                  </span>
                 )}
                 {row.status === 'PENDING_SUPER_ADMIN_APPROVAL' && (
                   <span style={{ fontSize: '12px', fontWeight: 800, color: '#4338ca', background: '#eef2ff', padding: '4px 12px', borderRadius: '12px', border: '1px solid #c7d2fe' }}>

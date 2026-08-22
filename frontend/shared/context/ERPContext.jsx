@@ -7,6 +7,8 @@ import {
   createPurchaseOrder as createPurchaseOrderAction,
   submitPurchaseOrder as submitPurchaseOrderAction,
   approvePurchaseOrder as approvePurchaseOrderAction,
+  plantHeadApprovePurchaseOrder as plantHeadApprovePurchaseOrderAction,
+  plantHeadRejectPurchaseOrder as plantHeadRejectPurchaseOrderAction,
   rejectPurchaseOrder as rejectPurchaseOrderAction,
   issuePurchaseOrder as issuePurchaseOrderAction,
   verifyPODelivery as verifyPODeliveryAction,
@@ -373,6 +375,16 @@ export const useERP = () => {
     approvePurchaseOrder: async (id, remarks, approver) => {
       const res = await approvePurchaseOrderAction(id, remarks || 'Approved', approver || 'Super Admin');
       notify('PO Approved', 'PO has been approved', 'Finance');
+      return res;
+    },
+    plantHeadApprovePurchaseOrder: async (id, remarks, approver) => {
+      const res = await plantHeadApprovePurchaseOrderAction(id, remarks || 'Approved by Plant Head', approver || 'Plant Head');
+      notify('PO Approved', 'PO has been approved by Plant Head', 'Finance');
+      return res;
+    },
+    plantHeadRejectPurchaseOrder: async (id, remarks) => {
+      const res = await plantHeadRejectPurchaseOrderAction(id, remarks || 'Rejected by Plant Head', 'Plant Head');
+      notify('PO Rejected', 'PO has been rejected by Plant Head', 'Finance');
       return res;
     },
     rejectPurchaseOrder: async (id, remarks) => {

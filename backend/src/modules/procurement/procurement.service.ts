@@ -20,11 +20,13 @@ const INDENT: Record<string, string[]> = {
   cancel: ['DRAFT', 'PLANT_HEAD_CORRECTION_REQUIRED'],
 };
 const PO: Record<string, string[]> = {
-  submit: ['DRAFT', 'CORRECTION_REQUIRED'],
-  approve: ['PENDING_SUPER_ADMIN_APPROVAL'],
-  return: ['PENDING_SUPER_ADMIN_APPROVAL'],
-  reject: ['PENDING_SUPER_ADMIN_APPROVAL'],
-  issue: ['SUPER_ADMIN_APPROVED', 'ORDERED', 'PO_ISSUED'],
+  submit: ['DRAFT', 'CORRECTION_REQUIRED', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'],
+  approve: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
+  'plant-head-approve': ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
+  'plant-head-reject': ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
+  return: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
+  reject: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
+  issue: ['SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED', 'ORDERED', 'PO_ISSUED'],
   'vendor-accept': ['ORDERED', 'PO_ISSUED'],
   'vendor-reject': ['ORDERED', 'PO_ISSUED'],
   dispatch: ['ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED'],
@@ -304,11 +306,10 @@ export class ProcurementService {
     let status = query.status;
     if (!status) {
       if (tab === 'Draft POs' || tab === 'Drafts') {
-        status = { in: ['DRAFT', 'PENDING_SUPER_ADMIN_APPROVAL', 'SUPER_ADMIN_REJECTED'] };
+        status = { in: ['DRAFT', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'] };
       } else if (tab === 'Approved POs') {
-        // Finance's placement queue is strictly for orders awaiting placement.
-        // Once issued as ORDERED, they belong to Store delivery tracking/history.
-        status = 'SUPER_ADMIN_APPROVED';
+        // All approved POs: Direct Finance (<= 10k), Plant Head (10k-15k), Super Admin (> 15k)
+        status = { in: ['SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED'] };
       } else if (tab === 'Closed POs') {
         status = 'CLOSED';
       }
@@ -326,7 +327,67 @@ export class ProcurementService {
         include: {
           supplier: true,
           items: { include: { product: true } },
-          purchaseIndent: true,
+          purchaseIndent: { include: { requestedBy: true } },
+        },
+      }),
+      this.prisma.purchaseOrder.count({ where }),
+    ]);
+    return { data, meta: { page, limit, total } };
+  }
+
+  async plantHeadPurchaseQueue(companyId: string | undefined, query: any) {
+    const { page, limit, skip } = this.page(query);
+    const where: any = {
+      ...(companyId && { companyId }),
+      status: 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL',
+    };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.purchaseOrder.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          supplier: true,
+          items: { include: { product: true } },
+          purchaseIndent: { include: { requestedBy: true } },
+        },
+      }),
+      this.prisma.purchaseOrder.count({ where }),
+    ]);
+    return { data, meta: { page, limit, total } };
+  }
+
+  async plantHeadPurchaseHistory(companyId: string | undefined, query: any) {
+    const { page, limit, skip } = this.page(query);
+    const where: any = {
+      ...(companyId && { companyId }),
+      status: {
+        in: [
+          'PLANT_HEAD_PURCHASE_APPROVED',
+          'PLANT_HEAD_PURCHASE_REJECTED',
+          'SUPER_ADMIN_APPROVED',
+          'ORDERED',
+          'PO_ISSUED',
+          'VENDOR_ACCEPTED',
+          'VENDOR_REJECTED',
+          'IN_TRANSIT',
+          'PARTIALLY_RECEIVED',
+          'CLOSED',
+          'PO_CLOSED',
+        ],
+      },
+    };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.purchaseOrder.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          supplier: true,
+          items: { include: { product: true } },
+          purchaseIndent: { include: { requestedBy: true } },
         },
       }),
       this.prisma.purchaseOrder.count({ where }),
@@ -1160,6 +1221,16 @@ export class ProcurementService {
         ...(dto.snapshot || {}),
       };
 
+      const grandTotalNum = grandTotal.toNumber();
+      let initialStatus = 'DRAFT';
+      let initialIndentStatus = 'DRAFT_PO_CREATED';
+
+      // PO Total <= 10,000 has NO approval step and is directly approved
+      if (grandTotalNum <= 10000) {
+        initialStatus = 'FINANCE_APPROVED';
+        initialIndentStatus = 'FINANCE_APPROVED';
+      }
+
       const po = await tx.purchaseOrder.create({
         data: {
           publicId: draftPoNo,
@@ -1168,9 +1239,7 @@ export class ProcurementService {
           companyId: indent.companyId,
           supplierId,
           purchaseIndentId: indentId,
-          // Finance first saves an editable draft. The separate submit action
-          // is the only step that sends it to Super Admin for approval.
-          status: 'DRAFT',
+          status: initialStatus,
           freight,
           otherCharges,
           paymentTerms: dto.paymentTerms || '',
@@ -1180,6 +1249,10 @@ export class ProcurementService {
           totalAmount: grandTotal,
           gstAmount,
           snapshot,
+          ...(initialStatus === 'FINANCE_APPROVED' && {
+            superAdminApprovedById: actorId || null,
+            superAdminApprovedAt: new Date(),
+          }),
           items: {
             create: itemsToCreate,
           },
@@ -1187,7 +1260,7 @@ export class ProcurementService {
       });
       await tx.purchaseIndent.update({
         where: { id: indentId },
-        data: { status: 'DRAFT_PO_CREATED', version: { increment: 1 } },
+        data: { status: initialIndentStatus, version: { increment: 1 } },
       });
       await tx.purchaseOrderStatusHistory.create({
         data: { purchaseOrderId: po.id, newStatus: po.status, actorId },
@@ -1206,8 +1279,10 @@ export class ProcurementService {
         tx,
         indent.companyId,
         ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
-        'Draft PO created',
-        `${po.publicId} is ready to send for Super Admin approval.`,
+        initialStatus === 'FINANCE_APPROVED' ? 'PO Directly Approved' : 'Draft PO created',
+        initialStatus === 'FINANCE_APPROVED'
+          ? `${po.publicId} (₹${grandTotalNum}) is directly approved and ready to issue.`
+          : `${po.publicId} is ready to send for approval.`,
         'PurchaseOrder',
         po.id,
       );
@@ -1226,7 +1301,7 @@ export class ProcurementService {
       this.valid(row, action, PO);
       this.remarks(action, dto);
 
-      if (action === 'approve') {
+      if (action === 'approve' || action === 'plant-head-approve') {
         // Segregation of Duties: Approver cannot be the creator of the PO
         const createdById =
           row.createdById || row.purchaseIndent?.requestedById;
@@ -1253,16 +1328,45 @@ export class ProcurementService {
         );
       }
 
-      const status: any = {
-        submit: 'PENDING_SUPER_ADMIN_APPROVAL',
-        approve: 'SUPER_ADMIN_APPROVED',
-        return: 'CORRECTION_REQUIRED',
-        reject: 'SUPER_ADMIN_REJECTED',
-        issue: 'ORDERED',
-        'vendor-accept': 'VENDOR_ACCEPTED',
-        'vendor-reject': 'VENDOR_REJECTED',
-        dispatch: 'IN_TRANSIT',
-      }[action];
+      const totalVal = Number(row.totalAmount || 0);
+      let status: string;
+
+      if (action === 'submit') {
+        if (totalVal <= 10000) {
+          // <= 10,000: Direct Finance Approval
+          status = 'FINANCE_APPROVED';
+        } else if (totalVal <= 15000) {
+          // 10,000.01 - 15,000: Plant Head Purchase Approval
+          status = 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL';
+        } else {
+          // > 15,000: Super Admin Approval
+          status = 'PENDING_SUPER_ADMIN_APPROVAL';
+        }
+      } else if (action === 'approve' || action === 'plant-head-approve') {
+        if (row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL' || action === 'plant-head-approve') {
+          status = 'PLANT_HEAD_PURCHASE_APPROVED';
+        } else {
+          status = 'SUPER_ADMIN_APPROVED';
+        }
+      } else if (action === 'reject' || action === 'plant-head-reject') {
+        if (row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL' || action === 'plant-head-reject') {
+          status = 'PLANT_HEAD_PURCHASE_REJECTED';
+        } else {
+          status = 'SUPER_ADMIN_REJECTED';
+        }
+      } else if (action === 'return') {
+        status = 'CORRECTION_REQUIRED';
+      } else if (action === 'issue') {
+        status = 'ORDERED';
+      } else if (action === 'vendor-accept') {
+        status = 'VENDOR_ACCEPTED';
+      } else if (action === 'vendor-reject') {
+        status = 'VENDOR_REJECTED';
+      } else if (action === 'dispatch') {
+        status = 'IN_TRANSIT';
+      } else {
+        status = action.toUpperCase();
+      }
 
       let finalPoNo: string | undefined = undefined;
       if (action === 'issue') {
@@ -1289,11 +1393,11 @@ export class ProcurementService {
       const updateData: any = {
         status,
         version: { increment: 1 },
-        ...(action === 'approve' && {
+        ...( (action === 'approve' || action === 'plant-head-approve' || (action === 'submit' && totalVal <= 10000)) && {
           superAdminApprovedById: actorId || null,
           superAdminApprovedAt: new Date(),
         }),
-        ...(action === 'reject' && {
+        ...( (action === 'reject' || action === 'plant-head-reject') && {
           superAdminRejectedById: actorId || null,
           superAdminRejectedAt: new Date(),
           superAdminRejectionReason: dto.remarks,
@@ -1321,30 +1425,23 @@ export class ProcurementService {
           where: { id: updated.purchaseIndentId, companyId: row.companyId },
           select: { status: true, version: true },
         });
-        const newIndentStatus = ({
-          submit: 'PENDING_SUPER_ADMIN_APPROVAL',
-          approve: 'SUPER_ADMIN_APPROVED',
-          reject: 'DRAFT_PO_CREATED',
-          issue: 'ORDERED',
-        } as Record<string, string>)[action] || linkedIndent?.status;
-        if (!linkedIndent || !newIndentStatus) {
-          throw new NotFoundException('Linked purchase indent was not found');
+        if (linkedIndent) {
+          await tx.purchaseIndent.update({
+            where: { id: updated.purchaseIndentId },
+            data: { status, version: { increment: 1 } },
+          });
+          await tx.purchaseIndentStatusHistory.create({
+            data: {
+              purchaseIndentId: updated.purchaseIndentId,
+              oldStatus: linkedIndent.status,
+              newStatus: status,
+              remarks: dto.remarks,
+              actorId,
+              versionBefore: linkedIndent.version,
+              versionAfter: linkedIndent.version + 1,
+            },
+          });
         }
-        await tx.purchaseIndent.update({
-          where: { id: updated.purchaseIndentId },
-          data: { status: newIndentStatus, version: { increment: 1 } },
-        });
-        await tx.purchaseIndentStatusHistory.create({
-          data: {
-            purchaseIndentId: updated.purchaseIndentId,
-            oldStatus: linkedIndent.status,
-            newStatus: newIndentStatus,
-            remarks: dto.remarks,
-            actorId,
-            versionBefore: linkedIndent.version,
-            versionAfter: linkedIndent.version + 1,
-          },
-        });
       }
       await tx.purchaseOrderStatusHistory.create({
         data: {
@@ -1366,27 +1463,38 @@ export class ProcurementService {
           after: { status: updated.status, remarks: dto.remarks },
         },
       });
-      if (action === 'submit')
+      if (status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL') {
+        await this.notifyRole(
+          tx,
+          row.companyId,
+          ['PLANT_HEAD', 'PLANT_HEAD_MANAGER'],
+          'PO awaiting Plant Head approval',
+          `${row.publicId} (₹${totalVal.toLocaleString('en-IN')}) requires Plant Head approval.`,
+          'PurchaseOrder',
+          id,
+        );
+      } else if (status === 'PENDING_SUPER_ADMIN_APPROVAL') {
         await this.notifyRole(
           tx,
           row.companyId,
           'SUPER_ADMIN',
-          'PO awaiting approval',
-          `${row.publicId} requires approval.`,
+          'PO awaiting Super Admin approval',
+          `${row.publicId} (₹${totalVal.toLocaleString('en-IN')}) requires Super Admin approval.`,
           'PurchaseOrder',
           id,
         );
-      if (action === 'approve')
+      } else if (status === 'SUPER_ADMIN_APPROVED' || status === 'PLANT_HEAD_PURCHASE_APPROVED' || status === 'FINANCE_APPROVED') {
         await this.notifyRole(
           tx,
           row.companyId,
           ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
           'PO approved',
-          `${row.publicId} is ready to issue.`,
+          `${row.publicId} is approved and ready to issue.`,
           'PurchaseOrder',
           id,
         );
-      if (action === 'issue')
+      }
+      if (action === 'issue') {
         await this.notifyRole(
           tx,
           row.companyId,
@@ -1396,6 +1504,7 @@ export class ProcurementService {
           'PurchaseOrder',
           id,
         );
+      }
       return updated;
     });
   }

@@ -38,7 +38,7 @@ services:
     restart: "no"
     command: sh -c "npx prisma migrate deploy"
     environment:
-      DATABASE_URL: "${MIGRATION_DATABASE_URL:-${DATABASE_URL}}"
+      DATABASE_URL: "${MIGRATION_DATABASE_URL:-${DATABASE_URL:-postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public}}"
     networks:
       - erp-network
     depends_on:

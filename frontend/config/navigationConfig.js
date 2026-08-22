@@ -93,6 +93,7 @@ export const navigationConfig = {
     { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods', group: 'Planning Board' },
     { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },
     { id: 'indent-approvals', label: 'Indent Approvals', icon: CheckCircle, path: '/plant-head/indent-approvals' },
+    { id: 'purchase-approvals', label: 'Purchase Approvals', icon: FileCheck, path: '/plant-head/purchase-approvals' },
     { id: 'replacements', label: 'Replacement Requests', icon: RefreshCw, path: '/plant-head/replacements' },
     { id: 'returns', label: 'Return Requests', icon: RefreshCw, path: '/plant-head/returns' },
     {
