@@ -1316,7 +1316,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
     case 'payment-followup': {
       return (
-        <>
+        <div data-testid="sales-payment-followup-page" className="sales-portal-view">
           <O2PWorkflowBanner accentColor="#0ea5e9" />
           <PaymentFollowupERPView 
             orders={orders}
@@ -1325,13 +1325,13 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             onUpdateReminder={updateReminder}
             onCompleteReminder={completeReminder}
           />
-        </>
+        </div>
       );
     }
 
     case 'payment-history': {
       return (
-        <>
+        <div data-testid="sales-payment-history-page" className="sales-portal-view">
           <O2PWorkflowBanner accentColor="#10b981" />
           <PaymentHistoryView
             orders={orders}
@@ -1339,7 +1339,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             searchQuery={globalSearch}
             setSearchQuery={setGlobalSearch}
           />
-        </>
+        </div>
       );
     }
 
@@ -1353,10 +1353,18 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       );
 
     case 'customers':
-      return <CustomersView customers={customers} orders={orders} searchQuery={globalSearch} />;
+      return (
+        <div data-testid="sales-customers-page" className="sales-portal-view">
+          <CustomersView customers={customers} orders={orders} searchQuery={globalSearch} />
+        </div>
+      );
 
     case 'customer-complaints':
-      return <CustomerComplaintManagement mode="sales" orders={orders} currentUser={user} />;
+      return (
+        <div data-testid="sales-customer-complaints-page" className="sales-portal-view">
+          <CustomerComplaintManagement mode="sales" orders={orders} currentUser={user} />
+        </div>
+      );
 
     case 'reports':
       if (mode === 'SUPER_SALES' || overrideBasePath === '/supersales') {

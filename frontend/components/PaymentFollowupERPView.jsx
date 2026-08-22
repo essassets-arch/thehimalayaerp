@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import Swal from 'sweetalert2';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '../store/erpStore';
 import { backendFetch } from '../lib/backendFetch';
@@ -104,12 +104,19 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   useEffect(() => {
     refreshPending();
     refreshFollowups();
-    if (searchParams && (searchParams.get('tab') === 'confirmed' || searchParams.get('filter') === 'confirmed')) {
-      setPendingFilter('confirmed');
+    if (searchParams) {
+      const tabParam = searchParams.get('tab');
+      const filterParam = searchParams.get('filter');
+      if (tabParam === 'reminders') setActiveTab('reminders');
+      if (tabParam === 'completed') setActiveTab('completed');
+      if (tabParam === 'confirmed' || filterParam === 'confirmed') setPendingFilter('confirmed');
+      if (tabParam === 'overdue') {
+        setActiveTab('overdue');
+        const agingParam = searchParams.get('aging');
+        if (agingParam) setAgingFilter(agingParam);
+      }
     }
   }, [searchParams]);
-
-
 
   const completedOrders = useMemo(() => {
     const delivered = (orders || []).filter(o => {
@@ -232,161 +239,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       });
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load payment history.' });
-    }
-  };
-
-  const openConfirmPayment = async (order) => {
-    const total = Number(order.grand_total || 0);
-    const verified = Number(order.verified_paid_amount || 0);
-    const remaining = Math.max(0, total - verified);
-
-    const { value: formValues } = await Swal.fire({
-      title: 'Record Client Payment Collection',
-      width: 650,
-      html: `
-        <div style="text-align:left; display:flex; flex-direction:column; gap:14px;">
-          <div style="display:grid; grid-template-columns:140px 1fr; gap:8px; font-size:13px;">
-            <span><strong>Customer</strong></span><span>${order.customer_name || 'N/A'}</span>
-            <span><strong>Order No</strong></span><span style="font-family:monospace;">${order.order_number || `ORD-${order.id}`}</span>
-            <span><strong>Total Order</strong></span><span>${formatINR(total)}</span>
-            <span><strong>Verified Paid</strong></span><span style="color:#10b981; font-weight:800;">${formatINR(verified)}</span>
-            <span><strong>Remaining Balance</strong></span><span style="color:#ef4444; font-weight:900;">${formatINR(remaining)}</span>
-          </div>
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div>
-              <label style="display:block; font-weight:800; font-size:11px; text-transform:uppercase; color:var(--color-text-secondary); margin-bottom:6px;">Amount Received *</label>
-              <input id="pc-amount" type="number" min="1" step="0.01" value="${remaining}" style="width:100%; height:40px; padding:0 10px; border:1px solid var(--color-border); border-radius:10px; font-size:13px;" />
-            </div>
-            <div>
-              <label style="display:block; font-weight:800; font-size:11px; text-transform:uppercase; color:var(--color-text-secondary); margin-bottom:6px;">Receipt Upload *</label>
-              <input id="pc-file" type="file" accept=".jpg,.jpeg,.png,.pdf" style="width:100%; height:40px; padding:6px 0; font-size:13px;" />
-            </div>
-          </div>
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div>
-              <label style="display:block; font-weight:800; font-size:11px; text-transform:uppercase; color:var(--color-text-secondary); margin-bottom:6px;">Payment Mode *</label>
-              <select id="pc-mode" style="width:100%; height:40px; padding:0 10px; border:1px solid var(--color-border); border-radius:10px; font-size:13px;">
-                <option value="NEFT">NEFT</option>
-                <option value="RTGS">RTGS</option>
-                <option value="IMPS">IMPS</option>
-                <option value="UPI">UPI</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Cash">Cash</option>
-              </select>
-            </div>
-            <div>
-              <label style="display:block; font-weight:800; font-size:11px; text-transform:uppercase; color:var(--color-text-secondary); margin-bottom:6px;">Transaction Reference</label>
-              <input id="pc-ref" type="text" placeholder="UTR or Txn ID" style="width:100%; height:40px; padding:0 10px; border:1px solid var(--color-border); border-radius:10px; font-size:13px;" />
-            </div>
-          </div>
-
-          <div>
-            <label style="display:block; font-weight:800; font-size:11px; text-transform:uppercase; color:var(--color-text-secondary); margin-bottom:6px;">Remarks</label>
-            <textarea id="pc-remarks" placeholder="Optional notes…" style="width:100%; min-height:70px; padding:10px; border:1px solid var(--color-border); border-radius:10px; font-size:13px;"></textarea>
-          </div>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: 'Submit Request',
-      cancelButtonText: 'Cancel',
-      focusConfirm: false,
-      preConfirm: () => {
-        const amount = Number(document.getElementById('pc-amount').value || 0);
-        const mode = document.getElementById('pc-mode').value;
-        const ref = document.getElementById('pc-ref').value.trim();
-        const remarks = document.getElementById('pc-remarks').value.trim();
-        const fileEl = document.getElementById('pc-file');
-        const file = fileEl?.files?.[0];
-        if (!amount || amount <= 0) {
-          Swal.showValidationMessage('Amount Received is required.');
-          return false;
-        }
-        if (amount > remaining) {
-          Swal.showValidationMessage('Amount cannot exceed remaining balance.');
-          return false;
-        }
-        if (!mode) {
-          Swal.showValidationMessage('Payment Mode is required.');
-          return false;
-        }
-        if (!file) {
-          Swal.showValidationMessage('Receipt upload is required.');
-          return false;
-        }
-        return { amount, mode, ref, remarks, file };
-      }
-    });
-
-    if (!formValues) return;
-    try {
-      const uniqueRef = formValues.ref || `TXN-${order.id || order.order_number || 'ORD'}-${Date.now().toString().slice(-4)}`;
-      
-      const orderId = order.id || order.order_number || order.orderNo;
-      if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'local') {
-        let proofUrl = 'missing-proof.jpg';
-        if (formValues.file) {
-          const formData = new FormData();
-          formData.append('file', formValues.file);
-          formData.append('category', 'attachments');
-          try {
-            const uploadRes = await fetch('/api/upload', {
-              method: 'POST',
-              body: formData,
-            });
-            if (uploadRes.ok) {
-              const uploadData = await uploadRes.json();
-              proofUrl = uploadData.url || 'missing-proof.jpg';
-            }
-          } catch (uploadErr) {
-            console.error('File upload failed, using fallback', uploadErr);
-          }
-        }
-
-        const payload = {
-          salesOrderId: order.id,
-          customerId: order.customerId || 'unknown',
-          amount: Number(formValues.amount),
-          proofUrl: proofUrl,
-          method: formValues.mode,
-          transactionReference: formValues.ref,
-          remarks: formValues.remarks,
-        };
-
-        await backendFetch('/api/backend/finance/payments/sales-record', {
-          method: 'POST',
-          body: payload,
-        });
-      } else {
-        useERPStore.getState().recordSalesPayment(orderId, {
-          amount: formValues.amount,
-          method: formValues.mode,
-          paymentMode: formValues.mode,
-          transactionReference: uniqueRef,
-          referenceNumber: uniqueRef,
-          paymentDate: new Date().toISOString().split('T')[0],
-          remarks: formValues.remarks || `Sales collected payment for ${order.id || order.order_number || 'Order'}`,
-        }, 'Sales User');
-      }
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Payment Collection Submitted!',
-        html: `<div style="font-size:14px; text-align:center;">
-          <p style="margin-bottom:8px;">Payment of <strong>${formatINR(formValues.amount)}</strong> recorded successfully.</p>
-          <span style="background:#fef3c7; color:#92400e; padding:4px 12px; border-radius:6px; font-weight:700; font-size:12px;">Status: Sent to Finance Verification</span>
-        </div>`,
-        timer: 3000,
-        showConfirmButton: false
-      });
-      await Promise.all([refreshPending(), refreshFollowups()]);
-    } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Submission Failed',
-        text: err?.message || 'Failed to record payment collection.'
-      });
     }
   };
 
@@ -630,28 +482,28 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     });
 
     const rows = Array.from(map.values());
-    
-    let finalRows = rows;
+
     if (activeTab === 'overdue' && agingFilter) {
-      finalRows = rows.filter(o => {
-        if (!o.delivered_at && !o.deliveredAt) return false;
-        const d = o.delivered_at || o.deliveredAt;
-        const days = Math.floor((new Date() - new Date(d)) / (1000 * 60 * 60 * 24));
-        if (agingFilter.includes('20-30') || agingFilter.includes('20–30')) return days >= 20 && days <= 30;
-        if (agingFilter.includes('30-45') || agingFilter.includes('30–45')) return days > 30 && days <= 45;
-        if (agingFilter.includes('45-60') || agingFilter.includes('45–60')) return days > 45 && days <= 60;
-        if (agingFilter.includes('60-90') || agingFilter.includes('60–90')) return days > 60 && days <= 90;
-        if (agingFilter.includes('90+')) return days > 90;
-        return false;
+      return rows.filter(o => {
+        const rem = o.remaining_days;
+        if (rem === null || rem >= 0) return false;
+        const overdueDays = Math.abs(rem);
+        if (agingFilter === '20-30 Days Overdue') return overdueDays >= 20 && overdueDays <= 30;
+        if (agingFilter === '30-45 Days Overdue') return overdueDays > 30 && overdueDays <= 45;
+        if (agingFilter === '45-60 Days Overdue') return overdueDays > 45 && overdueDays <= 60;
+        if (agingFilter === '60-90 Days Overdue') return overdueDays > 60 && overdueDays <= 90;
+        if (agingFilter === '90+ Days Overdue') return overdueDays > 90;
+        return true;
       });
-    } else if (activeTab === 'all' && pendingFilter === 'confirmed') {
-      finalRows = rows.filter(o => String(o.payment_status || '').toUpperCase() === 'AWAITING_FINANCE_VERIFICATION' || String(o.payment_status || '').toLowerCase() === 'submitted_for_verification');
-    } else {
-      finalRows = rows.filter(o => String(o.payment_status || '').toUpperCase() !== 'AWAITING_FINANCE_VERIFICATION' && String(o.payment_status || '').toLowerCase() !== 'submitted_for_verification');
     }
-    return finalRows;
+
+    if (pendingFilter === 'confirmed') {
+      return rows.filter(o => String(o.payment_status || '').toUpperCase() === 'AWAITING_FINANCE_VERIFICATION' || String(o.payment_status || '').toLowerCase() === 'submitted_for_verification');
+    }
+    return rows.filter(o => String(o.payment_status || '').toUpperCase() !== 'AWAITING_FINANCE_VERIFICATION' && String(o.payment_status || '').toLowerCase() !== 'submitted_for_verification');
   }, [
     pendingCollection,
+    localConfirmations,
     orders,
     canonicalOrders,
     canonicalQuotations,
@@ -663,47 +515,54 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   ]);
 
   return (
-    <div className="app-card" style={{ flex: 1 }}>
-      <div className="module-header-row">
+    <div className="app-card payment-followup-container" style={{ flex: 1 }}>
+      {/* Top Header Row */}
+      <div className="module-header-row payment-followup-header">
         <h2 className="module-title">Sales Payment Follow-up</h2>
-        <div className="module-actions" style={{ width: isCompact ? '100%' : 'auto' }}>
-          <div style={{ background: '#ffffff', border: '1px solid var(--color-border)', width: isCompact ? '100%' : 'auto', display: 'flex', alignItems: 'center', gap: '8px', padding: '4px', borderRadius: '30px' }}>
+        <div className="module-actions payment-header-actions">
+          <div className="payment-top-tabs-capsule">
             <button
+              type="button"
               className={`filter-pill ${activeTab === 'all' ? 'active' : ''}`}
               onClick={() => { setActiveTab('all'); setAgingFilter(''); }}
-              style={{ color: activeTab === 'all' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
             >
               All
             </button>
             <button
+              type="button"
               className={`filter-pill ${activeTab === 'reminders' ? 'active' : ''}`}
               onClick={() => { setActiveTab('reminders'); setAgingFilter(''); }}
-              style={{ color: activeTab === 'reminders' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
             >
               Reminders
             </button>
+            <button
+              type="button"
+              className={`filter-pill ${activeTab === 'completed' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('completed'); setAgingFilter(''); }}
+            >
+              Completed
+            </button>
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <button
+                type="button"
                 className={`filter-pill ${activeTab === 'overdue' ? 'active' : ''}`}
                 onClick={() => setShowAgingDropdown(!showAgingDropdown)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, color: activeTab === 'overdue' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
               >
                 {agingFilter ? agingFilter : 'Overdue Aging'} 
-                <span style={{ fontSize: 10 }}>▼</span>
+                <span style={{ fontSize: 10, marginLeft: 4 }}>▼</span>
               </button>
               
               {showAgingDropdown && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '8px 0', minWidth: 200, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100 }}>
+                <div className="aging-dropdown-menu">
                   {['20-30 Days Overdue', '30-45 Days Overdue', '45-60 Days Overdue', '60-90 Days Overdue', '90+ Days Overdue'].map(opt => (
-                    <div key={opt}
-                         style={{ padding: '8px 16px', fontSize: 13, cursor: 'pointer', background: agingFilter === opt ? '#F5FAFE' : 'transparent', color: agingFilter === opt ? 'var(--color-primary)' : 'var(--color-text-primary)', whiteSpace: 'nowrap' }}
-                         onClick={() => {
-                           setAgingFilter(opt);
-                           setActiveTab('overdue');
-                           setShowAgingDropdown(false);
-                         }}
-                         onMouseEnter={(e) => e.currentTarget.style.background = '#F5FAFE'}
-                         onMouseLeave={(e) => e.currentTarget.style.background = agingFilter === opt ? '#F5FAFE' : 'transparent'}
+                    <div
+                      key={opt}
+                      className={`aging-dropdown-item ${agingFilter === opt ? 'active' : ''}`}
+                      onClick={() => {
+                        setAgingFilter(opt);
+                        setActiveTab('overdue');
+                        setShowAgingDropdown(false);
+                      }}
                     >
                       {opt}
                     </div>
@@ -716,41 +575,50 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       </div>
 
       {(activeTab === 'all' || activeTab === 'overdue') && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-            <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
+        <div style={{ marginTop: 4 }}>
+          {/* Sub Controls: Pending vs Confirmed & Refresh */}
+          <div className="payment-controls-row">
+            <div className="tab-filters-row payment-sub-pills">
               {[
                 { id: 'pending', label: 'Pending Payment' },
                 { id: 'confirmed', label: 'Confirmed (Verification Pending)' }
               ].map(f => (
                 <button
                   key={f.id}
+                  type="button"
                   className={`filter-pill ${pendingFilter === f.id ? 'active' : ''}`}
                   onClick={() => setPendingFilter(f.id)}
-                  style={{ color: pendingFilter === f.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
                 >
                   {f.label}
                 </button>
               ))}
             </div>
-            <button className="btn-small btn-outline-small" onClick={refreshPending}>Refresh</button>
+            <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshPending}>
+              Refresh
+            </button>
           </div>
 
           {loadingPending ? (
-            <div style={{ padding: 20, color: 'var(--color-text-secondary)' }}>Loading…</div>
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading pending collections…</div>
           ) : isCompact ? (
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div className="payment-mobile-cards-grid">
               {pendingRows.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>No pending collections.</div>
+                <div className="empty-state-card">
+                  <div className="empty-state-title">No pending collections</div>
+                  <div className="empty-state-subtitle">All customer collections in this view are up to date.</div>
+                </div>
               ) : (
                 pendingRows.map(o => {
                   const total = Number(o.grand_total || 0);
                   const paid = Number(o.verified_paid_amount || 0);
                   const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
                   const paymentKey = String(o.payment_status || '').toUpperCase();
+                  const isAdv = String(o.payment_terms || '').toLowerCase().includes('advance');
+                  const remDays = o.remaining_days;
+
                   const nextFU = (() => {
                     const rows = remindersWithComputed.filter(r => String(r.order_id) === String(o.id) && r.status !== 'Completed');
-                    const next = rows.sort((a, b) => String(a.reminder_date || '9999-12-31').localeCompare(String(b.reminder_date || '9999-12-31')))[0];
+                    const next = rows.sort((a, b) => String(a.reminder_date || '9999-12-31').localeCompare(String(a.reminder_date || '9999-12-31')))[0];
                     return next?.reminder_date || '-';
                   })();
                   const lastRemark = (() => {
@@ -758,39 +626,105 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     const last = rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
                     return last?.followup_note ? `"${String(last.followup_note).slice(0, 80)}${String(last.followup_note).length > 80 ? '…' : ''}"` : '-';
                   })();
+
                   return (
-                    <div key={o.id} style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, background: 'var(--color-bg-primary)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                        <strong style={{ fontFamily: 'monospace' }}>{o.order_number}</strong>
-                        <span style={{ color: '#ef4444', fontWeight: 900 }}>{formatINR(bal)}</span>
+                    <div key={o.id} className="payment-mobile-card">
+                      {/* Top Header */}
+                      <div className="pmc-header">
+                        <div className="pmc-order-tag">
+                          <strong>{o.order_number}</strong>
+                          {o.invoice_number && o.invoice_number !== '-' && (
+                            <span className="pmc-invoice-badge">Inv: {o.invoice_number}</span>
+                          )}
+                        </div>
+                        <div className="pmc-balance-badge">
+                          <span className="pmc-balance-lbl">Pending</span>
+                          <strong style={{ color: bal > 0 ? '#ef4444' : '#10b981', fontSize: '15px', fontWeight: 900 }}>
+                            {formatINR(bal)}
+                          </strong>
+                        </div>
                       </div>
-                      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{o.customer_name}</div>
-                      <div style={{ marginTop: 6, fontSize: 12 }}>
-                        <span>Total: {formatINR(total)} | </span>
-                        <span style={{ color: '#10b981' }}>Paid: {formatINR(paid)}</span>
+
+                      {/* Customer Name */}
+                      <div className="pmc-customer-name">{o.customer_name}</div>
+
+                      {/* Financial Metrics Grid */}
+                      <div className="pmc-metrics-grid">
+                        <div className="pmc-metric-item">
+                          <span>Total Amount:</span>
+                          <strong>{formatINR(total)}</strong>
+                        </div>
+                        <div className="pmc-metric-item">
+                          <span>Paid Amount:</span>
+                          <strong style={{ color: '#16a34a' }}>{formatINR(paid)}</strong>
+                        </div>
+                        <div className="pmc-metric-item">
+                          <span>Delivery Date:</span>
+                          <strong>{isoDate(o.delivered_at) || '—'}</strong>
+                        </div>
+                        <div className="pmc-metric-item">
+                          <span>Terms:</span>
+                          <strong style={{ color: isAdv ? '#0284c7' : '#2563eb' }}>{o.payment_terms || '15 Days'}</strong>
+                        </div>
                       </div>
-                      <div style={{ marginTop: 4, fontSize: 12 }}>Next: {nextFU}</div>
-                      <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>{lastRemark}</div>
-                      <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+
+                      {/* Status / Due Row */}
+                      <div className="pmc-status-row">
+                        <div className="pmc-due-date">
+                          <span>Due: </span>
+                          <strong>{isoDate(o.payment_due_date) || '—'}</strong>
+                        </div>
+                        <div>
+                          {isAdv ? (
+                            <span className="due-chip chip-advance">⚡ Advance</span>
+                          ) : remDays === null ? (
+                            <span className="due-chip chip-neutral">—</span>
+                          ) : remDays > 0 ? (
+                            <span className={`due-chip ${remDays <= 3 ? 'chip-warning' : 'chip-success'}`}>
+                              🟢 {remDays} {remDays === 1 ? 'Day' : 'Days'}
+                            </span>
+                          ) : remDays === 0 ? (
+                            <span className="due-chip chip-warning">🟡 Due Today</span>
+                          ) : (
+                            <span className="due-chip chip-danger">🔴 Overdue {Math.abs(remDays)}d</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Follow-up Note Preview */}
+                      {(nextFU !== '-' || lastRemark !== '-') && (
+                        <div className="pmc-followup-preview">
+                          {nextFU !== '-' && (
+                            <div className="pmc-next-fu">
+                              <span>Next Follow-up: </span>
+                              <strong>{nextFU}</strong>
+                            </div>
+                          )}
+                          {lastRemark !== '-' && <div className="pmc-last-remark">{lastRemark}</div>}
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="pmc-actions-row">
                         {paymentKey === 'AWAITING_FINANCE_VERIFICATION' ? (
-                          <span style={{ fontWeight: 800, color: '#d97706' }}>⏳ Verification Pending</span>
+                          <span className="verification-pending-badge">⏳ Verification Pending</span>
                         ) : paymentKey === 'PAID' ? (
-                          <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>View Payment</button>
+                          <button className="btn-small btn-outline-small" style={{ width: '100%' }} onClick={() => openViewPaymentHistory(o)}>View Payment</button>
                         ) : paymentKey === 'PARTIALLY_PAID' ? (
                           <>
-                            <button className="btn-small btn-primary-small" onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
-                            <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>Add Follow-up</button>
-                            <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>View History</button>
+                            <button className="btn-small btn-primary-small" style={{ flex: '1 1 auto' }} onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
+                            <button className="btn-small btn-outline-small" style={{ flex: '1 1 auto' }} onClick={() => openAddFollowup(o)}>Add Follow-up</button>
+                            <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>History</button>
                           </>
                         ) : o.latest_pv_status === 'REJECTED' ? (
                           <>
-                            <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>Rejected{o.latest_pv_notes ? ` (Reason: ${o.latest_pv_notes})` : ''}</span>
-                            <button className="btn-small btn-primary-small" onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
+                            <span className="rejected-badge">Rejected{o.latest_pv_notes ? ` (${o.latest_pv_notes})` : ''}</span>
+                            <button className="btn-small btn-primary-small" style={{ flex: '1 1 auto' }} onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
                           </>
                         ) : (
                           <>
-                            <button className="btn-small btn-primary-small" onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
-                            <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>Add Follow-up</button>
+                            <button className="btn-small btn-primary-small" style={{ flex: '1 1 auto', background: '#2563eb', borderColor: '#2563eb', color: '#fff' }} onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}>Log Payment</button>
+                            <button className="btn-small btn-outline-small" style={{ flex: '1 1 auto' }} onClick={() => openAddFollowup(o)}>Add Follow-up</button>
                           </>
                         )}
                       </div>
@@ -939,45 +873,68 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       )}
 
       {activeTab === 'reminders' && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-            <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
+        <div style={{ marginTop: 4 }}>
+          {/* Reminder Filters & Refresh */}
+          <div className="payment-controls-row">
+            <div className="tab-filters-row payment-sub-pills">
               {['All', 'Today', 'Tomorrow', 'This Week', 'Overdue', 'Upcoming'].map(f => (
                 <button
                   key={f}
+                  type="button"
                   className={`filter-pill ${reminderFilter === f ? 'active' : ''}`}
                   onClick={() => setReminderFilter(f)}
-                  style={{ color: reminderFilter === f ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
                 >
                   {f}
                 </button>
               ))}
             </div>
-            <button className="btn-small btn-outline-small" onClick={refreshFollowups}>Refresh</button>
+            <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshFollowups}>
+              Refresh
+            </button>
           </div>
 
           {loadingFollowups ? (
-            <div style={{ padding: 20, color: 'var(--color-text-secondary)' }}>Loading…</div>
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading reminders…</div>
           ) : isCompact ? (
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div className="payment-mobile-cards-grid">
               {filteredReminders.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>No reminders found.</div>
+                <div className="empty-state-card">
+                  <div className="empty-state-title">No reminders found</div>
+                  <div className="empty-state-subtitle">There are no scheduled follow-up reminders in this filter.</div>
+                </div>
               ) : (
                 filteredReminders.map(r => (
-                  <div key={r.id} style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, background: 'var(--color-bg-primary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <strong>{r.reminder_date || '-'}</strong>
-                      <span>{r.computed_status}</span>
+                  <div key={r.id} className="payment-mobile-card">
+                    <div className="pmc-header">
+                      <div className="pmc-order-tag">
+                        <strong>{r.reminder_date || '-'}</strong>
+                        <span className={`due-chip ${r.computed_status === 'Overdue' ? 'chip-danger' : (r.computed_status === 'Today' ? 'chip-warning' : 'chip-success')}`}>
+                          {r.computed_status}
+                        </span>
+                      </div>
+                      <div className="pmc-balance-badge">
+                        <span className="pmc-balance-lbl">Balance</span>
+                        <strong style={{ color: '#ef4444', fontSize: '15px', fontWeight: 900 }}>
+                          {formatINR(r.balance_amount || 0)}
+                        </strong>
+                      </div>
                     </div>
-                    <div style={{ marginTop: 4, fontWeight: 700 }}>{r.customer_name || '-'}</div>
-                    <div style={{ marginTop: 2, fontFamily: 'monospace', fontSize: 12 }}>{r.order_number || '-'}</div>
-                    <div style={{ marginTop: 6, color: '#ef4444', fontWeight: 900 }}>{formatINR(r.balance_amount || 0)}</div>
-                    <div style={{ marginTop: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>{r.followup_note}</div>
-                    <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button className="btn-small btn-outline-small" onClick={() => callDoneReminder(r)}>Call Done</button>
-                      <button className="btn-small btn-outline-small" onClick={() => updateReminder(r.id, { status: 'Completed' }, 'Marked completed')}>Mark Completed</button>
+
+                    <div className="pmc-customer-name">{r.customer_name || '-'}</div>
+                    <div style={{ fontSize: '12px', fontFamily: 'monospace', color: '#64748b' }}>Order: {r.order_number || '-'}</div>
+                    
+                    {r.followup_note && (
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', color: '#334155', lineHeight: 1.4 }}>
+                        {r.followup_note}
+                      </div>
+                    )}
+
+                    <div className="pmc-actions-row">
+                      <button className="btn-small btn-outline-small" style={{ flex: '1 1 auto' }} onClick={() => callDoneReminder(r)}>Call Done</button>
+                      <button className="btn-small btn-outline-small" style={{ flex: '1 1 auto' }} onClick={() => updateReminder(r.id, { status: 'Completed' }, 'Marked completed')}>Mark Completed</button>
                       <button
                         className="btn-small btn-outline-small"
+                        style={{ flex: '1 1 auto' }}
                         onClick={async () => {
                           const { value: newDate } = await Swal.fire({
                             title: 'Reschedule',
@@ -996,7 +953,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       >
                         Reschedule
                       </button>
-                      <button className="btn-small btn-outline-small" onClick={() => deleteReminder(r.id)}>Delete</button>
+                      <button className="btn-small btn-outline-small" style={{ color: '#dc2626' }} onClick={() => deleteReminder(r.id)}>Delete</button>
                     </div>
                   </div>
                 ))
@@ -1066,20 +1023,32 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       )}
 
       {activeTab === 'completed' && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 4 }}>
           {isCompact ? (
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div className="payment-mobile-cards-grid">
               {completedOrders.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>No completed payments.</div>
+                <div className="empty-state-card">
+                  <div className="empty-state-title">No completed payments</div>
+                  <div className="empty-state-subtitle">No orders with fully verified payments found.</div>
+                </div>
               ) : (
                 completedOrders.map(o => (
-                  <div key={o.orderNo} style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, background: 'var(--color-bg-primary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <strong style={{ fontFamily: 'monospace' }}>{o.orderNo || o.order_number || o.id}</strong>
-                      <strong style={{ color: '#10b981' }}>{formatINR(o.verifiedPaidAmount || o.verified_paid_amount || ((o.totalAmount || o.grandTotal || o.grand_total || 0) - (o.balanceAmount || o.balance_amount || 0)))}</strong>
+                  <div key={o.orderNo || o.order_number || o.id} className="payment-mobile-card">
+                    <div className="pmc-header">
+                      <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{o.orderNo || o.order_number || o.id}</strong>
+                      <span className="due-chip chip-success">Paid in Full</span>
                     </div>
-                    <div style={{ marginTop: 4, fontWeight: 700 }}>{o.customer?.name || o.customerName || o.customer_name || 'ABC Infrastructure Pvt Ltd'}</div>
-                    <div style={{ marginTop: 6, fontSize: 13 }}>Total: {formatINR(o.totalAmount || o.grandTotal || o.grand_total || 0)}</div>
+                    <div className="pmc-customer-name">{o.customer?.name || o.customerName || o.customer_name || 'Customer'}</div>
+                    <div className="pmc-metrics-grid">
+                      <div className="pmc-metric-item">
+                        <span>Total:</span>
+                        <strong>{formatINR(o.totalAmount || o.grandTotal || o.grand_total || 0)}</strong>
+                      </div>
+                      <div className="pmc-metric-item">
+                        <span>Verified Paid:</span>
+                        <strong style={{ color: '#10b981' }}>{formatINR(o.verifiedPaidAmount || o.verified_paid_amount || ((o.totalAmount || o.grandTotal || o.grand_total || 0) - (o.balanceAmount || o.balance_amount || 0)))}</strong>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
@@ -1120,7 +1089,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               </table>
             </div>
           )}
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 14 }}>
             <button className="btn-small btn-outline-small" onClick={() => navigate.push('/sales/orders')}>Back to Orders</button>
           </div>
         </div>
@@ -1128,4 +1097,3 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     </div>
   );
 }
-

@@ -443,22 +443,22 @@ export default function MyProfileView() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', paddingBottom: '32px' }}>
       
       {/* 1. Header Profile Info Card */}
-      <div className="app-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'center', background: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+      <div className="app-card profile-header-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', background: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
         
         {/* Avatar Area */}
-        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #0284c7', flexShrink: 0 }}>
-          <User size={40} style={{ color: '#0284c7' }} />
+        <div style={{ width: '76px', height: '76px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #0284c7', flexShrink: 0, margin: '0 auto' }}>
+          <User size={38} style={{ color: '#0284c7' }} />
         </div>
 
         {/* Text Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div className="profile-header-info" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{pData.name}</h1>
+            <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{pData.name}</h1>
             <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '11.5px', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
               ID: {pData.employeeId}
             </span>
           </div>
-          <p style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '13.5px', fontWeight: '700', color: '#64748b', margin: 0 }}>
             {pData.designation} • <span style={{ color: '#0284c7' }}>{pData.department}</span>
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12.5px', color: '#64748b', marginTop: '6px' }}>
@@ -469,7 +469,7 @@ export default function MyProfileView() {
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '4px', overflowX: 'auto', paddingBottom: '1px' }}>
+      <div className="profile-tabs-nav">
         {[
           { key: 'profile', label: 'Personal Information', icon: User },
           { key: 'attendance', label: 'Attendance Records', icon: Calendar },
@@ -483,6 +483,7 @@ export default function MyProfileView() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
+              className={`profile-tab-btn ${isActive ? 'active' : ''}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

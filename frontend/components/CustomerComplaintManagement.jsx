@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Swal from 'sweetalert2';
-import { Eye, FilePenLine, Plus, Trash2, Search, X, Check, ShieldCheck, AlertCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Eye, FilePenLine, Plus, Trash2, Search, X, Check, ShieldCheck, AlertCircle, Clock, CheckCircle2, XCircle, MessageSquare } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const blank = () => ({
   customerId: '',
@@ -398,6 +399,8 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
     });
   }, [complaints, statusTab, searchQuery]);
 
+  const isCompact = useMediaQuery('(max-width: 1024px)');
+
   const stats = useMemo(() => {
     return {
       total: complaints.length,
@@ -408,61 +411,83 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
   }, [complaints]);
 
   return (
-    <div className="app-card" style={{ flex: 1, padding: '20px' }}>
+    <div className="app-card complaint-management-container" style={{ flex: 1 }}>
       
       {/* Header Row */}
-      <div className="module-header-row" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 className="module-title" style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>
-            {admin ? 'Customer Complaint Review' : 'Customer Complaint Management'}
-          </h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
-            {admin
-              ? 'Review and resolve submitted customer complaints with decision remarks.'
-              : 'Create, track, and manage customer quality and service complaints.'}
-          </p>
+      <div className="module-header-row" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', flexShrink: 0 }}>
+            <MessageSquare size={22} />
+          </div>
+          <div>
+            <h2 className="module-title" style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>
+              {admin ? 'Customer Complaint Review' : 'Customer Complaint Management'}
+            </h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+              {admin
+                ? 'Review and resolve submitted customer complaints with decision remarks.'
+                : 'Create, track, and manage customer quality and service complaints.'}
+            </p>
+          </div>
         </div>
         {!admin && (
-          <button
-            className="btn-small btn-primary-small flex items-center gap-2"
-            onClick={() => {
-              setEditing(null);
-              setAttachmentFile(null);
-              setCustomerText('');
-              setProductText('');
-              setForm(blank());
-              setOpen(true);
-            }}
-            style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Plus size={16} /> Create Complaint
-          </button>
+          <div className="complaint-header-actions">
+            <button
+              className="btn-small btn-primary-small flex items-center gap-2"
+              onClick={() => {
+                setEditing(null);
+                setAttachmentFile(null);
+                setCustomerText('');
+                setProductText('');
+                setForm(blank());
+                setOpen(true);
+              }}
+              style={{ padding: '9px 18px', background: '#2563eb', color: '#fff', borderRadius: '10px', border: 'none', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+            >
+              <Plus size={16} /> Create Complaint
+            </button>
+          </div>
         )}
       </div>
 
       {/* KPI Stats summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Complaints</span>
-          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>{stats.total}</h3>
+      <div className="complaint-kpi-grid">
+        <div className="complaint-kpi-card kpi-blue">
+          <div className="complaint-kpi-top">
+            <span className="complaint-kpi-title">TOTAL COMPLAINTS</span>
+            <CheckCircle2 size={18} className="complaint-kpi-icon" />
+          </div>
+          <div className="complaint-kpi-val">{stats.total}</div>
         </div>
-        <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <span style={{ fontSize: '11px', fontWeight: '800', color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Review</span>
-          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#d97706' }}>{stats.pending}</h3>
+
+        <div className="complaint-kpi-card kpi-amber">
+          <div className="complaint-kpi-top">
+            <span className="complaint-kpi-title">PENDING REVIEW</span>
+            <Clock size={18} className="complaint-kpi-icon" />
+          </div>
+          <div className="complaint-kpi-val">{stats.pending}</div>
         </div>
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <span style={{ fontSize: '11px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approved</span>
-          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>{stats.approved}</h3>
+
+        <div className="complaint-kpi-card kpi-green">
+          <div className="complaint-kpi-top">
+            <span className="complaint-kpi-title">APPROVED</span>
+            <CheckCircle2 size={18} className="complaint-kpi-icon" />
+          </div>
+          <div className="complaint-kpi-val">{stats.approved}</div>
         </div>
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <span style={{ fontSize: '11px', fontWeight: '800', color: '#b91c1c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rejected</span>
-          <h3 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>{stats.rejected}</h3>
+
+        <div className="complaint-kpi-card kpi-red">
+          <div className="complaint-kpi-top">
+            <span className="complaint-kpi-title">REJECTED</span>
+            <XCircle size={18} className="complaint-kpi-icon" />
+          </div>
+          <div className="complaint-kpi-val">{stats.rejected}</div>
         </div>
       </div>
 
       {/* Filter Control Row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+        <div className="complaint-filter-tabs" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[
             { id: 'ALL', label: 'All' },
             { id: 'PENDING_SUPER_ADMIN', label: 'Pending Review' },
@@ -474,15 +499,17 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
               key={tab.id}
               onClick={() => setStatusTab(tab.id)}
               style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
-                fontSize: '12.5px',
+                padding: '8px 16px',
+                borderRadius: '10px',
+                fontSize: '13px',
                 fontWeight: '700',
                 border: statusTab === tab.id ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                background: statusTab === tab.id ? '#eff6ff' : '#ffffff',
-                color: statusTab === tab.id ? '#1d4ed8' : '#64748b',
+                background: statusTab === tab.id ? '#2563eb' : '#ffffff',
+                color: statusTab === tab.id ? '#ffffff' : '#475569',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease'
+                boxShadow: statusTab === tab.id ? '0 2px 4px rgba(37,99,235,0.2)' : 'none',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
               }}
             >
               {tab.label}
@@ -490,8 +517,8 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
           ))}
         </div>
 
-        <div style={{ position: 'relative', minWidth: '240px', flex: '1 1 max-content', maxWidth: '320px' }}>
-          <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+        <div style={{ position: 'relative', width: '100%' }}>
+          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
           <input
             type="text"
             placeholder="Search complaint, customer, product..."
@@ -499,161 +526,258 @@ export default function CustomerComplaintManagement({ mode = 'sales' }) {
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               width: '100%',
-              padding: '7px 12px 7px 32px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              fontSize: '12.5px',
+              padding: '10px 14px 10px 36px',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              fontSize: '13.5px',
               outline: 'none',
               background: '#ffffff',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
             }}
           />
         </div>
       </div>
 
-      {/* Complaints Table */}
-      <div className="crm-table-container" style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflowX: 'auto' }}>
-        <table className="crm-table responsive-table flat-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-              {(admin
-                ? [
-                    'Complaint No',
-                    'Customer',
-                    'Product',
-                    'Complaint Type',
-                    'Subject',
-                    'Priority',
-                    'Submitted By',
-                    'Submitted Date',
-                    'Status',
-                    'Actions',
-                  ]
-                : [
-                    'Complaint No',
-                    'Customer',
-                    'Product',
-                    'Complaint Type',
-                    'Subject',
-                    'Priority',
-                    'Status',
-                    'Created Date',
-                    'Super Admin Remarks',
-                    'Actions',
-                  ]
-              ).map((x) => (
-                <th key={x} style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: '800', color: '#475569', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{x}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan="10" style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>Loading complaints…</td>
+      {/* Complaints Table or Mobile Cards */}
+      {isCompact ? (
+        <div className="complaint-mobile-cards-list">
+          {loading ? (
+            <div style={{ padding: '32px', textAlign: 'center', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px' }}>Loading complaints…</div>
+          ) : filteredComplaints.length === 0 ? (
+            <div style={{ padding: '36px 20px', textAlign: 'center', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+              <AlertCircle size={32} style={{ color: '#cbd5e1', margin: '0 auto 8px auto' }} />
+              <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>No complaints found</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Try changing the status filter or search query.</div>
+            </div>
+          ) : (
+            filteredComplaints.map((c) => (
+              <div key={c.id} className="complaint-mobile-card">
+                <div className="cm-card-top">
+                  <span className="cm-complaint-no">{c.complaintNo}</span>
+                  <Status value={c.status} />
+                </div>
+
+                <div className="cm-customer-name">{c.customer?.companyName || c.customerName || '—'}</div>
+
+                <div className="cm-product-type">
+                  <span className="cm-product-name">{c.product?.name || 'General Product'}</span>
+                  {c.complaintType && (
+                    <span> • {c.complaintType}</span>
+                  )}
+                </div>
+
+                {c.subject && (
+                  <div className="cm-subject-box">
+                    {c.subject}
+                  </div>
+                )}
+
+                <div className="cm-footer-row">
+                  <div className="cm-meta-left">
+                    <div className="cm-date">
+                      <Clock size={13} style={{ color: '#94a3b8' }} />
+                      <span>{new Date(c.createdAt || c.complaintDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                    {c.priority && (
+                      <span className={`cm-priority-pill cm-priority-${c.priority.toLowerCase()}`}>
+                        {c.priority}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <button
+                      className="cm-btn-view"
+                      title="View & Review"
+                      onClick={() => setSelected(c)}
+                    >
+                      <Eye size={13} /> View
+                    </button>
+                    {!admin && c.status === 'DRAFT' && (
+                      <>
+                        <button
+                          onClick={() => edit(c)}
+                          style={{ padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', color: '#334155' }}
+                          title="Edit"
+                        >
+                          <FilePenLine size={13} />
+                        </button>
+                        <button
+                          onClick={() => remove(c)}
+                          style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fff', cursor: 'pointer', color: '#dc2626' }}
+                          title="Delete"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </>
+                    )}
+                    {!admin && c.status === 'REJECTED' && (
+                      <button
+                        onClick={() => resubmit(c)}
+                        style={{ padding: '4px 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
+                      >
+                        Resubmit
+                      </button>
+                    )}
+                    {admin && (
+                      <button
+                        onClick={() => setSelected(c)}
+                        style={{ padding: '4px 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
+                      >
+                        Review
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="crm-table-container" style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflowX: 'auto' }}>
+          <table className="crm-table responsive-table flat-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                {(admin
+                  ? [
+                      'Complaint No',
+                      'Customer',
+                      'Product',
+                      'Complaint Type',
+                      'Subject',
+                      'Priority',
+                      'Submitted By',
+                      'Submitted Date',
+                      'Status',
+                      'Actions',
+                    ]
+                  : [
+                      'Complaint No',
+                      'Customer',
+                      'Product',
+                      'Complaint Type',
+                      'Subject',
+                      'Priority',
+                      'Status',
+                      'Created Date',
+                      'Super Admin Remarks',
+                      'Actions',
+                    ]
+                ).map((x) => (
+                  <th key={x} style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: '800', color: '#475569', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{x}</th>
+                ))}
               </tr>
-            ) : filteredComplaints.length === 0 ? (
-              <tr>
-                <td colSpan="10" style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>No complaints found matching filter criteria.</td>
-              </tr>
-            ) : (
-              filteredComplaints.map((c) => (
-                <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s ease' }} className="hover:bg-slate-50">
-                  <td data-label="Complaint No" style={{ padding: '12px 14px', fontWeight: '800', color: '#0284c7', fontSize: '12.5px' }}>{c.complaintNo}</td>
-                  <td data-label="Customer" style={{ padding: '12px 14px', fontWeight: '750', color: '#0f172a', fontSize: '13px' }}>{c.customer?.companyName || '—'}</td>
-                  <td data-label="Product" style={{ padding: '12px 14px', color: '#334155', fontSize: '12.5px', fontWeight: '600' }}>{c.product?.name || '—'}</td>
-                  <td data-label="Complaint Type" style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>{c.complaintType}</td>
-                  <td data-label="Subject" style={{ padding: '12px 14px', color: '#1e293b', fontSize: '12.5px', fontWeight: '600', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</td>
-                  <td data-label="Priority" style={{ padding: '12px 14px' }}>
-                    <span style={{
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      background: c.priority === 'Critical' ? '#fee2e2' : c.priority === 'High' ? '#ffedd5' : '#f1f5f9',
-                      color: c.priority === 'Critical' ? '#dc2626' : c.priority === 'High' ? '#c2410c' : '#475569'
-                    }}>
-                      {c.priority}
-                    </span>
-                  </td>
-                  {admin ? (
-                    <>
-                      <td data-label="Submitted By" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>{c.submittedBy || '—'}</td>
-                      <td data-label="Submitted Date" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>
-                        {c.submittedAt ? new Date(c.submittedAt).toLocaleDateString('en-IN') : '—'}
-                      </td>
-                    </>
-                  ) : (
-                    <>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="10" style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>Loading complaints…</td>
+                </tr>
+              ) : filteredComplaints.length === 0 ? (
+                <tr>
+                  <td colSpan="10" style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>No complaints found matching filter criteria.</td>
+                </tr>
+              ) : (
+                filteredComplaints.map((c) => (
+                  <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s ease' }} className="hover:bg-slate-50">
+                    <td data-label="Complaint No" style={{ padding: '12px 14px', fontWeight: '800', color: '#0284c7', fontSize: '12.5px' }}>{c.complaintNo}</td>
+                    <td data-label="Customer" style={{ padding: '12px 14px', fontWeight: '750', color: '#0f172a', fontSize: '13px' }}>{c.customer?.companyName || '—'}</td>
+                    <td data-label="Product" style={{ padding: '12px 14px', color: '#334155', fontSize: '12.5px', fontWeight: '600' }}>{c.product?.name || '—'}</td>
+                    <td data-label="Complaint Type" style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>{c.complaintType}</td>
+                    <td data-label="Subject" style={{ padding: '12px 14px', color: '#1e293b', fontSize: '12.5px', fontWeight: '600', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</td>
+                    <td data-label="Priority" style={{ padding: '12px 14px' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        background: c.priority === 'Critical' ? '#fee2e2' : c.priority === 'High' ? '#ffedd5' : '#f1f5f9',
+                        color: c.priority === 'Critical' ? '#dc2626' : c.priority === 'High' ? '#c2410c' : '#475569'
+                      }}>
+                        {c.priority}
+                      </span>
+                    </td>
+                    {admin ? (
+                      <>
+                        <td data-label="Submitted By" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>{c.submittedBy || '—'}</td>
+                        <td data-label="Submitted Date" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>
+                          {c.submittedAt ? new Date(c.submittedAt).toLocaleDateString('en-IN') : '—'}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td data-label="Status" style={{ padding: '12px 14px' }}>
+                          <Status value={c.status} />
+                        </td>
+                        <td data-label="Created Date" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>
+                          {new Date(c.createdAt).toLocaleDateString('en-IN')}
+                        </td>
+                        <td data-label="Super Admin Remarks" style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>{c.adminRemarks || '—'}</td>
+                      </>
+                    )}
+                    {admin && (
                       <td data-label="Status" style={{ padding: '12px 14px' }}>
                         <Status value={c.status} />
                       </td>
-                      <td data-label="Created Date" style={{ padding: '12px 14px', color: '#64748b', fontSize: '12px' }}>
-                        {new Date(c.createdAt).toLocaleDateString('en-IN')}
-                      </td>
-                      <td data-label="Super Admin Remarks" style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>{c.adminRemarks || '—'}</td>
-                    </>
-                  )}
-                  {admin && (
-                    <td data-label="Status" style={{ padding: '12px 14px' }}>
-                      <Status value={c.status} />
-                    </td>
-                  )}
-                  <td data-label="Actions" style={{ padding: '12px 14px' }}>
-                    <div className="flex items-center gap-2 action-btn-group" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button
-                        className="action-btn flex items-center justify-center"
-                        title="View & Review"
-                        onClick={() => setSelected(c)}
-                        style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', color: '#334155' }}
-                      >
-                        <Eye size={14} />
-                      </button>
-                      {!admin && c.status === 'DRAFT' && (
-                        <>
-                          <button
-                            className="action-btn flex items-center justify-center"
-                            title="Edit"
-                            onClick={() => edit(c)}
-                            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', color: '#334155' }}
-                          >
-                            <FilePenLine size={14} />
-                          </button>
-                          <button
-                            className="action-btn flex items-center justify-center"
-                            title="Delete"
-                            onClick={() => remove(c)}
-                            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff', cursor: 'pointer', color: '#dc2626' }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </>
-                      )}
-                      {!admin && c.status === 'REJECTED' && (
+                    )}
+                    <td data-label="Actions" style={{ padding: '12px 14px' }}>
+                      <div className="flex items-center gap-2 action-btn-group" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
-                          className="btn-small btn-primary-small"
-                          onClick={() => resubmit(c)}
-                          style={{ padding: '4px 10px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
-                        >
-                          Resubmit
-                        </button>
-                      )}
-                      {admin && (
-                        <button
-                          className="btn-small btn-primary-small"
+                          className="action-btn flex items-center justify-center"
+                          title="View & Review"
                           onClick={() => setSelected(c)}
-                          style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
+                          style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', color: '#334155' }}
                         >
-                          Review
+                          <Eye size={14} />
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                        {!admin && c.status === 'DRAFT' && (
+                          <>
+                            <button
+                              className="action-btn flex items-center justify-center"
+                              title="Edit"
+                              onClick={() => edit(c)}
+                              style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', color: '#334155' }}
+                            >
+                              <FilePenLine size={14} />
+                            </button>
+                            <button
+                              className="action-btn flex items-center justify-center"
+                              title="Delete"
+                              onClick={() => remove(c)}
+                              style={{ padding: '6px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff', cursor: 'pointer', color: '#dc2626' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                        {!admin && c.status === 'REJECTED' && (
+                          <button
+                            className="btn-small btn-primary-small"
+                            onClick={() => resubmit(c)}
+                            style={{ padding: '4px 10px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
+                          >
+                            Resubmit
+                          </button>
+                        )}
+                        {admin && (
+                          <button
+                            className="btn-small btn-primary-small"
+                            onClick={() => setSelected(c)}
+                            style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
+                          >
+                            Review
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Create / Edit Form Modal */}
       {open && (
