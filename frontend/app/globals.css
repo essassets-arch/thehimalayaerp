@@ -8906,3 +8906,29 @@ body, #root, .app-container {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ── A4 MASTER QUOTATION PRINT & CONTAINER STANDARDS ── */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+  .quotation-page {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+

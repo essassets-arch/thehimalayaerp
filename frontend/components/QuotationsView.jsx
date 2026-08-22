@@ -62,11 +62,11 @@ export default function QuotationsView({
     if (!selectedQuotation) return;
     const calculateScale = () => {
       if (typeof window === 'undefined') return;
-      const availableWidth = Math.min(window.innerWidth - 24, 840);
-      const scale = availableWidth < 840 ? availableWidth / 840 : 1;
+      const availableWidth = Math.min(window.innerWidth - 24, 794);
+      const scale = availableWidth < 794 ? availableWidth / 794 : 1;
       setPreviewScale(scale);
       if (quotationSheetRef.current) {
-        setSheetHeight(quotationSheetRef.current.scrollHeight || 1150);
+        setSheetHeight(quotationSheetRef.current.scrollHeight || 1123);
       }
     };
     calculateScale();
@@ -962,7 +962,7 @@ export default function QuotationsView({
           <style>{`
             .quotation-sheet-modal-container {
               max-height: calc(100vh - 24px);
-              width: 860px;
+              width: 840px;
               max-width: calc(100vw - 16px);
               padding: 0 !important;
               box-sizing: border-box;
@@ -975,7 +975,8 @@ export default function QuotationsView({
               box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
               border: 1px solid #dce5f0;
             }
-            .quotation-document-viewport {
+            .quotation-document-viewport,
+            .quotation-preview-wrapper {
               flex: 1;
               overflow-y: auto;
               overflow-x: auto;
@@ -984,6 +985,17 @@ export default function QuotationsView({
               display: flex;
               justify-content: center;
               padding: 12px 0;
+            }
+            .quotation-page,
+            .quotation-preview-container {
+              width: 794px !important;
+              min-width: 794px !important;
+              max-width: 794px !important;
+              min-height: 1123px !important;
+              flex-shrink: 0;
+              position: relative;
+              background: #ffffff;
+              box-sizing: border-box;
             }
             .term-number {
               width: 22px;
@@ -1002,10 +1014,19 @@ export default function QuotationsView({
             .doc-table {
               display: table !important;
               width: 100% !important;
-              min-width: 600px !important;
+              table-layout: fixed !important;
               border-collapse: collapse !important;
-              table-layout: auto !important;
+              border-spacing: 0 !important;
               background: #ffffff !important;
+              margin: 0 !important;
+            }
+            .quotation-table-container {
+              width: 100% !important;
+              border: 1.5px solid #e2e8f0 !important;
+              border-radius: 8px !important;
+              overflow: hidden !important;
+              background: #ffffff !important;
+              margin: 0 0 16px 0 !important;
             }
             .quotation-preview-container thead,
             .quotation-items-table thead,
@@ -1017,6 +1038,9 @@ export default function QuotationsView({
             .doc-table thead tr {
               display: table-row !important;
               background: #002e5d !important;
+              border: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
             }
             .quotation-preview-container tbody,
             .quotation-items-table tbody,
@@ -1027,8 +1051,13 @@ export default function QuotationsView({
             .quotation-items-table tbody tr,
             .doc-table tbody tr {
               display: table-row !important;
-              background: transparent !important;
+              background: #ffffff !important;
+              border: none !important;
               border-bottom: 1px solid #f1f5f9 !important;
+              border-radius: 0 !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              box-shadow: none !important;
             }
             .quotation-preview-container th,
             .quotation-items-table th,
@@ -1038,9 +1067,12 @@ export default function QuotationsView({
               color: #ffffff !important;
               vertical-align: middle !important;
               padding: 12px 14px !important;
-              font-weight: 700 !important;
-              font-size: 10.5px !important;
+              font-weight: 800 !important;
+              font-size: 11px !important;
+              letter-spacing: 0.04em !important;
               text-transform: uppercase !important;
+              border: none !important;
+              box-shadow: none !important;
             }
             .quotation-preview-container td,
             .quotation-items-table td,
@@ -1048,10 +1080,15 @@ export default function QuotationsView({
               display: table-cell !important;
               vertical-align: middle !important;
               padding: 12px 14px !important;
-              background: transparent !important;
+              background: #ffffff !important;
               box-shadow: none !important;
               border: none !important;
               border-bottom: 1px solid #f1f5f9 !important;
+              text-align: inherit !important;
+              flex-direction: initial !important;
+              justify-content: initial !important;
+              align-items: initial !important;
+              gap: 0 !important;
             }
             .quotation-preview-container td::before,
             .quotation-items-table td::before,
@@ -1105,16 +1142,16 @@ export default function QuotationsView({
                   {previewZoomMode === 'fit' ? '🔍 Zoom to 100%' : '📱 Fit to Mobile Screen'}
                 </button>
                 <span style={{ fontSize: '11px', color: '#334155', fontWeight: '700' }}>
-                  {previewZoomMode === 'fit' ? `Fitted View (${Math.round(previewScale * 100)}%)` : 'Full 840px A4 Document'}
+                  {previewZoomMode === 'fit' ? `Fitted View (${Math.round(previewScale * 100)}%)` : 'Full 794px A4 Document'}
                 </span>
               </div>
             )}
 
-            {/* Scrollable Viewport to maintain exact 840px crisp geometry without squishing on mobile */}
-            <div className="quotation-document-viewport">
+            {/* Scrollable Viewport to maintain exact 794px crisp geometry without squishing on mobile */}
+            <div className="quotation-document-viewport quotation-preview-wrapper">
               <div
                 style={{
-                  width: (previewZoomMode === 'fit' && previewScale < 1) ? `${Math.round(840 * previewScale)}px` : '840px',
+                  width: (previewZoomMode === 'fit' && previewScale < 1) ? `${Math.round(794 * previewScale)}px` : '794px',
                   height: (previewZoomMode === 'fit' && previewScale < 1) ? `${Math.round(sheetHeight * previewScale)}px` : 'auto',
                   overflow: (previewZoomMode === 'fit' && previewScale < 1) ? 'hidden' : 'visible',
                   margin: '0 auto',
@@ -1125,11 +1162,12 @@ export default function QuotationsView({
                 <div
                   ref={quotationSheetRef}
                   id="quotation-printable-area"
-                  className="quotation-preview-container"
+                  className="quotation-page quotation-preview-container"
                   style={{
-                    width: '840px',
-                    minWidth: '840px',
-                    maxWidth: '840px',
+                    width: '794px',
+                    minWidth: '794px',
+                    maxWidth: '794px',
+                    minHeight: '1123px',
                     background: '#ffffff',
                     borderRadius: '12px',
                     overflow: 'hidden',
@@ -1141,11 +1179,11 @@ export default function QuotationsView({
                 >
                   {/* Curved Header Banner Wave */}
                   <div style={{ position: 'relative', width: '100%', height: '150px', overflow: 'hidden', margin: 0, padding: 0 }}>
-                    <svg viewBox="0 0 840 150" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+                    <svg viewBox="0 0 794 150" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
                       {/* Light wave behind */}
-                      <path d="M 0 0 L 840 0 L 840 30 C 600 15, 450 120, 0 130 Z" fill="#3b82f6" opacity="0.25" />
+                      <path d="M 0 0 L 794 0 L 794 30 C 580 15, 420 120, 0 130 Z" fill="#3b82f6" opacity="0.25" />
                       {/* Main dark wave */}
-                      <path d="M 0 0 L 840 0 L 840 15 C 600 5, 450 105, 0 115 Z" fill="#002e5d" />
+                      <path d="M 0 0 L 794 0 L 794 15 C 580 5, 420 105, 0 115 Z" fill="#002e5d" />
                       {/* White cutout ellipse background for logo */}
                       <ellipse cx="80" cy="20" rx="180" ry="115" fill="#ffffff" />
                     </svg>
@@ -1245,16 +1283,16 @@ export default function QuotationsView({
               </div>
 
               {/* Items Table */}
-              <div className="quotation-table-container" style={{ margin: '0 0 16px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', background: '#ffffff' }}>
-                <table className="quotation-items-table doc-table" style={{ border: 'none', minWidth: '600px', borderCollapse: 'collapse', width: '100%', display: 'table', tableLayout: 'auto', background: '#ffffff' }}>
+              <div className="quotation-table-container" style={{ margin: '0 0 16px 0', border: '1.5px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', background: '#ffffff' }}>
+                <table className="quotation-items-table doc-table" style={{ border: 'none', width: '100%', borderCollapse: 'collapse', borderSpacing: 0, display: 'table', tableLayout: 'fixed', background: '#ffffff', margin: 0 }}>
                   <thead style={{ display: 'table-header-group' }}>
                     <tr style={{ background: '#002e5d', color: '#ffffff', display: 'table-row' }}>
-                      <th style={{ padding: '12px 14px', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '40px', textAlign: 'center', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>#</th>
-                      <th style={{ padding: '12px 14px', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', textAlign: 'left', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>Product Details</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '60px', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>Qty</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '100px', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>Rate</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '100px', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>Tax (GST)</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', fontSize: '10.5px', textTransform: 'uppercase', color: '#ffffff', width: '120px', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>Total</th>
+                      <th style={{ width: '6%', padding: '12px 8px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', textAlign: 'center', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>#</th>
+                      <th style={{ width: '44%', padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', textAlign: 'left', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>PRODUCT DETAILS</th>
+                      <th style={{ width: '10%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>QTY</th>
+                      <th style={{ width: '13%', padding: '12px 12px', textAlign: 'right', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>RATE</th>
+                      <th style={{ width: '12%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>TAX (GST)</th>
+                      <th style={{ width: '15%', padding: '12px 14px', textAlign: 'right', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>TOTAL</th>
                     </tr>
                   </thead>
                   <tbody style={{ display: 'table-row-group' }}>
@@ -1267,18 +1305,18 @@ export default function QuotationsView({
 
                       return (
                         <tr key={index} style={{ borderBottom: '1px solid #f1f5f9', display: 'table-row', background: 'transparent' }}>
-                          <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b', display: 'table-cell', verticalAlign: 'middle' }}>{index + 1}</td>
-                          <td style={{ padding: '12px 14px', display: 'table-cell', verticalAlign: 'middle', textAlign: 'left' }}>
-                            <div style={{ fontWeight: '700', color: '#0f2c59' }}>{item.productName}</div>
+                          <td style={{ width: '6%', padding: '12px 8px', textAlign: 'center', fontWeight: '700', color: '#64748b', fontSize: '13px', display: 'table-cell', verticalAlign: 'middle' }}>{index + 1}</td>
+                          <td style={{ width: '44%', padding: '12px 14px', display: 'table-cell', verticalAlign: 'middle', textAlign: 'left' }}>
+                            <div style={{ fontWeight: '800', color: '#002e5d', fontSize: '13.5px' }}>{item.productName}</div>
                             {item.productDetails && (
                               <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
                             )}
                             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
                           </td>
-                          <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#0f2c59', display: 'table-cell', verticalAlign: 'middle' }}>{item.quantity}</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '600', color: '#334155', display: 'table-cell', verticalAlign: 'middle' }}>{formatINR(item.unitPrice)}</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', color: '#64748b', display: 'table-cell', verticalAlign: 'middle' }}>{item.tax !== undefined ? item.tax : 18}%</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0f2c59', display: 'table-cell', verticalAlign: 'middle' }}>{formatINR(itemTotal)}</td>
+                          <td style={{ width: '10%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle' }}>{item.quantity}</td>
+                          <td style={{ width: '13%', padding: '12px 12px', textAlign: 'right', fontWeight: '700', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle' }}>{formatINR(item.unitPrice)}</td>
+                          <td style={{ width: '12%', padding: '12px 8px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '13px', display: 'table-cell', verticalAlign: 'middle' }}>{item.tax !== undefined ? item.tax : 18}%</td>
+                          <td style={{ width: '15%', padding: '12px 14px', textAlign: 'right', fontWeight: '900', color: '#002e5d', fontSize: '14px', display: 'table-cell', verticalAlign: 'middle' }}>{formatINR(itemTotal)}</td>
                         </tr>
                       );
                     })}
@@ -1289,42 +1327,42 @@ export default function QuotationsView({
               {/* Calculations Invoice Summary panel */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', margin: '14px 0 20px 0', gap: '6px' }}>
                 {/* Subtotal row */}
-                <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', border: '1px solid #f1f5f9', borderRadius: '6px' }}>
+                <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#ffffff' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0f2fe' }}>
                       <FileText size={12} color="#0284c7" />
                     </span>
                     Items Subtotal:
                   </span>
-                  <span style={{ fontWeight: '700', color: '#0f2c59' }}>{formatINR(calculatedSubtotal)}</span>
+                  <span style={{ fontWeight: '800', color: '#002e5d', fontSize: '13.5px' }}>{formatINR(calculatedSubtotal)}</span>
                 </div>
 
                 {/* GST row */}
-                <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', border: '1px solid #f1f5f9', borderRadius: '6px' }}>
+                <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#ffffff' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0f2fe' }}>
                       <Percent size={12} color="#0284c7" />
                     </span>
                     GST Amount:
                   </span>
-                  <span style={{ fontWeight: '700', color: '#0f2c59' }}>{formatINR(calculatedTaxAmt)}</span>
+                  <span style={{ fontWeight: '800', color: '#002e5d', fontSize: '13.5px' }}>{formatINR(calculatedTaxAmt)}</span>
                 </div>
 
                 {/* Expected Transportation Cost */}
                 {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) >= 0) && (
-                  <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', border: '1px solid #f0fdf4', borderRadius: '6px' }}>
+                  <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', border: '1px solid #bbf7d0', borderRadius: '6px', background: '#f0fdf4' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0369a1', fontWeight: '600' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0fdf4' }}>
                         <Truck size={12} color="#0369a1" />
                       </span>
                       Expected Transportation Cost:
                     </span>
-                    <span style={{ fontWeight: '700', color: '#0369a1' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
+                    <span style={{ fontWeight: '800', color: '#0369a1', fontSize: '13.5px' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
                   </div>
                 )}
 
                 {/* Grand Total row */}
-                <div style={{ display: 'flex', width: '280px', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#3b82f6', borderRadius: '6px', color: '#ffffff', boxShadow: '0 2px 4px rgba(59, 130, 246, 0.15)' }}>
+                <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '6px', color: '#ffffff', boxShadow: '0 3px 10px rgba(37, 99, 235, 0.25)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '800' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.2)' }}>
                       <ShieldCheck size={13} color="#ffffff" />

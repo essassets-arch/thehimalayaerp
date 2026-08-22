@@ -1316,7 +1316,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
 };
 
 /**
- * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 840px LAYOUT ON ANY DEVICE)
+ * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
  */
 export const exportQuotationImage = async (elementId, filename = 'quotation.png') => {
   const element = document.getElementById(elementId);
@@ -1330,7 +1330,7 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
   wrapper.style.position = 'fixed';
   wrapper.style.top = '0';
   wrapper.style.left = '0';
-  wrapper.style.width = '840px';
+  wrapper.style.width = '794px';
   wrapper.style.zIndex = '-9999';
   wrapper.style.pointerEvents = 'none';
   wrapper.style.opacity = '1';
@@ -1340,9 +1340,10 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
 
   const clone = element.cloneNode(true);
   clone.id = `${elementId}-export-clone`;
-  clone.style.width = '840px';
-  clone.style.minWidth = '840px';
-  clone.style.maxWidth = '840px';
+  clone.style.width = '794px';
+  clone.style.minWidth = '794px';
+  clone.style.maxWidth = '794px';
+  clone.style.minHeight = '1123px';
   clone.style.transform = 'none';
   clone.style.borderRadius = '0';
   clone.style.margin = '0';
@@ -1387,6 +1388,7 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
   clone.querySelectorAll('table').forEach(t => {
     t.style.setProperty('display', 'table', 'important');
     t.style.setProperty('width', '100%', 'important');
+    t.style.setProperty('table-layout', 'fixed', 'important');
     t.style.setProperty('border-collapse', 'collapse', 'important');
   });
   clone.querySelectorAll('thead').forEach(th => th.style.setProperty('display', 'table-header-group', 'important'));
@@ -1398,7 +1400,6 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
   });
   clone.querySelectorAll('td').forEach(td => {
     td.style.setProperty('display', 'table-cell', 'important');
-    td.style.setProperty('width', 'auto', 'important');
   });
   clone.querySelectorAll('th').forEach(th => {
     th.style.setProperty('display', 'table-cell', 'important');
@@ -1427,7 +1428,8 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     try {
       dataUrl = await htmlToImage.toPng(clone, {
         pixelRatio: 2.5,
-        width: 840,
+        width: 794,
+        height: 1123,
         backgroundColor: '#ffffff',
         cacheBust: true,
         style: {
@@ -1439,7 +1441,10 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
       console.warn('htmlToImage capture failed, falling back to html2canvas:', primaryErr);
       const canvas = await html2canvas(clone, {
         scale: 2.5,
-        width: 840,
+        width: 794,
+        height: 1123,
+        windowWidth: 794,
+        windowHeight: 1123,
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false
@@ -1469,7 +1474,7 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
 };
 
 /**
- * Share a DOM element as a PNG image via Web Share API or fallback (⭐ GUARANTEED CANONICAL 840px LAYOUT ON ANY DEVICE)
+ * Share a DOM element as a PNG image via Web Share API or fallback (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
  */
 export const shareQuotationImage = async (elementId, quotationNo = 'Draft', customerName = 'Customer') => {
   const element = document.getElementById(elementId);
@@ -1482,7 +1487,7 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
   wrapper.style.position = 'fixed';
   wrapper.style.top = '0';
   wrapper.style.left = '0';
-  wrapper.style.width = '840px';
+  wrapper.style.width = '794px';
   wrapper.style.zIndex = '-9999';
   wrapper.style.pointerEvents = 'none';
   wrapper.style.opacity = '1';
@@ -1492,9 +1497,10 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
 
   const clone = element.cloneNode(true);
   clone.id = `${elementId}-share-clone`;
-  clone.style.width = '840px';
-  clone.style.minWidth = '840px';
-  clone.style.maxWidth = '840px';
+  clone.style.width = '794px';
+  clone.style.minWidth = '794px';
+  clone.style.maxWidth = '794px';
+  clone.style.minHeight = '1123px';
   clone.style.transform = 'none';
   clone.style.borderRadius = '0';
   clone.style.margin = '0';
@@ -1537,6 +1543,7 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
   clone.querySelectorAll('table').forEach(t => {
     t.style.setProperty('display', 'table', 'important');
     t.style.setProperty('width', '100%', 'important');
+    t.style.setProperty('table-layout', 'fixed', 'important');
     t.style.setProperty('border-collapse', 'collapse', 'important');
   });
   clone.querySelectorAll('thead').forEach(th => th.style.setProperty('display', 'table-header-group', 'important'));
@@ -1548,7 +1555,6 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
   });
   clone.querySelectorAll('td').forEach(td => {
     td.style.setProperty('display', 'table-cell', 'important');
-    td.style.setProperty('width', 'auto', 'important');
   });
   clone.querySelectorAll('th').forEach(th => {
     th.style.setProperty('display', 'table-cell', 'important');
@@ -1577,7 +1583,8 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
     try {
       dataUrl = await htmlToImage.toPng(clone, {
         pixelRatio: 2.5,
-        width: 840,
+        width: 794,
+        height: 1123,
         backgroundColor: '#ffffff',
         cacheBust: true,
         style: {
@@ -1589,7 +1596,10 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
       console.warn('htmlToImage capture failed, falling back to html2canvas:', primaryErr);
       const canvas = await html2canvas(clone, {
         scale: 2.5,
-        width: 840,
+        width: 794,
+        height: 1123,
+        windowWidth: 794,
+        windowHeight: 1123,
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false
