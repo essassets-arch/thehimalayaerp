@@ -3529,8 +3529,11 @@ textarea {
   .hero-banner {
     padding: 12px 14px;
     gap: 12px;
-    margin: 0 12px;
-    border-radius: 14px;
+    margin: 12px 12px;
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
+    box-sizing: border-box;
+    border-radius: 16px;
   }
 
   .hero-mobile-menu-toggle {
@@ -4245,8 +4248,11 @@ textarea {
 
   /* Hero banner */
   .hero-banner {
-    padding: 12px !important;
-    margin: 0 8px !important;
+    padding: 12px 14px !important;
+    margin: 10px 10px 12px 10px !important;
+    width: calc(100% - 20px) !important;
+    max-width: calc(100% - 20px) !important;
+    box-sizing: border-box !important;
     border-radius: 16px !important;
   }
 
@@ -4284,8 +4290,11 @@ textarea {
   }
 
   .hero-banner {
-    padding: 10px !important;
-    margin: 0 6px !important;
+    padding: 10px 12px !important;
+    margin: 8px 8px 10px 8px !important;
+    width: calc(100% - 16px) !important;
+    max-width: calc(100% - 16px) !important;
+    box-sizing: border-box !important;
   }
 
   .crm-page {
@@ -6509,9 +6518,12 @@ body.notification-open {
 
   /* ── 4. HERO BANNER ── */
   .hero-banner {
-    margin: 12px !important;
+    margin: 12px 12px 12px 12px !important;
+    width: calc(100% - 24px) !important;
+    max-width: calc(100% - 24px) !important;
+    box-sizing: border-box !important;
     border-radius: 16px !important;
-    padding: 14px !important;
+    padding: 12px 14px !important;
     gap: 12px !important;
   }
 
@@ -7101,8 +7113,11 @@ body.notification-open {
 @media (max-width: 480px) {
 
   .hero-banner {
-    margin: 8px !important;
-    padding: 12px !important;
+    margin: 10px 10px 10px 10px !important;
+    width: calc(100% - 20px) !important;
+    max-width: calc(100% - 20px) !important;
+    box-sizing: border-box !important;
+    padding: 10px 12px !important;
     gap: 10px !important;
     border-radius: 14px !important;
   }
@@ -8550,20 +8565,23 @@ body, #root, .app-container {
 
   /* ── UNIVERSAL RESPONSIVE HERO BANNER (ALL PANELS & PAGES) ── */
   .hero-banner {
-    margin: 0 0 12px 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    margin: 12px 12px 12px 12px !important;
+    width: calc(100% - 24px) !important;
+    max-width: calc(100% - 24px) !important;
     box-sizing: border-box !important;
     border-radius: 16px !important;
-    padding: 10px 12px !important;
+    padding: 12px 14px !important;
     gap: 10px !important;
     position: relative !important;
     z-index: 100 !important;
   }
 
   .hero-banner.compact {
-    padding: 10px 12px !important;
-    margin: 0 0 12px 0 !important;
+    padding: 12px 14px !important;
+    margin: 12px 12px 12px 12px !important;
+    width: calc(100% - 24px) !important;
+    max-width: calc(100% - 24px) !important;
+    box-sizing: border-box !important;
   }
 
   .hero-banner.compact .hero-bottom-row {
@@ -8684,7 +8702,8 @@ body, #root, .app-container {
 
   /* ── SUB-PAGE RESPONSIVE ENHANCEMENTS (ALL SALES PAGES) ── */
   .sales-portal-view {
-    padding: 0 !important;
+    padding: 0 12px !important;
+    box-sizing: border-box !important;
     gap: 12px !important;
   }
 
@@ -8878,8 +8897,17 @@ body, #root, .app-container {
   }
 }
 
-/* ── 320px ULTRA-NARROW PHONES ── */
+  /* ── 320px ULTRA-NARROW PHONES ── */
 @media (max-width: 360px) {
+  .hero-banner,
+  .hero-banner.compact {
+    margin: 8px 8px 8px 8px !important;
+    width: calc(100% - 16px) !important;
+    max-width: calc(100% - 16px) !important;
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+  }
+
   .sales-grid-4,
   .sales-grid-3,
   .sales-grid-2 {
@@ -8888,7 +8916,7 @@ body, #root, .app-container {
   }
 
   .main-viewport {
-    padding: 8px 8px 20px !important;
+    padding: 0 0 20px 0 !important;
     gap: 8px !important;
   }
 
