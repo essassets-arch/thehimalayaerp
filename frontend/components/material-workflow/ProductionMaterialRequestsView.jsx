@@ -51,6 +51,16 @@ const STATUS_COLORS = {
 
 export default function ProductionMaterialRequestsView() {
   const router = useRouter();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const { data: materialRequests = [] } = useMaterialRequests();
   const createRequest = useCreateMaterialRequest();
   const closeRequest = () => {};
@@ -249,7 +259,7 @@ export default function ProductionMaterialRequestsView() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', padding: '16px 20px', background: '#F5FAFE', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       
       {/* Top Navigation Row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
             onClick={() => router.push('/production/work-orders')}
@@ -264,7 +274,8 @@ export default function ProductionMaterialRequestsView() {
               justifyContent: 'center',
               cursor: 'pointer',
               color: '#1e293b',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              flexShrink: 0
             }}
           >
             <ArrowLeft size={16} />
@@ -281,10 +292,12 @@ export default function ProductionMaterialRequestsView() {
         </div>
 
         {/* Tab Switcher */}
-        <div style={{ background: '#f1f5f9', borderRadius: '10px', padding: '4px', display: 'flex', gap: '4px' }}>
+        <div style={{ background: '#f1f5f9', borderRadius: '10px', padding: '4px', display: 'flex', gap: '4px', width: isMobile ? '100%' : 'auto' }}>
           <button
             onClick={() => setActiveTab('Raise')}
             style={{
+              flex: isMobile ? 1 : 'none',
+              textAlign: 'center',
               padding: '6px 16px',
               borderRadius: '8px',
               border: 'none',
@@ -302,6 +315,8 @@ export default function ProductionMaterialRequestsView() {
           <button
             onClick={() => setActiveTab('Past')}
             style={{
+              flex: isMobile ? 1 : 'none',
+              textAlign: 'center',
               padding: '6px 16px',
               borderRadius: '8px',
               border: 'none',
@@ -385,27 +400,33 @@ export default function ProductionMaterialRequestsView() {
             )}
           </div>
 
-          {/* Table Container */}
-          <div style={{ border: '1px solid #DCE5F0', borderRadius: '12px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '12px 16px', width: '70%' }}>Product Details *</th>
-                  <th style={{ padding: '12px 16px', width: '20%', textAlign: 'right' }}>Qty *</th>
-                  <th style={{ padding: '12px 16px', width: '10%', textAlign: 'center' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {requestItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} style={{ padding: '36px', textAlign: 'center', color: '#5E6B82', fontSize: '13px', fontStyle: 'italic' }}>
-                      No items added yet. Use the &quot;Smart Search & Add&quot; bar above to select raw materials or hardware components.
-                    </td>
-                  </tr>
-                ) : (
-                  requestItems.map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '12px 16px' }}>
+          {/* Table Container / Mobile Card List */}
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {requestItems.length === 0 ? (
+                <div style={{ border: '1px solid #DCE5F0', borderRadius: '12px', padding: '36px', textAlign: 'center', color: '#5E6B82', fontSize: '13px', fontStyle: 'italic' }}>
+                  No items added yet. Use the &quot;Smart Search & Add&quot; bar above to select raw materials or hardware components.
+                </div>
+              ) : (
+                requestItems.map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #DCE5F0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                          Product Details *
+                        </label>
                         <select
                           value={item.material}
                           onChange={(e) => handleItemChange(idx, 'material', e.target.value)}
@@ -424,9 +445,35 @@ export default function ProductionMaterialRequestsView() {
                             <option key={`${cat.material}-${catIdx}`} value={cat.material}>{cat.material} ({cat.category || 'Raw Material'})</option>
                           ))}
                         </select>
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRow(idx)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          marginTop: '18px',
+                          borderRadius: '6px',
+                          border: '1px solid #fecdd3',
+                          background: '#fff1f2',
+                          color: '#e11d48',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                          Quantity *
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <input
                             type="number"
                             min="0.1"
@@ -449,33 +496,104 @@ export default function ProductionMaterialRequestsView() {
                             {item.unit}
                           </span>
                         </div>
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRow(idx)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '6px',
-                            border: '1px solid #fecdd3',
-                            background: '#fff1f2',
-                            color: '#e11d48',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div style={{ border: '1px solid #DCE5F0', borderRadius: '12px', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 16px', width: '70%' }}>Product Details *</th>
+                    <th style={{ padding: '12px 16px', width: '20%', textAlign: 'right' }}>Qty *</th>
+                    <th style={{ padding: '12px 16px', width: '10%', textAlign: 'center' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {requestItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '36px', textAlign: 'center', color: '#5E6B82', fontSize: '13px', fontStyle: 'italic' }}>
+                        No items added yet. Use the &quot;Smart Search & Add&quot; bar above to select raw materials or hardware components.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    requestItems.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px 16px' }}>
+                          <select
+                            value={item.material}
+                            onChange={(e) => handleItemChange(idx, 'material', e.target.value)}
+                            style={{
+                              width: '100%',
+                              height: '38px',
+                              padding: '0 10px',
+                              borderRadius: '8px',
+                              border: '1px solid #D6E2F0',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              color: '#1e293b'
+                            }}
+                          >
+                            {catalog.map((cat, catIdx) => (
+                              <option key={`${cat.material}-${catIdx}`} value={cat.material}>{cat.material} ({cat.category || 'Raw Material'})</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                            <input
+                              type="number"
+                              min="0.1"
+                              step="0.1"
+                              value={item.requestedQty}
+                              onChange={(e) => handleItemChange(idx, 'requestedQty', Number(e.target.value))}
+                              style={{
+                                width: '90px',
+                                height: '38px',
+                                padding: '0 10px',
+                                borderRadius: '8px',
+                                border: '1px solid #D6E2F0',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                textAlign: 'right',
+                                color: '#4f46e5'
+                              }}
+                            />
+                            <span style={{ fontSize: '11px', fontWeight: '800', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', color: '#5E6B82', textTransform: 'uppercase' }}>
+                              {item.unit}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRow(idx)}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '6px',
+                              border: '1px solid #fecdd3',
+                              background: '#fff1f2',
+                              color: '#e11d48',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Add Row Button */}
           <button
@@ -585,110 +703,231 @@ export default function ProductionMaterialRequestsView() {
             })}
           </div>
 
-          {/* Table Card */}
-          <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800' }}>
-                    <th style={{ padding: '14px 20px' }}>Request No</th>
-                    <th style={{ padding: '14px 20px' }}>Date</th>
-                    <th style={{ padding: '14px 20px' }}>Work Order</th>
-                    <th style={{ padding: '14px 20px' }}>Items Summary</th>
-                    <th style={{ padding: '14px 20px' }}>Priority</th>
-                    <th style={{ padding: '14px 20px' }}>Status</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRequests.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>
-                        No material requests created yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRequests.map(mr => {
-                      const badge = STATUS_COLORS[mr.status] || { bg: '#f1f5f9', color: '#5E6B82', border: '#D6E2F0' };
-                      const canClose = mr.status === 'Returned' || mr.status === 'Received';
-                      return (
-                        <tr key={mr.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}>
-                          <td style={{ padding: '16px 20px', fontWeight: '800', fontFamily: 'monospace', color: '#24345C' }}>{mr.requestNo}</td>
-                          <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5E6B82' }}>{mr.requestDate}</td>
-                          <td style={{ padding: '16px 20px', fontWeight: '700', color: '#4f46e5' }}>{mr.workOrderNo || '—'}</td>
-                          <td style={{ padding: '16px 20px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontSize: '13px', fontWeight: '700', color: '#24345C' }}>
-                                {mr.items?.length || 0} Material Items
-                              </span>
-                              <span style={{ fontSize: '11px', color: '#5E6B82' }}>
-                                {mr.items?.map(i => `${i.material} (${i.requestedQty} ${i.unit})`).join(', ')}
-                              </span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '16px 20px' }}>
-                            <span style={{
-                              padding: '3px 10px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              fontWeight: '800',
-                              background: mr.priority === 'Urgent' ? '#fff1f2' : mr.priority === 'High' ? '#fffbeb' : '#F5FAFE',
-                              color: mr.priority === 'Urgent' ? '#e11d48' : mr.priority === 'High' ? '#d97706' : '#475569',
-                              border: `1px solid ${mr.priority === 'Urgent' ? '#fecdd3' : mr.priority === 'High' ? '#fde68a' : '#DCE5F0'}`
-                            }}>
-                              {mr.priority}
-                            </span>
-                          </td>
-                          <td style={{ padding: '16px 20px' }}>
-                            <span style={{
-                              padding: '4px 12px',
-                              borderRadius: '8px',
-                              fontSize: '11px',
-                              fontWeight: '800',
-                              background: badge.bg,
-                              color: badge.color,
-                              border: `1px solid ${badge.border}`,
-                              display: 'inline-block'
-                            }}>
-                              {mr.status}
-                            </span>
-                          </td>
-                          <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                              <button
-                                onClick={() => setSelectedReq(mr)}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #D6E2F0', background: '#fff', color: '#334155', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              >
-                                <Eye size={14} /> View
-                              </button>
+          {/* Table Card / Mobile Card Grid */}
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {filteredRequests.length === 0 ? (
+                <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', padding: '40px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>
+                  No material requests created yet.
+                </div>
+              ) : (
+                filteredRequests.map(mr => {
+                  const badge = STATUS_COLORS[mr.status] || { bg: '#f1f5f9', color: '#5E6B82', border: '#D6E2F0' };
+                  const canClose = mr.status === 'Returned' || mr.status === 'Received';
+                  return (
+                    <div
+                      key={mr.id}
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.01)'
+                      }}
+                    >
+                      {/* Header Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: '800', fontFamily: 'monospace', color: '#24345C', fontSize: '14px' }}>
+                          {mr.requestNo}
+                        </span>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          background: badge.bg,
+                          color: badge.color,
+                          border: `1px solid ${badge.border}`
+                        }}>
+                          {mr.status}
+                        </span>
+                      </div>
 
-                              {canClose && (
-                                <button
-                                  onClick={() => handleCloseRequest(mr.id, mr.requestNo)}
-                                  style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                >
-                                  <CheckCircle2 size={13} /> Close
-                                </button>
-                              )}
+                      {/* Metadata Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
+                            Request Date
+                          </span>
+                          <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: '600' }}>
+                            {mr.requestDate}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
+                            Work Order
+                          </span>
+                          <span style={{ fontSize: '12.5px', color: '#4f46e5', fontWeight: '700' }}>
+                            {mr.workOrderNo || '—'}
+                          </span>
+                        </div>
+                      </div>
 
-                              {mr.status === 'Draft' && (
-                                <button
-                                  onClick={() => handleDelete(mr.id, mr.requestNo)}
-                                  style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid #fecdd3', background: '#fff1f2', color: '#e11d48', cursor: 'pointer' }}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                      {/* Items Summary */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
+                          Items ({mr.items?.length || 0})
+                        </span>
+                        <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#24345C' }}>
+                          {mr.items?.map(i => `${i.material} (${i.requestedQty} ${i.unit})`).join(', ')}
+                        </span>
+                      </div>
+
+                      {/* Priority & Actions Footer */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '4px' }}>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          background: mr.priority === 'Urgent' ? '#fff1f2' : mr.priority === 'High' ? '#fffbeb' : '#F5FAFE',
+                          color: mr.priority === 'Urgent' ? '#e11d48' : mr.priority === 'High' ? '#d97706' : '#475569',
+                          border: `1px solid ${mr.priority === 'Urgent' ? '#fecdd3' : mr.priority === 'High' ? '#fde68a' : '#DCE5F0'}`
+                        }}>
+                          {mr.priority}
+                        </span>
+
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            onClick={() => setSelectedReq(mr)}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #D6E2F0', background: '#fff', color: '#334155', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <Eye size={14} /> View
+                          </button>
+
+                          {canClose && (
+                            <button
+                              onClick={() => handleCloseRequest(mr.id, mr.requestNo)}
+                              style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <CheckCircle2 size={13} /> Close
+                          </button>
+                          )}
+
+                          {mr.status === 'Draft' && (
+                            <button
+                              onClick={() => handleDelete(mr.id, mr.requestNo)}
+                              style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid #fecdd3', background: '#fff1f2', color: '#e11d48', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })
+              )}
             </div>
-          </div>
+          ) : (
+            <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800' }}>
+                      <th style={{ padding: '14px 20px' }}>Request No</th>
+                      <th style={{ padding: '14px 20px' }}>Date</th>
+                      <th style={{ padding: '14px 20px' }}>Work Order</th>
+                      <th style={{ padding: '14px 20px' }}>Items Summary</th>
+                      <th style={{ padding: '14px 20px' }}>Priority</th>
+                      <th style={{ padding: '14px 20px' }}>Status</th>
+                      <th style={{ padding: '14px 20px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRequests.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>
+                          No material requests created yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRequests.map(mr => {
+                        const badge = STATUS_COLORS[mr.status] || { bg: '#f1f5f9', color: '#5E6B82', border: '#D6E2F0' };
+                        const canClose = mr.status === 'Returned' || mr.status === 'Received';
+                        return (
+                          <tr key={mr.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}>
+                            <td style={{ padding: '16px 20px', fontWeight: '800', fontFamily: 'monospace', color: '#24345C' }}>{mr.requestNo}</td>
+                            <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5E6B82' }}>{mr.requestDate}</td>
+                            <td style={{ padding: '16px 20px', fontWeight: '700', color: '#4f46e5' }}>{mr.workOrderNo || '—'}</td>
+                            <td style={{ padding: '16px 20px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: '700', color: '#24345C' }}>
+                                  {mr.items?.length || 0} Material Items
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#5E6B82' }}>
+                                  {mr.items?.map(i => `${i.material} (${i.requestedQty} ${i.unit})`).join(', ')}
+                                </span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '16px 20px' }}>
+                              <span style={{
+                                padding: '3px 10px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                background: mr.priority === 'Urgent' ? '#fff1f2' : mr.priority === 'High' ? '#fffbeb' : '#F5FAFE',
+                                color: mr.priority === 'Urgent' ? '#e11d48' : mr.priority === 'High' ? '#d97706' : '#475569',
+                                border: `1px solid ${mr.priority === 'Urgent' ? '#fecdd3' : mr.priority === 'High' ? '#fde68a' : '#DCE5F0'}`
+                              }}>
+                                {mr.priority}
+                              </span>
+                            </td>
+                            <td style={{ padding: '16px 20px' }}>
+                              <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '8px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                background: badge.bg,
+                                color: badge.color,
+                                border: `1px solid ${badge.border}`,
+                                display: 'inline-block'
+                              }}>
+                                {mr.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <button
+                                  onClick={() => setSelectedReq(mr)}
+                                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #D6E2F0', background: '#fff', color: '#334155', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  <Eye size={14} /> View
+                                </button>
+
+                                {canClose && (
+                                  <button
+                                    onClick={() => handleCloseRequest(mr.id, mr.requestNo)}
+                                    style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  >
+                                    <CheckCircle2 size={13} /> Close
+                                  </button>
+                                )}
+
+                                {mr.status === 'Draft' && (
+                                  <button
+                                    onClick={() => handleDelete(mr.id, mr.requestNo)}
+                                    style={{ padding: '6px 8px', borderRadius: '8px', border: '1px solid #fecdd3', background: '#fff1f2', color: '#e11d48', cursor: 'pointer' }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

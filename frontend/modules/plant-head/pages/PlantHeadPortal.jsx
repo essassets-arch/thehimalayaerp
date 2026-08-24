@@ -545,7 +545,17 @@ export default function PlantHeadPortal() {
   const [overrideQty, setOverrideQty] = useState({});
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [rawSearchQuery, setRawSearchQuery] = useState('');
+  const [rawInvSortField, setRawInvSortField] = useState('material');
+  const [rawInvSortDirection, setRawInvSortDirection] = useState('asc');
   const [rawInvStatusFilter, setRawInvStatusFilter] = useState('All');
   const [rawInvPage, setRawInvPage] = useState(1);
   const [dbRawInventory, setDbRawInventory] = useState([]);
@@ -3204,30 +3214,43 @@ export default function PlantHeadPortal() {
     ];
 
     return (
-      <div className="app-card" data-testid="plant-head-incoming-orders-page">
+      <div className="app-card" data-testid="plant-head-incoming-orders-page" style={{ padding: isMobile ? '12px' : '20px' }}>
         {/* Title + Search */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          <h2 className="card-heading" style={{ margin: 0 }}>Incoming Confirmed Orders</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f3f5', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '7px 13px', flex: '0 0 auto' }}>
-            <Search size={14} color="var(--color-text-secondary)" />
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <h2 className="card-heading" style={{ margin: 0, fontSize: isMobile ? '18px' : '20px' }}>Incoming Confirmed Orders</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f3f5', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '7px 13px', width: isMobile ? '100%' : 'auto', boxSizing: 'border-box' }}>
+            <Search size={14} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search orders, customer, sales person…"
               value={incomingSearch}
               onChange={e => setIncomingSearch(e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: 'var(--color-text-primary)', width: '220px' }}
+              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: 'var(--color-text-primary)', width: '100%' }}
             />
             {incomingSearch && <X size={13} style={{ cursor: 'pointer', color: 'var(--color-text-secondary)', flexShrink: 0 }} onClick={() => setIncomingSearch('')} />}
           </div>
         </div>
 
-        <div style={{ marginBottom: '12px' }}>
-          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'inline-flex', marginBottom: '10px', overflowX: 'auto' }}>
+        <div style={{ marginBottom: '12px', width: '100%' }}>
+          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'flex', width: '100%', marginBottom: '10px', overflowX: 'auto', padding: '4px', borderRadius: '8px', boxSizing: 'border-box' }}>
             {incomingTabs.map(tab => (
               <button
                 key={tab.key}
                 className={`filter-pill ${incomingStatusFilter === tab.key ? 'active' : ''}`}
-                style={{ color: incomingStatusFilter === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+                style={{
+                  flex: isMobile ? 1 : 'none',
+                  textAlign: 'center',
+                  color: incomingStatusFilter === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  border: 'none',
+                  background: incomingStatusFilter === tab.key ? '#fff' : 'transparent',
+                  borderRadius: '6px',
+                  boxShadow: (isMobile && incomingStatusFilter === tab.key) ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
                 onClick={() => setIncomingStatusFilter(tab.key)}
               >
                 {tab.label}
@@ -3236,78 +3259,189 @@ export default function PlantHeadPortal() {
           </div>
         </div>
 
-        <DataTable
-          columns={[
-            {
-              header: 'Order No', accessor: 'orderNo', render: (row) => (
-                <strong
-                  style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={() => setSelectedOrderDetails(row)}
-                >
-                  {row.orderNo}
-                </strong>
-              )
-            },
-            { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.name || '—'}</span> },
-            { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
-            { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
-            { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
-            { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
-            { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) }
-          ]}
-          data={displayedIncomingOrders}
-          searchQuery={''}
-          actions={(row) => {
-            const statusUpper = String(row.workflowStatus || row.status || row.planningStatus || row.workflowStateCode || '').toUpperCase();
-            const isAccepted =
-              statusUpper === 'PLANT_APPROVED' ||
-              statusUpper === 'PLANT_HEAD_ACCEPTED' ||
-              statusUpper === 'ACCEPTED' ||
-              statusUpper === 'READY_FOR_PRODUCTION' ||
-              statusUpper === 'IN_PRODUCTION' ||
-              statusUpper === 'PRODUCTION_PLANNED' ||
-              statusUpper === 'COMPLETED' ||
-              row.planningStatus === 'PLANT_HEAD_ACCEPTED' ||
-              row.planningStatus === 'PRODUCTION_PLANNED' ||
-              Boolean(row.acceptedByPlantHeadAt);
-            const isPendingAccept = !isAccepted;
-            return (
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <button
-                  style={{ padding: '5px 10px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
-                  onClick={() => setSelectedOrderDetails(row)}
-                >
-                  View
-                </button>
-                {isPendingAccept ? (
-                  <>
-                    <button
-                      data-testid={`plant-head-accept-order-${row.orderNo || row.id}`}
-                      style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
-                      onClick={() => handleAcceptOrder(row)}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      style={{ padding: '5px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
-                      onClick={() => handleRejectOrder(row)}
-                    >
-                      Reject
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    style={{ padding: '5px 10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
-                    onClick={() => navigate.push('/plant-head/planning')}
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {displayedIncomingOrders.length > 0 ? (
+              displayedIncomingOrders.map((row) => {
+                const statusUpper = String(row.workflowStatus || row.status || row.planningStatus || row.workflowStateCode || '').toUpperCase();
+                const isAccepted =
+                  statusUpper === 'PLANT_APPROVED' ||
+                  statusUpper === 'PLANT_HEAD_ACCEPTED' ||
+                  statusUpper === 'ACCEPTED' ||
+                  statusUpper === 'READY_FOR_PRODUCTION' ||
+                  statusUpper === 'IN_PRODUCTION' ||
+                  statusUpper === 'PRODUCTION_PLANNED' ||
+                  statusUpper === 'COMPLETED' ||
+                  row.planningStatus === 'PLANT_HEAD_ACCEPTED' ||
+                  row.planningStatus === 'PRODUCTION_PLANNED' ||
+                  Boolean(row.acceptedByPlantHeadAt);
+                const isPendingAccept = !isAccepted;
+
+                return (
+                  <div
+                    key={row.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                    }}
                   >
-                    Go to Planning →
-                  </button>
-                )}
+                    {/* Order ID & Badges */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong
+                        style={{ color: '#0284c7', cursor: 'pointer', textDecoration: 'underline', fontSize: '14px', fontFamily: 'monospace' }}
+                        onClick={() => setSelectedOrderDetails(row)}
+                      >
+                        {row.orderNo || row.id}
+                      </strong>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {priorityBadge(row.priority)}
+                        {statusBadge(row)}
+                      </div>
+                    </div>
+
+                    {/* Details Breakdown */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
+                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer?.name || '—'}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
+                        <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Product Item</span>
+                        <span style={{ fontWeight: '600', color: '#334155' }}>{row.products || '—'}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Target Date</span>
+                        <span>{row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span>}</span>
+                      </div>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '4px' }}>
+                      <button
+                        style={{ flex: 1, padding: '8px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                        onClick={() => setSelectedOrderDetails(row)}
+                      >
+                        View
+                      </button>
+                      {isPendingAccept ? (
+                        <>
+                          <button
+                            data-testid={`plant-head-accept-order-${row.orderNo || row.id}`}
+                            style={{ flex: 1, padding: '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                            onClick={() => handleAcceptOrder(row)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            style={{ flex: 1, padding: '8px 12px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                            onClick={() => handleRejectOrder(row)}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          style={{ flex: 2, padding: '8px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}
+                          onClick={() => navigate.push('/plant-head/planning')}
+                        >
+                          Go to Planning →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>No incoming orders found</div>
+                <p style={{ fontSize: '12px', margin: '4px 0 0' }}>Try adjusting your search or filter criteria.</p>
               </div>
-            );
-          }}
-          emptyMessage="No incoming orders found matching filter criteria."
-        />
+            )}
+          </div>
+        ) : (
+          <DataTable
+            columns={[
+              {
+                header: 'Order No', accessor: 'orderNo', render: (row) => (
+                  <strong
+                    style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => setSelectedOrderDetails(row)}
+                  >
+                    {row.orderNo}
+                  </strong>
+                )
+              },
+              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.name || '—'}</span> },
+              { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
+              { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
+              { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
+              { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
+              { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) }
+            ]}
+            data={displayedIncomingOrders}
+            searchQuery={''}
+            actions={(row) => {
+              const statusUpper = String(row.workflowStatus || row.status || row.planningStatus || row.workflowStateCode || '').toUpperCase();
+              const isAccepted =
+                statusUpper === 'PLANT_APPROVED' ||
+                statusUpper === 'PLANT_HEAD_ACCEPTED' ||
+                statusUpper === 'ACCEPTED' ||
+                statusUpper === 'READY_FOR_PRODUCTION' ||
+                statusUpper === 'IN_PRODUCTION' ||
+                statusUpper === 'PRODUCTION_PLANNED' ||
+                statusUpper === 'COMPLETED' ||
+                row.planningStatus === 'PLANT_HEAD_ACCEPTED' ||
+                row.planningStatus === 'PRODUCTION_PLANNED' ||
+                Boolean(row.acceptedByPlantHeadAt);
+              const isPendingAccept = !isAccepted;
+              return (
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    style={{ padding: '5px 10px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                    onClick={() => setSelectedOrderDetails(row)}
+                  >
+                    View
+                  </button>
+                  {isPendingAccept ? (
+                    <>
+                      <button
+                        data-testid={`plant-head-accept-order-${row.orderNo || row.id}`}
+                        style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                        onClick={() => handleAcceptOrder(row)}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        style={{ padding: '5px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                        onClick={() => handleRejectOrder(row)}
+                      >
+                        Reject
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      style={{ padding: '5px 10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                      onClick={() => navigate.push('/plant-head/planning')}
+                    >
+                      Go to Planning →
+                    </button>
+                  )}
+                </div>
+              );
+            }}
+            emptyMessage="No incoming orders found matching filter criteria."
+          />
+        )}
 
         {/* Pagination controls */}
         {filteredIncoming.length > 0 && (
@@ -3503,29 +3637,42 @@ export default function PlantHeadPortal() {
     const statusBadge = (row) => getAccurateOrderStatusBadge(row);
 
     return (
-      <div className="app-card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          <h2 className="card-heading" style={{ margin: 0 }}>Production Planning Board</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f3f5', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '7px 13px' }}>
-            <Search size={14} color="var(--color-text-secondary)" />
+      <div className="app-card" style={{ padding: isMobile ? '12px' : '20px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <h2 className="card-heading" style={{ margin: 0, fontSize: isMobile ? '18px' : '20px' }}>Production Planning Board</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f3f5', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '7px 13px', width: isMobile ? '100%' : 'auto', boxSizing: 'border-box' }}>
+            <Search size={14} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search order, customer, product…"
               value={planningSearch}
-              onChange={e => setPlanningSearch(e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: 'var(--color-text-primary)', width: '200px' }}
+              onChange={e => setIncomingSearch(e.target.value)}
+              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: 'var(--color-text-primary)', width: '100%' }}
             />
-            {planningSearch && <X size={13} style={{ cursor: 'pointer', color: 'var(--color-text-secondary)' }} onClick={() => setPlanningSearch('')} />}
+            {planningSearch && <X size={13} style={{ cursor: 'pointer', color: 'var(--color-text-secondary)', flexShrink: 0 }} onClick={() => setPlanningSearch('')} />}
           </div>
         </div>
 
-        <div style={{ marginBottom: '12px' }}>
-          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'inline-flex', marginBottom: '10px', overflowX: 'auto' }}>
+        <div style={{ marginBottom: '12px', width: '100%' }}>
+          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'flex', width: '100%', marginBottom: '10px', overflowX: 'auto', padding: '4px', borderRadius: '8px', boxSizing: 'border-box' }}>
             {planningTabs.map(tab => (
               <button
                 key={tab.key}
                 className={`filter-pill ${planningViewTab === tab.key ? 'active' : ''}`}
-                style={{ color: planningViewTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+                style={{
+                  flex: isMobile ? 1 : 'none',
+                  textAlign: 'center',
+                  color: planningViewTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  border: 'none',
+                  background: planningViewTab === tab.key ? '#fff' : 'transparent',
+                  borderRadius: '6px',
+                  boxShadow: (isMobile && planningViewTab === tab.key) ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
                 onClick={() => setPlanningViewTab(tab.key)}
               >
                 {tab.label}
@@ -3538,40 +3685,20 @@ export default function PlantHeadPortal() {
           Showing {filtered.length} of {allPlanningOrders.length} orders
         </p>
 
-        <DataTable
-          columns={[
-            {
-              header: 'Order No', accessor: 'orderNo', render: (row) => (
-                <strong style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={() => setSelectedOrderDetails({ orderNo: row.orderNo, customerName: row.customerName || row.customer, products: row.products || row.productItem, id: row.id, status: row.planningStatus })}>
-                  {row.orderNo}
-                </strong>
-              )
-            },
-            { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer || '—'}</span> },
-            { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
-            {
-              header: 'Products',
-              accessor: 'products',
-              render: (row) => {
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {filtered.length > 0 ? (
+              filtered.map((row) => {
+                const hasPendingFulfillment = Array.isArray(row.items) && row.items.some(item => {
+                  const f = item.fulfillment || {};
+                  return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||
+                         Number(f.pendingProductionQty || f.productionRequiredQty || 0) > 0;
+                });
+                const isPlanned = !hasPendingFulfillment;
+
                 const items = row.detailedItems || row.items || [];
-                if (items.length === 0) return row.products || '—';
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px' }}>
-                    {items.map((item, idx) => (
-                      <div key={idx} style={{ whiteSpace: 'nowrap', fontWeight: '500' }}>
-                        {item.productName.replace('HIMALAYA FRP MHC ', '').replace('HIMALAYA FRP ', '')} — {item.quantity || item.orderedQuantity} {item.unit || 'UNITS'}
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-            },
-            {
-              header: 'Fulfillment',
-              accessor: 'fulfillment',
-              render: (row) => {
-                const items = row.detailedItems || row.items || [];
+
+                // Fulfillment rendering logic
                 let fgCount = 0;
                 let prodCount = 0;
                 items.forEach(item => {
@@ -3581,82 +3708,246 @@ export default function PlantHeadPortal() {
                   if (prodReq > 0) prodCount++;
                 });
 
+                let fulfillmentBadge = <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>;
                 if (fgCount > 0 && prodCount === 0) {
-                  return <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✓ All Ready from FG</span>;
+                  fulfillmentBadge = <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✓ All Ready from FG</span>;
                 } else if (fgCount === 0 && prodCount > 0) {
-                  return <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙ Production Required</span>;
+                  fulfillmentBadge = <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙ Production Required</span>;
                 } else if (fgCount > 0 && prodCount > 0) {
-                  return <span style={{ background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>◐ Mixed Fulfillment</span>;
+                  fulfillmentBadge = <span style={{ background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>◐ Mixed Fulfillment</span>;
                 }
-                return <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>;
-              }
-            },
-            {
-              header: 'Target Date',
-              accessor: 'targetDate',
-              render: (row) => {
-                if (row.targetDate) {
-                  return new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-                }
-                return <span style={{ color: '#94a3b8' }}>—</span>;
-              }
-            },
-            { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) },
-          ]}
-          data={filtered}
-          searchQuery={''}
-          searchField="customerName"
-          actions={(row) => {
-            const hasPendingFulfillment = Array.isArray(row.items) && row.items.some(item => {
-              const f = item.fulfillment || {};
-              return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||
-                     Number(f.pendingProductionQty || f.productionRequiredQty || 0) > 0;
-            });
-            const isPlanned = !hasPendingFulfillment;
 
-            return (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                {planningViewTab === 'pending' && !isPlanned ? (
-                  <button
-                    data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                return (
+                  <div
+                    key={row.id}
                     style={{
-                      padding: '6px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px',
-                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                    }}
-                    onClick={() => {
-                      setSelectedOrderForPlanning(row);
-                      const defaultDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-                      setTargetDate(defaultDate);
-                      setPriority(row.priority || 'Medium');
-                      setShowPlanningModal(true);
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                     }}
                   >
-                    <Plus size={14} /> View & Plan
-                  </button>
-                ) : (
-                  <button
-                    style={{
-                      padding: '6px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px',
-                      fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                    }}
-                    onClick={() => {
-                      setSelectedOrderForPlanning(row);
-                      const defaultDate = row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-                      setTargetDate(defaultDate);
-                      setPriority(row.priority || 'Medium');
-                      setShowPlanningModal(true);
-                    }}
-                  >
-                    <ClipboardCheck size={14} /> View
-                  </button>
-                )}
+                    {/* Header: Order ID & Badges */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong
+                        style={{ color: '#0284c7', cursor: 'pointer', textDecoration: 'underline', fontSize: '14px', fontFamily: 'monospace' }}
+                        onClick={() => setSelectedOrderDetails({ orderNo: row.orderNo, customerName: row.customerName || row.customer, products: row.products || row.productItem, id: row.id, status: row.planningStatus })}
+                      >
+                        {row.orderNo}
+                      </strong>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {priorityBadge(row.priority)}
+                        {statusBadge(row)}
+                      </div>
+                    </div>
+
+                    {/* Details Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
+                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer || '—'}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
+                        <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Fulfillment</span>
+                        <span>{fulfillmentBadge}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Target Date</span>
+                        <span>
+                          {row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : <span style={{ color: '#94a3b8' }}>—</span>}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Products box */}
+                    {items.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '4px' }}>
+                        <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Products</span>
+                        {items.map((item, idx) => (
+                          <div key={idx} style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                            • {item.productName.replace('HIMALAYA FRP MHC ', '').replace('HIMALAYA FRP ', '')} — {item.quantity || item.orderedQuantity} {item.unit || 'UNITS'}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Action Row */}
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '4px' }}>
+                      {planningViewTab === 'pending' && !isPlanned ? (
+                        <button
+                          data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                          style={{
+                            flex: 1, padding: '8px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px',
+                            fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
+                          onClick={() => {
+                            setSelectedOrderForPlanning(row);
+                            const defaultDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                            setTargetDate(defaultDate);
+                            setPriority(row.priority || 'Medium');
+                            setShowPlanningModal(true);
+                          }}
+                        >
+                          <Plus size={14} /> View & Plan
+                        </button>
+                      ) : (
+                        <button
+                          style={{
+                            flex: 1, padding: '8px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px',
+                            fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
+                          onClick={() => {
+                            setSelectedOrderForPlanning(row);
+                            const defaultDate = row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                            setTargetDate(defaultDate);
+                            setPriority(row.priority || 'Medium');
+                            setShowPlanningModal(true);
+                          }}
+                        >
+                          <ClipboardCheck size={14} /> View
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>No orders pending planning in Plant Head board.</div>
               </div>
-            );
-          }}
-          emptyMessage="No orders pending planning in Plant Head board."
-        />
+            )}
+          </div>
+        ) : (
+          <DataTable
+            columns={[
+              {
+                header: 'Order No', accessor: 'orderNo', render: (row) => (
+                  <strong style={{ color: 'var(--color-primary-dark, #1e293b)', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => setSelectedOrderDetails({ orderNo: row.orderNo, customerName: row.customerName || row.customer, products: row.products || row.productItem, id: row.id, status: row.planningStatus })}>
+                    {row.orderNo}
+                  </strong>
+                )
+              },
+              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer || '—'}</span> },
+              { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
+              {
+                header: 'Products',
+                accessor: 'products',
+                render: (row) => {
+                  const items = row.detailedItems || row.items || [];
+                  if (items.length === 0) return row.products || '—';
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px' }}>
+                      {items.map((item, idx) => (
+                        <div key={idx} style={{ whiteSpace: 'nowrap', fontWeight: '500' }}>
+                          {item.productName.replace('HIMALAYA FRP MHC ', '').replace('HIMALAYA FRP ', '')} — {item.quantity || item.orderedQuantity} {item.unit || 'UNITS'}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+              },
+              {
+                header: 'Fulfillment',
+                accessor: 'fulfillment',
+                render: (row) => {
+                  const items = row.detailedItems || row.items || [];
+                  let fgCount = 0;
+                  let prodCount = 0;
+                  items.forEach(item => {
+                    const fgAlloc = Number(item.fulfillment?.pendingDirectDispatchQty || item.fulfillment?.fgAllocatableQty || 0) || Number(item.fulfillment?.activeReservedQty || 0);
+                    const prodReq = Number(item.fulfillment?.pendingProductionQty || item.fulfillment?.productionRequiredQty || 0) || Number(item.fulfillment?.productionCommittedQty || item.fulfillment?.activeProductionCommittedQty || 0);
+                    if (fgAlloc > 0) fgCount++;
+                    if (prodReq > 0) prodCount++;
+                  });
+
+                  if (fgCount > 0 && prodCount === 0) {
+                    return <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✓ All Ready from FG</span>;
+                  } else if (fgCount === 0 && prodCount > 0) {
+                    return <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙ Production Required</span>;
+                  } else if (fgCount > 0 && prodCount > 0) {
+                    return <span style={{ background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>◐ Mixed Fulfillment</span>;
+                  }
+                  return <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>;
+                }
+              },
+              {
+                header: 'Target Date',
+                accessor: 'targetDate',
+                render: (row) => {
+                  if (row.targetDate) {
+                    return new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                  }
+                  return <span style={{ color: '#94a3b8' }}>—</span>;
+                }
+              },
+              { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) },
+            ]}
+            data={filtered}
+            searchQuery={''}
+            searchField="customerName"
+            actions={(row) => {
+              const hasPendingFulfillment = Array.isArray(row.items) && row.items.some(item => {
+                const f = item.fulfillment || {};
+                return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||
+                       Number(f.pendingProductionQty || f.productionRequiredQty || 0) > 0;
+              });
+              const isPlanned = !hasPendingFulfillment;
+
+              return (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                  {planningViewTab === 'pending' && !isPlanned ? (
+                    <button
+                      data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
+                      style={{
+                        padding: '6px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px',
+                        fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+                        whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                      }}
+                      onClick={() => {
+                        setSelectedOrderForPlanning(row);
+                        const defaultDate = row._selectedTargetDate || (row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+                        setTargetDate(defaultDate);
+                        setPriority(row.priority || 'Medium');
+                        setShowPlanningModal(true);
+                      }}
+                    >
+                      <Plus size={14} /> View & Plan
+                    </button>
+                  ) : (
+                    <button
+                      style={{
+                        padding: '6px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px',
+                        fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+                        whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                      }}
+                      onClick={() => {
+                        setSelectedOrderForPlanning(row);
+                        const defaultDate = row.targetDate ? row.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                        setTargetDate(defaultDate);
+                        setPriority(row.priority || 'Medium');
+                        setShowPlanningModal(true);
+                      }}
+                    >
+                      <ClipboardCheck size={14} /> View
+                    </button>
+                  )}
+                </div>
+              );
+            }}
+            emptyMessage="No orders pending planning in Plant Head board."
+          />
+        )}
       </div>
     );
   };
@@ -3959,9 +4250,24 @@ export default function PlantHeadPortal() {
       return true;
     });
 
+    const sortedFilteredItems = [...filteredItems].sort((a, b) => {
+      let valA = a[rawInvSortField];
+      let valB = b[rawInvSortField];
+      if (rawInvSortField === 'stock' || rawInvSortField === 'minStock' || rawInvSortField === 'reorderLevel') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+      } else {
+        valA = String(valA || '').toLowerCase();
+        valB = String(valB || '').toLowerCase();
+      }
+      if (valA < valB) return rawInvSortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return rawInvSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
     const rawInvPageSize = 15;
-    const rawInvTotalPages = Math.ceil(filteredItems.length / rawInvPageSize) || 1;
-    const paginatedRawInvItems = filteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
+    const rawInvTotalPages = Math.ceil(sortedFilteredItems.length / rawInvPageSize) || 1;
+    const paginatedRawInvItems = sortedFilteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
 
     const totalMaterials = mappedInventory.length;
     const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
@@ -4138,7 +4444,7 @@ export default function PlantHeadPortal() {
 
     const handleExport = () => {
       try {
-        const exportDataset = (filteredItems && filteredItems.length > 0) ? filteredItems : mappedInventory;
+        const exportDataset = (sortedFilteredItems && sortedFilteredItems.length > 0) ? sortedFilteredItems : mappedInventory;
         if (!exportDataset || exportDataset.length === 0) {
           Swal.fire({
             icon: 'warning',
@@ -4327,6 +4633,16 @@ export default function PlantHeadPortal() {
               </button>
             );
           })}
+        </div>
+        {/* Mobile results & sorting header */}
+        <div className="raw-inventory-mobile-results-header">
+          <span>{filteredItems.length} {filteredItems.length === 1 ? 'Material' : 'Materials'} Found</span>
+          <button
+            type="button"
+            onClick={() => setRawInvSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+          >
+            Sort ⇅
+          </button>
         </div>
 
         {/* Raw Inventory Table */}

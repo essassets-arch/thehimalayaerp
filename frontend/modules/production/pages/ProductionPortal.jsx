@@ -18,7 +18,7 @@ import { selectProductionIncomingOrders, selectProductionWorkOrders } from '../.
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
-import { Play, CheckCircle2, PlusCircle, PackagePlus, X, CheckCircle, Clock, AlertCircle, Trash2, Layers, Grid, Box, Boxes, Wrench, Settings, Hammer, Activity, CircleDot, Search, Plus, ArrowLeft, Cpu, Pause, User, Truck, PackageCheck, RefreshCw, ShieldAlert, Printer, Edit, Eye, Package, ClipboardList, ClipboardCheck, Download } from 'lucide-react';
+import { Play, CheckCircle2, PlusCircle, PackagePlus, X, CheckCircle, Clock, AlertCircle, Trash2, Layers, Grid, Box, Boxes, Wrench, Settings, Hammer, Activity, CircleDot, Search, Plus, ArrowLeft, Cpu, Pause, User, Truck, PackageCheck, RefreshCw, ShieldAlert, Printer, Edit, Eye, Package, ClipboardList, ClipboardCheck, Download, Briefcase } from 'lucide-react';
 // BOM_MASTER removed (using dynamic database lookup)
 import ProductionMaterialCreateView from '../../../components/material-workflow/ProductionMaterialCreateView';
 import ProductionStoreReleasesView from '../../../components/material-workflow/ProductionStoreReleasesView';
@@ -2157,104 +2157,446 @@ export default function ProductionPortal() {
       if (!plannedMap.has(key)) plannedMap.set(key, order);
     });
     const planned = Array.from(plannedMap.values());
+
+    const filteredPlanned = planned.filter(row => {
+      if (!globalSearch) return true;
+      const searchVal = (
+        row.customerName || 
+        row.companyName || 
+        row.customer?.name || 
+        row.productInterested || 
+        row.products || 
+        row.orderNo || 
+        ''
+      ).toLowerCase();
+      return searchVal.includes(globalSearch.toLowerCase());
+    });
+
+    const getStatusLabel = (status) => {
+      if (!status) return 'QC APPROVED';
+      return String(status).replace(/_/g, ' ').toUpperCase();
+    };
+
+    const getStatusBadgeStyle = (status) => {
+      const s = String(status || '').toLowerCase();
+      if (s.includes('approved') || s.includes('passed') || s.includes('completed') || s.includes('success') || s.includes('confirm')) {
+        return {
+          background: '#ecfdf5',
+          color: '#065f46',
+          border: '1.5px solid #a7f3d0'
+        };
+      }
+      if (s.includes('pending') || s.includes('plan')) {
+        return {
+          background: '#eff6ff',
+          color: '#1e40af',
+          border: '1.5px solid #bfdbfe'
+        };
+      }
+      if (s.includes('reject') || s.includes('fail')) {
+        return {
+          background: '#fef2f2',
+          color: '#991b1b',
+          border: '1.5px solid #fecaca'
+        };
+      }
+      return {
+        background: '#f1f5f9',
+        color: '#475569',
+        border: '1.5px solid #cbd5e1'
+      };
+    };
+
+    const getPriorityBadgeStyle = (priority) => {
+      const p = String(priority || '').toLowerCase();
+      if (p === 'high') {
+        return {
+          background: '#fffbeb',
+          color: '#b45309',
+          border: '1.5px solid #fde68a'
+        };
+      }
+      if (p === 'low') {
+        return {
+          background: '#f8fafc',
+          color: '#64748b',
+          border: '1.5px solid #cbd5e1'
+        };
+      }
+      return {
+        background: '#f8fafc',
+        color: '#475569',
+        border: '1.5px solid #cbd5e1'
+      };
+    };
+
     return (
-      <div className="app-card">
-        <div className="card-top-bar"><h2 className="card-heading">Incoming Production Orders</h2></div>
-        <DataTable
-          columns={[
-            {
-              header: 'Order No', accessor: 'orderNo', render: (row) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span
-                    style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                    onClick={() => setSelectedOrderDetails(row)}
+      <div className="app-card" style={{ padding: isMobile ? '12px' : '20px' }}>
+        <div className="card-top-bar" style={{ marginBottom: isMobile ? '12px' : '20px' }}>
+          <h2 className="card-heading">Incoming Production Orders</h2>
+        </div>
+
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {filteredPlanned.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '30px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here.
+              </div>
+            ) : (
+              filteredPlanned.map((row) => {
+                const hasWO = row.hasBackendWorkOrder ||
+                  (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
+                const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
+
+                const customerName = row.customerName || row.companyName || row.customer?.name || 'N/A';
+                const productItem = row.productInterested || row.products || (row.detailedItems && row.detailedItems.map(i => i.productName).join(', ')) || 'Various';
+                const quantityNeeded = `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units`;
+                const targetDate = row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD');
+                const workflowStatus = row.workflowStatus || row.status || 'QC APPROVED';
+                const priority = row.priority || 'Medium';
+
+                return (
+                  <div 
+                    key={row.id || row.orderNo} 
+                    style={{ 
+                      background: '#ffffff', 
+                      border: '1.5px solid #e2e8f0', 
+                      borderRadius: '12px', 
+                      padding: '16px', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '14px', 
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.01)' 
+                    }}
                   >
-                    {row.orderNo}
-                  </span>
-                  {row.isReproduction && (
-                    <span style={{ fontSize: '10px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
-                      Reproduction
+                    {/* Card Info Grid (3 Columns) */}
+                    <div 
+                      style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1.2fr 1.3fr 1fr', 
+                        gap: '12px', 
+                        alignItems: 'start' 
+                      }}
+                    >
+                      {/* Column 1: Order No & Customer */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{ 
+                              color: '#1e40af', 
+                              cursor: 'pointer', 
+                              textDecoration: 'underline', 
+                              fontWeight: 'bold',
+                              fontSize: '13px',
+                              wordBreak: 'break-all',
+                              lineHeight: '1.3'
+                            }}
+                            onClick={() => setSelectedOrderDetails(row)}
+                          >
+                            {row.orderNo}
+                          </span>
+                          {row.isReproduction && (
+                            <span style={{ fontSize: '9px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '1px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+                              Reproduction
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500', lineHeight: '1.2' }}>
+                          {customerName}
+                        </span>
+                      </div>
+
+                      {/* Column 2: Product Item & Priority */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ color: '#0f172a', fontSize: '12px', fontWeight: '600', wordBreak: 'break-all', lineHeight: '1.3' }}>
+                          {productItem}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span 
+                            style={{ 
+                              fontSize: '9px', 
+                              fontWeight: 'bold', 
+                              padding: '2px 6px', 
+                              borderRadius: '4px',
+                              textAlign: 'center',
+                              display: 'inline-block',
+                              ...getPriorityBadgeStyle(priority)
+                            }}
+                          >
+                            {priority}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Column 3: Quantity Needed & Target Date */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                        <span style={{ color: '#1e293b', fontSize: '12px', fontWeight: '700' }}>
+                          {quantityNeeded}
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                          {targetDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div 
+                      style={{ 
+                        borderTop: '1px solid #f1f5f9', 
+                        paddingTop: '12px', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        gap: '8px' 
+                      }}
+                    >
+                      {/* Left Side: Stage Badge */}
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <span 
+                          style={{ 
+                            fontSize: '9px', 
+                            fontWeight: 'bold', 
+                            padding: '4px 8px', 
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            letterSpacing: '0.02em',
+                            ...getStatusBadgeStyle(workflowStatus)
+                          }}
+                        >
+                          {getStatusLabel(workflowStatus)}
+                        </span>
+                      </div>
+
+                      {/* Right Side: Action Buttons */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {row.hasBackendWorkOrder ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
+                              style={{ 
+                                margin: 0, 
+                                background: '#16a34a', 
+                                color: '#fff', 
+                                cursor: 'pointer',
+                                padding: '6px 12px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
+                              style={{ 
+                                margin: 0, 
+                                background: '#ef4444', 
+                                color: '#fff', 
+                                cursor: 'pointer',
+                                padding: '6px 12px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              Reject
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrderDetails(row)}
+                              style={{ 
+                                margin: 0, 
+                                background: '#fff', 
+                                color: '#475569', 
+                                border: '1px solid #cbd5e1', 
+                                cursor: 'pointer',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Eye size={12} /> View
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrderDetails(row)}
+                              style={{ 
+                                margin: 0, 
+                                background: '#fff', 
+                                color: '#475569', 
+                                border: '1px solid #cbd5e1', 
+                                cursor: 'pointer',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Eye size={12} /> View
+                            </button>
+                            {!hasWO && !isActiveProduction ? (
+                              <button
+                                type="button"
+                                onClick={() => handleCreateWorkOrder(row)}
+                                style={{ 
+                                  margin: 0, 
+                                  background: '#1e3a8a', 
+                                  color: '#fff', 
+                                  border: 'none', 
+                                  padding: '6px 12px', 
+                                  borderRadius: '6px', 
+                                  fontWeight: 'bold', 
+                                  cursor: 'pointer', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <Play size={12} fill="#fff" /> Activate Work Order
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => navigate.push('/production/work-orders')}
+                                style={{ 
+                                  margin: 0, 
+                                  background: '#059669', 
+                                  color: '#fff', 
+                                  border: 'none', 
+                                  padding: '6px 12px', 
+                                  borderRadius: '6px', 
+                                  fontWeight: 'bold', 
+                                  cursor: 'pointer', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px', 
+                                  fontSize: '12px' 
+                                }}
+                              >
+                                <Briefcase size={12} /> Open Work Orders
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <DataTable
+            columns={[
+              {
+                header: 'Order No', accessor: 'orderNo', render: (row) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                      onClick={() => setSelectedOrderDetails(row)}
+                    >
+                      {row.orderNo}
                     </span>
-                  )}
-                </div>
-              )
-            },
-            { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || row.companyName || row.customer?.name || 'N/A' },
-            { header: 'Product Item', accessor: 'productInterested', render: (row) => row.productInterested || row.products || (row.detailedItems && row.detailedItems.map(i => i.productName).join(', ')) || 'Various' },
-            { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
-            { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') },
-            { header: 'Stage', accessor: 'status', render: (row) => <StatusBadge status={row.workflowStatus || row.status} /> },
-            { header: 'Priority', accessor: 'priority', render: (row) => <StatusBadge status={row.priority || 'High'} /> }
-          ]}
-          data={planned}
-          searchQuery={globalSearch}
-          searchField="customer.name"
-          actions={(row) => {
-            if (row.hasBackendWorkOrder) {
+                    {row.isReproduction && (
+                      <span style={{ fontSize: '10px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                        Reproduction
+                      </span>
+                    )}
+                  </div>
+                )
+              },
+              { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || row.companyName || row.customer?.name || 'N/A' },
+              { header: 'Product Item', accessor: 'productInterested', render: (row) => row.productInterested || row.products || (row.detailedItems && row.detailedItems.map(i => i.productName).join(', ')) || 'Various' },
+              { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
+              { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') },
+              { header: 'Stage', accessor: 'status', render: (row) => <StatusBadge status={row.workflowStatus || row.status} /> },
+              { header: 'Priority', accessor: 'priority', render: (row) => <StatusBadge status={row.priority || 'High'} /> }
+            ]}
+            data={planned}
+            searchQuery={globalSearch}
+            searchField="customer.name"
+            actions={(row) => {
+              if (row.hasBackendWorkOrder) {
+                return (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
+                      className="btn-small"
+                      style={{ margin: 0, background: '#16a34a', color: '#fff', cursor: 'pointer' }}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
+                      className="btn-small btn-danger-small"
+                      style={{ margin: 0, border: '1px solid #fecaca', cursor: 'pointer' }}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderDetails(row)}
+                      className="btn-small btn-outline-small"
+                      style={{ margin: 0, cursor: 'pointer' }}
+                    >
+                      View
+                    </button>
+                  </>
+                );
+              }
+              // Check if this order already has work orders
+              const hasWO = row.hasBackendWorkOrder ||
+                (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
+              const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
               return (
                 <>
                   <button
-                    type="button"
-                    onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
-                    className="btn-small"
-                    style={{ margin: 0, background: '#16a34a', color: '#fff', cursor: 'pointer' }}
-                  >
-                    Accept
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
-                    className="btn-small btn-danger-small"
-                    style={{ margin: 0, border: '1px solid #fecaca', cursor: 'pointer' }}
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
+                    className="btn-small btn-primary-small"
+                    style={{ margin: 0, padding: '6px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
                     onClick={() => setSelectedOrderDetails(row)}
-                    className="btn-small btn-outline-small"
-                    style={{ margin: 0, cursor: 'pointer' }}
                   >
                     View
                   </button>
+                  {!hasWO && !isActiveProduction ? (
+                    <button
+                      className="action-btn btn-small"
+                      style={{ margin: 0, background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      onClick={() => handleCreateWorkOrder(row)}
+                    >
+                      <Play size={12} fill="#000" /> Activate Work Order
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-small"
+                      style={{ margin: 0, background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+                      onClick={() => navigate.push('/production/work-orders')}
+                    >
+                      <CheckCircle2 size={12} /> Open Work Orders
+                    </button>
+                  )}
                 </>
               );
-            }
-            // Check if this order already has work orders
-            const hasWO = row.hasBackendWorkOrder ||
-              (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
-            const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
-            return (
-              <>
-                <button
-                  className="btn-small btn-primary-small"
-                  style={{ margin: 0, padding: '6px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
-                  onClick={() => setSelectedOrderDetails(row)}
-                >
-                  View
-                </button>
-                {!hasWO && !isActiveProduction ? (
-                  <button
-                    className="action-btn btn-small"
-                    style={{ margin: 0, background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => handleCreateWorkOrder(row)}
-                  >
-                    <Play size={12} fill="#000" /> Activate Work Order
-                  </button>
-                ) : (
-                  <button
-                    className="btn-small"
-                    style={{ margin: 0, background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
-                    onClick={() => navigate.push('/production/work-orders')}
-                  >
-                    <CheckCircle2 size={12} /> Open Work Orders
-                  </button>
-                )}
-              </>
-            );
-          }}
-          emptyMessage="No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here."
-        />
+            }}
+            emptyMessage="No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here."
+          />
+        )}
       </div>
     );
   };

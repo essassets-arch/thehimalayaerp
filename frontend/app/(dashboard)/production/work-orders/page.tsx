@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { ClipboardList, Eye, Search } from 'lucide-react';
@@ -37,6 +37,77 @@ export default function WorkOrderListPage() {
   const [search, setSearch] = useState('');
   const [startingId, setStartingId] = useState<string | null>(null);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleOpenTerminal = (wo: WorkOrder) => {
+    const rawSo = wo.productionPlan?.salesOrder?.orderNumber || (wo as any).salesOrder?.orderNumber;
+    const numPart = wo.workOrderNumber ? wo.workOrderNumber.replace(/\D/g, '').slice(-5) : '00001';
+    const soNo = rawSo || `SO-2026-${numPart.padStart(5, '0')}`;
+
+    const customerObj = wo.productionPlan?.salesOrder?.customer || (wo as any).salesOrder?.customer || (wo as any).customer;
+    const customerName = customerObj?.companyName || customerObj?.name || (wo as any).customerName || 'Production Stock';
+    const address = customerObj?.address || customerObj?.city || (wo as any).customerAddress || (wo as any).address || 'Andheri, Mumbai (Default Address)';
+    const gst = customerObj?.gstin || customerObj?.gst || (wo as any).customerGst || (wo as any).gst || '27ABCDE4321G2Z8';
+
+    const rawDate = wo.createdAt || (wo.productionPlan?.salesOrder as any)?.createdAt;
+    const orderDate = rawDate
+      ? new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    let itemsList: Array<{ name: string; code: string; qty: number; rate?: number; gst?: number; total?: number }> = [];
+
+    const soItems = wo.productionPlan?.salesOrder?.items || (wo as any).salesOrder?.items;
+    if (Array.isArray(soItems) && soItems.length > 0) {
+      itemsList = soItems.map((item: any) => {
+        const name = item.product?.name || item.productNameSnapshot || item.productName || item.name || 'Ordered Product';
+        const code = item.product?.sku || item.product?.publicId || item.product?.code || item.productCodeSnapshot || item.productCode || item.code || '-';
+        const qty = Number(item.quantity ?? wo.quantity ?? 1);
+        const rate = Number(item.unitPrice ?? item.price ?? item.rate ?? 0);
+        const gstVal = item.gst !== undefined ? item.gst : (item.tax !== undefined ? item.tax : 18);
+        const total = Number(item.totalAmount ?? item.total ?? (qty * rate * (1 + gstVal / 100)));
+        return { name, code, qty, rate, gst: gstVal, total };
+      });
+    }
+
+    if (itemsList.length === 0 && (wo as any).salesOrderItem) {
+      const soi = (wo as any).salesOrderItem;
+      const name = soi.product?.name || soi.productNameSnapshot || soi.productName || 'Ordered Product';
+      const code = soi.product?.sku || soi.product?.publicId || soi.product?.code || soi.productCodeSnapshot || soi.productCode || '-';
+      const qty = Number(wo.quantity || soi.quantity || 1);
+      const rate = Number(soi.unitPrice || soi.price || soi.rate || 0);
+      itemsList.push({ name, code, qty, rate });
+    }
+
+    if (itemsList.length === 0) {
+      const name = (wo as any).productName || (wo as any).product?.name || (wo.productionPlan?.planNumber ? `Work Order - ${wo.workOrderNumber}` : 'Production Item');
+      const code = (wo as any).productCode || (wo as any).product?.sku || (wo as any).product?.publicId || wo.workOrderNumber || '-';
+      const qty = Number(wo.quantity || 1);
+      itemsList.push({ name, code, qty });
+    }
+
+    const mapped = {
+      ref: soNo,
+      orderNo: soNo,
+      customerName,
+      address,
+      gst,
+      orderDate,
+      salesStatus: 'Confirmed',
+      productionStatus: wo.workflowState?.name || wo.status || 'Pending',
+      dispatchStatus: 'Pending',
+      items: itemsList,
+    };
+    setSelectedOrderForModal(mapped);
+  };
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['work-orders-list'],
@@ -227,67 +298,7 @@ export default function WorkOrderListPage() {
           <button
             type="button"
             className={styles.btnTerminal}
-            onClick={() => {
-              const wo = row.original;
-              const rawSo = wo.productionPlan?.salesOrder?.orderNumber || (wo as any).salesOrder?.orderNumber;
-              const numPart = wo.workOrderNumber ? wo.workOrderNumber.replace(/\D/g, '').slice(-5) : '00001';
-              const soNo = rawSo || `SO-2026-${numPart.padStart(5, '0')}`;
-
-              const customerObj = wo.productionPlan?.salesOrder?.customer || (wo as any).salesOrder?.customer || (wo as any).customer;
-              const customerName = customerObj?.companyName || customerObj?.name || (wo as any).customerName || 'Production Stock';
-              const address = customerObj?.address || customerObj?.city || (wo as any).customerAddress || (wo as any).address || 'Andheri, Mumbai (Default Address)';
-              const gst = customerObj?.gstin || customerObj?.gst || (wo as any).customerGst || (wo as any).gst || '27ABCDE4321G2Z8';
-
-              const rawDate = wo.createdAt || (wo.productionPlan?.salesOrder as any)?.createdAt;
-              const orderDate = rawDate
-                ? new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-
-              let itemsList: Array<{ name: string; code: string; qty: number; rate?: number; gst?: number; total?: number }> = [];
-
-              const soItems = wo.productionPlan?.salesOrder?.items || (wo as any).salesOrder?.items;
-              if (Array.isArray(soItems) && soItems.length > 0) {
-                itemsList = soItems.map((item: any) => {
-                  const name = item.product?.name || item.productNameSnapshot || item.productName || item.name || 'Ordered Product';
-                  const code = item.product?.sku || item.product?.publicId || item.product?.code || item.productCodeSnapshot || item.productCode || item.code || '-';
-                  const qty = Number(item.quantity ?? wo.quantity ?? 1);
-                  const rate = Number(item.unitPrice ?? item.price ?? item.rate ?? 0);
-                  const gstVal = item.gst !== undefined ? item.gst : (item.tax !== undefined ? item.tax : 18);
-                  const total = Number(item.totalAmount ?? item.total ?? (qty * rate * (1 + gstVal / 100)));
-                  return { name, code, qty, rate, gst: gstVal, total };
-                });
-              }
-
-              if (itemsList.length === 0 && (wo as any).salesOrderItem) {
-                const soi = (wo as any).salesOrderItem;
-                const name = soi.product?.name || soi.productNameSnapshot || soi.productName || 'Ordered Product';
-                const code = soi.product?.sku || soi.product?.publicId || soi.product?.code || soi.productCodeSnapshot || soi.productCode || '-';
-                const qty = Number(wo.quantity || soi.quantity || 1);
-                const rate = Number(soi.unitPrice || soi.price || soi.rate || 0);
-                itemsList.push({ name, code, qty, rate });
-              }
-
-              if (itemsList.length === 0) {
-                const name = (wo as any).productName || (wo as any).product?.name || (wo.productionPlan?.planNumber ? `Work Order - ${wo.workOrderNumber}` : 'Production Item');
-                const code = (wo as any).productCode || (wo as any).product?.sku || (wo as any).product?.publicId || wo.workOrderNumber || '-';
-                const qty = Number(wo.quantity || 1);
-                itemsList.push({ name, code, qty });
-              }
-
-              const mapped = {
-                ref: soNo,
-                orderNo: soNo,
-                customerName,
-                address,
-                gst,
-                orderDate,
-                salesStatus: 'Confirmed',
-                productionStatus: wo.workflowState?.name || wo.status || 'Pending',
-                dispatchStatus: 'Pending',
-                items: itemsList,
-              };
-              setSelectedOrderForModal(mapped);
-            }}
+            onClick={() => handleOpenTerminal(row.original)}
           >
             <Eye size={15} />
             Terminal
@@ -366,18 +377,178 @@ export default function WorkOrderListPage() {
       </div>
 
       <div className={styles.tableWrapper}>
-        <div className={styles.tableScrollArea}>
-          {isLoading ? (
-            <div className="flex items-center justify-center min-h-[280px] text-slate-500 text-sm">Loading work orders...</div>
-          ) : (
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-[280px] text-slate-500 text-sm">Loading work orders...</div>
+        ) : isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {filteredData.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#64748b', padding: '30px', background: '#fff', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+                {search ? 'No work orders match your search.' : 'No work orders have been released yet.'}
+              </div>
+            ) : (
+              filteredData.map((row) => {
+                const rawSo = row.productionPlan?.salesOrder?.orderNumber || (row as any).salesOrder?.orderNumber;
+                const numPart = row.workOrderNumber ? row.workOrderNumber.replace(/\D/g, '').slice(-5) : '00001';
+                const soNo = rawSo || `SO-2026-${numPart.padStart(5, '0')}`;
+                const woNo = row.workOrderNumber || '—';
+                const planNo = row.productionPlan?.planNumber || '—';
+                const customerName = row.productionPlan?.salesOrder?.customer?.companyName || (row as any).customerName || 'N/A';
+                const quantity = row.quantity || 0;
+                
+                // Calculate target date
+                const rawDate =
+                  (row as any).targetDate ||
+                  (row as any).expectedDeliveryDate ||
+                  row.productionPlan?.salesOrder?.requestedDeliveryDate ||
+                  (row.productionPlan?.salesOrder as any)?.expectedDeliveryDate ||
+                  (row.productionPlan?.salesOrder as any)?.deliveryDate ||
+                  (row as any).requestedDeliveryDate;
+
+                let displayDate = '';
+                if (rawDate) {
+                  try {
+                    const parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) {
+                      displayDate = parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                    }
+                  } catch { }
+                }
+                if (!displayDate) {
+                  const created = row.createdAt ? new Date(row.createdAt) : new Date();
+                  created.setDate(created.getDate() + 7);
+                  displayDate = created.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+
+                const status = String(row.workflowState?.name || row.status || '').toUpperCase();
+
+                return (
+                  <div 
+                    key={row.id} 
+                    style={{ 
+                      background: '#ffffff', 
+                      border: '1.5px solid #e2e8f0', 
+                      borderRadius: '12px', 
+                      padding: '16px', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '14px', 
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.01)' 
+                    }}
+                  >
+                    {/* Card Info Grid (3 Columns) */}
+                    <div 
+                      style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1.2fr 1.3fr 1fr', 
+                        gap: '12px', 
+                        alignItems: 'start' 
+                      }}
+                    >
+                      {/* Column 1: Sales Order No & Customer */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span className="font-bold text-blue-600 hover:underline" style={{ fontSize: '13px', wordBreak: 'break-all', lineHeight: '1.3' }}>
+                          {soNo}
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500', lineHeight: '1.2' }}>
+                          {customerName}
+                        </span>
+                      </div>
+
+                      {/* Column 2: WO Number & Plan Number */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ color: '#0f172a', fontSize: '12px', fontWeight: '600', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          {woNo}
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                          Plan: {planNo}
+                        </span>
+                      </div>
+
+                      {/* Column 3: Quantity & Date */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                        <span style={{ color: '#1e293b', fontSize: '12px', fontWeight: '700' }}>
+                          {quantity} Units
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                          {displayDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div 
+                      style={{ 
+                        borderTop: '1px solid #f1f5f9', 
+                        paddingTop: '12px', 
+                        display: 'flex', 
+                        justifyContent: 'flex-end', 
+                        gap: '8px',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className={styles.btnTerminal}
+                        onClick={() => handleOpenTerminal(row)}
+                        style={{ margin: 0, padding: '6px 12px', fontSize: '12px', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Eye size={14} /> Terminal
+                      </button>
+
+                      {status === 'READY' && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartWork(row)}
+                          disabled={startingId === row.id}
+                          className={styles.btnStart}
+                          style={{ margin: 0, padding: '6px 12px', fontSize: '12px', height: 'auto' }}
+                        >
+                          {startingId === row.id ? 'Starting…' : 'Start Work'}
+                        </button>
+                      )}
+
+                      {(status === 'IN_PROGRESS' || status === 'IN PRODUCTION') && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handlePauseWork(row)}
+                            className={styles.btnPause}
+                            style={{ margin: 0, padding: '6px 12px', fontSize: '12px', height: 'auto' }}
+                          >
+                            Pause
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCompleteWork(row)}
+                            className={styles.btnComplete}
+                            style={{ margin: 0, padding: '6px 12px', fontSize: '12px', height: 'auto' }}
+                          >
+                            Complete Work
+                          </button>
+                        </>
+                      )}
+
+                      {(status === 'COMPLETED' || status === 'DONE') && (
+                        <span className={styles.completedBadge} style={{ fontSize: '12px', padding: '4px 8px' }}>
+                          ✓ Completed
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className={styles.tableScrollArea}>
             <DataTable
               columns={columns}
               data={filteredData}
               serverSide={false}
               emptyMessage={search ? 'No work orders match your search.' : 'No work orders have been released yet.'}
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
       {selectedOrderForModal && (
         <OrderDetailsModal

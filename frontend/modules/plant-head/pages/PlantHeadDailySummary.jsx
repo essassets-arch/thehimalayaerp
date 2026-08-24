@@ -18,6 +18,16 @@ export const PlantHeadDailySummary = () => {
   const [isStickyVisible, setIsStickyVisible] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const handleDownloadImage = async () => {
     setDownloadingImage(true);
@@ -211,7 +221,7 @@ export const PlantHeadDailySummary = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a' }}>
+    <div style={{ padding: isMobile ? '12px' : '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a' }}>
 
       {/* ── STICKY TOP SUMMARY BAR ON SCROLL ── */}
       {isStickyVisible && (
@@ -252,7 +262,7 @@ export const PlantHeadDailySummary = () => {
       )}
 
       {/* ── PAGE HEADER ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '20px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', padding: '10px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)' }}>
@@ -271,33 +281,33 @@ export const PlantHeadDailySummary = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ background: '#ffffff', borderRadius: '10px', padding: '4px', border: '1px solid #cbd5e1', display: 'flex', gap: '4px' }}>
-            <button onClick={() => setSelectedDate('today')} style={{ background: selectedDate === 'today' ? '#0284c7' : 'transparent', color: selectedDate === 'today' ? '#fff' : '#475569', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>Today</button>
-            <button onClick={() => setSelectedDate('yesterday')} style={{ background: selectedDate === 'yesterday' ? '#0284c7' : 'transparent', color: selectedDate === 'yesterday' ? '#fff' : '#475569', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>Yesterday</button>
-            <button onClick={() => setSelectedDate('custom')} style={{ background: selectedDate === 'custom' ? '#0284c7' : 'transparent', color: selectedDate === 'custom' ? '#fff' : '#475569', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>Select Date</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+          <div style={{ background: '#ffffff', borderRadius: '10px', padding: '4px', border: '1px solid #cbd5e1', display: 'flex', gap: '4px', width: isMobile ? '100%' : 'auto' }}>
+            <button onClick={() => setSelectedDate('today')} style={{ flex: isMobile ? 1 : 'none', background: selectedDate === 'today' ? '#0284c7' : 'transparent', color: selectedDate === 'today' ? '#fff' : '#475569', border: 'none', padding: isMobile ? '6px 8px' : '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', textAlign: 'center' }}>Today</button>
+            <button onClick={() => setSelectedDate('yesterday')} style={{ flex: isMobile ? 1 : 'none', background: selectedDate === 'yesterday' ? '#0284c7' : 'transparent', color: selectedDate === 'yesterday' ? '#fff' : '#475569', border: 'none', padding: isMobile ? '6px 8px' : '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', textAlign: 'center' }}>Yesterday</button>
+            <button onClick={() => setSelectedDate('custom')} style={{ flex: isMobile ? 1 : 'none', background: selectedDate === 'custom' ? '#0284c7' : 'transparent', color: selectedDate === 'custom' ? '#fff' : '#475569', border: 'none', padding: isMobile ? '6px 8px' : '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', textAlign: 'center' }}>Select Date</button>
           </div>
 
           {selectedDate === 'custom' && (
-            <input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+            <input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', width: isMobile ? '100%' : 'auto' }} />
           )}
 
-          <button onClick={fetchDailySummary} disabled={loading} style={{ background: '#ffffff', color: '#0284c7', border: '1.5px solid #cbd5e1', padding: '8px 14px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button onClick={fetchDailySummary} disabled={loading} style={{ flex: isMobile ? 1 : 'none', justifyContent: 'center', background: '#ffffff', color: '#0284c7', border: '1.5px solid #cbd5e1', padding: isMobile ? '6px 10px' : '8px 14px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} /> {loading ? 'Syncing...' : 'Refresh'}
           </button>
 
-          <button onClick={() => setShowReportModal(true)} style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 3px 10px rgba(2, 132, 199, 0.3)' }}>
+          <button onClick={() => setShowReportModal(true)} style={{ flex: isMobile ? '1 1 100%' : 'none', justifyContent: 'center', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', border: 'none', padding: isMobile ? '6px 12px' : '8px 16px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 3px 10px rgba(2, 132, 199, 0.3)' }}>
             <FileText size={16} /> Generate Report
           </button>
 
-          <button onClick={handleExportExcel} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button onClick={handleExportExcel} style={{ flex: isMobile ? '1 1 100%' : 'none', justifyContent: 'center', background: '#10b981', color: '#fff', border: 'none', padding: isMobile ? '6px 10px' : '8px 14px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <FileSpreadsheet size={15} /> Export Excel
           </button>
         </div>
       </div>
 
       {/* ── ROW 1 — MAIN KPI CARDS (8 Compact Cards) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fit, minmax(140px, 1fr))', gap: isMobile ? '8px' : '12px', marginBottom: '20px' }}>
         {[
           { label: 'Incoming Orders', count: data?.mainKpis?.incomingOrders || 0, color: '#0284c7', anchor: 'incoming-orders' },
           { label: 'Pending Planning', count: data?.mainKpis?.pendingPlanning || 0, color: '#f59e0b', anchor: 'planning' },
@@ -308,9 +318,9 @@ export const PlantHeadDailySummary = () => {
           { label: 'Ready Dispatch', count: data?.mainKpis?.readyDispatch || 0, color: '#10b981', anchor: 'dispatch' },
           { label: 'Critical Alerts', count: data?.mainKpis?.criticalAlerts || 0, color: '#ef4444', anchor: 'attention-required' },
         ].map((kpi, idx) => (
-          <div key={idx} onClick={() => scrollToAnchor(kpi.anchor)} style={{ background: '#ffffff', borderRadius: '12px', padding: '12px 14px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', borderLeft: `4px solid ${kpi.color}`, cursor: 'pointer', transition: 'transform 0.1s ease' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.02em' }}>{kpi.label}</div>
-            <div style={{ fontSize: '24px', fontWeight: '900', color: kpi.color, marginTop: '2px' }}>{loading ? '...' : kpi.count}</div>
+          <div key={idx} onClick={() => scrollToAnchor(kpi.anchor)} style={{ background: '#ffffff', borderRadius: '12px', padding: isMobile ? '8px 10px' : '12px 14px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', borderLeft: `4px solid ${kpi.color}`, cursor: 'pointer', transition: 'transform 0.1s ease' }}>
+            <div style={{ fontSize: isMobile ? '9px' : '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: '1.2' }}>{kpi.label}</div>
+            <div style={{ fontSize: isMobile ? '20px' : '24px', fontWeight: '900', color: kpi.color, marginTop: '2px' }}>{loading ? '...' : kpi.count}</div>
           </div>
         ))}
       </div>
@@ -340,46 +350,104 @@ export const PlantHeadDailySummary = () => {
         </div>
 
         <div style={{ overflowX: 'auto', maxHeight: '480px', overflowY: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ background: '#fef2f2', borderBottom: '2px solid #fecaca', textTransform: 'uppercase', fontSize: '11px', color: '#991b1b' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Priority</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Type</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Material Code</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Problem</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Age / Status</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {data?.attentionRequired && data.attentionRequired.length > 0 ? (
                 data.attentionRequired.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #fecaca' }}>
-                    <td style={{ padding: '10px 12px' }}>
-                      <span style={{ background: item.priority === 'CRITICAL' ? '#ef4444' : item.priority === 'HIGH' ? '#f59e0b' : '#3b82f6', color: '#ffffff', padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '900' }}>
-                        {item.priority}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 12px', fontWeight: '800', color: '#1e293b' }}>{item.type}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0284c7' }}>{item.materialCode || item.reference || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: '#991b1b', fontWeight: '700' }}>{item.problem}</td>
-                    <td style={{ padding: '10px 12px', color: '#64748b' }}>{item.age}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <button onClick={() => router.push(item.actionLink)} style={{ background: '#ffffff', border: '1.5px solid #ef4444', color: '#dc2626', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        View <ArrowUpRight size={12} />
-                      </button>
-                    </td>
-                  </tr>
+                  <div key={idx} style={{ border: '1px solid #fecaca', borderRadius: '8px', overflow: 'hidden' }}>
+                    {/* Sub-table 1: Priority, Type, Material Code, Problem */}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca', color: '#991b1b', textTransform: 'uppercase', fontSize: '9px', fontWeight: '800' }}>
+                          <th style={{ padding: '6px 8px', width: '20%' }}>Priority</th>
+                          <th style={{ padding: '6px 8px', width: '25%' }}>Type</th>
+                          <th style={{ padding: '6px 8px', width: '25%' }}>Material Code</th>
+                          <th style={{ padding: '6px 8px', width: '30%' }}>Problem</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid #fecaca' }}>
+                          <td style={{ padding: '8px', verticalAlign: 'middle' }}>
+                            <span style={{ background: item.priority === 'CRITICAL' ? '#ef4444' : item.priority === 'HIGH' ? '#f59e0b' : '#3b82f6', color: '#ffffff', padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: '900' }}>
+                              {item.priority}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px', fontWeight: '800', color: '#1e293b', verticalAlign: 'middle' }}>{item.type}</td>
+                          <td style={{ padding: '8px', fontWeight: '700', color: '#0284c7', verticalAlign: 'middle' }}>{item.materialCode || item.reference || '—'}</td>
+                          <td style={{ padding: '8px', color: '#991b1b', fontWeight: '700', verticalAlign: 'middle' }}>{item.problem}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    {/* Sub-table 2: Age/Status, Action */}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca', color: '#991b1b', textTransform: 'uppercase', fontSize: '9px', fontWeight: '800' }}>
+                          <th style={{ padding: '6px 8px', width: '70%' }}>Age / Status</th>
+                          <th style={{ padding: '6px 8px', width: '30%', textAlign: 'center' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ padding: '8px', color: '#64748b', verticalAlign: 'middle' }}>{item.age}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', verticalAlign: 'middle' }}>
+                            <button onClick={() => router.push(item.actionLink)} style={{ background: '#ffffff', border: '1.5px solid #ef4444', color: '#dc2626', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
+                              View <ArrowUpRight size={10} />
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: '#166534', fontWeight: '700', background: '#f0fdf4' }}>
-                    No critical operational alerts recorded today.
-                  </td>
-                </tr>
+                <div style={{ padding: '20px', textAlign: 'center', color: '#166534', fontWeight: '700', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
+                  No critical operational alerts recorded today.
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#fef2f2', borderBottom: '2px solid #fecaca', textTransform: 'uppercase', fontSize: '11px', color: '#991b1b' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Priority</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Type</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Material Code</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Problem</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Age / Status</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.attentionRequired && data.attentionRequired.length > 0 ? (
+                  data.attentionRequired.map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #fecaca' }}>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ background: item.priority === 'CRITICAL' ? '#ef4444' : item.priority === 'HIGH' ? '#f59e0b' : '#3b82f6', color: '#ffffff', padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '900' }}>
+                          {item.priority}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', fontWeight: '800', color: '#1e293b' }}>{item.type}</td>
+                      <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0284c7' }}>{item.materialCode || item.reference || '—'}</td>
+                      <td style={{ padding: '10px 12px', color: '#991b1b', fontWeight: '700' }}>{item.problem}</td>
+                      <td style={{ padding: '10px 12px', color: '#64748b' }}>{item.age}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <button onClick={() => router.push(item.actionLink)} style={{ background: '#ffffff', border: '1.5px solid #ef4444', color: '#dc2626', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          View <ArrowUpRight size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: '#166534', fontWeight: '700', background: '#f0fdf4' }}>
+                      No critical operational alerts recorded today.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

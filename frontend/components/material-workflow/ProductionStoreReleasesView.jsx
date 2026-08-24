@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useMaterialRequests } from '../../hooks/useMaterialRequests';
 import { Search, X, PackageCheck, CheckCircle2, Clock, Box, Layers, RefreshCw, Filter } from 'lucide-react';
 
@@ -8,6 +8,16 @@ export default function ProductionStoreReleasesView() {
   const { data: allRequests = [], refetch } = useMaterialRequests();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Fallback dataset including order WO-109
   const fallbackRequests = useMemo(() => [
@@ -95,7 +105,7 @@ export default function ProductionStoreReleasesView() {
   return (
     <div style={{ padding: '24px', fontFamily: "var(--font-main, 'Inter', sans-serif)" }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
         <div>
           <h1 style={{ margin: '0 0 6px', fontSize: '24px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <PackageCheck size={26} color="#06b6d4" /> Production Store Releases
@@ -108,16 +118,16 @@ export default function ProductionStoreReleasesView() {
         {/* Refresh */}
         <button
           onClick={() => refetch?.()}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '13px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '13px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}
         >
           <RefreshCw size={14} /> Refresh List
         </button>
       </div>
 
       {/* Filter Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px', background: '#fff', padding: '12px 18px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px', background: '#fff', padding: '12px 18px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         {/* Search Input */}
-        <div style={{ position: 'relative', minWidth: '260px', flex: '1 1 260px' }}>
+        <div style={{ position: 'relative', width: '100%', minWidth: isMobile ? '100%' : '260px', flex: '1 1 260px' }}>
           <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
           <input
             type="text"
@@ -132,7 +142,7 @@ export default function ProductionStoreReleasesView() {
         </div>
 
         {/* Filter Pills */}
-        <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+        <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', width: isMobile ? '100%' : 'auto', overflowX: 'auto' }}>
           {[
             { key: 'ALL', label: 'All Releases' },
             { key: 'FULL', label: 'Completely Issued' },
@@ -142,6 +152,8 @@ export default function ProductionStoreReleasesView() {
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
               style={{
+                flex: isMobile ? 1 : 'none',
+                textAlign: 'center',
                 padding: '6px 14px', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
                 background: statusFilter === tab.key ? '#0f172a' : 'transparent',
                 color: statusFilter === tab.key ? '#fff' : '#64748b',
@@ -162,15 +174,15 @@ export default function ProductionStoreReleasesView() {
         return (
           <div key={request.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', marginBottom: '20px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
             {/* Card Meta Header */}
-            <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', fontSize: '13px', color: '#475569' }}>
+            <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: '13px', color: '#475569', width: isMobile ? '100%' : 'auto' }}>
                 <span><strong>Order ID:</strong> <span style={{ color: '#0f172a', fontFamily: 'monospace', fontWeight: '700' }}>{request.orderId || '—'}</span></span>
                 <span><strong>Department:</strong> <span style={{ color: '#0f172a', fontWeight: '600' }}>{request.department || 'Production'}</span></span>
-                <span><strong>Request ID:</strong> <span style={{ fontFamily: 'monospace', color: '#64748b' }}>{request.id}</span></span>
+                <span><strong>Request ID:</strong> <span style={{ fontFamily: 'monospace', color: '#64748b', wordBreak: 'break-all' }}>{request.id}</span></span>
                 {request.issueReference && <span><strong>Issue Ref:</strong> <span style={{ color: '#0284c7', fontWeight: '600' }}>{request.issueReference}</span></span>}
               </div>
 
-              <div>
+              <div style={{ alignSelf: isMobile ? 'flex-start' : 'auto' }}>
                 <span
                   style={{
                     padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800',
@@ -184,57 +196,132 @@ export default function ProductionStoreReleasesView() {
               </div>
             </div>
 
-            {/* Table */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <th style={{ padding: '12px 20px' }}>Material</th>
-                    <th style={{ padding: '12px 20px' }}>Approved Qty</th>
-                    <th style={{ padding: '12px 20px' }}>Issued Qty</th>
-                    <th style={{ padding: '12px 20px' }}>Remaining Qty</th>
-                    <th style={{ padding: '12px 20px' }}>Issued By</th>
-                    <th style={{ padding: '12px 20px' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lineItems.map((item, idx) => {
-                    const approvedQty = Number(item.approvedQty || 0);
-                    const issuedQty = Number(item.issuedQty ?? approvedQty ?? 0);
-                    const remainingQty = Math.max(0, approvedQty - issuedQty);
-                    const isLineComplete = remainingQty === 0;
+            {/* Table / Mobile Card List */}
+            {isMobile ? (
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {lineItems.map((item, idx) => {
+                  const approvedQty = Number(item.approvedQty || 0);
+                  const issuedQty = Number(item.issuedQty ?? approvedQty ?? 0);
+                  const remainingQty = Math.max(0, approvedQty - issuedQty);
+                  const isLineComplete = remainingQty === 0;
 
-                    return (
-                      <tr key={idx} style={{ borderBottom: idx < lineItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                        <td style={{ padding: '14px 20px', fontWeight: '700', color: '#0f172a' }}>{item.materialName || item.material}</td>
-                        <td style={{ padding: '14px 20px', color: '#475569' }}>{approvedQty} {item.unit || 'Units'}</td>
-                        <td style={{ padding: '14px 20px', fontWeight: '700', color: '#1d4ed8' }}>{issuedQty} {item.unit || 'Units'}</td>
-                        <td style={{ padding: '14px 20px', fontWeight: '700', color: remainingQty > 0 ? '#d97706' : '#16a34a' }}>
-                          {remainingQty} {item.unit || 'Units'}
-                        </td>
-                        <td style={{ padding: '14px 20px', color: '#64748b' }}>{request.issuedBy || 'Store'}</td>
-                        <td style={{ padding: '14px 20px' }}>
-                          {isLineComplete ? (
-                            <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                              Ready for Production
-                            </span>
-                          ) : (
-                            <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                              Partially Issued ({remainingQty} {item.unit} Left)
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        padding: '14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                      }}
+                    >
+                      {/* Header material */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '10px' }}>
+                        <span style={{ fontWeight: '800', color: '#0f172a', fontSize: '14px' }}>
+                          {item.materialName || item.material}
+                        </span>
+                        {isLineComplete ? (
+                          <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', whiteSpace: 'nowrap' }}>
+                            Ready for Production
+                          </span>
+                        ) : (
+                          <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', whiteSpace: 'nowrap' }}>
+                            Partially Issued
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Quantities breakdown */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
+                            Approved
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>
+                            {approvedQty} {item.unit || 'Units'}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
+                            Issued
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: '700' }}>
+                            {issuedQty} {item.unit || 'Units'}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
+                            Remaining
+                          </span>
+                          <span style={{ fontSize: '12px', color: remainingQty > 0 ? '#d97706' : '#16a34a', fontWeight: '700' }}>
+                            {remainingQty} {item.unit || 'Units'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Issued By line */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                        <span>Issued By: {request.issuedBy || 'Store'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      <th style={{ padding: '12px 20px' }}>Material</th>
+                      <th style={{ padding: '12px 20px' }}>Approved Qty</th>
+                      <th style={{ padding: '12px 20px' }}>Issued Qty</th>
+                      <th style={{ padding: '12px 20px' }}>Remaining Qty</th>
+                      <th style={{ padding: '12px 20px' }}>Issued By</th>
+                      <th style={{ padding: '12px 20px' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((item, idx) => {
+                      const approvedQty = Number(item.approvedQty || 0);
+                      const issuedQty = Number(item.issuedQty ?? approvedQty ?? 0);
+                      const remainingQty = Math.max(0, approvedQty - issuedQty);
+                      const isLineComplete = remainingQty === 0;
+
+                      return (
+                        <tr key={idx} style={{ borderBottom: idx < lineItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <td style={{ padding: '14px 20px', fontWeight: '700', color: '#0f172a' }}>{item.materialName || item.material}</td>
+                          <td style={{ padding: '14px 20px', color: '#475569' }}>{approvedQty} {item.unit || 'Units'}</td>
+                          <td style={{ padding: '14px 20px', fontWeight: '700', color: '#1d4ed8' }}>{issuedQty} {item.unit || 'Units'}</td>
+                          <td style={{ padding: '14px 20px', fontWeight: '700', color: remainingQty > 0 ? '#d97706' : '#16a34a' }}>
+                            {remainingQty} {item.unit || 'Units'}
+                          </td>
+                          <td style={{ padding: '14px 20px', color: '#64748b' }}>{request.issuedBy || 'Store'}</td>
+                          <td style={{ padding: '14px 20px' }}>
+                            {isLineComplete ? (
+                              <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                                Ready for Production
+                              </span>
+                            ) : (
+                              <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                                Partially Issued ({remainingQty} {item.unit} Left)
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Footer */}
-            <div style={{ padding: '12px 20px', background: '#fafafa', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
+            <div style={{ padding: '12px 20px', background: '#fafafa', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', fontSize: '12px', color: '#64748b' }}>
               <span>✓ Materials issued by Store team and registered on shop floor</span>
-              <span style={{ fontWeight: '600', color: '#0284c7' }}>Ready for Work Order Execution</span>
+              <span style={{ fontWeight: '600', color: '#0284c7', alignSelf: isMobile ? 'flex-end' : 'auto' }}>Ready for Work Order Execution</span>
             </div>
           </div>
         );

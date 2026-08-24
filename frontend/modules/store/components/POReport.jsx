@@ -44,7 +44,7 @@ export default function POReport() {
 
   return (
     <div className="w-full animation-fade-in" style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="porepr-header">
         <div>
           <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#101828', margin: 0 }}>Live Purchase Order Report</h3>
           <p style={{ fontSize: '13px', color: '#64748B', marginTop: '4px' }}>Dynamic aggregation of PO statuses and quantities</p>
@@ -82,9 +82,12 @@ export default function POReport() {
       </div>
 
       <DataTable
+        className="porepr-table"
         columns={[
           { header: 'PO No', accessor: 'poNumber', render: r => <span style={{ fontWeight: 700, color: '#0369a1' }}>{r.poNumber || r.id}</span> },
-          { header: 'Vendor', accessor: 'vendorName' },
+          { header: 'Ordered At', accessor: 'orderedAt', render: r => r.orderedAt ? new Date(r.orderedAt).toLocaleDateString('en-GB') : '—' },
+          { header: 'Vendor', accessor: 'supplierName', render: r => <span>{r.supplierName || r.vendorName || '—'}</span> },
+          { header: 'Total Value', accessor: 'totalAmount', render: r => <span style={{ fontWeight: 700 }}>₹{Number(r.totalAmount || 0).toLocaleString('en-IN')}</span> },
           { header: 'Ordered', accessor: 'orderedQty', render: r => <span style={{ fontWeight: 600 }}>{r.orderedQty}</span> },
           { header: 'Received', accessor: 'receivedQty', render: r => <span style={{ color: '#16a34a' }}>{r.receivedQty}</span> },
           { header: 'Rejected', accessor: 'rejectedQty', render: r => <span style={{ color: '#dc2626' }}>{r.rejectedQty}</span> },

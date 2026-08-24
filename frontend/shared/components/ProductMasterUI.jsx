@@ -21,6 +21,16 @@ export default function ProductMasterUI({ role }) {
   const [rawProducts, setRawProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   
   // Submenu Tab State: 'MANUFACTURING' | 'TRADING' | 'ALL'
   const [activeSubMenu, setActiveSubMenu] = useState('ALL');
@@ -373,11 +383,11 @@ export default function ProductMasterUI({ role }) {
   };
 
   return (
-    <div style={{ padding: '28px 32px', background: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
+    <div style={{ padding: isMobile ? '12px' : '28px 32px', background: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       <ConfirmDialogComponent />
       
       {/* Header Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
             Product Master
@@ -386,27 +396,25 @@ export default function ProductMasterUI({ role }) {
             Centralized catalog for all items, variants, and dispatch routing.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           <button 
             onClick={handleExport}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', background: '#FFFFFF', border: '1px solid #E2E8F0', color: '#334155', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'all 0.15s ease' }}
+            style={{ flex: isMobile ? 1 : 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 18px', background: '#FFFFFF', border: '1px solid #E2E8F0', color: '#334155', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'all 0.15s ease' }}
           >
             <Download size={16} /> Export CSV
           </button>
           
           <button 
             onClick={() => fetchProducts()}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', background: '#FFFFFF', border: '1px solid #E2E8F0', color: '#334155', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            style={{ flex: isMobile ? 1 : 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 18px', background: '#FFFFFF', border: '1px solid #E2E8F0', color: '#334155', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
           </button>
           
-
-
           {canEdit && (
             <button 
               onClick={openCreate}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)', border: 'none', color: '#FFFFFF', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }}
+              style={{ flex: isMobile ? '1 1 100%' : 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 20px', background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)', border: 'none', color: '#FFFFFF', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }}
             >
               <Plus size={18} /> Add Product
             </button>
@@ -415,7 +423,7 @@ export default function ProductMasterUI({ role }) {
       </div>
 
       {/* Modern KPI Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: isMobile ? '12px' : '20px', marginBottom: '24px' }}>
         
         {/* Card 1: Total Catalog */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
@@ -481,19 +489,21 @@ export default function ProductMasterUI({ role }) {
       </div>
 
       {/* Products Submenu Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'stretch', width: '100%' }}>
         <button
           type="button"
           onClick={() => setActiveSubMenu('MANUFACTURING')}
           style={{
+            flex: isMobile ? 1 : 'none',
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '8px',
-            padding: '11px 22px',
+            padding: isMobile ? '10px 8px' : '11px 22px',
             borderRadius: '10px',
             border: activeSubMenu === 'MANUFACTURING' ? '2px solid #4F46E5' : '1px solid #CBD5E1',
             cursor: 'pointer',
-            fontSize: '14px',
+            fontSize: isMobile ? '12px' : '14px',
             fontWeight: 800,
             background: activeSubMenu === 'MANUFACTURING' ? '#4F46E5' : '#FFFFFF',
             color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#475569',
@@ -501,15 +511,17 @@ export default function ProductMasterUI({ role }) {
             transition: 'all 0.15s ease'
           }}
         >
-          <Factory size={18} />
-          Manufacturing Products
+          <Factory size={16} />
+          {!isMobile && "Manufacturing Products"}
+          {isMobile && "Mfg"}
           <span style={{
             background: activeSubMenu === 'MANUFACTURING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
             color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#334155',
-            fontSize: '12px',
-            padding: '2px 8px',
+            fontSize: '11px',
+            padding: '2px 6px',
             borderRadius: '12px',
-            fontWeight: 700
+            fontWeight: 700,
+            marginLeft: '4px'
           }}>
             {mfgCount}
           </span>
@@ -519,14 +531,16 @@ export default function ProductMasterUI({ role }) {
           type="button"
           onClick={() => setActiveSubMenu('TRADING')}
           style={{
+            flex: isMobile ? 1 : 'none',
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '8px',
-            padding: '11px 22px',
+            padding: isMobile ? '10px 8px' : '11px 22px',
             borderRadius: '10px',
             border: activeSubMenu === 'TRADING' ? '2px solid #059669' : '1px solid #CBD5E1',
             cursor: 'pointer',
-            fontSize: '14px',
+            fontSize: isMobile ? '12px' : '14px',
             fontWeight: 800,
             background: activeSubMenu === 'TRADING' ? '#059669' : '#FFFFFF',
             color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#475569',
@@ -534,15 +548,17 @@ export default function ProductMasterUI({ role }) {
             transition: 'all 0.15s ease'
           }}
         >
-          <ShoppingBag size={18} />
-          Trading Products
+          <ShoppingBag size={16} />
+          {!isMobile && "Trading Products"}
+          {isMobile && "Trading"}
           <span style={{
             background: activeSubMenu === 'TRADING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
             color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#334155',
-            fontSize: '12px',
-            padding: '2px 8px',
+            fontSize: '11px',
+            padding: '2px 6px',
             borderRadius: '12px',
-            fontWeight: 700
+            fontWeight: 700,
+            marginLeft: '4px'
           }}>
             {tradingCount}
           </span>
@@ -552,14 +568,16 @@ export default function ProductMasterUI({ role }) {
           type="button"
           onClick={() => setActiveSubMenu('ALL')}
           style={{
+            flex: isMobile ? 1 : 'none',
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '8px',
-            padding: '11px 22px',
+            padding: isMobile ? '10px 8px' : '11px 22px',
             borderRadius: '10px',
             border: activeSubMenu === 'ALL' ? '2px solid #334155' : '1px solid #CBD5E1',
             cursor: 'pointer',
-            fontSize: '14px',
+            fontSize: isMobile ? '12px' : '14px',
             fontWeight: 800,
             background: activeSubMenu === 'ALL' ? '#334155' : '#FFFFFF',
             color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#475569',
@@ -567,15 +585,17 @@ export default function ProductMasterUI({ role }) {
             transition: 'all 0.15s ease'
           }}
         >
-          <Layers size={18} />
-          All Products
+          <Layers size={16} />
+          {!isMobile && "All Products"}
+          {isMobile && "All"}
           <span style={{
             background: activeSubMenu === 'ALL' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
             color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#334155',
-            fontSize: '12px',
-            padding: '2px 8px',
+            fontSize: '11px',
+            padding: '2px 6px',
             borderRadius: '12px',
-            fontWeight: 700
+            fontWeight: 700,
+            marginLeft: '4px'
           }}>
             {allCount}
           </span>
@@ -583,10 +603,10 @@ export default function ProductMasterUI({ role }) {
       </div>
 
       {/* Toolbar: Search, Filters & Page Size Controls */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '14px', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
         
         {/* Search Input Container */}
-        <div className="search-box" style={{ flex: '1 1 280px', minWidth: '240px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="search-box" style={{ flex: isMobile ? '1 1 auto' : '1 1 280px', minWidth: isMobile ? '100%' : '240px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px', boxSizing: 'border-box' }}>
           <Search size={18} style={{ color: '#94A3B8', flexShrink: 0 }} />
           <input 
             type="text" 
@@ -598,38 +618,38 @@ export default function ProductMasterUI({ role }) {
         </div>
 
         {/* Filter Controls Group */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '12px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           {/* Filter Category Dropdown */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '6px', flex: isMobile ? 1 : 'none', width: isMobile ? '100%' : 'auto' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Category:</span>
             <select 
               value={filterFamily} 
               onChange={e => setFilterFamily(e.target.value)}
-              style={{ padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
+              style={{ width: isMobile ? '100%' : 'auto', padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
             >
               {availableFamilies.map(f => <option key={f} value={f}>{f === 'All' ? 'All Categories' : f}</option>)}
             </select>
           </div>
 
           {/* Filter Dispatch Dropdown */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '6px', flex: isMobile ? 1 : 'none', width: isMobile ? '100%' : 'auto' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Dispatch:</span>
             <select 
               value={filterDispatch} 
               onChange={e => setFilterDispatch(e.target.value)}
-              style={{ padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
+              style={{ width: isMobile ? '100%' : 'auto', padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
             >
               {dispatchCats.map(d => <option key={d} value={d}>{d === 'All' ? 'All Dispatches' : d}</option>)}
             </select>
           </div>
 
           {/* Page Size Selector */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: '6px', flex: isMobile ? 1 : 'none', width: isMobile ? '100%' : 'auto' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Per Page:</span>
             <select 
               value={pageSize} 
               onChange={e => setPageSize(Number(e.target.value))}
-              style={{ padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
+              style={{ width: isMobile ? '100%' : 'auto', padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -641,177 +661,328 @@ export default function ProductMasterUI({ role }) {
         </div>
 
       </div>
-
       {/* Premium Clean Data Table Container */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
-                <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', width: '64px' }}>Image</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Code</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type / Family</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unit</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Brand</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GST / HSN</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dispatch</th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
-                    <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#6366F1' }} />
-                    Loading catalog items...
-                  </td>
-                </tr>
-              ) : currentPageData.length === 0 ? (
-                <tr>
-                  <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
-                    No matching products found.
-                  </td>
-                </tr>
-              ) : (
-                currentPageData.map((p, idx) => (
-                  <tr 
-                    key={p.id || idx}
-                    style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC', transition: 'background-color 0.15s ease' }}
-                  >
-                    {/* Image */}
-                    <td style={{ padding: '12px 16px', width: '64px' }}>
-                      {p.image_url ? (
-                        <img 
-                          src={p.image_url} 
-                          alt={p.product_name} 
-                          style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #CBD5E1', background: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }} 
-                        />
-                      ) : (
-                        <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#F1F5F9', border: '1px dashed #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
-                          <Package size={20} />
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Code */}
-                    <td style={{ padding: '16px 20px' }}>
-                      <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '13px', fontWeight: 600, color: '#334155', background: '#F1F5F9', border: '1px solid #E2E8F0', padding: '4px 8px', borderRadius: '6px' }}>
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px' }}>
+          {loading ? (
+            <div style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px', background: '#fff', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+              <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#6366F1' }} />
+              Loading catalog items...
+            </div>
+          ) : currentPageData.length === 0 ? (
+            <div style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px', background: '#fff', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+              No matching products found.
+            </div>
+          ) : (
+            currentPageData.map((p, idx) => (
+              <div
+                key={p.id || idx}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                }}
+              >
+                {/* Header info */}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {p.image_url ? (
+                    <img
+                      src={p.image_url}
+                      alt={p.product_name}
+                      style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                    />
+                  ) : (
+                    <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#f1f5f9', border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                      <Package size={22} />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600, color: '#334155', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
                         {p.product_code}
                       </span>
-                    </td>
-
-                    {/* Name */}
-                    <td style={{ padding: '16px 20px' }}>
-                      <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '14px' }}>{p.product_name}</div>
-                      {p.variant_details && (
-                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{p.variant_details}</div>
-                      )}
-                    </td>
-
-                    {/* Type / Family */}
-                    <td style={{ padding: '16px 20px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>{p.product_type}</div>
-                      <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{p.product_family || '—'}</div>
-                    </td>
-
-                    {/* Unit */}
-                    <td style={{ padding: '16px 20px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', background: '#E2E8F0', padding: '3px 8px', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
                         {p.unit_of_measure}
                       </span>
-                    </td>
+                    </div>
+                    <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px', marginTop: '2px' }}>{p.product_name}</div>
+                    {p.variant_details && (
+                      <div style={{ fontSize: '11.5px', color: '#64748b' }}>{p.variant_details}</div>
+                    )}
+                  </div>
+                </div>
 
-                    {/* Brand */}
-                    <td style={{ padding: '16px 20px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>
-                      {p.brand}
-                    </td>
+                {/* Details breakdown */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px', fontSize: '12px', color: '#475569' }}>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Type</span>
+                    <span style={{ fontWeight: 600 }}>{p.product_type}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Category</span>
+                    <span style={{ fontWeight: 600 }}>{p.product_family || '—'}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Brand</span>
+                    <span style={{ fontWeight: 600 }}>{p.brand}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>GST / HSN</span>
+                    <span>{p.gst_rate}% {p.hsn_sac_code ? `/ ${p.hsn_sac_code}` : ''}</span>
+                  </div>
+                </div>
 
-                    {/* GST / HSN */}
-                    <td style={{ padding: '16px 20px', fontSize: '13px', color: '#475569' }}>
-                      {p.gst_rate}%{p.hsn_sac_code ? ` / ${p.hsn_sac_code}` : ''}
-                    </td>
+                {/* Dispatch category Selector */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Dispatch Route:</span>
+                  <select
+                    value={p.dispatch_category || 'Unassigned'}
+                    onChange={async (e) => {
+                      const newCat = e.target.value;
+                      const updatedCat = newCat === 'Unassigned' ? null : newCat;
+                      try {
+                        await backendFetch(`/api/backend/products/${p.id}`, {
+                          method: 'PATCH',
+                          body: { dispatchCategory: updatedCat },
+                        });
+                        setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
+                        showToast(`Product ${p.product_code} category updated to ${newCat}!`);
+                      } catch (err) {
+                        console.error('Failed to update dispatch category:', err);
+                        showToast(`Failed to update category: ${err.message || 'Server error'}`);
+                      }
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      border: p.dispatch_category === 'D1'
+                        ? '1px solid #93C5FD'
+                        : p.dispatch_category === 'D2'
+                        ? '1px solid #A7F3D0'
+                        : '1px solid #FCD34D',
+                      background: p.dispatch_category === 'D1'
+                        ? '#EFF6FF'
+                        : p.dispatch_category === 'D2'
+                        ? '#ECFDF5'
+                        : '#FEF3C7',
+                      color: p.dispatch_category === 'D1'
+                        ? '#1D4ED8'
+                        : p.dispatch_category === 'D2'
+                        ? '#047857'
+                        : '#B45309',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <option value="D1">D1 (Dispatch 1)</option>
+                    <option value="D2">D2 (Dispatch 2)</option>
+                    <option value="Unassigned">⚠ Unassigned</option>
+                  </select>
+                </div>
 
-                    {/* Dispatch (Interactive Inline Management) */}
-                    <td style={{ padding: '16px 20px' }}>
-                      <select
-                        value={p.dispatch_category || 'Unassigned'}
-                        onChange={async (e) => {
-                          const newCat = e.target.value;
-                          const updatedCat = newCat === 'Unassigned' ? null : newCat;
-                          try {
-                            await backendFetch(`/api/backend/products/${p.id}`, {
-                              method: 'PATCH',
-                              body: { dispatchCategory: updatedCat },
-                            });
-                            setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
-                            showToast(`Product ${p.product_code} category updated to ${newCat}!`);
-                          } catch (err) {
-                            console.error('Failed to update dispatch category:', err);
-                            showToast(`Failed to update category: ${err.message || 'Server error'}`);
-                          }
-                        }}
-                        style={{
-                          padding: '5px 10px',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: '800',
-                          cursor: 'pointer',
-                          outline: 'none',
-                          border: p.dispatch_category === 'D1'
-                            ? '1px solid #93C5FD'
-                            : p.dispatch_category === 'D2'
-                            ? '1px solid #A7F3D0'
-                            : '1px solid #FCD34D',
-                          background: p.dispatch_category === 'D1'
-                            ? '#EFF6FF'
-                            : p.dispatch_category === 'D2'
-                            ? '#ECFDF5'
-                            : '#FEF3C7',
-                          color: p.dispatch_category === 'D1'
-                            ? '#1D4ED8'
-                            : p.dispatch_category === 'D2'
-                            ? '#047857'
-                            : '#B45309',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <option value="D1" style={{ background: '#fff', color: '#1D4ED8', fontWeight: 'bold' }}>D1 (Dispatch 1)</option>
-                        <option value="D2" style={{ background: '#fff', color: '#047857', fontWeight: 'bold' }}>D2 (Dispatch 2)</option>
-                        <option value="Unassigned" style={{ background: '#fff', color: '#B45309', fontWeight: 'bold' }}>⚠ Unassigned</option>
-                      </select>
-                    </td>
-
-                    {/* Actions */}
-                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '8px' }}>
-                        {canEdit && (
-                          <button 
-                            onClick={() => openEdit(p)}
-                            style={{ padding: '6px', background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4F46E5', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                            title="Edit Product"
-                          >
-                            <Edit3 size={15} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button 
-                            onClick={() => handleDelete(p.id)}
-                            style={{ padding: '6px', background: '#FEF2F2', border: '1px solid #FECACA', color: '#EF4444', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                            title="Delete Product"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        )}
-                      </div>
+                {/* Action controls */}
+                <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px', justifyContent: 'flex-end' }}>
+                  {canEdit && (
+                    <button
+                      onClick={() => openEdit(p)}
+                      style={{ flex: 1, padding: '8px', background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4F46E5', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: 'bold' }}
+                    >
+                      <Edit3 size={15} /> Edit Product
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      style={{ padding: '8px 12px', background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#DC2626', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', width: '64px' }}>Image</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Code</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type / Family</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unit</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Brand</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GST / HSN</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dispatch</th>
+                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+               <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                      <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#6366F1' }} />
+                      Loading catalog items...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : currentPageData.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                      No matching products found.
+                    </td>
+                  </tr>
+                ) : (
+                  currentPageData.map((p, idx) => (
+                    <tr 
+                      key={p.id || idx}
+                      style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC', transition: 'background-color 0.15s ease' }}
+                    >
+                      {/* Image */}
+                      <td style={{ padding: '12px 16px', width: '64px' }}>
+                        {p.image_url ? (
+                          <img 
+                            src={p.image_url} 
+                            alt={p.product_name} 
+                            style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #CBD5E1', background: '#F8FAFC', boxShadow: '0 2px 4px rgba(0,0,0,0.06)' }} 
+                          />
+                        ) : (
+                          <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#F1F5F9', border: '1px dashed #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+                            <Package size={20} />
+                          </div>
+                        )}
+                      </td>
+  
+                      {/* Code */}
+                      <td style={{ padding: '16px 20px' }}>
+                        <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '13px', fontWeight: 600, color: '#334155', background: '#F1F5F9', border: '1px solid #E2E8F0', padding: '4px 8px', borderRadius: '6px' }}>
+                          {p.product_code}
+                         </span>
+                      </td>
+  
+                      {/* Name */}
+                      <td style={{ padding: '16px 20px' }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '14px' }}>{p.product_name}</div>
+                        {p.variant_details && (
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{p.variant_details}</div>
+                        )}
+                      </td>
+  
+                      {/* Type / Family */}
+                      <td style={{ padding: '16px 20px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>{p.product_type}</div>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{p.product_family || '—'}</div>
+                      </td>
+  
+                      {/* Unit */}
+                      <td style={{ padding: '16px 20px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', background: '#E2E8F0', padding: '3px 8px', borderRadius: '4px' }}>
+                          {p.unit_of_measure}
+                        </span>
+                      </td>
+  
+                      {/* Brand */}
+                      <td style={{ padding: '16px 20px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                        {p.brand}
+                      </td>
+  
+                      {/* GST / HSN */}
+                      <td style={{ padding: '16px 20px', fontSize: '13px', color: '#475569' }}>
+                        {p.gst_rate}%{p.hsn_sac_code ? ` / ${p.hsn_sac_code}` : ''}
+                      </td>
+  
+                      {/* Dispatch (Interactive Inline Management) */}
+                      <td style={{ padding: '16px 20px' }}>
+                        <select
+                          value={p.dispatch_category || 'Unassigned'}
+                          onChange={async (e) => {
+                            const newCat = e.target.value;
+                            const updatedCat = newCat === 'Unassigned' ? null : newCat;
+                            try {
+                              await backendFetch(`/api/backend/products/${p.id}`, {
+                                method: 'PATCH',
+                                body: { dispatchCategory: updatedCat },
+                              });
+                              setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
+                              showToast(`Product ${p.product_code} category updated to ${newCat}!`);
+                            } catch (err) {
+                              console.error('Failed to update dispatch category:', err);
+                              showToast(`Failed to update category: ${err.message || 'Server error'}`);
+                            }
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '800',
+                            cursor: 'pointer',
+                            outline: 'none',
+                            border: p.dispatch_category === 'D1'
+                              ? '1px solid #93C5FD'
+                              : p.dispatch_category === 'D2'
+                              ? '1px solid #A7F3D0'
+                              : '1px solid #FCD34D',
+                            background: p.dispatch_category === 'D1'
+                              ? '#EFF6FF'
+                              : p.dispatch_category === 'D2'
+                              ? '#ECFDF5'
+                              : '#FEF3C7',
+                            color: p.dispatch_category === 'D1'
+                              ? '#1D4ED8'
+                              : p.dispatch_category === 'D2'
+                              ? '#047857'
+                              : '#B45309',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <option value="D1" style={{ background: '#fff', color: '#1D4ED8', fontWeight: 'bold' }}>D1 (Dispatch 1)</option>
+                          <option value="D2" style={{ background: '#fff', color: '#047857', fontWeight: 'bold' }}>D2 (Dispatch 2)</option>
+                          <option value="Unassigned" style={{ background: '#fff', color: '#B45309', fontWeight: 'bold' }}>⚠ Unassigned</option>
+                        </select>
+                      </td>
+  
+                      {/* Actions */}
+                      <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '8px' }}>
+                          {canEdit && (
+                            <button 
+                              onClick={() => openEdit(p)}
+                              style={{ padding: '6px', background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4F46E5', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                              title="Edit Product"
+                            >
+                              <Edit3 size={15} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button 
+                              onClick={() => handleDelete(p.id)}
+                              style={{ padding: '6px', background: '#FEF2FF', border: '1px solid #FECACA', color: '#EF4444', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                              title="Delete Product"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Clean Footer Pagination */}
         <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>

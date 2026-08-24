@@ -27,17 +27,16 @@ export default function MaterialIndentApproval() {
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [approvedItemsMap, setApprovedItemsMap] = useState({});
-  const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [viewTab, setViewTab] = useState('pending'); // 'pending' | 'history'
   const [serverIndents, setServerIndents] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  const isMobile = windowWidth < 768;
 
   // Reactive store subscription
   const materialIndents = useERPStore(

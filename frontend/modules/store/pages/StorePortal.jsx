@@ -480,6 +480,8 @@ export default function StorePortal() {
 
   // Local search filter
   const [rawSearchQuery, setRawSearchQuery] = useState('');
+  const [rawInvSortField, setRawInvSortField] = useState('material');
+  const [rawInvSortDirection, setRawInvSortDirection] = useState('asc');
   // Raw inventory status filter: 'All' | 'In Stock' | 'Low Stock' | 'Out of Stock'
   const [rawInvStatusFilter, setRawInvStatusFilter] = useState('All');
   // Low stock alerts search filter
@@ -1231,9 +1233,24 @@ export default function StorePortal() {
       if (rawInvStatusFilter === 'Non-Moving') return item.fsn === 'Non-Moving';
       return true; // 'All'
     });
+    const sortedFilteredItems = [...filteredItems].sort((a, b) => {
+      let valA = a[rawInvSortField];
+      let valB = b[rawInvSortField];
+      if (rawInvSortField === 'stock' || rawInvSortField === 'minStock' || rawInvSortField === 'reorderLevel') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+      } else {
+        valA = String(valA || '').toLowerCase();
+        valB = String(valB || '').toLowerCase();
+      }
+      if (valA < valB) return rawInvSortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return rawInvSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
     const rawInvPageSize = 15;
-    const rawInvTotalPages = Math.ceil(filteredItems.length / rawInvPageSize) || 1;
-    const paginatedRawInvItems = filteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
+    const rawInvTotalPages = Math.ceil(sortedFilteredItems.length / rawInvPageSize) || 1;
+    const paginatedRawInvItems = sortedFilteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
     const totalMaterials = mappedInventory.length;
     const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
     const lowStockItems = mappedInventory.filter(i => i.status === 'Low Stock').length;
@@ -1246,7 +1263,7 @@ export default function StorePortal() {
 
     const handleExport = () => {
       try {
-        const exportDataset = (filteredItems && filteredItems.length > 0) ? filteredItems : mappedInventory;
+        const exportDataset = (sortedFilteredItems && sortedFilteredItems.length > 0) ? sortedFilteredItems : mappedInventory;
         if (!exportDataset || exportDataset.length === 0) {
           Swal.fire({
             icon: 'warning',
@@ -1454,6 +1471,16 @@ export default function StorePortal() {
               </button>
             );
           })}
+        </div>
+        {/* Mobile results & sorting header */}
+        <div className="raw-inventory-mobile-results-header">
+          <span>{filteredItems.length} {filteredItems.length === 1 ? 'Material' : 'Materials'} Found</span>
+          <button
+            type="button"
+            onClick={() => setRawInvSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+          >
+            Sort ⇅
+          </button>
         </div>
 
         {/* Raw Inventory Table */}
