@@ -958,7 +958,11 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   switch (currentView) {
     case 'profile':
-      return <MyProfileView />;
+      return (
+        <div data-testid="sales-profile-page" className="sales-portal-view">
+          <MyProfileView />
+        </div>
+      );
 
     case 'daily-task':
       return <DailyTaskView state={{ ...state, leads, samples, quotations, orders, customers, reminders }} dispatch={dispatch} navigate={navigate} showToast={showToast} completeReminder={completeReminder} updateReminder={updateReminder} />;

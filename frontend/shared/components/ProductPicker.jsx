@@ -107,7 +107,7 @@ export default function ProductPicker({
     return () => clearTimeout(debounceRef.current);
   }, [query, search]);
 
-  // Close on outside click
+  // Close on outside click or touch
   useEffect(() => {
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
@@ -115,7 +115,13 @@ export default function ProductPicker({
       }
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    document.addEventListener('pointerdown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+      document.removeEventListener('pointerdown', handler);
+    };
   }, []);
 
   const handleSelect = (product) => {
@@ -156,7 +162,7 @@ export default function ProductPicker({
   };
 
   return (
-    <div ref={containerRef} className={`product-picker ${className}`} style={{ position: 'relative' }}>
+    <div ref={containerRef} className={`product-picker ${className}`} style={{ position: 'relative', width: '100%' }}>
       {label && (
         <label style={{
           display: 'block', marginBottom: '6px',
@@ -176,17 +182,18 @@ export default function ProductPicker({
           style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '9px 12px', borderRadius: '8px', cursor: disabled ? 'not-allowed' : 'pointer',
-            background: 'var(--color-card-bg, #ffffff)',
-            border: `1px solid ${error ? '#f87171' : 'var(--color-border, #DCE5F0)'}`,
+            background: '#ffffff',
+            border: `1px solid ${error ? '#f87171' : '#DCE5F0'}`,
             transition: 'border-color 0.2s',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
           }}
         >
           {showBadge && badge(value)}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary, #24345C)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {value.display_name || value.product_name}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary, #5E6B82)', marginTop: '1px' }}>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
               {[value.product_code, value.brand, value.gst_rate != null ? `GST ${value.gst_rate}%` : null, value.hsn_sac_code ? `HSN ${value.hsn_sac_code}` : null].filter(Boolean).join(' · ')}
             </div>
           </div>
@@ -194,10 +201,10 @@ export default function ProductPicker({
             <button
               onClick={handleClear}
               style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--text-muted, #5E6B82)', padding: '2px', borderRadius: '4px',
+                background: '#fee2e2', border: 'none', cursor: 'pointer',
+                color: '#dc2626', width: '24px', height: '24px', borderRadius: '6px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'color 0.15s',
+                fontSize: '12px', fontWeight: 800, flexShrink: 0
               }}
               title="Clear selection"
             >
@@ -206,7 +213,7 @@ export default function ProductPicker({
           )}
         </div>
       ) : (
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', width: '100%' }}>
           <input
             data-testid={testId}
             type="text"
@@ -219,20 +226,35 @@ export default function ProductPicker({
             style={{
               width: '100%', padding: '9px 36px 9px 12px',
               borderRadius: '8px', outline: 'none', boxSizing: 'border-box',
-              background: 'var(--color-card-bg, #ffffff)',
-              border: `1px solid ${error ? '#f87171' : open ? 'var(--color-accent-teal, #6366f1)' : 'var(--color-border, #DCE5F0)'}`,
-              color: 'var(--color-text-primary, #24345C)', fontSize: '14px',
-              transition: 'border-color 0.2s',
+              background: '#ffffff',
+              border: `1.5px solid ${error ? '#f87171' : open ? '#2563eb' : '#cbd5e1'}`,
+              color: '#0f172a', fontSize: '13.5px',
+              transition: 'all 0.15s ease',
               cursor: disabled ? 'not-allowed' : 'text',
+              boxShadow: open ? '0 0 0 3px rgba(37,99,235,0.12)' : 'none'
             }}
           />
-          {/* Search icon */}
-          <span style={{
-            position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-            color: 'var(--color-text-secondary, #5E6B82)', pointerEvents: 'none', fontSize: '14px',
-          }}>
-            {loading ? '⟳' : '⌕'}
-          </span>
+          {/* Search icon / Close button */}
+          {open ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+              style={{
+                position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                background: '#f1f5f9', border: 'none', borderRadius: '4px', cursor: 'pointer',
+                color: '#64748b', fontSize: '11px', fontWeight: 700, padding: '3px 6px'
+              }}
+            >
+              ✕
+            </button>
+          ) : (
+            <span style={{
+              position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+              color: '#94a3b8', pointerEvents: 'none', fontSize: '14px',
+            }}>
+              {loading ? '⟳' : '⌕'}
+            </span>
+          )}
         </div>
       )}
 
@@ -245,11 +267,31 @@ export default function ProductPicker({
       {open && !disabled && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-          background: 'var(--color-card-bg, #ffffff)',
-          border: '1px solid var(--color-border, #DCE5F0)',
-          borderRadius: '10px', zIndex: 1000, maxHeight: '320px', overflowY: 'auto',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          background: '#ffffff',
+          border: '1px solid #cbd5e1',
+          borderRadius: '10px', zIndex: 9999, maxHeight: '280px', overflowY: 'auto',
+          boxShadow: '0 12px 32px rgba(15,23,42,0.18)',
         }}>
+          {/* Header with quick hide action */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
+            position: 'sticky', top: 0, zIndex: 10
+          }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Select Product
+            </span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: '11px', fontWeight: 700, color: '#2563eb', padding: '2px 6px'
+              }}
+            >
+              ✕ Hide List
+            </button>
+          </div>
           {loading && (
             <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-text-secondary, #5E6B82)', fontSize: '13px' }}>
               Searching…

@@ -6,6 +6,7 @@ import { useAuth } from '../shared/context/AuthContext';
 import ProductPicker from '../shared/components/ProductPicker';
 import { useFormDraft } from '../shared/hooks/useFormDraft';
 import { displayEntityId } from '../store/idGenerator';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const STANDARD_SPECIFICATIONS = [
   'Color: Grey, Size: M10',
@@ -82,6 +83,7 @@ export default function CreateQuotation({
   const clearQuotationDraft = useERPStore(s => s.clearQuotationDraft);
   const erpState = useERPStore(s => s.state);
   const router = useRouter();
+  const isCompact = useMediaQuery('(max-width: 1024px)');
 
   useEffect(() => {
     if (targetLeadId && !targetQuotationId) {
@@ -940,169 +942,350 @@ export default function CreateQuotation({
           <h3 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
             <FileText size={14} /> Line Items Catalogue
           </h3>
-          <div className="crm-table-container" style={{ marginTop: 0, overflow: 'visible' }}>
-            <table className="crm-table responsive-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '40%' }}>Product & Specification Details *</th>
-                  <th style={{ width: '10%' }}>Quantity *</th>
-                  <th style={{ width: '12%' }}>Unit Price (₹) *</th>
-                  <th style={{ width: '10%' }}>Discount (%)</th>
-                  <th style={{ width: '10%' }}>GST (%)</th>
-                  <th style={{ width: '13%' }}>Total Amount</th>
-                  <th style={{ width: '5%', textAlign: 'center' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td data-label="Product Details">
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ position: 'relative' }}>
-                          <ProductPicker
-                            value={item.productName ? {
-                              id: item.productId || 'temp-id',
-                              product_name: item.productName,
-                              product_code: item.code || ''
-                            } : null}
-                            onChange={(p) => {
-                              if (p) {
-                                handleProductSelect(item.id, {
-                                  id: p.id,
-                                  name: p.product_name,
-                                  code: p.product_code,
-                                  price: p.selling_price || p.price || p.base_price || 100,
-                                  unit: p.unit_of_measure || 'PCS',
-                                  gst: p.gst_rate || 18,
-                                  description: p.description
-                                });
-                              } else {
-                                handleRowChange(item.id, 'productId', null);
-                                handleRowChange(item.id, 'productName', '');
-                                handleRowChange(item.id, 'code', '');
-                              }
-                            }}
-                            placeholder="Search product..."
-                            showBadge={false}
-                          />
-                        </div>
-                        <div style={{ position: 'relative' }}>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Specifications / Color details * (e.g. Color: Grey, Size: M10)" 
-                            value={item.productDetails || ''} 
-                            onChange={e => {
-                              handleRowChange(item.id, 'productDetails', e.target.value);
-                              setActiveSpecsDropdownRow(item.id);
-                            }}
-                            onFocus={() => setActiveSpecsDropdownRow(item.id)}
-                            onBlur={() => setTimeout(() => setActiveSpecsDropdownRow(null), 200)}
-                            required
-                            style={{ padding: '6px 12px', fontSize: '12.5px', width: '100%' }}
-                          />
-                          {activeSpecsDropdownRow === item.id && (
-                            <div className="smart-search-dropdown" style={{ width: '100%', position: 'absolute', top: '100%', left: 0, zIndex: 10, marginTop: '4px' }}>
-                              {(() => {
-                                const query = (item.productDetails || '').toLowerCase();
-                                const catalogSpecs = Array.from(new Set(
-                                  productCatalog
-                                    .map(p => p.description)
-                                    .filter(d => d && d.trim() !== '')
-                                ));
-                                const allSpecs = Array.from(new Set([
-                                  ...catalogSpecs,
-                                  ...STANDARD_SPECIFICATIONS
-                                ]));
-                                const filtered = allSpecs.filter(spec => spec.toLowerCase().includes(query));
-                                return (
-                                  <>
-                                    {filtered.map(spec => (
-                                      <div key={spec} className="smart-search-item" onClick={() => {
-                                        handleRowChange(item.id, 'productDetails', spec);
-                                        setActiveSpecsDropdownRow(null);
-                                      }} style={{ padding: '8px 12px', cursor: 'pointer' }}>
-                                        <span>{spec}</span>
-                                      </div>
-                                    ))}
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          )}
-                        </div>
+
+          {isCompact ? (
+            <div className="quotation-mobile-items-list" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {items.map((item, index) => {
+                const itemSubtotal = item.quantity * item.unitPrice;
+                const itemDiscountAmt = (itemSubtotal * (item.discount || 0)) / 100;
+                const itemTaxable = itemSubtotal - itemDiscountAmt;
+                const itemTaxAmt = (itemTaxable * (item.tax !== undefined ? item.tax : 18)) / 100;
+                const lineTotal = itemTaxable + itemTaxAmt;
+
+                return (
+                  <div key={item.id} className="quotation-mobile-item-card" style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: '14px',
+                    padding: '16px',
+                    boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
+                  }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Item #{index + 1}
+                      </span>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id)}
+                          style={{
+                            background: '#fee2e2',
+                            border: '1px solid #fecaca',
+                            color: '#dc2626',
+                            borderRadius: '8px',
+                            padding: '4px 10px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            fontWeight: 700
+                          }}
+                        >
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Product Picker */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
+                        Product Selection *
+                      </label>
+                      <ProductPicker
+                        value={item.productName ? {
+                          id: item.productId || 'temp-id',
+                          product_name: item.productName,
+                          product_code: item.code || ''
+                        } : null}
+                        onChange={(p) => {
+                          if (p) {
+                            handleProductSelect(item.id, {
+                              id: p.id,
+                              name: p.product_name,
+                              code: p.product_code,
+                              price: p.selling_price || p.price || p.base_price || 100,
+                              unit: p.unit_of_measure || 'PCS',
+                              gst: p.gst_rate || 18,
+                              description: p.description
+                            });
+                          } else {
+                            handleRowChange(item.id, 'productId', null);
+                            handleRowChange(item.id, 'productName', '');
+                            handleRowChange(item.id, 'code', '');
+                          }
+                        }}
+                        placeholder="Search product..."
+                        showBadge={false}
+                      />
+                    </div>
+
+                    {/* Specifications */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
+                        Specifications / Color details *
+                      </label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. Color: Grey, Size: M10"
+                        value={item.productDetails || ''}
+                        onChange={e => handleRowChange(item.id, 'productDetails', e.target.value)}
+                        required
+                        style={{ padding: '9px 12px', fontSize: '13px', width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+
+                    {/* Numeric inputs 2x2 grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 800, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}>
+                          <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>QTY</span>
+                          Quantity *
+                        </label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          min="1"
+                          value={item.quantity}
+                          onChange={e => handleRowChange(item.id, 'quantity', Number(e.target.value))}
+                          required
+                          style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1.5px solid #93c5fd', background: '#eff6ff', borderRadius: '8px', fontWeight: 700, color: '#1e293b' }}
+                        />
                       </div>
-                    </td>
-                    <td data-label="Quantity">
-                      <input 
-                        type="number" 
-                        className="form-input" 
-                        min="1" 
-                        value={item.quantity} 
-                        onChange={e => handleRowChange(item.id, 'quantity', Number(e.target.value))}
-                        required
-                        style={{ padding: '8px 10px', width: '100%', maxWidth: '80px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
-                      />
-                    </td>
-                    <td data-label="Unit Price">
-                      <input 
-                        type="number" 
-                        className="form-input" 
-                        min="0.01" 
-                        step="0.01"
-                        value={item.unitPrice} 
-                        onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
-                        required
-                        style={{ padding: '8px 10px', width: '100%', maxWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '8px' }}
-                      />
-                    </td>
-                    <td data-label="Discount (%)">
-                      <input 
-                        type="number" 
-                        className="form-input" 
-                        min="0" 
-                        max="100"
-                        value={item.discount || 0} 
-                        onChange={e => handleRowChange(item.id, 'discount', Number(e.target.value))}
-                        style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
-                      />
-                    </td>
-                    <td data-label="GST (%)">
-                      <input 
-                        type="number" 
-                        className="form-input" 
-                        min="0" 
-                        max="100"
-                        value={item.tax !== undefined ? item.tax : 18} 
-                        onChange={e => handleRowChange(item.id, 'tax', Number(e.target.value))}
-                        style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
-                      />
-                    </td>
-                    <td data-label="Total Amount" style={{ fontWeight: '700', paddingLeft: '10px' }}>
-                      {(() => {
-                        const itemSubtotal = item.quantity * item.unitPrice;
-                        const itemDiscountAmt = (itemSubtotal * (item.discount || 0)) / 100;
-                        const itemTaxable = itemSubtotal - itemDiscountAmt;
-                        const itemTaxAmt = (itemTaxable * (item.tax || 0)) / 100;
-                        return formatINR(itemTaxable + itemTaxAmt);
-                      })()}
-                    </td>
-                    <td data-label="Action" style={{ textAlign: 'center' }}>
-                      <button 
-                        type="button" 
-                        className="btn-small btn-danger-small" 
-                        onClick={() => handleRemoveItem(item.id)}
-                        disabled={items.length === 1}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', opacity: items.length === 1 ? 0.4 : 1 }}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 800, color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}>
+                          <span style={{ background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>₹</span>
+                          Unit Price *
+                        </label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          min="0.01"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
+                          required
+                          style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1.5px solid #86efac', background: '#f0fdf4', borderRadius: '8px', fontWeight: 700, color: '#1e293b' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}>
+                          <span style={{ background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>%</span>
+                          Discount (%)
+                        </label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          min="0"
+                          max="100"
+                          value={item.discount || 0}
+                          onChange={e => handleRowChange(item.id, 'discount', Number(e.target.value))}
+                          style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, color: '#1e293b' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}>
+                          <span style={{ background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>GST</span>
+                          GST Rate (%)
+                        </label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          min="0"
+                          max="100"
+                          value={item.tax !== undefined ? item.tax : 18}
+                          onChange={e => handleRowChange(item.id, 'tax', Number(e.target.value))}
+                          style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, color: '#1e293b' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Total */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                        Total Amount
+                      </span>
+                      <span style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a' }}>
+                        {formatINR(lineTotal)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="crm-table-container" style={{ marginTop: 0, overflow: 'visible' }}>
+              <table className="crm-table responsive-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40%' }}>Product & Specification Details *</th>
+                    <th style={{ width: '10%' }}>Quantity *</th>
+                    <th style={{ width: '12%' }}>Unit Price (₹) *</th>
+                    <th style={{ width: '10%' }}>Discount (%)</th>
+                    <th style={{ width: '10%' }}>GST (%)</th>
+                    <th style={{ width: '13%' }}>Total Amount</th>
+                    <th style={{ width: '5%', textAlign: 'center' }}>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td data-label="Product Details">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ position: 'relative' }}>
+                            <ProductPicker
+                              value={item.productName ? {
+                                id: item.productId || 'temp-id',
+                                product_name: item.productName,
+                                product_code: item.code || ''
+                              } : null}
+                              onChange={(p) => {
+                                if (p) {
+                                  handleProductSelect(item.id, {
+                                    id: p.id,
+                                    name: p.product_name,
+                                    code: p.product_code,
+                                    price: p.selling_price || p.price || p.base_price || 100,
+                                    unit: p.unit_of_measure || 'PCS',
+                                    gst: p.gst_rate || 18,
+                                    description: p.description
+                                  });
+                                } else {
+                                  handleRowChange(item.id, 'productId', null);
+                                  handleRowChange(item.id, 'productName', '');
+                                  handleRowChange(item.id, 'code', '');
+                                }
+                              }}
+                              placeholder="Search product..."
+                              showBadge={false}
+                            />
+                          </div>
+                          <div style={{ position: 'relative' }}>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Specifications / Color details * (e.g. Color: Grey, Size: M10)" 
+                              value={item.productDetails || ''} 
+                              onChange={e => {
+                                handleRowChange(item.id, 'productDetails', e.target.value);
+                                setActiveSpecsDropdownRow(item.id);
+                              }}
+                              onFocus={() => setActiveSpecsDropdownRow(item.id)}
+                              onBlur={() => setTimeout(() => setActiveSpecsDropdownRow(null), 200)}
+                              required
+                              style={{ padding: '6px 12px', fontSize: '12.5px', width: '100%' }}
+                            />
+                            {activeSpecsDropdownRow === item.id && (
+                              <div className="smart-search-dropdown" style={{ width: '100%', position: 'absolute', top: '100%', left: 0, zIndex: 10, marginTop: '4px' }}>
+                                {(() => {
+                                  const query = (item.productDetails || '').toLowerCase();
+                                  const catalogSpecs = Array.from(new Set(
+                                    productCatalog
+                                      .map(p => p.description)
+                                      .filter(d => d && d.trim() !== '')
+                                  ));
+                                  const allSpecs = Array.from(new Set([
+                                    ...catalogSpecs,
+                                    ...STANDARD_SPECIFICATIONS
+                                  ]));
+                                  const filtered = allSpecs.filter(spec => spec.toLowerCase().includes(query));
+                                  return (
+                                    <>
+                                      {filtered.map(spec => (
+                                        <div key={spec} className="smart-search-item" onClick={() => {
+                                          handleRowChange(item.id, 'productDetails', spec);
+                                          setActiveSpecsDropdownRow(null);
+                                        }} style={{ padding: '8px 12px', cursor: 'pointer' }}>
+                                          <span>{spec}</span>
+                                        </div>
+                                      ))}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Quantity">
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          min="1" 
+                          value={item.quantity} 
+                          onChange={e => handleRowChange(item.id, 'quantity', Number(e.target.value))}
+                          required
+                          style={{ padding: '8px 10px', width: '100%', maxWidth: '80px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
+                        />
+                      </td>
+                      <td data-label="Unit Price">
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          min="0.01" 
+                          step="0.01" 
+                          value={item.unitPrice} 
+                          onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
+                          required
+                          style={{ padding: '8px 10px', width: '100%', maxWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '8px' }}
+                        />
+                      </td>
+                      <td data-label="Discount (%)">
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          min="0" 
+                          max="100" 
+                          value={item.discount || 0} 
+                          onChange={e => handleRowChange(item.id, 'discount', Number(e.target.value))}
+                          style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
+                        />
+                      </td>
+                      <td data-label="GST (%)">
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          min="0" 
+                          max="100" 
+                          value={item.tax !== undefined ? item.tax : 18} 
+                          onChange={e => handleRowChange(item.id, 'tax', Number(e.target.value))}
+                          style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
+                        />
+                      </td>
+                      <td data-label="Total Amount" style={{ fontWeight: '700', paddingLeft: '10px' }}>
+                        {(() => {
+                          const itemSubtotal = item.quantity * item.unitPrice;
+                          const itemDiscountAmt = (itemSubtotal * (item.discount || 0)) / 100;
+                          const itemTaxable = itemSubtotal - itemDiscountAmt;
+                          const itemTaxAmt = (itemTaxable * (item.tax || 0)) / 100;
+                          return formatINR(itemTaxable + itemTaxAmt);
+                        })()}
+                      </td>
+                      <td data-label="Action" style={{ textAlign: 'center' }}>
+                        <button 
+                          type="button" 
+                          className="btn-small btn-danger-small" 
+                          onClick={() => handleRemoveItem(item.id)}
+                          disabled={items.length === 1}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', opacity: items.length === 1 ? 0.4 : 1 }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <button 
             type="button" 
             className="btn-small btn-outline-small" 

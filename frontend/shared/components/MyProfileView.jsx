@@ -443,17 +443,17 @@ export default function MyProfileView() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', paddingBottom: '32px' }}>
       
       {/* 1. Header Profile Info Card */}
-      <div className="app-card profile-header-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', background: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+      <div className="app-card profile-header-card" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
         
         {/* Avatar Area */}
-        <div style={{ width: '76px', height: '76px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #0284c7', flexShrink: 0, margin: '0 auto' }}>
-          <User size={38} style={{ color: '#0284c7' }} />
+        <div className="profile-header-avatar" style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #0284c7', flexShrink: 0 }}>
+          <User size={36} style={{ color: '#0284c7' }} />
         </div>
 
         {/* Text Area */}
-        <div className="profile-header-info" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div className="profile-header-info" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{pData.name}</h1>
+            <h1 className="profile-header-name" style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: 0 }}>{pData.name}</h1>
             <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '11.5px', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
               ID: {pData.employeeId}
             </span>
@@ -484,24 +484,9 @@ export default function MyProfileView() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`profile-tab-btn ${isActive ? 'active' : ''}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '12px 18px',
-                border: 'none',
-                background: 'transparent',
-                fontSize: '13.5px',
-                fontWeight: isActive ? '800' : '600',
-                color: isActive ? '#0284c7' : '#64748b',
-                borderBottom: isActive ? '2.5px solid #0284c7' : '2.5px solid transparent',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                whiteSpace: 'nowrap'
-              }}
             >
               <TabIcon size={16} />
-              {tab.label}
+              <span>{tab.label}</span>
             </button>
           );
         })}
@@ -564,17 +549,14 @@ export default function MyProfileView() {
               boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
             }}>
               {/* Header */}
-              <div style={{
-                padding: '18px 22px 16px',
-                borderBottom: '1px solid #f1f5f9',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}>
+              <div className="punch-records-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{
                     width: '38px', height: '38px', borderRadius: '11px',
                     background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: '0 3px 10px rgba(99,102,241,0.2)',
+                    flexShrink: 0
                   }}>
                     <Fingerprint size={20} color="#ffffff" />
                   </div>
@@ -583,9 +565,9 @@ export default function MyProfileView() {
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Selfie · GPS Verified attendance from this device</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="punch-records-actions">
                   {/* Period Filter Pills */}
-                  <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <div className="punch-period-pills">
                     {[
                       { id: 'today', label: 'Today' },
                       { id: 'monthly', label: 'Monthly' },
@@ -595,18 +577,7 @@ export default function MyProfileView() {
                       <button
                         key={period.id}
                         onClick={() => setFilterPeriod(period.id)}
-                        style={{
-                          padding: '5px 12px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: filterPeriod === period.id ? '#ffffff' : 'transparent',
-                          color: filterPeriod === period.id ? '#0F172A' : '#64748B',
-                          boxShadow: filterPeriod === period.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                          transition: 'all 0.15s ease'
-                        }}
+                        className={`punch-period-btn ${filterPeriod === period.id ? 'active' : ''}`}
                       >
                         {period.label}
                       </button>
@@ -617,6 +588,7 @@ export default function MyProfileView() {
                     onClick={() => {
                       fetchPunchLogsFromDB();
                     }}
+                    className="punch-refresh-btn"
                     style={{
                       background: '#f8fafc', border: '1px solid #cbd5e1',
                       borderRadius: '8px', padding: '6px 12px',
@@ -631,33 +603,27 @@ export default function MyProfileView() {
 
               {/* Stats row */}
               {localPunchLog.length > 0 && (
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-                  borderBottom: '1px solid #f1f5f9',
-                }}>
+                <div className="punch-stats-grid">
                   {[
                     {
                       label: 'Total Punches', value: localPunchLog.length,
-                      color: '#4f46e5', icon: <Fingerprint size={16} color="#4f46e5" />
+                      color: '#4f46e5', icon: <Fingerprint size={15} color="#4f46e5" />
                     },
                     {
                       label: 'Punch Ins', value: localPunchLog.filter(e => e.type === 'PUNCH_IN').length,
-                      color: '#16a34a', icon: <LogIn size={16} color="#16a34a" />
+                      color: '#16a34a', icon: <LogIn size={15} color="#16a34a" />
                     },
                     {
                       label: 'Punch Outs', value: localPunchLog.filter(e => e.type === 'PUNCH_OUT').length,
-                      color: '#dc2626', icon: <LogOut size={16} color="#dc2626" />
+                      color: '#dc2626', icon: <LogOut size={15} color="#dc2626" />
                     },
                   ].map((s, i) => (
-                    <div key={i} style={{
-                      padding: '14px 18px', textAlign: 'center',
-                      borderRight: i < 2 ? '1px solid #f1f5f9' : 'none',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '5px' }}>
+                    <div key={i} className="punch-stat-item">
+                      <div className="punch-stat-label">
                         {s.icon}
-                        <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.5px' }}>{s.label}</span>
+                        <span>{s.label}</span>
                       </div>
-                      <div style={{ fontSize: '24px', fontWeight: '900', color: s.color, lineHeight: 1 }}>{s.value}</div>
+                      <div className="punch-stat-value" style={{ color: s.color }}>{s.value}</div>
                     </div>
                   ))}
                 </div>
@@ -1037,7 +1003,7 @@ export default function MyProfileView() {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '8px' }}>
-                <button type="submit" disabled={submittingExpense} className="action-btn" style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '800', cursor: submittingExpense ? 'wait' : 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)', opacity: submittingExpense ? 0.7 : 1 }}>
+                <button type="submit" disabled={submittingExpense} className="action-btn profile-submit-btn" style={{ background: '#0284c7', color: '#ffffff', opacity: submittingExpense ? 0.7 : 1 }}>
                   Submit Expense Claim
                 </button>
               </div>
@@ -1104,18 +1070,18 @@ export default function MyProfileView() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
             {/* Leave Balance Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-              <div className="app-card" style={{ background: '#F8FAFC', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Annual Leave Quota</span>
-                <h2 style={{ fontSize: '28px', color: '#0f172a', margin: '8px 0 0 0', fontWeight: '900' }}>{leaveBalance.total} Days</h2>
+            <div className="leave-balance-grid">
+              <div className="leave-balance-card quota">
+                <span className="leave-balance-title" style={{ color: '#64748b' }}>Annual Quota</span>
+                <h2 className="leave-balance-val" style={{ color: '#0f172a' }}>{leaveBalance.total} Days</h2>
               </div>
-              <div className="app-card" style={{ background: '#F0FDF4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: '700', textTransform: 'uppercase' }}>Approved Leaves</span>
-                <h2 style={{ fontSize: '28px', color: '#16a34a', margin: '8px 0 0 0', fontWeight: '900' }}>{leaveBalance.used} Days</h2>
+              <div className="leave-balance-card approved">
+                <span className="leave-balance-title" style={{ color: '#16a34a' }}>Approved</span>
+                <h2 className="leave-balance-val" style={{ color: '#16a34a' }}>{leaveBalance.used} Days</h2>
               </div>
-              <div className="app-card" style={{ background: '#EFF6FF', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: '700', textTransform: 'uppercase' }}>Remaining Leaves</span>
-                <h2 style={{ fontSize: '28px', color: '#2563eb', margin: '8px 0 0 0', fontWeight: '900' }}>{leaveBalance.remaining} Days</h2>
+              <div className="leave-balance-card remaining">
+                <span className="leave-balance-title" style={{ color: '#2563eb' }}>Remaining</span>
+                <h2 className="leave-balance-val" style={{ color: '#2563eb' }}>{leaveBalance.remaining} Days</h2>
               </div>
             </div>
 
@@ -1164,10 +1130,8 @@ export default function MyProfileView() {
                   />
                 </div>
 
-
-
                 <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '8px' }}>
-                  <button type="submit" disabled={submittingLeave} className="action-btn" style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '800', cursor: submittingLeave ? 'wait' : 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)', opacity: submittingLeave ? 0.7 : 1 }}>
+                  <button type="submit" disabled={submittingLeave} className="action-btn profile-submit-btn" style={{ background: '#0284c7', color: '#ffffff', opacity: submittingLeave ? 0.7 : 1 }}>
                     Submit Leave Request
                   </button>
                 </div>

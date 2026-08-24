@@ -4053,10 +4053,15 @@ textarea {
     grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
     padding: 16px !important;
+    overflow: visible !important;
+    position: relative !important;
   }
 
   .lead-product-grid-spec {
     grid-column: span 2 !important;
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 5 !important;
   }
 
   .lead-product-qty-wrap label.mobile-only,
@@ -9938,6 +9943,270 @@ body, #root, .app-container {
 
   .complaint-filter-tabs::-webkit-scrollbar {
     display: none !important;
+  }
+}
+
+/* ── MY PROFILE VIEW: RESPONSIVE & MOBILE POLISH ── */
+.profile-tabs-nav {
+  display: flex !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  background: #ffffff !important;
+  padding: 6px !important;
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.profile-tabs-nav::-webkit-scrollbar {
+  display: none !important;
+}
+
+.profile-tab-btn {
+  flex-shrink: 0 !important;
+  min-width: max-content !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 10px 16px !important;
+  border: none !important;
+  background: #f8fafc !important;
+  color: #64748b !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
+}
+
+.profile-tab-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.profile-tab-btn.active {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25) !important;
+}
+
+.leave-balance-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+.leave-balance-card {
+  border-radius: 12px !important;
+  padding: 16px 12px !important;
+  text-align: center !important;
+  min-width: 0 !important;
+}
+
+.leave-balance-card.quota {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
+.leave-balance-card.approved {
+  background: #F0FDF4 !important;
+  border: 1px solid #BBF7D0 !important;
+}
+
+.leave-balance-card.remaining {
+  background: #EFF6FF !important;
+  border: 1px solid #BFDBFE !important;
+}
+
+.leave-balance-title {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  display: block !important;
+}
+
+.leave-balance-val {
+  font-size: 24px !important;
+  margin: 6px 0 0 0 !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.punch-records-header {
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.punch-records-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.punch-period-pills {
+  display: flex;
+  background: #F1F5F9;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+}
+
+.punch-period-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: #64748B;
+  transition: all 0.15s ease;
+}
+
+.punch-period-btn.active {
+  background: #ffffff;
+  color: #0F172A;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.punch-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.punch-stat-item {
+  padding: 12px 14px;
+  text-align: center;
+  min-width: 0;
+}
+
+.punch-stat-item:not(:last-child) {
+  border-right: 1px solid #f1f5f9;
+}
+
+.punch-stat-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+
+.punch-stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.profile-submit-btn {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  border: none !important;
+  padding: 10px 22px !important;
+  border-radius: 8px !important;
+  font-weight: 800 !important;
+  font-size: 13.5px !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25) !important;
+}
+
+@media (max-width: 768px) {
+  .profile-header-card {
+    flex-direction: column !important;
+    text-align: center !important;
+    padding: 18px 14px !important;
+    gap: 12px !important;
+  }
+
+  .profile-header-avatar {
+    width: 64px !important;
+    height: 64px !important;
+    margin: 0 auto !important;
+  }
+
+  .profile-header-info {
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  .profile-header-info > div {
+    justify-content: center !important;
+  }
+
+  .profile-header-name {
+    font-size: 18px !important;
+    text-align: center !important;
+  }
+
+  .profile-tabs-nav {
+    padding: 4px !important;
+    gap: 6px !important;
+  }
+
+  .profile-tab-btn {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+  }
+
+  .punch-records-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 14px 12px !important;
+    gap: 12px !important;
+  }
+
+  .punch-records-actions {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .punch-period-pills {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    text-align: center !important;
+  }
+
+  .punch-period-btn {
+    padding: 6px 4px !important;
+    text-align: center !important;
+    font-size: 10.5px !important;
+  }
+
+  .punch-refresh-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .leave-balance-card {
+    padding: 12px 6px !important;
+  }
+
+  .leave-balance-val {
+    font-size: 18px !important;
+  }
+
+  .profile-submit-btn {
+    width: 100% !important;
+    padding: 12px !important;
+    justify-content: center !important;
   }
 }
 

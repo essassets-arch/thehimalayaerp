@@ -335,11 +335,11 @@ export default function LoginPage() {
         }
 
         .login-label {
-          font-size: 11px;
+          font-size: 11.5px;
           font-weight: 700;
-          color: #94A3B8;
+          color: #64748B;
           text-transform: uppercase;
-          letter-spacing: 0.06em;
+          letter-spacing: 0.05em;
           margin-bottom: 2px;
         }
 
@@ -347,6 +347,7 @@ export default function LoginPage() {
           position: relative;
           display: flex;
           align-items: center;
+          width: 100%;
         }
 
         .login-icon {
@@ -355,11 +356,15 @@ export default function LoginPage() {
           color: #94A3B8;
           pointer-events: none;
           transition: color 0.2s;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .login-input {
-          width: 100%;
-          padding: 12px 14px 12px 42px;
+          width: 100% !important;
+          padding: 12px 14px 12px 44px !important;
           background: #F8FAFD;
           border: 1.5px solid #E2E8F0;
           border-radius: 12px;
@@ -368,6 +373,7 @@ export default function LoginPage() {
           font-family: 'Outfit', sans-serif;
           outline: none;
           transition: all 0.2s;
+          box-sizing: border-box !important;
         }
         .login-input::placeholder { color: #CBD5E1; }
         .login-input:focus {
@@ -375,12 +381,14 @@ export default function LoginPage() {
           border-color: #3BAEEB;
           box-shadow: 0 0 0 3px rgba(59,174,235,0.12);
         }
-        .login-input:focus + .login-icon,
+        .login-input:focus ~ .login-icon,
         .login-input-wrap:focus-within .login-icon {
           color: #3BAEEB;
         }
 
-        .login-input-pr { padding-right: 42px; }
+        .login-input-pr {
+          padding-right: 44px !important;
+        }
 
         .pass-toggle {
           position: absolute;
@@ -391,7 +399,9 @@ export default function LoginPage() {
           color: #94A3B8;
           display: flex;
           align-items: center;
-          padding: 0;
+          justify-content: center;
+          padding: 4px;
+          z-index: 2;
           transition: color 0.2s;
         }
         .pass-toggle:hover { color: #3BAEEB; }
@@ -549,7 +559,7 @@ export default function LoginPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label className="login-label">Email Address</label>
               <div className="login-input-wrap">
-                <Mail size={15} className="login-icon" />
+                <Mail size={16} className="login-icon" />
                 <input
                   type="email"
                   id="login-email"
@@ -560,6 +570,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
                   autoComplete="username"
+                  style={{ paddingLeft: '44px', paddingRight: '14px', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
@@ -568,7 +579,7 @@ export default function LoginPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label className="login-label">Password</label>
               <div className="login-input-wrap">
-                <KeyRound size={15} className="login-icon" />
+                <KeyRound size={16} className="login-icon" />
                 <input
                   type={showPass ? 'text' : 'password'}
                   id="login-password"
@@ -579,6 +590,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
                   autoComplete="current-password"
+                  style={{ paddingLeft: '44px', paddingRight: '44px', boxSizing: 'border-box' }}
                 />
                 <button
                   type="button"
@@ -587,7 +599,7 @@ export default function LoginPage() {
                   tabIndex={-1}
                   aria-label={showPass ? 'Hide password' : 'Show password'}
                 >
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
@@ -600,11 +612,38 @@ export default function LoginPage() {
 
             {/* ── Demo Accounts ─────────────────────────── */}
             <div>
-              <div className="login-label" style={{ marginBottom: '10px', color: '#64748B' }}>
-                Select Account — Prefills Email Field
+              <div className="login-label" style={{ marginBottom: '8px', color: '#64748B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Select Account — Prefills Email Field</span>
               </div>
+
+              {/* Category Filter Pills */}
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '8px', marginBottom: '8px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                {(['All', 'Sales', 'Finance', 'Dispatch', 'Production', 'Admin'] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      border: selectedCategory === cat ? '1px solid #3BAEEB' : '1px solid #E2E8F0',
+                      background: selectedCategory === cat ? '#3BAEEB' : '#F8FAFD',
+                      color: selectedCategory === cat ? '#FFFFFF' : '#64748B',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease',
+                      flexShrink: 0
+                    }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
               <div className="demo-accounts-grid">
-                {DEMO_ACCOUNTS.map((account) => {
+                {filteredAccounts.map((account) => {
                   const isSelected = email === account.email;
                   return (
                     <button
@@ -638,3 +677,4 @@ export default function LoginPage() {
     </>
   );
 }
+
