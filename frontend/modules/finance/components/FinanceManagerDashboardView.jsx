@@ -546,75 +546,32 @@ export default function FinanceManagerDashboardView({ state: propState, payments
   }, [allSalesReps, salesOrders, quotations]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: "var(--font-main), 'Plus Jakarta Sans', Inter, sans-serif", color: '#0F172A' }}>
+    <div className="finance-dashboard-container" style={{ fontFamily: "var(--font-main), 'Plus Jakarta Sans', Inter, sans-serif", color: '#0F172A' }}>
 
       {/* Header Banner */}
-      <div className="finance-dashboard-header" style={{
-        background: '#FFFFFF',
-        border: '1px solid #E2E8F0',
-        borderRadius: '16px',
-        padding: '24px 28px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)'
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              background: '#EFF6FF',
-              border: '1px solid #DBEAFE',
-              padding: '10px',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <BarChart3 size={24} color="#2563EB" />
-            </div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.02em' }}>
-                Finance Manager Dashboard
-              </h1>
-              <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748B', fontWeight: '500' }}>
-                Executive Financial Overview, Collections & Operational Approvals
-              </p>
-            </div>
+      <div className="finance-dashboard-header">
+        <div className="finance-header-title-container">
+          <div className="finance-header-icon-box">
+            <BarChart3 size={24} color="#2563EB" />
+          </div>
+          <div className="finance-header-text">
+            <h1 className="finance-header-title">
+              Finance Manager Dashboard
+            </h1>
+            <p className="finance-header-subtitle">
+              Executive Financial Overview, Collections & Operational Approvals
+            </p>
           </div>
         </div>
 
-        <div className="finance-dashboard-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{
-            background: '#F8FAFC',
-            border: '1px solid #E2E8F0',
-            borderRadius: '10px',
-            padding: '8px 14px',
-            fontSize: '12px',
-            color: '#475569',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
+        <div className="finance-dashboard-actions">
+          <div className="finance-header-time-pill">
             <Clock size={14} color="#0284C7" />
             <span>Updated: Just now</span>
           </div>
           <button
             onClick={() => router.push('/finance/reports')}
-            style={{
-              background: '#2563EB',
-              border: 'none',
-              borderRadius: '10px',
-              padding: '10px 18px',
-              color: '#FFFFFF',
-              fontSize: '13px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
-              transition: 'all 0.2s ease'
-            }}
+            className="finance-header-reports-btn"
           >
             <span>Financial Reports</span>
             <ArrowUpRight size={16} />
@@ -624,59 +581,57 @@ export default function FinanceManagerDashboardView({ state: propState, payments
 
       {/* 📊 Section 1: Financial Overview (KPI Cards Grid) */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+        <div className="finance-section-title">
           <DollarSign size={18} color="#2563EB" />
-          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
-            Financial Overview
-          </h2>
+          <h2>Financial Overview</h2>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '16px' }}>
+        <div className="finance-kpi-grid">
 
           {/* Total Revenue */}
-          <div style={kpiCardStyle('#2563EB')}>
-            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Revenue</span>
-            <h3 style={{ margin: '8px 0 4px 0', fontSize: '24px', fontWeight: '800', color: '#0F172A' }}>{dynamicMetrics.totalRevenueStr}</h3>
-            <span style={{ fontSize: '11px', color: '#16A34A', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px' }}>
+          <div className="finance-kpi-card" style={{ borderLeft: '4px solid #2563EB' }}>
+            <span className="finance-kpi-label">Total Revenue</span>
+            <h3 className="finance-kpi-value" style={{ color: '#0F172A' }}>{dynamicMetrics.totalRevenueStr}</h3>
+            <span className="finance-kpi-badge" style={{ color: '#16A34A' }}>
               <TrendingUp size={12} /> {dynamicMetrics.yoyGrowthStr}
             </span>
           </div>
 
           {/* Total Collections */}
-          <div style={kpiCardStyle('#16A34A')}>
-            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Collections</span>
-            <h3 style={{ margin: '8px 0 4px 0', fontSize: '24px', fontWeight: '800', color: '#16A34A' }}>{dynamicMetrics.totalCollectionsStr}</h3>
-            <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>Cleared Bank Inflows</span>
+          <div className="finance-kpi-card" style={{ borderLeft: '4px solid #16A34A' }}>
+            <span className="finance-kpi-label">Total Collections</span>
+            <h3 className="finance-kpi-value" style={{ color: '#16A34A' }}>{dynamicMetrics.totalCollectionsStr}</h3>
+            <span className="finance-kpi-subtext" style={{ color: '#16A34A', fontWeight: '700' }}>Cleared Bank Inflows</span>
           </div>
 
           {/* Outstanding Receivables */}
-          <div style={kpiCardStyle('#D97706')}>
-            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Receivables</span>
-            <h3 style={{ margin: '8px 0 4px 0', fontSize: '24px', fontWeight: '800', color: '#D97706' }}>{dynamicMetrics.outstandingReceivablesStr}</h3>
-            <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>{dynamicMetrics.unpaidInvoicesCount} Unpaid Invoices</span>
+          <div className="finance-kpi-card" style={{ borderLeft: '4px solid #D97706' }}>
+            <span className="finance-kpi-label">Outstanding Receivables</span>
+            <h3 className="finance-kpi-value" style={{ color: '#D97706' }}>{dynamicMetrics.outstandingReceivablesStr}</h3>
+            <span className="finance-kpi-subtext" style={{ color: '#D97706', fontWeight: '700' }}>{dynamicMetrics.unpaidInvoicesCount} Unpaid Invoices</span>
           </div>
 
           {/* Overdue Amount */}
-          <div style={kpiCardStyle('#DC2626')}>
-            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Overdue Amount</span>
-            <h3 style={{ margin: '8px 0 4px 0', fontSize: '24px', fontWeight: '800', color: '#DC2626' }}>{dynamicMetrics.overdueAmountStr}</h3>
-            <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px' }}>
+          <div className="finance-kpi-card" style={{ borderLeft: '4px solid #DC2626' }}>
+            <span className="finance-kpi-label">Overdue Amount</span>
+            <h3 className="finance-kpi-value" style={{ color: '#DC2626' }}>{dynamicMetrics.overdueAmountStr}</h3>
+            <span className="finance-kpi-badge" style={{ color: '#DC2626' }}>
               <AlertTriangle size={12} /> {dynamicMetrics.overdueInvoicesCount} Critical Invoices
             </span>
           </div>
 
           {/* Collection Efficiency */}
-          <div style={kpiCardStyle('#0284C7')}>
-            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Collection Efficiency</span>
-            <h3 style={{ margin: '8px 0 4px 0', fontSize: '24px', fontWeight: '800', color: '#0284C7' }}>{dynamicMetrics.collectionEfficiencyStr}</h3>
-            <span style={{ fontSize: '11px', color: dynamicMetrics.effRatio >= 75 ? '#16A34A' : '#D97706', fontWeight: '600' }}>{dynamicMetrics.targetBenchmarkStr}</span>
+          <div className="finance-kpi-card" style={{ borderLeft: '4px solid #2563EB' }}>
+            <span className="finance-kpi-label">Collection Efficiency</span>
+            <h3 className="finance-kpi-value" style={{ color: '#2563EB' }}>{dynamicMetrics.collectionEfficiencyStr}</h3>
+            <span className="finance-kpi-subtext" style={{ color: dynamicMetrics.effRatio >= 75 ? '#16A34A' : '#D97706', fontWeight: '700' }}>{dynamicMetrics.targetBenchmarkStr}</span>
           </div>
 
         </div>
       </div>
 
       {/* 📈 Section 2: Revenue & Collections Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: '20px', width: '100%' }}>
+      <div className="finance-charts-grid">
 
         {/* Revenue Trend Line Chart */}
         <div style={{ ...cardContainerStyle, width: '100%', overflow: 'hidden' }}>
@@ -761,10 +716,10 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       </div>
 
       {/* Row 3: 👥 Sales Team Performance & 💰 Receivables */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
+      <div className="finance-two-col-grid">
 
         {/* 👥 Sales Team Performance */}
-        <div style={cardContainerStyle}>
+        <div className="finance-dashboard-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Users size={18} color="#2563EB" />
@@ -855,7 +810,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
         </div>
 
         {/* 💰 Receivables */}
-        <div style={cardContainerStyle}>
+        <div className="finance-dashboard-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Wallet size={18} color="#D97706" />
@@ -916,10 +871,10 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       </div>
 
       {/* Row 4: 📝 Pending Approvals & 💵 Cash Inflow Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
+      <div className="finance-two-col-grid">
 
         {/* ✅ Approvals */}
-        <div style={cardContainerStyle}>
+        <div className="finance-dashboard-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <CheckCircle2 size={18} color="#16A34A" />
@@ -987,7 +942,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
         </div>
 
         {/* 💳 Expenses & Payroll */}
-        <div style={cardContainerStyle}>
+        <div className="finance-dashboard-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <CreditCard size={18} color="#7C3AED" />
@@ -1004,7 +959,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '14px' }}>
 
             <div style={innerMetricBoxStyle}>
               <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700' }}>Vendor Payments Due</span>
@@ -1059,10 +1014,10 @@ export default function FinanceManagerDashboardView({ state: propState, payments
       </div>
 
       {/* Row 5: 🚨 Alerts & ⚡ Quick Actions */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
+      <div className="finance-two-col-grid">
 
         {/* 🚨 Alerts */}
-        <div style={cardContainerStyle}>
+        <div className="finance-dashboard-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <AlertTriangle size={18} color="#DC2626" />
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
@@ -1116,7 +1071,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
         </div>
 
         {/* ⚡ Quick Actions */}
-        <div style={cardContainerStyle}>
+        <div className="finance-dashboard-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Zap size={18} color="#D97706" />
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
@@ -1124,7 +1079,7 @@ export default function FinanceManagerDashboardView({ state: propState, payments
             </h3>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
 
             <button
               onClick={() => router.push('/finance/payment-verification')}

@@ -1261,10 +1261,10 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const todayDateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: 'var(--font-sans, system-ui, sans-serif)' }}>
+      <div className="dispatch-dashboard-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: 'var(--font-sans, system-ui, sans-serif)', width: '100%' }}>
         
         {/* Header Bar */}
-        <div style={{
+        <div className="dispatch-dashboard-header" style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -1317,42 +1317,42 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         </div>
 
         {/* 5 KPI Cards Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-          <div className="app-card" style={{ padding: '18px 20px', borderLeft: '4px solid #3b82f6', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+        <div className="dispatch-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #3b82f6', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ready</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{readyCount}</div>
-            <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600' }}>Orders waiting for vehicle</span>
+            <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginTop: '4px' }}>Orders waiting for vehicle</span>
           </div>
 
-          <div className="app-card" style={{ padding: '18px 20px', borderLeft: '4px solid #0284c7', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #0284c7', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>In Transit</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{inTransitCount}</div>
-            <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600' }}>Consignments en route</span>
+            <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600', marginTop: '4px' }}>Consignments en route</span>
           </div>
 
-          <div className="app-card" style={{ padding: '18px 20px', borderLeft: '4px solid #f59e0b', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #f59e0b', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Out Delivery</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{outDeliveryCount}</div>
-            <span style={{ fontSize: '11px', color: '#d97706', fontWeight: '600' }}>Vehicles out for delivery</span>
+            <span style={{ fontSize: '11px', color: '#d97706', fontWeight: '600', marginTop: '4px' }}>Vehicles out for delivery</span>
           </div>
 
-          <div className="app-card" style={{ padding: '18px 20px', borderLeft: '4px solid #10b981', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #10b981', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivered</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{deliveredCount}</div>
-            <span style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>Successfully fulfilled</span>
+            <span style={{ fontSize: '11px', color: '#059669', fontWeight: '600', marginTop: '4px' }}>Successfully fulfilled</span>
           </div>
 
-          <div className="app-card" style={{ padding: '18px 20px', borderLeft: '4px solid #ef4444', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #ef4444', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Returns</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{returnsCount}</div>
-            <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600' }}>RMA & replacement tickets</span>
+            <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', marginTop: '4px' }}>RMA & replacement tickets</span>
           </div>
         </div>
 
         {/* 2 Column Performance & Status Distribution Section */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <div className="dispatch-two-col-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           {/* Today's Dispatch Performance */}
-          <div className="app-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
+          <div className="dispatch-dashboard-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ClipboardList size={18} color="#0284c7" />
               Today's Dispatch Performance
@@ -1392,7 +1392,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           </div>
 
           {/* Dispatch Status Distribution */}
-          <div className="app-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
+          <div className="dispatch-dashboard-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Box size={18} color="#6366f1" />
               Dispatch Status Distribution
@@ -1452,11 +1452,14 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           </div>
         </div>
 
-        {/* Ready For Dispatch Queue Table */}
-        <div className="app-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
+        {/* Ready For Dispatch Queue Section */}
+        <div className="dispatch-dashboard-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Ready For Dispatch Queue</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ClipboardList size={18} color="#0284c7" />
+                Ready For Dispatch Queue
+              </h3>
               <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Orders inspected by QC and staged for consignment</p>
             </div>
             <button
@@ -1467,7 +1470,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             </button>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
+          {/* Desktop Table View */}
+          <div className="dispatch-queue-desktop-table" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: '700', fontSize: '12px', textTransform: 'uppercase' }}>
@@ -1507,6 +1511,72 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="dispatch-queue-mobile-cards" style={{ display: 'none', flexDirection: 'column', gap: '12px' }}>
+            {readyQueueData.length > 0 ? (
+              readyQueueData.map((row, index) => (
+                <div 
+                  key={index}
+                  className="dispatch-queue-mobile-card"
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#0284C7', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {row.dispatchNo}
+                    </span>
+                    <span style={{ background: '#F1F5F9', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, color: '#475569', flexShrink: 0 }}>
+                      {row.warehouse}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0F172A' }}>
+                    {row.customer}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B' }}>
+                    <span>Order: <strong style={{ color: '#334155' }}>{row.salesOrder}</strong></span>
+                    <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '13px' }}>{row.qty} Pcs</span>
+                  </div>
+
+                  <button
+                    onClick={() => navigate.push(row.id ? `${basePath}/create-dispatch?workOrderId=${row.id}` : `${basePath}/create-dispatch`)}
+                    style={{
+                      width: '100%',
+                      background: '#0284C7',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      marginTop: '4px'
+                    }}
+                  >
+                    <PlusCircle size={15} /> Create Dispatch
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#64748B', fontSize: '13px' }}>
+                No orders currently staged for dispatch.
+              </div>
+            )}
           </div>
         </div>
 
@@ -3646,45 +3716,51 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   return (
     <>
-      {currentView === 'dashboard' && renderDashboard()}
-      {currentView === 'finished-goods' && renderFinishedGoods()}
-      {currentView === 'orders' && renderOrders()}
-      {currentView === 'create-dispatch' && renderCreateDispatch()}
-      {currentView === 'in-transit' && renderInTransit()}
-      {currentView === 'delivery' && renderDelivery()}
-      {currentView === 'history' && renderDispatchHistory()}
-      {currentView === 'sample-dispatch' && renderSampleDispatch()}
-      {currentView === 'replacements' && renderReplacementDispatch()}
-      {currentView === 'returns' && <ReturnsPortal />}
-      {currentView === 'reports' && renderReports()}
-      {currentView === 'partial' && renderPartialDispatch()}
-      {currentView === 'remaining' && renderRemainingDispatch()}
-      {currentView === 'profile' && <MyProfileView />}
+      {currentView === 'dashboard' && <div data-testid="dispatch-dashboard-view" className="sales-portal-view">{renderDashboard()}</div>}
+      {currentView === 'finished-goods' && <div data-testid="dispatch-fg-view" className="sales-portal-view">{renderFinishedGoods()}</div>}
+      {currentView === 'orders' && <div data-testid="dispatch-orders-view" className="sales-portal-view">{renderOrders()}</div>}
+      {currentView === 'create-dispatch' && <div data-testid="dispatch-create-view" className="sales-portal-view">{renderCreateDispatch()}</div>}
+      {currentView === 'in-transit' && <div data-testid="dispatch-in-transit-view" className="sales-portal-view">{renderInTransit()}</div>}
+      {currentView === 'delivery' && <div data-testid="dispatch-delivery-view" className="sales-portal-view">{renderDelivery()}</div>}
+      {currentView === 'history' && <div data-testid="dispatch-history-view" className="sales-portal-view">{renderDispatchHistory()}</div>}
+      {currentView === 'sample-dispatch' && <div data-testid="dispatch-sample-view" className="sales-portal-view">{renderSampleDispatch()}</div>}
+      {currentView === 'replacements' && <div data-testid="dispatch-replacements-view" className="sales-portal-view">{renderReplacementDispatch()}</div>}
+      {currentView === 'returns' && <div data-testid="dispatch-returns-view" className="sales-portal-view"><ReturnsPortal /></div>}
+      {currentView === 'reports' && <div data-testid="dispatch-reports-view" className="sales-portal-view">{renderReports()}</div>}
+      {currentView === 'partial' && <div data-testid="dispatch-partial-view" className="sales-portal-view">{renderPartialDispatch()}</div>}
+      {currentView === 'remaining' && <div data-testid="dispatch-remaining-view" className="sales-portal-view">{renderRemainingDispatch()}</div>}
+      {currentView === 'profile' && <div data-testid="dispatch-profile-view" className="sales-portal-view"><MyProfileView /></div>}
       {currentView === 'daily-report-entry' && (
-        <DailyReportEntryView
-          isDispatch={true}
-          dispatchType={isDispatch2Portal ? 'DISPATCH_2' : 'DISPATCH_1'}
-          reportId={params?.slug?.[1] || searchParams.get('edit')}
-          onNavigateToHistory={() => navigate.push(`${basePath}/daily-report/history`)}
-          onNavigateToPrint={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
-        />
+        <div data-testid="dispatch-daily-report-entry-view" className="sales-portal-view">
+          <DailyReportEntryView
+            isDispatch={true}
+            dispatchType={isDispatch2Portal ? 'DISPATCH_2' : 'DISPATCH_1'}
+            reportId={params?.slug?.[1] || searchParams.get('edit')}
+            onNavigateToHistory={() => navigate.push(`${basePath}/daily-report/history`)}
+            onNavigateToPrint={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
+          />
+        </div>
       )}
       {currentView === 'daily-report-history' && (
-        <DailyReportHistoryView
-          roleMode="DISPATCH"
-          isDispatch={true}
-          dispatchType={isDispatch2Portal ? 'DISPATCH_2' : 'DISPATCH_1'}
-          onNewReport={() => navigate.push(`${basePath}/daily-report`)}
-          onEditReport={(id) => navigate.push(`${basePath}/daily-report?edit=${id}`)}
-          onViewReport={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
-        />
+        <div data-testid="dispatch-daily-report-history-view" className="sales-portal-view">
+          <DailyReportHistoryView
+            roleMode="DISPATCH"
+            isDispatch={true}
+            dispatchType={isDispatch2Portal ? 'DISPATCH_2' : 'DISPATCH_1'}
+            onNewReport={() => navigate.push(`${basePath}/daily-report`)}
+            onEditReport={(id) => navigate.push(`${basePath}/daily-report?edit=${id}`)}
+            onViewReport={(id) => navigate.push(`${basePath}/daily-report/${id}`)}
+          />
+        </div>
       )}
       {currentView === 'daily-report-view' && (
-        <DailyReportPrintView
-          isDispatch={true}
-          reportId={params?.slug?.[1] || (pathname ? pathname.split('/daily-report/')[1] : null)}
-          onBack={() => navigate.push(`${basePath}/daily-report/history`)}
-        />
+        <div data-testid="dispatch-daily-report-print-view" className="sales-portal-view">
+          <DailyReportPrintView
+            isDispatch={true}
+            reportId={params?.slug?.[1] || (pathname ? pathname.split('/daily-report/')[1] : null)}
+            onBack={() => navigate.push(`${basePath}/daily-report/history`)}
+          />
+        </div>
       )}
 
       {/* Delivery Proof modal */}

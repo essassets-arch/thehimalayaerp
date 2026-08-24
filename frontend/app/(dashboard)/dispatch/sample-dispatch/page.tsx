@@ -251,121 +251,335 @@ function SampleDispatchListContent() {
         </div>
 
         {/* ── Filters ── */}
-        <div className={styles.filters}>
+        <div className={styles.filters} style={{ overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
           <button 
             className={`${styles.filterTab} ${filter === 'pending' ? styles.active : ''}`}
             onClick={() => setUrlFilter('pending')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            Pending Dispatch
+            <span>📋</span> Pending Dispatch
           </button>
           <button 
             className={`${styles.filterTab} ${filter === 'in-transit' ? styles.active : ''}`}
             onClick={() => setUrlFilter('in-transit')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            In-Transit
+            <span>🚚</span> In-Transit
           </button>
           <button 
             className={`${styles.filterTab} ${filter === 'delivered' ? styles.active : ''}`}
             onClick={() => setUrlFilter('delivered')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            Delivered
+            <span>✓</span> Delivered
           </button>
           <button 
             className={`${styles.filterTab} ${filter === 'all' ? styles.active : ''}`}
             onClick={() => setUrlFilter('all')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            All History
+            <span>🕒</span> All History
           </button>
         </div>
 
-        {/* ── Data Table ── */}
-        <div className={styles.tableContainer}>
-          <div className={styles.tableScroll}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Sample Order</th>
-                  <th>Customer</th>
-                  <th>Delivery Address</th>
-                  <th>Product</th>
-                  <th>Approved Qty</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRequests.length > 0 ? (
-                  filteredRequests.map(req => (
-                    <tr key={req.id}>
-                      <td className={styles.tableRowId}>
-                        {req.orderNo}
-                        {(req as any).isReturn && (
-                          <span style={{ marginLeft: 6, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 800, letterSpacing: 0.3 }}>↩ RETURN</span>
-                        )}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{req.customer}</td>
-                      <td>
-                        {req.address !== 'N/A' ? (
-                          <span style={{ color: '#475569' }}>{req.address}</span>
-                        ) : (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Not provided</span>
-                        )}
-                      </td>
-                      <td style={{ fontWeight: 600, color: '#334155' }}>{req.product}</td>
-                      <td>
-                        <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                          {req.approvedQty}
-                        </span>
-                      </td>
-                      <td>
-                        {req.status === 'pending' && (
-                          <button 
-                            className={styles.tableActionBtn}
-                            style={(req as any).isReturn ? { background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' } : {}}
-                            onClick={() => router.push(`/dispatch/sample-dispatch/create/${req.id}`)}
-                          >
-                            {(req as any).isReturn ? '↩ Arrange Pick-up' : 'Dispatch'} <ArrowRight style={{ width: 14, height: 14 }} />
-                          </button>
-                        )}
-                        {req.status === 'in-transit' && (req.deliveryState === 'Not Started' || req.deliveryState === 'Out for Delivery' || req.deliveryState === 'Return In Transit') && (
-                          <button 
-                            className={styles.tableActionBtn}
-                            style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}
-                            onClick={() => updateDeliveryState(req.id, 'Started')}
-                          >
-                            <Navigation style={{ width: 14, height: 14 }} /> {(req as any).isReturn ? 'Start Pick-up' : 'Start Delivery'}
-                          </button>
-                        )}
-                        {req.status === 'in-transit' && req.deliveryState === 'Started' && (
-                          <button 
-                            className={styles.tableActionBtn}
-                            style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#15803d' }}
-                            onClick={() => updateDeliveryState(req.id, 'Delivered')}
-                          >
-                            <CheckCircle style={{ width: 14, height: 14 }} /> {(req as any).isReturn ? 'Confirm Return' : 'Confirm Delivery'}
-                          </button>
-                        )}
-                        {req.status === 'delivered' && (
-                          <button 
-                            className={styles.tableActionBtn}
-                            style={{ color: '#475569' }}
-                            onClick={() => openUploadModal(req.id)}
-                          >
-                            <Upload style={{ width: 14, height: 14 }} /> Upload Proof
-                          </button>
-                        )}
+        {/* ── Desktop Data Table (>= 768px) ── */}
+        <div className="hidden md:block">
+          <div className={styles.tableContainer}>
+            <div className={styles.tableScroll}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Sample Order</th>
+                    <th>Customer</th>
+                    <th>Delivery Address</th>
+                    <th>Product</th>
+                    <th>Approved Qty</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.length > 0 ? (
+                    filteredRequests.map(req => (
+                      <tr key={req.id}>
+                        <td className={styles.tableRowId}>
+                          {req.orderNo}
+                          {(req as any).isReturn && (
+                            <span style={{ marginLeft: 6, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 800, letterSpacing: 0.3 }}>↩ RETURN</span>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{req.customer}</td>
+                        <td>
+                          {req.address !== 'N/A' ? (
+                            <span style={{ color: '#475569' }}>{req.address}</span>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Not provided</span>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 600, color: '#334155' }}>{req.product}</td>
+                        <td>
+                          <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                            {req.approvedQty}
+                          </span>
+                        </td>
+                        <td>
+                          {req.status === 'pending' && (
+                            <button 
+                              className={styles.tableActionBtn}
+                              style={(req as any).isReturn ? { background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' } : {}}
+                              onClick={() => router.push(`/dispatch/sample-dispatch/create/${req.id}`)}
+                            >
+                              {(req as any).isReturn ? '↩ Arrange Pick-up' : 'Dispatch'} <ArrowRight style={{ width: 14, height: 14 }} />
+                            </button>
+                          )}
+                          {req.status === 'in-transit' && (req.deliveryState === 'Not Started' || req.deliveryState === 'Out for Delivery' || req.deliveryState === 'Return In Transit') && (
+                            <button 
+                              className={styles.tableActionBtn}
+                              style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}
+                              onClick={() => updateDeliveryState(req.id, 'Started')}
+                            >
+                              <Navigation style={{ width: 14, height: 14 }} /> {(req as any).isReturn ? 'Start Pick-up' : 'Start Delivery'}
+                            </button>
+                          )}
+                          {req.status === 'in-transit' && req.deliveryState === 'Started' && (
+                            <button 
+                              className={styles.tableActionBtn}
+                              style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#15803d' }}
+                              onClick={() => updateDeliveryState(req.id, 'Delivered')}
+                            >
+                              <CheckCircle style={{ width: 14, height: 14 }} /> {(req as any).isReturn ? 'Confirm Return' : 'Confirm Delivery'}
+                            </button>
+                          )}
+                          {req.status === 'delivered' && (
+                            <button 
+                              className={styles.tableActionBtn}
+                              style={{ color: '#475569' }}
+                              onClick={() => openUploadModal(req.id)}
+                            >
+                              <Upload style={{ width: 14, height: 14 }} /> Upload Proof
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                        No {filter} sample dispatch requests found.
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                      No {filter} sample dispatch requests found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+        </div>
+
+        {/* ── Mobile Cards View (< 768px) ── */}
+        <div className="md:hidden flex flex-col gap-4">
+          {filteredRequests.length > 0 ? (
+            filteredRequests.map(req => {
+              const statusLabel = req.status === 'pending' ? 'PENDING' : req.status === 'in-transit' ? 'IN-TRANSIT' : 'DELIVERED';
+              const statusBg = req.status === 'pending' ? '#FEF3C7' : req.status === 'in-transit' ? '#DBEAFE' : '#DCFCE7';
+              const statusColor = req.status === 'pending' ? '#92400E' : req.status === 'in-transit' ? '#1E40AF' : '#166534';
+
+              return (
+                <div
+                  key={req.id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                  }}
+                >
+                  {/* Card Header: Box Icon in purple square + ID + Timestamp + Status Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: '#F5F3FF',
+                        border: '1px solid #DDD6FE',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#7C3AED'
+                      }}>
+                        <PackageOpen size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
+                          {req.orderNo}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                          {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} • 10:30 AM
+                        </div>
+                      </div>
+                    </div>
+
+                    <span style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      background: statusBg,
+                      color: statusColor
+                    }}>
+                      {statusLabel}
+                    </span>
+                  </div>
+
+                  {/* Customer Field */}
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block' }}>
+                      Customer
+                    </span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A', marginTop: '2px', display: 'block' }}>
+                      {req.customer}
+                    </span>
+                  </div>
+
+                  {/* Product Field */}
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block' }}>
+                      Product
+                    </span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A', marginTop: '2px', display: 'block' }}>
+                      {req.product}
+                    </span>
+                  </div>
+
+                  {/* Quantity Requested Row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                    <span style={{ fontSize: '13px', color: '#475569', fontWeight: 600 }}>
+                      Quantity Requested
+                    </span>
+                    <span style={{
+                      background: '#EFF6FF',
+                      color: '#2563EB',
+                      padding: '3px 12px',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      fontSize: '13px'
+                    }}>
+                      {req.approvedQty}
+                    </span>
+                  </div>
+
+                  {/* Special Instructions Row */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
+                      Special Instructions
+                    </span>
+                    <span style={{ fontSize: '13px', color: '#94A3B8', fontStyle: 'italic' }}>
+                      {req.address && req.address !== 'N/A' ? req.address : 'Not provided'}
+                    </span>
+                  </div>
+
+                  {/* Action Button */}
+                  <div style={{ paddingTop: '6px' }}>
+                    {req.status === 'pending' && (
+                      <button
+                        onClick={() => router.push(`/dispatch/sample-dispatch/create/${req.id}`)}
+                        style={{
+                          width: '100%',
+                          background: '#EFF6FF',
+                          border: '1px solid #BFDBFE',
+                          color: '#2563EB',
+                          padding: '11px',
+                          borderRadius: '10px',
+                          fontSize: '13.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        Dispatch <ArrowRight size={16} />
+                      </button>
+                    )}
+                    {req.status === 'in-transit' && (req.deliveryState === 'Not Started' || req.deliveryState === 'Out for Delivery' || req.deliveryState === 'Return In Transit') && (
+                      <button
+                        onClick={() => updateDeliveryState(req.id, 'Started')}
+                        style={{
+                          width: '100%',
+                          background: '#EFF6FF',
+                          border: '1px solid #BFDBFE',
+                          color: '#1D4ED8',
+                          padding: '11px',
+                          borderRadius: '10px',
+                          fontSize: '13.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Navigation size={16} /> Start Delivery
+                      </button>
+                    )}
+                    {req.status === 'in-transit' && req.deliveryState === 'Started' && (
+                      <button
+                        onClick={() => updateDeliveryState(req.id, 'Delivered')}
+                        style={{
+                          width: '100%',
+                          background: '#F0FDF4',
+                          border: '1px solid #BBF7D0',
+                          color: '#15803D',
+                          padding: '11px',
+                          borderRadius: '10px',
+                          fontSize: '13.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <CheckCircle size={16} /> Confirm Delivery
+                      </button>
+                    )}
+                    {req.status === 'delivered' && (
+                      <button
+                        onClick={() => openUploadModal(req.id)}
+                        style={{
+                          width: '100%',
+                          background: '#F8FAFC',
+                          border: '1px solid #CBD5E1',
+                          color: '#334155',
+                          padding: '11px',
+                          borderRadius: '10px',
+                          fontSize: '13.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Upload size={16} /> Upload Proof
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ textAlign: 'center', padding: '36px 16px', color: '#94A3B8', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+              No {filter} sample dispatch requests found.
+            </div>
+          )}
         </div>
 
       </div>

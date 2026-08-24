@@ -703,15 +703,21 @@ export default function FinancePortal({ initialView, forceView }) {
   const renderDashboard = () => {
     const isExecutive = pathname?.includes('finance-executive') || user?.role === 'Finance Executive';
     if (isExecutive) {
-      return <FinanceExecutiveDashboardView />;
+      return (
+        <div data-testid="finance-executive-dashboard" className="sales-portal-view">
+          <FinanceExecutiveDashboardView />
+        </div>
+      );
     }
     return (
-      <FinanceManagerDashboardView 
-        state={state} 
-        payments={payments} 
-        expenses={expenses} 
-        purchaseOrders={state.purchaseOrders || []} 
-      />
+      <div data-testid="finance-manager-dashboard" className="sales-portal-view">
+        <FinanceManagerDashboardView 
+          state={state} 
+          payments={payments} 
+          expenses={expenses} 
+          purchaseOrders={state.purchaseOrders || []} 
+        />
+      </div>
     );
   };
 
@@ -3144,34 +3150,28 @@ export default function FinancePortal({ initialView, forceView }) {
           {ledgerTab === 'Trial Balance' && (
             <DataTable 
               columns={[
-                { header: 'Account Code', accessor: 'code', render: (row) => <strong>{row.code}</strong> },
-                { header: 'Account Ledger Head', accessor: 'accountName', render: (row) => <span style={{ fontWeight: '600' }}>{row.accountName}</span> },
-                { header: 'Debit Balance (Dr)', accessor: 'debit', render: (row) => row.debit > 0 ? `₹${row.debit.toLocaleString('en-IN')}` : '-' },
-                { header: 'Credit Balance (Cr)', accessor: 'credit', render: (row) => row.credit > 0 ? `₹${row.credit.toLocaleString('en-IN')}` : '-' }
+                { header: 'Account Classification', accessor: 'account', render: (row) => <strong>{row.account}</strong> },
+                { header: 'Initial Bal', accessor: 'debit', render: () => '₹0.00' },
+                { header: 'Net Debit (Dr)', accessor: 'debit', render: (row) => `₹${row.debit.toLocaleString('en-IN')}` },
+                { header: 'Net Credit (Cr)', accessor: 'credit', render: (row) => `₹${row.credit.toLocaleString('en-IN')}` },
+                { header: 'Closing Bal', accessor: 'balance', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>₹{row.balance.toLocaleString('en-IN')}</strong> }
               ]}
               data={getLedgerData()}
               searchQuery={globalSearch}
-              searchField="accountName"
-              emptyMessage="Trial balance data empty."
+              searchField="account"
+              emptyMessage="No accounts logged."
             />
           )}
-
         </div>
       </div>
     );
   };
 
   const renderSettings = () => {
-    const settingsTabs = ['GST Settings', 'Payment Methods', 'Banks', 'Financial Year', 'Invoice Series', 'Receipt Series', 'Approval Workflow'];
+    const settingsTabs = ['GST Settings', 'Payment Methods', 'Banks', 'Approval Limits'];
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div style={{ 
-          display: 'flex', 
-          borderBottom: '1px solid var(--color-border)', 
-          gap: '8px', 
-          paddingBottom: '4px',
-          overflowX: 'auto'
-        }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', gap: '8px', paddingBottom: '4px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
           {settingsTabs.map(tab => {
             const isActive = settingsTab === tab;
             return (
@@ -3180,15 +3180,13 @@ export default function FinancePortal({ initialView, forceView }) {
                 onClick={() => setSettingsTab(tab)}
                 style={{
                   padding: '10px 20px',
-                  background: isActive ? 'var(--color-primary)' : 'transparent',
-                  color: isActive ? '#000' : 'var(--color-text-secondary)',
+                  background: isActive ? 'var(--color-primary, #2F4375)' : 'transparent',
+                  color: isActive ? '#ffffff' : '#5E6B82',
                   border: 'none',
                   borderRadius: '8px',
-                  fontWeight: '700',
-                  fontSize: '13px',
+                  fontWeight: isActive ? '700' : '600',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  whiteSpace: 'nowrap'
+                  flexShrink: 0
                 }}
               >
                 {tab}
@@ -3255,48 +3253,7 @@ export default function FinancePortal({ initialView, forceView }) {
             </div>
           )}
 
-          {settingsTab === 'Financial Year' && (
-            <form onSubmit={(e) => { e.preventDefault(); showToast('Financial Year period saved.'); }} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '400px' }}>
-              <div className="form-group">
-                <label className="form-label">Current Financial Year</label>
-                <select className="form-select" defaultValue="FY2627">
-                  <option value="FY2526">FY 2025 - 2026 (Apr - Mar)</option>
-                  <option value="FY2627">FY 2026 - 2027 (Apr - Mar)</option>
-                </select>
-              </div>
-              <button type="submit" className="form-submit-btn" style={{ width: 'fit-content' }}>Activate Period</button>
-            </form>
-          )}
-
-          {settingsTab === 'Invoice Series' && (
-            <form onSubmit={(e) => { e.preventDefault(); showToast('Invoice sequence format updated.'); }} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '400px' }}>
-              <div className="form-group">
-                <label className="form-label">Invoice Prefix Pattern</label>
-                <input type="text" defaultValue="INV-2026-" className="form-input" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Next Sequence Start</label>
-                <input type="number" defaultValue="0305" className="form-input" />
-              </div>
-              <button type="submit" className="form-submit-btn" style={{ width: 'fit-content' }}>Save Formatting</button>
-            </form>
-          )}
-
-          {settingsTab === 'Receipt Series' && (
-            <form onSubmit={(e) => { e.preventDefault(); showToast('Receipt sequence format updated.'); }} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '400px' }}>
-              <div className="form-group">
-                <label className="form-label">Receipt Prefix Pattern</label>
-                <input type="text" defaultValue="RC-2026-" className="form-input" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Next Sequence Start</label>
-                <input type="number" defaultValue="1024" className="form-input" />
-              </div>
-              <button type="submit" className="form-submit-btn" style={{ width: 'fit-content' }}>Save Formatting</button>
-            </form>
-          )}
-
-          {settingsTab === 'Approval Workflow' && (
+          {settingsTab === 'Approval Limits' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ padding: '16px', border: '1px solid var(--color-border)', borderRadius: '12px', background: 'rgba(255,255,255,0.01)' }}>
                 <strong style={{ display: 'block', fontSize: '14.5px' }}>Purchase Order (PO) Approval Limit</strong>
@@ -3376,7 +3333,7 @@ export default function FinancePortal({ initialView, forceView }) {
           borderBottom: '1px solid var(--color-border, #E2E8F0)', 
           gap: '8px', 
           paddingBottom: '8px', 
-          overflowX: 'auto',
+          overflowX: 'auto', 
           whiteSpace: 'nowrap',
           background: '#ffffff',
           padding: '12px 16px',
@@ -3422,35 +3379,39 @@ export default function FinancePortal({ initialView, forceView }) {
   return (
     <>
       {view === 'dashboard' && renderDashboard()}
-      {(view === 'sales' || view === 'sales-analytics') && renderFinanceSalesWorkspace()}
-      {view === 'profile' && <MyProfileView />}
-      {view === 'invoices' && renderInvoices()}
-      {view === 'create-po' && <CreatePurchaseOrder />}
-      {view === 'delivery-audit' && <DeliveryAudit />}
-      {view === 'rejection-management' && <RejectionManagement />}
-      {view === 'brand-analysis' && <FinanceBrandAnalysis />}
+      {(view === 'sales' || view === 'sales-analytics') && <div data-testid="finance-sales-view" className="sales-portal-view">{renderFinanceSalesWorkspace()}</div>}
+      {view === 'profile' && <div data-testid="finance-profile-view" className="sales-portal-view"><MyProfileView /></div>}
+      {view === 'invoices' && <div data-testid="finance-invoices-view" className="sales-portal-view">{renderInvoices()}</div>}
+      {view === 'create-po' && <div data-testid="finance-create-po-view" className="sales-portal-view"><CreatePurchaseOrder /></div>}
+      {view === 'delivery-audit' && <div data-testid="finance-delivery-audit-view" className="sales-portal-view"><DeliveryAudit /></div>}
+      {view === 'rejection-management' && <div data-testid="finance-rejection-management-view" className="sales-portal-view"><RejectionManagement /></div>}
+      {view === 'brand-analysis' && <div data-testid="finance-brand-analysis-view" className="sales-portal-view"><FinanceBrandAnalysis /></div>}
       
       {/* Shared Payments Subviews */}
-      {view === 'payment-verification' && <FinanceSalesConfirmationView />}
-      {view === 'receipts' && <ReceiptsView />}
-      {view === 'outstanding' && <OutstandingView />}
-      {view === 'customers' && <CustomersView />}
-      {view === 'daily-tasks' && <DailyTaskView state={state} dispatch={dispatch} navigate={navigate} showToast={showToast} module="Finance" />}
+      {view === 'payment-verification' && <div data-testid="finance-payment-verification-view" className="sales-portal-view"><FinanceSalesConfirmationView /></div>}
+      {view === 'receipts' && <div data-testid="finance-receipts-view" className="sales-portal-view"><ReceiptsView /></div>}
+      {view === 'outstanding' && <div data-testid="finance-outstanding-view" className="sales-portal-view"><OutstandingView /></div>}
+      {view === 'customers' && <div data-testid="finance-customers-view" className="sales-portal-view"><CustomersView /></div>}
+      {view === 'daily-tasks' && <div data-testid="finance-daily-tasks-view" className="sales-portal-view"><DailyTaskView state={state} dispatch={dispatch} navigate={navigate} showToast={showToast} module="Finance" /></div>}
       
       {/* Procurement & Vendor Views */}
-      {view === 'vendors' && <VendorManagement />}
-      {view === 'expenses' && renderExpenses()}
+      {view === 'vendors' && <div data-testid="finance-vendors-view" className="sales-portal-view"><VendorManagement /></div>}
+      {view === 'expenses' && <div data-testid="finance-expenses-view" className="sales-portal-view">{renderExpenses()}</div>}
       
       {/* Accounting & Ledger Views */}
-      {view === 'ledger' && renderLedgerWorkspace()}
-      {view === 'reports' && renderReports()}
-      {view === 'settings' && renderSettings()}
+      {view === 'ledger' && <div data-testid="finance-ledger-view" className="sales-portal-view">{renderLedgerWorkspace()}</div>}
+      {view === 'reports' && <div data-testid="finance-reports-view" className="sales-portal-view">{renderReports()}</div>}
+      {view === 'settings' && <div data-testid="finance-settings-view" className="sales-portal-view">{renderSettings()}</div>}
       
       {/* Legacy and PO fallbacks */}
-      {view === 'receivables' && renderReceivables()}
-      {view === 'history-ledger' && renderHistory()}
-      {view === 'history' && renderHistory()}
-      {(view === 'po-requests' || view === 'pending-requests' || view === 'create-po' || view === 'all-pos' || view === 'verify-close') && renderFinancePOWorkspace()}
+      {view === 'receivables' && <div data-testid="finance-receivables-view" className="sales-portal-view">{renderReceivables()}</div>}
+      {view === 'history-ledger' && <div data-testid="finance-history-ledger-view" className="sales-portal-view">{renderHistory()}</div>}
+      {view === 'history' && <div data-testid="finance-history-view" className="sales-portal-view">{renderHistory()}</div>}
+      {(view === 'po-requests' || view === 'pending-requests' || view === 'create-po' || view === 'all-pos' || view === 'verify-close') && (
+        <div data-testid="finance-po-workspace-view" className="sales-portal-view">
+          {renderFinancePOWorkspace()}
+        </div>
+      )}
 
       {/* Expense modal form overlay */}
       {showExpenseModal && (

@@ -731,6 +731,179 @@ export default function FinanceSalesConfirmationView() {
             </tbody>
           </table>
         </div>
+
+        {/* ── Mobile Cards List View (Section 13) ── */}
+        <div className="payment-verification-mobile-cards" style={{ display: 'none', padding: '14px', flexDirection: 'column', gap: '14px' }}>
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: '36px', color: '#64748B' }}>
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+              <span>Loading payment records...</span>
+            </div>
+          ) : rows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 16px', color: '#94A3B8' }}>
+              <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>📭</span>
+              <span style={{ fontWeight: 600, fontSize: '14px' }}>No orders found matching the filter criteria.</span>
+            </div>
+          ) : (
+            rows.map((r, idx) => {
+              const hasPending = (r.pendingPayments || []).length > 0;
+              const firstPending = r.pendingPayments?.[0];
+              const remDays = r.daysRemaining;
+              const formattedDate = r.orderDate ? new Date(r.orderDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+              return (
+                <div 
+                  key={r.orderId + idx} 
+                  className="payment-mobile-card" 
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderLeft: hasPending ? '4px solid #F59E0B' : (r.dueState === 'OVERDUE' ? '4px solid #DC2626' : '4px solid #3B82F6'),
+                    borderRadius: '14px',
+                    padding: '16px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
+                  }}
+                >
+                  {/* Header Row: Calendar + Date + Days Pill + Status Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#F8FAFC', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>{formattedDate}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                          <span style={{ fontSize: '11px', background: '#EEF2FF', color: '#4F46E5', padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>
+                            🌙 In {remDays || 8}d
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <span style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      background: '#FEF3C7',
+                      color: '#92400E',
+                      border: '1px solid #FDE68A'
+                    }}>
+                      {r.paymentStatus || 'PENDING'}
+                    </span>
+                  </div>
+
+                  {/* Customer / Order Info */}
+                  <div style={{ fontSize: '13px', color: '#475569' }}>
+                    <strong style={{ color: '#0F172A' }}>{r.customerName}</strong>
+                    <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+                      Order: <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#1E3A8A' }}>{r.orderNumber}</span> • {r.salespersonName || 'Sales'}
+                    </div>
+                  </div>
+
+                  {/* 3 Metric Columns */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', padding: '12px 0', borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, display: 'block' }}>Amount</span>
+                      <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>{formatINR(r.orderTotal)}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, display: 'block' }}>Paid</span>
+                      <span style={{ fontSize: '15px', fontWeight: 800, color: '#16A34A' }}>{formatINR(r.verifiedPaidAmount)}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, display: 'block' }}>Outstanding</span>
+                      <span style={{ fontSize: '15px', fontWeight: 800, color: '#DC2626' }}>{formatINR(r.outstandingAmount)}</span>
+                    </div>
+                  </div>
+
+                  {/* Pending verification info */}
+                  {hasPending && firstPending && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#92400E' }}>
+                      <span>⏳ {formatINR(firstPending?.amount)} ({r.pendingPayments.length})</span>
+                    </div>
+                  )}
+
+                  {/* 3 Action Buttons Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: hasPending ? '1fr 1fr 1fr' : '1fr', gap: '8px', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '8px',
+                        padding: '9px 8px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: '#334155',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setHistoryModal({ orderId: r.orderId, orderNumber: r.orderNumber })}
+                    >
+                      <Eye className="w-3.5 h-3.5" /> History
+                    </button>
+
+                    {hasPending && firstPending && (
+                      <>
+                        <button
+                          type="button"
+                          style={{
+                            background: '#16A34A',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '9px 8px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => {
+                            setVerifyImageError(false);
+                            setVerifyModal({ payment: firstPending, order: r });
+                          }}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Verify
+                        </button>
+
+                        <button
+                          type="button"
+                          style={{
+                            background: '#DC2626',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '9px 8px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => setRejectModal({ payment: firstPending, order: r })}
+                        >
+                          <XCircle className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* ── Verify Payment Confirmation Modal (Section 16) ─────────────────── */}
