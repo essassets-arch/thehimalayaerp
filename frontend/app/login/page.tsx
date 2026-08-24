@@ -352,7 +352,9 @@ export default function LoginPage() {
 
         .login-icon {
           position: absolute;
-          left: 14px;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
           color: #94A3B8;
           pointer-events: none;
           transition: color 0.2s;
@@ -360,11 +362,13 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
+          width: 20px;
+          height: 20px;
         }
 
         .login-input {
           width: 100% !important;
-          padding: 12px 14px 12px 44px !important;
+          padding: 12px 14px 12px 40px !important;
           background: #F8FAFD;
           border: 1.5px solid #E2E8F0;
           border-radius: 12px;
@@ -374,6 +378,8 @@ export default function LoginPage() {
           outline: none;
           transition: all 0.2s;
           box-sizing: border-box !important;
+          -webkit-appearance: none;
+          appearance: none;
         }
         .login-input::placeholder { color: #CBD5E1; }
         .login-input:focus {
@@ -392,7 +398,9 @@ export default function LoginPage() {
 
         .pass-toggle {
           position: absolute;
-          right: 14px;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
           background: none;
           border: none;
           cursor: pointer;
@@ -570,7 +578,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
                   autoComplete="username"
-                  style={{ paddingLeft: '44px', paddingRight: '14px', boxSizing: 'border-box' }}
+                  style={{ paddingLeft: '40px', paddingRight: '14px', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
@@ -590,7 +598,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
                   autoComplete="current-password"
-                  style={{ paddingLeft: '44px', paddingRight: '44px', boxSizing: 'border-box' }}
+                  style={{ paddingLeft: '40px', paddingRight: '44px', boxSizing: 'border-box' }}
                 />
                 <button
                   type="button"
