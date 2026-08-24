@@ -341,7 +341,7 @@ export default function InTransitPage() {
           </div>
 
           {/* Mobile Cards View (< 768px) */}
-          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 dispatch-mobile-card-grid">
             {filteredDispatches.map((dispatchItem) => {
               const expectedDate = getExpectedDelivery(dispatchItem);
               const isOverdue = expectedDate && new Date(expectedDate) < new Date();
@@ -351,14 +351,16 @@ export default function InTransitPage() {
                   className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between"
                 >
                   {/* Card Header */}
-                  <div className="flex items-center justify-between px-4 py-3.5 bg-slate-50 border-b border-slate-100">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col px-4 py-3 bg-slate-50 border-b border-slate-100 gap-1.5">
+                    <div className="flex items-center justify-between gap-2 min-w-0">
                       <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
-                      <span className="text-sm font-semibold text-slate-700">
-                        #{dispatchItem.salesOrder?.orderNumber}
-                      </span>
+                      <DispatchStatusBadge status={dispatchItem.status} />
                     </div>
-                    <DispatchStatusBadge status={dispatchItem.status} />
+                    {dispatchItem.salesOrder?.orderNumber && (
+                      <span className="text-xs font-semibold text-slate-500 truncate">
+                        Sales Order: #{dispatchItem.salesOrder.orderNumber}
+                      </span>
+                    )}
                   </div>
 
                   {/* Card Body */}

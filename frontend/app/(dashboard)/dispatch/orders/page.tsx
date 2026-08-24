@@ -587,15 +587,17 @@ export default function DispatchOrdersPage() {
           </div>
 
           {/* Mobile Cards View (< 768px) */}
-          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 dispatch-mobile-card-grid">
             {filteredPendingItems.map((item) => (
               <div
                 key={item.id}
                 className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between"
               >
                 {/* Card Header */}
-                <div className="flex items-center justify-between px-4 py-3.5 bg-slate-50 border-b border-slate-100">
-                  <SalesOrderNumberBadge orderNumber={item.orderNumber} />
+                <div className="flex items-center justify-between gap-2 px-4 py-3.5 bg-slate-50 border-b border-slate-100 min-w-0">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <SalesOrderNumberBadge orderNumber={item.orderNumber} />
+                  </div>
                   <DispatchTypeBadge type={item.itemType === "TRADING_SALES_ORDER" ? "TRADING" : "MFG"} />
                 </div>
 

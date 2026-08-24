@@ -13,6 +13,7 @@
   padding: 0;
   box-sizing: border-box;
   background: transparent;
+  overflow-x: hidden;
 }
 
 .flushPage {
@@ -22,6 +23,7 @@
   margin: 0;
   padding: 0;
   background: transparent;
+  overflow-x: hidden;
 }
 
 .content {

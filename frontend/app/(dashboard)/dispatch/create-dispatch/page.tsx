@@ -916,8 +916,8 @@ export default function CreateDispatchPage() {
                     const maximum = availableQuantity(candidate);
                     const orderedQty = candidate.salesOrderItem?.orderedQuantity || maximum;
                     return (
-                      <tr key={candidate.id}>
-                        <td>
+                    <tr key={candidate.id}>
+                        <td data-label="Order / Product">
                           <div className={styles.orderId}>
                             {candidateSalesOrder?.orderNumber || candidate.workOrderNumber}
                           </div>
@@ -925,9 +925,9 @@ export default function CreateDispatchPage() {
                             {candidate.salesOrderItem?.productNameSnapshot || "Unknown Product"}
                           </div>
                         </td>
-                        <td className={styles.center}>{orderedQty}</td>
-                        <td className={`${styles.center} ${styles.remaining}`}>{maximum}</td>
-                        <td className={styles.center}>
+                        <td className={styles.center} data-label="Ordered">{orderedQty}</td>
+                        <td className={`${styles.center} ${styles.remaining}`} data-label="Remaining">{maximum}</td>
+                        <td className={styles.center} data-label="Dispatch Now">
                           <input
                             type="number"
                             min={1}
