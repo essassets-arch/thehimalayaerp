@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Plus, Eye, Truck } from "lucide-react";
+import { Plus, Eye, Truck, User } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 
 import { backendFetch } from "@/lib/backendFetch";
@@ -177,25 +177,98 @@ export default function DispatchListPage() {
         />
       )}
 
-      {/* Table Display */}
+      {/* Table & Mobile Cards Display */}
       {!isLoading && filteredData.length > 0 && (
-        <DispatchTableCard minTableWidth={960}>
-          <DataTable
-            columns={columns}
-            data={filteredData.slice(
-              pagination.pageIndex * pagination.pageSize,
-              (pagination.pageIndex + 1) * pagination.pageSize
-            )}
-            pageCount={Math.ceil(filteredData.length / pagination.pageSize)}
-            onPaginationChange={setPagination}
-            serverSide={false}
-            emptyMessage={
-              search
-                ? "No dispatches match your search."
-                : "No dispatches have been created yet."
-            }
-          />
-        </DispatchTableCard>
+        <>
+          {/* Desktop Table View (≥ 768px) */}
+          <div className="hidden md:block">
+            <DispatchTableCard minTableWidth={960}>
+              <DataTable
+                columns={columns}
+                data={filteredData.slice(
+                  pagination.pageIndex * pagination.pageSize,
+                  (pagination.pageIndex + 1) * pagination.pageSize
+                )}
+                pageCount={Math.ceil(filteredData.length / pagination.pageSize)}
+                onPaginationChange={setPagination}
+                serverSide={false}
+                emptyMessage={
+                  search
+                    ? "No dispatches match your search."
+                    : "No dispatches have been created yet."
+                }
+              />
+            </DispatchTableCard>
+          </div>
+
+          {/* Mobile Cards View (< 768px) */}
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 dispatch-mobile-card-grid">
+            {filteredData
+              .slice(
+                pagination.pageIndex * pagination.pageSize,
+                (pagination.pageIndex + 1) * pagination.pageSize
+              )
+              .map((d) => (
+                <div key={d.id} className="dsp-card">
+                  {/* Card Header */}
+                  <div className="dsp-card-head">
+                    <div className="dsp-card-head-row">
+                      <SalesOrderNumberBadge orderNumber={d.dispatchNo} />
+                      <DispatchStatusBadge status={d.workflowState?.code || "UNKNOWN"} />
+                    </div>
+                    {d.salesOrder?.orderNumber && (
+                      <span className="dsp-card-so">
+                        Sales Order: #{d.salesOrder.orderNumber}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="dsp-card-body">
+                    {/* Customer */}
+                    <div className="dsp-card-row">
+                      <div className="dsp-card-icon">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <div className="dsp-card-info">
+                        <p className="dsp-card-label">Customer</p>
+                        <p className="dsp-card-value truncate max-w-[240px]">
+                          {d.salesOrder?.customer?.companyName || "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Created At */}
+                    <div className="dsp-card-row">
+                      <div className="dsp-card-icon">
+                        <Truck className="w-4 h-4" />
+                      </div>
+                      <div className="dsp-card-info">
+                        <p className="dsp-card-label">Created At</p>
+                        <p className="dsp-card-value">
+                          {d.createdAt
+                            ? format(new Date(d.createdAt), "MMM dd, yyyy HH:mm")
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className="dsp-card-foot">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/dispatch/${d.id}`)}
+                      className="dsp-confirm-btn"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>Manage Dispatch</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </>
       )}
     </DispatchPageShell>
   );

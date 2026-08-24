@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +30,7 @@ import {
   DispatchErrorState,
 } from "../components";
 
-/* ── Types ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface Customer {
   companyName: string;
   address?: string;
@@ -76,7 +76,7 @@ interface Dispatch {
   items: DispatchItem[];
 }
 
-/* ── Component ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function DeliveryRunPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -197,10 +197,10 @@ export default function DeliveryRunPage() {
     if (!activeDeliveryQueue.length) return;
     const rows = activeDeliveryQueue.map((d) => ({
       "Dispatch Number": d.dispatchNo,
-      "Sales Order": d.salesOrder?.orderNumber || "—",
-      Customer: d.salesOrder?.customer?.companyName || "—",
-      "Delivery Address": d.deliveryAddress || "—",
-      Driver: d.driverName || "—",
+      "Sales Order": d.salesOrder?.orderNumber || "â€”",
+      Customer: d.salesOrder?.customer?.companyName || "â€”",
+      "Delivery Address": d.deliveryAddress || "â€”",
+      Driver: d.driverName || "â€”",
       Status: d.status,
     }));
     const headers = Object.keys(rows[0]);
@@ -216,12 +216,12 @@ export default function DeliveryRunPage() {
     a.click();
   };
 
-  /* ── Render ─────────────────────────────────────────────────────────── */
+  /* â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   return (
     <DispatchPageShell>
       <DispatchNavigationTabs />
 
-      {/* ── Page Header ── */}
+      {/* â”€â”€ Page Header â”€â”€ */}
       <DispatchPageHeader
         title="Out for Delivery (Final Mile)"
         description="Record final handover details. Select a dispatch, upload proof of delivery (POD), capture receiver details and mark as Delivered."
@@ -239,7 +239,7 @@ export default function DeliveryRunPage() {
         isRefreshing={isRefetching}
       />
 
-      {/* ── Toolbar ── */}
+      {/* â”€â”€ Toolbar â”€â”€ */}
       <DispatchToolbar
         searchValue={search}
         onSearchChange={setSearch}
@@ -249,7 +249,7 @@ export default function DeliveryRunPage() {
         subtitle={`Showing ${activeDeliveryQueue.length} shipment${activeDeliveryQueue.length !== 1 ? "s" : ""} out for delivery`}
       />
 
-      {/* ── States ── */}
+      {/* â”€â”€ States â”€â”€ */}
       {isLoading && <DispatchLoadingState count={5} />}
       {error && !isLoading && <DispatchErrorState onRetry={() => refetch()} />}
       {!isLoading && !error && activeDeliveryQueue.length === 0 && (
@@ -264,51 +264,51 @@ export default function DeliveryRunPage() {
         />
       )}
 
-      {/* ── Table + Cards ── */}
+      {/* â”€â”€ Table + Cards â”€â”€ */}
       {!isLoading && !error && activeDeliveryQueue.length > 0 && (
         <>
-          {/* Desktop table (≥ 768px) */}
+          {/* Desktop table (â‰¥ 768px) */}
           <div className="hidden md:block">
             <DispatchTableCard minTableWidth={1100}>
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="dlv-th min-w-[180px]">Dispatch Number</th>
-                    <th className="dlv-th min-w-[160px]">Sales Order</th>
-                    <th className="dlv-th min-w-[200px]">Customer</th>
-                    <th className="dlv-th min-w-[160px]">Driver</th>
-                    <th className="dlv-th text-center min-w-[150px]">Status</th>
-                    <th className="dlv-th text-right min-w-[170px]">Action</th>
+                    <th className="dsp-th min-w-[180px]">Dispatch Number</th>
+                    <th className="dsp-th min-w-[160px]">Sales Order</th>
+                    <th className="dsp-th min-w-[200px]">Customer</th>
+                    <th className="dsp-th min-w-[160px]">Driver</th>
+                    <th className="dsp-th text-center min-w-[150px]">Status</th>
+                    <th className="dsp-th text-right min-w-[170px]">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {activeDeliveryQueue.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                      <td className="dlv-td">
+                      <td className="dsp-td">
                         <SalesOrderNumberBadge orderNumber={item.dispatchNo} />
                       </td>
-                      <td className="dlv-td">
+                      <td className="dsp-td">
                         <span className="font-semibold text-slate-900">
                           #{item.salesOrder?.orderNumber}
                         </span>
                       </td>
-                      <td className="dlv-td">
+                      <td className="dsp-td">
                         <span
                           className="font-semibold text-slate-900 block max-w-[220px] truncate"
-                          title={item.salesOrder?.customer?.companyName || "—"}
+                          title={item.salesOrder?.customer?.companyName || "â€”"}
                         >
-                          {item.salesOrder?.customer?.companyName || "—"}
+                          {item.salesOrder?.customer?.companyName || "â€”"}
                         </span>
                       </td>
-                      <td className="dlv-td">
+                      <td className="dsp-td">
                         <span className="text-slate-800 font-medium">
-                          {item.driverName || "—"}
+                          {item.driverName || "â€”"}
                         </span>
                       </td>
-                      <td className="dlv-td text-center">
+                      <td className="dsp-td text-center">
                         <DispatchStatusBadge status={item.status} />
                       </td>
-                      <td className="dlv-td text-right">
+                      <td className="dsp-td text-right">
                         <DispatchActionButton
                           label="Confirm Delivery"
                           icon={ArrowRight}
@@ -326,46 +326,46 @@ export default function DeliveryRunPage() {
           {/* Mobile cards (< 768px) */}
           <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 dispatch-mobile-card-grid">
             {activeDeliveryQueue.map((item) => (
-              <div key={item.id} className="dlv-card">
+              <div key={item.id} className="dsp-card">
                 {/* Card Header */}
-                <div className="dlv-card-head">
-                  <div className="dlv-card-head-row">
+                <div className="dsp-card-head">
+                  <div className="dsp-card-head-row">
                     <SalesOrderNumberBadge orderNumber={item.dispatchNo} />
                     <DispatchStatusBadge status={item.status} />
                   </div>
                   {item.salesOrder?.orderNumber && (
-                    <span className="dlv-card-so">
+                    <span className="dsp-card-so">
                       Sales Order: #{item.salesOrder.orderNumber}
                     </span>
                   )}
                 </div>
 
                 {/* Card Body */}
-                <div className="dlv-card-body">
+                <div className="dsp-card-body">
                   {/* Customer */}
-                  <div className="dlv-card-row">
-                    <div className="dlv-card-icon">
+                  <div className="dsp-card-row">
+                    <div className="dsp-card-icon">
                       <User size={15} />
                     </div>
-                    <div className="dlv-card-info">
-                      <p className="dlv-card-label">Customer</p>
-                      <p className="dlv-card-value">
-                        {item.salesOrder?.customer?.companyName || "—"}
+                    <div className="dsp-card-info">
+                      <p className="dsp-card-label">Customer</p>
+                      <p className="dsp-card-value">
+                        {item.salesOrder?.customer?.companyName || "â€”"}
                       </p>
                     </div>
                   </div>
 
                   {/* Driver */}
-                  <div className="dlv-card-row">
-                    <div className="dlv-card-icon">
+                  <div className="dsp-card-row">
+                    <div className="dsp-card-icon">
                       <Truck size={15} />
                     </div>
-                    <div className="dlv-card-info">
-                      <p className="dlv-card-label">Driver</p>
-                      <p className="dlv-card-value">
-                        {item.driverName || "—"}
+                    <div className="dsp-card-info">
+                      <p className="dsp-card-label">Driver</p>
+                      <p className="dsp-card-value">
+                        {item.driverName || "â€”"}
                         {item.driverPhone && (
-                          <span className="dlv-card-phone"> · {item.driverPhone}</span>
+                          <span className="dsp-card-phone"> Â· {item.driverPhone}</span>
                         )}
                       </p>
                     </div>
@@ -373,24 +373,24 @@ export default function DeliveryRunPage() {
 
                   {/* Delivery Address */}
                   {item.deliveryAddress && (
-                    <div className="dlv-card-row">
-                      <div className="dlv-card-icon">
+                    <div className="dsp-card-row">
+                      <div className="dsp-card-icon">
                         <MapPin size={15} />
                       </div>
-                      <div className="dlv-card-info">
-                        <p className="dlv-card-label">Delivery Address</p>
-                        <p className="dlv-card-value dlv-card-addr">{item.deliveryAddress}</p>
+                      <div className="dsp-card-info">
+                        <p className="dsp-card-label">Delivery Address</p>
+                        <p className="dsp-card-value dsp-card-addr">{item.deliveryAddress}</p>
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Card Footer */}
-                <div className="dlv-card-foot">
+                <div className="dsp-card-foot">
                   <button
                     type="button"
                     onClick={() => openModal(item)}
-                    className="dlv-confirm-btn"
+                    className="dsp-confirm-btn"
                   >
                     <CheckSquare size={15} />
                     <span>Confirm Delivery</span>
@@ -402,109 +402,109 @@ export default function DeliveryRunPage() {
         </>
       )}
 
-      {/* ── Delivery Confirmation Modal ── */}
+      {/* â”€â”€ Delivery Confirmation Modal â”€â”€ */}
       {selectedDispatch && (
         <div
-          className="dlv-modal-overlay"
+          className="dsp-modal-overlay"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !isSubmitting) setSelectedDispatch(null);
           }}
         >
           <div
-            className="dlv-modal"
+            className="dsp-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="dlv-modal-title"
+            aria-labelledby="dsp-modal-title"
           >
             {/* Modal Header */}
-            <div className="dlv-modal-head">
+            <div className="dsp-modal-head">
               <div>
-                <h3 id="dlv-modal-title" className="dlv-modal-title">
+                <h3 id="dsp-modal-title" className="dsp-modal-title">
                   Delivery Confirmation
                 </h3>
-                <p className="dlv-modal-dispatch-no">{selectedDispatch.dispatchNo}</p>
+                <p className="dsp-modal-dispatch-no">{selectedDispatch.dispatchNo}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedDispatch(null)}
                 disabled={isSubmitting}
                 aria-label="Close modal"
-                className="dlv-modal-close"
+                className="dsp-modal-close"
               >
                 <X size={16} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="dlv-modal-body">
+            <div className="dsp-modal-body">
               {/* Summary */}
-              <div className="dlv-summary">
-                <div className="dlv-summary-row">
-                  <span className="dlv-summary-key">Sales Order</span>
-                  <span className="dlv-summary-val">#{selectedDispatch.salesOrder?.orderNumber}</span>
+              <div className="dsp-summary">
+                <div className="dsp-summary-row">
+                  <span className="dsp-summary-key">Sales Order</span>
+                  <span className="dsp-summary-val">#{selectedDispatch.salesOrder?.orderNumber}</span>
                 </div>
-                <div className="dlv-summary-row">
-                  <span className="dlv-summary-key">Customer</span>
-                  <span className="dlv-summary-val">{selectedDispatch.salesOrder?.customer?.companyName}</span>
+                <div className="dsp-summary-row">
+                  <span className="dsp-summary-key">Customer</span>
+                  <span className="dsp-summary-val">{selectedDispatch.salesOrder?.customer?.companyName}</span>
                 </div>
                 {selectedDispatch.deliveryAddress && (
-                  <div className="dlv-summary-row">
-                    <span className="dlv-summary-key">Address</span>
-                    <span className="dlv-summary-val dlv-summary-addr">{selectedDispatch.deliveryAddress}</span>
+                  <div className="dsp-summary-row">
+                    <span className="dsp-summary-key">Address</span>
+                    <span className="dsp-summary-val dsp-summary-addr">{selectedDispatch.deliveryAddress}</span>
                   </div>
                 )}
                 {selectedDispatch.driverName && (
-                  <div className="dlv-summary-row">
-                    <span className="dlv-summary-key">Driver</span>
-                    <span className="dlv-summary-val">{selectedDispatch.driverName}</span>
+                  <div className="dsp-summary-row">
+                    <span className="dsp-summary-key">Driver</span>
+                    <span className="dsp-summary-val">{selectedDispatch.driverName}</span>
                   </div>
                 )}
               </div>
 
               {/* Form */}
-              <div className="dlv-form-grid">
-                <div className="dlv-field">
-                  <label htmlFor="dlv-receiver-name" className="dlv-label">
-                    Receiver Name <span className="dlv-required">*</span>
+              <div className="dsp-form-grid">
+                <div className="dsp-field">
+                  <label htmlFor="dsp-receiver-name" className="dsp-label">
+                    Receiver Name <span className="dsp-required">*</span>
                   </label>
                   <input
-                    id="dlv-receiver-name"
+                    id="dsp-receiver-name"
                     type="text"
                     value={receiverName}
                     onChange={(e) => setReceiverName(e.target.value)}
                     placeholder="Who received the package?"
-                    className="dlv-input"
+                    className="dsp-input"
                     autoComplete="off"
                   />
                 </div>
 
-                <div className="dlv-field">
-                  <label htmlFor="dlv-receiver-mobile" className="dlv-label">
-                    Receiver Mobile <span className="dlv-required">*</span>
+                <div className="dsp-field">
+                  <label htmlFor="dsp-receiver-mobile" className="dsp-label">
+                    Receiver Mobile <span className="dsp-required">*</span>
                   </label>
                   <input
-                    id="dlv-receiver-mobile"
+                    id="dsp-receiver-mobile"
                     type="tel"
                     value={receiverMobile}
                     onChange={(e) => setReceiverMobile(e.target.value)}
                     placeholder="+91-9999999999"
-                    className="dlv-input"
+                    className="dsp-input"
                     autoComplete="off"
                   />
                 </div>
               </div>
 
               {/* POD Upload */}
-              <div className="dlv-field">
-                <label className="dlv-label">
-                  Delivery Image (POD) <span className="dlv-required">*</span>
+              <div className="dsp-field">
+                <label className="dsp-label">
+                  Delivery Image (POD) <span className="dsp-required">*</span>
                 </label>
-                <label className="dlv-pod-zone">
+                <label className="dsp-pod-zone">
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
-                    className="dlv-pod-input"
+                    className="dsp-pod-input"
                     onChange={(e) => {
                       const file = e.target.files?.[0] || null;
                       if (file && file.size > 5 * 1024 * 1024) {
@@ -515,16 +515,16 @@ export default function DeliveryRunPage() {
                     }}
                   />
                   {deliveryImagePreview ? (
-                    <div className="dlv-pod-preview">
+                    <div className="dsp-pod-preview">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={deliveryImagePreview} alt="POD Preview" className="dlv-pod-img" />
-                      <span className="dlv-pod-replace">Click to replace image</span>
+                      <img src={deliveryImagePreview} alt="POD Preview" className="dsp-pod-img" />
+                      <span className="dsp-pod-replace">Click to replace image</span>
                     </div>
                   ) : (
-                    <div className="dlv-pod-placeholder">
+                    <div className="dsp-pod-placeholder">
                       <Upload size={28} />
-                      <span className="dlv-pod-title">Upload delivery proof image</span>
-                      <span className="dlv-pod-hint">JPG, PNG or WebP · max 5 MB</span>
+                      <span className="dsp-pod-title">Upload delivery proof image</span>
+                      <span className="dsp-pod-hint">JPG, PNG or WebP Â· max 5 MB</span>
                     </div>
                   )}
                 </label>
@@ -532,12 +532,12 @@ export default function DeliveryRunPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="dlv-modal-foot">
+            <div className="dsp-modal-foot">
               <button
                 type="button"
                 onClick={() => setSelectedDispatch(null)}
                 disabled={isSubmitting}
-                className="dlv-btn-cancel"
+                className="dsp-btn-cancel"
               >
                 Cancel
               </button>
@@ -545,10 +545,10 @@ export default function DeliveryRunPage() {
                 type="button"
                 disabled={!receiverName || !receiverMobile || !deliveryImage || isSubmitting}
                 onClick={handleConfirmDelivery}
-                className="dlv-btn-confirm"
+                className="dsp-btn-confirm"
               >
                 <CheckSquare size={15} />
-                <span>{isSubmitting ? "Confirming…" : "Confirm Delivery"}</span>
+                <span>{isSubmitting ? "Confirmingâ€¦" : "Confirm Delivery"}</span>
               </button>
             </div>
           </div>
@@ -557,3 +557,4 @@ export default function DeliveryRunPage() {
     </DispatchPageShell>
   );
 }
+

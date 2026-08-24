@@ -346,33 +346,30 @@ export default function InTransitPage() {
               const expectedDate = getExpectedDelivery(dispatchItem);
               const isOverdue = expectedDate && new Date(expectedDate) < new Date();
               return (
-                <div
-                  key={dispatchItem.id}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between"
-                >
+                <div key={dispatchItem.id} className="dsp-card">
                   {/* Card Header */}
-                  <div className="flex flex-col px-4 py-3 bg-slate-50 border-b border-slate-100 gap-1.5">
-                    <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="dsp-card-head">
+                    <div className="dsp-card-head-row">
                       <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
                       <DispatchStatusBadge status={dispatchItem.status} />
                     </div>
                     {dispatchItem.salesOrder?.orderNumber && (
-                      <span className="text-xs font-semibold text-slate-500 truncate">
+                      <span className="dsp-card-so">
                         Sales Order: #{dispatchItem.salesOrder.orderNumber}
                       </span>
                     )}
                   </div>
 
                   {/* Card Body */}
-                  <div className="p-4 space-y-3.5">
+                  <div className="dsp-card-body">
                     {/* Customer */}
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                    <div className="dsp-card-row">
+                      <div className="dsp-card-icon">
                         <User className="w-4 h-4" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
-                        <p className="text-sm font-semibold text-slate-900 m-0 truncate">
+                      <div className="dsp-card-info">
+                        <p className="dsp-card-label">Customer</p>
+                        <p className="dsp-card-value truncate max-w-[240px]">
                           {dispatchItem.salesOrder?.customer?.companyName || "—"}
                         </p>
                       </div>
@@ -380,25 +377,25 @@ export default function InTransitPage() {
 
                     {/* Delivery Address */}
                     {dispatchItem.deliveryAddress && (
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                      <div className="dsp-card-row">
+                        <div className="dsp-card-icon">
                           <MapPin className="w-4 h-4" />
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Delivery Address</p>
-                          <p className="text-sm text-slate-600 m-0 leading-relaxed">{dispatchItem.deliveryAddress}</p>
+                        <div className="dsp-card-info">
+                          <p className="dsp-card-label">Delivery Address</p>
+                          <p className="dsp-card-value dsp-card-addr leading-relaxed">{dispatchItem.deliveryAddress}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Driver & Vehicle */}
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                    <div className="dsp-card-row">
+                      <div className="dsp-card-icon">
                         <Truck className="w-4 h-4" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Driver / Vehicle</p>
-                        <p className="text-sm font-medium text-slate-800 m-0">
+                      <div className="dsp-card-info">
+                        <p className="dsp-card-label">Driver / Vehicle</p>
+                        <p className="dsp-card-value">
                           {dispatchItem.driverName || "—"} {dispatchItem.driverPhone ? `· ${dispatchItem.driverPhone}` : ""}
                         </p>
                         {dispatchItem.vehicleNumber && (
@@ -412,8 +409,8 @@ export default function InTransitPage() {
                     {/* Dates */}
                     <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-100">
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Dispatched</p>
-                        <p className="text-sm font-medium text-slate-700 m-0 mt-0.5">
+                        <p className="dsp-card-label">Dispatched</p>
+                        <p className="text-sm font-semibold text-slate-700 m-0 mt-0.5">
                           {dispatchItem.dispatchedAt
                             ? new Date(dispatchItem.dispatchedAt).toLocaleDateString("en-IN", {
                                 day: "2-digit",
@@ -423,7 +420,7 @@ export default function InTransitPage() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Expected Delivery</p>
+                        <p className="dsp-card-label">Expected Delivery</p>
                         <p className={`text-sm font-semibold m-0 mt-0.5 ${isOverdue ? "text-red-600" : "text-slate-700"}`}>
                           {expectedDate
                             ? new Date(expectedDate).toLocaleDateString("en-IN", {
@@ -437,12 +434,12 @@ export default function InTransitPage() {
                   </div>
 
                   {/* Card Footer */}
-                  <div className="p-3.5 bg-slate-50 border-t border-slate-100">
+                  <div className="dsp-card-foot">
                     <button
                       type="button"
                       onClick={() => handleStartDelivery(dispatchItem.id)}
                       disabled={loadingId === dispatchItem.id}
-                      className="w-full flex items-center justify-center gap-2 h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                      className="dsp-confirm-btn disabled:opacity-50"
                     >
                       <Play className={`w-4 h-4 ${loadingId === dispatchItem.id ? "animate-spin" : ""}`} />
                       <span>Start Delivery</span>

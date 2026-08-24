@@ -11373,7 +11373,7 @@ body, #root, .app-container {
 /* ─────────────────────────────────────────────────────────────────────────
    7. DELIVERY RUN PAGE CLASSES (dlv-*)
    ───────────────────────────────────────────────────────────────────────── */
-.dlv-th {
+.dlv-th, .dsp-th {
   padding: 14px 20px;
   color: #64748b;
   font-size: 11px;
@@ -11383,13 +11383,13 @@ body, #root, .app-container {
   border-bottom: 1px solid #e2e8f0;
 }
 
-.dlv-td {
+.dlv-td, .dsp-td {
   padding: 16px 20px;
   vertical-align: middle;
 }
 
 /* Mobile card view layout */
-.dlv-card {
+.dlv-card, .dsp-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
@@ -11399,7 +11399,7 @@ body, #root, .app-container {
   flex-direction: column;
 }
 
-.dlv-card-head {
+.dlv-card-head, .dsp-card-head {
   padding: 12px 16px;
   background: #f8fafc;
   border-bottom: 1px solid #f1f5f9;
@@ -11408,33 +11408,33 @@ body, #root, .app-container {
   gap: 6px;
 }
 
-.dlv-card-head-row {
+.dlv-card-head-row, .dsp-card-head-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.dlv-card-so {
+.dlv-card-so, .dsp-card-so {
   font-size: 11px;
   font-weight: 600;
   color: #64748b;
 }
 
-.dlv-card-body {
+.dlv-card-body, .dsp-card-body {
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.dlv-card-row {
+.dlv-card-row, .dsp-card-row {
   display: flex;
   align-items: flex-start;
   gap: 12px;
 }
 
-.dlv-card-icon {
+.dlv-card-icon, .dsp-card-icon {
   background: #f1f5f9;
   color: #64748b;
   padding: 8px;
@@ -11445,14 +11445,14 @@ body, #root, .app-container {
   flex-shrink: 0;
 }
 
-.dlv-card-info {
+.dlv-card-info, .dsp-card-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.dlv-card-label {
+.dlv-card-label, .dsp-card-label {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -11461,7 +11461,7 @@ body, #root, .app-container {
   margin: 0;
 }
 
-.dlv-card-value {
+.dlv-card-value, .dsp-card-value {
   font-size: 13.5px;
   font-weight: 600;
   color: #1e293b;
@@ -11469,23 +11469,23 @@ body, #root, .app-container {
   line-height: 1.4;
 }
 
-.dlv-card-phone {
+.dlv-card-phone, .dsp-card-phone {
   color: #64748b;
   font-weight: 500;
 }
 
-.dlv-card-addr {
+.dlv-card-addr, .dsp-card-addr {
   font-weight: 500;
   color: #475569;
 }
 
-.dlv-card-foot {
+.dlv-card-foot, .dsp-card-foot {
   padding: 12px 16px;
   background: #f8fafc;
   border-top: 1px solid #f1f5f9;
 }
 
-.dlv-confirm-btn {
+.dlv-confirm-btn, .dsp-confirm-btn {
   width: 100%;
   height: 40px;
   background: #4f46e5;
@@ -11502,16 +11502,16 @@ body, #root, .app-container {
   transition: all 0.15s ease;
 }
 
-.dlv-confirm-btn:hover {
+.dlv-confirm-btn:hover, .dsp-confirm-btn:hover {
   background: #4338ca;
 }
 
-.dlv-confirm-btn:active {
+.dlv-confirm-btn:active, .dsp-confirm-btn:active {
   transform: translateY(0.5px);
 }
 
 /* Modal confirmation portal */
-.dlv-modal-overlay {
+.dlv-modal-overlay, .dsp-modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
@@ -11524,7 +11524,7 @@ body, #root, .app-container {
   overflow-y: auto;
 }
 
-.dlv-modal {
+.dlv-modal, .dsp-modal {
   width: 100%;
   max-width: 500px;
   background: #ffffff;
@@ -11533,7 +11533,18 @@ body, #root, .app-container {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: dlvScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: dspScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dspScaleIn {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes dlvScaleIn {
@@ -11547,7 +11558,7 @@ body, #root, .app-container {
   }
 }
 
-.dlv-modal-head {
+.dlv-modal-head, .dsp-modal-head {
   padding: 18px 24px;
   border-bottom: 1px solid #f1f5f9;
   display: flex;
@@ -11556,14 +11567,14 @@ body, #root, .app-container {
   background: #f8fafc;
 }
 
-.dlv-modal-title {
+.dlv-modal-title, .dsp-modal-title {
   font-size: 16px;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
 }
 
-.dlv-modal-dispatch-no {
+.dlv-modal-dispatch-no, .dsp-modal-dispatch-no {
   font-size: 11px;
   font-weight: 700;
   color: #4f46e5;
@@ -11571,7 +11582,7 @@ body, #root, .app-container {
   margin: 2px 0 0 0;
 }
 
-.dlv-modal-close {
+.dlv-modal-close, .dsp-modal-close {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   color: #94a3b8;
@@ -11585,12 +11596,12 @@ body, #root, .app-container {
   transition: all 0.15s ease;
 }
 
-.dlv-modal-close:hover {
+.dlv-modal-close:hover, .dsp-modal-close:hover {
   color: #475569;
   border-color: #cbd5e1;
 }
 
-.dlv-modal-body {
+.dlv-modal-body, .dsp-modal-body {
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -11600,7 +11611,7 @@ body, #root, .app-container {
 }
 
 /* Shipment info box inside modal */
-.dlv-summary {
+.dlv-summary, .dsp-summary {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -11610,7 +11621,7 @@ body, #root, .app-container {
   gap: 10px;
 }
 
-.dlv-summary-row {
+.dlv-summary-row, .dsp-summary-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -11618,44 +11629,44 @@ body, #root, .app-container {
   font-size: 13px;
 }
 
-.dlv-summary-key {
+.dlv-summary-key, .dsp-summary-key {
   color: #64748b;
   font-weight: 500;
   flex-shrink: 0;
 }
 
-.dlv-summary-val {
+.dlv-summary-val, .dsp-summary-val {
   color: #1e293b;
   font-weight: 600;
   text-align: right;
 }
 
-.dlv-summary-addr {
+.dlv-summary-addr, .dsp-summary-addr {
   font-weight: 500;
   color: #475569;
   max-width: 250px;
   word-break: break-word;
 }
 
-.dlv-form-grid {
+.dlv-form-grid, .dsp-form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 
 @media (max-width: 480px) {
-  .dlv-form-grid {
+  .dlv-form-grid, .dsp-form-grid {
     grid-template-columns: 1fr;
   }
 }
 
-.dlv-field {
+.dlv-field, .dsp-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.dlv-label {
+.dlv-label, .dsp-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -11663,12 +11674,12 @@ body, #root, .app-container {
   letter-spacing: 0.05em;
 }
 
-.dlv-required {
+.dlv-required, .dsp-required {
   color: #ef4444;
   margin-left: 2px;
 }
 
-.dlv-input {
+.dlv-input, .dsp-input {
   height: 42px;
   padding: 0 14px;
   border: 1px solid #cbd5e1;
@@ -11681,17 +11692,17 @@ body, #root, .app-container {
   transition: all 0.15s ease;
 }
 
-.dlv-input:focus {
+.dlv-input:focus, .dsp-input:focus {
   border-color: #4f46e5;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
-.dlv-input::placeholder {
+.dlv-input::placeholder, .dsp-input::placeholder {
   color: #94a3b8;
 }
 
 /* POD Upload drop zone style */
-.dlv-pod-zone {
+.dlv-pod-zone, .dsp-pod-zone {
   border: 2px dashed #cbd5e1;
   border-radius: 12px;
   background: #f8fafc;
@@ -11707,16 +11718,16 @@ body, #root, .app-container {
   text-align: center;
 }
 
-.dlv-pod-zone:hover {
+.dlv-pod-zone:hover, .dsp-pod-zone:hover {
   border-color: #4f46e5;
   background: #f5f3ff;
 }
 
-.dlv-pod-input {
+.dlv-pod-input, .dsp-pod-input {
   display: none;
 }
 
-.dlv-pod-placeholder {
+.dlv-pod-placeholder, .dsp-pod-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -11724,22 +11735,22 @@ body, #root, .app-container {
   color: #64748b;
 }
 
-.dlv-pod-placeholder svg {
+.dlv-pod-placeholder svg, .dsp-pod-placeholder svg {
   color: #4f46e5;
 }
 
-.dlv-pod-title {
+.dlv-pod-title, .dsp-pod-title {
   font-size: 13px;
   font-weight: 700;
   color: #334155;
 }
 
-.dlv-pod-hint {
+.dlv-pod-hint, .dsp-pod-hint {
   font-size: 11px;
   color: #94a3b8;
 }
 
-.dlv-pod-preview {
+.dlv-pod-preview, .dsp-pod-preview {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -11747,7 +11758,7 @@ body, #root, .app-container {
   width: 100%;
 }
 
-.dlv-pod-img {
+.dlv-pod-img, .dsp-pod-img {
   max-height: 120px;
   max-width: 100%;
   border-radius: 8px;
@@ -11755,7 +11766,7 @@ body, #root, .app-container {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
-.dlv-pod-replace {
+.dlv-pod-replace, .dsp-pod-replace {
   font-size: 11px;
   font-weight: 600;
   color: #4f46e5;
@@ -11763,7 +11774,7 @@ body, #root, .app-container {
 }
 
 /* Modal action footer */
-.dlv-modal-foot {
+.dlv-modal-foot, .dsp-modal-foot {
   padding: 16px 24px;
   border-top: 1px solid #f1f5f9;
   background: #f8fafc;
@@ -11773,7 +11784,7 @@ body, #root, .app-container {
   gap: 12px;
 }
 
-.dlv-btn-cancel {
+.dlv-btn-cancel, .dsp-btn-cancel {
   height: 40px;
   padding: 0 18px;
   background: #ffffff;
@@ -11786,18 +11797,18 @@ body, #root, .app-container {
   transition: all 0.15s ease;
 }
 
-.dlv-btn-cancel:hover:not(:disabled) {
+.dlv-btn-cancel:hover:not(:disabled), .dsp-btn-cancel:hover:not(:disabled) {
   background: #f8fafc;
   color: #1e293b;
   border-color: #cbd5e1;
 }
 
-.dlv-btn-cancel:disabled {
+.dlv-btn-cancel:disabled, .dsp-btn-cancel:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.dlv-btn-confirm {
+.dlv-btn-confirm, .dsp-btn-confirm {
   height: 40px;
   padding: 0 20px;
   background: #10b981;
@@ -11813,11 +11824,11 @@ body, #root, .app-container {
   transition: all 0.15s ease;
 }
 
-.dlv-btn-confirm:hover:not(:disabled) {
+.dlv-btn-confirm:hover:not(:disabled), .dsp-btn-confirm:hover:not(:disabled) {
   background: #059669;
 }
 
-.dlv-btn-confirm:disabled {
+.dlv-btn-confirm:disabled, .dsp-btn-confirm:disabled {
   background: #cbd5e1;
   color: #94a3b8;
   cursor: not-allowed;

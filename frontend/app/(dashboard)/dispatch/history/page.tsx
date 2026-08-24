@@ -237,33 +237,32 @@ export default function DeliveryHistoryPage() {
           </div>
 
           {/* Mobile Cards View (< 768px) */}
-          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 dispatch-mobile-card-grid">
             {deliveredHistory.map((dispatchItem) => (
-              <div
-                key={dispatchItem.id}
-                className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between"
-              >
+              <div key={dispatchItem.id} className="dsp-card">
                 {/* Card Header */}
-                <div className="flex items-center justify-between px-4 py-3.5 bg-slate-50 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
+                <div className="dsp-card-head">
+                  <div className="dsp-card-head-row">
                     <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
-                    <span className="text-sm font-semibold text-slate-700">
-                      #{dispatchItem.salesOrder?.orderNumber || "N/A"}
-                    </span>
+                    <DispatchStatusBadge status={dispatchItem.status || "DELIVERED"} />
                   </div>
-                  <DispatchStatusBadge status={dispatchItem.status || "DELIVERED"} />
+                  {dispatchItem.salesOrder?.orderNumber && (
+                    <span className="dsp-card-so">
+                      Sales Order: #{dispatchItem.salesOrder.orderNumber}
+                    </span>
+                  )}
                 </div>
 
                 {/* Card Body */}
-                <div className="p-4 space-y-3.5">
+                <div className="dsp-card-body">
                   {/* Customer */}
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 mt-0.5">
+                  <div className="dsp-card-row">
+                    <div className="dsp-card-icon">
                       <User className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Customer</p>
-                      <p className="text-sm font-semibold text-slate-900 m-0 truncate">
+                    <div className="dsp-card-info">
+                      <p className="dsp-card-label">Customer</p>
+                      <p className="dsp-card-value truncate max-w-[240px]">
                         {dispatchItem.salesOrder?.customer?.companyName || "N/A"}
                       </p>
                     </div>
@@ -271,14 +270,14 @@ export default function DeliveryHistoryPage() {
 
                   {/* Received By */}
                   <div className="flex flex-col pt-2 border-t border-slate-100">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Received By</span>
-                    <span className="text-sm font-medium text-slate-800 mt-0.5">{dispatchItem.receivedBy || "N/A"}</span>
+                    <span className="dsp-card-label">Received By</span>
+                    <span className="text-sm font-semibold text-slate-800 mt-0.5">{dispatchItem.receivedBy || "N/A"}</span>
                   </div>
 
                   {/* Delivered At */}
                   <div className="flex flex-col pt-1">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Delivered Timestamp</span>
-                    <span className="text-sm font-medium text-slate-600 mt-0.5">
+                    <span className="dsp-card-label">Delivered Timestamp</span>
+                    <span className="text-sm font-semibold text-slate-600 mt-0.5">
                       {dispatchItem.deliveredAt
                         ? new Date(dispatchItem.deliveredAt).toLocaleString("en-IN", {
                             day: "2-digit",

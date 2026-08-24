@@ -229,3 +229,20 @@
   font-weight: 700;
   color: #1e293b;
 }
+
+@media (max-width: 767px) {
+  .page {
+    padding: 12px;
+  }
+  .header {
+    padding: 20px 16px;
+  }
+  .formBody {
+    padding: 16px;
+    gap: 24px;
+  }
+  .footer {
+    padding: 16px;
+  }
+}
+
