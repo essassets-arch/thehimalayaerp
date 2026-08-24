@@ -494,7 +494,7 @@ export default function DashboardView({
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
         alignItems: isMobile ? 'stretch' : 'center',
-        gap: '12px',
+        gap: '10px',
         boxShadow: 'var(--shadow-card)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-primary)', flexShrink: 0 }}>
@@ -505,14 +505,10 @@ export default function DashboardView({
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
-          overflowX: 'auto',
+          flexWrap: 'wrap',
           flex: 1,
           width: '100%',
-          minWidth: 0,
-          WebkitOverflowScrolling: 'touch',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          paddingBottom: '2px'
+          minWidth: 0
         }}>
           {['Today', 'This Week', 'This Month', 'This Year', 'Custom'].map(f => (
             <button
@@ -521,41 +517,41 @@ export default function DashboardView({
               style={{
                 padding: '5px 12px',
                 borderRadius: '20px',
-                fontSize: '11.5px',
+                fontSize: '12px',
                 fontWeight: '700',
-                border: `1px solid ${timeFilter === f ? '#0ea5e9' : 'var(--color-border)'}`,
+                border: `1px solid ${timeFilter === f ? '#0ea5e9' : '#e2e8f0'}`,
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
                 background: timeFilter === f ? '#0ea5e9' : '#f8fafc',
-                color: timeFilter === f ? '#ffffff' : 'var(--color-text-secondary)',
+                color: timeFilter === f ? '#ffffff' : '#475569',
                 whiteSpace: 'nowrap',
-                flexShrink: 0,
-                lineHeight: '1.4'
+                lineHeight: '1.4',
+                boxShadow: timeFilter === f ? '0 2px 4px rgba(14,165,233,0.2)' : 'none'
               }}
             >
-              {f === 'Custom' ? 'Custom Range' : f}
+              {f}
             </button>
           ))}
 
           {timeFilter === 'Custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px', flexWrap: 'wrap' }}>
               <input
                 type="date"
                 value={customStartDate}
                 onChange={e => setCustomStartDate(e.target.value)}
                 style={{
-                  border: '1px solid var(--color-border)', padding: '4px 8px', borderRadius: '8px',
-                  background: 'var(--color-bg)', color: 'var(--color-text-primary)', fontSize: '11px'
+                  border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '8px',
+                  background: '#ffffff', color: '#0f172a', fontSize: '11px'
                 }}
               />
-              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', flexShrink: 0 }}>to</span>
+              <span style={{ fontSize: '11px', color: '#64748b', flexShrink: 0 }}>to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={e => setCustomEndDate(e.target.value)}
                 style={{
-                  border: '1px solid var(--color-border)', padding: '4px 8px', borderRadius: '8px',
-                  background: 'var(--color-bg)', color: 'var(--color-text-primary)', fontSize: '11px'
+                  border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '8px',
+                  background: '#ffffff', color: '#0f172a', fontSize: '11px'
                 }}
               />
             </div>
