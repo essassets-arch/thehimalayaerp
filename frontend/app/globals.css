@@ -11852,68 +11852,162 @@ body, #root, .app-container {
   .daily-report-table.responsive-table tr {
     display: grid !important;
     grid-template-columns: repeat(24, 1fr) !important;
-    gap: 8px !important;
-    padding: 12px !important;
+    gap: 12px 8px !important;
+    padding: 0 0 12px 0 !important;
     margin-bottom: 16px !important;
     border: 1px solid var(--color-border) !important;
     border-radius: var(--radius-lg) !important;
     background: #ffffff !important;
     box-shadow: var(--shadow-soft) !important;
+    overflow: hidden !important;
   }
 
   .daily-report-table.responsive-table td {
     display: flex !important;
     flex-direction: column !important;
-    align-items: flex-start !important;
+    align-items: stretch !important;
     gap: 4px !important;
-    padding: 0 !important;
+    padding: 0 12px !important;
     border: none !important;
     text-align: left !important;
     background: transparent !important;
   }
 
-  /* Grid layout spans for first row */
-  .daily-report-table.responsive-table td:nth-child(1) { grid-column: span 2 !important; } /* Sr */
-  .daily-report-table.responsive-table td:nth-child(2) { grid-column: span 10 !important; } /* Product */
-  .daily-report-table.responsive-table td:nth-child(3) { grid-column: span 4 !important; } /* Size */
-  .daily-report-table.responsive-table td:nth-child(4) { grid-column: span 4 !important; } /* Type */
-  .daily-report-table.responsive-table td:nth-child(5) { grid-column: span 4 !important; } /* Capacity */
+  /* 1. Header Bar (Sr) */
+  .daily-report-table.responsive-table td:nth-child(1) {
+    grid-column: span 24 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 10px 16px !important;
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: #1e293b !important;
+  }
+  .daily-report-table.responsive-table td:nth-child(1)::before {
+    display: none !important;
+  }
+  .daily-report-table.responsive-table td:nth-child(1)::after {
+    content: '▲' !important;
+    font-size: 10px !important;
+    color: #64748b !important;
+  }
 
-  /* Grid layout spans for second row */
-  .daily-report-table.responsive-table td:nth-child(6) { grid-column: span 4 !important; } /* Cover Qty */
-  .daily-report-table.responsive-table td:nth-child(7) { grid-column: span 4 !important; } /* Cover Weight */
-  .daily-report-table.responsive-table td:nth-child(8) { grid-column: span 4 !important; } /* Frame Qty */
-  .daily-report-table.responsive-table td:nth-child(9) { grid-column: span 4 !important; } /* Frame Weight */
-  .daily-report-table.responsive-table td:nth-child(10) { grid-column: span 3 !important; } /* Total Weight */
-  .daily-report-table.responsive-table td:nth-child(11) { grid-column: span 3 !important; } /* Set */
-  .daily-report-table.responsive-table td:nth-child(12) { grid-column: span 2 !important; } /* Actions */
+  /* 2. Product Search & Size */
+  .daily-report-table.responsive-table td:nth-child(2) { grid-column: span 15 !important; } /* Product */
+  .daily-report-table.responsive-table td:nth-child(3) { grid-column: span 9 !important; } /* Size */
+
+  /* 3. Type, Capacity, Cover Qty */
+  .daily-report-table.responsive-table td:nth-child(4) { grid-column: span 8 !important; } /* Type */
+  .daily-report-table.responsive-table td:nth-child(5) { grid-column: span 8 !important; } /* Capacity */
+  .daily-report-table.responsive-table td:nth-child(6) { grid-column: span 8 !important; } /* Cover Qty */
+
+  /* 4. Row 4 (Stats Grid): Cover Weight, Frame Qty, Frame Weight, Total Weight, Set Qty */
+  .daily-report-table.responsive-table td:nth-child(7), /* Cover Weight */
+  .daily-report-table.responsive-table td:nth-child(8), /* Frame Qty */
+  .daily-report-table.responsive-table td:nth-child(9), /* Frame Weight */
+  .daily-report-table.responsive-table td:nth-child(10), /* Total Weight */
+  .daily-report-table.responsive-table td:nth-child(11) { /* Set */
+    grid-row: 4 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px 4px !important;
+    background: #f8fafc !important;
+    border-top: 1px solid #e2e8f0 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    border-right: 1px solid #e2e8f0 !important;
+    border-radius: 0 !important;
+  }
+
+  .daily-report-table.responsive-table td:nth-child(7) { grid-column: span 5 !important; }
+  .daily-report-table.responsive-table td:nth-child(8) { grid-column: span 4 !important; }
+  .daily-report-table.responsive-table td:nth-child(9) { grid-column: span 5 !important; }
+  .daily-report-table.responsive-table td:nth-child(10) { grid-column: span 5 !important; }
+  .daily-report-table.responsive-table td:nth-child(11) { 
+    grid-column: span 5 !important; 
+    border-right: none !important;
+  }
 
   /* Read-only mode adjustments (where Actions column is missing) */
   .daily-report-table.responsive-table td:nth-child(11):last-child {
-    grid-column: span 5 !important;
+    border-right: none !important;
+  }
+
+  /* Style inputs inside stats row to be borderless and centered */
+  .daily-report-table.responsive-table td:nth-child(7) input,
+  .daily-report-table.responsive-table td:nth-child(8) input,
+  .daily-report-table.responsive-table td:nth-child(9) input,
+  .daily-report-table.responsive-table td:nth-child(11) input {
+    border: none !important;
+    background: transparent !important;
+    text-align: center !important;
+    font-weight: 800 !important;
+    font-size: 13px !important;
+    padding: 0 !important;
+    height: auto !important;
+    box-shadow: none !important;
+  }
+
+  /* Custom text colors for Total Weight and Set values */
+  .daily-report-table.responsive-table td:nth-child(10) {
+    color: #7c3aed !important;
+    font-weight: 800 !important;
+    font-size: 13px !important;
+    text-align: center !important;
+  }
+  
+  .daily-report-table.responsive-table td:nth-child(11) input {
+    color: #059669 !important;
   }
 
   .daily-report-table.responsive-table td::before {
     content: attr(data-label) !important;
     font-weight: 800 !important;
     color: var(--color-text-secondary) !important;
-    font-size: 10px !important;
+    font-size: 9px !important;
     text-transform: uppercase !important;
     display: block !important;
     margin-bottom: 2px !important;
   }
 
-  /* Actions column custom styling */
+  .daily-report-table.responsive-table td:nth-child(7)::before,
+  .daily-report-table.responsive-table td:nth-child(8)::before,
+  .daily-report-table.responsive-table td:nth-child(9)::before,
+  .daily-report-table.responsive-table td:nth-child(10)::before,
+  .daily-report-table.responsive-table td:nth-child(11)::before {
+    font-size: 8px !important;
+    text-align: center !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* 5. Row 5: Actions */
   .daily-report-table.responsive-table td[data-label="ACTIONS"] {
-    flex-direction: row !important;
-    align-items: flex-end !important;
-    justify-content: center !important;
+    grid-column: span 24 !important;
+    grid-row: 5 !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 12px 12px 0 12px !important;
     border-bottom: none !important;
-    padding-top: 14px !important;
   }
   
   .daily-report-table.responsive-table td[data-label="ACTIONS"]::before {
-    display: none !important;
+    content: 'Actions' !important;
+    display: block !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    color: var(--color-text-secondary) !important;
+    text-transform: uppercase !important;
+    margin-bottom: 4px !important;
+  }
+
+  .daily-report-table.responsive-table td[data-label="ACTIONS"] > div {
+    display: flex !important;
+    gap: 12px !important;
+    justify-content: flex-start !important;
+    width: auto !important;
   }
   
   /* Reset input widths inside stacked cells on mobile */

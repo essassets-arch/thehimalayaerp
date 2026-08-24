@@ -1750,7 +1750,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Cover Qty */}
-                  <td data-label="COVER (QTY)" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <td data-label="COVER" style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <input
                       type="number"
                       min="0"
@@ -1788,7 +1788,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Frame Qty */}
-                  <td data-label="FRAME (QTY)" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <td data-label="FRAME" style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <input
                       type="number"
                       min="0"
