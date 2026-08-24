@@ -155,22 +155,22 @@ export default function DeliveryHistoryPage() {
               <table className="w-full text-sm text-left border-collapse no-mobile-stack">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[180px]">
+                    <th className="dsp-th">
                       Dispatch Number
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
+                    <th className="dsp-th">
                       Sales Order
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
+                    <th className="dsp-th">
                       Customer
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
+                    <th className="dsp-th">
                       Received By
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
+                    <th className="dsp-th">
                       Delivery Timestamp
                     </th>
-                    <th className="text-center text-xs font-semibold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap min-w-[140px]">
+                    <th className="dsp-th text-center">
                       Status
                     </th>
                   </tr>
@@ -182,19 +182,19 @@ export default function DeliveryHistoryPage() {
                       className="hover:bg-slate-50 transition-colors group"
                     >
                       {/* Dispatch Number */}
-                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                      <td className="dsp-td">
                         <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
                       </td>
 
                       {/* Sales Order */}
-                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                      <td className="dsp-td">
                         <span className="font-semibold text-slate-900 text-sm">
                           #{dispatchItem.salesOrder?.orderNumber || "N/A"}
                         </span>
                       </td>
 
                       {/* Customer */}
-                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                      <td className="dsp-td">
                         <span
                           className="font-semibold text-slate-900 text-sm tracking-tight block max-w-[220px] truncate"
                           title={dispatchItem.salesOrder?.customer?.companyName || "N/A"}
@@ -204,14 +204,14 @@ export default function DeliveryHistoryPage() {
                       </td>
 
                       {/* Received By */}
-                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                      <td className="dsp-td">
                         <span className="text-slate-800 font-medium text-sm">
                           {dispatchItem.receivedBy || "N/A"}
                         </span>
                       </td>
 
                       {/* Delivery Timestamp */}
-                      <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                      <td className="dsp-td">
                         <span className="text-slate-700 text-sm font-medium">
                           {dispatchItem.deliveredAt
                             ? new Date(dispatchItem.deliveredAt).toLocaleString("en-IN", {
@@ -226,7 +226,7 @@ export default function DeliveryHistoryPage() {
                       </td>
 
                       {/* Status */}
-                      <td className="px-4 py-4.5 whitespace-nowrap text-center align-middle">
+                      <td className="dsp-td text-center">
                         <DispatchStatusBadge status={dispatchItem.status || "DELIVERED"} />
                       </td>
                     </tr>

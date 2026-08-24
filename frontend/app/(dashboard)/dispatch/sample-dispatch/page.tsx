@@ -229,42 +229,8 @@ function SampleDispatchListContent() {
             color: "bg-indigo-50 text-indigo-600",
           }
         ]}
-      >
-        <button 
-          onClick={() => router.push('/dispatch/sample-dispatch/create/new')}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer"
-        >
-          <Plus style={{ width: 14, height: 14 }} /> Create Ad-hoc Sample
-        </button>
-      </DispatchPageHeader>
+      />
 
-      {/* ── Tabs Filter Row ── */}
-      <div className={styles.filters}>
-        <button 
-          className={`${styles.filterTab} ${filter === 'pending' ? styles.active : ''}`}
-          onClick={() => setUrlFilter('pending')}
-        >
-          <span>📋</span> Pending Dispatch
-        </button>
-        <button 
-          className={`${styles.filterTab} ${filter === 'in-transit' ? styles.active : ''}`}
-          onClick={() => setUrlFilter('in-transit')}
-        >
-          <span>🚚</span> In-Transit
-        </button>
-        <button 
-          className={`${styles.filterTab} ${filter === 'delivered' ? styles.active : ''}`}
-          onClick={() => setUrlFilter('delivered')}
-        >
-          <span>✓</span> Delivered
-        </button>
-        <button 
-          className={`${styles.filterTab} ${filter === 'all' ? styles.active : ''}`}
-          onClick={() => setUrlFilter('all')}
-        >
-          <span>🕒</span> All History
-        </button>
-      </div>
 
       {/* ── Desktop Data Table (>= 768px) ── */}
       <div className="hidden md:block">
