@@ -22,32 +22,23 @@ export function DispatchActionButton({
   loading = false,
   className = "",
 }: DispatchActionButtonProps) {
-  const getVariantStyles = () => {
-    switch (variant) {
-      case "primary":
-        return "bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-xs border border-indigo-700";
-      case "secondary":
-        return "bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white shadow-xs border border-slate-900";
-      case "success":
-        return "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-xs border border-emerald-700";
-      case "outline":
-        return "bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs";
-      case "ghost":
-        return "bg-transparent hover:bg-indigo-50 active:bg-indigo-100 text-indigo-600 hover:text-indigo-900";
-      default:
-        return "bg-indigo-600 text-white";
-    }
-  };
+  const variantClass = {
+    primary: "dispatch-btn-primary",
+    secondary: "dispatch-btn-secondary",
+    success: "dispatch-btn-success",
+    outline: "dispatch-btn-outline",
+    ghost: "dispatch-btn-ghost",
+  }[variant] ?? "dispatch-btn-primary";
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold rounded-xl whitespace-nowrap cursor-pointer transition-all duration-150 shrink-0 select-none disabled:opacity-50 disabled:cursor-not-allowed ${getVariantStyles()} ${className}`}
+      className={`dispatch-btn ${variantClass} ${className}`}
     >
-      {Icon && <Icon className={`w-4 h-4 shrink-0 ${loading ? "animate-spin" : ""}`} />}
-      <span className="whitespace-nowrap">{label}</span>
+      {Icon && <Icon className={`dispatch-btn-icon${loading ? " animate-spin" : ""}`} />}
+      <span>{label}</span>
     </button>
   );
 }
