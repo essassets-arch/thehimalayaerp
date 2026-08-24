@@ -12,9 +12,13 @@ export function SalesOrderNumberBadge({
   href?: string;
 }) {
   const content = (
-    <span className="font-semibold text-indigo-700 text-sm px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-indigo-100 transition-colors cursor-pointer select-all">
-      <span>#{orderNumber}</span>
-      {href && <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />}
+    <span
+      className="font-semibold text-indigo-700 text-sm px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 inline-flex items-center gap-1.5 whitespace-nowrap hover:bg-indigo-100 transition-colors cursor-pointer select-all max-w-full overflow-hidden"
+      title={`#${orderNumber}`}
+      style={{ minWidth: 0 }}
+    >
+      <span className="truncate">#{orderNumber}</span>
+      {href && <ExternalLink className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />}
     </span>
   );
 

@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -10842,13 +10842,21 @@ body, #root, .app-container {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   DISPATCH COMPONENT DESIGN SYSTEM  (v2 — clean slate)
-   Shared CSS classes used by DispatchPageHeader, DispatchToolbar,
-   DispatchActionButton across all dispatch sub-pages.
-   Mobile-first. No inline-style conflicts. No !important needed.
+   DISPATCH MODULE — Complete Responsive Design System  (v3 — clean slate)
+   Covers: DispatchPageHeader · DispatchToolbar · DispatchActionButton
+           Mobile card grids · All dispatch sub-pages (orders / create /
+           in-transit / delivery)
+   Breakpoints:
+     Mobile  : < 640px
+     Tablet  : 640–1023px
+     Desktop : ≥ 1024px
+   Architecture: Single source of truth. No inline-style conflicts. No !important.
 ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ─── Header Card ─────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   1. HEADER CARD
+   ───────────────────────────────────────────────────────────────────────── */
+
 .dispatch-header-card {
   position: relative;
   width: 100%;
@@ -10859,6 +10867,7 @@ body, #root, .app-container {
   box-sizing: border-box;
 }
 
+/* Background watermark icon */
 .dispatch-header-watermark {
   position: absolute;
   right: -20px;
@@ -10869,105 +10878,108 @@ body, #root, .app-container {
   z-index: 0;
 }
 
+/* Main content row: left text + right stats */
 .dispatch-header-content {
   position: relative;
   z-index: 1;
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
   padding: 20px 24px;
   flex-wrap: wrap;
 }
 
+/* Left: eyebrow + title + description */
 .dispatch-header-left {
+  flex: 1 1 320px;
   min-width: 0;
-  flex: 1 1 240px;
 }
 
 .dispatch-header-eyebrow {
-  margin: 0 0 5px;
-  font-size: 11px;
-  line-height: 1;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #4f46e5;
+  margin: 0 0 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: #4f46e5;
 }
 
 .dispatch-header-title {
-  margin: 0;
+  margin: 0 0 6px;
   font-size: 26px;
-  line-height: 1.15;
-  font-weight: 800;
+  font-weight: 900;
   color: #0f172a;
-  letter-spacing: -0.01em;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .dispatch-header-desc {
-  margin: 5px 0 0;
+  margin: 0;
   font-size: 13.5px;
-  line-height: 1.5;
   color: #64748b;
-  max-width: 600px;
+  line-height: 1.55;
+  max-width: 520px;
 }
 
+/* Right: stat boxes + refresh button */
 .dispatch-header-right {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
+/* Individual stat box */
 .dispatch-stat-box {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
-  min-width: 140px;
-  padding: 8px 14px;
-  background: #fff;
+  padding: 9px 16px;
+  background: #f8faff;
   border: 1px solid #dce5f0;
   border-radius: 12px;
+  min-height: 48px;
+  white-space: nowrap;
 }
 
 .dispatch-stat-icon-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: #ede9fe;
   color: #4f46e5;
   flex-shrink: 0;
 }
 
 .dispatch-stat-value {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
-  font-weight: 800;
+  font-weight: 900;
   color: #0f172a;
 }
 
 .dispatch-stat-label {
   margin-top: 2px;
   font-size: 10px;
-  line-height: 1.15;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: #64748b;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
+/* Refresh button */
 .dispatch-refresh-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 38px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 16px;
   font-size: 12.5px;
   font-weight: 600;
   color: #475569;
@@ -10977,6 +10989,7 @@ body, #root, .app-container {
   cursor: pointer;
   transition: background 0.15s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .dispatch-refresh-btn:hover {
@@ -10984,23 +10997,27 @@ body, #root, .app-container {
 }
 
 .dispatch-refresh-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* ─── Toolbar Card ─────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   2. TOOLBAR CARD
+   ───────────────────────────────────────────────────────────────────────── */
+
 .dispatch-toolbar-card {
   width: 100%;
   background: #fff;
   border: 1px solid #dce5f0;
   border-radius: 14px;
-  padding: 14px 18px;
+  padding: 14px 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
+/* Title / subtitle row */
 .dispatch-toolbar-title-row {
   display: flex;
   flex-direction: column;
@@ -11009,19 +11026,19 @@ body, #root, .app-container {
 
 .dispatch-toolbar-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   color: #0f172a;
-  line-height: 1.2;
 }
 
 .dispatch-toolbar-subtitle {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
-  line-height: 1.4;
+  color: #94a3b8;
+  font-weight: 500;
 }
 
+/* Search + export row */
 .dispatch-toolbar-actions-row {
   display: flex;
   align-items: center;
@@ -11029,6 +11046,7 @@ body, #root, .app-container {
   flex-wrap: wrap;
 }
 
+/* Search box */
 .dispatch-search-box {
   flex: 1 1 220px;
   min-width: 0;
@@ -11041,6 +11059,13 @@ body, #root, .app-container {
   border-radius: 10px;
   background: #f8fafc;
   box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dispatch-search-box:focus-within {
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+  background: #fff;
 }
 
 .dispatch-search-icon {
@@ -11059,6 +11084,10 @@ body, #root, .app-container {
   line-height: normal;
 }
 
+.dispatch-search-input::placeholder {
+  color: #b0bec8;
+}
+
 .dispatch-search-clear {
   display: inline-flex;
   align-items: center;
@@ -11072,15 +11101,21 @@ body, #root, .app-container {
   cursor: pointer;
   flex-shrink: 0;
   padding: 0;
+  transition: background 0.12s;
 }
 
+.dispatch-search-clear:hover {
+  background: #f1f5f9;
+}
+
+/* Export CSV button */
 .dispatch-export-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   height: 40px;
-  padding: 0 14px;
+  padding: 0 16px;
   border: 1px solid #dce5f0;
   border-radius: 10px;
   background: #fff;
@@ -11090,30 +11125,39 @@ body, #root, .app-container {
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .dispatch-export-btn:hover {
   background: #f8fafc;
+  border-color: #c4d0e0;
 }
 
-/* ─── Action Buttons ────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   3. ACTION BUTTONS
+   ───────────────────────────────────────────────────────────────────────── */
+
 .dispatch-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
   height: 38px;
-  padding: 0 16px;
+  padding: 0 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: 10px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.15s, opacity 0.15s;
+  transition: background 0.15s, opacity 0.15s, transform 0.1s;
   border: 1px solid transparent;
   line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.dispatch-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .dispatch-btn:disabled {
@@ -11165,6 +11209,7 @@ body, #root, .app-container {
 
 .dispatch-btn-outline:hover:not(:disabled) {
   background: #f8fafc;
+  border-color: #a0b0c4;
 }
 
 .dispatch-btn-ghost {
@@ -11177,8 +11222,43 @@ body, #root, .app-container {
   background: #ede9fe;
 }
 
-/* ─── Mobile Responsive — Dispatch Components ────────────────────────────── */
-@media (max-width: 640px) {
+/* ─────────────────────────────────────────────────────────────────────────
+   4. MOBILE CARD GRID — overflow containment
+   ───────────────────────────────────────────────────────────────────────── */
+
+.dispatch-mobile-card-grid {
+  width: 100%;
+  min-width: 0;
+}
+
+.dispatch-mobile-card-grid > * {
+  min-width: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5. TABLET RESPONSIVE — 640px to 1023px
+   ───────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1023px) {
+  .dispatch-header-title {
+    font-size: 22px;
+  }
+
+  .dispatch-header-desc {
+    font-size: 13px;
+  }
+
+  .dispatch-stat-value {
+    font-size: 20px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   6. MOBILE RESPONSIVE — below 640px  (iPhone 12 Pro: 390px)
+   ───────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 639px) {
+  /* Header: stack vertically */
   .dispatch-header-content {
     flex-direction: column;
     align-items: flex-start;
@@ -11191,23 +11271,31 @@ body, #root, .app-container {
   }
 
   .dispatch-header-title {
-    font-size: 21px;
+    font-size: 20px;
+    letter-spacing: -0.01em;
   }
 
   .dispatch-header-desc {
     font-size: 13px;
+    max-width: 100%;
   }
 
+  /* Right section: fill width, horizontal scroll if needed */
   .dispatch-header-right {
     width: 100%;
     justify-content: flex-start;
     gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
   }
 
+  /* Stat box: flex-grow so it takes available space */
   .dispatch-stat-box {
-    min-width: 0;
     flex: 1 1 auto;
-    padding: 7px 12px;
+    min-width: 0;
+    padding: 8px 12px;
     min-height: 44px;
   }
 
@@ -11215,6 +11303,7 @@ body, #root, .app-container {
     font-size: 18px;
   }
 
+  /* Refresh button: compact */
   .dispatch-refresh-btn {
     height: 36px;
     padding: 0 12px;
@@ -11222,44 +11311,45 @@ body, #root, .app-container {
     flex-shrink: 0;
   }
 
+  /* Toolbar: tighter padding */
   .dispatch-toolbar-card {
     padding: 12px 14px;
+    gap: 8px;
   }
 
+  /* Actions row: wrap so search takes full width, export goes below */
   .dispatch-toolbar-actions-row {
     flex-wrap: wrap;
     gap: 8px;
   }
 
+  /* Search box: always full width on mobile */
   .dispatch-search-box {
     flex: 1 1 100%;
     width: 100%;
     min-width: 0;
   }
 
+  /* Export button: full width under search */
   .dispatch-export-btn {
     width: 100%;
     justify-content: center;
-    flex-shrink: 0;
   }
 
+  /* Action buttons: slightly taller for touch */
   .dispatch-btn {
-    height: 40px;
+    height: 42px;
     font-size: 13px;
     padding: 0 14px;
   }
-}
 
-/* -- Dispatch mobile card grid: contain horizontal overflow */
-@media (max-width: 767px) {
+  /* Card grid: single column, no gap bleed */
   .dispatch-mobile-card-grid {
-    width: 100%;
-    min-width: 0;
     overflow: hidden;
   }
 
   .dispatch-mobile-card-grid > * {
-    min-width: 0;
     overflow: hidden;
   }
 }
+
