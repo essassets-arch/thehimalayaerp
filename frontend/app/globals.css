@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -10892,7 +10892,7 @@ body, #root, .app-container {
 
 /* Left: eyebrow + title + description */
 .dispatch-header-left {
-  flex: 1 1 320px;
+  flex: 1 1 200px;
   min-width: 0;
 }
 
@@ -11258,98 +11258,115 @@ body, #root, .app-container {
    ───────────────────────────────────────────────────────────────────────── */
 
 @media (max-width: 639px) {
-  /* Header: stack vertically */
-  .dispatch-header-content {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 16px;
-    gap: 14px;
+  /* ── Dispatch page shell: add side padding so cards have breathing room ── */
+  .dispatch-header-card,
+  .dispatch-toolbar-card {
+    border-radius: 12px !important;
   }
 
+  /* Header: FORCE column stacking with !important to beat global conflicts */
+  .dispatch-header-content {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 14px 16px !important;
+    gap: 12px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Left text block: full width, no flex-basis height in column direction */
   .dispatch-header-left {
-    width: 100%;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    display: block !important;
+  }
+
+  .dispatch-header-eyebrow {
+    display: block !important;
+    font-size: 10px !important;
   }
 
   .dispatch-header-title {
-    font-size: 20px;
-    letter-spacing: -0.01em;
+    display: block !important;
+    font-size: 19px !important;
+    letter-spacing: -0.01em !important;
+    margin: 0 0 4px !important;
   }
 
   .dispatch-header-desc {
-    font-size: 13px;
-    max-width: 100%;
+    display: block !important;
+    font-size: 12px !important;
+    max-width: 100% !important;
   }
 
-  /* Right section: fill width, horizontal scroll if needed */
+  /* Right section: row, fills full width on mobile */
   .dispatch-header-right {
-    width: 100%;
-    justify-content: flex-start;
-    gap: 8px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 2px;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
   }
 
-  /* Stat box: flex-grow so it takes available space */
+  /* Stat box: flexible width */
   .dispatch-stat-box {
-    flex: 1 1 auto;
-    min-width: 0;
-    padding: 8px 12px;
-    min-height: 44px;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding: 8px 12px !important;
+    min-height: 44px !important;
   }
 
   .dispatch-stat-value {
-    font-size: 18px;
+    font-size: 18px !important;
   }
 
-  /* Refresh button: compact */
+  /* Refresh button: compact, fixed size */
   .dispatch-refresh-btn {
-    height: 36px;
-    padding: 0 12px;
-    font-size: 12px;
-    flex-shrink: 0;
+    height: 36px !important;
+    padding: 0 12px !important;
+    font-size: 12px !important;
+    flex-shrink: 0 !important;
   }
 
   /* Toolbar: tighter padding */
   .dispatch-toolbar-card {
-    padding: 12px 14px;
-    gap: 8px;
+    padding: 12px 14px !important;
+    gap: 8px !important;
   }
 
   /* Actions row: wrap so search takes full width, export goes below */
   .dispatch-toolbar-actions-row {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
   }
 
   /* Search box: always full width on mobile */
   .dispatch-search-box {
-    flex: 1 1 100%;
-    width: 100%;
-    min-width: 0;
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
   /* Export button: full width under search */
   .dispatch-export-btn {
-    width: 100%;
-    justify-content: center;
+    width: 100% !important;
+    justify-content: center !important;
   }
 
   /* Action buttons: slightly taller for touch */
   .dispatch-btn {
-    height: 42px;
-    font-size: 13px;
-    padding: 0 14px;
+    height: 42px !important;
+    font-size: 13px !important;
+    padding: 0 14px !important;
   }
 
   /* Card grid: single column, no gap bleed */
   .dispatch-mobile-card-grid {
-    overflow: hidden;
+    overflow: hidden !important;
   }
 
   .dispatch-mobile-card-grid > * {
-    overflow: hidden;
+    overflow: hidden !important;
   }
 }
 

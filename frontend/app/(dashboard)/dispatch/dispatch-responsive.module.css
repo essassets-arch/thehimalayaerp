@@ -16,6 +16,13 @@
   overflow-x: hidden;
 }
 
+/* On mobile, main-viewport removes all padding — give dispatch page side padding */
+@media (max-width: 768px) {
+  .page {
+    padding: 12px 12px 24px;
+  }
+}
+
 .flushPage {
   width: 100%;
   min-width: 0;
@@ -49,4 +56,11 @@
   gap: 16px;
   width: 100%;
   min-width: 0;
+}
+
+/* On mobile, main-viewport forces gap:0 — restore gap for dispatch stack */
+@media (max-width: 768px) {
+  .stack {
+    gap: 12px;
+  }
 }
