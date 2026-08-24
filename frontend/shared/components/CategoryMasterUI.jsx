@@ -164,12 +164,12 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
-      {/* KPI Cards Header */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: isMobile ? '12px' : '20px' }}>
+      {/* KPI Cards Header (4 / 2 / 2 / 1 Hierarchy) */}
+      <div className="erp-kpi-grid">
         
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#6366F1' }} />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#6366F1', letterSpacing: '0.05em' }}>Total Categories</div>
             <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1 }}>{totalCategoriesCount}</div>
             <div style={{ fontSize: '12px', color: '#64748B', marginTop: '6px' }}>Active product categories</div>
@@ -179,9 +179,9 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
           </div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#10B981' }} />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#10B981', letterSpacing: '0.05em' }}>Categorized Items</div>
             <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1 }}>{categorizedProductsCount}</div>
             <div style={{ fontSize: '12px', color: '#64748B', marginTop: '6px' }}>Mapped database products</div>
@@ -191,11 +191,11 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
           </div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#8B5CF6' }} />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#8B5CF6', letterSpacing: '0.05em' }}>Top Category</div>
-            <div style={{ fontSize: isMobile ? '15px' : '20px', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? '120px' : 'none' }}>{topCategory.name}</div>
+            <div style={{ fontSize: isMobile ? '15px' : '20px', fontWeight: 800, color: '#0F172A', marginTop: '6px', lineHeight: 1.2, overflowWrap: 'anywhere' }}>{topCategory.name}</div>
             <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>{topCategory.count} products</div>
           </div>
           <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B5CF6', flexShrink: 0 }}>
@@ -203,9 +203,9 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
           </div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: isMobile ? '14px 16px' : '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden', minWidth: 0 }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#F59E0B' }} />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#D97706', letterSpacing: '0.05em' }}>Uncategorized</div>
             <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 800, color: '#0F172A', marginTop: '4px', lineHeight: 1 }}>{uncategorizedCount}</div>
             <div style={{ fontSize: '12px', color: '#64748B', marginTop: '6px' }}>Items needing classification</div>
@@ -326,6 +326,7 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
           </div>
         ) : (
           <DataTable
+            scrollMode={true}
             columns={[
               { 
                 header: 'Category Name', 

@@ -814,8 +814,8 @@ export default function ProductMasterUI({ role }) {
           )}
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div className="erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
+          <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
                   <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', width: '64px' }}>Image</th>
@@ -1040,8 +1040,8 @@ export default function ProductMasterUI({ role }) {
 
       {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)', padding: '16px' }}>
-          <div style={{ background: '#FFFFFF', borderRadius: '20px', width: '100%', maxWidth: '650px', border: '1px solid #E2E8F0', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
+        <div className="erp-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)', padding: '16px' }}>
+          <div className="erp-modal-box" style={{ background: '#FFFFFF', borderRadius: '20px', width: 'min(650px, calc(100vw - 24px))', maxWidth: '100%', border: '1px solid #E2E8F0', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '92vh', overflow: 'hidden', padding: 0 }}>
             
             {/* Modal Header */}
             <div style={{ padding: '20px 28px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%)' }}>
@@ -1068,10 +1068,10 @@ export default function ProductMasterUI({ role }) {
             </div>
 
             {/* Modal Form Body */}
-            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ padding: 'clamp(16px, 3vw, 24px)', overflowY: 'auto', flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
                 
-                <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Name *</label>
                   <input 
                     type="text" 

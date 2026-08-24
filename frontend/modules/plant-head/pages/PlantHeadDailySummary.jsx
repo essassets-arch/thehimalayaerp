@@ -221,15 +221,15 @@ export const PlantHeadDailySummary = () => {
   };
 
   return (
-    <div style={{ padding: isMobile ? '12px' : '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a' }}>
+    <div style={{ padding: isMobile ? '12px' : '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
 
       {/* ── STICKY TOP SUMMARY BAR ON SCROLL ── */}
       {isStickyVisible && (
         <div style={{ position: 'fixed', top: '0', left: '0', right: '0', zIndex: 9999, background: '#0f172a', color: '#ffffff', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', borderBottom: '2px solid #0284c7' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '900' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '900', flexShrink: 0 }}>
             <LayoutDashboard size={16} color="#38bdf8" /> Plant Head Command Summary
           </div>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', fontSize: '12px', fontWeight: '700' }}>
+          <div className="erp-tab-scroll-bar" style={{ display: 'flex', gap: '16px', alignItems: 'center', fontSize: '12px', fontWeight: '700', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
             <button onClick={() => scrollToAnchor('incoming-orders')} style={{ background: 'transparent', border: 'none', color: '#93c5fd', cursor: 'pointer', fontWeight: '700' }}>
               Incoming: <strong style={{ color: '#fff' }}>{data?.mainKpis?.incomingOrders || 0}</strong>
             </button>
@@ -306,8 +306,8 @@ export const PlantHeadDailySummary = () => {
         </div>
       </div>
 
-      {/* ── ROW 1 — MAIN KPI CARDS (8 Compact Cards) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fit, minmax(140px, 1fr))', gap: isMobile ? '8px' : '12px', marginBottom: '20px' }}>
+      {/* ── ROW 1 — MAIN KPI CARDS (8 Cards with 4 / 2 / 2 / 1 Grid Hierarchy) ── */}
+      <div className="erp-kpi-grid" style={{ marginBottom: '20px' }}>
         {[
           { label: 'Incoming Orders', count: data?.mainKpis?.incomingOrders || 0, color: '#0284c7', anchor: 'incoming-orders' },
           { label: 'Pending Planning', count: data?.mainKpis?.pendingPlanning || 0, color: '#f59e0b', anchor: 'planning' },
@@ -1174,7 +1174,7 @@ export const PlantHeadDailySummary = () => {
             }
           `}</style>
 
-          <div id="report-document-card" className="printable-report-modal" style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '980px', width: '100%', padding: '40px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', border: '1px solid #cbd5e1', position: 'relative' }}>
+          <div id="report-document-card" className="erp-modal-box erp-modal-large printable-report-modal" style={{ background: '#ffffff', borderRadius: '16px', width: 'min(980px, calc(100vw - 24px))', maxWidth: '100%', padding: 'clamp(16px, 3vw, 36px)', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', border: '1px solid #cbd5e1', position: 'relative' }}>
             
             {/* Modal Actions Header (Hidden during Print) */}
             <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', paddingBottom: '16px', borderBottom: '2px solid #e2e8f0' }}>

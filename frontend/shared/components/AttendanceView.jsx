@@ -598,8 +598,8 @@ export default function AttendanceView({ employees: propEmployees }) {
       {/* SUB TAB: REGISTER */}
       {attendanceSubTab === 'register' && (
         <>
-          {/* METRIC CARDS GRID */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          {/* METRIC CARDS GRID (4 / 2 / 2 / 1 Grid) */}
+          <div className="erp-kpi-grid" style={{ marginBottom: '16px' }}>
             {[
               { label: "Today's Total Logs", value: formattedLogs.length, sub: "Auto-synced from devices", bg: '#F8FAFC', border: '#E2E8F0', text: '#0F172A', icon: <Clock size={20} color="#475569" /> },
               { label: "GPS Verified", value: formattedLogs.filter(l => l.coords).length, sub: "Auto-captured coordinate", bg: '#F0F9FF', border: '#BAE6FD', text: '#0369A1', icon: <MapPin size={20} color="#0284c7" /> },
@@ -620,7 +620,7 @@ export default function AttendanceView({ employees: propEmployees }) {
           </div>
 
           {/* MAIN WORKSPACE SPLIT */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px', alignItems: 'stretch' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', alignItems: 'stretch' }}>
             
             {/* Left Column: Attendance Register */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -691,6 +691,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                 </div>
 
                 <DataTable 
+                  scrollMode={true}
                   columns={[
                     { 
                       header: 'Biometric Photo', 
@@ -952,8 +953,8 @@ export default function AttendanceView({ employees: propEmployees }) {
               <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Total Staff: {employees.length} Employees</span>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+            <div className="erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
+              <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
                     <th style={{ padding: '12px 16px', fontWeight: '700' }}>Shift</th>

@@ -3370,6 +3370,7 @@ export default function PlantHeadPortal() {
           </div>
         ) : (
           <DataTable
+            scrollMode={true}
             columns={[
               {
                 header: 'Order No', accessor: 'orderNo', render: (row) => (
@@ -3829,6 +3830,7 @@ export default function PlantHeadPortal() {
           </div>
         ) : (
           <DataTable
+            scrollMode={true}
             columns={[
               {
                 header: 'Order No', accessor: 'orderNo', render: (row) => (
@@ -4017,6 +4019,7 @@ export default function PlantHeadPortal() {
           </div>
         </div>
         <DataTable
+          scrollMode={true}
           columns={[
             {
               header: 'Order Reference', accessor: 'orderNo', render: (row) => (
@@ -4161,6 +4164,7 @@ export default function PlantHeadPortal() {
           </div>
 
           <DataTable
+            scrollMode={true}
             columns={[
               { header: 'Item Code', accessor: 'productCode', render: (row) => <strong>{row.productCode || 'FG-ITEM'}</strong> },
               { header: 'Item Name', accessor: 'productName', render: (row) => <strong>{row.productName || 'Finished Good'}</strong> },
@@ -4646,7 +4650,7 @@ export default function PlantHeadPortal() {
         </div>
 
         {/* Raw Inventory Table */}
-        <div className="m-theme-table-container">
+        <div className="m-theme-table-container erp-table-responsive">
           <table className="m-theme-table responsive-table raw-inventory-table">
             <thead>
               <tr>
@@ -4762,7 +4766,8 @@ export default function PlantHeadPortal() {
                 onClick={() => setShowDetailDrawer(false)}
               ></div>
               <div
-                style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', maxWidth: '90%', background: '#ffffff', boxShadow: '-10px 0 35px rgba(0,0,0,0.1)', zIndex: 1050, padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}
+                className="erp-drawer-responsive"
+                style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(520px, 100vw)', maxWidth: '100vw', background: '#ffffff', boxShadow: '-10px 0 35px rgba(0,0,0,0.1)', zIndex: 1050, padding: 'clamp(16px, 3vw, 24px)', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '14px' }}>
                   <div>
@@ -5621,8 +5626,8 @@ export default function PlantHeadPortal() {
             });
 
         return (
-          <div className="modal-overlay active" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)' }}>
-            <div className="modal-box bg-white shadow-2xl border border-slate-100/80" onClick={(e) => e.stopPropagation()} style={{ width: '900px', maxWidth: 'calc(100vw - 32px)', padding: '24px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '20px' }}>
+          <div className="erp-modal-overlay modal-overlay active" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)' }}>
+            <div className="erp-modal-box erp-modal-large modal-box bg-white shadow-2xl border border-slate-100/80" onClick={(e) => e.stopPropagation()} style={{ width: 'min(920px, calc(100vw - 24px))', padding: 'clamp(16px, 3vw, 24px)', maxHeight: '94vh', overflowY: 'auto', borderRadius: '18px' }}>
               
               {/* Modal Header */}
               <div className="modal-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
@@ -5666,7 +5671,7 @@ export default function PlantHeadPortal() {
                     Authorize Fulfillment Stock Flow (FG Stock vs Production)
                   </h4>
                   
-                  <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                  <div className="erp-table-responsive" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
                     <table style={{ minWidth: '780px', width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>

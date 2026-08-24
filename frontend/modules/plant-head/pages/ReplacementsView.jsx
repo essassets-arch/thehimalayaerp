@@ -150,8 +150,8 @@ export default function ReplacementsView() {
           History <span>{historyCount}</span>
         </button>
       </div>
-      <div className={`crm-table-container ${styles.tableContainer}`}>
-        <table className={`crm-table flat-table ${styles.table}`}>
+      <div className={`crm-table-container scroll-mode erp-table-responsive ${styles.tableContainer}`}>
+        <table className={`crm-table flat-table ${styles.table}`} style={{ minWidth: '780px' }}>
           <thead><tr><th>Request ID</th><th>Order ID</th><th>Customer</th><th>Products / Qty</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {loading ? (
@@ -184,8 +184,8 @@ export default function ReplacementsView() {
         </table>
       </div>
       {viewRequest && (
-        <div className={styles.modalOverlay} onClick={() => setViewRequest(null)}>
-          <div role="dialog" aria-modal="true" aria-label="Replacement Request Details" className={styles.modal} onClick={(event) => event.stopPropagation()}>
+        <div className={`erp-modal-overlay ${styles.modalOverlay}`} onClick={() => setViewRequest(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Replacement Request Details" className={`erp-modal-box ${styles.modal}`} onClick={(event) => event.stopPropagation()}>
             <div className={styles.modalHeader}>
               <div>
                 <h2>Replacement Request Details</h2>

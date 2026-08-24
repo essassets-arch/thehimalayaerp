@@ -402,8 +402,8 @@ export default function MaterialIndentApproval() {
             </div>
           </div>
 
-          {/* KPI Stats Grid */}
-          <div style={{
+          {/* KPI Stats Grid (Page-Specific 3 / 2 / 1 Grid) */}
+          <div className="erp-kpi-grid-3" style={{
             display: 'grid',
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
             gap: '16px',
@@ -889,8 +889,8 @@ export default function MaterialIndentApproval() {
 
             {/* Desktop Table View */}
             {!isMobile ? (
-              <div style={{ width: '100%', overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <div className="erp-table-responsive" style={{ width: '100%', overflowX: 'auto' }}>
+                <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0', color: '#475569', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                       <th style={{ padding: '14px 20px' }}>Material Details</th>

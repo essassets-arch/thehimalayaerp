@@ -415,7 +415,7 @@ export const PlantHeadDashboard = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b' }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b', width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
 
       {/* ── Page Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
@@ -489,8 +489,8 @@ export const PlantHeadDashboard = () => {
         </div>
       </div>
 
-      {/* ── Executive 10 KPI Cards (Top Section with Threshold Logic) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+      {/* ── Executive 10 KPI Cards (Top Section with Explicit 4 / 2 / 2 / 1 Grid Hierarchy) ── */}
+      <div className="erp-kpi-grid" style={{ marginBottom: '20px' }}>
 
         {/* 1. Daily Production Output */}
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
@@ -633,7 +633,7 @@ export const PlantHeadDashboard = () => {
       )}
 
       {/* ── 10 Dashboard Tabs Bar ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '12px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', gap: '8px', overflowX: 'auto' }}>
+      <div className="erp-tab-scroll-bar" style={{ background: '#ffffff', borderRadius: '14px', padding: '12px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
         {[
           { id: 'executive_overview', label: '📊 Executive Overview' },
           { id: 'planning_calendar', label: '📅 Production Planning' },
@@ -652,6 +652,7 @@ export const PlantHeadDashboard = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
+                flexShrink: 0,
                 background: isActive ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
                 color: isActive ? '#ffffff' : '#475569',
                 border: isActive ? 'none' : '1px solid #cbd5e1',

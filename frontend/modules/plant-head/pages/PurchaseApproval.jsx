@@ -308,8 +308,8 @@ export default function PurchaseApproval() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      {/* KPI Cards (Explicit 4 / 2 / 2 / 1 Grid Hierarchy) */}
+      <div className="erp-kpi-grid" style={{ marginBottom: '24px' }}>
         <div style={{ background: '#FFFFFF', padding: '18px 20px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Clock size={24} color="#D97706" />
@@ -358,8 +358,8 @@ export default function PurchaseApproval() {
       {/* Main Card */}
       <div style={{ background: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
         {/* Subtabs and Search Bar */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '14px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          <div className="erp-tab-scroll-bar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
             {[
               { id: 'Pending', label: 'Pending Approvals', count: counts.pending, color: '#D97706', bg: '#FEF3C7' },
               { id: 'Approved', label: 'Approved History', count: counts.approved, color: '#059669', bg: '#D1FAE5' },
@@ -370,6 +370,7 @@ export default function PurchaseApproval() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 style={{
+                  flexShrink: 0,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
@@ -381,7 +382,8 @@ export default function PurchaseApproval() {
                   fontSize: '13px',
                   fontWeight: activeTab === tab.id ? 800 : 600,
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease'
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {tab.label}
@@ -401,7 +403,7 @@ export default function PurchaseApproval() {
             ))}
           </div>
 
-          <div style={{ position: 'relative', width: '280px' }}>
+          <div style={{ position: 'relative', width: '100%', minWidth: 0 }}>
             <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
@@ -424,6 +426,7 @@ export default function PurchaseApproval() {
         {/* PO Table */}
         <div style={{ padding: '0' }}>
           <DataTable
+            scrollMode={true}
             columns={[
               {
                 header: 'PO Ref',
@@ -563,8 +566,8 @@ export default function PurchaseApproval() {
 
       {/* PO Detail & Breakdown Modal */}
       {isDetailModalOpen && selectedPO && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ background: '#FFFFFF', borderRadius: '16px', maxWidth: '850px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #CBD5E1' }}>
+        <div className="erp-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <div className="erp-modal-box erp-modal-large" style={{ background: '#FFFFFF', borderRadius: '16px', width: 'min(850px, calc(100vw - 24px))', maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto', padding: 0, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #CBD5E1' }}>
             {/* Modal Header */}
             <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: '15px', borderTopRightRadius: '15px' }}>
               <div>
@@ -582,9 +585,9 @@ export default function PurchaseApproval() {
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: '24px' }}>
+            <div style={{ padding: 'clamp(16px, 3vw, 24px)' }}>
               {/* Meta Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', marginBottom: '20px' }}>
+              <div className="erp-kpi-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', marginBottom: '20px' }}>
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Vendor</div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>

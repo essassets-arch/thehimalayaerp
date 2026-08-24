@@ -17,7 +17,8 @@ export default function DataTable({
   searchField = '', 
   actions, 
   emptyMessage = 'No matching records found.',
-  className = ''
+  className = '',
+  scrollMode = false
 }) {
   // Filter data by search query
   const filteredData = (data || []).filter(item => {
@@ -39,8 +40,8 @@ export default function DataTable({
   });
 
   return (
-    <div className="crm-table-container">
-      <table className={`crm-table responsive-table ${className}`}>
+    <div className={`crm-table-container ${scrollMode ? 'scroll-mode erp-table-responsive' : ''}`}>
+      <table className={`crm-table ${scrollMode ? 'erp-table-scroll' : 'responsive-table'} ${className}`}>
         <thead>
           <tr>
             {columns.map((col, idx) => (

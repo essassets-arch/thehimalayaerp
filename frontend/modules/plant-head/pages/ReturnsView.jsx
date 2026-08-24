@@ -109,23 +109,24 @@ export default function ReturnsView() {
   };
 
   return (
-    <div className="app-card" style={{ flex: 1 }}>
-      <div className="module-header-row">
+    <div className="app-card" style={{ flex: 1, minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
+      <div className="module-header-row" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '14px' }}>
         <div>
           <h2 className="module-title">Return Requests</h2>
           <p style={{ margin: 0, color: 'var(--color-text-secondary)' }}>Approve take-back quantities without changing payment or closure.</p>
         </div>
-        <div className="search-box">
+        <div className="search-box" style={{ flex: '1 1 240px', minWidth: 'min(100%, 240px)' }}>
           <Search size={14} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search request, order, customer…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search request, order, customer…" style={{ width: '100%' }} />
         </div>
       </div>
-      <div className={styles.tabs} role="tablist" aria-label="Return request filters">
+      <div className={`${styles.tabs} erp-tab-scroll-bar`} role="tablist" aria-label="Return request filters" style={{ display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', gap: '8px', width: '100%', minWidth: 0 }}>
         <button
           type="button"
           role="tab"
           aria-selected={activeTab === 'pending'}
           className={`${styles.tabButton} ${activeTab === 'pending' ? styles.activeTab : ''}`}
+          style={{ flexShrink: 0 }}
           onClick={() => setActiveTab('pending')}
         >
           Pending Requests <span>{pendingCount}</span>
@@ -135,13 +136,14 @@ export default function ReturnsView() {
           role="tab"
           aria-selected={activeTab === 'history'}
           className={`${styles.tabButton} ${activeTab === 'history' ? styles.activeTab : ''}`}
+          style={{ flexShrink: 0 }}
           onClick={() => setActiveTab('history')}
         >
           History <span>{historyCount}</span>
         </button>
       </div>
-      <div className="crm-table-container">
-        <table className="crm-table responsive-table flat-table">
+      <div className="crm-table-container scroll-mode erp-table-responsive">
+        <table className="crm-table responsive-table flat-table" style={{ minWidth: '780px' }}>
           <thead><tr><th>Return ID</th><th>Order ID</th><th>Customer</th><th>Products / Qty</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {loading ? (
@@ -173,8 +175,8 @@ export default function ReturnsView() {
         </table>
       </div>
       {viewRequest && (
-        <div className={styles.modalOverlay} onClick={() => setViewRequest(null)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="return-details-title" className={styles.modalPanel} onClick={(event) => event.stopPropagation()}>
+        <div className={`erp-modal-overlay ${styles.modalOverlay}`} onClick={() => setViewRequest(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="return-details-title" className={`erp-modal-box ${styles.modalPanel}`} onClick={(event) => event.stopPropagation()}>
             <div className={styles.modalHeader}>
               <div>
                 <h2 id="return-details-title" className={styles.modalTitle}>Return Request Details</h2>

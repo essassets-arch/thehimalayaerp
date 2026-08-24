@@ -746,7 +746,7 @@ export const StoreDashboard = () => {
       )}
 
       {/* ── TOP KPI CARDS GRID (8 Requested Operational Metrics - Responsive Grid) ── */}
-      <div className="store-dashboard-kpi-grid">
+      <div className="store-dashboard-kpi-grid erp-kpi-grid">
         
         {/* 1. Total Raw Materials */}
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', borderLeft: '4px solid #3b82f6' }}>
@@ -1218,8 +1218,8 @@ export const StoreDashboard = () => {
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        <div className="erp-table-responsive" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+          <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', textTransform: 'uppercase', fontSize: '11.5px' }}>
                 <th style={{ padding: '12px 14px' }}>Material Code</th>
@@ -1279,12 +1279,14 @@ export const StoreDashboard = () => {
       {/* ── MATERIAL LEDGER DRILLDOWN MODAL ── */}
       {selectedMaterialDetail && (
         <div
+          className="erp-modal-overlay"
           onClick={() => setSelectedMaterialDetail(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
         >
           <div
+            className="erp-modal-box"
             onClick={e => e.stopPropagation()}
-            style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? '16px' : '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', border: '1px solid #e2e8f0', boxSizing: 'border-box' }}
+            style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '650px', width: 'min(650px, calc(100vw - 24px))', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? '16px' : '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', border: '1px solid #e2e8f0', boxSizing: 'border-box' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1.5px solid #f1f5f9', paddingBottom: '14px' }}>
               <div>

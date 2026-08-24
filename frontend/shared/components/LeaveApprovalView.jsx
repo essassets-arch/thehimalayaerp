@@ -159,7 +159,7 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
 
       {/* Tabs configuration for HR and Super Admin */}
       {(roleMode === 'SUPER_ADMIN' || roleMode === 'HR') && (
-        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '6px' }}>
+        <div className="erp-tab-scroll-bar" style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '6px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
           <button
             onClick={() => setActiveSubTab('pending')}
             style={{ padding: '10px 20px', border: 'none', background: 'transparent', borderBottom: activeSubTab === 'pending' ? '3px solid #0284c7' : '3px solid transparent', color: activeSubTab === 'pending' ? '#0284c7' : '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.15s' }}

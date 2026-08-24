@@ -370,7 +370,7 @@ export default function DailyReportHistoryView({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       
       {/* HEADER & TOP CONTROLS */}
       <div style={{
@@ -479,12 +479,8 @@ export default function DailyReportHistoryView({
         </div>
       </div>
 
-      {/* KPI SUMMARY CARDS */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '14px'
-      }}>
+      {/* KPI SUMMARY CARDS (4 / 2 / 2 / 1 Hierarchy) */}
+      <div className="erp-kpi-grid">
         <div style={{ background: 'var(--color-bg-card, #ffffff)', border: '1px solid var(--color-border, #e2e8f0)', padding: '14px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', padding: '10px', borderRadius: '10px' }}>
             <Calendar size={20} />
@@ -535,11 +531,14 @@ export default function DailyReportHistoryView({
         padding: '16px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '14px'
+        gap: '14px',
+        width: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', width: '100%', minWidth: 0 }}>
           {/* Preset Buttons */}
-          <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '10px' }}>
+          <div className="erp-tab-scroll-bar" style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
             {['All', 'Today', 'Yesterday', 'This Week', 'This Month'].map(p => (
               <button
                 key={p}
@@ -637,8 +636,8 @@ export default function DailyReportHistoryView({
         boxShadow: 'var(--shadow-soft, 0 4px 6px -1px rgba(0,0,0,0.05))',
         overflow: 'hidden'
       }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <div className="erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
+          <table style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border, #e2e8f0)' }}>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Report No</th>
@@ -894,7 +893,7 @@ export default function DailyReportHistoryView({
 
       {/* REPORT INSPECTION MODAL (READ ONLY) */}
       {selectedReportModal && (
-        <div style={{
+        <div className="erp-modal-overlay" style={{
           position: 'fixed',
           inset: 0,
           zIndex: 99999,
@@ -903,21 +902,23 @@ export default function DailyReportHistoryView({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px'
+          padding: '16px'
         }}
         onClick={() => setSelectedReportModal(null)}
         >
           <div
+            className="erp-modal-box erp-modal-large"
             style={{
               background: '#ffffff',
               borderRadius: '16px',
-              width: '100%',
-              maxWidth: '900px',
-              maxHeight: '90vh',
+              width: 'min(900px, calc(100vw - 24px))',
+              maxWidth: '100%',
+              maxHeight: '92vh',
               overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              padding: 0
             }}
             onClick={(e) => e.stopPropagation()}
           >

@@ -314,8 +314,8 @@ export const PlantHeadProductionAnalytics = () => {
         </div>
       </div>
 
-      {/* ── Top Executive KPI Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      {/* ── Top Executive KPI Cards (4 / 2 / 2 / 1 Grid) ── */}
+      <div className="erp-kpi-grid" style={{ marginBottom: '24px' }}>
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
           <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🏭 Total Volume Output</div>
           <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>
@@ -397,10 +397,10 @@ export const PlantHeadProductionAnalytics = () => {
             </div>
           </div>
 
-          <div style={{ width: '100%', height: '290px', minHeight: '290px', position: 'relative' }}>
+          <div style={{ width: '100%', minHeight: '290px', height: 'auto', position: 'relative' }}>
             {mounted && dailyChartType === 'pie' && (
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', height: '290px' }}>
-                <div style={{ flex: '1', minWidth: '180px', height: '290px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', minHeight: '290px', height: 'auto' }}>
+                <div style={{ flex: '1 1 260px', minWidth: '220px', height: '290px' }}>
                   <ResponsiveChartBox height={290}>
                     <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                       <Pie
@@ -434,7 +434,7 @@ export const PlantHeadProductionAnalytics = () => {
                 </div>
 
                 {/* Right Side Info Breakdown Card */}
-                <div style={{ width: '200px', minWidth: '180px', background: '#f8fafc', borderRadius: '12px', padding: '12px 14px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '280px', boxSizing: 'border-box' }}>
+                <div style={{ flex: '1 1 200px', minWidth: '180px', background: '#f8fafc', borderRadius: '12px', padding: '12px 14px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '280px', boxSizing: 'border-box' }}>
                   <div>
                     <div style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <TrendingUp size={14} /> Output Info Card
@@ -544,10 +544,10 @@ export const PlantHeadProductionAnalytics = () => {
             </div>
           </div>
 
-          <div style={{ width: '100%', height: '290px', minHeight: '290px', position: 'relative' }}>
+          <div style={{ width: '100%', minHeight: '290px', height: 'auto', position: 'relative' }}>
             {mounted && categoryChartType === 'pie' && (
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', height: '290px' }}>
-                <div style={{ flex: '1', minWidth: '180px', height: '290px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', minHeight: '290px', height: 'auto' }}>
+                <div style={{ flex: '1 1 260px', minWidth: '220px', height: '290px' }}>
                   <ResponsiveChartBox height={290}>
                     <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                       <Pie
@@ -581,7 +581,7 @@ export const PlantHeadProductionAnalytics = () => {
                 </div>
 
                 {/* Right Side Info Breakdown Card */}
-                <div style={{ width: '200px', minWidth: '180px', background: '#f8fafc', borderRadius: '12px', padding: '12px 14px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '280px', boxSizing: 'border-box' }}>
+                <div style={{ flex: '1 1 200px', minWidth: '180px', background: '#f8fafc', borderRadius: '12px', padding: '12px 14px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '280px', boxSizing: 'border-box' }}>
                   <div>
                     <div style={{ fontSize: '11px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Layers size={14} /> Category Info Card

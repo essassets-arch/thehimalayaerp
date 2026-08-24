@@ -469,7 +469,7 @@ export default function MyProfileView() {
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div className="profile-tabs-nav">
+      <div className="profile-tabs-nav erp-tab-scroll-bar" style={{ display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, gap: '8px', paddingBottom: '4px' }}>
         {[
           { key: 'profile', label: 'Personal Information', icon: User },
           { key: 'attendance', label: 'Attendance Records', icon: Calendar },
@@ -484,6 +484,7 @@ export default function MyProfileView() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`profile-tab-btn ${isActive ? 'active' : ''}`}
+              style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               <TabIcon size={16} />
               <span>{tab.label}</span>
@@ -645,6 +646,7 @@ export default function MyProfileView() {
                   </div>
                 ) : (
                   <DataTable 
+                    scrollMode={true}
                     columns={[
                       { 
                         header: 'Biometric Photo', 
@@ -873,8 +875,8 @@ export default function MyProfileView() {
             ) : salarySlips.length === 0 ? (
               <p style={{ color: '#64748b' }}>No salary slips generated yet.</p>
             ) : (
-              <div className="crm-table-container">
-                <table className="crm-table responsive-table" style={{ width: '100%' }}>
+              <div className="crm-table-container scroll-mode erp-table-responsive">
+                <table className="crm-table responsive-table" style={{ width: '100%', minWidth: '600px' }}>
                   <thead>
                     <tr>
                       <th>Slip Number</th>

@@ -216,8 +216,8 @@ export default function PlantHeadTestingPage() {
         </div>
       </div>
 
-      {/* Metrics Summary Cards */}
-      <div className={styles.statsGrid}>
+      {/* Metrics Summary Cards (4 / 2 / 2 / 1 Grid Hierarchy) */}
+      <div className={`${styles.statsGrid} erp-kpi-grid`}>
         <div 
           className={`${styles.statCard} ${statusFilter === 'All' ? styles.statCardActive : ''}`}
           onClick={() => setStatusFilter('All')}
@@ -277,7 +277,7 @@ export default function PlantHeadTestingPage() {
         {/* Controls / Filter Bar */}
         <div className={styles.tableToolbar}>
           {/* Status Tabs */}
-          <div className={styles.statusTabs}>
+          <div className={`${styles.statusTabs} erp-tab-scroll-bar`} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
             {[
               { id: 'All', label: 'All Logs', count: totalCount },
               { id: 'Pending', label: 'Pending', count: pendingCount },
@@ -349,8 +349,8 @@ export default function PlantHeadTestingPage() {
         ) : (
           <>
             {/* Desktop Table View */}
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
+            <div className={`${styles.tableWrap} erp-table-responsive`} style={{ overflowX: 'auto', width: '100%' }}>
+              <table className={styles.table} style={{ minWidth: '780px' }}>
                 <thead className={styles.thead}>
                   <tr>
                     <th>Reference</th>
@@ -489,8 +489,8 @@ export default function PlantHeadTestingPage() {
 
       {/* Review Sign-Off Modal */}
       {reviewModalOpen && selectedRecord && (
-        <div className={styles.modalOverlay} onClick={() => setReviewModalOpen(false)}>
-          <div className={styles.modalCard} onClick={e => e.stopPropagation()}>
+        <div className={`erp-modal-overlay ${styles.modalOverlay}`} onClick={() => setReviewModalOpen(false)}>
+          <div className={`erp-modal-box ${styles.modalCard}`} style={{ width: 'min(580px, calc(100vw - 24px))', padding: 0 }} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <div>
                 <h3 className={styles.modalTitle}>Quality Audit Sign-Off</h3>

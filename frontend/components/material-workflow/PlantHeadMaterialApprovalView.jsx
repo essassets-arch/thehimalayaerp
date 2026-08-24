@@ -220,12 +220,12 @@ export default function PlantHeadMaterialApprovalView() {
 
       {/* Review Modal */}
       {selectedReq && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: isMobile ? '8px' : '24px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#fff', borderRadius: '20px', width: '720px', maxWidth: '100%', maxHeight: '95vh', overflowY: 'auto', padding: isMobile ? '16px' : '28px', border: '1px solid #DCE5F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', boxSizing: 'border-box' }}>
+        <div className="erp-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: isMobile ? '8px' : '24px', boxSizing: 'border-box' }}>
+          <div className="erp-modal-box" style={{ background: '#fff', borderRadius: '20px', width: 'min(720px, calc(100vw - 24px))', maxWidth: '100%', maxHeight: '94vh', overflowY: 'auto', padding: isMobile ? '16px' : '28px', border: '1px solid #DCE5F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #DCE5F0', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#16a34a' }}>Plant Head Approval Review</span>
-                <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '4px 0 0 0', color: '#24345C', fontFamily: 'monospace' }}>{selectedReq.requestNo}</h2>
+                <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '4px 0 0 0', color: '#24345C' }}>{selectedReq.requestNo}</h2>
               </div>
               <button onClick={() => setSelectedReq(null)} style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}>Close</button>
             </div>
@@ -245,7 +245,8 @@ export default function PlantHeadMaterialApprovalView() {
             </h3>
 
             {!isMobile ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left', marginBottom: '24px' }}>
+              <div className="erp-table-responsive" style={{ overflowX: 'auto', marginBottom: '24px' }}>
+                <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: '#f1f5f9', color: '#475569', textTransform: 'uppercase', fontSize: '11px' }}>
                     <th style={{ padding: '10px 14px' }}>Material Item</th>
@@ -271,6 +272,7 @@ export default function PlantHeadMaterialApprovalView() {
                   ))}
                 </tbody>
               </table>
+            </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
                 {editingItems.map((item, idx) => (

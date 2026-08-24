@@ -235,8 +235,8 @@ export const PlantHeadDispatchAnalytics = () => {
         </div>
       </div>
 
-      {/* ── Top Executive KPI Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      {/* ── Top Executive KPI Cards (4 / 2 / 2 / 1 Grid Hierarchy) ── */}
+      <div className="erp-kpi-grid" style={{ marginBottom: '24px' }}>
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
           <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>📦 Ready for Dispatch</div>
           <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>
@@ -340,8 +340,8 @@ export const PlantHeadDispatchAnalytics = () => {
           <Clock size={18} color="#7c3aed" /> Active Dispatch Status Logs
         </h3>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        <div className="erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
+          <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 12px' }}>Dispatch ID</th>

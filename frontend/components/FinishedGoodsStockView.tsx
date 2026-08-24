@@ -761,8 +761,8 @@ export default function FinishedGoodsStockView({
               )}
             </div>
           ) : (
-            <div className={styles.tableContainer}>
-              <table className={styles.inventoryTable}>
+            <div className={`${styles.tableContainer} erp-table-responsive`}>
+              <table className={styles.inventoryTable} style={{ minWidth: '780px' }}>
                 <thead>
                   <tr>
                     <th>Item Code</th>
@@ -987,8 +987,8 @@ export default function FinishedGoodsStockView({
               )}
             </div>
           ) : (
-            <div className={styles.tableContainer}>
-              <table className={styles.inventoryTable}>
+            <div className={`${styles.tableContainer} erp-table-responsive`}>
+              <table className={styles.inventoryTable} style={{ minWidth: '850px' }}>
                 <thead>
                   <tr>
                     <th>Date &amp; Time</th>
