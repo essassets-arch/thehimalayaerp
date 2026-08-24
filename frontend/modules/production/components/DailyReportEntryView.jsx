@@ -269,7 +269,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
       setCoords({
         top: rect.bottom + 4,
         left: rect.left,
-        width: Math.max(rect.width, 360)
+        width: Math.max(rect.width, Math.min(360, window.innerWidth - rect.left - 12))
       });
     }
   }, []);
@@ -1659,7 +1659,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <table className="daily-report-table responsive-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '12px 14px', textAlign: 'center', width: '50px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Sr</th>
@@ -1686,12 +1686,12 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   }}
                 >
                   {/* Sr No */}
-                  <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: '800', color: 'var(--color-text-secondary)' }}>
+                  <td data-label="SR" style={{ padding: '10px 14px', textAlign: 'center', fontWeight: '800', color: 'var(--color-text-secondary)' }}>
                     {String(index + 1).padStart(2, '0')}
                   </td>
 
                   {/* Product Smart Combobox */}
-                  <td style={{ padding: '10px 14px' }}>
+                  <td data-label="PRODUCT *" style={{ padding: '10px 14px' }}>
                     <SmartProductCombobox
                       value={row.productId}
                       disabled={isReadOnly}
@@ -1701,7 +1701,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Size */}
-                  <td style={{ padding: '10px 14px' }}>
+                  <td data-label="SIZE" style={{ padding: '10px 14px' }}>
                     <input
                       type="text"
                       value={row.size}
@@ -1714,7 +1714,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Type */}
-                  <td style={{ padding: '10px 14px' }}>
+                  <td data-label="TYPE" style={{ padding: '10px 14px' }}>
                     <input
                       type="text"
                       value={row.type}
@@ -1727,7 +1727,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Capacity */}
-                  <td style={{ padding: '10px 14px' }}>
+                  <td data-label="CAPACITY" style={{ padding: '10px 14px' }}>
                     <input
                       type="text"
                       value={row.capacity}
@@ -1740,7 +1740,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Cover Qty */}
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <td data-label="COVER (QTY)" style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <input
                       type="number"
                       min="0"
@@ -1754,7 +1754,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Cover Weight */}
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <td data-label="COVER WT (KG)" style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <input
                       type="number"
                       min="0"
@@ -1778,7 +1778,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Frame Qty */}
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <td data-label="FRAME (QTY)" style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <input
                       type="number"
                       min="0"
@@ -1792,7 +1792,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Frame Weight */}
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <td data-label="FRAME WT (KG)" style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <input
                       type="number"
                       min="0"
@@ -1816,12 +1816,12 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                   </td>
 
                   {/* Total Weight */}
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#7c3aed' }}>
+                  <td data-label="TOTAL WT (KG)" style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#7c3aed' }}>
                     {row.totalWeight}
                   </td>
 
                   {/* Set Qty */}
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  <td data-label="SET" style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <input
                       type="number"
                       min="0"
@@ -1845,7 +1845,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
 
                   {/* Actions */}
                   {!isReadOnly && (
-                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                    <td data-label="ACTIONS" style={{ padding: '10px 14px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                         <button
                           type="button"
