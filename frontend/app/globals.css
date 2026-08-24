@@ -11923,5 +11923,89 @@ body, #root, .app-container {
     max-width: 100% !important;
     width: 100% !important;
   }
+
+  /* Responsive styling for daily-report header actions */
+  .daily-report-header {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    align-items: start !important;
+    padding: 16px !important;
+  }
+  
+  .daily-report-header-info {
+    grid-column: 1 !important;
+  }
+  
+  .daily-report-header-btn-history,
+  .daily-report-header-btn-print {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+  }
+  
+  .daily-report-header-main-actions {
+    grid-column: 1 / -1 !important;
+    display: flex !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+  }
+  
+  .daily-report-header-main-actions button {
+    flex: 1 1 0% !important;
+    justify-content: center !important;
+    padding: 10px 4px !important;
+    font-size: 12px !important;
+  }
+
+  /* Metadata Fields Bar (Grid of 2 columns) */
+  .daily-report-metadata-bar {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+  
+  .daily-report-metadata-bar > div:nth-child(5) {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* Summary Cards Grid (2 columns on mobile) */
+  .daily-report-summary-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Table Header & Actions on Mobile */
+  .daily-report-table-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 12px !important;
+    gap: 8px !important;
+  }
+  
+  .daily-report-table-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  
+  .daily-report-btn-add-row {
+    width: 100% !important;
+    background: #1e293b !important;
+    border-color: #1e293b !important;
+    color: #ffffff !important;
+    padding: 10px !important;
+    justify-content: center !important;
+  }
+  
+  .daily-report-table-actions > div {
+    display: none !important;
+  }
+
+  /* Breakdown Summary Grid (2 columns on mobile) */
+  .daily-report-breakdown-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
 }
 

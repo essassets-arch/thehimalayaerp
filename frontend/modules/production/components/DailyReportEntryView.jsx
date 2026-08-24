@@ -1220,7 +1220,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
       
       {/* HEADER BAR */}
-      <div style={{
+      <div className="daily-report-header" style={{
         background: 'var(--color-bg-card)',
         border: '1px solid var(--color-border)',
         borderRadius: '16px',
@@ -1232,7 +1232,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         gap: '16px',
         flexWrap: 'wrap'
       }}>
-        <div>
+        <div className="daily-report-header-info">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h1 style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)', margin: 0 }}>
               {title || (isDispatch ? 'Industrial FRP Dispatch Report' : 'Industrial FRP Production Report')}
@@ -1244,10 +1244,11 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="daily-report-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={onNavigateToHistory}
+            className="daily-report-header-btn-history"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1269,6 +1270,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
             <button
               type="button"
               onClick={() => onNavigateToPrint(currentReportId)}
+              className="daily-report-header-btn-print"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1287,131 +1289,138 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
             </button>
           )}
 
-          {/* Always available "+ New Report" button */}
-          <button
-            type="button"
-            onClick={handleNewReport}
-            title="Create a fresh blank daily report"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 18px',
-              borderRadius: '10px',
-              border: '1.5px solid #2F4375',
-              background: currentReportId ? '#2F4375' : '#ffffff',
-              color: currentReportId ? '#ffffff' : '#2F4375',
-              fontSize: '13px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              boxShadow: currentReportId ? '0 4px 10px rgba(47, 67, 117, 0.2)' : 'none'
-            }}
-          >
-            <Plus size={16} /> New Report
-          </button>
+          <div className="daily-report-header-main-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Always available "+ New Report" button */}
+            <button
+              type="button"
+              onClick={handleNewReport}
+              title="Create a fresh daily report"
+              className="daily-report-header-btn-new"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                borderRadius: '10px',
+                border: '1.5px solid #2F4375',
+                background: currentReportId ? '#2F4375' : '#ffffff',
+                color: currentReportId ? '#ffffff' : '#2F4375',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                boxShadow: currentReportId ? '0 4px 10px rgba(47, 67, 117, 0.2)' : 'none'
+              }}
+            >
+              <Plus size={16} /> New Report
+            </button>
 
-          {isReadOnly && (
-            <>
-              {(status === 'SUBMITTED' || status === 'APPROVED') && (
+            {isReadOnly && (
+              <>
+                {(status === 'SUBMITTED' || status === 'APPROVED') && (
+                  <button
+                    type="button"
+                    onClick={handleReopenReport}
+                    disabled={loading}
+                    className="daily-report-header-btn-reopen"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 18px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
+                    }}
+                  >
+                    <RefreshCw size={16} /> Reopen Report
+                  </button>
+                )}
+
+                {(status === 'SUBMITTED' || status === 'APPROVED') && (
+                  <button
+                    type="button"
+                    onClick={handleCancelReport}
+                    disabled={loading}
+                    className="daily-report-header-btn-cancel"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 18px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      cursor: loading ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <X size={16} /> Cancel Report
+                  </button>
+                )}
+              </>
+            )}
+
+            {!isReadOnly && (
+              <>
                 <button
                   type="button"
-                  onClick={handleReopenReport}
-                  disabled={loading}
+                  onClick={handleSaveDraft}
+                  disabled={saving || submitting}
+                  className="daily-report-header-btn-save"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
                     padding: '9px 18px',
                     borderRadius: '10px',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                    color: '#ffffff',
+                    border: '1px solid #D6E2F0',
+                    background: '#ffffff',
+                    color: '#24345C',
                     fontSize: '13px',
                     fontWeight: '800',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
+                    cursor: saving ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  <RefreshCw size={16} /> Reopen Report
+                  <Save size={16} /> {saving ? 'Saving...' : 'Save Draft'}
                 </button>
-              )}
 
-              {(status === 'SUBMITTED' || status === 'APPROVED') && (
                 <button
                   type="button"
-                  onClick={handleCancelReport}
-                  disabled={loading}
+                  onClick={handleSubmitReport}
+                  disabled={saving || submitting}
+                  className="daily-report-header-btn-submit"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '9px 18px',
+                    padding: '9px 20px',
                     borderRadius: '10px',
                     border: 'none',
-                    background: '#dc2626',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                     color: '#ffffff',
                     fontSize: '13px',
                     fontWeight: '800',
-                    cursor: loading ? 'not-allowed' : 'pointer'
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
                   }}
                 >
-                  <X size={16} /> Cancel Report
+                  <Send size={16} /> {submitting ? 'Submitting...' : 'Submit Daily Report'}
                 </button>
-              )}
-            </>
-          )}
-
-          {!isReadOnly && (
-            <>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={saving || submitting}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 18px',
-                  borderRadius: '10px',
-                  border: '1px solid #D6E2F0',
-                  background: '#ffffff',
-                  color: '#24345C',
-                  fontSize: '13px',
-                  fontWeight: '800',
-                  cursor: saving ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <Save size={16} /> {saving ? 'Saving...' : 'Save Draft'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSubmitReport}
-                disabled={saving || submitting}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 20px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  color: '#ffffff',
-                  fontSize: '13px',
-                  fontWeight: '800',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
-                }}
-              >
-                <Send size={16} /> {submitting ? 'Submitting...' : 'Submit Daily Report'}
-              </button>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* METADATA FIELDS BAR */}
-      <div style={{
+      <div className="daily-report-metadata-bar" style={{
         background: 'var(--color-bg-card)',
         border: '1px solid var(--color-border)',
         borderRadius: '16px',
@@ -1491,7 +1500,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
       </div>
 
       {/* DYNAMIC DAILY SUMMARY CARDS */}
-      <div style={{
+      <div className="daily-report-summary-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         gap: '16px'
@@ -1589,7 +1598,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         boxShadow: 'var(--shadow-soft)',
         overflow: 'hidden'
       }}>
-        <div style={{
+        <div className="daily-report-table-header" style={{
           padding: '14px 24px',
           borderBottom: '1px solid var(--color-border)',
           display: 'flex',
@@ -1609,7 +1618,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="daily-report-table-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {!isReadOnly && (
               <>
                 <button
@@ -1634,6 +1643,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                 <button
                   type="button"
                   onClick={handleAddRow}
+                  className="daily-report-btn-add-row"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1934,7 +1944,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
           {isDispatch ? 'Daily Dispatch Summary Breakdown' : 'Daily Production Summary Breakdown'}
         </h3>
 
-        <div style={{
+        <div className="daily-report-breakdown-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '12px'
