@@ -324,7 +324,7 @@ export default function DeliveryRunPage() {
           </div>
 
           {/* Mobile cards (< 768px) */}
-          <div className="md:hidden dispatch-mobile-card-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 dispatch-mobile-card-grid">
             {activeDeliveryQueue.map((item) => (
               <div key={item.id} className="dlv-card">
                 {/* Card Header */}
