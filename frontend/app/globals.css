@@ -11934,17 +11934,20 @@ body, #root, .app-container {
   
   .daily-report-header-info {
     grid-column: 1 !important;
+    grid-row: 1 !important;
   }
   
-  .daily-report-header-btn-history,
-  .daily-report-header-btn-print {
+  .daily-report-header-top-actions {
     grid-column: 2 !important;
     grid-row: 1 !important;
     justify-self: end !important;
+    display: flex !important;
+    gap: 6px !important;
   }
   
   .daily-report-header-main-actions {
     grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
     display: flex !important;
     gap: 8px !important;
     width: 100% !important;

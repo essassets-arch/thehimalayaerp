@@ -1244,7 +1244,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
           </p>
         </div>
 
-        <div className="daily-report-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="daily-report-header-top-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
             onClick={onNavigateToHistory}
@@ -1288,134 +1288,134 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
               <Printer size={16} /> Print / Export PDF
             </button>
           )}
+        </div>
 
-          <div className="daily-report-header-main-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* Always available "+ New Report" button */}
-            <button
-              type="button"
-              onClick={handleNewReport}
-              title="Create a fresh daily report"
-              className="daily-report-header-btn-new"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '9px 18px',
-                borderRadius: '10px',
-                border: '1.5px solid #2F4375',
-                background: currentReportId ? '#2F4375' : '#ffffff',
-                color: currentReportId ? '#ffffff' : '#2F4375',
-                fontSize: '13px',
-                fontWeight: '800',
-                cursor: 'pointer',
-                boxShadow: currentReportId ? '0 4px 10px rgba(47, 67, 117, 0.2)' : 'none'
-              }}
-            >
-              <Plus size={16} /> New Report
-            </button>
+        <div className="daily-report-header-main-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Always available "+ New Report" button */}
+          <button
+            type="button"
+            onClick={handleNewReport}
+            title="Create a fresh daily report"
+            className="daily-report-header-btn-new"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 18px',
+              borderRadius: '10px',
+              border: '1.5px solid #2F4375',
+              background: currentReportId ? '#2F4375' : '#ffffff',
+              color: currentReportId ? '#ffffff' : '#2F4375',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              boxShadow: currentReportId ? '0 4px 10px rgba(47, 67, 117, 0.2)' : 'none'
+            }}
+          >
+            <Plus size={16} /> New Report
+          </button>
 
-            {isReadOnly && (
-              <>
-                {(status === 'SUBMITTED' || status === 'APPROVED') && (
-                  <button
-                    type="button"
-                    onClick={handleReopenReport}
-                    disabled={loading}
-                    className="daily-report-header-btn-reopen"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '9px 18px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                      color: '#ffffff',
-                      fontSize: '13px',
-                      fontWeight: '800',
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
-                    }}
-                  >
-                    <RefreshCw size={16} /> Reopen Report
-                  </button>
-                )}
-
-                {(status === 'SUBMITTED' || status === 'APPROVED') && (
-                  <button
-                    type="button"
-                    onClick={handleCancelReport}
-                    disabled={loading}
-                    className="daily-report-header-btn-cancel"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '9px 18px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      background: '#dc2626',
-                      color: '#ffffff',
-                      fontSize: '13px',
-                      fontWeight: '800',
-                      cursor: loading ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    <X size={16} /> Cancel Report
-                  </button>
-                )}
-              </>
-            )}
-
-            {!isReadOnly && (
-              <>
+          {isReadOnly && (
+            <>
+              {(status === 'SUBMITTED' || status === 'APPROVED') && (
                 <button
                   type="button"
-                  onClick={handleSaveDraft}
-                  disabled={saving || submitting}
-                  className="daily-report-header-btn-save"
+                  onClick={handleReopenReport}
+                  disabled={loading}
+                  className="daily-report-header-btn-reopen"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
                     padding: '9px 18px',
                     borderRadius: '10px',
-                    border: '1px solid #D6E2F0',
-                    background: '#ffffff',
-                    color: '#24345C',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    color: '#ffffff',
                     fontSize: '13px',
                     fontWeight: '800',
-                    cursor: saving ? 'not-allowed' : 'pointer'
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
                   }}
                 >
-                  <Save size={16} /> {saving ? 'Saving...' : 'Save Draft'}
+                  <RefreshCw size={16} /> Reopen Report
                 </button>
+              )}
 
+              {(status === 'SUBMITTED' || status === 'APPROVED') && (
                 <button
                   type="button"
-                  onClick={handleSubmitReport}
-                  disabled={saving || submitting}
-                  className="daily-report-header-btn-submit"
+                  onClick={handleCancelReport}
+                  disabled={loading}
+                  className="daily-report-header-btn-cancel"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '9px 20px',
+                    padding: '9px 18px',
                     borderRadius: '10px',
                     border: 'none',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    background: '#dc2626',
                     color: '#ffffff',
                     fontSize: '13px',
                     fontWeight: '800',
-                    cursor: submitting ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                    cursor: loading ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  <Send size={16} /> {submitting ? 'Submitting...' : 'Submit Daily Report'}
+                  <X size={16} /> Cancel Report
                 </button>
-              </>
-            )}
-          </div>
+              )}
+            </>
+          )}
+
+          {!isReadOnly && (
+            <>
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={saving || submitting}
+                className="daily-report-header-btn-save"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  border: '1px solid #D6E2F0',
+                  background: '#ffffff',
+                  color: '#24345C',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: saving ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <Save size={16} /> {saving ? 'Saving...' : 'Save Draft'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmitReport}
+                disabled={saving || submitting}
+                className="daily-report-header-btn-submit"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                }}
+              >
+                <Send size={16} /> {submitting ? 'Submitting...' : 'Submit Daily Report'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
