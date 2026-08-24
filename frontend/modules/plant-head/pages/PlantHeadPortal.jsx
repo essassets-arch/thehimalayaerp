@@ -4331,7 +4331,7 @@ export default function PlantHeadPortal() {
 
         {/* Raw Inventory Table */}
         <div className="m-theme-table-container">
-          <table className="m-theme-table">
+          <table className="m-theme-table responsive-table raw-inventory-table">
             <thead>
               <tr>
                 <th>Material Code</th>
@@ -4378,16 +4378,16 @@ export default function PlantHeadPortal() {
                         setShowDetailDrawer(true);
                       }}
                     >
-                      <td style={{ fontWeight: '800' }}>{item.code}</td>
-                      <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
-                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
-                      <td>{item.unit}</td>
-                      <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
-                      <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
-                      <td>
+                      <td data-label="CODE" style={{ fontWeight: '800' }}>{item.code}</td>
+                      <td data-label="NAME" style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
+                      <td data-label="CATEGORY" style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
+                      <td data-label="UNIT">{item.unit}</td>
+                      <td data-label="CURRENT STOCK" style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
+                      <td data-label="MINIMUM STOCK">{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
+                      <td data-label="STATUS">
                         <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
                       </td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td data-label="ACTIONS" style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button
                             className="m-theme-btn-action-green"

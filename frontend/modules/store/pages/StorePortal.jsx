@@ -1458,7 +1458,7 @@ export default function StorePortal() {
 
         {/* Raw Inventory Table */}
         <div className="m-theme-table-container">
-          <table className="m-theme-table">
+          <table className="m-theme-table responsive-table raw-inventory-table">
             <thead>
               <tr>
                 <th>Material Code</th>
@@ -1487,14 +1487,14 @@ export default function StorePortal() {
 
                   return (
                     <tr key={item.id} style={{ cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('button')) return; setSelectedInventoryItem(item); setShowDetailDrawer(true); }}>
-                      <td style={{ fontWeight: '800' }}>{item.code}</td>
-                      <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
-                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{safeText(item.category, 'Raw Material')}</td>
-                      <td>{safeText(item.unit, 'Kg')}</td>
-                      <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
-                      <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
-                      <td><span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span></td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td data-label="CODE" style={{ fontWeight: '800' }}>{item.code}</td>
+                      <td data-label="NAME" style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
+                      <td data-label="CATEGORY" style={{ color: '#5E6B82', fontSize: '12px' }}>{safeText(item.category, 'Raw Material')}</td>
+                      <td data-label="UNIT">{safeText(item.unit, 'Kg')}</td>
+                      <td data-label="CURRENT STOCK" style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
+                      <td data-label="MINIMUM STOCK">{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
+                      <td data-label="STATUS"><span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span></td>
+                      <td data-label="ACTIONS" style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button className="m-theme-btn-action-green" onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }} title="Stock In">+ In</button>
                           <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }} title="Stock Out">- Out</button>

@@ -12104,5 +12104,171 @@ body, #root, .app-container {
     grid-template-columns: 1fr 1fr !important;
     gap: 12px !important;
   }
+
+  /* ==========================================
+     Raw Inventory Management Mobile Overrides
+     ========================================== */
+  .m-theme-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .m-theme-actions {
+    display: flex !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+  .m-theme-actions button {
+    flex: 1 1 0% !important;
+    justify-content: center !important;
+  }
+
+  .m-theme-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+  .m-theme-kpi-grid > .m-theme-kpi-card:nth-child(5) {
+    grid-column: span 2 !important;
+  }
+
+  .raw-inventory-table.responsive-table {
+    display: block !important;
+    width: 100% !important;
+    border: none !important;
+  }
+  .raw-inventory-table.responsive-table thead {
+    display: none !important;
+  }
+  .raw-inventory-table.responsive-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+  .raw-inventory-table.responsive-table tr {
+    display: grid !important;
+    grid-template-columns: repeat(24, 1fr) !important;
+    gap: 12px 8px !important;
+    padding: 12px !important;
+    margin-bottom: 16px !important;
+    border: 1px solid #DCE5F0 !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+  }
+  .raw-inventory-table.responsive-table td {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Material Code Badge */
+  .raw-inventory-table.responsive-table td:nth-child(1) {
+    grid-column: span 3 !important;
+    grid-row: 1 / span 2 !important;
+    background: #eff6ff !important;
+    color: #2563eb !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    aspect-ratio: 1 / 1 !important;
+    height: 40px !important;
+    width: 40px !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(1)::before {
+    display: none !important;
+  }
+
+  /* Name & Category */
+  .raw-inventory-table.responsive-table td:nth-child(2) {
+    grid-column: 4 / 16 !important;
+    grid-row: 1 !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #0f766e !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(2)::before {
+    display: none !important;
+  }
+
+  .raw-inventory-table.responsive-table td:nth-child(3) {
+    grid-column: 4 / 16 !important;
+    grid-row: 2 !important;
+    font-size: 11.5px !important;
+    color: #64748b !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(3)::before {
+    display: none !important;
+  }
+
+  /* Status Badge */
+  .raw-inventory-table.responsive-table td:nth-child(7) {
+    grid-column: 16 / -1 !important;
+    grid-row: 1 / span 2 !important;
+    justify-self: end !important;
+    align-self: center !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(7)::before {
+    display: none !important;
+  }
+
+  /* Metrics: Unit, Current Stock, Minimum Stock */
+  .raw-inventory-table.responsive-table td:nth-child(4),
+  .raw-inventory-table.responsive-table td:nth-child(5),
+  .raw-inventory-table.responsive-table td:nth-child(6) {
+    grid-row: 3 !important;
+    border-top: 1px solid #f1f5f9 !important;
+    padding-top: 10px !important;
+    margin-top: 4px !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(4) { grid-column: 1 / 9 !important; }
+  .raw-inventory-table.responsive-table td:nth-child(5) { grid-column: 9 / 17 !important; }
+  .raw-inventory-table.responsive-table td:nth-child(6) { grid-column: 17 / -1 !important; }
+
+  .raw-inventory-table.responsive-table td:nth-child(4)::before,
+  .raw-inventory-table.responsive-table td:nth-child(5)::before,
+  .raw-inventory-table.responsive-table td:nth-child(6)::before {
+    content: attr(data-label) !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+    margin-bottom: 2px !important;
+  }
+
+  .raw-inventory-table.responsive-table td:nth-child(4) { font-weight: 700 !important; color: #1e293b !important; }
+  .raw-inventory-table.responsive-table td:nth-child(5) { font-weight: 800 !important; color: #0f172a !important; }
+  .raw-inventory-table.responsive-table td:nth-child(6) { font-weight: 700 !important; color: #475569 !important; }
+
+  /* Actions Bar */
+  .raw-inventory-table.responsive-table td:nth-child(8) {
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
+    border-top: 1px solid #f1f5f9 !important;
+    padding-top: 10px !important;
+    margin-top: 4px !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(8)::before {
+    display: none !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(8) > div {
+    display: flex !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  .raw-inventory-table.responsive-table td:nth-child(8) button {
+    flex: 1 1 0% !important;
+    height: 36px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
 }
 
