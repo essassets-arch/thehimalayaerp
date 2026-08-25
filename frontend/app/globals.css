@@ -12794,5 +12794,584 @@ body, #root, .app-container {
   font-weight: 800 !important;
 }
 
+/* ============================================================
+   HR MODULE — RESPONSIVE OVERHAUL
+   Target: 320px → desktop (1440px+)
+   Preserves desktop layout; ensures full responsiveness on mobile
+   ============================================================ */
+
+/* ── 1. HR Page Container & Mobile Gutters ── */
+.hr-portal-view,
+.hr-page-container,
+.reg-form-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .hr-portal-view {
+    padding: 0 14px !important;
+    gap: 16px !important;
+  }
+  
+  .hr-portal-view > .app-card,
+  .hr-portal-view .app-card {
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+  }
+
+  .card-top-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .card-top-bar > div:first-child {
+    width: 100% !important;
+  }
+
+  .card-top-bar .action-btn,
+  .card-top-bar button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .hr-action-btn-group,
+  .card-top-bar > div:last-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .hr-action-btn-group > button,
+  .card-top-bar > div:last-child > button {
+    flex: 1 1 calc(50% - 8px) !important;
+    min-height: 40px !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hr-portal-view {
+    padding: 0 10px !important;
+    gap: 12px !important;
+  }
+
+  .hr-portal-view > .app-card,
+  .hr-portal-view .app-card {
+    padding: 14px 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .hr-action-btn-group > button,
+  .card-top-bar > div:last-child > button {
+    flex: 1 1 100% !important;
+  }
+}
+
+/* ── 2. HR Notifications Master-Detail Grid ── */
+@media (max-width: 900px) {
+  .hr-notifications-grid,
+  .hr-notifications-view-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .hr-notifications-inspector {
+    position: static !important;
+    top: auto !important;
+  }
+}
+
+/* ── 3. HR Attendance Requests View ── */
+.hr-att-table-wrap,
+.hr-table-scroll-container {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 768px) {
+  .hr-att-req-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 18px 16px !important;
+    gap: 12px !important;
+  }
+
+  .hr-att-req-header button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .hr-att-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .hr-att-toolbar > div,
+  .hr-att-toolbar > select,
+  .hr-att-toolbar > button {
+    width: 100% !important;
+  }
+}
+
+/* ── 4. HR Leave Approval Hub ── */
+@media (max-width: 768px) {
+  .hr-leave-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 18px 16px !important;
+    gap: 12px !important;
+  }
+
+  .hr-leave-header button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .hr-leave-approval-root .app-card {
+    padding: 16px 14px !important;
+  }
+}
+
+/* ── 5. HR Expense Management ── */
+@media (max-width: 850px) {
+  .hr-expense-mgmt-root {
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  .hr-expense-split-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .hr-expense-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 16px 14px !important;
+    gap: 12px !important;
+  }
+
+  .hr-expense-header button,
+  .hr-expense-sync-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .hr-expense-actions-bar {
+    flex-direction: column-reverse !important;
+    width: 100% !important;
+    gap: 8px !important;
+    padding: 14px 12px !important;
+  }
+
+  .hr-expense-reject-btn,
+  .hr-expense-approve-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .hr-expense-history-filters {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 12px 14px !important;
+  }
+
+  .hr-expense-filter-field {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+
+  .hr-expense-filter-field input,
+  .hr-expense-filter-field select {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .hr-expense-tab-bar button {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+  }
+}
+
+
+/* ── 6. HR Attendance View ── */
+@media (max-width: 768px) {
+  .hr-attendance-card-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .hr-attendance-toolbar {
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .hr-attendance-period-pills {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 2px !important;
+  }
+
+  .hr-attendance-period-pills button {
+    flex: 1 1 auto !important;
+    text-align: center !important;
+    padding: 6px 6px !important;
+    font-size: 10.5px !important;
+    white-space: nowrap !important;
+  }
+
+  .hr-attendance-export-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px !important;
+  }
+
+  .hr-attendance-subtabs {
+    gap: 6px !important;
+  }
+
+  .hr-attendance-subtabs button {
+    font-size: 12.5px !important;
+    padding: 8px 10px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .hr-attendance-subtabs button {
+    font-size: 12px !important;
+    padding: 8px 8px !important;
+  }
+}
+
+
+/* ── 7. My Profile View ── */
+@media (max-width: 640px) {
+  .profile-header-card {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 20px 16px !important;
+    gap: 14px !important;
+  }
+
+  .profile-header-info {
+    align-items: center !important;
+  }
+
+  .profile-header-info > div {
+    justify-content: center !important;
+  }
+
+  .punch-records-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 16px 14px !important;
+  }
+
+  .punch-records-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .punch-period-pills {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+
+  .punch-refresh-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .punch-stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+  }
+}
+
+/* ── 8. HR Recruitment Requisitions (/hr/recruitment) ── */
+@media (max-width: 768px) {
+  .erp-header-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 16px 14px !important;
+    gap: 12px !important;
+  }
+
+  .erp-header-card button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ── 9. Universal Form & Table Overflow Containment ── */
+.hr-portal-view input,
+.hr-portal-view select,
+.hr-portal-view textarea,
+.hr-page-container input,
+.hr-page-container select,
+.hr-page-container textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.hr-portal-view .crm-table-container,
+.hr-portal-view .responsive-table,
+.hr-portal-view .erp-table-responsive {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* ── 10. Universal Scrollable Tabs ── */
+.erp-tab-scroll-bar {
+  display: flex !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.erp-tab-scroll-bar::-webkit-scrollbar {
+  display: none !important;
+}
+
+.erp-tab-scroll-bar > button,
+.erp-tab-scroll-bar a {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  user-select: none !important;
+}
+
+@media (max-width: 768px) {
+  .erp-tab-scroll-bar {
+    gap: 6px !important;
+  }
+
+  .erp-tab-scroll-bar > button {
+    padding: 8px 10px !important;
+    font-size: 12.5px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .erp-tab-scroll-bar {
+    gap: 4px !important;
+  }
+
+  .erp-tab-scroll-bar > button {
+    padding: 8px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
+
+/* ── 11. HR Policy Table Containment ── */
+.hr-policy-table,
+.hr-policy-table thead,
+.hr-policy-table tbody,
+.hr-policy-table tr,
+.hr-policy-table th,
+.hr-policy-table td {
+  display: table !important;
+}
+
+.hr-policy-table thead {
+  display: table-header-group !important;
+}
+
+.hr-policy-table tbody {
+  display: table-row-group !important;
+}
+
+.hr-policy-table tr {
+  display: table-row !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.hr-policy-table th,
+.hr-policy-table td {
+  display: table-cell !important;
+}
+
+/* ── 12. HR Attendance Requests View (/hr/attendance-requests) ── */
+@media (max-width: 768px) {
+  .hr-att-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 16px 14px !important;
+    gap: 12px !important;
+  }
+
+  .hr-att-sync-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .hr-att-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .hr-att-stat-card {
+    padding: 10px 12px !important;
+  }
+
+  .hr-att-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+
+  .hr-att-search-wrap,
+  .hr-att-select,
+  .hr-att-clear-btn {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .hr-att-count {
+    margin-left: 0 !important;
+    text-align: right !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .hr-att-tab-bar button {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ── 13. HR Leave Approval View (/hr/leave-approvals & /hr/leaves) ── */
+@media (max-width: 768px) {
+  .hr-leave-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 16px 14px !important;
+    gap: 12px !important;
+  }
+
+  .hr-leave-sync-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .hr-leave-card {
+    padding: 16px 14px !important;
+    gap: 14px !important;
+  }
+
+  .hr-leave-card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .hr-leave-card-meta {
+    align-items: flex-start !important;
+  }
+
+  .hr-leave-details-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    padding: 12px !important;
+  }
+
+  .hr-leave-btn-row {
+    flex-direction: column-reverse !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .hr-leave-reject-btn,
+  .hr-leave-approve-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .hr-leave-tab-bar {
+    gap: 6px !important;
+  }
+  .hr-leave-tab-bar button {
+    padding: 8px 10px !important;
+    font-size: 12.5px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .hr-leave-tab-bar {
+    gap: 4px !important;
+  }
+  .hr-leave-tab-bar button {
+    padding: 8px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ── 14. HR Employee Details View (/hr/employees/[id]) ── */
+@media (max-width: 768px) {
+  .hr-employee-tab-bar {
+    gap: 6px !important;
+  }
+  .hr-employee-tab-bar button {
+    padding: 8px 10px !important;
+    font-size: 12.5px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .hr-employee-tab-bar {
+    gap: 4px !important;
+  }
+  .hr-employee-tab-bar button {
+    padding: 8px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
+
+
+
+
+
 
 

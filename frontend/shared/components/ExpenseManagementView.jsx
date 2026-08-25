@@ -209,20 +209,24 @@ export default function ExpenseManagementView({ roleMode }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', height: 'calc(100vh - 140px)', minHeight: '500px' }}>
+    <div className="hr-expense-mgmt-root" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', height: 'calc(100vh - 140px)', minHeight: '500px' }}>
       
-      {/* Header Panel */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header */}
+      <div className="hr-expense-header erp-header-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', background: '#ffffff', padding: '20px 24px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '900', color: '#0f172a' }}>Expense Management</h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Review and approve employee corporate reimbursement claims.</p>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>Expense Management</h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+            Review and approve employee corporate reimbursement claims.
+          </p>
         </div>
         <button
           onClick={activeTab === 'pending' ? fetchPendingClaims : fetchAllClaims}
           disabled={loading || loadingAll}
+          className="hr-expense-sync-btn"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '6px',
             padding: '8px 14px',
             background: '#ffffff',
@@ -240,7 +244,51 @@ export default function ExpenseManagementView({ roleMode }) {
       </div>
 
       {/* Navigation Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '4px', overflowX: 'auto', paddingBottom: '1px' }}>
+      <div 
+        className="erp-tab-scroll-bar hr-expense-tab-bar" 
+        style={{ 
+          display: 'flex', 
+          borderBottom: '2px solid #e2e8f0', 
+          gap: '8px', 
+          overflowX: 'auto', 
+          WebkitOverflowScrolling: 'touch', 
+          minWidth: 0, 
+          width: '100%', 
+          boxSizing: 'border-box', 
+          paddingBottom: '2px',
+          paddingRight: '16px',
+          scrollBehavior: 'smooth',
+          touchAction: 'pan-x',
+          cursor: 'grab'
+        }}
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY * 0.8;
+          }
+        }}
+        onMouseDown={(e) => {
+          const el = e.currentTarget;
+          el.dataset.isDown = 'true';
+          el.dataset.startX = String(e.pageX - el.offsetLeft);
+          el.dataset.scrollLeft = String(el.scrollLeft);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseMove={(e) => {
+          const el = e.currentTarget;
+          if (el.dataset.isDown !== 'true') return;
+          e.preventDefault();
+          const x = e.pageX - el.offsetLeft;
+          const startX = Number(el.dataset.startX || 0);
+          const scrollLeft = Number(el.dataset.scrollLeft || 0);
+          const walk = (x - startX) * 1.5;
+          el.scrollLeft = scrollLeft - walk;
+        }}
+      >
         {[
           { key: 'pending', label: 'Pending Claims Queue', icon: Clock },
           { key: 'history', label: 'Claims History Log', icon: FileText }
@@ -254,21 +302,23 @@ export default function ExpenseManagementView({ roleMode }) {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '12px 18px',
+                gap: '6px',
+                padding: '10px 14px',
                 border: 'none',
                 background: 'transparent',
-                fontSize: '13.5px',
+                fontSize: '13px',
                 fontWeight: isActive ? '800' : '600',
                 color: isActive ? '#0284c7' : '#64748b',
                 borderBottom: isActive ? '2.5px solid #0284c7' : '2.5px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                userSelect: 'none'
               }}
             >
-              <TabIcon size={16} />
-              {tab.label}
+              <TabIcon size={15} />
+              <span>{tab.label}</span>
             </button>
           );
         })}
@@ -277,7 +327,7 @@ export default function ExpenseManagementView({ roleMode }) {
       {/* Tab Panels */}
       {activeTab === 'pending' ? (
         /* Pending Claims split view */
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '24px', flex: 1, minHeight: 0 }}>
+        <div className="hr-expense-split-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '24px', flex: 1, minHeight: 0 }}>
           
           {/* Left Column: Pending List */}
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -443,14 +493,16 @@ export default function ExpenseManagementView({ roleMode }) {
                 </div>
 
                 {/* Action Buttons Panel */}
-                <div style={{ borderTop: '1px solid #e2e8f0', padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', gap: '12px', background: '#f8fafc' }}>
+                <div className="hr-expense-actions-bar" style={{ borderTop: '1px solid #e2e8f0', padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', gap: '12px', background: '#f8fafc' }}>
                   <button
                     type="button"
                     disabled={processing}
                     onClick={() => handleDecision('reject')}
+                    className="hr-expense-reject-btn"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px',
                       padding: '10px 18px',
                       background: '#fef2f2',
@@ -468,9 +520,11 @@ export default function ExpenseManagementView({ roleMode }) {
                     type="button"
                     disabled={processing}
                     onClick={() => handleDecision('approve')}
+                    className="hr-expense-approve-btn"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px',
                       padding: '10px 22px',
                       background: '#16a34a',
@@ -503,9 +557,9 @@ export default function ExpenseManagementView({ roleMode }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, minHeight: 0 }}>
           
           {/* Filters Bar */}
-          <div className="app-card" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ flex: 1, display: 'flex', gap: '12px', alignItems: 'center', minWidth: '260px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569' }}>Search Query:</span>
+          <div className="app-card hr-expense-history-filters" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div className="hr-expense-filter-field" style={{ flex: 1, display: 'flex', gap: '12px', alignItems: 'center', minWidth: '260px' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569', whiteSpace: 'nowrap' }}>Search Query:</span>
               <input
                 type="text"
                 placeholder="Filter by employee name, description, department..."
@@ -517,12 +571,13 @@ export default function ExpenseManagementView({ roleMode }) {
                   borderRadius: '8px',
                   border: '1px solid #e2e8f0',
                   fontSize: '13.5px',
-                  outline: 'none'
+                  outline: 'none',
+                  minWidth: 0
                 }}
               />
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569' }}>Workflow Status:</span>
+            <div className="hr-expense-filter-field" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569', whiteSpace: 'nowrap' }}>Workflow Status:</span>
               <select
                 value={historyStatusFilter}
                 onChange={e => setHistoryStatusFilter(e.target.value)}

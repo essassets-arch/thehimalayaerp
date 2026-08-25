@@ -138,10 +138,10 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
   const displayList = activeSubTab === 'pending' ? requests : auditLogs;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="hr-leave-approval-root" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       
       {/* Premium Title bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '16px', padding: '24px', color: '#ffffff', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+      <div className="hr-leave-header erp-header-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '16px', padding: '20px 24px', color: '#ffffff', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: '900', margin: 0 }}>Leave Approval Hub • {roleMode.replace('_', ' ')}</h2>
           <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0', fontWeight: '600' }}>{getSubTitle()}</p>
@@ -149,7 +149,8 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
         <button
           onClick={() => { fetchPending(); if (roleMode === 'SUPER_ADMIN' || roleMode === 'HR') fetchAudit(); }}
           disabled={loading}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#ffffff', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '12.5px', cursor: 'pointer', transition: 'all 0.2s' }}
+          className="hr-leave-sync-btn"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#ffffff', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '12.5px', cursor: 'pointer', transition: 'all 0.2s' }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
         >
@@ -157,20 +158,108 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
         </button>
       </div>
 
-      {/* Tabs configuration for HR and Super Admin */}
-      {(roleMode === 'SUPER_ADMIN' || roleMode === 'HR') && (
-        <div className="erp-tab-scroll-bar" style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '6px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
+      {/* Tabs configuration for HR, Super Admin, and Plant Head */}
+      {(roleMode === 'SUPER_ADMIN' || roleMode === 'HR' || roleMode === 'PLANT_HEAD') && (
+        <div 
+          className="erp-tab-scroll-bar hr-leave-tab-bar" 
+          style={{ 
+            display: 'flex', 
+            borderBottom: '2px solid #e2e8f0', 
+            gap: '8px', 
+            overflowX: 'auto', 
+            WebkitOverflowScrolling: 'touch', 
+            minWidth: 0, 
+            width: '100%', 
+            boxSizing: 'border-box', 
+            paddingBottom: '2px',
+            paddingRight: '16px',
+            scrollBehavior: 'smooth',
+            touchAction: 'pan-x',
+            cursor: 'grab'
+          }}
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY * 0.8;
+            }
+          }}
+          onMouseDown={(e) => {
+            const el = e.currentTarget;
+            el.dataset.isDown = 'true';
+            el.dataset.startX = String(e.pageX - el.offsetLeft);
+            el.dataset.scrollLeft = String(el.scrollLeft);
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.dataset.isDown = 'false';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.dataset.isDown = 'false';
+          }}
+          onMouseMove={(e) => {
+            const el = e.currentTarget;
+            if (el.dataset.isDown !== 'true') return;
+            e.preventDefault();
+            const x = e.pageX - el.offsetLeft;
+            const startX = Number(el.dataset.startX || 0);
+            const scrollLeft = Number(el.dataset.scrollLeft || 0);
+            const walk = (x - startX) * 1.5;
+            el.scrollLeft = scrollLeft - walk;
+          }}
+        >
           <button
             onClick={() => setActiveSubTab('pending')}
-            style={{ padding: '10px 20px', border: 'none', background: 'transparent', borderBottom: activeSubTab === 'pending' ? '3px solid #0284c7' : '3px solid transparent', color: activeSubTab === 'pending' ? '#0284c7' : '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.15s' }}
+            style={{ 
+              padding: '10px 14px', 
+              border: 'none', 
+              background: 'transparent', 
+              borderBottom: activeSubTab === 'pending' ? '2.5px solid #0284c7' : '2.5px solid transparent', 
+              color: activeSubTab === 'pending' ? '#0284c7' : '#64748b', 
+              fontWeight: activeSubTab === 'pending' ? '800' : '600', 
+              fontSize: '13px',
+              cursor: 'pointer', 
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              userSelect: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
           >
-            Pending Approvals ({requests.length})
+            <span>Pending Approvals</span>
+            <span style={{
+              background: activeSubTab === 'pending' ? '#0284c7' : '#e2e8f0',
+              color: activeSubTab === 'pending' ? '#fff' : '#64748b',
+              borderRadius: '20px', padding: '1px 7px',
+              fontSize: '11px', fontWeight: 800,
+            }}>{requests.length}</span>
           </button>
           <button
             onClick={() => setActiveSubTab('audit')}
-            style={{ padding: '10px 20px', border: 'none', background: 'transparent', borderBottom: activeSubTab === 'audit' ? '3px solid #0284c7' : '3px solid transparent', color: activeSubTab === 'audit' ? '#0284c7' : '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.15s' }}
+            style={{ 
+              padding: '10px 14px', 
+              border: 'none', 
+              background: 'transparent', 
+              borderBottom: activeSubTab === 'audit' ? '2.5px solid #0284c7' : '2.5px solid transparent', 
+              color: activeSubTab === 'audit' ? '#0284c7' : '#64748b', 
+              fontWeight: activeSubTab === 'audit' ? '800' : '600', 
+              fontSize: '13px',
+              cursor: 'pointer', 
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              userSelect: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
           >
-            All Company Records ({auditLogs.length})
+            <span>All Company Records</span>
+            <span style={{
+              background: activeSubTab === 'audit' ? '#0284c7' : '#e2e8f0',
+              color: activeSubTab === 'audit' ? '#fff' : '#64748b',
+              borderRadius: '20px', padding: '1px 7px',
+              fontSize: '11px', fontWeight: 800,
+            }}>{auditLogs.length}</span>
           </button>
         </div>
       )}
@@ -192,10 +281,10 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
             const departmentName = req.department?.name || 'Sales & Marketing';
 
             return (
-              <div key={req.id} className="app-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.015)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div key={req.id} className="app-card hr-leave-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.015)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
                 {/* Header Information */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                <div className="hr-leave-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#f0f9ff', border: '1px solid #e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <User size={20} style={{ color: '#0284c7' }} />
@@ -207,7 +296,7 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
                       </p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                  <div className="hr-leave-card-meta" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                     <StatusBadge status={req.status} />
                     <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>
                       Applied {new Date(req.createdAt).toLocaleDateString()}
@@ -216,7 +305,7 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
                 </div>
 
                 {/* Details Section */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                <div className="hr-leave-details-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
                   <div>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Leave Interval</span>
                     <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block', marginTop: '3px' }}>
@@ -263,22 +352,23 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
 
                 {/* HR/Plant Head/Super Admin Actions */}
                 {hasActionPermission && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                  <div className="hr-leave-action-box" style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <MessageSquare size={16} style={{ color: '#64748b' }} />
+                      <MessageSquare size={16} style={{ color: '#64748b', flexShrink: 0 }} />
                       <input
                         type="text"
                         placeholder="Add review remarks/comments..."
                         value={remarksInput[req.id] || ''}
                         onChange={e => setRemarksInput(prev => ({ ...prev, [req.id]: e.target.value }))}
-                        style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+                        style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12.5px', minWidth: 0 }}
                       />
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    <div className="hr-leave-btn-row" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                       <button
                         onClick={() => handleAction(req.id, 'reject')}
                         disabled={actioningId === req.id}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #f87171', color: '#ef4444', padding: '10px 18px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.15s' }}
+                        className="hr-leave-reject-btn"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: '#ffffff', border: '1px solid #f87171', color: '#ef4444', padding: '10px 18px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.15s' }}
                         onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
                       >
@@ -287,7 +377,8 @@ export default function LeaveApprovalView({ roleMode = 'HR' }) {
                       <button
                         onClick={() => handleAction(req.id, 'approve')}
                         disabled={actioningId === req.id}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0284c7', border: 'none', color: '#ffffff', padding: '10px 20px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.2)', transition: 'all 0.15s' }}
+                        className="hr-leave-approve-btn"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: '#0284c7', border: 'none', color: '#ffffff', padding: '10px 20px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.2)', transition: 'all 0.15s' }}
                         onMouseEnter={e => { e.currentTarget.style.background = '#0369a1'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = '#0284c7'; }}
                       >

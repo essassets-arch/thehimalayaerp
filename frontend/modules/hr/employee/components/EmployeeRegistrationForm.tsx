@@ -699,6 +699,30 @@ export default function EmployeeRegistrationForm() {
             border-radius: 12px !important;
           }
         }
+        @media (max-width: 480px) {
+          .reg-form-wrapper {
+            padding: 0 !important;
+          }
+          .reg-header-banner {
+            padding: 14px 12px !important;
+            border-radius: 12px !important;
+          }
+          .reg-form-card {
+            padding: 14px 10px !important;
+          }
+          .reg-footer-nav {
+            padding: 12px !important;
+            bottom: 8px !important;
+          }
+          .reg-footer-nav > div {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+          .reg-footer-nav button {
+            width: 100% !important;
+            min-height: 42px !important;
+          }
+        }
       `}</style>
       
       {/* ── TOP HEADER BANNER ────────────────────────────────────────── */}

@@ -411,19 +411,66 @@ export default function AttendanceView({ employees: propEmployees }) {
       </div>
 
       {/* Roster tab navigation bar */}
-      <div style={{ display: 'flex', borderBottom: '2px solid #E2E8F0', gap: '24px', marginBottom: '8px' }}>
+      <div 
+        className="erp-tab-scroll-bar hr-attendance-subtabs" 
+        style={{ 
+          display: 'flex', 
+          borderBottom: '2px solid #E2E8F0', 
+          gap: '12px', 
+          marginBottom: '8px', 
+          overflowX: 'auto', 
+          WebkitOverflowScrolling: 'touch', 
+          minWidth: 0, 
+          width: '100%', 
+          boxSizing: 'border-box', 
+          paddingBottom: '2px',
+          paddingRight: '24px',
+          scrollBehavior: 'smooth',
+          touchAction: 'pan-x',
+          cursor: 'grab'
+        }}
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY * 0.8;
+          }
+        }}
+        onMouseDown={(e) => {
+          const el = e.currentTarget;
+          el.dataset.isDown = 'true';
+          el.dataset.startX = String(e.pageX - el.offsetLeft);
+          el.dataset.scrollLeft = String(el.scrollLeft);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseMove={(e) => {
+          const el = e.currentTarget;
+          if (el.dataset.isDown !== 'true') return;
+          e.preventDefault();
+          const x = e.pageX - el.offsetLeft;
+          const startX = Number(el.dataset.startX || 0);
+          const scrollLeft = Number(el.dataset.scrollLeft || 0);
+          const walk = (x - startX) * 1.5;
+          el.scrollLeft = scrollLeft - walk;
+        }}
+      >
         <button
           onClick={() => setAttendanceSubTab('register')}
           style={{
-            padding: '10px 4px',
+            padding: '10px 12px',
             border: 'none',
             background: 'transparent',
-            fontSize: '14.5px',
+            fontSize: '13px',
             fontWeight: '800',
             cursor: 'pointer',
             color: attendanceSubTab === 'register' ? '#4F46E5' : '#64748B',
-            borderBottom: attendanceSubTab === 'register' ? '3px solid #4F46E5' : '3px solid transparent',
-            transition: 'all 0.15s ease'
+            borderBottom: attendanceSubTab === 'register' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+            flexShrink: 0
           }}
         >
           Attendance Register
@@ -431,31 +478,35 @@ export default function AttendanceView({ employees: propEmployees }) {
         <button
           onClick={() => setAttendanceSubTab('policies')}
           style={{
-            padding: '10px 4px',
+            padding: '10px 12px',
             border: 'none',
             background: 'transparent',
-            fontSize: '14.5px',
+            fontSize: '13px',
             fontWeight: '800',
             cursor: 'pointer',
             color: attendanceSubTab === 'policies' ? '#4F46E5' : '#64748B',
-            borderBottom: attendanceSubTab === 'policies' ? '3px solid #4F46E5' : '3px solid transparent',
-            transition: 'all 0.15s ease'
+            borderBottom: attendanceSubTab === 'policies' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+            flexShrink: 0
           }}
         >
-          Shift & Grace Policy Manager
+          Shift &amp; Grace Policy Manager
         </button>
         <button
           onClick={() => setAttendanceSubTab('shifts')}
           style={{
-            padding: '10px 4px',
+            padding: '10px 12px',
             border: 'none',
             background: 'transparent',
-            fontSize: '14.5px',
+            fontSize: '13px',
             fontWeight: '800',
             cursor: 'pointer',
             color: attendanceSubTab === 'shifts' ? '#4F46E5' : '#64748B',
-            borderBottom: attendanceSubTab === 'shifts' ? '3px solid #4F46E5' : '3px solid transparent',
-            transition: 'all 0.15s ease'
+            borderBottom: attendanceSubTab === 'shifts' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+            flexShrink: 0
           }}
         >
           Staff Shift Schedules Board
@@ -464,15 +515,15 @@ export default function AttendanceView({ employees: propEmployees }) {
 
       {/* SUB TAB: SHIFT & GRACE POLICY MANAGER */}
       {attendanceSubTab === 'policies' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="app-card" style={{ padding: '24px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          <div className="app-card" style={{ padding: '24px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '12px', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>Departmental Shift & Grace Policies</h3>
               <span style={{ fontSize: '12px', color: '#64748b' }}>Configure custom work shifts, grace windows, and policy parameters per department. Punches are dynamically audited based on these rules.</span>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+            <div className="hr-table-scroll-container" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+              <table className="hr-policy-table" style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #E2E8F0', color: '#475569', fontWeight: '700' }}>
                     <th style={{ padding: '12px' }}>Department</th>
@@ -625,14 +676,14 @@ export default function AttendanceView({ employees: propEmployees }) {
             {/* Left Column: Attendance Register */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div className="app-card" style={{ padding: '20px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div className="hr-attendance-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>Roster Punch Logs Register</h3>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>Select any row below to audit the selfie capture &amp; coordinates</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div className="hr-attendance-toolbar" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                     {/* Period Filter Pills */}
-                    <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div className="hr-attendance-period-pills" style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0', flexWrap: 'wrap', gap: '2px' }}>
                       {[
                         { id: 'today', label: 'Today' },
                         { id: 'weekly', label: 'Weekly' },
@@ -644,7 +695,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                           key={period.id}
                           onClick={() => setFilterPeriod(period.id)}
                           style={{
-                            padding: '5px 12px',
+                            padding: '5px 10px',
                             borderRadius: '6px',
                             fontSize: '11px',
                             fontWeight: '800',
@@ -653,7 +704,8 @@ export default function AttendanceView({ employees: propEmployees }) {
                             background: filterPeriod === period.id ? '#ffffff' : 'transparent',
                             color: filterPeriod === period.id ? '#0F172A' : '#64748B',
                             boxShadow: filterPeriod === period.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.15s ease'
+                            transition: 'all 0.15s ease',
+                            whiteSpace: 'nowrap'
                           }}
                         >
                           {period.label}
@@ -681,10 +733,14 @@ export default function AttendanceView({ employees: propEmployees }) {
                       />
                     )}
 
-                    <button onClick={() => {
-                      const csvContent = formattedLogs.map(l => `${l.name},${l.id},${l.punchIn},${l.punchOut},${l.status},${l.location || 'N/A'}`).join('\n');
-                      exportToCSV(csvContent, 'attendance-audit-logs.csv');
-                    }} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569' }}>
+                    <button 
+                      onClick={() => {
+                        const csvContent = formattedLogs.map(l => `${l.name},${l.id},${l.punchIn},${l.punchOut},${l.status},${l.location || 'N/A'}`).join('\n');
+                        exportToCSV(csvContent, 'attendance-audit-logs.csv');
+                      }} 
+                      className="hr-attendance-export-btn"
+                      style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#475569' }}
+                    >
                       <Download size={13} /> Export CSV
                     </button>
                   </div>

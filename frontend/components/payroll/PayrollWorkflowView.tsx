@@ -163,7 +163,7 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
   };
   const actions = (record: PayrollRecord) => {
     const isPaid = record.status === 'PAID' || record.status === 'SALARY_PAID' || !!record.salarySlip;
-    if (mode === 'prepare' && (record.status === 'DRAFT' || record.status === 'RETURNED_TO_HR')) return <button onClick={() => submit(record)}>Submit to Super Admin</button>;
+    if (mode === 'prepare' && (record.status === 'DRAFT' || record.status === 'RETURNED_TO_HR')) return <button onClick={() => submit(record)}>Submit</button>;
     if (mode === 'super-admin') {
       if (['PENDING_SUPER_ADMIN_APPROVAL', 'ON_HOLD', 'HR_VERIFIED'].includes(record.status)) {
         return (
@@ -251,7 +251,7 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
 
       <section className="payroll-control-card">
         <div className="payroll-section-title">
-          <h2>Salary Cycle & Generation</h2>
+          <h2>Salary Cycle &amp; Generation</h2>
           <p>Select target month to inspect or run automated batch payroll calculations</p>
         </div>
         <div className="toolbar">
@@ -261,7 +261,7 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
           </label>
           {mode === 'prepare' && (
             <button disabled={!!busy} onClick={generate}>
-              {busy === 'generate' ? 'Generating…' : '⚡ Generate Monthly Salary'}
+              {busy === 'generate' ? 'Generating…' : '💥 Generate Monthly Salary'}
             </button>
           )}
           <button className="secondary" onClick={load}>🔄 Refresh Data</button>
@@ -287,11 +287,62 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
             </p>
           </div>
           {(mode === 'super-admin' || mode === 'finance' || mode === 'payment') && (
-            <div className="tabs">
-              <button className={activeTab === 'pending' ? '' : 'secondary'} onClick={() => setActiveTab('pending')}>
+            <div 
+              className="tabs erp-tab-scroll-bar hr-payroll-tab-bar"
+              style={{
+                display: 'flex',
+                gap: '8px',
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                minWidth: 0,
+                maxWidth: '100%',
+                boxSizing: 'border-box',
+                scrollBehavior: 'smooth',
+                touchAction: 'pan-x',
+                cursor: 'grab',
+                paddingBottom: '2px',
+                paddingRight: '12px'
+              }}
+              onWheel={(e) => {
+                if (e.deltaY !== 0) {
+                  e.currentTarget.scrollLeft += e.deltaY * 0.8;
+                }
+              }}
+              onMouseDown={(e) => {
+                const el = e.currentTarget;
+                el.dataset.isDown = 'true';
+                el.dataset.startX = String(e.pageX - el.offsetLeft);
+                el.dataset.scrollLeft = String(el.scrollLeft);
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.dataset.isDown = 'false';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.dataset.isDown = 'false';
+              }}
+              onMouseMove={(e) => {
+                const el = e.currentTarget;
+                if (el.dataset.isDown !== 'true') return;
+                e.preventDefault();
+                const x = e.pageX - el.offsetLeft;
+                const startX = Number(el.dataset.startX || 0);
+                const scrollLeft = Number(el.dataset.scrollLeft || 0);
+                const walk = (x - startX) * 1.5;
+                el.scrollLeft = scrollLeft - walk;
+              }}
+            >
+              <button 
+                className={activeTab === 'pending' ? '' : 'secondary'} 
+                onClick={() => setActiveTab('pending')}
+                style={{ whiteSpace: 'nowrap', flexShrink: 0, userSelect: 'none' }}
+              >
                 {mode === 'finance' || mode === 'payment' ? 'Pending Disbursement' : 'Pending Approvals'} ({pendingRecords.length})
               </button>
-              <button className={activeTab === 'history' ? '' : 'secondary'} onClick={() => setActiveTab('history')}>
+              <button 
+                className={activeTab === 'history' ? '' : 'secondary'} 
+                onClick={() => setActiveTab('history')}
+                style={{ whiteSpace: 'nowrap', flexShrink: 0, userSelect: 'none' }}
+              >
                 {mode === 'finance' || mode === 'payment' ? 'Disbursement History' : 'Approval History'} ({historyRecords.length})
               </button>
             </div>
@@ -301,9 +352,18 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
           <table>
             <thead>
               <tr>
-                {['Employee', 'ID', 'Department', 'Month', 'Working', 'Paid', 'Unpaid', 'Gross', 'Deductions', 'Net', 'Status', 'Actions'].map((label) => (
-                  <th key={label}>{label}</th>
-                ))}
+                <th>Employee</th>
+                <th>ID</th>
+                <th className="payroll-col-optional">Department</th>
+                <th>Month</th>
+                <th className="payroll-col-optional">Working</th>
+                <th className="payroll-col-optional">Paid</th>
+                <th className="payroll-col-optional">Unpaid</th>
+                <th>Gross</th>
+                <th>Deductions</th>
+                <th>Net</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -319,14 +379,14 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
                       </button>
                     </td>
                     <td><code className="emp-code-badge">{empCode(record)}</code></td>
-                    <td>{empDept(record)}</td>
+                    <td className="payroll-col-optional">{empDept(record)}</td>
                     <td>{periodStr(record)}</td>
-                    <td>{record.standardWorkingDays || 25}</td>
-                    <td>{record.payableDays || 0}</td>
-                    <td>{record.unpaidLeaveDays || 0}</td>
+                    <td className="payroll-col-optional">{record.standardWorkingDays || 25}</td>
+                    <td className="payroll-col-optional">{record.payableDays || 0}</td>
+                    <td className="payroll-col-optional">{record.unpaidLeaveDays || 0}</td>
                     <td><strong>{money(record.grossEarnings)}</strong></td>
-                    <td style={{ color: '#ef4444', fontWeight: 600 }}>{money(record.totalDeductions)}</td>
-                    <td><strong style={{ color: '#0284c7', fontSize: '14px' }}>{money(record.netPayable)}</strong></td>
+                    <td style={{ color: '#ef4444', fontWeight: 700 }}>{money(record.totalDeductions)}</td>
+                    <td><strong style={{ color: '#0284c7', fontSize: '13.5px' }}>{money(record.netPayable)}</strong></td>
                     <td>
                       <span className={`status status-${(record.status || 'DRAFT').toLowerCase()}`}>
                         {(record.status || 'DRAFT').replaceAll('_', ' ')}

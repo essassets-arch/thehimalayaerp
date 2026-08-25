@@ -9,23 +9,23 @@ import Swal from 'sweetalert2';
 
 /* ─── Style helpers ───────────────────────────────────────────────── */
 const S = {
-  root: { display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: "'Inter', -apple-system, sans-serif" },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '16px', padding: '24px 28px', color: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' },
+  root: { display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: "'Inter', -apple-system, sans-serif", width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '16px', padding: '24px 28px', color: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' },
   headerTitle: { fontSize: '20px', fontWeight: 900, margin: 0, letterSpacing: '-0.3px' },
   headerSub: { fontSize: '13px', color: '#94a3b8', margin: '4px 0 0', fontWeight: 600 },
   syncBtn: { display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', borderRadius: '10px', padding: '9px 18px', fontWeight: 700, fontSize: '12.5px', cursor: 'pointer', transition: 'all 0.2s' },
   statsRow: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
-  statChip: (accent) => ({ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: `1px solid ${accent}28`, borderLeft: `4px solid ${accent}`, borderRadius: '10px', padding: '12px 16px', flex: 1, minWidth: '140px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }),
+  statChip: (accent) => ({ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: `1px solid ${accent}28`, borderLeft: `4px solid ${accent}`, borderRadius: '10px', padding: '12px 16px', flex: '1 1 140px', minWidth: '130px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }),
   statLabel: { fontSize: '10.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' },
   statValue: (accent) => ({ fontSize: '24px', fontWeight: 900, color: accent, lineHeight: 1 }),
-  tabBar: { display: 'flex', gap: '4px', borderBottom: '2px solid #f1f5f9' },
-  tab: (active) => ({ padding: '11px 22px', border: 'none', background: 'transparent', borderBottom: active ? '2px solid #0284c7' : '2px solid transparent', color: active ? '#0284c7' : '#64748b', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', fontSize: '13.5px', marginBottom: '-2px' }),
+  tabBar: { display: 'flex', gap: '4px', borderBottom: '2px solid #f1f5f9', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 },
+  tab: (active) => ({ padding: '11px 22px', border: 'none', background: 'transparent', borderBottom: active ? '2px solid #0284c7' : '2px solid transparent', color: active ? '#0284c7' : '#64748b', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', fontSize: '13.5px', marginBottom: '-2px', whiteSpace: 'nowrap', flexShrink: 0 }),
   toolbar: { display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px' },
-  searchWrap: { display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '200px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px' },
-  searchInput: { border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', flex: 1, color: '#1e293b' },
+  searchWrap: { display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 200px', minWidth: '160px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px' },
+  searchInput: { border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', flex: 1, color: '#1e293b', minWidth: 0 },
   filterSelect: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '9px 12px', fontSize: '13px', color: '#475569', cursor: 'pointer', fontWeight: 600, outline: 'none' },
-  tableWrap: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' },
-  table: { width: '100%', borderCollapse: 'collapse' },
+  tableWrap: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' },
+  table: { width: '100%', minWidth: '760px', borderCollapse: 'collapse' },
   thead: { background: '#f8fafc', borderBottom: '2px solid #e2e8f0' },
   th: { padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' },
   thRight: { padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' },
@@ -39,7 +39,7 @@ const S = {
   reasonText: { fontSize: '12.5px', color: '#475569', maxWidth: '240px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: 0 },
   remarksCell: { fontSize: '12px', color: '#64748b', fontStyle: 'italic', borderLeft: '3px solid #cbd5e1', paddingLeft: '10px', maxWidth: '200px', margin: 0 },
   actionsCell: { display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end' },
-  remarkInput: { padding: '7px 11px', borderRadius: '7px', border: '1px solid #cbd5e1', fontSize: '12px', outline: 'none', width: '150px', color: '#1e293b' },
+  remarkInput: { padding: '7px 11px', borderRadius: '7px', border: '1px solid #cbd5e1', fontSize: '12px', outline: 'none', width: '130px', color: '#1e293b' },
   btnApprove: { display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#16a34a', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(22,163,74,0.25)' },
   btnReject: { display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#fff', border: '1px solid #fca5a5', color: '#dc2626', padding: '7px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' },
   emptyBox: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', gap: '12px' },
@@ -215,13 +215,14 @@ export default function HRAttendanceRequestsView() {
     <div style={S.root}>
 
       {/* ── Header ── */}
-      <div style={S.header}>
+      <div style={S.header} className="hr-att-header erp-header-card">
         <div>
           <h2 style={S.headerTitle}>Manual Attendance Approval Hub</h2>
           <p style={S.headerSub}>Review and process employee manual clock-in records</p>
         </div>
         <button
           style={S.syncBtn}
+          className="hr-att-sync-btn"
           disabled={loading}
           onClick={() => { fetchPending(); fetchAudit(); }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
@@ -233,14 +234,14 @@ export default function HRAttendanceRequestsView() {
       </div>
 
       {/* ── Stats chips ── */}
-      <div style={S.statsRow}>
+      <div style={S.statsRow} className="hr-att-stats-grid">
         {[
           { label: 'Pending Review',   value: requests.length,  accent: '#f59e0b', icon: <Clock size={18} color="#f59e0b" /> },
           { label: 'Total Processed',  value: auditLogs.length, accent: '#6366f1', icon: <FileText size={18} color="#6366f1" /> },
           { label: 'Approved',         value: approvedCount,    accent: '#16a34a', icon: <CheckCircle size={18} color="#16a34a" /> },
           { label: 'Rejected',         value: rejectedCount,    accent: '#dc2626', icon: <XCircle size={18} color="#dc2626" /> },
         ].map(({ label, value, accent, icon }) => (
-          <div key={label} style={S.statChip(accent)}>
+          <div key={label} style={S.statChip(accent)} className="hr-att-stat-card">
             {icon}
             <div>
               <div style={S.statLabel}>{label}</div>
@@ -251,22 +252,61 @@ export default function HRAttendanceRequestsView() {
       </div>
 
       {/* ── Tabs ── */}
-      <div style={S.tabBar}>
+      <div 
+        className="erp-tab-scroll-bar hr-att-tab-bar"
+        style={{
+          ...S.tabBar,
+          scrollBehavior: 'smooth',
+          touchAction: 'pan-x',
+          cursor: 'grab',
+          paddingRight: '16px'
+        }}
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY * 0.8;
+          }
+        }}
+        onMouseDown={(e) => {
+          const el = e.currentTarget;
+          el.dataset.isDown = 'true';
+          el.dataset.startX = String(e.pageX - el.offsetLeft);
+          el.dataset.scrollLeft = String(el.scrollLeft);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseMove={(e) => {
+          const el = e.currentTarget;
+          if (el.dataset.isDown !== 'true') return;
+          e.preventDefault();
+          const x = e.pageX - el.offsetLeft;
+          const startX = Number(el.dataset.startX || 0);
+          const scrollLeft = Number(el.dataset.scrollLeft || 0);
+          const walk = (x - startX) * 1.5;
+          el.scrollLeft = scrollLeft - walk;
+        }}
+      >
         {[
           { key: 'pending', label: 'Pending HR Review',   count: requests.length },
           { key: 'audit',   label: 'Processed Audit Log', count: auditLogs.length },
         ].map(({ key, label, count }) => (
           <button
             key={key}
-            style={S.tab(activeTab === key)}
+            style={{
+              ...S.tab(activeTab === key),
+              userSelect: 'none'
+            }}
             onClick={() => { setActiveTab(key); setSearch(''); setDeptFilter(''); }}
           >
-            {label}
+            <span>{label}</span>
             <span style={{
-              marginLeft: '8px',
+              marginLeft: '6px',
               background: activeTab === key ? '#0284c7' : '#e2e8f0',
               color: activeTab === key ? '#fff' : '#64748b',
-              borderRadius: '20px', padding: '1px 8px',
+              borderRadius: '20px', padding: '1px 7px',
               fontSize: '11px', fontWeight: 800,
             }}>{count}</span>
           </button>
@@ -274,8 +314,8 @@ export default function HRAttendanceRequestsView() {
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={S.toolbar}>
-        <div style={S.searchWrap}>
+      <div style={S.toolbar} className="hr-att-toolbar">
+        <div style={S.searchWrap} className="hr-att-search-wrap">
           <Search size={15} color="#94a3b8" />
           <input
             style={S.searchInput}
@@ -286,6 +326,7 @@ export default function HRAttendanceRequestsView() {
         </div>
         <select
           style={S.filterSelect}
+          className="hr-att-select"
           value={deptFilter}
           onChange={e => setDeptFilter(e.target.value)}
         >
@@ -296,13 +337,14 @@ export default function HRAttendanceRequestsView() {
           <button
             onClick={() => { setSearch(''); setDeptFilter(''); }}
             style={{ ...S.filterSelect, cursor: 'pointer', color: '#ef4444', borderColor: '#fca5a5' }}
+            className="hr-att-clear-btn"
           >
             Clear Filters
           </button>
         )}
-        <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>
-          {displayList.length} record{displayList.length !== 1 ? 's' : ''}
-        </span>
+        <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#94a3b8', fontWeight: 700 }} className="hr-att-count">
+          {displayList.length} records
+        </div>
       </div>
 
       {/* ── Table ── */}

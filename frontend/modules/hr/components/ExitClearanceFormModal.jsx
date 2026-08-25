@@ -330,27 +330,53 @@ export default function ExitClearanceFormModal({ isOpen, onClose, onSubmit, empl
 
         @media screen and (max-width: 768px) {
           .exit-clearance-card-box {
-            width: 95vw !important;
-            padding: 16px !important;
+            width: min(900px, calc(100vw - 20px)) !important;
+            max-width: calc(100vw - 20px) !important;
+            padding: 16px 14px !important;
+            box-sizing: border-box !important;
           }
           .exit-modal-header {
             flex-direction: column !important;
-            align-items: flex-start !important;
+            align-items: stretch !important;
             gap: 12px !important;
           }
           .exit-modal-header-buttons {
             flex-wrap: wrap !important;
             width: 100% !important;
+            gap: 6px !important;
           }
           .exit-modal-header-buttons button {
-            flex: 1 1 auto !important;
+            flex: 1 1 calc(50% - 6px) !important;
+            min-height: 38px !important;
             justify-content: center !important;
           }
           .exit-asset-grid {
             grid-template-columns: repeat(2, 1fr) !important;
           }
+          .exit-clearance-card-box .print-flex-row {
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            width: 100% !important;
+          }
+          .exit-clearance-card-box input[type="text"],
+          .exit-clearance-card-box input[type="number"],
+          .exit-clearance-card-box input[type="date"],
+          .exit-clearance-card-box select,
+          .exit-clearance-card-box textarea {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
         }
         @media screen and (max-width: 480px) {
+          .exit-clearance-card-box {
+            width: calc(100vw - 12px) !important;
+            max-width: calc(100vw - 12px) !important;
+            padding: 14px 10px !important;
+          }
+          .exit-modal-header-buttons button {
+            flex: 1 1 100% !important;
+          }
           .exit-asset-grid {
             grid-template-columns: 1fr !important;
           }

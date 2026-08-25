@@ -197,7 +197,51 @@ export default function HRNotificationsView() {
 
       {/* ── FILTER TABS ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', gap: '8px', background: '#F1F5F9', padding: '4px', borderRadius: '12px' }}>
+        <div 
+          className="erp-tab-scroll-bar hr-notif-tab-bar" 
+          style={{ 
+            display: 'flex', 
+            gap: '8px', 
+            background: '#F1F5F9', 
+            padding: '4px', 
+            borderRadius: '12px',
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            minWidth: 0,
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            scrollBehavior: 'smooth',
+            touchAction: 'pan-x',
+            cursor: 'grab'
+          }}
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY * 0.8;
+            }
+          }}
+          onMouseDown={(e) => {
+            const el = e.currentTarget;
+            el.dataset.isDown = 'true';
+            el.dataset.startX = String(e.pageX - el.offsetLeft);
+            el.dataset.scrollLeft = String(el.scrollLeft);
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.dataset.isDown = 'false';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.dataset.isDown = 'false';
+          }}
+          onMouseMove={(e) => {
+            const el = e.currentTarget;
+            if (el.dataset.isDown !== 'true') return;
+            e.preventDefault();
+            const x = e.pageX - el.offsetLeft;
+            const startX = Number(el.dataset.startX || 0);
+            const scrollLeft = Number(el.dataset.scrollLeft || 0);
+            const walk = (x - startX) * 1.5;
+            el.scrollLeft = scrollLeft - walk;
+          }}
+        >
           {[
             { id: 'ALL', label: 'All Alerts' },
             { id: 'LEAVE', label: 'Leave Applications' },
@@ -210,7 +254,7 @@ export default function HRNotificationsView() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 border: 'none',
-                padding: '8px 16px',
+                padding: '8px 14px',
                 borderRadius: '8px',
                 fontSize: '12.5px',
                 fontWeight: '700',
@@ -218,7 +262,10 @@ export default function HRNotificationsView() {
                 transition: 'all 0.2s ease',
                 background: activeTab === tab.id ? '#FFFFFF' : 'transparent',
                 color: activeTab === tab.id ? '#0F172A' : '#64748B',
-                boxShadow: activeTab === tab.id ? '0 2px 6px rgba(0,0,0,0.06)' : 'none'
+                boxShadow: activeTab === tab.id ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                userSelect: 'none'
               }}
             >
               {tab.label}
@@ -232,7 +279,7 @@ export default function HRNotificationsView() {
       </div>
 
       {/* ── MAIN CONTENT GRID: LIST + INSPECTOR ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'start' }}>
+      <div className="hr-notifications-view-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'start' }}>
         
         {/* LEFT COLUMN: NOTIFICATION CARDS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -327,7 +374,7 @@ export default function HRNotificationsView() {
         </div>
 
         {/* RIGHT COLUMN: DETAILED STAFF PROFILE & ACTION INSPECTOR */}
-        <div style={{ position: 'sticky', top: '20px' }}>
+        <div className="hr-notifications-inspector" style={{ position: 'sticky', top: '20px' }}>
           <div className="app-card" style={{ padding: '24px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', background: '#FFFFFF' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px' }}>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import HRPortal from '../../../../modules/hr/pages/HRPortal';

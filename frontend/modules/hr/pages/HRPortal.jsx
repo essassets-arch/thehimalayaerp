@@ -572,7 +572,7 @@ export default function HRPortal() {
             <h2 className="card-heading" style={{ fontSize: '18px', fontWeight: '800' }}>Corporate Offboarding & Exit Clearance Registry</h2>
             <span style={{ fontSize: '11px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="hr-action-btn-group" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button 
               className="action-btn"
               style={{ background: '#0284c7', border: 'none', padding: '8px 14px', borderRadius: '6px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
@@ -765,7 +765,7 @@ export default function HRPortal() {
           <span style={{ fontSize: '12px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'stretch' }}>
+        <div className="hr-notifications-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'stretch' }}>
           {/* Alerts List */}
           <div className="app-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #DCE5F0', paddingBottom: '12px', marginBottom: '16px' }}>
@@ -886,7 +886,7 @@ export default function HRPortal() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="hr-portal-view" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {renderActiveView()}
     </div>
   );

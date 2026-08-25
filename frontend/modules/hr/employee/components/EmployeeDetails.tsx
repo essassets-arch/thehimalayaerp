@@ -115,20 +115,68 @@ export default function EmployeeDetails({ id }: { id: string }) {
         </div>
       </header>
 
-      {/* Primary Tab Navigation */}
-      <div style={{ display: 'flex', gap: '12px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
+      {/* Universal Multi-Modal Scrollable Tab Bar */}
+      <div
+        className="erp-tab-scroll-bar hr-employee-tab-bar"
+        style={{
+          display: 'flex',
+          borderBottom: '2px solid #e2e8f0',
+          gap: '8px',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
+          paddingBottom: '2px',
+          paddingRight: '16px',
+          scrollBehavior: 'smooth',
+          touchAction: 'pan-x',
+          cursor: 'grab',
+          marginBottom: '20px'
+        }}
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY * 0.8;
+          }
+        }}
+        onMouseDown={(e) => {
+          const el = e.currentTarget;
+          el.dataset.isDown = 'true';
+          el.dataset.startX = String(e.pageX - el.offsetLeft);
+          el.dataset.scrollLeft = String(el.scrollLeft);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseMove={(e) => {
+          const el = e.currentTarget;
+          if (el.dataset.isDown !== 'true') return;
+          e.preventDefault();
+          const x = e.pageX - el.offsetLeft;
+          const startX = Number(el.dataset.startX || 0);
+          const scrollLeft = Number(el.dataset.scrollLeft || 0);
+          const walk = (x - startX) * 1.5;
+          el.scrollLeft = scrollLeft - walk;
+        }}
+      >
         <button
           onClick={() => setActiveTab('attendance')}
           style={{
-            padding: '12px 20px',
-            fontSize: '14px',
+            padding: '10px 14px',
+            fontSize: '13px',
             fontWeight: '800',
             background: 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'attendance' ? '3px solid #4f46e5' : '3px solid transparent',
+            borderBottom: activeTab === 'attendance' ? '2.5px solid #4f46e5' : '2.5px solid transparent',
             color: activeTab === 'attendance' ? '#4f46e5' : '#64748b',
             cursor: 'pointer',
             marginBottom: '-2px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            transition: 'all 0.15s ease'
           }}
         >
           📅 Attendance Summary &amp; Logs
@@ -136,15 +184,18 @@ export default function EmployeeDetails({ id }: { id: string }) {
         <button
           onClick={() => setActiveTab('info')}
           style={{
-            padding: '12px 20px',
-            fontSize: '14px',
+            padding: '10px 14px',
+            fontSize: '13px',
             fontWeight: '800',
             background: 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'info' ? '3px solid #4f46e5' : '3px solid transparent',
+            borderBottom: activeTab === 'info' ? '2.5px solid #4f46e5' : '2.5px solid transparent',
             color: activeTab === 'info' ? '#4f46e5' : '#64748b',
             cursor: 'pointer',
             marginBottom: '-2px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            transition: 'all 0.15s ease'
           }}
         >
           👤 Employee Identity &amp; Info

@@ -96,21 +96,21 @@ export default function EmployeeAttendanceSummary({ employeeId }: Props) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: 'sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: 'sans-serif', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* Top Header Controls */}
       <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px',
         background: '#ffffff', padding: '16px 20px', borderRadius: '12px',
         border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Calendar size={20} color="#4f46e5" />
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          <Calendar size={20} color="#4f46e5" style={{ flexShrink: 0 }} />
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
             Attendance Summary — {summary.month || 'Selected Month'}
           </h3>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#64748b' }}>Month:</label>
           <input
             type="month"
@@ -137,7 +137,7 @@ export default function EmployeeAttendanceSummary({ employeeId }: Props) {
         <>
           {/* Monthly KPI Overview Grid */}
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px'
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '14px'
           }}>
             {[
               { label: 'Scheduled Working Days', val: summary.scheduledWorkingDays ?? '—', sub: `MTD Elapsed: ${summary.elapsedWorkingDays ?? '—'}`, color: '#3b82f6', bg: '#eff6ff' },
@@ -166,15 +166,15 @@ export default function EmployeeAttendanceSummary({ employeeId }: Props) {
           </div>
 
           {/* Daily Logs Table */}
-          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', width: '100%', maxWidth: '100%' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
               <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>
                 Daily Attendance Logs ({dailyLogs.length} days)
               </h4>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+              <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
                     <th style={{ padding: '12px 16px', fontWeight: '700' }}>Date</th>

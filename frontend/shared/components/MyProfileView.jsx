@@ -469,7 +469,47 @@ export default function MyProfileView() {
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div className="profile-tabs-nav erp-tab-scroll-bar" style={{ display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, gap: '8px', paddingBottom: '4px' }}>
+      <div 
+        className="profile-tabs-nav erp-tab-scroll-bar" 
+        style={{ 
+          display: 'flex', 
+          overflowX: 'auto', 
+          WebkitOverflowScrolling: 'touch', 
+          minWidth: 0, 
+          width: '100%',
+          boxSizing: 'border-box',
+          gap: '8px', 
+          padding: '6px 8px',
+          scrollBehavior: 'smooth'
+        }}
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY * 0.8;
+          }
+        }}
+        onMouseDown={(e) => {
+          const el = e.currentTarget;
+          el.dataset.isDown = 'true';
+          el.dataset.startX = String(e.pageX - el.offsetLeft);
+          el.dataset.scrollLeft = String(el.scrollLeft);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.dataset.isDown = 'false';
+        }}
+        onMouseMove={(e) => {
+          const el = e.currentTarget;
+          if (el.dataset.isDown !== 'true') return;
+          e.preventDefault();
+          const x = e.pageX - el.offsetLeft;
+          const startX = Number(el.dataset.startX || 0);
+          const scrollLeft = Number(el.dataset.scrollLeft || 0);
+          const walk = (x - startX) * 1.5;
+          el.scrollLeft = scrollLeft - walk;
+        }}
+      >
         {[
           { key: 'profile', label: 'Personal Information', icon: User },
           { key: 'attendance', label: 'Attendance Records', icon: Calendar },
@@ -484,7 +524,7 @@ export default function MyProfileView() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`profile-tab-btn ${isActive ? 'active' : ''}`}
-              style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+              style={{ whiteSpace: 'nowrap', flexShrink: 0, userSelect: 'none' }}
             >
               <TabIcon size={16} />
               <span>{tab.label}</span>

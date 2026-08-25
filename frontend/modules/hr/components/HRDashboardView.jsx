@@ -190,6 +190,20 @@ export default function HRDashboardView({
           box-sizing: border-box;
         }
 
+        /* .main-viewport strips its own left/right/top padding on mobile —
+           give the dashboard its own gutters so content isn't flush against the screen edges. */
+        @media (max-width: 768px) {
+          .hr-dash-wrapper {
+            padding: 16px 16px 0;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .hr-dash-wrapper {
+            padding: 14px 12px 0;
+          }
+        }
+
         .hr-dash-header {
           background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
           border-radius: 16px;
@@ -242,7 +256,7 @@ export default function HRDashboardView({
           transition: all 0.2s ease;
           display: flex;
           flex-direction: column;
-          justify: space-between;
+          justify-content: space-between;
         }
 
         .hr-kpi-card:hover {
@@ -335,6 +349,20 @@ export default function HRDashboardView({
             grid-template-columns: 1fr;
           }
         }
+
+        @media (max-width: 480px) {
+          .hr-card,
+          .hr-action-center {
+            padding: 16px;
+          }
+          .hr-kpi-card {
+            padding: 14px 16px;
+          }
+          .hr-quick-actions button {
+            flex: 1 1 auto;
+            justify-content: center;
+          }
+        }
       `}</style>
 
       {/* ── 1. HEADER SECTION ── */}
@@ -371,7 +399,7 @@ export default function HRDashboardView({
               </div>
 
               {/* Quick Employee Search Input */}
-              <div style={{ position: 'relative', width: '220px' }}>
+              <div style={{ position: 'relative', width: '220px', maxWidth: '100%' }}>
                 <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                 <input 
                   type="text"
@@ -380,6 +408,7 @@ export default function HRDashboardView({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
                     width: '100%',
+                    boxSizing: 'border-box',
                     padding: '7px 12px 7px 34px',
                     borderRadius: '10px',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -630,8 +659,10 @@ export default function HRDashboardView({
                   key={item.id}
                   style={{
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '8px',
                     padding: '10px 14px',
                     borderRadius: '8px',
                     background: item.priority === 'high' ? 'rgba(254, 242, 242, 0.7)' : 'rgba(248, 250, 252, 0.8)',
@@ -639,12 +670,12 @@ export default function HRDashboardView({
                     border: '1px solid #f1f5f9'
                   }}
                 >
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>{item.title}</strong>
                     <span style={{ fontSize: '11px', color: '#64748b' }}>{item.subtitle}</span>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={() => onNavigate(item.path)}
                     style={{
                       background: item.priority === 'high' ? '#ef4444' : '#0f172a',
@@ -656,7 +687,8 @@ export default function HRDashboardView({
                       fontWeight: '700',
                       cursor: 'pointer',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0
                     }}
                   >
                     [{item.actionText}]
@@ -726,14 +758,14 @@ export default function HRDashboardView({
                 </div>
                 
                 <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div 
-                    style={{ 
-                      width: `${dept.percentage * 2.5}%`, 
-                      height: '100%', 
-                      background: dept.color, 
+                  <div
+                    style={{
+                      width: `${Math.min(100, dept.percentage * 2.5)}%`,
+                      height: '100%',
+                      background: dept.color,
                       borderRadius: '4px',
                       transition: 'width 0.6s ease'
-                    }} 
+                    }}
                   />
                 </div>
               </div>
