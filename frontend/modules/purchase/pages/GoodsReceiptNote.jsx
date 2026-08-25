@@ -345,6 +345,7 @@ export default function GoodsReceiptNote() {
           
           <div className="app-card" style={{ overflow: 'hidden' }}>
             <DataTable
+              scrollMode={true}
               columns={[
                 { header: 'GRN Number', accessor: 'grn_number', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.grn_number}</strong> },
                 { header: 'PO Number', accessor: 'purchase_order_number' },

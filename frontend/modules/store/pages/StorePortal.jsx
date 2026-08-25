@@ -71,10 +71,12 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
   return (
     <div
       onClick={onClose}
+      className="po-pdf-modal-overlay erp-modal-overlay"
       style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
     >
       <div
         onClick={e => e.stopPropagation()}
+        className="po-pdf-modal-box"
         style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', border: '1px solid #D6E2F0', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}
       >
         {/* Modal Top Bar (Non-Printable) */}
@@ -231,7 +233,7 @@ function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPa
   if (totalPages <= 1) return null;
 
   return (
-    <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+    <div className="store-pagination-control store-pagination-wrap" style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
       <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
         Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
       </div>
@@ -1746,6 +1748,7 @@ export default function StorePortal() {
         </div>
         <div className="m-theme-table-container">
           <DataTable
+            scrollMode={true}
             columns={[
               { header: 'Product Item', accessor: 'product' },
               { header: 'Stock count', accessor: 'stock', render: (row) => <strong>{row.stock} {row.unit}</strong> },
@@ -1993,6 +1996,7 @@ export default function StorePortal() {
       <div className="app-card">
         <h3 className="card-heading">Storage Operation Audit Trails</h3>
         <DataTable
+          scrollMode={true}
           columns={[
             { header: 'Log ID', accessor: 'id' },
             { header: 'Action', accessor: 'action' },
@@ -2193,7 +2197,7 @@ export default function StorePortal() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
+        <div className="low-stock-tab-bar" style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
           {['Alerts', 'History'].map(tab => (
             <button key={tab} type="button" onClick={() => setLowStockTab(tab)}
               style={{ border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontWeight: 800, background: lowStockTab === tab ? '#2F4375' : '#eef2f7', color: lowStockTab === tab ? '#fff' : '#475569' }}>
@@ -2501,7 +2505,7 @@ export default function StorePortal() {
 
               {/* Read-only material info */}
               <div style={{ background: '#F5FAFE', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, fontSize: 13 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
+                <div className="store-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
                   <div><strong>Material:</strong> {indentTargetMaterial.material}</div>
                   <div><strong>Code:</strong> <span style={{ fontFamily: 'monospace' }}>{indentTargetMaterial.code}</span></div>
                   <div><strong>Current Stock:</strong> <span style={{ color: '#ef4444', fontWeight: 700 }}>{indentTargetMaterial.stock} {indentTargetMaterial.unit}</span></div>
@@ -2560,7 +2564,7 @@ export default function StorePortal() {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'flex-end' }}>
+                <div className="store-form-actions" style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'flex-end' }}>
                   <button
                     type="button" onClick={() => setShowIndentModal(false)}
                     style={{ padding: '10px 20px', background: '#f1f5f9', border: '1px solid #D6E2F0', borderRadius: 8, fontWeight: 700, color: '#334155', cursor: 'pointer' }}
@@ -2771,7 +2775,7 @@ export default function StorePortal() {
         <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <h2 className="card-heading">Purchase Order Procurement Ledger</h2>
           {/* Filter Tabs */}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="store-po-tab-bar" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             {['All', 'Pending', 'Completed'].map(label => (
               <button key={label} style={filterBtnStyle(label)} onClick={() => setPoListFilter(label)}>
                 {label}
@@ -2785,7 +2789,9 @@ export default function StorePortal() {
           </div>
         </div>
 
+        <div className="store-table-scroll-wrapper">
         <DataTable
+          scrollMode={true}
           columns={[
             { header: 'PO Ref ID', accessor: 'id', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.id}</strong> },
             {
@@ -2911,6 +2917,7 @@ export default function StorePortal() {
           }}
           emptyMessage="No Purchase Orders found."
         />
+        </div>
       </div>
     );
   };
@@ -3421,9 +3428,9 @@ export default function StorePortal() {
         </div>
 
         {/* ── Scrollable Tab Strip ── */}
-        <div style={{
+        <div className="erp-tab-scroll-bar" style={{
           background: '#1e3a7b',
-          padding: '0 24px',
+          padding: '0 16px',
           borderBottom: '3px solid #E5ECF5',
           /* scrollable row */
           display: 'flex',
@@ -3609,10 +3616,12 @@ export default function StorePortal() {
         {showStoreItemModal && (
           <div
             onClick={() => setShowStoreItemModal(null)}
+            className="erp-modal-overlay"
             style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
           >
             <div
               onClick={e => e.stopPropagation()}
+              className="store-item-modal-box"
               style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '650px', width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
             >
               <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
@@ -3679,7 +3688,7 @@ export default function StorePortal() {
         </div>
         <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-border)', padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
           <form onSubmit={handleAddMaterialSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="store-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Material Name *</label>
                 <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. High Tensile Steel Sheet" value={matName} onChange={e => setMatName(e.target.value)} required />
@@ -3689,7 +3698,7 @@ export default function StorePortal() {
                 <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={matCode} onChange={e => setMatCode(e.target.value)} required />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            <div className="store-form-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Category</label>
                 <select className="form-select" style={{ width: '100%', marginTop: '6px' }} value={matCategory} onChange={e => setMatCategory(e.target.value)}>
@@ -3709,7 +3718,7 @@ export default function StorePortal() {
                 <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. 50" value={matMinStock} onChange={e => setMatMinStock(e.target.value)} required />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="store-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Initial Opening Stock</label>
                 <input type="number" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="0" value={matOpeningStock} onChange={e => setMatOpeningStock(e.target.value)} />
@@ -3719,7 +3728,7 @@ export default function StorePortal() {
                 <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Bay-A / Rack-04" value={matStorageLocation} onChange={e => setMatStorageLocation(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+            <div className="store-form-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
               <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
               <button type="submit" className="m-theme-btn-primary"><Plus size={16} /> Save Product Material</button>
             </div>
@@ -3743,7 +3752,7 @@ export default function StorePortal() {
         </div>
         <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-border)', padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
           <form onSubmit={handleEditMaterialSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="store-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Material Name *</label>
                 <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatName} onChange={e => setEditMatName(e.target.value)} required />
@@ -3753,7 +3762,7 @@ export default function StorePortal() {
                 <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} value={editMatCode} onChange={e => setEditMatCode(e.target.value)} required />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            <div className="store-form-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Category</label>
                 <select className="form-select" style={{ width: '100%', marginTop: '6px' }} value={editMatCategory} onChange={e => setEditMatCategory(e.target.value)}>
@@ -3779,7 +3788,7 @@ export default function StorePortal() {
                 <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Rack A1 / Bay 4" value={editMatStorageLocation} onChange={e => setEditMatStorageLocation(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+            <div className="store-form-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
               <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
               <button type="submit" className="m-theme-btn-primary">Update Material Registry</button>
             </div>

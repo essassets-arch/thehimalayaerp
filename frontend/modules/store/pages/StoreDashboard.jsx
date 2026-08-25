@@ -923,7 +923,7 @@ export const StoreDashboard = () => {
               contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12.5px', fontWeight: '700', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}
               itemStyle={{ color: '#38bdf8' }}
             />
-            <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontWeight: '700' }} />
+            <Legend wrapperStyle={{ paddingTop: '10px', fontSize: isMobile ? '10px' : '12px', fontWeight: '700' }} />
             <Area type="monotone" dataKey="IssuedQuantity" name="Issued to Production (Pcs)" fill="url(#issuedGradient)" stroke="#0284c7" strokeWidth={3} />
             <Bar dataKey="IssuedQuantity" name="Daily Bar Volume" fill="#38bdf8" radius={[6, 6, 0, 0]} maxBarSize={36} opacity={0.65} />
             <Line type="monotone" dataKey="TargetConsumption" name="Target Plan" stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={2} dot={false} />
@@ -953,7 +953,7 @@ export const StoreDashboard = () => {
               <XAxis dataKey="period" stroke="#64748b" tick={{ fontSize: 11, fontWeight: 700 }} />
               <YAxis stroke="#64748b" tick={{ fontSize: 11 }} />
               <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px', fontWeight: '700' }} />
-              <Legend wrapperStyle={{ fontSize: '11.5px', fontWeight: '700' }} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '11.5px', fontWeight: '700' }} />
               <Bar dataKey="received" name="🟢 Stock Received" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={24} />
               <Bar dataKey="issued" name="🔵 Issued to Production" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={24} />
               <Line type="monotone" dataKey="returns" name="🟠 Production Returns" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} />
@@ -991,7 +991,7 @@ export const StoreDashboard = () => {
                 ))}
               </Pie>
               <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px', fontWeight: '700' }} />
-              <Legend wrapperStyle={{ fontSize: '11.5px', fontWeight: '700' }} verticalAlign="bottom" height={36} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '11.5px', fontWeight: '700' }} verticalAlign="bottom" height={isMobile ? 48 : 36} />
             </PieChart>
           </ResponsiveChartWrapper>
         </div>
@@ -1030,7 +1030,7 @@ export const StoreDashboard = () => {
                 ))}
               </Pie>
               <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px', fontWeight: '700' }} />
-              <Legend wrapperStyle={{ fontSize: '11.5px', fontWeight: '700' }} verticalAlign="bottom" height={36} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '11.5px', fontWeight: '700' }} verticalAlign="bottom" height={isMobile ? 48 : 36} />
             </PieChart>
           </ResponsiveChartWrapper>
         </div>

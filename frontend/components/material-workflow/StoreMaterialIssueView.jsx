@@ -63,10 +63,10 @@ export default function StoreMaterialIssueView() {
   };
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="m-theme-container" style={{ padding: 16 }}>
       <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>Store Material Requests</h1>
       <p style={{ margin: '0 0 16px', color: '#5E6B82' }}>Plant Head approved requests ready for Store stock verification.</p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+      <div className="low-stock-tab-bar" style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
         {['Pending', 'History'].map((label) => (
           <button key={label} onClick={() => setTab(label)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #D6E2F0', background: tab === label ? '#0f766e' : '#fff', color: tab === label ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer' }}>
             {label === 'History' ? 'History (Approved & Rejected)' : label}
@@ -139,7 +139,7 @@ function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPa
   if (totalPages <= 1) return null;
 
   return (
-    <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+    <div className="store-pagination-control store-pagination-wrap" style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
       <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
         Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
       </div>

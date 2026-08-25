@@ -261,16 +261,53 @@ export default function VerifyPODelivery() {
           font-size: 13px;
         }
         .table-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        @media (max-width: 768px) {
+          .verify-po-card-container {
+            padding: 16px 14px !important;
+          }
+          .verify-po-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+          }
+          .verify-po-tabs {
+            width: 100% !important;
+            justify-content: flex-start !important;
+            gap: 16px !important;
+            overflow-x: auto !important;
+            padding-bottom: 2px !important;
+          }
+          .verify-po-tabs h2 {
+            font-size: 17px !important;
+            white-space: nowrap !important;
+          }
+          .verify-po-search {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .verify-po-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .verify-po-card-container {
+            padding: 14px 10px !important;
+          }
+          .verify-po-tabs h2 {
+            font-size: 15px !important;
+          }
+        }
       `}</style>
 
       {!selectedPO ? (
-        <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+        <div className="verify-po-card-container" style={cardStyle}>
+          <div className="verify-po-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+            <div className="verify-po-tabs" style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 800, color: viewTab === 'pending' ? '#0f172a' : '#cbd5e1', margin: 0, cursor: 'pointer', transition: 'color 0.2s' }} onClick={() => setViewTab('pending')}>Pending Deliveries</h2>
               <h2 style={{ fontSize: '20px', fontWeight: 800, color: viewTab === 'history' ? '#0f172a' : '#cbd5e1', margin: 0, cursor: 'pointer', transition: 'color 0.2s' }} onClick={() => setViewTab('history')}>Delivery History</h2>
             </div>
-            <div style={{ position: 'relative', width: '300px' }}>
+            <div className="verify-po-search" style={{ position: 'relative', width: '300px' }}>
               <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={18} />
               <input
                 type="text"
@@ -282,7 +319,7 @@ export default function VerifyPODelivery() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+          <div className="verify-po-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
             {viewTab === 'pending' ? filteredPOs.map(po => (
               <div key={po.id} className="po-card" onClick={() => handleSelectPO(po.id)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>

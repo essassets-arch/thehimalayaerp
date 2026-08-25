@@ -139,6 +139,16 @@ export default function CreateMaterialIndent() {
           background: #ffffff !important;
           box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
         }
+        @media (max-width: 768px) {
+          .indent-glass-form {
+            padding: 16px !important;
+            border-radius: 14px !important;
+          }
+          .indent-item-row {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+        }
       `}</style>
       
       {/* Section Header */}
@@ -158,7 +168,7 @@ export default function CreateMaterialIndent() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="glass-panel" style={{ padding: '32px', borderRadius: '20px' }}>
+      <form onSubmit={handleSubmit} className="glass-panel indent-glass-form" style={{ padding: '32px', borderRadius: '20px' }}>
         {/* Department, Warehouse + Date Row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '36px' }}>
           <div>
@@ -248,7 +258,7 @@ export default function CreateMaterialIndent() {
                   position: 'relative'
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: '16px' }}>
+                <div className="indent-item-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: '16px' }}>
                   <div>
                     <label style={{...labelStyle, fontSize: '11px'}}>Material / Specification</label>
                     <select

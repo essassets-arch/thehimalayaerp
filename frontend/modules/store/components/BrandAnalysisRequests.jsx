@@ -10,7 +10,7 @@ function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPa
   if (totalPages <= 1) return null;
 
   return (
-    <div style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+    <div className="store-pagination-control store-pagination-wrap" style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
       <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
         Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
       </div>
@@ -151,49 +151,51 @@ export default function BrandAnalysisRequests() {
           ))}
         </div>
 
-        <table className="m-theme-table">
-          <thead>
-            <tr>
-              <th>Request No</th>
-              <th>Product Name</th>
-              <th>Brand</th>
-              <th>Requested By</th>
-              <th>Required By</th>
-              <th>Date Created</th>
-              <th style={{ textAlign: 'center' }}>Status</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>Loading requests...</td></tr>
-            ) : filteredRequests.length === 0 ? (
-              <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>No {activeTab.toLowerCase()} brand analysis requests found.</td></tr>
-            ) : (
-              paginatedRequests.map((req) => (
-                <tr key={req.id}>
-                  <td style={{ fontWeight: '700' }}>{req.requestNo}</td>
-                  <td style={{ color: 'var(--color-primary)', fontWeight: '600' }}>{req.productName}</td>
-                  <td>{req.brandName}</td>
-                  <td>{req.requestedBy?.name || 'Store'}</td>
-                  <td>{req.requiredByDate ? new Date(req.requiredByDate).toLocaleDateString() : '-'}</td>
-                  <td>{new Date(req.createdAt).toLocaleDateString()}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <StatusBadge status={req.status} />
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button 
-                      onClick={() => setSelectedRequest(req)}
-                      style={{ padding: '6px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
-                    >
-                      View Details
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <div className="store-table-scroll-wrapper">
+          <table className="m-theme-table">
+            <thead>
+              <tr>
+                <th>Request No</th>
+                <th>Product Name</th>
+                <th>Brand</th>
+                <th>Requested By</th>
+                <th>Required By</th>
+                <th>Date Created</th>
+                <th style={{ textAlign: 'center' }}>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>Loading requests...</td></tr>
+              ) : filteredRequests.length === 0 ? (
+                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>No {activeTab.toLowerCase()} brand analysis requests found.</td></tr>
+              ) : (
+                paginatedRequests.map((req) => (
+                  <tr key={req.id}>
+                    <td style={{ fontWeight: '700' }}>{req.requestNo}</td>
+                    <td style={{ color: 'var(--color-primary)', fontWeight: '600' }}>{req.productName}</td>
+                    <td>{req.brandName}</td>
+                    <td>{req.requestedBy?.name || 'Store'}</td>
+                    <td>{req.requiredByDate ? new Date(req.requiredByDate).toLocaleDateString() : '-'}</td>
+                    <td>{new Date(req.createdAt).toLocaleDateString()}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <StatusBadge status={req.status} />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button 
+                        onClick={() => setSelectedRequest(req)}
+                        style={{ padding: '6px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
+                      >
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
         <PaginationControl
           currentPage={page}
           totalPages={totalPages}

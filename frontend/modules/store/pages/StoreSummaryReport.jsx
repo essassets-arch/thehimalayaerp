@@ -400,7 +400,7 @@ export const StoreSummaryReport = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b' }}>
+    <div className="m-theme-container store-summary-report-container" style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b' }}>
       
       {/* Printable Styling */}
       <style>{`
@@ -592,8 +592,9 @@ export const StoreSummaryReport = () => {
           <Layers size={18} color="#0284c7" /> 1. Raw Material Inventory
         </h3>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        {/* Desktop Table View */}
+        <div className="desktop-only store-table-scroll-wrapper">
+          <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 12px' }}>Raw Material Name</th>
@@ -636,6 +637,103 @@ export const StoreSummaryReport = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Horizontal List Cards UI */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
+          {inventoryList.map((item, idx) => {
+            const isLow = item.currentStock <= item.minStockLevel;
+            return (
+              <div
+                key={idx}
+                className="raw-inv-mobile-card"
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                {/* Header Row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', display: 'block' }}>
+                      {getLabel(item.name)}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                      {getLabel(item.category)} • Unit: {getLabel(item.unit)}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      background: isLow ? '#fee2e2' : '#dcfce7',
+                      color: isLow ? '#b91c1c' : '#15803d',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      flexShrink: 0
+                    }}
+                  >
+                    {getLabel(item.status)}
+                  </span>
+                </div>
+
+                {/* Flow Metrics Strip */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '8px',
+                    padding: '6px 8px',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '9.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Opening</div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                      {(item.openingStock ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>Received</div>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#059669' }}>
+                      +{(item.receivedQty ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase' }}>Issued</div>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#dc2626' }}>
+                      -{(item.issuedQty ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stock & Valuation Strip */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Current Stock</span>
+                    <span style={{ fontSize: '14px', fontWeight: 900, color: isLow ? '#dc2626' : '#0f172a' }}>
+                      {(item.currentStock ?? 0).toLocaleString()} <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>{getLabel(item.unit)}</span>
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Value / Min</span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0284c7' }}>
+                      ₹{(item.stockValue ?? 0).toLocaleString('en-IN')} <span style={{ fontSize: '10px', color: '#94a3b8' }}>/ Min {(item.minStockLevel ?? 0)}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Section 2: Purchase Indent Summary ── */}
@@ -645,7 +743,7 @@ export const StoreSummaryReport = () => {
             <ClipboardList size={18} color="#3b82f6" /> 2. Purchase Indent Summary
           </h3>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>Total: {summaryMetrics.totalIndentsCount}</span>
             <span style={{ background: '#fef3c7', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#b45309' }}>Pending: {summaryMetrics.pendingIndents}</span>
             <span style={{ background: '#dcfce7', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#15803d' }}>Approved: {summaryMetrics.approvedIndents}</span>
@@ -653,8 +751,9 @@ export const StoreSummaryReport = () => {
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        {/* Desktop Table View */}
+        <div className="desktop-only store-table-scroll-wrapper">
+          <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 12px' }}>Indent No.</th>
@@ -691,6 +790,48 @@ export const StoreSummaryReport = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Horizontal List Cards UI */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
+          {filteredIndents.map((indent, idx) => (
+            <div
+              key={idx}
+              className="raw-inv-mobile-card"
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: 800, fontFamily: 'monospace', color: '#0284c7' }}>
+                  {getLabel(indent.indentNo)}
+                </span>
+                <span style={{
+                  background: indent.status === 'Approved' ? '#dcfce7' : indent.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
+                  color: indent.status === 'Approved' ? '#15803d' : indent.status === 'Rejected' ? '#b91c1c' : '#b45309',
+                  padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: 800
+                }}>
+                  {getLabel(indent.status)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
+                <span>Dept: <strong style={{ color: '#334155' }}>{getLabel(indent.department)}</strong></span>
+                <span>Date: {getLabel(indent.date)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #f1f5f9', fontSize: '12px' }}>
+                <span>Items: <strong>{indent.itemCount}</strong></span>
+                <span>Qty: <strong style={{ color: '#0284c7', fontSize: '13px' }}>{(indent.totalQty ?? 0).toLocaleString()}</strong></span>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>By: {getLabel(indent.approvedBy)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Section 3: Production Consumption ── */}
@@ -700,7 +841,7 @@ export const StoreSummaryReport = () => {
             <Factory size={18} color="#8b5cf6" /> 3. Production Consumption
           </h3>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <span style={{ background: '#f3e8ff', padding: '4px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#6b21a8' }}>
               Batches: {summaryMetrics.totalProdBatches}
             </span>
@@ -710,8 +851,9 @@ export const StoreSummaryReport = () => {
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        {/* Desktop Table View */}
+        <div className="desktop-only store-table-scroll-wrapper">
+          <table style={{ width: '100%', minWidth: '750px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 12px' }}>Production Date</th>
@@ -738,6 +880,40 @@ export const StoreSummaryReport = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Horizontal List Cards UI */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
+          {filteredProduction.map((item, idx) => (
+            <div
+              key={idx}
+              className="raw-inv-mobile-card"
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>{getLabel(item.productName)}</span>
+                <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: 800, color: '#7c3aed', background: '#f3e8ff', padding: '2px 8px', borderRadius: '4px' }}>
+                  {getLabel(item.batchNo)}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                Material: <strong style={{ color: '#334155' }}>{getLabel(item.rawMaterial)}</strong> • Date: {getLabel(item.date)}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #f1f5f9', fontSize: '12px' }}>
+                <span>Consumed: <strong style={{ color: '#dc2626' }}>{(item.consumedQty ?? 0).toLocaleString()} {getLabel(item.unit)}</strong></span>
+                <span>Output: <strong style={{ color: '#10b981' }}>{getLabel(item.prodQty)}</strong></span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Section 4: Store Issue / Consumption History ── */}
@@ -747,7 +923,7 @@ export const StoreSummaryReport = () => {
             <Truck size={18} color="#06b6d4" /> 4. Store Issue / Consumption History
           </h3>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <span style={{ background: '#ecfeff', padding: '4px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', color: '#0891b2' }}>
               Total Requisitions: {summaryMetrics.totalIssuesCount}
             </span>
@@ -757,8 +933,9 @@ export const StoreSummaryReport = () => {
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        {/* Desktop Table View */}
+        <div className="desktop-only store-table-scroll-wrapper">
+          <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 12px' }}>Issue Date</th>
@@ -787,6 +964,41 @@ export const StoreSummaryReport = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Horizontal List Cards UI */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
+          {filteredIssues.map((item, idx) => (
+            <div
+              key={idx}
+              className="raw-inv-mobile-card"
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>{getLabel(item.itemName)}</span>
+                <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: 800, color: '#0891b2', background: '#ecfeff', padding: '2px 8px', borderRadius: '4px' }}>
+                  {getLabel(item.issueNo)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
+                <span>Dept: <strong style={{ color: '#334155' }}>{getLabel(item.department)}</strong></span>
+                <span>Date: {getLabel(item.date)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #f1f5f9', fontSize: '12px' }}>
+                <span>Qty: <strong style={{ color: '#0284c7', fontSize: '13px' }}>{(item.qty ?? 0).toLocaleString()} {getLabel(item.unit)}</strong></span>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>{getLabel(item.issuedBy)} → {getLabel(item.receivedBy)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Section 5: Department-wise Consumption ── */}
@@ -795,8 +1007,9 @@ export const StoreSummaryReport = () => {
           <Building size={18} color="#10b981" /> 5. Department-wise Consumption Breakdown
         </h3>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        {/* Desktop Table View */}
+        <div className="desktop-only store-table-scroll-wrapper">
+          <table style={{ width: '100%', minWidth: '550px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 14px' }}>Department</th>
@@ -820,6 +1033,57 @@ export const StoreSummaryReport = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Horizontal List Cards UI */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '8px' }}>
+          {departmentConsumption.rows.map((row, idx) => (
+            <div
+              key={idx}
+              className="raw-inv-mobile-card"
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <strong style={{ color: '#0f172a', fontSize: '13.5px' }}>{getLabel(row.dept)}</strong>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#0284c7', marginRight: '10px' }}>
+                  {(row.qty ?? 0).toLocaleString()} Pcs
+                </span>
+                <span style={{ fontSize: '13.5px', fontWeight: 900, color: '#10b981' }}>
+                  ₹{(row.val ?? 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          ))}
+          <div
+            style={{
+              background: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: '10px',
+              padding: '10px 14px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontWeight: 900
+            }}
+          >
+            <span style={{ color: '#0f172a', fontSize: '13px' }}>Total</span>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '13px', color: '#0284c7', marginRight: '10px' }}>
+                {(departmentConsumption.totalQty ?? 0).toLocaleString()} Pcs
+              </span>
+              <span style={{ fontSize: '14px', color: '#10b981' }}>
+                ₹{(departmentConsumption.totalVal ?? 0).toLocaleString('en-IN')}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Section 6: Low Stock Report ── */}
@@ -828,8 +1092,9 @@ export const StoreSummaryReport = () => {
           <AlertTriangle size={18} color="#dc2626" /> 6. Low Stock Report (Current Stock &le; Minimum Threshold)
         </h3>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        {/* Desktop Table View */}
+        <div className="desktop-only store-table-scroll-wrapper">
+          <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#fff5f5', borderBottom: '2px solid #fecaca', color: '#991b1b', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '10px 14px' }}>Item Name</th>
@@ -861,7 +1126,53 @@ export const StoreSummaryReport = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Horizontal List Cards UI */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
+          {lowStockItems.length > 0 ? (
+            lowStockItems.map((item, idx) => {
+              const requiredQty = Math.max(0, item.minStockLevel * 2 - item.currentStock);
+              return (
+                <div
+                  key={idx}
+                  className="raw-inv-mobile-card"
+                  style={{
+                    background: '#fff5f5',
+                    border: '1px solid #fecaca',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>{getLabel(item.name)}</span>
+                    <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
+                      Low Stock
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
+                    <span>Current: <strong style={{ color: '#dc2626', fontSize: '13px' }}>{(item.currentStock ?? 0).toLocaleString()} {getLabel(item.unit)}</strong></span>
+                    <span>Min Safety: <strong>{(item.minStockLevel ?? 0).toLocaleString()} {getLabel(item.unit)}</strong></span>
+                  </div>
+                  <div style={{ paddingTop: '4px', borderTop: '1px solid #fee2e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#991b1b', fontWeight: 700 }}>Reorder Needed:</span>
+                    <span style={{ fontSize: '13.5px', fontWeight: 900, color: '#b91c1c' }}>
+                      +{(requiredQty ?? 0).toLocaleString()} {getLabel(item.unit)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#166534', fontWeight: '700', fontSize: '13px', background: '#ecfdf5', borderRadius: '10px' }}>
+              ✅ All raw inventory items are currently above safety stock thresholds.
+            </div>
+          )}
+        </div>
       </div>
+
 
     </div>
   );
