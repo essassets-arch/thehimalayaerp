@@ -4649,9 +4649,9 @@ export default function PlantHeadPortal() {
           </button>
         </div>
 
-        {/* Raw Inventory Table */}
-        <div className="m-theme-table-container erp-table-responsive">
-          <table className="m-theme-table responsive-table raw-inventory-table">
+        {/* Raw Inventory Table - Desktop View */}
+        <div className="desktop-only m-theme-table-container">
+          <table className="m-theme-table raw-inventory-table">
             <thead>
               <tr>
                 <th>Material Code</th>
@@ -4698,16 +4698,16 @@ export default function PlantHeadPortal() {
                         setShowDetailDrawer(true);
                       }}
                     >
-                      <td data-label="CODE" style={{ fontWeight: '800' }}>{item.code}</td>
-                      <td data-label="NAME" style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
-                      <td data-label="CATEGORY" style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
-                      <td data-label="UNIT">{item.unit}</td>
-                      <td data-label="CURRENT STOCK" style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
-                      <td data-label="MINIMUM STOCK">{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
-                      <td data-label="STATUS">
+                      <td style={{ fontWeight: '800' }}>{item.code}</td>
+                      <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
+                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
+                      <td>{item.unit || 'Kg'}</td>
+                      <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
+                      <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
+                      <td>
                         <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
                       </td>
-                      <td data-label="ACTIONS" style={{ textAlign: 'right' }}>
+                      <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button
                             className="m-theme-btn-action-green"
@@ -4745,6 +4745,100 @@ export default function PlantHeadPortal() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Raw Inventory List - Mobile Horizontal List UI */}
+        <div className="mobile-only raw-inventory-mobile-list">
+          {loadingRawInventory ? (
+            <div className="raw-inv-mobile-empty">Loading inventory...</div>
+          ) : filteredItems.length === 0 ? (
+            <div className="raw-inv-mobile-empty">No materials found matching criteria.</div>
+          ) : (
+            paginatedRawInvItems.map(item => {
+              const isOutOfStock = (item.stock ?? 0) <= 0;
+              const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) <= (item.reorderLevel ?? item.minStock ?? 0);
+              let statusText = 'IN STOCK';
+              let badgeColor = 'green';
+              if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
+              else if (isLowStock) { statusText = 'LOW STOCK'; badgeColor = 'yellow'; }
+
+              return (
+                <div
+                  key={item.id}
+                  className="raw-inv-mobile-card"
+                  onClick={(e) => {
+                    if (e.target.closest('button')) return;
+                    setSelectedInventoryItem(item);
+                    setShowDetailDrawer(true);
+                  }}
+                >
+                  {/* Top Row: Code Badge + Material Name & Status Badge */}
+                  <div className="raw-inv-card-header">
+                    <div className="raw-inv-card-title-box">
+                      <span className="raw-inv-code-pill">{item.code || 'N/A'}</span>
+                      <span className="raw-inv-material-title">{item.material}</span>
+                    </div>
+                    <span className={`m-theme-badge m-theme-badge-${badgeColor} raw-inv-status-pill`}>
+                      {statusText}
+                    </span>
+                  </div>
+
+                  {/* Horizontal Meta & Stock Metrics Row */}
+                  <div className="raw-inv-card-metrics-row">
+                    <div className="raw-inv-meta-col">
+                      <span className="raw-inv-category-text">{item.category || 'Raw Material'}</span>
+                      <span className="raw-inv-reorder-text">Min: {(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()} {item.unit || 'Kg'}</span>
+                    </div>
+                    <div className="raw-inv-stock-col">
+                      <span className="raw-inv-stock-tag">CURRENT STOCK</span>
+                      <span className={`raw-inv-stock-number raw-inv-stock-${badgeColor}`}>
+                        {(item.stock ?? 0).toLocaleString()} <span className="raw-inv-stock-unit">{item.unit || 'Kg'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bottom Row: 4 Action Buttons */}
+                  <div className="raw-inv-card-actions-row">
+                    <button
+                      type="button"
+                      className="m-theme-btn-action-green raw-inv-action-btn raw-inv-btn-in"
+                      onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
+                      title="Stock In"
+                    >
+                      + In
+                    </button>
+                    <button
+                      type="button"
+                      className="m-theme-btn-action-gray raw-inv-action-btn"
+                      onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
+                      title="Stock Out"
+                    >
+                      - Out
+                    </button>
+                    <button
+                      type="button"
+                      className="m-theme-btn-action-gray raw-inv-action-btn"
+                      onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
+                      title="Adjust Stock"
+                    >
+                      Adj
+                    </button>
+                    <button
+                      type="button"
+                      className="m-theme-btn-action-gray raw-inv-action-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate.push(`/plant-head/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`);
+                      }}
+                      title="Edit Material"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         <PaginationControl
