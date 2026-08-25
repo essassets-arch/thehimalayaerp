@@ -304,111 +304,276 @@ export default function SalesAnalyticsPage() {
           </div>
         </div>
 
-        <div className="sa-table-wrapper" style={{ marginTop: 16 }}>
-          {performanceView === 'overall' && (
-            <table className="sa-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Salesperson</th>
-                  <th>Leads</th>
-                  <th>Orders</th>
-                  <th>Order Value</th>
-                  <th>Collected</th>
-                  <th>Outstanding</th>
-                  <th>Overdue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboardFiltered.map((row) => (
-                  <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
-                    <td className="bold">{row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : row.rank}</td>
-                    <td>
-                      <div className="bold">{row.salespersonName}</div>
-                      <div className="sub">{row.email}</div>
-                    </td>
-                    <td>{row.leads?.total}</td>
-                    <td>{row.orders?.confirmed}</td>
-                    <td>{formatCurrency(row.orders?.confirmedValue)}</td>
-                    <td className="bold text-success">{formatCurrency(row.payments?.verifiedCollected)}</td>
-                    <td>{formatCurrency(row.payments?.outstanding)}</td>
-                    <td className="text-danger">{formatCurrency(row.payments?.overdue)}</td>
+        {/* Desktop Table View */}
+        <div className="desktop-only">
+          <div className="sa-table-wrapper" style={{ marginTop: 16 }}>
+            {performanceView === 'overall' && (
+              <table className="sa-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Salesperson</th>
+                    <th>Leads</th>
+                    <th>Orders</th>
+                    <th>Order Value</th>
+                    <th>Collected</th>
+                    <th>Outstanding</th>
+                    <th>Overdue</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {leaderboardFiltered.map((row) => (
+                    <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
+                      <td className="bold">{row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : row.rank}</td>
+                      <td>
+                        <div className="bold">{row.salespersonName}</div>
+                        <div className="sub">{row.email}</div>
+                      </td>
+                      <td>{row.leads?.total}</td>
+                      <td>{row.orders?.confirmed}</td>
+                      <td>{formatCurrency(row.orders?.confirmedValue)}</td>
+                      <td className="bold text-success">{formatCurrency(row.payments?.verifiedCollected)}</td>
+                      <td>{formatCurrency(row.payments?.outstanding)}</td>
+                      <td className="text-danger">{formatCurrency(row.payments?.overdue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
-          {performanceView === 'orders' && (
-            <table className="sa-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Salesperson</th>
-                  <th>Confirmed Orders</th>
-                  <th>Delivered</th>
-                  <th>Completed</th>
-                  <th>Pending</th>
-                  <th>Order Value</th>
-                  <th>Avg Order</th>
-                  <th>Conversion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboardFiltered.map((row) => (
-                  <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
-                    <td className="bold">{row.rank}</td>
-                    <td>
-                      <div className="bold">{row.salespersonName}</div>
-                      <div className="sub">{row.email}</div>
-                    </td>
-                    <td>{row.orders?.confirmed}</td>
-                    <td>{row.orders?.delivered}</td>
-                    <td>{row.orders?.closed}</td>
-                    <td>{row.orders?.pending}</td>
-                    <td className="bold">{formatCurrency(row.orders?.confirmedValue)}</td>
-                    <td>{formatCurrency(row.orders?.averageOrderValue)}</td>
-                    <td>{row.conversion?.leadToOrder}%</td>
+            {performanceView === 'orders' && (
+              <table className="sa-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Salesperson</th>
+                    <th>Confirmed Orders</th>
+                    <th>Delivered</th>
+                    <th>Completed</th>
+                    <th>Pending</th>
+                    <th>Order Value</th>
+                    <th>Avg Order</th>
+                    <th>Conversion</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {leaderboardFiltered.map((row) => (
+                    <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
+                      <td className="bold">{row.rank}</td>
+                      <td>
+                        <div className="bold">{row.salespersonName}</div>
+                        <div className="sub">{row.email}</div>
+                      </td>
+                      <td>{row.orders?.confirmed}</td>
+                      <td>{row.orders?.delivered}</td>
+                      <td>{row.orders?.closed}</td>
+                      <td>{row.orders?.pending}</td>
+                      <td className="bold">{formatCurrency(row.orders?.confirmedValue)}</td>
+                      <td>{formatCurrency(row.orders?.averageOrderValue)}</td>
+                      <td>{row.conversion?.leadToOrder}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
-          {performanceView === 'payments' && (
-            <table className="sa-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Salesperson</th>
-                  <th>Order Value</th>
-                  <th>Collected</th>
-                  <th>Collection %</th>
-                  <th>Coverage %</th>
-                  <th>Outstanding</th>
-                  <th>Overdue</th>
-                  <th>Fully Paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboardFiltered.map((row) => (
-                  <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
-                    <td className="bold">{row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : row.rank}</td>
-                    <td>
-                      <div className="bold">{row.salespersonName}</div>
-                      <div className="sub">{row.email}</div>
-                    </td>
-                    <td>{formatCurrency(row.orders?.confirmedValue)}</td>
-                    <td className="bold text-success">{formatCurrency(row.payments?.verifiedCollected)}</td>
-                    <td className="bold">{row.payments?.collectionRate != null ? `${row.payments.collectionRate}%` : '—'}</td>
-                    <td className="sub">{row.payments?.orderCollectionCoverage}%</td>
-                    <td>{formatCurrency(row.payments?.outstanding)}</td>
-                    <td className="text-danger">{formatCurrency(row.payments?.overdue)}</td>
-                    <td className="bold text-success">{row.payments?.fullyPaidOrders}</td>
+            {performanceView === 'payments' && (
+              <table className="sa-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Salesperson</th>
+                    <th>Order Value</th>
+                    <th>Collected</th>
+                    <th>Collection %</th>
+                    <th>Coverage %</th>
+                    <th>Outstanding</th>
+                    <th>Overdue</th>
+                    <th>Fully Paid</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {leaderboardFiltered.map((row) => (
+                    <tr key={row.userId} onClick={() => setSelectedSalesperson(row)} className="clickable">
+                      <td className="bold">{row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : row.rank}</td>
+                      <td>
+                        <div className="bold">{row.salespersonName}</div>
+                        <div className="sub">{row.email}</div>
+                      </td>
+                      <td>{formatCurrency(row.orders?.confirmedValue)}</td>
+                      <td className="bold text-success">{formatCurrency(row.payments?.verifiedCollected)}</td>
+                      <td className="bold">{row.payments?.collectionRate != null ? `${row.payments.collectionRate}%` : '—'}</td>
+                      <td className="sub">{row.payments?.orderCollectionCoverage}%</td>
+                      <td>{formatCurrency(row.payments?.outstanding)}</td>
+                      <td className="text-danger">{formatCurrency(row.payments?.overdue)}</td>
+                      <td className="bold text-success">{row.payments?.fullyPaidOrders}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Horizontal Card List View */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 16 }}>
+          {leaderboardFiltered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+              No salespeople matched your filter.
+            </div>
+          ) : (
+            leaderboardFiltered.map((row) => {
+              const rankDisplay = row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : `#${row.rank}`;
+              const rankColor = row.rank === 1 ? '#d97706' : row.rank === 2 ? '#64748b' : row.rank === 3 ? '#b45309' : '#0284c7';
+              const rankBg = row.rank === 1 ? '#fef3c7' : row.rank === 2 ? '#f1f5f9' : row.rank === 3 ? '#ffedd5' : '#e0f2fe';
+              return (
+                <div
+                  key={row.userId}
+                  onClick={() => setSelectedSalesperson(row)}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 900, background: rankBg, color: rankColor, padding: '4px 10px', borderRadius: '8px', border: `1px solid ${rankColor}33`, whiteSpace: 'nowrap' }}>
+                        {rankDisplay}
+                      </span>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.salespersonName}</strong>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '1px' }}>{row.email}</div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 700 }}>Inspect →</span>
+                  </div>
+
+                  {/* Overall View Grid */}
+                  {performanceView === 'overall' && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      gap: '8px',
+                      textAlign: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Leads / Orders</span>
+                        <strong style={{ fontSize: '12px', color: '#0f172a' }}>{row.leads?.total || 0} / {row.orders?.confirmed || 0}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Order Value</span>
+                        <strong style={{ fontSize: '12px', color: '#0f172a' }}>{formatCurrency(row.orders?.confirmedValue || 0)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Collected</span>
+                        <strong style={{ fontSize: '12px', color: '#16a34a' }}>{formatCurrency(row.payments?.verifiedCollected || 0)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                        <strong style={{ fontSize: '11.5px', color: '#ea580c' }}>{formatCurrency(row.payments?.outstanding || 0)}</strong>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Overdue</span>
+                        <strong style={{ fontSize: '11.5px', color: (row.payments?.overdue || 0) > 0 ? '#ef4444' : '#64748b' }}>
+                          {formatCurrency(row.payments?.overdue || 0)}
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Order Wise View Grid */}
+                  {performanceView === 'orders' && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      gap: '8px',
+                      textAlign: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Confirmed</span>
+                        <strong style={{ fontSize: '12px', color: '#0f172a' }}>{row.orders?.confirmed || 0}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Delivered</span>
+                        <strong style={{ fontSize: '12px', color: '#2563eb' }}>{row.orders?.delivered || 0}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Closed / Done</span>
+                        <strong style={{ fontSize: '12px', color: '#16a34a' }}>{row.orders?.closed || 0}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Order Value</span>
+                        <strong style={{ fontSize: '11.5px', color: '#0f172a' }}>{formatCurrency(row.orders?.confirmedValue || 0)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Avg Order</span>
+                        <strong style={{ fontSize: '11.5px', color: '#64748b' }}>{formatCurrency(row.orders?.averageOrderValue || 0)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Conversion %</span>
+                        <strong style={{ fontSize: '11.5px', color: '#7c3aed' }}>{row.conversion?.leadToOrder || 0}%</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Wise View Grid */}
+                  {performanceView === 'payments' && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      gap: '8px',
+                      textAlign: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Order Value</span>
+                        <strong style={{ fontSize: '11.5px', color: '#0f172a' }}>{formatCurrency(row.orders?.confirmedValue || 0)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Collected</span>
+                        <strong style={{ fontSize: '12px', color: '#16a34a' }}>{formatCurrency(row.payments?.verifiedCollected || 0)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Collection %</span>
+                        <strong style={{ fontSize: '11.5px', color: '#2563eb' }}>{row.payments?.collectionRate != null ? `${row.payments.collectionRate}%` : '—'}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                        <strong style={{ fontSize: '11.5px', color: '#ea580c' }}>{formatCurrency(row.payments?.outstanding || 0)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Overdue</span>
+                        <strong style={{ fontSize: '11.5px', color: (row.payments?.overdue || 0) > 0 ? '#ef4444' : '#64748b' }}>
+                          {formatCurrency(row.payments?.overdue || 0)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Fully Paid</span>
+                        <strong style={{ fontSize: '11.5px', color: '#16a34a' }}>{row.payments?.fullyPaidOrders || 0} Orders</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
@@ -416,35 +581,111 @@ export default function SalesAnalyticsPage() {
       {/* ── SALES LIFECYCLE FUNNEL ── */}
       <div className="sa-card" style={{ marginBottom: 24 }}>
         <h3 className="sa-card-title">Sales O2C Funnel Visualizer</h3>
-        <div className="sa-funnel-flow">
-          <div className="sa-funnel-node">
-            <span className="label">LEADS</span>
-            <strong>{summary.leads?.total ?? 0}</strong>
-          </div>
-          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
-          <div className="sa-funnel-node">
-            <span className="label">SAMPLES SENT</span>
-            <strong>{samples.summary?.total ?? 0}</strong>
-          </div>
-          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
-          <div className="sa-funnel-node">
-            <span className="label">QUOTATIONS</span>
-            <strong>{summary.quotations?.total ?? 0}</strong>
-            <span className="sub">{formatCurrency(summary.quotations?.value ?? 0)}</span>
-          </div>
-          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
-          <div className="sa-funnel-node">
-            <span className="label">CONFIRMED ORDERS</span>
-            <strong>{summary.orders?.total ?? 0}</strong>
-            <span className="sub">{formatCurrency(summary.orders?.value ?? 0)}</span>
-          </div>
-          <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
-          <div className="sa-funnel-node">
-            <span className="label">FULLY PAID</span>
-            <strong>{leaderboardFiltered.reduce((sum, item) => sum + item.payments.fullyPaidOrders, 0)} Orders</strong>
-            <span className="sub">{formatCurrency(collectedAmount)}</span>
+        
+        {/* Desktop Visual Funnel Flow */}
+        <div className="desktop-only">
+          <div className="sa-funnel-flow">
+            <div className="sa-funnel-node">
+              <span className="label">LEADS</span>
+              <strong>{summary.leads?.total ?? 0}</strong>
+            </div>
+            <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+            <div className="sa-funnel-node">
+              <span className="label">SAMPLES SENT</span>
+              <strong>{samples.summary?.total ?? 0}</strong>
+            </div>
+            <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+            <div className="sa-funnel-node">
+              <span className="label">QUOTATIONS</span>
+              <strong>{summary.quotations?.total ?? 0}</strong>
+              <span className="sub">{formatCurrency(summary.quotations?.value ?? 0)}</span>
+            </div>
+            <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+            <div className="sa-funnel-node">
+              <span className="label">CONFIRMED ORDERS</span>
+              <strong>{summary.orders?.total ?? 0}</strong>
+              <span className="sub">{formatCurrency(summary.orders?.value ?? 0)}</span>
+            </div>
+            <div className="sa-funnel-arrow"><Lucide.ArrowDown /></div>
+            <div className="sa-funnel-node">
+              <span className="label">FULLY PAID</span>
+              <strong>{leaderboardFiltered.reduce((sum, item) => sum + (item.payments?.fullyPaidOrders || 0), 0)} Orders</strong>
+              <span className="sub">{formatCurrency(collectedAmount)}</span>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Horizontal Stage Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Stage 1: Leads */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '12px' }}>1</span>
+              <div>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>LEADS</span>
+                <strong style={{ fontSize: '15px', color: '#0f172a' }}>{summary.leads?.total ?? 0}</strong>
+              </div>
+            </div>
+            <span style={{ fontSize: '11px', color: '#64748b', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px', border: '1px solid #f1f5f9', fontWeight: 600 }}>Active: {summary.leads?.active ?? 0}</span>
+          </div>
+
+          <div style={{ textAlign: 'center', fontSize: '11px', color: '#6366f1', fontWeight: 700 }}>↓ Lead → Quote: {funnel.conversions?.leadToQuote}%</div>
+
+          {/* Stage 2: Samples Sent */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '12px' }}>2</span>
+              <div>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>SAMPLES SENT</span>
+                <strong style={{ fontSize: '15px', color: '#0f172a' }}>{samples.summary?.total ?? 0}</strong>
+              </div>
+            </div>
+            <span style={{ fontSize: '11px', color: '#64748b', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px', border: '1px solid #f1f5f9', fontWeight: 600 }}>Dispatched: {samples.summary?.dispatched ?? 0}</span>
+          </div>
+
+          <div style={{ textAlign: 'center', fontSize: '11px', color: '#6366f1', fontWeight: 700 }}>↓ Sample → Quote</div>
+
+          {/* Stage 3: Quotations */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#faf5ff', color: '#9333ea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '12px' }}>3</span>
+              <div>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>QUOTATIONS</span>
+                <strong style={{ fontSize: '15px', color: '#0f172a' }}>{summary.quotations?.total ?? 0}</strong>
+              </div>
+            </div>
+            <span style={{ fontSize: '12px', color: '#9333ea', background: '#faf5ff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #f3e8ff', fontWeight: 800 }}>{formatCurrency(summary.quotations?.value ?? 0)}</span>
+          </div>
+
+          <div style={{ textAlign: 'center', fontSize: '11px', color: '#10b981', fontWeight: 700 }}>↓ Quote → Order: {funnel.conversions?.quoteToOrder}%</div>
+
+          {/* Stage 4: Confirmed Orders */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '12px' }}>4</span>
+              <div>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>CONFIRMED ORDERS</span>
+                <strong style={{ fontSize: '15px', color: '#0f172a' }}>{summary.orders?.total ?? 0}</strong>
+              </div>
+            </div>
+            <span style={{ fontSize: '12px', color: '#16a34a', background: '#f0fdf4', padding: '4px 8px', borderRadius: '6px', border: '1px solid #dcfce7', fontWeight: 800 }}>{formatCurrency(summary.orders?.value ?? 0)}</span>
+          </div>
+
+          <div style={{ textAlign: 'center', fontSize: '11px', color: '#0284c7', fontWeight: 700 }}>↓ Order → Payment Closure</div>
+
+          {/* Stage 5: Fully Paid */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '12px' }}>5</span>
+              <div>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>FULLY PAID</span>
+                <strong style={{ fontSize: '15px', color: '#0f172a' }}>{leaderboardFiltered.reduce((sum, item) => sum + (item.payments?.fullyPaidOrders || 0), 0)} Orders</strong>
+              </div>
+            </div>
+            <span style={{ fontSize: '12px', color: '#059669', background: '#ecfdf5', padding: '4px 8px', borderRadius: '6px', border: '1px solid #a7f3d0', fontWeight: 800 }}>{formatCurrency(collectedAmount)}</span>
+          </div>
+        </div>
+
         <div className="sa-funnel-rates">
           <div className="rate-item">Lead → Quote: <strong>{funnel.conversions?.leadToQuote}%</strong></div>
           <div className="rate-item">Quote → Order: <strong>{funnel.conversions?.quoteToOrder}%</strong></div>
@@ -505,29 +746,46 @@ export default function SalesAnalyticsPage() {
         <div className="sa-double-grid">
           <div>
             <h4 className="sa-sub-title">Lead Source &amp; Conversion rates</h4>
-            <div className="sa-table-wrapper">
-              <table className="sa-table small">
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Leads</th>
-                    <th>Quotations</th>
-                    <th>Orders</th>
-                    <th>Conversion %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leads.sources?.map((row, idx) => (
-                    <tr key={idx}>
-                      <td className="bold">{row.source}</td>
-                      <td>{row.leads}</td>
-                      <td>{row.quotations}</td>
-                      <td>{row.orders}</td>
-                      <td className="bold text-success">{row.conversionPct}%</td>
+            <div className="desktop-only">
+              <div className="sa-table-wrapper">
+                <table className="sa-table small">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Leads</th>
+                      <th>Quotations</th>
+                      <th>Orders</th>
+                      <th>Conversion %</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {leads.sources?.map((row, idx) => (
+                      <tr key={idx}>
+                        <td className="bold">{row.source}</td>
+                        <td>{row.leads}</td>
+                        <td>{row.quotations}</td>
+                        <td>{row.orders}</td>
+                        <td className="bold text-success">{row.conversionPct}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {leads.sources?.map((row, idx) => (
+                <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>{row.source}</strong>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                      {row.leads} Leads • {row.quotations} Quotes • {row.orders} Orders
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px' }}>
+                    {row.conversionPct}%
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -597,36 +855,63 @@ export default function SalesAnalyticsPage() {
       {/* ── CROSS DEPARTMENT FULFILLMENT RISK ── */}
       <div className="sa-card" style={{ marginBottom: 24 }}>
         <h3 className="sa-card-title">Fulfillment Commitment Risks</h3>
-        <div className="sa-table-wrapper">
-          <table className="sa-table">
-            <thead>
-              <tr>
-                <th>Customer</th>
-                <th>Order No</th>
-                <th>Target Date</th>
-                <th>Current stage</th>
-                <th>Delay (Days)</th>
-                <th>Salesperson Owner</th>
-              </tr>
-            </thead>
-            <tbody>
-              {risks.customerCommitments?.map((row, idx) => (
-                <tr key={idx}>
-                  <td className="bold">{row.customer}</td>
-                  <td className="text-blue">{row.orderNo}</td>
-                  <td>{row.targetDate}</td>
-                  <td><span className="badge badge-warning">{row.stage}</span></td>
-                  <td className="bold text-danger">{row.delay} Days</td>
-                  <td>{row.owner}</td>
-                </tr>
-              ))}
-              {(!risks.customerCommitments || risks.customerCommitments.length === 0) && (
+        <div className="desktop-only">
+          <div className="sa-table-wrapper">
+            <table className="sa-table">
+              <thead>
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', color: '#10b981', fontWeight: 'bold' }}>✓ All customer commitments are fully on-time and in-schedule.</td>
+                  <th>Customer</th>
+                  <th>Order No</th>
+                  <th>Target Date</th>
+                  <th>Current stage</th>
+                  <th>Delay (Days)</th>
+                  <th>Salesperson Owner</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {risks.customerCommitments?.map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="bold">{row.customer}</td>
+                    <td className="text-blue">{row.orderNo}</td>
+                    <td>{row.targetDate}</td>
+                    <td><span className="badge badge-warning">{row.stage}</span></td>
+                    <td className="bold text-danger">{row.delay} Days</td>
+                    <td>{row.owner}</td>
+                  </tr>
+                ))}
+                {(!risks.customerCommitments || risks.customerCommitments.length === 0) && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', color: '#10b981', fontWeight: 'bold' }}>✓ All customer commitments are fully on-time and in-schedule.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {(!risks.customerCommitments || risks.customerCommitments.length === 0) ? (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#10b981', fontWeight: 'bold', fontSize: '12.5px' }}>
+              ✓ All customer commitments are fully on-time and in-schedule.
+            </div>
+          ) : (
+            risks.customerCommitments.map((row, idx) => (
+              <div key={idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{row.customer}</strong>
+                    <div style={{ fontSize: '11.5px', color: '#2563eb', fontWeight: 700 }}>{row.orderNo}</div>
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '2px 8px', borderRadius: '12px' }}>
+                    {row.delay} Days Delay
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px' }}>
+                  <span>Stage: <strong>{row.stage}</strong></span>
+                  <span>Owner: <strong>{row.owner}</strong></span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

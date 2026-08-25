@@ -291,7 +291,17 @@ export default function GoodsReceiptNote() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .grn-list-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .grn-form-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
       
       {/* Header Row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '4px' }}>
@@ -301,7 +311,7 @@ export default function GoodsReceiptNote() {
             Verify shipments arriving at the warehouse gate, log quantities, and commit to inventory.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
             onClick={() => { setActiveTab('GRN List'); setSelectedGRNDetail(null); }}
             style={{
@@ -341,9 +351,9 @@ export default function GoodsReceiptNote() {
       {activeTab === 'GRN List' ? (
         
         /* Tab 1: GRN List & History */
-        <div style={{ display: 'grid', gridTemplateColumns: selectedGRNDetail ? '1fr 400px' : '1fr', gap: '20px', alignItems: 'start' }}>
+        <div className="grn-list-grid" style={{ display: 'grid', gridTemplateColumns: selectedGRNDetail ? '1fr 400px' : '1fr', gap: '20px', alignItems: 'start' }}>
           
-          <div className="app-card" style={{ overflow: 'hidden' }}>
+          <div className="app-card store-table-scroll-wrapper" style={{ overflow: 'hidden' }}>
             <DataTable
               scrollMode={true}
               columns={[
@@ -456,7 +466,7 @@ export default function GoodsReceiptNote() {
             
             <h3 style={{ fontSize: '16px', fontWeight: '800', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px', margin: 0 }}>Log Arrivals & Inspection</h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="grn-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ fontWeight: '700' }}>Select Purchase Order *</label>
                 <select 
@@ -492,7 +502,7 @@ export default function GoodsReceiptNote() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="grn-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ fontWeight: '700' }}>Delivery Challan / Invoice No</label>
                 <input 

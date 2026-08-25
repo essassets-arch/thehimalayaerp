@@ -593,7 +593,7 @@ export const StoreDashboard = () => {
   };
 
   return (
-    <div className="store-dashboard-wrapper">
+    <div className="store-dashboard-wrapper m-theme-container">
       <style>{`
         .store-dashboard-wrapper {
           padding: 24px;
@@ -602,6 +602,8 @@ export const StoreDashboard = () => {
           font-family: 'Inter', sans-serif;
           color: #1e293b;
           box-sizing: border-box;
+          max-width: 100%;
+          overflow-x: hidden;
         }
         .store-dashboard-header {
           display: flex;
@@ -653,46 +655,85 @@ export const StoreDashboard = () => {
           border: 1px solid #e2e8f0;
           box-shadow: 0 4px 14px rgba(0,0,0,0.03);
           box-sizing: border-box;
+          max-width: 100%;
+          overflow-x: hidden;
         }
 
         @media (max-width: 768px) {
           .store-dashboard-wrapper {
-            padding: 14px !important;
+            padding: 14px 12px !important;
           }
           .store-dashboard-header {
             flex-direction: column !important;
-            align-items: flex-start !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+          }
+          .store-dashboard-header h1 {
+            font-size: 19px !important;
           }
           .store-dashboard-header-actions {
             width: 100% !important;
             display: flex !important;
-            gap: 10px !important;
+            flex-direction: row !important;
+            gap: 8px !important;
           }
           .store-dashboard-header-actions button {
             flex: 1 !important;
             justify-content: center !important;
+            padding: 9px 10px !important;
+            font-size: 12px !important;
           }
           .store-dashboard-kpi-grid {
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 10px !important;
           }
+          .store-dashboard-2col-grid {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+          }
           .store-dashboard-filter-group {
             width: 100% !important;
+            display: flex !important;
             flex-direction: column !important;
             align-items: stretch !important;
+            gap: 8px !important;
           }
           .store-dashboard-filter-select {
             width: 100% !important;
           }
           .store-dashboard-attention-grid {
             grid-template-columns: 1fr !important;
+            gap: 10px !important;
           }
           .store-chart-card {
-            padding: 16px !important;
+            padding: 14px 12px !important;
+            border-radius: 14px !important;
           }
         }
 
         @media (max-width: 480px) {
+          .store-dashboard-wrapper {
+            padding: 10px 8px !important;
+          }
+          .store-dashboard-header h1 {
+            font-size: 17px !important;
+          }
+          .store-dashboard-header-actions {
+            flex-direction: column !important;
+          }
+          .store-dashboard-header-actions button {
+            width: 100% !important;
+          }
+          .store-dashboard-kpi-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .store-dashboard-wrapper {
+            padding: 8px 6px !important;
+          }
           .store-dashboard-kpi-grid {
             grid-template-columns: 1fr !important;
           }
@@ -1082,7 +1123,7 @@ export const StoreDashboard = () => {
           <BarChart
             layout="vertical"
             data={topMaterialsConsumed}
-            margin={{ top: 5, right: 20, left: isMobile ? 85 : 130, bottom: 5 }}
+            margin={{ top: 5, right: 15, left: isMobile ? 75 : 130, bottom: 5 }}
             onClick={(state) => {
               if (state && state.activePayload && state.activePayload.length > 0) {
                 setSelectedMaterialDetail(state.activePayload[0].payload);
@@ -1095,8 +1136,9 @@ export const StoreDashboard = () => {
               type="category"
               dataKey="name"
               stroke="#0f172a"
-              tick={{ fontSize: 11, fontWeight: 700 }}
-              width={isMobile ? 85 : 130}
+              tick={{ fontSize: isMobile ? 10 : 11, fontWeight: 700 }}
+              tickFormatter={(name) => isMobile && (name || '').length > 10 ? (name || '').slice(0, 9) + '…' : name}
+              width={isMobile ? 75 : 130}
             />
             <Tooltip
               contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px', fontWeight: '700' }}
@@ -1218,7 +1260,8 @@ export const StoreDashboard = () => {
           </div>
         </div>
 
-        <div className="erp-table-responsive" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+        {/* Desktop Table View */}
+        <div className="desktop-only erp-table-responsive store-table-scroll-wrapper" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
           <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', textTransform: 'uppercase', fontSize: '11.5px' }}>
@@ -1234,7 +1277,7 @@ export const StoreDashboard = () => {
             </thead>
             <tbody>
               {consumptionTableData.map((row, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}>
+                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.15s' }} onClick={() => setSelectedMaterialDetail(row)}>
                   <td style={{ padding: '12px 14px', fontWeight: '900', fontFamily: 'monospace', color: '#0284c7' }}>
                     {row.code}
                   </td>
@@ -1273,6 +1316,82 @@ export const StoreDashboard = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Horizontal Card List */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
+          {consumptionTableData.map((row, idx) => (
+            <div
+              key={idx}
+              className="raw-inv-mobile-card"
+              onClick={() => setSelectedMaterialDetail(row)}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: '11px', fontWeight: 900, fontFamily: 'monospace', color: '#0284c7', background: '#eff6ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block', marginBottom: '2px' }}>
+                    {row.code}
+                  </span>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>{row.name}</div>
+                </div>
+                <span style={{
+                  background: row.status === 'Healthy' ? '#dcfce7' : row.status === 'Near Min' ? '#ffedd5' : '#fee2e2',
+                  color: row.status === 'Healthy' ? '#15803d' : row.status === 'Near Min' ? '#c2410c' : '#b91c1c',
+                  padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: 800, flexShrink: 0
+                }}>
+                  {row.status}
+                </span>
+              </div>
+
+              {/* 4-Metric Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                background: '#f8fafc',
+                border: '1px solid #f1f5f9',
+                borderRadius: '8px',
+                padding: '6px 8px',
+                gap: '4px',
+                textAlign: 'center'
+              }}>
+                <div>
+                  <div style={{ fontSize: '9px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Opening</div>
+                  <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155', marginTop: '2px' }}>{row.opening}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>In</div>
+                  <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#166534', marginTop: '2px' }}>+{row.received}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>Issued</div>
+                  <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>-{row.issued}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', fontWeight: 800, color: '#d97706', textTransform: 'uppercase' }}>Returns</div>
+                  <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#d97706', marginTop: '2px' }}>+{row.returnQty}</div>
+                </div>
+              </div>
+
+              {/* Closing Stock Footer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Tap to view ledger</span>
+                <div>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginRight: '6px' }}>Closing:</span>
+                  <span style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a' }}>{row.closing} <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{row.unit}</span></span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

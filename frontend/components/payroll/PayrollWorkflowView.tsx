@@ -348,7 +348,8 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
             </div>
           )}
         </div>
-        <div className="table-wrap">
+        {/* Desktop Table View */}
+        <div className="desktop-only table-wrap">
           <table>
             <thead>
               <tr>
@@ -415,6 +416,111 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View Horizontal List Cards */}
+        <div className="mobile-only payroll-mobile-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px' }}>
+          {loading && <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>⏳ Loading payroll records…</div>}
+          {!loading && error && <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }}><button onClick={load}>Retry</button> {error}</div>}
+          {!loading && !error && !safeRecords.length && (
+            <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b', fontSize: '13px' }}>
+              No payroll records found for this stage and month.
+            </div>
+          )}
+          {safeRecords.map((record) => (
+            <div
+              key={record.id || Math.random()}
+              className="payroll-mobile-card"
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '14px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              {/* Header: Employee Name + ID + Month & Status */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                <div>
+                  <button
+                    className="emp-name-btn"
+                    onClick={() => setExpanded(expanded === record.id ? '' : record.id)}
+                    style={{ fontSize: '14px', fontWeight: 800, color: '#0284c7' }}
+                  >
+                    {empName(record)}
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                    <code className="emp-code-badge">{empCode(record)}</code>
+                    <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>• {periodStr(record)}</span>
+                  </div>
+                </div>
+                <span className={`status status-${(record.status || 'DRAFT').toLowerCase()}`}>
+                  {(record.status || 'DRAFT').replaceAll('_', ' ')}
+                </span>
+              </div>
+
+              {/* Department & Attendance */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#475569' }}>
+                <div>
+                  <span style={{ color: '#64748b' }}>Dept: </span>
+                  <strong>{empDept(record)}</strong>
+                </div>
+                <div>
+                  <span>Working: <strong>{record.standardWorkingDays || 25}d</strong></span>
+                  <span style={{ marginLeft: '6px', color: '#16a34a' }}>Paid: <strong>{record.payableDays || 0}d</strong></span>
+                  {Number(record.unpaidLeaveDays || 0) > 0 && (
+                    <span style={{ marginLeft: '6px', color: '#dc2626' }}>Unpaid: <strong>{record.unpaidLeaveDays}d</strong></span>
+                  )}
+                </div>
+              </div>
+
+              {/* 3-Column Financial Breakdown Strip */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                background: '#f8fafc',
+                border: '1px solid #f1f5f9',
+                borderRadius: '8px',
+                padding: '8px',
+                gap: '4px',
+                textAlign: 'center',
+              }}>
+                <div>
+                  <span style={{ fontSize: '10px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Gross</span>
+                  <strong style={{ fontSize: '12px', color: '#1e293b' }}>{money(record.grossEarnings)}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '10px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Deductions</span>
+                  <strong style={{ fontSize: '12px', color: '#ef4444' }}>{money(record.totalDeductions)}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '10px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Net Payable</span>
+                  <strong style={{ fontSize: '12px', color: '#0284c7' }}>{money(record.netPayable)}</strong>
+                </div>
+              </div>
+
+              {/* Expanded Breakdown Drawer if clicked */}
+              {expanded === record.id && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', fontSize: '12px' }}>
+                  <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>Salary Calculation Breakdown:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    <div>Basic: <strong>{money(record.basicSalary)}</strong></div>
+                    <div>HRA: <strong>{money(record.hra)}</strong></div>
+                    <div>PF: <strong>{money(record.pfDeduction)}</strong></div>
+                    <div>ESIC: <strong>{money(record.esicDeduction)}</strong></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '8px', display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '6px' }}>
+                {actions(record)}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
     </main>

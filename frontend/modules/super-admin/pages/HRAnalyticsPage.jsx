@@ -249,33 +249,58 @@ export default function HRAnalyticsPage() {
               <div style={{ fontSize: 22, fontWeight: 900, color: '#e11d48' }}>{attendance.today?.earlyExit ?? 0}</div>
             </div>
           </div>
-          <div className="hr-table-frame" style={{ maxHeight: 220 }}>
-            <table className="hr-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Department</th>
-                  <th>Punch In</th>
-                  <th>Punch Out</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendance.lateArrivals?.list?.map((row, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{row.name}</strong></td>
-                    <td>{row.department}</td>
-                    <td>{row.time}</td>
-                    <td>{row.punchOut || '—'}</td>
-                    <td>
-                      <span className={`hr-status-pill ${row.lateMinutes > 0 ? 'pending' : 'active'}`}>
-                        {row.lateMinutes > 0 ? `Late ${row.lateMinutes}m` : 'Present'}
-                      </span>
-                    </td>
+          <div className="desktop-only">
+            <div className="hr-table-frame" style={{ maxHeight: 220 }}>
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Punch In</th>
+                    <th>Punch Out</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {attendance.lateArrivals?.list?.map((row, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{row.name}</strong></td>
+                      <td>{row.department}</td>
+                      <td>{row.time}</td>
+                      <td>{row.punchOut || '—'}</td>
+                      <td>
+                        <span className={`hr-status-pill ${row.lateMinutes > 0 ? 'pending' : 'active'}`}>
+                          {row.lateMinutes > 0 ? `Late ${row.lateMinutes}m` : 'Present'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {(!attendance.lateArrivals?.list || attendance.lateArrivals.list.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
+                No active punches recorded for today.
+              </div>
+            ) : (
+              attendance.lateArrivals.list.map((row, idx) => (
+                <div key={idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{row.name}</strong>
+                    <span className={`hr-status-pill ${row.lateMinutes > 0 ? 'pending' : 'active'}`} style={{ fontSize: '10.5px' }}>
+                      {row.lateMinutes > 0 ? `Late ${row.lateMinutes}m` : 'Present'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px' }}>
+                    <span>Dept: <strong>{row.department}</strong></span>
+                    <span>Punch: <strong>{row.time || '—'}</strong> to <strong>{row.punchOut || '—'}</strong></span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -283,38 +308,94 @@ export default function HRAnalyticsPage() {
           <div className="hr-card-header">
             <h3 className="hr-card-title">Department-Wise Attendance</h3>
           </div>
-          <div className="hr-table-frame" style={{ maxHeight: 310 }}>
-            <table className="hr-table">
-              <thead>
-                <tr>
-                  <th>Department</th>
-                  <th>Expected</th>
-                  <th>Present</th>
-                  <th>Absent</th>
-                  <th>Leave</th>
-                  <th>Present %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendance.departmentWise?.map((row, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{row.department}</strong></td>
-                    <td>{row.employees}</td>
-                    <td>{row.present}</td>
-                    <td style={{ color: '#ef4444' }}>{row.absent}</td>
-                    <td>{row.leave}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{row.rate}%</span>
-                        <div className="hr-progress-container" style={{ width: 60 }}>
-                          <div className="hr-progress-fill" style={{ width: `${row.rate}%`, background: row.rate > 90 ? '#16a34a' : '#d97706' }} />
-                        </div>
-                      </div>
-                    </td>
+          <div className="desktop-only">
+            <div className="hr-table-frame" style={{ maxHeight: 310 }}>
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Department</th>
+                    <th>Expected</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Leave</th>
+                    <th>Present %</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {attendance.departmentWise?.map((row, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{row.department}</strong></td>
+                      <td>{row.employees}</td>
+                      <td>{row.present}</td>
+                      <td style={{ color: '#ef4444' }}>{row.absent}</td>
+                      <td>{row.leave}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>{row.rate}%</span>
+                          <div className="hr-progress-container" style={{ width: 60 }}>
+                            <div className="hr-progress-fill" style={{ width: `${row.rate}%`, background: row.rate > 90 ? '#16a34a' : '#d97706' }} />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {attendance.departmentWise?.map((row, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{row.department}</strong>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: row.rate >= 90 ? '#16a34a' : '#d97706', background: row.rate >= 90 ? '#dcfce7' : '#fef3c7', padding: '2px 8px', borderRadius: '12px' }}>
+                    {row.rate}% Present
+                  </span>
+                </div>
+                <div className="hr-progress-container" style={{ width: '100%', height: '5px' }}>
+                  <div className="hr-progress-fill" style={{ width: `${row.rate}%`, background: row.rate >= 90 ? '#16a34a' : '#d97706' }} />
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  background: '#f8fafc',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: '6px',
+                  padding: '6px 4px',
+                  gap: '2px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Expected</span>
+                    <strong style={{ fontSize: '11px', color: '#0f172a' }}>{row.employees}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', display: 'block' }}>Present</span>
+                    <strong style={{ fontSize: '11px', color: '#16a34a' }}>{row.present}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', display: 'block' }}>Absent</span>
+                    <strong style={{ fontSize: '11px', color: '#ef4444' }}>{row.absent}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Leave</span>
+                    <strong style={{ fontSize: '11px', color: '#64748b' }}>{row.leave}</strong>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -433,33 +514,52 @@ export default function HRAnalyticsPage() {
           <div className="hr-card-header">
             <h3 className="hr-card-title">Leave Calendar & Availability Risks</h3>
           </div>
-          <div className="hr-table-frame">
-            <table className="hr-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Leaves Active</th>
-                  <th>Risk Level</th>
-                  <th>Department Breakdown</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leave.trends?.map((day, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{day.date}</strong></td>
-                    <td style={{ fontWeight: 'bold' }}>{day.leaves} Employees</td>
-                    <td>
-                      <span className={`hr-status-pill ${day.leaves > 3 ? 'rose' : day.leaves > 1 ? 'pending' : 'active'}`}>
-                        {day.leaves > 3 ? 'High Staffing Risk' : day.leaves > 1 ? 'Moderate' : 'Healthy'}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 11.5, color: '#64748b' }}>
-                      {Object.entries(day.breakdown || {}).map(([dept, count]) => `${dept}: ${count}`).join(', ') || 'None'}
-                    </td>
+          <div className="desktop-only">
+            <div className="hr-table-frame">
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Leaves Active</th>
+                    <th>Risk Level</th>
+                    <th>Department Breakdown</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {leave.trends?.map((day, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{day.date}</strong></td>
+                      <td style={{ fontWeight: 'bold' }}>{day.leaves} Employees</td>
+                      <td>
+                        <span className={`hr-status-pill ${day.leaves > 3 ? 'rose' : day.leaves > 1 ? 'pending' : 'active'}`}>
+                          {day.leaves > 3 ? 'High Staffing Risk' : day.leaves > 1 ? 'Moderate' : 'Healthy'}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 11.5, color: '#64748b' }}>
+                        {Object.entries(day.breakdown || {}).map(([dept, count]) => `${dept}: ${count}`).join(', ') || 'None'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {leave.trends?.map((day, idx) => (
+              <div key={idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{day.date}</strong>
+                  <span className={`hr-status-pill ${day.leaves > 3 ? 'rose' : day.leaves > 1 ? 'pending' : 'active'}`} style={{ fontSize: '10.5px' }}>
+                    {day.leaves > 3 ? 'High Risk' : day.leaves > 1 ? 'Moderate' : 'Healthy'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px' }}>
+                  <span>Active Leaves: <strong>{day.leaves} Staff</strong></span>
+                  <span>Dept: <strong>{Object.entries(day.breakdown || {}).map(([dept, count]) => `${dept} (${count})`).join(', ') || 'None'}</strong></span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -513,27 +613,49 @@ export default function HRAnalyticsPage() {
               <div style={{ fontSize: 16, fontWeight: 900, color: '#d97706' }}>{employeeDataQuality.missingFieldCounts?.manager ?? 0}</div>
             </div>
           </div>
-          <div className="hr-table-frame" style={{ maxHeight: 180 }}>
-            <table className="hr-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Department</th>
-                  <th>Missing Statutory Records</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employeeDataQuality.incompleteRecords?.map((item, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{item.name}</strong></td>
-                    <td>{item.department}</td>
-                    <td style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 11.5 }}>
-                      {item.missingFields?.join(', ')}
-                    </td>
+          <div className="desktop-only">
+            <div className="hr-table-frame" style={{ maxHeight: 180 }}>
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Missing Statutory Records</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {employeeDataQuality.incompleteRecords?.map((item, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{item.name}</strong></td>
+                      <td>{item.department}</td>
+                      <td style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 11.5 }}>
+                        {item.missingFields?.join(', ')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {(!employeeDataQuality.incompleteRecords || employeeDataQuality.incompleteRecords.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#16a34a', fontSize: '12.5px', fontStyle: 'italic' }}>
+                ✓ All employee statutory records are 100% complete.
+              </div>
+            ) : (
+              employeeDataQuality.incompleteRecords.map((item, idx) => (
+                <div key={idx} style={{ background: '#ffffff', border: '1px solid #fee2e2', borderRadius: '10px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{item.name}</strong>
+                    <div style={{ fontSize: '11.5px', color: '#64748b' }}>{item.department}</div>
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '3px 8px', borderRadius: '6px' }}>
+                    Missing: {item.missingFields?.join(', ')}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -580,36 +702,58 @@ export default function HRAnalyticsPage() {
             <h3 className="hr-card-title">Offboarding Clearance Tracker</h3>
             <span style={{ fontSize: 12, color: '#64748b' }}>Attrition: {exits.attrition?.attritionRate}</span>
           </div>
-          <div className="hr-table-frame">
-            <table className="hr-table">
-              <thead>
-                <tr>
-                  <th>Exiting Employee</th>
-                  <th>Department</th>
-                  <th>Last Working Day</th>
-                  <th>Pending Checkpoint</th>
-                  <th>Progress</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exits.clearances?.map((item, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{item.employee}</strong></td>
-                    <td>{item.department}</td>
-                    <td>{item.lastWorkingDay}</td>
-                    <td style={{ color: '#ef4444', fontWeight: 'bold' }}>{item.pendingWith}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{item.progress}%</span>
-                        <div className="hr-progress-container" style={{ width: 60 }}>
-                          <div className="hr-progress-fill" style={{ width: `${item.progress}%`, background: item.progress === 100 ? '#16a34a' : '#2563eb' }} />
-                        </div>
-                      </div>
-                    </td>
+          <div className="desktop-only">
+            <div className="hr-table-frame">
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Exiting Employee</th>
+                    <th>Department</th>
+                    <th>Last Working Day</th>
+                    <th>Pending Checkpoint</th>
+                    <th>Progress</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {exits.clearances?.map((item, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{item.employee}</strong></td>
+                      <td>{item.department}</td>
+                      <td>{item.lastWorkingDay}</td>
+                      <td style={{ color: '#ef4444', fontWeight: 'bold' }}>{item.pendingWith}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>{item.progress}%</span>
+                          <div className="hr-progress-container" style={{ width: 60 }}>
+                            <div className="hr-progress-fill" style={{ width: `${item.progress}%`, background: item.progress === 100 ? '#16a34a' : '#2563eb' }} />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {exits.clearances?.map((item, idx) => (
+              <div key={idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{item.employee}</strong>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: item.progress === 100 ? '#16a34a' : '#2563eb', background: item.progress === 100 ? '#dcfce7' : '#eff6ff', padding: '2px 8px', borderRadius: '12px' }}>
+                    {item.progress}% Clearance
+                  </span>
+                </div>
+                <div className="hr-progress-container" style={{ width: '100%', height: '5px' }}>
+                  <div className="hr-progress-fill" style={{ width: `${item.progress}%`, background: item.progress === 100 ? '#16a34a' : '#2563eb' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px' }}>
+                  <span>Last Day: <strong>{item.lastWorkingDay}</strong></span>
+                  <span>Pending: <strong style={{ color: '#dc2626' }}>{item.pendingWith}</strong></span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -702,39 +846,88 @@ export default function HRAnalyticsPage() {
         <div className="hr-card-header">
           <h3 className="hr-card-title">Staff Database Telemetry & Directory</h3>
         </div>
-        <div className="hr-table-frame">
-          <table className="hr-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>ID</th>
-                <th>Department</th>
-                <th>Designation</th>
-                <th>Location</th>
-                <th>Manager</th>
-                <th>Joined</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees.slice(0, 10).map((emp, idx) => (
-                <tr key={idx} style={{ cursor: 'pointer' }} onClick={() => setSelectedEmp(emp)}>
-                  <td><strong>{emp.fullName}</strong></td>
-                  <td><code>{emp.employeeCode}</code></td>
-                  <td>{emp.department?.name || 'Unassigned'}</td>
-                  <td>{emp.jobTitle}</td>
-                  <td>{emp.workLocation?.name || 'Factory Head'}</td>
-                  <td>{emp.reportingManager?.fullName || '—'}</td>
-                  <td>{emp.joiningDate ? emp.joiningDate.slice(0, 10) : '—'}</td>
-                  <td>
-                    <span className={`hr-status-pill ${emp.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>
-                      {emp.status}
-                    </span>
-                  </td>
+        <div className="desktop-only">
+          <div className="hr-table-frame">
+            <table className="hr-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>ID</th>
+                  <th>Department</th>
+                  <th>Designation</th>
+                  <th>Location</th>
+                  <th>Manager</th>
+                  <th>Joined</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {employees.slice(0, 10).map((emp, idx) => (
+                  <tr key={idx} style={{ cursor: 'pointer' }} onClick={() => setSelectedEmp(emp)}>
+                    <td><strong>{emp.fullName}</strong></td>
+                    <td><code>{emp.employeeCode}</code></td>
+                    <td>{emp.department?.name || 'Unassigned'}</td>
+                    <td>{emp.jobTitle}</td>
+                    <td>{emp.workLocation?.name || 'Factory Head'}</td>
+                    <td>{emp.reportingManager?.fullName || '—'}</td>
+                    <td>{emp.joiningDate ? emp.joiningDate.slice(0, 10) : '—'}</td>
+                    <td>
+                      <span className={`hr-status-pill ${emp.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>
+                        {emp.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Staff Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {employees.slice(0, 10).map((emp, idx) => (
+            <div
+              key={idx}
+              onClick={() => setSelectedEmp(emp)}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '14px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <strong style={{ fontSize: '14px', color: '#0f172a' }}>{emp.fullName}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                    <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', color: '#0284c7', fontWeight: 700 }}>
+                      {emp.employeeCode}
+                    </code>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {emp.department?.name || 'Operations'}</span>
+                  </div>
+                </div>
+                <span className={`hr-status-pill ${emp.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`} style={{ fontSize: '10.5px' }}>
+                  {emp.status}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                <div>
+                  <span>Role: </span>
+                  <strong style={{ color: '#334155' }}>{emp.jobTitle}</strong>
+                </div>
+                <div>
+                  <span>Joined: </span>
+                  <strong style={{ color: '#334155' }}>{emp.joiningDate ? emp.joiningDate.slice(0, 10) : '—'}</strong>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

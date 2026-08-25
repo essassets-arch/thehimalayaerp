@@ -52,7 +52,7 @@ export default function ResponsiveChart({
 
       // Determine robust width (never 0)
       const measuredWidth = Math.floor(
-        rect.width > 0 ? rect.width : (parentWidth > 0 ? parentWidth : Math.max(320, windowWidth * 0.45))
+        rect.width > 0 ? rect.width : (parentWidth > 0 ? parentWidth : Math.max(200, windowWidth * 0.45))
       );
 
       const is8K = windowWidth >= 5120;
@@ -66,7 +66,7 @@ export default function ResponsiveChart({
       );
 
       setDimensions({
-        width: Math.max(280, measuredWidth),
+        width: Math.max(150, measuredWidth),
         height: measuredHeight,
         is4K,
         is8K,

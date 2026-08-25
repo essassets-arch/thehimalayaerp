@@ -108,8 +108,8 @@ export default function BrandAnalysisPage() {
           </select>
         </div>
 
-        {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
+        {/* Desktop Table */}
+        <div className="desktop-only" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ background: '#f9fafb', fontSize: '13px', color: '#6b7280', textTransform: 'uppercase' }}>
               <tr>
@@ -151,6 +151,75 @@ export default function BrandAnalysisPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Horizontal Cards List */}
+        <div className="mobile-only" style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '13px' }}>Loading...</div>
+          ) : filteredRequests.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '13px' }}>No requests found.</div>
+          ) : (
+            filteredRequests.map(req => (
+              <div
+                key={req.id}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <div>
+                    <code style={{ fontSize: '12.5px', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                      {req.requestNo}
+                    </code>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      📅 {new Date(req.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <StatusBadge status={req.status} />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: '700', fontSize: '14px', color: '#0f172a' }}>{req.productName}</div>
+                    <div style={{ color: '#64748b', fontSize: '12px' }}>Brand: <strong style={{ color: '#334155' }}>{req.brandName}</strong></div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Quantity</span>
+                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>{req.quantity} {req.quantityUnit}</strong>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedRequest(req)}
+                  style={{
+                    padding: '9px 14px',
+                    background: '#2563eb',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Eye size={15} /> Review & Action
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

@@ -359,3 +359,43 @@
     align-items: flex-start;
   }
 }
+
+
+.production-qc-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .production-qc-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .production-analytics-container {
+    padding: 12px 10px !important;
+  }
+  .production-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .production-kpi-card {
+    padding: 12px !important;
+  }
+  .production-kpi-card-value {
+    font-size: 20px !important;
+  }
+  .production-double-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+  .production-card {
+    padding: 14px !important;
+  }
+  .production-qc-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+}

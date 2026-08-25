@@ -184,15 +184,15 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
     <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h2 className="card-heading" style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>Corporate Offboarding & Exit Clearance Registry</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h2 className="card-heading" style={{ fontSize: '17px', fontWeight: '800', margin: 0 }}>Corporate Offboarding & Exit Clearance Registry</h2>
             <span style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               <ShieldCheck size={13} /> Read-Only Audit Access
             </span>
           </div>
-          <span style={{ fontSize: '11px', color: '#5E6B82' }}>All employee resignation records, department clearance checkpoints, & official forms</span>
+          <span style={{ fontSize: '11px', color: '#5E6B82', display: 'block', marginTop: '2px' }}>All employee resignation records, department clearance checkpoints, & official forms</span>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button 
             type="button"
             className="action-btn"
@@ -212,68 +212,156 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
         </div>
       </div>
 
-      <DataTable 
-        columns={[
-          { header: 'Employee Code', accessor: 'empId' },
-          { header: 'Resigning Staff', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
-          { header: 'Department', accessor: 'department' },
-          { header: 'Effective Date', accessor: 'effectiveDate' },
-          { 
-            header: 'Department Checkpoints Status', 
-            accessor: 'empId',
-            render: (row) => (
-              <div style={{ display: 'flex', gap: '6px', fontSize: '10px', fontWeight: 'bold' }}>
-                <span style={{ background: row.checkpoints?.IT ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.IT ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>IT</span>
-                <span style={{ background: row.checkpoints?.Finance ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.Finance ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>FIN</span>
-                <span style={{ background: row.checkpoints?.Store ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.Store ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>STORE</span>
-                <span style={{ background: row.checkpoints?.HR ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.HR ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>HR</span>
-              </div>
-            )
-          },
-          { 
-            header: 'Clearance Progress', 
-            accessor: 'progress',
-            render: (row) => (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '120px' }}>
-                <div style={{ flex: 1, background: '#E2E8F0', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${row.progress}%`, background: row.progress === 100 ? '#10B981' : '#3B82F6', height: '100%' }} />
+      {/* Desktop Table View */}
+      <div className="desktop-only">
+        <DataTable 
+          columns={[
+            { header: 'Employee Code', accessor: 'empId' },
+            { header: 'Resigning Staff', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
+            { header: 'Department', accessor: 'department' },
+            { header: 'Effective Date', accessor: 'effectiveDate' },
+            { 
+              header: 'Department Checkpoints Status', 
+              accessor: 'empId',
+              render: (row) => (
+                <div style={{ display: 'flex', gap: '6px', fontSize: '10px', fontWeight: 'bold' }}>
+                  <span style={{ background: row.checkpoints?.IT ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.IT ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>IT</span>
+                  <span style={{ background: row.checkpoints?.Finance ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.Finance ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>FIN</span>
+                  <span style={{ background: row.checkpoints?.Store ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.Store ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>STORE</span>
+                  <span style={{ background: row.checkpoints?.HR ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.HR ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>HR</span>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{row.progress}%</span>
+              )
+            },
+            { 
+              header: 'Clearance Progress', 
+              accessor: 'progress',
+              render: (row) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '120px' }}>
+                  <div style={{ flex: 1, background: '#E2E8F0', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${row.progress}%`, background: row.progress === 100 ? '#10B981' : '#3B82F6', height: '100%' }} />
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{row.progress}%</span>
+                </div>
+              )
+            },
+            { header: 'Overall Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> },
+            {
+              header: 'Action',
+              accessor: 'empId',
+              render: (row) => (
+                <button
+                  type="button"
+                  style={{
+                    background: '#0f172a',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  onClick={() => {
+                    setSelectedExitRecord(row);
+                    setShowExitModal(true);
+                  }}
+                >
+                  <Eye size={13} /> View Form (Read-Only)
+                </button>
+              )
+            }
+          ]}
+          data={exitClearances}
+        />
+      </div>
+
+      {/* Mobile Horizontal List Cards */}
+      <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {exitClearances.map((item, idx) => (
+          <div
+            key={item.empId || idx}
+            style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '14px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}
+          >
+            {/* Header: Name + Code + Department & Status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+              <div>
+                <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a' }}>{item.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '11px', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', border: '1px solid #e2e8f0', color: '#475569' }}>
+                    {item.empId}
+                  </span>
+                  <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>• {item.department}</span>
+                </div>
               </div>
-            )
-          },
-          { header: 'Overall Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> },
-          {
-            header: 'Action',
-            accessor: 'empId',
-            render: (row) => (
-              <button
-                type="button"
-                style={{
-                  background: '#0f172a',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '11.5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-                onClick={() => {
-                  setSelectedExitRecord(row);
-                  setShowExitModal(true);
-                }}
-              >
-                <Eye size={13} /> View Form (Read-Only)
-              </button>
-            )
-          }
-        ]}
-        data={exitClearances}
-      />
+              <StatusBadge status={item.status} />
+            </div>
+
+            {/* Effective Date & Progress */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#475569' }}>
+              <div>
+                <span style={{ color: '#64748b' }}>Effective: </span>
+                <strong>{item.effectiveDate}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '110px' }}>
+                <div style={{ flex: 1, background: '#E2E8F0', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: `${item.progress}%`, background: item.progress === 100 ? '#10B981' : '#3B82F6', height: '100%' }} />
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{item.progress}%</span>
+              </div>
+            </div>
+
+            {/* Checkpoints Badges */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Checkpoints:</span>
+              <div style={{ display: 'flex', gap: '6px', fontSize: '10px', fontWeight: 'bold' }}>
+                <span style={{ background: item.checkpoints?.IT ? '#E6F4EA' : '#FCE8E6', color: item.checkpoints?.IT ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>IT</span>
+                <span style={{ background: item.checkpoints?.Finance ? '#E6F4EA' : '#FCE8E6', color: item.checkpoints?.Finance ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>FIN</span>
+                <span style={{ background: item.checkpoints?.Store ? '#E6F4EA' : '#FCE8E6', color: item.checkpoints?.Store ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>STORE</span>
+                <span style={{ background: item.checkpoints?.HR ? '#E6F4EA' : '#FCE8E6', color: item.checkpoints?.HR ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>HR</span>
+              </div>
+            </div>
+
+            {/* Action */}
+            <button
+              type="button"
+              style={{
+                background: '#0f172a',
+                color: '#fff',
+                border: 'none',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                fontSize: '12.5px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                width: '100%',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+              onClick={() => {
+                setSelectedExitRecord(item);
+                setShowExitModal(true);
+              }}
+            >
+              <Eye size={14} /> View Form (Read-Only)
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 

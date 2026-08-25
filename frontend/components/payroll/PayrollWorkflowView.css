@@ -386,6 +386,13 @@
   flex-wrap: nowrap;
 }
 
+.button-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 /* Details Panel */
 .payroll-page .details {
   padding: 18px 20px;
@@ -476,11 +483,26 @@
   .payroll-col-optional {
     display: none !important;
   }
+  .button-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .button-group button {
+    width: 100% !important;
+    padding: 9px 10px !important;
+    font-size: 12px !important;
+    justify-content: center !important;
+  }
 }
 
 @media (max-width: 380px) {
   .payroll-stats {
     grid-template-columns: 1fr !important;
+  }
+  .button-group {
+    grid-template-columns: 1fr;
   }
 }
 

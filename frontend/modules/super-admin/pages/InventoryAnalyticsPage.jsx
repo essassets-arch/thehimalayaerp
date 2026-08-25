@@ -144,13 +144,6 @@ const InventoryAnalyticsContent = () => {
         </div>
       </div>
 
-      {/* ── 2. SHARED SUPER ADMIN FILTER CONTROL ── */}
-      <SuperAdminAnalyticsFilter 
-        title="Inventory Analytics Filter Control"
-        showBranch={true}
-        showCategory={true}
-        showStatus={true}
-      />
 
       {/* ── 3. PRIMARY INVENTORY KPI CARDS ── */}
       <div className="inv-kpi-grid">
@@ -246,31 +239,51 @@ const InventoryAnalyticsContent = () => {
           <h3 className="inv-section-title">
             <Layers size={16} color="#4f46e5" /> Stock by Unit of Measure (UOM)
           </h3>
-          <div className="inv-table-wrapper" style={{ maxHeight: '220px' }}>
-            <table className="inv-table">
-              <thead>
-                <tr>
-                  <th>Unit</th>
-                  <th>Materials Count</th>
-                  <th>Current Quantity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {unitBreakdown.length === 0 ? (
+          <div className="desktop-only">
+            <div className="inv-table-wrapper" style={{ maxHeight: '220px' }}>
+              <table className="inv-table">
+                <thead>
                   <tr>
-                    <td colSpan={3} style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '16px' }}>No units found</td>
+                    <th>Unit</th>
+                    <th>Materials Count</th>
+                    <th>Current Quantity</th>
                   </tr>
-                ) : (
-                  unitBreakdown.map((u, idx) => (
-                    <tr key={idx}>
-                      <td><span className="inv-badge inv-badge-fast">{u.unit}</span></td>
-                      <td style={{ fontWeight: 'bold' }}>{u.materials} Materials</td>
-                      <td style={{ fontWeight: '950', color: '#24345C' }}>{u.quantity.toLocaleString('en-IN')} {u.unit}</td>
+                </thead>
+                <tbody>
+                  {unitBreakdown.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '16px' }}>No units found</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    unitBreakdown.map((u, idx) => (
+                      <tr key={idx}>
+                        <td><span className="inv-badge inv-badge-fast">{u.unit}</span></td>
+                        <td style={{ fontWeight: 'bold' }}>{u.materials} Materials</td>
+                        <td style={{ fontWeight: '950', color: '#24345C' }}>{u.quantity.toLocaleString('en-IN')} {u.unit}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {unitBreakdown.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
+                No units found
+              </div>
+            ) : (
+              unitBreakdown.map((u, idx) => (
+                <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="inv-badge inv-badge-fast">{u.unit}</span>
+                    <strong style={{ fontSize: '12.5px', color: '#334155' }}>{u.materials} Materials</strong>
+                  </div>
+                  <strong style={{ fontSize: '13px', color: '#0284c7' }}>{u.quantity.toLocaleString('en-IN')} {u.unit}</strong>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -391,53 +404,124 @@ const InventoryAnalyticsContent = () => {
         </div>
 
         {/* Critical Material Table */}
-        <div className="inv-table-wrapper" style={{ maxHeight: '300px' }}>
-          <table className="inv-table">
-            <thead>
-              <tr>
-                <th>Material Code</th>
-                <th>Material Name</th>
-                <th>Category</th>
-                <th>Unit</th>
-                <th>Current Stock</th>
-                <th>Min Stock</th>
-                <th>Shortage</th>
-                <th>Stock Status</th>
-                <th>Indent Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {criticalMaterials.length === 0 ? (
+        <div className="desktop-only">
+          <div className="inv-table-wrapper" style={{ maxHeight: '300px' }}>
+            <table className="inv-table">
+              <thead>
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', color: '#16a34a', fontStyle: 'italic', padding: '20px' }}>
-                    <CheckCircle size={16} inline style={{ marginRight: '6px' }} /> No critical stock alerts or shortages reported.
-                  </td>
+                  <th>Material Code</th>
+                  <th>Material Name</th>
+                  <th>Category</th>
+                  <th>Unit</th>
+                  <th>Current Stock</th>
+                  <th>Min Stock</th>
+                  <th>Shortage</th>
+                  <th>Stock Status</th>
+                  <th>Indent Status</th>
                 </tr>
-              ) : (
-                criticalMaterials.map((m, idx) => (
-                  <tr key={idx}>
-                    <td style={{ fontWeight: 'bold' }}>{m.code}</td>
-                    <td style={{ fontWeight: 'bold', color: '#1e293b' }}>{m.name}</td>
-                    <td>{m.category}</td>
-                    <td><span className="inv-badge inv-badge-fast">{m.unit}</span></td>
-                    <td style={{ fontWeight: '950', color: m.currentStock <= 0 ? '#ef4444' : '#f59e0b' }}>{m.currentStock} {m.unit}</td>
-                    <td>{m.minimumStock} {m.unit}</td>
-                    <td style={{ fontWeight: 'bold', color: '#ef4444' }}>{m.shortage} {m.unit}</td>
-                    <td>
-                      <span className={`inv-badge ${m.stockStatus === 'OUT_OF_STOCK' ? 'inv-badge-outstock' : 'inv-badge-lowstock'}`}>
-                        {m.stockStatus.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: m.indentStatus === 'No Indent' ? '#f1f5f9' : '#e0f2fe', color: m.indentStatus === 'No Indent' ? '#64748b' : '#0369a1' }}>
-                        {m.indentStatus}
-                      </span>
+              </thead>
+              <tbody>
+                {criticalMaterials.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', color: '#16a34a', fontStyle: 'italic', padding: '20px' }}>
+                      <CheckCircle size={16} inline style={{ marginRight: '6px' }} /> No critical stock alerts or shortages reported.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  criticalMaterials.map((m, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 'bold' }}>{m.code}</td>
+                      <td style={{ fontWeight: 'bold', color: '#1e293b' }}>{m.name}</td>
+                      <td>{m.category}</td>
+                      <td><span className="inv-badge inv-badge-fast">{m.unit}</span></td>
+                      <td style={{ fontWeight: '950', color: m.currentStock <= 0 ? '#ef4444' : '#f59e0b' }}>{m.currentStock} {m.unit}</td>
+                      <td>{m.minimumStock} {m.unit}</td>
+                      <td style={{ fontWeight: 'bold', color: '#ef4444' }}>{m.shortage} {m.unit}</td>
+                      <td>
+                        <span className={`inv-badge ${m.stockStatus === 'OUT_OF_STOCK' ? 'inv-badge-outstock' : 'inv-badge-lowstock'}`}>
+                          {m.stockStatus.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: m.indentStatus === 'No Indent' ? '#f1f5f9' : '#e0f2fe', color: m.indentStatus === 'No Indent' ? '#64748b' : '#0369a1' }}>
+                          {m.indentStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Critical Materials Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {criticalMaterials.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: '#16a34a', fontSize: '13px', fontStyle: 'italic' }}>
+              ✓ No critical stock alerts or shortages reported.
+            </div>
+          ) : (
+            criticalMaterials.map((m, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <strong style={{ fontSize: '14px', color: '#0f172a' }}>{m.name}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', color: '#0284c7', fontWeight: 700 }}>
+                        {m.code}
+                      </code>
+                      <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {m.category}</span>
+                    </div>
+                  </div>
+                  <span className={`inv-badge ${m.stockStatus === 'OUT_OF_STOCK' ? 'inv-badge-outstock' : 'inv-badge-lowstock'}`}>
+                    {m.stockStatus.replace('_', ' ')}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#64748b' }}>
+                  <span>Unit: <strong style={{ color: '#334155' }}>{m.unit}</strong></span>
+                  <span>Indent: <strong style={{ color: m.indentStatus === 'No Indent' ? '#64748b' : '#0369a1' }}>{m.indentStatus}</strong></span>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  background: '#f8fafc',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  gap: '4px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Current</span>
+                    <strong style={{ fontSize: '12px', color: m.currentStock <= 0 ? '#ef4444' : '#f59e0b' }}>{m.currentStock} {m.unit}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Min Stock</span>
+                    <strong style={{ fontSize: '12px', color: '#0f172a' }}>{m.minimumStock} {m.unit}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Shortage</span>
+                    <strong style={{ fontSize: '12px', color: '#dc2626' }}>{m.shortage} {m.unit}</strong>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -446,39 +530,100 @@ const InventoryAnalyticsContent = () => {
         <h3 className="inv-section-title">
           <Package size={16} color="#0284c7" /> Inventory Breakdown by Category
         </h3>
-        <div className="inv-table-wrapper">
-          <table className="inv-table">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Total Materials</th>
-                <th>In Stock</th>
-                <th>Low Stock</th>
-                <th>Out of Stock</th>
-                <th>Total Quantity</th>
-                <th>Inventory Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categoryBreakdown.length === 0 ? (
+        <div className="desktop-only">
+          <div className="inv-table-wrapper">
+            <table className="inv-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '16px' }}>No categories found</td>
+                  <th>Category</th>
+                  <th>Total Materials</th>
+                  <th>In Stock</th>
+                  <th>Low Stock</th>
+                  <th>Out of Stock</th>
+                  <th>Total Quantity</th>
+                  <th>Inventory Value</th>
                 </tr>
-              ) : (
-                categoryBreakdown.map((cat, idx) => (
-                  <tr key={idx}>
-                    <td style={{ fontWeight: 'bold', color: '#1e293b' }}>{cat.category}</td>
-                    <td style={{ fontWeight: 'bold' }}>{cat.totalMaterials}</td>
-                    <td><span className="inv-badge inv-badge-instock">{cat.inStock}</span></td>
-                    <td><span className="inv-badge inv-badge-lowstock">{cat.lowStock}</span></td>
-                    <td><span className="inv-badge inv-badge-outstock">{cat.outOfStock}</span></td>
-                    <td style={{ fontWeight: '950' }}>{cat.quantity.toLocaleString('en-IN')}</td>
-                    <td style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{cat.inventoryValue.toLocaleString('en-IN')}</td>
+              </thead>
+              <tbody>
+                {categoryBreakdown.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '16px' }}>No categories found</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  categoryBreakdown.map((cat, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 'bold', color: '#1e293b' }}>{cat.category}</td>
+                      <td style={{ fontWeight: 'bold' }}>{cat.totalMaterials}</td>
+                      <td><span className="inv-badge inv-badge-instock">{cat.inStock}</span></td>
+                      <td><span className="inv-badge inv-badge-lowstock">{cat.lowStock}</span></td>
+                      <td><span className="inv-badge inv-badge-outstock">{cat.outOfStock}</span></td>
+                      <td style={{ fontWeight: '950' }}>{cat.quantity.toLocaleString('en-IN')}</td>
+                      <td style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{cat.inventoryValue.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Category Breakdown Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {categoryBreakdown.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
+              No categories found
+            </div>
+          ) : (
+            categoryBreakdown.map((cat, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <strong style={{ fontSize: '14px', color: '#0f172a' }}>{cat.category}</strong>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                      Total Materials: <strong>{cat.totalMaterials}</strong> • Qty: <strong>{cat.quantity.toLocaleString('en-IN')}</strong>
+                    </div>
+                  </div>
+                  <strong style={{ fontSize: '13px', color: '#16a34a' }}>₹{cat.inventoryValue.toLocaleString('en-IN')}</strong>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  background: '#f8fafc',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  gap: '4px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#16a34a', textTransform: 'uppercase', display: 'block' }}>In Stock</span>
+                    <strong style={{ fontSize: '12px', color: '#16a34a' }}>{cat.inStock}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#f59e0b', textTransform: 'uppercase', display: 'block' }}>Low Stock</span>
+                    <strong style={{ fontSize: '12px', color: '#f59e0b' }}>{cat.lowStock}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#ef4444', textTransform: 'uppercase', display: 'block' }}>Out of Stock</span>
+                    <strong style={{ fontSize: '12px', color: '#ef4444' }}>{cat.outOfStock}</strong>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -515,57 +660,129 @@ const InventoryAnalyticsContent = () => {
         </div>
 
         {/* Master Register Table */}
-        <div className="inv-table-wrapper">
-          <table className="inv-table">
-            <thead>
-              <tr>
-                <th>Material Code</th>
-                <th>Material Name</th>
-                <th>Category</th>
-                <th>Unit</th>
-                <th>Current Stock</th>
-                <th>Min Stock</th>
-                <th>Stock Status</th>
-                <th>Movement Class</th>
-                <th>Last Stock In</th>
-                <th>Last Stock Out</th>
-                <th>Inventory Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {materialsList.length === 0 ? (
+        <div className="desktop-only">
+          <div className="inv-table-wrapper">
+            <table className="inv-table">
+              <thead>
                 <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '24px' }}>
-                    No raw materials found matching the selected filters.
-                  </td>
+                  <th>Material Code</th>
+                  <th>Material Name</th>
+                  <th>Category</th>
+                  <th>Unit</th>
+                  <th>Current Stock</th>
+                  <th>Min Stock</th>
+                  <th>Stock Status</th>
+                  <th>Movement Class</th>
+                  <th>Last Stock In</th>
+                  <th>Last Stock Out</th>
+                  <th>Inventory Value</th>
                 </tr>
-              ) : (
-                materialsList.map((m, idx) => (
-                  <tr key={idx}>
-                    <td style={{ fontWeight: 'bold', color: '#1e293b' }}>{m.code}</td>
-                    <td style={{ fontWeight: 'bold', color: '#24345C' }}>{m.name}</td>
-                    <td>{m.category}</td>
-                    <td><span className="inv-badge inv-badge-fast">{m.unit}</span></td>
-                    <td style={{ fontWeight: '950', color: m.currentStock <= 0 ? '#ef4444' : '#10b981' }}>{m.currentStock} {m.unit}</td>
-                    <td>{m.minimumStock} {m.unit}</td>
-                    <td>
-                      <span className={`inv-badge ${m.stockStatus === 'OUT_OF_STOCK' ? 'inv-badge-outstock' : m.stockStatus === 'LOW_STOCK' ? 'inv-badge-lowstock' : 'inv-badge-instock'}`}>
-                        {m.stockStatus.replace('_', ' ')}
-                      </span>
+              </thead>
+              <tbody>
+                {materialsList.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '24px' }}>
+                      No raw materials found matching the selected filters.
                     </td>
-                    <td>
-                      <span className={`inv-badge ${m.movementStatus === 'FAST' ? 'inv-badge-fast' : m.movementStatus === 'SLOW' ? 'inv-badge-slow' : 'inv-badge-nonmoving'}`}>
-                        {m.movementStatus.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: '11.5px', color: '#64748b' }}>{m.lastStockIn ? new Date(m.lastStockIn).toLocaleDateString() : '—'}</td>
-                    <td style={{ fontSize: '11.5px', color: '#64748b' }}>{m.lastStockOut ? new Date(m.lastStockOut).toLocaleDateString() : '—'}</td>
-                    <td style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{m.inventoryValue.toLocaleString('en-IN')}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  materialsList.map((m, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 'bold', color: '#1e293b' }}>{m.code}</td>
+                      <td style={{ fontWeight: 'bold', color: '#24345C' }}>{m.name}</td>
+                      <td>{m.category}</td>
+                      <td><span className="inv-badge inv-badge-fast">{m.unit}</span></td>
+                      <td style={{ fontWeight: '950', color: m.currentStock <= 0 ? '#ef4444' : '#10b981' }}>{m.currentStock} {m.unit}</td>
+                      <td>{m.minimumStock} {m.unit}</td>
+                      <td>
+                        <span className={`inv-badge ${m.stockStatus === 'OUT_OF_STOCK' ? 'inv-badge-outstock' : m.stockStatus === 'LOW_STOCK' ? 'inv-badge-lowstock' : 'inv-badge-instock'}`}>
+                          {m.stockStatus.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`inv-badge ${m.movementStatus === 'FAST' ? 'inv-badge-fast' : m.movementStatus === 'SLOW' ? 'inv-badge-slow' : 'inv-badge-nonmoving'}`}>
+                          {m.movementStatus.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '11.5px', color: '#64748b' }}>{m.lastStockIn ? new Date(m.lastStockIn).toLocaleDateString() : '—'}</td>
+                      <td style={{ fontSize: '11.5px', color: '#64748b' }}>{m.lastStockOut ? new Date(m.lastStockOut).toLocaleDateString() : '—'}</td>
+                      <td style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{m.inventoryValue.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Raw Material Register Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {materialsList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px', fontStyle: 'italic' }}>
+              No raw materials found matching the selected filters.
+            </div>
+          ) : (
+            materialsList.map((m, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <strong style={{ fontSize: '14px', color: '#0f172a' }}>{m.name}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', color: '#0284c7', fontWeight: 700 }}>
+                        {m.code}
+                      </code>
+                      <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {m.category}</span>
+                    </div>
+                  </div>
+                  <span className={`inv-badge ${m.stockStatus === 'OUT_OF_STOCK' ? 'inv-badge-outstock' : m.stockStatus === 'LOW_STOCK' ? 'inv-badge-lowstock' : 'inv-badge-instock'}`}>
+                    {m.stockStatus.replace('_', ' ')}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#64748b' }}>
+                  <span>Class: <span className={`inv-badge ${m.movementStatus === 'FAST' ? 'inv-badge-fast' : m.movementStatus === 'SLOW' ? 'inv-badge-slow' : 'inv-badge-nonmoving'}`}>{m.movementStatus.replace('_', ' ')}</span></span>
+                  <strong style={{ color: '#16a34a', fontSize: '13px' }}>₹{m.inventoryValue.toLocaleString('en-IN')}</strong>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  background: '#f8fafc',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  gap: '4px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Current Stock</span>
+                    <strong style={{ fontSize: '12px', color: m.currentStock <= 0 ? '#ef4444' : '#10b981' }}>{m.currentStock} {m.unit}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Min Required</span>
+                    <strong style={{ fontSize: '12px', color: '#0f172a' }}>{m.minimumStock} {m.unit}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '6px' }}>
+                  <span>Last In: {m.lastStockIn ? new Date(m.lastStockIn).toLocaleDateString() : '—'}</span>
+                  <span>Last Out: {m.lastStockOut ? new Date(m.lastStockOut).toLocaleDateString() : '—'}</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Pagination Bar */}

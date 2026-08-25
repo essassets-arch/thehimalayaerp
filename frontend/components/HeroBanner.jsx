@@ -1309,31 +1309,31 @@ export default function HeroBanner({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #24345C 100%)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', flexShrink: 0 }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #24345C 100%)', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', flexShrink: 0, borderTopLeftRadius: 'inherit', borderTopRightRadius: 'inherit' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Camera size={20} color="var(--color-lime-brand, #dcf26b)" />
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Camera size={18} color="var(--color-lime-brand, #dcf26b)" />
                   Attendance Selfie Punch
                 </h3>
-                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
+                <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,0.75)' }}>
                   Real-time timestamp &amp; camera selfie verification
                 </p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', background: isTestMode ? '#16a34a' : 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '800', userSelect: 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', background: isTestMode ? '#16a34a' : 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '800', userSelect: 'none' }}>
                   <input 
                     type="checkbox" 
                     checked={isTestMode} 
                     onChange={toggleTestMode} 
-                    style={{ cursor: 'pointer', width: '13px', height: '13px' }}
+                    style={{ cursor: 'pointer', width: '12px', height: '12px' }}
                   />
                   Test Mode
                 </label>
                 <button 
                   onClick={() => setShowPunchModal(false)}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
+                  style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -1341,39 +1341,39 @@ export default function HeroBanner({
             <div className="punch-attendance-body">
               
               {/* Real-time Clock Banner */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '12px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                <span style={{ fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Clock size={12} color="#0284c7" /> Real-time Clock
                 </span>
-                <div style={{ fontFamily: '"Courier New", monospace', fontSize: '28px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px' }}>
+                <div style={{ fontFamily: '"Courier New", monospace', fontSize: '24px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px' }}>
                   {liveClock || '11:24:00 AM'}
                 </div>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>
                   {liveDateStr || 'Saturday, 15 August 2026'}
                 </span>
               </div>
 
               {/* Real-time Location Box (Mandatory Active) */}
-              <div style={{ background: '#F0F9FF', border: '1.5px solid #0284c7', borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#0369A1', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <MapPin size={14} color="#0284c7" /> Real-time Location (Mandatory GPS)
+              <div style={{ background: '#F0F9FF', border: '1.5px solid #0284c7', borderRadius: '12px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: '#0369A1', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <MapPin size={13} color="#0284c7" /> Real-time Location (Mandatory GPS)
                   </span>
-                  <span style={{ padding: '3px 8px', borderRadius: '12px', background: '#DBEAFE', color: '#1E40AF', fontSize: '10.5px', fontWeight: '800' }}>
+                  <span style={{ padding: '2px 7px', borderRadius: '12px', background: '#DBEAFE', color: '#1E40AF', fontSize: '10px', fontWeight: '800' }}>
                     Mandatory On Load 🟢
                   </span>
                 </div>
-                <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'flex-start', gap: '6px', wordBreak: 'break-word' }}>
                   <span>📍</span>
-                  <span>{locationState.loading ? 'Acquiring mandatory device location via GPS...' : locationState.address}</span>
+                  <span style={{ flex: 1 }}>{locationState.loading ? 'Acquiring mandatory device location via GPS...' : locationState.address}</span>
                 </div>
                 {locationState.coords && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
                       Mandatory GPS Coordinates: {locationState.coords}
                     </span>
                     {locationState.accuracy && (
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px' }}>
                         Accuracy: ±{Math.round(locationState.accuracy)}m
                       </span>
                     )}
@@ -1382,10 +1382,10 @@ export default function HeroBanner({
               </div>
 
               {/* Status Badge */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: punchStatus.isPunchedIn ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${punchStatus.isPunchedIn ? '#86EFAC' : '#FCD34D'}`, padding: '12px 16px', borderRadius: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: punchStatus.isPunchedIn ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${punchStatus.isPunchedIn ? '#86EFAC' : '#FCD34D'}`, padding: '10px 14px', borderRadius: '10px', flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: punchStatus.isPunchedIn ? '#22c55e' : '#f59e0b', display: 'inline-block' }} />
-                  <span style={{ fontSize: '13px', fontWeight: '800', color: punchStatus.isPunchedIn ? '#15803D' : '#B45309' }}>
+                  <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: punchStatus.isPunchedIn ? '#22c55e' : '#f59e0b', display: 'inline-block' }} />
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: punchStatus.isPunchedIn ? '#15803D' : '#B45309' }}>
                     {punchStatus.isPunchedIn ? 'STATUS: PUNCHED IN' : 'STATUS: NOT PUNCHED IN'}
                   </span>
                 </div>
@@ -1406,12 +1406,12 @@ export default function HeroBanner({
               </div>
 
               {/* Logged In User Info & Hours Worked */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
                   Logged In User: <span style={{ color: '#0F172A', fontWeight: '800' }}>{user?.name || 'HR'} ({user?.role || 'HR'})</span>
                 </div>
                 {punchStatus.punchInTime && (
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>⏱️</span>
                     <span>
                       {punchStatus.isPunchedIn ? 'Logged In Duration: ' : 'Total Worked Duration: '}
@@ -1423,31 +1423,43 @@ export default function HeroBanner({
                 )}
               </div>
 
-              {/* Camera Feed Container */}
-              <div style={{ position: 'relative', width: '100%', height: '220px', background: '#0f172a', borderRadius: '14px', overflow: 'hidden', border: '2px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {/* Camera Feed Container — Responsive & Perfectly Centered */}
+              <div style={{ position: 'relative', width: '100%', minHeight: '230px', background: '#0f172a', borderRadius: '14px', overflow: 'hidden', border: '2px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <video 
                   ref={videoRef} 
                   autoPlay 
                   playsInline 
                   muted 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', display: cameraActive ? 'block' : 'none' }} 
+                  style={{ width: '100%', height: '100%', minHeight: '230px', objectFit: 'cover', transform: 'scaleX(-1)', display: cameraActive ? 'block' : 'none' }} 
                 />
                 <canvas ref={canvasRef} style={{ display: 'none' }} />
 
                 {!cameraActive && (
-                  <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <Camera size={36} color={cameraError ? '#ef4444' : '#64748b'} />
-                    <span style={{ fontSize: '13px', fontWeight: '800', color: cameraError ? '#f87171' : '#e2e8f0' }}>
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    minHeight: '230px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    padding: '24px 16px 40px',
+                    boxSizing: 'border-box',
+                    gap: '8px'
+                  }}>
+                    <Camera size={38} color={cameraError ? '#ef4444' : '#64748b'} />
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: cameraError ? '#f87171' : '#e2e8f0' }}>
                       {cameraError ? 'Camera Unavailable' : 'Selfie Camera Ready'}
                     </span>
-                    <span style={{ fontSize: '11.5px', color: '#94a3b8', maxWidth: '300px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#94a3b8', maxWidth: '320px', lineHeight: '1.4' }}>
                       {cameraError || 'Align your face in center frame before punching'}
                     </span>
                     {cameraError && (
                       <button
                         type="button"
                         onClick={() => startCameraFeed()}
-                        style={{ marginTop: '4px', background: '#0284c7', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
+                        style={{ marginTop: '6px', background: '#0284c7', color: '#ffffff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)' }}
                       >
                         Retry Camera
                       </button>
@@ -1455,7 +1467,7 @@ export default function HeroBanner({
                   </div>
                 )}
 
-                <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '20px', color: '#ffffff', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '20px', color: '#ffffff', fontSize: '10.5px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', zIndex: 2 }}>
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#22c55e' : '#ef4444' }} />
                   {cameraActive ? 'Selfie Camera Active' : 'Selfie Camera Offline'}
                 </div>
@@ -1463,16 +1475,16 @@ export default function HeroBanner({
 
               {/* Warnings for Blocked State */}
               {isPunchBlocked && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
                   {!isCameraActiveState && (
-                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '12px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '14px' }}>📷</span>
+                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '11.5px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px', flexShrink: 0 }}>📷</span>
                       <span>Selfie camera is offline or blocked. A physical camera selfie is required.</span>
                     </div>
                   )}
                   {!isGpsValidState && (
-                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '12px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '14px' }}>📍</span>
+                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '11.5px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px', flexShrink: 0 }}>📍</span>
                       <span>GPS location is unavailable or blocked. Real coordinates are required.</span>
                     </div>
                   )}
@@ -1484,7 +1496,7 @@ export default function HeroBanner({
                 {isPunchBlocked ? (
                   <button
                     onClick={handleRequestHRException}
-                    style={{ padding: '14px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)' }}
+                    style={{ padding: '12px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)' }}
                   >
                     <span>📄</span> Request HR Manual Exception
                   </button>
@@ -1833,13 +1845,15 @@ export default function HeroBanner({
         }
         @media (max-width: 640px) {
           .punch-attendance-modal {
-            width: 95% !important;
-            max-height: calc(100vh - 24px) !important;
-            border-radius: 12px !important;
+            width: 100% !important;
+            max-width: calc(100vw - 20px) !important;
+            max-height: 92vh !important;
+            border-radius: 14px !important;
+            margin: auto;
           }
           .punch-attendance-body {
-            padding: 16px !important;
-            gap: 14px !important;
+            padding: 12px !important;
+            gap: 10px !important;
           }
         }
       `}</style>

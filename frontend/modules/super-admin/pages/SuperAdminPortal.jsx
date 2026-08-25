@@ -3525,19 +3525,67 @@ export default function SuperAdminPortal() {
             </div>
           </div>
 
-          <DataTable
-            columns={[
-              { header: 'Employee ID', accessor: 'publicId', render: (row) => <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0284c7' }}>{row.publicId}</span> },
-              { header: 'Employee Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
-              { header: 'Login Email', accessor: 'email', render: (row) => <span style={{ color: '#475569' }}>{row.email}</span> },
-              { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || row.department?.code || 'Executive') : (row.department || 'Executive')) },
-              { header: 'Last Login', accessor: 'updatedAt', render: (row) => (row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active Session') }
-            ]}
-            data={filteredUsers}
-            searchQuery={globalSearch}
-            searchField="name"
-            emptyMessage="No matching credentials accounts found."
-          />
+          {/* Desktop Table */}
+          <div className="desktop-only">
+            <DataTable
+              columns={[
+                { header: 'Employee ID', accessor: 'publicId', render: (row) => <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0284c7' }}>{row.publicId}</span> },
+                { header: 'Employee Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
+                { header: 'Login Email', accessor: 'email', render: (row) => <span style={{ color: '#475569' }}>{row.email}</span> },
+                { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || row.department?.code || 'Executive') : (row.department || 'Executive')) },
+                { header: 'Last Login', accessor: 'updatedAt', render: (row) => (row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active Session') }
+              ]}
+              data={filteredUsers}
+              searchQuery={globalSearch}
+              searchField="name"
+              emptyMessage="No matching credentials accounts found."
+            />
+          </div>
+
+          {/* Mobile User Cards */}
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {filteredUsers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                No matching credentials accounts found.
+              </div>
+            ) : (
+              filteredUsers.map((user) => (
+                <div
+                  key={user.id || user.publicId}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{user.name}</strong>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{user.email}</div>
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 800, background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                      {typeof user.department === 'object' ? (user.department?.name || user.department?.code || 'Executive') : (user.department || user.role || 'Executive')}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9', fontSize: '11.5px' }}>
+                    <div>
+                      <span style={{ color: '#64748b', fontWeight: 600 }}>ID: </span>
+                      <code style={{ color: '#0284c7', fontWeight: 700 }}>{user.publicId}</code>
+                    </div>
+                    <div style={{ color: '#64748b' }}>
+                      {user.updatedAt ? new Date(user.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Active'}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         {/* User Modal */}
@@ -3951,91 +3999,175 @@ export default function SuperAdminPortal() {
             </div>
           </div>
 
-          <DataTable
-            columns={[
-              { header: 'Salesperson', accessor: 'salespersonName', render: (row) => <strong>{row.salespersonName}</strong> },
-              { header: 'Period', accessor: 'fy', render: (row) => <span>{row.fy} ({row.period})</span> },
-              { header: 'Revenue Target', accessor: 'targetAmount', render: (row) => <strong>{formatIndianCurrency(row.targetAmount)}</strong> },
-              { header: 'Confirmed Order Value', accessor: 'achieved', render: (row) => <strong style={{ color: '#10b981' }}>{formatIndianCurrency(row.achieved)}</strong> },
-              { header: 'Remaining', accessor: 'remaining', render: (row) => <span style={{ color: row.remaining > 0 ? '#ef4444' : '#10b981' }}>{formatIndianCurrency(row.remaining)}</span> },
-              { header: 'Achievement', accessor: 'pct', render: (row) => <strong>{row.pct}%</strong> },
-              { 
-                header: 'Status', 
-                accessor: 'status', 
-                render: (row) => (
-                  <span style={{ 
-                    color: row.status.color, 
-                    background: row.status.bg,
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '11px',
-                    fontWeight: 'bold'
-                  }}>
-                    {row.status.label}
-                  </span>
-                ) 
-              }
-            ]}
-            data={targetRows}
-            searchQuery={globalSearch}
-            searchField="salespersonName"
-            emptyMessage="No sales targets configured."
-            actions={(row) => (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => {
-                    setSalesTargetForm(row);
-                    setSalesTargetModalMode('edit');
-                    setShowSalesTargetModal(true);
-                  }}
-                  className="action-btn"
-                  style={{ background: 'rgba(59, 130, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer' }}
-                  title="Edit Target"
-                >
-                  <Edit2 size={12} />
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedSalesTarget(row);
-                    setShowTargetOrdersModal(true);
-                  }}
-                  className="action-btn"
-                  style={{ background: 'rgba(16, 185, 129, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#10b981', cursor: 'pointer' }}
-                  title="View Contributing Orders"
-                >
-                  <Eye size={12} />
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedSalesTarget(row);
-                    setShowTargetProgressModal(true);
-                  }}
-                  className="action-btn"
-                  style={{ background: 'rgba(139, 92, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#8b5cf6', cursor: 'pointer' }}
-                  title="View Progress"
-                >
-                  <TrendingUp size={12} />
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await apiClient.delete(`/backend/sales-targets/${row.id}`);
-                      setSalesTargets(salesTargets.filter(t => t.id !== row.id));
-                      queryClient.invalidateQueries({ queryKey: ['sales-target-dashboard'] });
-                      showToast('Target assignment deleted.');
-                    } catch (err) {
-                      showToast('Failed to delete target.', 'error');
-                    }
-                  }}
-                  className="action-btn"
-                  style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
-                  title="Delete Target"
-                >
-                  <Trash2 size={12} />
-                </button>
+          {/* Desktop Table */}
+          <div className="desktop-only">
+            <DataTable
+              columns={[
+                { header: 'Salesperson', accessor: 'salespersonName', render: (row) => <strong>{row.salespersonName}</strong> },
+                { header: 'Period', accessor: 'fy', render: (row) => <span>{row.fy} ({row.period})</span> },
+                { header: 'Revenue Target', accessor: 'targetAmount', render: (row) => <strong>{formatIndianCurrency(row.targetAmount)}</strong> },
+                { header: 'Confirmed Order Value', accessor: 'achieved', render: (row) => <strong style={{ color: '#10b981' }}>{formatIndianCurrency(row.achieved)}</strong> },
+                { header: 'Remaining', accessor: 'remaining', render: (row) => <span style={{ color: row.remaining > 0 ? '#ef4444' : '#10b981' }}>{formatIndianCurrency(row.remaining)}</span> },
+                { header: 'Achievement', accessor: 'pct', render: (row) => <strong>{row.pct}%</strong> },
+                { 
+                  header: 'Status', 
+                  accessor: 'status', 
+                  render: (row) => (
+                    <span style={{ 
+                      color: row.status.color, 
+                      background: row.status.bg,
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 'bold'
+                    }}>
+                      {row.status.label}
+                    </span>
+                  ) 
+                }
+              ]}
+              data={targetRows}
+              searchQuery={globalSearch}
+              searchField="salespersonName"
+              emptyMessage="No sales targets configured."
+              actions={(row) => (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      setSalesTargetForm(row);
+                      setSalesTargetModalMode('edit');
+                      setShowSalesTargetModal(true);
+                    }}
+                    className="action-btn"
+                    style={{ background: 'rgba(59, 130, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer' }}
+                    title="Edit Target"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedSalesTarget(row);
+                      setShowTargetOrdersModal(true);
+                    }}
+                    className="action-btn"
+                    style={{ background: 'rgba(16, 185, 129, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#10b981', cursor: 'pointer' }}
+                    title="View Contributing Orders"
+                  >
+                    <Eye size={12} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedSalesTarget(row);
+                      setShowTargetProgressModal(true);
+                    }}
+                    className="action-btn"
+                    style={{ background: 'rgba(139, 92, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#8b5cf6', cursor: 'pointer' }}
+                    title="View Progress"
+                  >
+                    <TrendingUp size={12} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await apiClient.delete(`/backend/sales-targets/${row.id}`);
+                        setSalesTargets(salesTargets.filter(t => t.id !== row.id));
+                        queryClient.invalidateQueries({ queryKey: ['sales-target-dashboard'] });
+                        showToast('Target assignment deleted.');
+                      } catch (err) {
+                        showToast('Failed to delete target.', 'error');
+                      }
+                    }}
+                    className="action-btn"
+                    style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
+                    title="Delete Target"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )}
+            />
+          </div>
+
+          {/* Mobile Target Cards */}
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {targetRows.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                No sales targets configured.
               </div>
+            ) : (
+              targetRows.map((row) => (
+                <div
+                  key={row.id}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.salespersonName}</strong>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>{row.fy} ({row.period})</div>
+                    </div>
+                    <span style={{ color: row.status.color, background: row.status.bg, padding: '3px 9px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
+                      {row.status.label}
+                    </span>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Target</span>
+                      <strong style={{ fontSize: '11.5px', color: '#0f172a' }}>{formatIndianCurrency(row.targetAmount)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Achieved</span>
+                      <strong style={{ fontSize: '11.5px', color: '#16a34a' }}>{formatIndianCurrency(row.achieved)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Progress</span>
+                      <strong style={{ fontSize: '11.5px', color: '#0284c7' }}>{row.pct}%</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => {
+                        setSalesTargetForm(row);
+                        setSalesTargetModalMode('edit');
+                        setShowSalesTargetModal(true);
+                      }}
+                      style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '12px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
+                    >
+                      Edit Target
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedSalesTarget(row);
+                        setShowTargetOrdersModal(true);
+                      }}
+                      style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: 'none', background: '#0284c7', fontSize: '12px', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                    >
+                      View Orders
+                    </button>
+                  </div>
+                </div>
+              ))
             )}
-          />
+          </div>
         </div>
 
         {/* ── Assign / Edit Revenue Target Modal ── */}
@@ -4548,7 +4680,9 @@ export default function SuperAdminPortal() {
             </div>
           </div>
 
-          <DataTable
+          {/* Desktop Table */}
+          <div className="desktop-only">
+            <DataTable
             columns={[
               { header: 'Period', accessor: 'targetPeriod', render: (row) => <strong>{row.targetPeriod}</strong> },
               { header: 'Start Date', accessor: 'startDate', render: (row) => <span>{row.startDate ? (typeof row.startDate === 'string' ? row.startDate.slice(0, 10) : new Date(row.startDate).toISOString().slice(0, 10)) : ''}</span> },
@@ -4618,6 +4752,104 @@ export default function SuperAdminPortal() {
               </div>
             )}
           />
+          </div>
+
+          {/* Mobile Production Target Cards */}
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {productionTargets.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                No production targets configured.
+              </div>
+            ) : (
+              productionTargets.map((row) => {
+                const isAct = row.status === 'ACTIVE';
+                return (
+                  <div
+                    key={row.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.targetPeriod} Target</strong>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                          {row.startDate ? String(row.startDate).slice(0, 10) : ''} to {row.endDate ? String(row.endDate).slice(0, 10) : ''}
+                        </div>
+                      </div>
+                      <span style={{ 
+                        color: isAct ? '#10b981' : '#ef4444', 
+                        background: isAct ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                        padding: '3px 9px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' 
+                      }}>
+                        {isAct ? 'Active' : 'Cancelled'}
+                      </span>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '8px',
+                      gap: '4px',
+                      textAlign: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Target Qty</span>
+                        <strong style={{ fontSize: '12px', color: '#0f172a' }}>{Number(row.quantityTarget || 0).toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Achieved</span>
+                        <strong style={{ fontSize: '12px', color: '#16a34a' }}>{Number(row.achieved || 0).toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Progress</span>
+                        <strong style={{ fontSize: '12px', color: '#0284c7' }}>{row.achievement || 0}%</strong>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => {
+                          setProductionTargetForm({
+                            id: row.id,
+                            period: row.targetPeriod,
+                            startDate: row.startDate ? (typeof row.startDate === 'string' ? row.startDate.slice(0, 10) : new Date(row.startDate).toISOString().slice(0, 10)) : '',
+                            endDate: row.endDate ? (typeof row.endDate === 'string' ? row.endDate.slice(0, 10) : new Date(row.endDate).toISOString().slice(0, 10)) : '',
+                            targetQty: row.quantityTarget,
+                            remarks: row.remarks || '',
+                            plantId: row.plantId || '1'
+                          });
+                          setProductionTargetModalMode('edit');
+                          setShowProductionTargetModal(true);
+                        }}
+                        style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '12px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
+                      >
+                        Edit Target
+                      </button>
+                      {row.status === 'ACTIVE' && (
+                        <button
+                          onClick={() => handleCancelProductionTarget(row)}
+                          style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fee2e2', fontSize: '12px', fontWeight: 700, color: '#dc2626', cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* modal */}
@@ -4764,63 +4996,146 @@ export default function SuperAdminPortal() {
             </div>
           </div>
 
-          <DataTable
-            columns={[
-              { header: 'Employee Code', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace' }}>{safeText(row.id || row.employeeCode)}</span> },
-              { header: 'Full Name', accessor: 'name', render: (row) => <strong>{safeText(row.name || row.fullName)}</strong> },
-              { header: 'Login Email', accessor: 'email', render: (row) => safeText(row.email) },
-              { header: 'Department', accessor: 'department', render: (row) => safeText(row.department, 'Sales') },
-              { header: 'Designation / Role', accessor: 'role', render: (row) => safeText(row.role || row.designation || row.jobTitle, 'Staff') },
-              { header: 'Monthly Salary', accessor: 'salary', render: (row) => `₹${(Number(row.salary) || 30000).toLocaleString('en-IN')}` },
-              { header: 'Status', accessor: 'status', render: (row) => <span style={{ color: safeText(row.status) === 'Active' ? '#10b981' : '#f43f5e', fontWeight: 'bold' }}>{safeText(row.status, 'Active')}</span> }
-            ]}
-            data={employees}
-            searchQuery={globalSearch}
-            searchField="name"
-            emptyMessage="No staff profiles registered."
-            actions={(row) => (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => {
-                    setSelectedEmployee(row);
-                    setEmployeeForm({
-                      id: row.id,
-                      name: row.name,
-                      email: row.email,
-                      phone: row.phone || '',
-                      department: row.department || 'Sales',
-                      role: row.role || row.designation || 'Sales Lead',
-                      salary: row.salary || 30000,
-                      active: row.status === 'Active',
-                      joiningDate: row.joiningDate || ''
-                    });
-                    setShowEmployeeModal(true);
-                  }}
-                  className="action-btn"
-                  style={{ background: 'rgba(59, 130, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer' }}
-                  title="Edit Profile"
-                >
-                  <Edit2 size={12} />
-                </button>
-                <button
-                  onClick={() => toggleEmployeeStatus(row)}
-                  className="action-btn"
-                  style={{ background: 'rgba(245, 158, 11, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#f59e0b', cursor: 'pointer' }}
-                  title="Toggle Active Status"
-                >
-                  <RefreshCw size={12} />
-                </button>
-                <button
-                  onClick={() => deleteEmployee(row.id, row.name)}
-                  className="action-btn"
-                  style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
-                  title="Remove Profile"
-                >
-                  <Trash2 size={12} />
-                </button>
+          {/* Desktop Table */}
+          <div className="desktop-only">
+            <DataTable
+              columns={[
+                { header: 'Employee Code', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace' }}>{safeText(row.id || row.employeeCode)}</span> },
+                { header: 'Full Name', accessor: 'name', render: (row) => <strong>{safeText(row.name || row.fullName)}</strong> },
+                { header: 'Login Email', accessor: 'email', render: (row) => safeText(row.email) },
+                { header: 'Department', accessor: 'department', render: (row) => safeText(row.department, 'Sales') },
+                { header: 'Designation / Role', accessor: 'role', render: (row) => safeText(row.role || row.designation || row.jobTitle, 'Staff') },
+                { header: 'Monthly Salary', accessor: 'salary', render: (row) => `₹${(Number(row.salary) || 30000).toLocaleString('en-IN')}` },
+                { header: 'Status', accessor: 'status', render: (row) => <span style={{ color: safeText(row.status) === 'Active' ? '#10b981' : '#f43f5e', fontWeight: 'bold' }}>{safeText(row.status, 'Active')}</span> }
+              ]}
+              data={employees}
+              searchQuery={globalSearch}
+              searchField="name"
+              emptyMessage="No staff profiles registered."
+              actions={(row) => (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      setSelectedEmployee(row);
+                      setEmployeeForm({
+                        id: row.id,
+                        name: row.name,
+                        email: row.email,
+                        phone: row.phone || '',
+                        department: row.department || 'Sales',
+                        role: row.role || row.designation || 'Sales Lead',
+                        salary: row.salary || 30000,
+                        active: row.status === 'Active',
+                        joiningDate: row.joiningDate || ''
+                      });
+                      setShowEmployeeModal(true);
+                    }}
+                    className="action-btn"
+                    style={{ background: 'rgba(59, 130, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer' }}
+                    title="Edit Profile"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                  <button
+                    onClick={() => toggleEmployeeStatus(row)}
+                    className="action-btn"
+                    style={{ background: 'rgba(245, 158, 11, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#f59e0b', cursor: 'pointer' }}
+                    title="Toggle Active Status"
+                  >
+                    <RefreshCw size={12} />
+                  </button>
+                  <button
+                    onClick={() => deleteEmployee(row.id, row.name)}
+                    className="action-btn"
+                    style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
+                    title="Remove Profile"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )}
+            />
+          </div>
+
+          {/* Mobile Staff Profile Cards */}
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {employees.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                No staff profiles registered.
               </div>
+            ) : (
+              employees.map((row) => (
+                <div
+                  key={row.id}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{safeText(row.name || row.fullName)}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', color: '#0284c7', fontWeight: 700 }}>
+                          {safeText(row.id || row.employeeCode)}
+                        </code>
+                        <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {safeText(row.department, 'Sales')}</span>
+                      </div>
+                    </div>
+                    <span style={{ color: safeText(row.status) === 'Active' ? '#10b981' : '#f43f5e', background: safeText(row.status) === 'Active' ? '#dcfce7' : '#fee2e2', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
+                      {safeText(row.status, 'Active')}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9', fontSize: '12px' }}>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Role: </span>
+                      <strong style={{ color: '#334155' }}>{safeText(row.role || row.designation || row.jobTitle, 'Staff')}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Salary: </span>
+                      <strong style={{ color: '#059669' }}>₹{(Number(row.salary) || 30000).toLocaleString('en-IN')}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => {
+                        setSelectedEmployee(row);
+                        setEmployeeForm({
+                          id: row.id,
+                          name: row.name,
+                          email: row.email,
+                          phone: row.phone || '',
+                          department: row.department || 'Sales',
+                          role: row.role || row.designation || 'Sales Lead',
+                          salary: row.salary || 30000,
+                          active: row.status === 'Active',
+                          joiningDate: row.joiningDate || ''
+                        });
+                        setShowEmployeeModal(true);
+                      }}
+                      style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '12px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
+                    >
+                      Edit Profile
+                    </button>
+                    <button
+                      onClick={() => toggleEmployeeStatus(row)}
+                      style={{ padding: '7px 12px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', fontSize: '12px', fontWeight: 700, color: '#b45309', cursor: 'pointer' }}
+                    >
+                      Toggle Status
+                    </button>
+                  </div>
+                </div>
+              ))
             )}
-          />
+          </div>
         </div>
 
         {/* Employee Modal */}
@@ -5379,14 +5694,101 @@ export default function SuperAdminPortal() {
             </button>
           </div>
 
-          <DataTable
-            columns={columns}
-            data={directOrders}
-            searchQuery={globalSearch}
-            searchField="customer.name"
-            actions={actions}
-            emptyMessage="No direct orders logged yet."
-          />
+          {/* Desktop Table */}
+          <div className="desktop-only">
+            <DataTable
+              columns={columns}
+              data={directOrders}
+              searchQuery={globalSearch}
+              searchField="customer.name"
+              actions={actions}
+              emptyMessage="No direct orders logged yet."
+            />
+          </div>
+
+          {/* Mobile Direct Orders Cards */}
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {directOrders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                No direct orders logged yet.
+              </div>
+            ) : (
+              directOrders.map((row) => {
+                const sc = statusColors[row.status] || { bg: '#f1f5f9', color: '#475569' };
+                const advance = row.payment?.paid || 0;
+                const total = row.payment?.totalAmount || 0;
+                return (
+                  <div
+                    key={row.id || row.orderNo}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <strong
+                          style={{ fontSize: '14px', color: '#337a86', fontFamily: 'monospace', cursor: 'pointer', textDecoration: 'underline' }}
+                          onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                        >
+                          {row.orderNo}
+                        </strong>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                          {row.customer?.name || row.customerName || '—'}
+                        </div>
+                      </div>
+                      <span style={{ display: 'inline-block', background: sc.bg, color: sc.color, fontWeight: '700', fontSize: '11px', padding: '3px 9px', borderRadius: '5px' }}>
+                        {row.status}
+                      </span>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      gap: '8px',
+                      textAlign: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Total Value</span>
+                        <strong style={{ fontSize: '13px', color: '#24345C' }}>₹{total.toLocaleString('en-IN')}</strong>
+                      </div>
+                      <div style={{ borderLeft: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Advance Paid</span>
+                        <strong style={{ fontSize: '13px', color: advance > 0 ? '#16a34a' : '#8893A7' }}>₹{advance.toLocaleString('en-IN')}</strong>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedOrderDetails(row)}
+                      style={{
+                        padding: '8px 14px',
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: '#334155',
+                        cursor: 'pointer',
+                        width: '100%'
+                      }}
+                    >
+                      Inspect Order
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
 
           {directOrders.length > 0 && (
             <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--color-border)', fontSize: '12px', color: '#5E6B82' }}>
@@ -6694,54 +7096,138 @@ export default function SuperAdminPortal() {
             </div>
           </div>
 
-          <DataTable
-            columns={[
-              { header: 'Invoice No', accessor: 'invoiceNo', render: (row) => <strong style={{ color: 'var(--color-text-primary)' }}>{row.invoiceNo || `INV-${row.orderNo || ''}`}</strong>, nowrap: true },
-              {
-                header: 'Order Ref',
-                accessor: 'orderNo',
-                render: (row) => {
-                  const matchedOrder = orders.find(o => o.orderNo === row.orderNo);
-                  return (
-                    <strong
+          {/* Desktop Table */}
+          <div className="desktop-only">
+            <DataTable
+              columns={[
+                { header: 'Invoice No', accessor: 'invoiceNo', render: (row) => <strong style={{ color: 'var(--color-text-primary)' }}>{row.invoiceNo || `INV-${row.orderNo || ''}`}</strong>, nowrap: true },
+                {
+                  header: 'Order Ref',
+                  accessor: 'orderNo',
+                  render: (row) => {
+                    const matchedOrder = orders.find(o => o.orderNo === row.orderNo);
+                    return (
+                      <strong
+                        style={{
+                          color: '#337a86',
+                          cursor: matchedOrder ? 'pointer' : 'default',
+                          textDecoration: matchedOrder ? 'underline' : 'none'
+                        }}
+                        onClick={() => {
+                          if (matchedOrder) {
+                            navigate.push(`/orders/${row.orderNo}`);
+                          }
+                        }}
+                      >
+                        {row.orderNo}
+                      </strong>
+                    );
+                  },
+                  nowrap: true
+                },
+                { header: 'Customer', accessor: 'customerName' },
+                { header: 'Due Date', accessor: 'dueDate', nowrap: true },
+                { header: 'Total Value', accessor: 'totalAmount', render: (row) => `₹${(Number(row.totalAmount || row.amount) || 0).toLocaleString('en-IN')}`, nowrap: true },
+                { header: 'Paid Value', accessor: 'paidAmount', render: (row) => `₹${(Number(row.paidAmount) || 0).toLocaleString('en-IN')}`, nowrap: true },
+                { header: 'Outstanding', accessor: 'totalAmount', render: (row) => `₹${Math.max(0, (Number(row.totalAmount || row.amount) || 0) - (Number(row.paidAmount) || 0)).toLocaleString('en-IN')}`, nowrap: true },
+                { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} />, nowrap: true }
+              ]}
+              data={filteredInvoices}
+              searchQuery={globalSearch}
+              searchField="customerName"
+              actions={(row) => (
+                <button
+                  className="action-btn"
+                  style={{ background: 'rgba(0, 0, 0, 0.04)', border: '1px solid var(--color-border)', padding: '5px 12px', borderRadius: '6px', color: 'var(--color-text-primary)', fontSize: '11.5px', cursor: 'pointer' }}
+                  onClick={() => setSelectedInvoice(row)}
+                >
+                  Inspect
+                </button>
+              )}
+              emptyMessage="No invoices logged yet."
+            />
+          </div>
+
+          {/* Mobile Invoices Cards */}
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {filteredInvoices.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                No invoices logged yet.
+              </div>
+            ) : (
+              filteredInvoices.map((row) => {
+                const total = Number(row.totalAmount || row.amount) || 0;
+                const paid = Number(row.paidAmount) || 0;
+                const outstanding = Math.max(0, total - paid);
+                return (
+                  <div
+                    key={row.id || row.invoiceNo}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.invoiceNo || `INV-${row.orderNo || ''}`}</strong>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                          Customer: <strong style={{ color: '#334155' }}>{row.customerName}</strong>
+                        </div>
+                      </div>
+                      <StatusBadge status={row.status} />
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '8px',
+                      gap: '4px',
+                      textAlign: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Total</span>
+                        <strong style={{ fontSize: '11.5px', color: '#0f172a' }}>₹{total.toLocaleString('en-IN')}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Paid</span>
+                        <strong style={{ fontSize: '11.5px', color: '#16a34a' }}>₹{paid.toLocaleString('en-IN')}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Due</span>
+                        <strong style={{ fontSize: '11.5px', color: outstanding > 0 ? '#ef4444' : '#16a34a' }}>₹{outstanding.toLocaleString('en-IN')}</strong>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedInvoice(row)}
                       style={{
-                        color: '#337a86',
-                        cursor: matchedOrder ? 'pointer' : 'default',
-                        textDecoration: matchedOrder ? 'underline' : 'none'
-                      }}
-                      onClick={() => {
-                        if (matchedOrder) {
-                          navigate.push(`/orders/${row.orderNo}`);
-                        }
+                        padding: '8px 14px',
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: '#334155',
+                        cursor: 'pointer',
+                        width: '100%'
                       }}
                     >
-                      {row.orderNo}
-                    </strong>
-                  );
-                },
-                nowrap: true
-              },
-              { header: 'Customer', accessor: 'customerName' },
-              { header: 'Due Date', accessor: 'dueDate', nowrap: true },
-              { header: 'Total Value', accessor: 'totalAmount', render: (row) => `₹${(Number(row.totalAmount || row.amount) || 0).toLocaleString('en-IN')}`, nowrap: true },
-              { header: 'Paid Value', accessor: 'paidAmount', render: (row) => `₹${(Number(row.paidAmount) || 0).toLocaleString('en-IN')}`, nowrap: true },
-              { header: 'Outstanding', accessor: 'totalAmount', render: (row) => `₹${Math.max(0, (Number(row.totalAmount || row.amount) || 0) - (Number(row.paidAmount) || 0)).toLocaleString('en-IN')}`, nowrap: true },
-              { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} />, nowrap: true }
-            ]}
-            data={filteredInvoices}
-            searchQuery={globalSearch}
-            searchField="customerName"
-            actions={(row) => (
-              <button
-                className="action-btn"
-                style={{ background: 'rgba(0, 0, 0, 0.04)', border: '1px solid var(--color-border)', padding: '5px 12px', borderRadius: '6px', color: 'var(--color-text-primary)', fontSize: '11.5px', cursor: 'pointer' }}
-                onClick={() => setSelectedInvoice(row)}
-              >
-                Inspect
-              </button>
+                      Inspect Invoice
+                    </button>
+                  </div>
+                );
+              })
             )}
-            emptyMessage="No invoices logged yet."
-          />
+          </div>
         </div>
       </div>
     );
@@ -7233,8 +7719,9 @@ export default function SuperAdminPortal() {
         return <PurchaseIndentsView />;
       case 'daily-reports':
         return <DailyReportHistoryView roleMode="SUPER_ADMIN" />;
+      case 'brand-analysis':
       case 'analysis-requests':
-        return renderAnalysisRequestsWorkspace();
+        return <BrandAnalysisPage />;
       case 'customer-complaints':
         return <CustomerComplaintManagement mode="admin" currentUser={currentUser} />;
       case 'analytics':

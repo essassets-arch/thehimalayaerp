@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
@@ -72,25 +72,151 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
     <div
       onClick={onClose}
       className="po-pdf-modal-overlay erp-modal-overlay"
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
     >
+      <style>{`
+        .po-pdf-top-bar {
+          background: #24345C;
+          padding: 16px 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: #ffffff;
+          border-bottom: 1px solid #334155;
+          gap: 16px;
+        }
+        .po-pdf-top-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+        .po-pdf-print-body {
+          padding: 36px 40px;
+          overflow-y: auto;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          background: #ffffff;
+          color: #24345C;
+        }
+        .po-pdf-brand-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          border-bottom: 2.5px solid #24345C;
+          padding-bottom: 20px;
+          gap: 16px;
+        }
+        .po-pdf-meta-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+        .po-pdf-calc-row {
+          display: flex;
+          justify-content: flex-end;
+        }
+        .po-pdf-calc-box {
+          width: 320px;
+          background: #F5FAFE;
+          border: 1px solid #D6E2F0;
+          borderRadius: 10px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .po-pdf-signatures-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 20px;
+          margin-top: 24px;
+          padding-top: 20px;
+          border-top: 1.5px solid #D6E2F0;
+          text-align: center;
+        }
+
+        @media (max-width: 768px) {
+          .po-pdf-modal-overlay {
+            padding: 8px !important;
+            align-items: flex-end !important;
+          }
+          .po-pdf-modal-box {
+            max-height: 94vh !important;
+            border-radius: 16px 16px 0 0 !important;
+          }
+          .po-pdf-top-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 14px 12px !important;
+            gap: 12px !important;
+          }
+          .po-pdf-top-actions {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            width: 100% !important;
+            gap: 8px !important;
+          }
+          .po-pdf-top-actions button {
+            flex: 1 1 auto !important;
+            justify-content: center !important;
+            padding: 9px 12px !important;
+            font-size: 12px !important;
+          }
+          .po-pdf-print-body {
+            padding: 16px 12px !important;
+            gap: 16px !important;
+          }
+          .po-pdf-brand-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+            padding-bottom: 14px !important;
+          }
+          .po-pdf-brand-row > div:last-child {
+            text-align: left !important;
+          }
+          .po-pdf-meta-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+          .po-pdf-calc-row {
+            justify-content: stretch !important;
+          }
+          .po-pdf-calc-box {
+            width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          .po-pdf-signatures-grid {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+            margin-top: 16px !important;
+            padding-top: 14px !important;
+          }
+        }
+      `}</style>
       <div
         onClick={e => e.stopPropagation()}
         className="po-pdf-modal-box"
         style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', border: '1px solid #D6E2F0', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}
       >
         {/* Modal Top Bar (Non-Printable) */}
-        <div style={{ background: '#24345C', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', borderBottom: '1px solid #334155' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(59, 174, 235, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3BAEEB' }}>
-              <FileText size={20} />
+        <div className="po-pdf-top-bar">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(59, 174, 235, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3BAEEB', flexShrink: 0 }}>
+                <FileText size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 900, margin: 0, color: '#ffffff' }}>Official Purchase Order PDF Preview</h3>
+                <div style={{ fontSize: '11.5px', color: '#8893A7', marginTop: '2px' }}>Doc Ref: {po.poNumber || po.id} • Printable Format</div>
+              </div>
             </div>
-            <div>
-              <h3 style={{ fontSize: '16px', fontWeight: 900, margin: 0, color: '#ffffff' }}>Official Purchase Order PDF Preview</h3>
-              <div style={{ fontSize: '12px', color: '#8893A7', marginTop: '2px' }}>Document Ref: {po.poNumber || po.id} • Printable Format</div>
-            </div>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', color: '#ffffff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="po-pdf-top-actions">
             <button
               onClick={() => window.print()}
               style={{ background: '#38bdf8', color: '#24345C', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
@@ -106,23 +232,22 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
                 ⚡ Complete Flow & Mark PO Closed
               </button>
             )}
-            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
           </div>
         </div>
 
         {/* Printable Document Area */}
-        <div id="po-pdf-print-area" style={{ padding: '36px 40px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '24px', background: '#ffffff', color: '#24345C' }}>
+        <div id="po-pdf-print-area" className="po-pdf-print-body">
           {/* Company Brand Block */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2.5px solid #24345C', paddingBottom: '20px' }}>
+          <div className="po-pdf-brand-row">
             <div>
-              <div style={{ fontSize: '24px', fontWeight: 950, letterSpacing: '-0.5px', color: '#24345C' }}>HIMALAYA CONSTRUCTION LTD.</div>
+              <div style={{ fontSize: '20px', fontWeight: 950, letterSpacing: '-0.5px', color: '#24345C' }}>HIMALAYA CONSTRUCTION LTD.</div>
               <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', fontWeight: 600 }}>Corporate Office & Central Raw Material Depot</div>
               <div style={{ fontSize: '12px', color: '#5E6B82', marginTop: '2px' }}>Plot 1605, Industrial Estate Sector-12, Maharashtra, India</div>
               <div style={{ fontSize: '12px', color: '#5E6B82' }}>GSTIN: 27AAACH7423P1Z0 • Email: procurement@himalayacorp.com</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '20px', fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '1px' }}>PURCHASE ORDER</div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#24345C', marginTop: '6px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px', display: 'inline-block' }}>{po.poNumber || po.id}</div>
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '1px' }}>PURCHASE ORDER</div>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#24345C', marginTop: '6px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px', display: 'inline-block' }}>{po.poNumber || po.id}</div>
               <div style={{ marginTop: '8px' }}>
                 <span style={{ background: isClosed ? '#dcfce7' : '#ffedd5', color: isClosed ? '#166534' : '#c2410c', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 900, border: `1px solid ${isClosed ? '#bbf7d0' : '#fdba74'}` }}>
                   {isClosed ? '✓ PO CLOSED / COMPLETED' : (po.status || 'PO_ISSUED')}
@@ -132,54 +257,56 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
           </div>
 
           {/* 2-Column Meta Table (Order Details vs Vendor Details) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '16px' }}>
+          <div className="po-pdf-meta-grid">
+            <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>VENDOR / SUPPLIER DETAILS</div>
-              <div style={{ fontSize: '16px', fontWeight: 900, color: '#24345C' }}>{po.vendorName || 'Global Tech Suppliers'}</div>
-              <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', fontWeight: 600 }}>Vendor Code: {po.vendorId || 'V-002'}</div>
-              <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>Payment Terms: {po.paymentTerms || '30 Days Net'}</div>
-              <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>GST Registration: Authorized Supplier</div>
+              <div style={{ fontSize: '15px', fontWeight: 900, color: '#24345C' }}>{po.vendorName || 'Global Tech Suppliers'}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '4px', fontWeight: 600 }}>Vendor Code: {po.vendorId || 'V-002'}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>Payment Terms: {po.paymentTerms || '30 Days Net'}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>GST Registration: Authorized Supplier</div>
             </div>
-            <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '16px' }}>
+            <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>SHIPPING & DELIVERY SCHEDULE</div>
-              <div style={{ fontSize: '13px', color: '#475569' }}><strong>Order Date:</strong> {po.orderedAt || po.orderDate || po.createdAt ? new Date(po.orderedAt || po.orderDate || po.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Jul 2026'}</div>
-              <div style={{ fontSize: '13px', color: '#475569', marginTop: '6px' }}><strong>Expected Delivery:</strong> <span style={{ color: '#0284c7', fontWeight: 800 }}>{po.expectedDeliveryDate || po.deliveryDate ? new Date(po.expectedDeliveryDate || po.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Jul 2026 (EXPECTED TODAY)'}</span></div>
-              <div style={{ fontSize: '13px', color: '#475569', marginTop: '6px' }}><strong>Ship to Depot:</strong> Raw Material Store Dock #1</div>
+              <div style={{ fontSize: '12.5px', color: '#475569' }}><strong>Order Date:</strong> {po.orderedAt || po.orderDate || po.createdAt ? new Date(po.orderedAt || po.orderDate || po.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Jul 2026'}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px' }}><strong>Expected Delivery:</strong> <span style={{ color: '#0284c7', fontWeight: 800 }}>{po.expectedDeliveryDate || po.deliveryDate ? new Date(po.expectedDeliveryDate || po.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Jul 2026 (EXPECTED TODAY)'}</span></div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px' }}><strong>Ship to Depot:</strong> Raw Material Store Dock #1</div>
             </div>
           </div>
 
           {/* Itemized Materials Table */}
           <div>
             <div style={{ fontSize: '13px', fontWeight: 900, color: '#24345C', marginBottom: '10px', textTransform: 'uppercase' }}>Itemized Materials & Pricing Specifications</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #D6E2F0' }}>
-              <thead>
-                <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #D6E2F0' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: 800, color: '#334155' }}>#</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: 800, color: '#334155' }}>MATERIAL DESCRIPTION / CODE</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: 800, color: '#334155' }}>QUANTITY</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: 800, color: '#334155' }}>UNIT</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: 800, color: '#334155' }}>RATE (₹)</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: 800, color: '#334155' }}>AMOUNT (₹)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineItems.map((it, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #DCE5F0' }}>
-                    <td style={{ padding: '14px 12px', fontSize: '13px', color: '#5E6B82' }}>{idx + 1}</td>
-                    <td style={{ padding: '14px 12px', fontSize: '14px', fontWeight: 800, color: '#24345C' }}>{it.name || it.material || 'RM-1605 High-Tensile Steel Sheets'}</td>
-                    <td style={{ padding: '14px 12px', fontSize: '14px', fontWeight: 900, color: '#0284c7', textAlign: 'center' }}>{it.quantity || 1605}</td>
-                    <td style={{ padding: '14px 12px', fontSize: '13px', color: '#475569', textAlign: 'center' }}>{it.unit || 'Sheets'}</td>
-                    <td style={{ padding: '14px 12px', fontSize: '13px', color: '#475569', textAlign: 'right' }}>₹{(Number(it.rate) || 350).toLocaleString('en-IN')}</td>
-                    <td style={{ padding: '14px 12px', fontSize: '14px', fontWeight: 800, color: '#24345C', textAlign: 'right' }}>₹{(Number(it.total) || (Number(it.quantity || 1605) * Number(it.rate || 350))).toLocaleString('en-IN')}</td>
+            <div className="store-table-scroll-wrapper" style={{ borderRadius: '8px', border: '1px solid #D6E2F0', overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: '520px', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #D6E2F0' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>#</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>MATERIAL DESCRIPTION / CODE</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>QUANTITY</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>UNIT</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>RATE (₹)</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>AMOUNT (₹)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {lineItems.map((it, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #DCE5F0' }}>
+                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#5E6B82' }}>{idx + 1}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 800, color: '#24345C' }}>{it.name || it.material || 'RM-1605 High-Tensile Steel Sheets'}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 900, color: '#0284c7', textAlign: 'center' }}>{it.quantity || 1605}</td>
+                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#475569', textAlign: 'center' }}>{it.unit || 'Sheets'}</td>
+                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#475569', textAlign: 'right' }}>₹{(Number(it.rate) || 350).toLocaleString('en-IN')}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 800, color: '#24345C', textAlign: 'right' }}>₹{(Number(it.total) || (Number(it.quantity || 1605) * Number(it.rate || 350))).toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Financial Calculation Block */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ width: '320px', background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="po-pdf-calc-row">
+            <div className="po-pdf-calc-box">
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569' }}>
                 <span>Subtotal Amount:</span>
                 <span style={{ fontWeight: 700 }}>₹{subtotal.toLocaleString('en-IN')}</span>
@@ -192,7 +319,7 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
                 <span>Freight & Handling:</span>
                 <span style={{ fontWeight: 700 }}>₹{freight.toLocaleString('en-IN')}</span>
               </div>
-              <div style={{ borderTop: '1.5px solid #D6E2F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 900, color: '#24345C' }}>
+              <div style={{ borderTop: '1.5px solid #D6E2F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '15.5px', fontWeight: 900, color: '#24345C' }}>
                 <span>GRAND TOTAL:</span>
                 <span style={{ color: '#0284c7' }}>₹{grandTotal.toLocaleString('en-IN')}</span>
               </div>
@@ -200,27 +327,27 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
           </div>
 
           {/* Standard Clauses & Authorization Signatures */}
-          <div style={{ marginTop: '10px', borderTop: '1px solid #DCE5F0', paddingTop: '20px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '8px' }}>STANDARD PROCUREMENT CLAUSES</div>
-            <p style={{ fontSize: '12px', color: '#5E6B82', lineHeight: '1.5', margin: 0 }}>
+          <div style={{ marginTop: '4px', borderTop: '1px solid #DCE5F0', paddingTop: '16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '6px' }}>STANDARD PROCUREMENT CLAUSES</div>
+            <p style={{ fontSize: '11.5px', color: '#5E6B82', lineHeight: '1.5', margin: 0 }}>
               1. All materials supplied must adhere strictly to ASTM A1008 structural grade specifications.<br />
               2. Deliveries must be accompanied by original Tax Invoice, Delivery Challan, and Test Certificate.<br />
               3. Store dock inspection is mandatory. Defective or rejected quantities will be returned at vendor's risk and cost.
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginTop: '24px', paddingTop: '20px', borderTop: '1.5px solid #D6E2F0', textAlign: 'center' }}>
+          <div className="po-pdf-signatures-grid">
             <div>
-              <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontWeight: 700, color: '#334155' }}>Rajesh Kumar</div>
-              <div style={{ borderTop: '1px solid #8893A7', paddingTop: '6px', fontSize: '11px', fontWeight: 800, color: '#475569' }}>PREPARED BY (STORE DEP)</div>
+              <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontWeight: 700, color: '#334155' }}>Rajesh Kumar</div>
+              <div style={{ borderTop: '1px solid #8893A7', paddingTop: '6px', fontSize: '10.5px', fontWeight: 800, color: '#475569' }}>PREPARED BY (STORE DEP)</div>
             </div>
             <div>
-              <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontWeight: 700, color: '#334155' }}>Dr. A. K. Sharma</div>
-              <div style={{ borderTop: '1px solid #8893A7', paddingTop: '6px', fontSize: '11px', fontWeight: 800, color: '#475569' }}>VERIFIED BY (PLANT HEAD)</div>
+              <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontWeight: 700, color: '#334155' }}>Dr. A. K. Sharma</div>
+              <div style={{ borderTop: '1px solid #8893A7', paddingTop: '6px', fontSize: '10.5px', fontWeight: 800, color: '#475569' }}>VERIFIED BY (PLANT HEAD)</div>
             </div>
             <div>
-              <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontWeight: 700, color: '#334155' }}>Vikramaditya (MD)</div>
-              <div style={{ borderTop: '1px solid #8893A7', paddingTop: '6px', fontSize: '11px', fontWeight: 800, color: '#0284c7' }}>AUTHORIZED BY (SUPER ADMIN)</div>
+              <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontWeight: 700, color: '#334155' }}>Vikramaditya (MD)</div>
+              <div style={{ borderTop: '1px solid #8893A7', paddingTop: '6px', fontSize: '10.5px', fontWeight: 800, color: '#0284c7' }}>AUTHORIZED BY (SUPER ADMIN)</div>
             </div>
           </div>
         </div>
@@ -344,8 +471,16 @@ export default function StorePortal() {
   const [materialQty, setMaterialQty] = useState('');
   const [poNotes, setPoNotes] = useState('');
   const [poExpectedDate, setPoExpectedDate] = useState('');
+  const [activeTab, setActiveTab] = useState(tabParam || 'Create Request');
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const poTabsRef = useRef(null);
   const [selectedPOId, setSelectedPOId] = useState('');
-  const [activeTab, setActiveTab] = useState(tabParam || 'PO List');
   const [poListFilter, setPoListFilter] = useState('All');
   const [verifyDeliveryFilter, setVerifyDeliveryFilter] = useState('All');
   const [selectedPO, setSelectedPO] = useState(null);
@@ -1435,8 +1570,6 @@ export default function StorePortal() {
               <X size={16} />
             </button>
           )}
-          {tabParam === 'Material Rejections' && <MaterialRejections />}
-          {tabParam === 'PO Report' && <POReport />}
         </div>
 
         {/* Status & FSN Filter Bar */}
@@ -1723,7 +1856,6 @@ export default function StorePortal() {
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <button className="action-btn" style={{ flex: 1, padding: '10px', background: 'var(--color-primary)', border: 'none', borderRadius: '8px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }} onClick={() => handleQuickStockIn(item)}>+ Stock In</button>
-                  <button className="action-btn btn-outline" style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => handleQuickStockOut(item)}>- Issue Out</button>
                   <button className="action-btn btn-outline" style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => handleQuickAdjust(item)}>Adj Stock</button>
                 </div>
               </div>
@@ -1746,7 +1878,9 @@ export default function StorePortal() {
             </p>
           </div>
         </div>
-        <div className="m-theme-table-container">
+
+        {/* Desktop Table View */}
+        <div className="desktop-only m-theme-table-container">
           <DataTable
             scrollMode={true}
             columns={[
@@ -1773,6 +1907,55 @@ export default function StorePortal() {
             )}
             emptyMessage="No finished products registered in database catalog."
           />
+        </div>
+
+        {/* Mobile Horizontal List View */}
+        <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
+          {finishedInventory.length === 0 ? (
+            <div className="raw-inv-mobile-empty">No finished products registered in database catalog.</div>
+          ) : (
+            finishedInventory.map((row, idx) => (
+              <div key={idx} className="raw-inv-mobile-card">
+                <div className="raw-inv-card-header">
+                  <div className="raw-inv-card-title-box">
+                    <span className="raw-inv-code-pill">FG-{String(idx + 1).padStart(3, '0')}</span>
+                    <span className="raw-inv-material-title">{row.product}</span>
+                  </div>
+                  <span className="m-theme-badge m-theme-badge-green raw-inv-status-pill">
+                    IN STOCK
+                  </span>
+                </div>
+                <div className="raw-inv-card-metrics-row">
+                  <div className="raw-inv-meta-col">
+                    <span className="raw-inv-category-text">Warehouse: Primary Warehouse A</span>
+                    <span className="raw-inv-reorder-text">Category: Finished Goods</span>
+                  </div>
+                  <div className="raw-inv-stock-col">
+                    <span className="raw-inv-stock-tag">CURRENT STOCK</span>
+                    <span className="raw-inv-stock-number raw-inv-stock-green">
+                      {row.stock} <span className="raw-inv-stock-unit">{row.unit || 'Units'}</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="raw-inv-card-actions-row">
+                  <button
+                    type="button"
+                    className="m-theme-btn-action-green raw-inv-action-btn raw-inv-btn-in"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => {
+                      dispatch({
+                        type: 'ADJUST_STOCK',
+                        payload: { material: row.product, stock: row.stock + 10 }
+                      });
+                      showToast(`Adjusted stock counts for product ${row.product}`);
+                    }}
+                  >
+                    + Add 10 Units
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
@@ -1820,10 +2003,6 @@ export default function StorePortal() {
 
         {paginatedOrderGroups.map(([orderNo, reqs]) => {
           const order = orders.find(o => o.orderNo === orderNo);
-          const approvedReqs = reqs.filter(r => r.status === 'APPROVED');
-          const preparedReqs = reqs.filter(r => r.status === 'READY_FOR_RELEASE');
-          const allIssued = reqs.every(r => r.status === 'ISSUED');
-
           return (
             <div key={orderNo} className="m-theme-table-container">
               {/* Order header */}
@@ -1860,8 +2039,8 @@ export default function StorePortal() {
                 </div>
               </div>
 
-              {/* Material line items table */}
-              <div style={{ overflowX: 'auto', width: '100%' }}>
+              {/* Material line items table - Desktop View */}
+              <div className="desktop-only store-table-scroll-wrapper" style={{ overflowX: 'auto', width: '100%' }}>
                 <table className="m-theme-table">
                   <thead>
                     <tr>
@@ -1969,6 +2148,78 @@ export default function StorePortal() {
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Material line items - Mobile Horizontal List Cards */}
+              <div className="mobile-only raw-inventory-mobile-list" style={{ padding: '12px', gap: '10px' }}>
+                {reqs.map(req => {
+                  const stockItem = findInventoryItem(rawInventory, req.materialName);
+                  const stockVal = stockItem ? stockItem.stock : 0;
+                  const hasShortage = stockVal < req.quantityApproved;
+                  const unit = stockItem ? stockItem.unit : 'Tons';
+
+                  let badgeColor = 'green';
+                  if (req.status === 'ISSUED') badgeColor = 'green';
+                  else if (hasShortage) badgeColor = 'red';
+                  else badgeColor = 'yellow';
+
+                  return (
+                    <div key={req.id} className="raw-inv-mobile-card">
+                      <div className="raw-inv-card-header">
+                        <div className="raw-inv-card-title-box">
+                          <span className="raw-inv-code-pill">{req.id?.slice(0, 8) || 'REQ'}</span>
+                          <span className="raw-inv-material-title">{req.materialName}</span>
+                        </div>
+                        <span className={`m-theme-badge m-theme-badge-${badgeColor} raw-inv-status-pill`}>
+                          {hasShortage && req.status !== 'ISSUED' ? 'Shortage' : req.status}
+                        </span>
+                      </div>
+
+                      <div className="raw-inv-card-metrics-row">
+                        <div className="raw-inv-meta-col">
+                          <span className="raw-inv-category-text">Approved: {req.quantityApproved} {unit}</span>
+                          <span className="raw-inv-reorder-text">Dept: {selectedDepartments[req.id] || 'Production'}</span>
+                        </div>
+                        <div className="raw-inv-stock-col">
+                          <span className="raw-inv-stock-tag">AVAILABLE STOCK</span>
+                          <span className={`raw-inv-stock-number ${hasShortage ? 'raw-inv-stock-red' : 'raw-inv-stock-green'}`}>
+                            {stockVal} <span className="raw-inv-stock-unit">{unit}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="raw-inv-card-actions-row">
+                        {hasShortage ? (
+                          <button
+                            type="button"
+                            className="m-theme-btn-action-red"
+                            style={{ width: '100%', justifyContent: 'center' }}
+                            onClick={() => handleRestock(req.materialName, (req.quantityApproved - stockVal))}
+                          >
+                            Restock {(req.quantityApproved - stockVal)} {unit}
+                          </button>
+                        ) : (
+                          <>
+                            {!isHistory ? (
+                              <button
+                                type="button"
+                                className="m-theme-btn-action-green"
+                                style={{ width: '100%', justifyContent: 'center' }}
+                                onClick={() => handleIssueMaterial(req, selectedDepartments[req.id] || 'Production')}
+                              >
+                                Release Material
+                              </button>
+                            ) : (
+                              <div style={{ width: '100%', textAlign: 'center', fontSize: '12px', fontWeight: 800, color: '#10b981', background: '#ecfdf5', padding: '6px', borderRadius: '6px' }}>
+                                ✓ Material Issued
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -2771,7 +3022,7 @@ export default function StorePortal() {
     });
 
     return (
-      <div className="app-card">
+      <div className="app-card store-po-ledger-card">
         <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <h2 className="card-heading">Purchase Order Procurement Ledger</h2>
           {/* Filter Tabs */}
@@ -3401,20 +3652,21 @@ export default function StorePortal() {
 
   const renderPOWorkspace = () => {
     const tabs = [
-      { label: 'Create Request',        icon: '📋' },
-      { label: 'Verify Delivery',        icon: '✅' },
-      { label: 'Delivery History',       icon: '📦' },
-      { label: 'GRN History',            icon: '🧾' },
-      { label: 'Material Rejections',    icon: '🚫' },
-      { label: 'PO Report',              icon: '📊' },
-      { label: 'Indent History',         icon: '📂' },
+      { label: 'Create Request',          icon: '📋' },
+      { label: 'Verify Delivery',          icon: '✅' },
+      { label: 'Delivery History',         icon: '📦' },
+      { label: 'GRN History',              icon: '🧾' },
+      { label: 'Material Rejections',      icon: '🚫' },
+      { label: 'Replacement Deliveries',   icon: '🔄' },
+      { label: 'PO Report',                icon: '📊' },
+      { label: 'Indent History',           icon: '📂' },
     ];
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
 
         {/* ── Header ── */}
-        <div style={{
+        <div className="store-po-workspace-header" style={{
           background: 'linear-gradient(135deg, #2F4375 0%, #1e3a7b 100%)',
           padding: '20px 24px 16px 24px',
           borderRadius: '16px 16px 0 0',
@@ -3428,59 +3680,70 @@ export default function StorePortal() {
         </div>
 
         {/* ── Scrollable Tab Strip ── */}
-        <div className="erp-tab-scroll-bar" style={{
-          background: '#1e3a7b',
-          padding: '0 16px',
-          borderBottom: '3px solid #E5ECF5',
-          /* scrollable row */
-          display: 'flex',
-          overflowX: 'auto',
-          overflowY: 'visible',
-          whiteSpace: 'nowrap',
-          scrollbarWidth: 'none',        /* Firefox */
-          msOverflowStyle: 'none',       /* IE */
-          WebkitOverflowScrolling: 'touch',
-          gap: '2px',
-        }}>
+        <div 
+          ref={poTabsRef}
+          className="store-po-tabs-strip erp-tab-scroll-bar" 
+          onWheel={(e) => {
+            if (e.deltaY !== 0 && poTabsRef.current) {
+              poTabsRef.current.scrollLeft += e.deltaY;
+            }
+          }}
+          style={{
+            background: 'linear-gradient(180deg, #1e3a7b 0%, #162c60 100%)',
+            padding: '10px 14px 12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            whiteSpace: 'nowrap',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-x',
+            scrollBehavior: 'smooth',
+            gap: '8px',
+            width: '100%',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            minHeight: '54px',
+          }}
+        >
           {tabs.map(({ label, icon }) => {
             const isActive = activeTab === label || (!tabs.map(t => t.label).includes(activeTab) && label === 'Create Request');
             return (
               <button
                 key={label}
-                onClick={() => handleTabChange(label)}
+                onClick={(e) => {
+                  handleTabChange(label);
+                  e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                }}
                 style={{
-                  /* reset */
-                  border: 'none',
+                  border: isActive ? '1.5px solid #ffffff' : '1px solid rgba(255,255,255,0.30)',
                   outline: 'none',
-                  background: 'none',
-                  /* layout */
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  flexShrink: 0,           /* ← CRITICAL: prevents squishing */
+                  gap: '7px',
+                  flexShrink: 0,
                   whiteSpace: 'nowrap',
-                  /* visual */
-                  padding: '10px 16px',
+                  padding: '8px 16px',
                   cursor: 'pointer',
                   fontSize: '13px',
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? '#2F4375' : 'rgba(255,255,255,0.72)',
-                  background: isActive ? '#ffffff' : 'transparent',
-                  borderRadius: '8px 8px 0 0',
-                  borderBottom: isActive ? '3px solid #fff' : '3px solid transparent',
-                  marginBottom: '-3px',
-                  transition: 'background 0.18s, color 0.18s',
+                  fontWeight: isActive ? 800 : 600,
+                  color: isActive ? '#1e3a7b' : '#ffffff',
+                  background: isActive ? '#ffffff' : 'rgba(255,255,255,0.18)',
+                  borderRadius: '20px',
+                  boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
+                  transition: 'all 0.18s ease',
+                  textShadow: isActive ? 'none' : '0 1px 2px rgba(0,0,0,0.4)',
                 }}
               >
-                <span style={{ fontSize: '14px', lineHeight: 1 }}>{icon}</span>
-                {label}
+                <span style={{ fontSize: '15px', lineHeight: 1 }}>{icon}</span>
+                <span>{label}</span>
               </button>
             );
           })}
         </div>
 
         {/* ── Tab Content ── */}
-        <div style={{
+        <div className="store-po-workspace-content" style={{
           background: '#ffffff',
           borderRadius: '0 0 16px 16px',
           border: '1px solid #E5ECF5',
@@ -3493,6 +3756,7 @@ export default function StorePortal() {
           {activeTab === 'Delivery History'                 && renderPOListTab()}
           {activeTab === 'GRN History'                      && <GoodsReceiptNote />}
           {activeTab === 'Material Rejections'              && <MaterialRejections />}
+          {activeTab === 'Replacement Deliveries'           && <ReceiveReplacement />}
           {activeTab === 'PO Report'                        && <POReport />}
           {activeTab === 'Indent History'                   && <IndentHistory />}
         </div>

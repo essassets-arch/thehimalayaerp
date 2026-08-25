@@ -628,7 +628,7 @@ export default function DailyReportHistoryView({
         )}
       </div>
 
-      {/* HISTORY TABLE */}
+      {/* HISTORY TABLE & MOBILE CARDS */}
       <div style={{
         background: 'var(--color-bg-card, #ffffff)',
         border: '1px solid var(--color-border, #e2e8f0)',
@@ -636,7 +636,8 @@ export default function DailyReportHistoryView({
         boxShadow: 'var(--shadow-soft, 0 4px 6px -1px rgba(0,0,0,0.05))',
         overflow: 'hidden'
       }}>
-        <div className="erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
+        {/* Desktop View Table */}
+        <div className="desktop-only erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
           <table style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border, #e2e8f0)' }}>
@@ -826,6 +827,200 @@ export default function DailyReportHistoryView({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View Horizontal List Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }}>
+          {loading ? (
+            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
+              Loading production history records...
+            </div>
+          ) : reports.length === 0 ? (
+            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
+              No production reports found matching current filters.
+            </div>
+          ) : (
+            reports.map((report) => {
+              const d = report.reportDate ? report.reportDate.split('T')[0] : '—';
+              const w = Number(report.totalWeight || 0);
+
+              return (
+                <div
+                  key={report.id}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                  }}
+                >
+                  {/* Card Header: Report No + Shift & Status Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span
+                        onClick={() => openReportModal(report.id)}
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 800,
+                          fontSize: '12.5px',
+                          color: '#1d4ed8',
+                          background: '#eff6ff',
+                          padding: '2.5px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #dbeafe',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {report.reportNo}
+                      </span>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#475569',
+                        background: '#f1f5f9',
+                        padding: '2.5px 6px',
+                        borderRadius: '4px',
+                      }}>
+                        {report.shift || 'Morning'}
+                      </span>
+                    </div>
+                    {renderStatusBadge(report.status)}
+                  </div>
+
+                  {/* Supervisor & Date Row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                    <div>
+                      <span style={{ color: '#64748b', fontWeight: 600 }}>Supervisor: </span>
+                      <strong style={{ color: '#1e293b' }}>{report.supervisorName || '—'}</strong>
+                    </div>
+                    <div style={{ color: '#64748b', fontWeight: 600 }}>
+                      📅 {d}
+                    </div>
+                  </div>
+
+                  {/* 4-Metric Strip: Covers, Frames, Sets, Total Weight */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    gap: '4px',
+                    textAlign: 'center',
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Covers</span>
+                      <strong style={{ fontSize: '13px', color: '#2563eb' }}>{Number(report.totalCovers || 0).toLocaleString()}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Frames</span>
+                      <strong style={{ fontSize: '13px', color: '#d97706' }}>{Number(report.totalFrames || 0).toLocaleString()}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Sets</span>
+                      <strong style={{ fontSize: '13px', color: '#059669' }}>{Number(report.totalSets || 0).toLocaleString()}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Weight</span>
+                      <strong style={{ fontSize: '13px', color: '#7c3aed' }}>{w.toLocaleString()} kg</strong>
+                    </div>
+                  </div>
+
+                  {/* Creator & Actions Footer */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      By: <strong>{report.createdBy?.name || 'User'}</strong>
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => openReportModal(report.id)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #dbeafe',
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Eye size={13} /> View
+                      </button>
+
+                      {!isReadOnly && (report.status === 'DRAFT' || report.status === 'REOPENED') && onEditReport && (
+                        <button
+                          type="button"
+                          onClick={() => onEditReport(report.id)}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #fde68a',
+                            background: '#fef3c7',
+                            color: '#d97706',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Edit size={13} />
+                        </button>
+                      )}
+
+                      {!isReadOnly && (report.status === 'SUBMITTED' || report.status === 'APPROVED') && (
+                        <button
+                          type="button"
+                          title="Reopen"
+                          onClick={() => handleReopenReport(report.id)}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #bfdbfe',
+                            background: '#eff6ff',
+                            color: '#2563eb',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <RefreshCw size={13} />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onViewReport) onViewReport(report.id);
+                          else openReportModal(report.id);
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          background: '#f1f5f9',
+                          color: '#475569',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Printer size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* PAGINATION FOOTER */}

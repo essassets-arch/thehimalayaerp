@@ -393,35 +393,94 @@ export default function ProductionAnalyticsPage() {
           <div className="production-card-header">
             <h3 className="production-card-title">Product-Wise Production Analysis</h3>
           </div>
-          <div className="production-table-container" style={{ height: 260 }}>
-            <table className="production-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Planned</th>
-                  <th>Produced</th>
-                  <th>QC Passed</th>
-                  <th>QC Failed</th>
-                  <th>Achievement %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productPerformance.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No product metrics recorded.</td></tr>
-                ) : (
-                  productPerformance.map((item, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 'bold' }}>{item.product}</td>
-                      <td>{formatNumber(item.planned)}</td>
-                      <td>{formatNumber(item.produced)}</td>
-                      <td>{formatNumber(item.qcPassed)}</td>
-                      <td style={{ color: '#ef4444', fontWeight: 'bold' }}>{formatNumber(item.qcFailed)}</td>
-                      <td>{item.achievement}%</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="desktop-only">
+            <div className="production-table-container" style={{ height: 260 }}>
+              <table className="production-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Planned</th>
+                    <th>Produced</th>
+                    <th>QC Passed</th>
+                    <th>QC Failed</th>
+                    <th>Achievement %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productPerformance.length === 0 ? (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No product metrics recorded.</td></tr>
+                  ) : (
+                    productPerformance.map((item, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 'bold' }}>{item.product}</td>
+                        <td>{formatNumber(item.planned)}</td>
+                        <td>{formatNumber(item.produced)}</td>
+                        <td>{formatNumber(item.qcPassed)}</td>
+                        <td style={{ color: '#ef4444', fontWeight: 'bold' }}>{formatNumber(item.qcFailed)}</td>
+                        <td>{item.achievement}%</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {productPerformance.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                No product metrics recorded.
+              </div>
+            ) : (
+              productPerformance.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{item.product}</strong>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: '12px' }}>
+                      {item.achievement}% Done
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '6px',
+                    padding: '6px 4px',
+                    gap: '2px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Planned</span>
+                      <strong style={{ fontSize: '11px', color: '#0f172a' }}>{formatNumber(item.planned)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Produced</span>
+                      <strong style={{ fontSize: '11px', color: '#0284c7' }}>{formatNumber(item.produced)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Passed</span>
+                      <strong style={{ fontSize: '11px', color: '#16a34a' }}>{formatNumber(item.qcPassed)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Failed</span>
+                      <strong style={{ fontSize: '11px', color: '#ef4444' }}>{formatNumber(item.qcFailed)}</strong>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -432,52 +491,132 @@ export default function ProductionAnalyticsPage() {
           <h3 className="production-card-title">Production Floor Live Status</h3>
           <span className="status-pill running">● {floor.runningWorkOrders ?? 0} Running Jobs</span>
         </div>
-        <div className="production-table-container">
-          <table className="production-table">
-            <thead>
-              <tr>
-                <th>Machine</th>
-                <th>Work Order</th>
-                <th>Product</th>
-                <th>Operator</th>
-                <th>Planned</th>
-                <th>Produced</th>
-                <th>Progress</th>
-                <th>Started On</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {floor.list?.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#64748b' }}>No jobs running on floor.</td></tr>
-              ) : (
-                floor.list?.map((row, idx) => (
-                  <tr key={idx}>
-                    <td style={{ fontWeight: 'bold' }}>{row.machine}</td>
-                    <td>{row.workOrder}</td>
-                    <td>{row.product}</td>
-                    <td>{row.operator}</td>
-                    <td>{formatNumber(row.planned)}</td>
-                    <td>{formatNumber(row.produced)}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{row.progress}%</span>
-                        <div className="progress-bar-container" style={{ width: 60, marginTop: 0 }}>
-                          <div className="progress-bar-fill" style={{ width: `${row.progress}%` }} />
+        <div className="desktop-only">
+          <div className="production-table-container">
+            <table className="production-table">
+              <thead>
+                <tr>
+                  <th>Machine</th>
+                  <th>Work Order</th>
+                  <th>Product</th>
+                  <th>Operator</th>
+                  <th>Planned</th>
+                  <th>Produced</th>
+                  <th>Progress</th>
+                  <th>Started On</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {floor.list?.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: '#64748b' }}>No jobs running on floor.</td></tr>
+                ) : (
+                  floor.list?.map((row, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 'bold' }}>{row.machine}</td>
+                      <td>{row.workOrder}</td>
+                      <td>{row.product}</td>
+                      <td>{row.operator}</td>
+                      <td>{formatNumber(row.planned)}</td>
+                      <td>{formatNumber(row.produced)}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>{row.progress}%</span>
+                          <div className="progress-bar-container" style={{ width: 60, marginTop: 0 }}>
+                            <div className="progress-bar-fill" style={{ width: `${row.progress}%` }} />
+                          </div>
                         </div>
+                      </td>
+                      <td>{row.started}</td>
+                      <td>
+                        <span className={`status-pill ${row.status?.toLowerCase() === 'started' || row.status?.toLowerCase() === 'in_progress' ? 'running' : row.status?.toLowerCase() === 'completed' ? 'completed' : 'paused'}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Production Floor Live Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {floor.list?.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+              No jobs running on floor.
+            </div>
+          ) : (
+            floor.list?.map((row, idx) => {
+              const isRun = row.status?.toLowerCase() === 'started' || row.status?.toLowerCase() === 'in_progress';
+              const isComp = row.status?.toLowerCase() === 'completed';
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.machine}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', color: '#0284c7', fontWeight: 700 }}>
+                          {row.workOrder}
+                        </code>
+                        <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {row.product}</span>
                       </div>
-                    </td>
-                    <td>{row.started}</td>
-                    <td>
-                      <span className={`status-pill ${row.status?.toLowerCase() === 'started' || row.status?.toLowerCase() === 'in_progress' ? 'running' : row.status?.toLowerCase() === 'completed' ? 'completed' : 'paused'}`}>
-                        {row.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </div>
+                    <span className={`status-pill ${isRun ? 'running' : isComp ? 'completed' : 'paused'}`} style={{ fontSize: '10.5px' }}>
+                      {row.status}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                      <span style={{ color: '#64748b' }}>Operator: <strong style={{ color: '#334155' }}>{row.operator}</strong></span>
+                      <strong style={{ color: '#0284c7' }}>{row.progress}% Progress</strong>
+                    </div>
+                    <div className="progress-bar-container" style={{ width: '100%', height: '6px', marginTop: '2px' }}>
+                      <div className="progress-bar-fill" style={{ width: `${row.progress}%` }} />
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Planned</span>
+                      <strong style={{ fontSize: '12px', color: '#0f172a' }}>{formatNumber(row.planned)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Produced</span>
+                      <strong style={{ fontSize: '12px', color: '#16a34a' }}>{formatNumber(row.produced)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Started</span>
+                      <span style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>{row.started ? String(row.started).replace('T', ' ').slice(5, 16) : '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -489,39 +628,78 @@ export default function ProductionAnalyticsPage() {
             <h3 className="production-card-title">Incoming Orders Queue</h3>
             <span style={{ fontSize: '12px', color: '#64748b' }}>Urgent: {incomingOrders.urgent ?? 0} | Waiting &gt; 24h: {incomingOrders.waiting24h ?? 0}</span>
           </div>
-          <div className="production-table-container" style={{ height: 320 }}>
-            <table className="production-table">
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Qty</th>
-                  <th>Priority</th>
-                  <th>Age (hrs)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {incomingOrders.orders?.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No pending orders.</td></tr>
-                ) : (
-                  incomingOrders.orders?.map((order, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 'bold' }}>{order.orderNo}</td>
-                      <td>{order.customer}</td>
-                      <td>{order.product}</td>
-                      <td>{formatNumber(order.qty)}</td>
-                      <td>
-                        <span className={`status-pill ${order.priority === 'URGENT' ? 'delayed' : order.priority === 'HIGH' ? 'paused' : 'pending'}`}>
-                          {order.priority}
-                        </span>
-                      </td>
-                      <td>{order.age}h</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="desktop-only">
+            <div className="production-table-container" style={{ height: 320 }}>
+              <table className="production-table">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Customer</th>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Priority</th>
+                    <th>Age (hrs)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {incomingOrders.orders?.length === 0 ? (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No pending orders.</td></tr>
+                  ) : (
+                    incomingOrders.orders?.map((order, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 'bold' }}>{order.orderNo}</td>
+                        <td>{order.customer}</td>
+                        <td>{order.product}</td>
+                        <td>{formatNumber(order.qty)}</td>
+                        <td>
+                          <span className={`status-pill ${order.priority === 'URGENT' ? 'delayed' : order.priority === 'HIGH' ? 'paused' : 'pending'}`}>
+                            {order.priority}
+                          </span>
+                        </td>
+                        <td>{order.age}h</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {incomingOrders.orders?.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                No pending orders.
+              </div>
+            ) : (
+              incomingOrders.orders?.map((order, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{order.orderNo}</strong>
+                    <span className={`status-pill ${order.priority === 'URGENT' ? 'delayed' : order.priority === 'HIGH' ? 'paused' : 'pending'}`} style={{ fontSize: '10.5px' }}>
+                      {order.priority}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    {order.customer} • <strong style={{ color: '#334155' }}>{order.product}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', fontSize: '11.5px' }}>
+                    <span>Quantity: <strong style={{ color: '#0f172a' }}>{formatNumber(order.qty)}</strong></span>
+                    <span>Waiting: <strong style={{ color: '#d97706' }}>{order.age} hrs</strong></span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -531,46 +709,88 @@ export default function ProductionAnalyticsPage() {
             <h3 className="production-card-title">Work Orders Progress Ledger</h3>
             <span style={{ fontSize: '12px', color: '#64748b' }}>Total: {workOrders.total ?? 0} | Delayed: {workOrders.delayed ?? 0}</span>
           </div>
-          <div className="production-table-container" style={{ height: 320 }}>
-            <table className="production-table">
-              <thead>
-                <tr>
-                  <th>WO No.</th>
-                  <th>Product</th>
-                  <th>Planned</th>
-                  <th>Produced</th>
-                  <th>Progress</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredWorkOrders.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No matching work orders.</td></tr>
-                ) : (
-                  filteredWorkOrders.map((wo, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 'bold' }}>{wo.woNo}</td>
-                      <td>{wo.product}</td>
-                      <td>{formatNumber(wo.planned)}</td>
-                      <td>{formatNumber(wo.produced)}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span>{wo.completionPct}%</span>
-                          <div className="progress-bar-container" style={{ width: 45, marginTop: 0 }}>
-                            <div className="progress-bar-fill" style={{ width: `${wo.completionPct}%` }} />
+          <div className="desktop-only">
+            <div className="production-table-container" style={{ height: 320 }}>
+              <table className="production-table">
+                <thead>
+                  <tr>
+                    <th>WO No.</th>
+                    <th>Product</th>
+                    <th>Planned</th>
+                    <th>Produced</th>
+                    <th>Progress</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredWorkOrders.length === 0 ? (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No matching work orders.</td></tr>
+                  ) : (
+                    filteredWorkOrders.map((wo, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 'bold' }}>{wo.woNo}</td>
+                        <td>{wo.product}</td>
+                        <td>{formatNumber(wo.planned)}</td>
+                        <td>{formatNumber(wo.produced)}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>{wo.completionPct}%</span>
+                            <div className="progress-bar-container" style={{ width: 45, marginTop: 0 }}>
+                              <div className="progress-bar-fill" style={{ width: `${wo.completionPct}%` }} />
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`status-pill ${wo.status === 'COMPLETED' ? 'completed' : wo.status === 'CREATED' ? 'pending' : 'running'}`}>
-                          {wo.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                        </td>
+                        <td>
+                          <span className={`status-pill ${wo.status === 'COMPLETED' ? 'completed' : wo.status === 'CREATED' ? 'pending' : 'running'}`}>
+                            {wo.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {filteredWorkOrders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                No matching work orders.
+              </div>
+            ) : (
+              filteredWorkOrders.map((wo, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{wo.woNo}</strong>
+                    <span className={`status-pill ${wo.status === 'COMPLETED' ? 'completed' : wo.status === 'CREATED' ? 'pending' : 'running'}`} style={{ fontSize: '10.5px' }}>
+                      {wo.status}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#334155', fontWeight: 600 }}>{wo.product}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
+                      <span>Output: <strong>{formatNumber(wo.produced)} / {formatNumber(wo.planned)}</strong></span>
+                      <strong style={{ color: '#0284c7' }}>{wo.completionPct}%</strong>
+                    </div>
+                    <div className="progress-bar-container" style={{ width: '100%', height: '6px', marginTop: 0 }}>
+                      <div className="progress-bar-fill" style={{ width: `${wo.completionPct}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -581,7 +801,7 @@ export default function ProductionAnalyticsPage() {
           <h3 className="production-card-title">Quality Control & SLA Executive Summary</h3>
           <span className="status-pill completed">Pass Rate: {qc.passRate}%</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 16, marginBottom: 24 }}>
+        <div className="production-qc-kpi-grid" style={{ marginBottom: 24 }}>
           <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, textAlign: 'center' }}>
             <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>QC PENDING</span>
             <div style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', marginTop: 4 }}>{qc.pending ?? 0} batches</div>
@@ -637,35 +857,57 @@ export default function ProductionAnalyticsPage() {
           {/* Testing records */}
           <div className="production-card" style={{ border: 'none', padding: 0, boxShadow: 'none' }}>
             <h4 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 'bold' }}>Production Testing Log</h4>
-            <div className="production-table-container" style={{ height: 200 }}>
-              <table className="production-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Batch</th>
-                    <th>Result</th>
-                    <th>Tested On</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {testing.list?.length === 0 ? (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', color: '#64748b' }}>No test logs found.</td></tr>
-                  ) : (
-                    testing.list?.map((row, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontWeight: 'bold' }}>{row.product}</td>
-                        <td>{row.batch}</td>
-                        <td>
-                          <span className={`status-pill ${row.result === 'PASSED' ? 'running' : 'delayed'}`}>
-                            {row.result}
-                          </span>
-                        </td>
-                        <td>{row.testedOn}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="desktop-only">
+              <div className="production-table-container" style={{ height: 200 }}>
+                <table className="production-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Batch</th>
+                      <th>Result</th>
+                      <th>Tested On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {testing.list?.length === 0 ? (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', color: '#64748b' }}>No test logs found.</td></tr>
+                    ) : (
+                      testing.list?.map((row, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 'bold' }}>{row.product}</td>
+                          <td>{row.batch}</td>
+                          <td>
+                            <span className={`status-pill ${row.result === 'PASSED' ? 'running' : 'delayed'}`}>
+                              {row.result}
+                            </span>
+                          </td>
+                          <td>{row.testedOn}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {testing.list?.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                  No test logs found.
+                </div>
+              ) : (
+                testing.list?.map((row, idx) => (
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>{row.product}</strong>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>Batch: {row.batch} • {row.testedOn}</div>
+                    </div>
+                    <span className={`status-pill ${row.result === 'PASSED' ? 'running' : 'delayed'}`} style={{ fontSize: '10.5px' }}>
+                      {row.result}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -679,35 +921,94 @@ export default function ProductionAnalyticsPage() {
             <h3 className="production-card-title">Machine Performance Ledger</h3>
             <span style={{ fontSize: '12px', color: '#64748b' }}>OEE Target: 85%</span>
           </div>
-          <div className="production-table-container" style={{ height: 260 }}>
-            <table className="production-table">
-              <thead>
-                <tr>
-                  <th>Machine</th>
-                  <th>Runtime</th>
-                  <th>Idle Time</th>
-                  <th>Produced</th>
-                  <th>Utilization</th>
-                  <th>OEE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {machines.list?.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No machine data recorded.</td></tr>
-                ) : (
-                  machines.list?.map((m, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 'bold' }}>{m.machine}</td>
-                      <td>{m.runtime}</td>
-                      <td>{m.idleTime}</td>
-                      <td>{formatNumber(m.produced)}</td>
-                      <td>{m.utilization}%</td>
-                      <td style={{ fontWeight: 'bold', color: m.oee >= 85 ? '#16a34a' : '#d97706' }}>{m.oee}%</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="desktop-only">
+            <div className="production-table-container" style={{ height: 260 }}>
+              <table className="production-table">
+                <thead>
+                  <tr>
+                    <th>Machine</th>
+                    <th>Runtime</th>
+                    <th>Idle Time</th>
+                    <th>Produced</th>
+                    <th>Utilization</th>
+                    <th>OEE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {machines.list?.length === 0 ? (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No machine data recorded.</td></tr>
+                  ) : (
+                    machines.list?.map((m, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 'bold' }}>{m.machine}</td>
+                        <td>{m.runtime}</td>
+                        <td>{m.idleTime}</td>
+                        <td>{formatNumber(m.produced)}</td>
+                        <td>{m.utilization}%</td>
+                        <td style={{ fontWeight: 'bold', color: m.oee >= 85 ? '#16a34a' : '#d97706' }}>{m.oee}%</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {machines.list?.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                No machine data recorded.
+              </div>
+            ) : (
+              machines.list?.map((m, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{m.machine}</strong>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: m.oee >= 85 ? '#16a34a' : '#d97706', background: m.oee >= 85 ? '#dcfce7' : '#fef3c7', padding: '2px 8px', borderRadius: '12px' }}>
+                      OEE {m.oee}%
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '6px',
+                    padding: '6px 4px',
+                    gap: '2px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Runtime</span>
+                      <strong style={{ fontSize: '11px', color: '#0f172a' }}>{m.runtime}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Idle</span>
+                      <strong style={{ fontSize: '11px', color: '#ea580c' }}>{m.idleTime}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Produced</span>
+                      <strong style={{ fontSize: '11px', color: '#0284c7' }}>{formatNumber(m.produced)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Util %</span>
+                      <strong style={{ fontSize: '11px', color: '#16a34a' }}>{m.utilization}%</strong>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -744,37 +1045,93 @@ export default function ProductionAnalyticsPage() {
             <h3 className="production-card-title">Material Requests Flow</h3>
             <span style={{ fontSize: '12px', color: '#64748b' }}>Store Releases: {storeReleases.fullyReleased ?? 0}/{storeReleases.requests ?? 0}</span>
           </div>
-          <div className="production-table-container" style={{ height: 260 }}>
-            <table className="production-table">
-              <thead>
-                <tr>
-                  <th>MR No.</th>
-                  <th>Work Order</th>
-                  <th>Material</th>
-                  <th>Requested</th>
-                  <th>Issued</th>
-                  <th>Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materialRequests.list?.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No open requests.</td></tr>
-                ) : (
-                  materialRequests.list?.map((mr, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 'bold' }}>{mr.mrNo}</td>
-                      <td>{mr.workOrder}</td>
-                      <td>{mr.material}</td>
-                      <td>{formatNumber(mr.requested)}</td>
-                      <td>{formatNumber(mr.issued)}</td>
-                      <td style={{ color: mr.balance > 0 ? '#d97706' : '#1e293b', fontWeight: mr.balance > 0 ? 'bold' : 'normal' }}>
-                        {formatNumber(mr.balance)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="desktop-only">
+            <div className="production-table-container" style={{ height: 260 }}>
+              <table className="production-table">
+                <thead>
+                  <tr>
+                    <th>MR No.</th>
+                    <th>Work Order</th>
+                    <th>Material</th>
+                    <th>Requested</th>
+                    <th>Issued</th>
+                    <th>Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {materialRequests.list?.length === 0 ? (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No open requests.</td></tr>
+                  ) : (
+                    materialRequests.list?.map((mr, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 'bold' }}>{mr.mrNo}</td>
+                        <td>{mr.workOrder}</td>
+                        <td>{mr.material}</td>
+                        <td>{formatNumber(mr.requested)}</td>
+                        <td>{formatNumber(mr.issued)}</td>
+                        <td style={{ color: mr.balance > 0 ? '#d97706' : '#1e293b', fontWeight: mr.balance > 0 ? 'bold' : 'normal' }}>
+                          {formatNumber(mr.balance)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {materialRequests.list?.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                No open requests.
+              </div>
+            ) : (
+              materialRequests.list?.map((mr, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{mr.mrNo}</strong>
+                    <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#0284c7' }}>
+                      {mr.workOrder}
+                    </code>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#334155', fontWeight: 600 }}>{mr.material}</div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '6px',
+                    padding: '6px 8px',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Req.</span>
+                      <strong style={{ fontSize: '11px', color: '#0f172a' }}>{formatNumber(mr.requested)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Issued</span>
+                      <strong style={{ fontSize: '11px', color: '#16a34a' }}>{formatNumber(mr.issued)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Balance</span>
+                      <strong style={{ fontSize: '11px', color: mr.balance > 0 ? '#d97706' : '#1e293b' }}>{formatNumber(mr.balance)}</strong>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

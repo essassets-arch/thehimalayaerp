@@ -140,37 +140,80 @@ export default function CreateMaterialIndent() {
           box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
         }
         @media (max-width: 768px) {
+          .indent-header-row {
+            margin-bottom: 16px !important;
+            gap: 12px !important;
+          }
+          .indent-header-icon {
+            width: 44px !important;
+            height: 44px !important;
+            border-radius: 12px !important;
+          }
+          .indent-header-row h2 {
+            font-size: 19px !important;
+          }
+          .indent-header-row p {
+            font-size: 12px !important;
+          }
           .indent-glass-form {
-            padding: 16px !important;
-            border-radius: 14px !important;
+            padding: 14px 8px !important;
+            border-radius: 12px !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .indent-meta-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+            margin-bottom: 20px !important;
+          }
+          .indent-materials-box {
+            padding: 14px 10px !important;
+            border-radius: 12px !important;
+          }
+          .indent-card-item {
+            padding: 14px 10px !important;
+            border-radius: 12px !important;
           }
           .indent-item-row {
             grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .indent-footer-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
             gap: 12px !important;
+            margin-top: 20px !important;
+          }
+          .indent-footer-row button {
+            width: 100% !important;
+            justify-content: center !important;
+            padding: 12px 20px !important;
           }
         }
       `}</style>
       
       {/* Section Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
-        <div style={{ 
+      <div className="indent-header-row" style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
+        <div className="indent-header-icon" style={{ 
           width: '56px', height: '56px', borderRadius: '16px', 
           background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)',
-          border: '1px solid rgba(255, 255, 255, 0.9)'
+          border: '1px solid rgba(255, 255, 255, 0.9)',
+          flexShrink: 0
         }}>
-          <Package size={28} color="#2563eb" style={{ filter: 'drop-shadow(0 2px 4px rgba(37,99,235,0.2))' }} />
+          <Package size={26} color="#2563eb" style={{ filter: 'drop-shadow(0 2px 4px rgba(37,99,235,0.2))' }} />
         </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.5px' }}>Material Indent Request</h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#64748b', fontWeight: '500' }}>Initiate a new procurement request for warehouse fulfillment</p>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.5px' }}>Material Indent Request</h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Initiate a new procurement request for warehouse fulfillment</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="glass-panel indent-glass-form" style={{ padding: '32px', borderRadius: '20px' }}>
         {/* Department, Warehouse + Date Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '36px' }}>
+        <div className="indent-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '36px' }}>
           <div>
             <label style={labelStyle}><Package size={14}/> Requesting Department</label>
             <select
@@ -216,7 +259,7 @@ export default function CreateMaterialIndent() {
         </div>
 
         {/* Materials Section */}
-        <div style={{ background: 'rgba(248, 250, 252, 0.6)', borderRadius: '16px', padding: '24px', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
+        <div className="indent-materials-box" style={{ background: 'rgba(248, 250, 252, 0.6)', borderRadius: '16px', padding: '24px', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ display: 'inline-block', width: '8px', height: '8px', background: '#3b82f6', borderRadius: '50%' }}></span>
@@ -227,7 +270,7 @@ export default function CreateMaterialIndent() {
               onClick={handleAddItem}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '8px',
-                padding: '10px 18px', borderRadius: '12px', border: 'none',
+                padding: '9px 16px', borderRadius: '10px', border: 'none',
                 background: '#ffffff', color: '#0f172a', fontSize: '13px',
                 fontWeight: '700', cursor: 'pointer',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
@@ -246,6 +289,7 @@ export default function CreateMaterialIndent() {
             {items.map((item, index) => (
               <div
                 key={item.id}
+                className="indent-card-item"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr',
@@ -337,8 +381,8 @@ export default function CreateMaterialIndent() {
         </div>
 
         {/* Submit */}
-        <div style={{ marginTop: '36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px', fontWeight: '500' }}>
+        <div className="indent-footer-row" style={{ marginTop: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '12.5px', fontWeight: '500' }}>
             <CheckCircle2 size={16} color="#10b981" />
             All items will be sent to the Plant Head for secondary approval
           </div>
@@ -347,10 +391,10 @@ export default function CreateMaterialIndent() {
             disabled={isSubmitting}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '10px',
-              padding: '14px 32px', borderRadius: '12px', border: 'none',
+              padding: '12px 28px', borderRadius: '12px', border: 'none',
               background: isSubmitting ? '#cbd5e1' : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', 
               color: '#ffffff',
-              fontSize: '15px', fontWeight: '700', cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              fontSize: '14px', fontWeight: '700', cursor: isSubmitting ? 'not-allowed' : 'pointer',
               boxShadow: isSubmitting ? 'none' : '0 10px 25px -5px rgba(15, 23, 42, 0.4)',
               transition: 'all 0.2s',
               transform: isSubmitting ? 'none' : 'translateY(0)',
@@ -360,7 +404,7 @@ export default function CreateMaterialIndent() {
           >
             {isSubmitting ? 'Processing...' : (
               <>
-                Submit Indent <Send size={18} />
+                Submit Indent <Send size={16} />
               </>
             )}
           </button>

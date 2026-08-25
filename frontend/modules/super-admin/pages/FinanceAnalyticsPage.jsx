@@ -253,36 +253,108 @@ export default function FinanceAnalyticsPage() {
             </select>
           </div>
         </div>
-        <div className="fa-table-wrapper">
-          <table className="fa-table">
-            <thead>
-              <tr>
-                <th>Risk Rank</th>
-                <th>Customer</th>
-                <th>Outstanding Balance</th>
-                <th>Overdue Outstanding</th>
-                <th>Oldest Invoice Due</th>
-                <th>Unpaid Invoices</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedCustomerRisks.map((row, idx) => (
-                <tr key={row.id}>
-                  <td className="bold">{idx + 1 === 1 ? '🥇 1' : idx + 1 === 2 ? '🥈 2' : idx + 1 === 3 ? '🥉 3' : idx + 1}</td>
-                  <td className="bold">{row.customerName}</td>
-                  <td>{formatCurrency(row.outstanding)}</td>
-                  <td className="bold text-danger">{formatCurrency(row.overdue)}</td>
-                  <td>{row.oldestDueDays > 0 ? `${row.oldestDueDays} days overdue` : 'Not overdue'}</td>
-                  <td>{row.pendingInvoices} Invoices</td>
-                </tr>
-              ))}
-              {sortedCustomerRisks.length === 0 && (
+        <div className="desktop-only">
+          <div className="fa-table-wrapper">
+            <table className="fa-table">
+              <thead>
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No customer accounts with pending balances.</td>
+                  <th>Risk Rank</th>
+                  <th>Customer</th>
+                  <th>Outstanding Balance</th>
+                  <th>Overdue Outstanding</th>
+                  <th>Oldest Invoice Due</th>
+                  <th>Unpaid Invoices</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedCustomerRisks.map((row, idx) => (
+                  <tr key={row.id}>
+                    <td className="bold">{idx + 1 === 1 ? '🥇 1' : idx + 1 === 2 ? '🥈 2' : idx + 1 === 3 ? '🥉 3' : idx + 1}</td>
+                    <td className="bold">{row.customerName}</td>
+                    <td>{formatCurrency(row.outstanding)}</td>
+                    <td className="bold text-danger">{formatCurrency(row.overdue)}</td>
+                    <td>{row.oldestDueDays > 0 ? `${row.oldestDueDays} days overdue` : 'Not overdue'}</td>
+                    <td>{row.pendingInvoices} Invoices</td>
+                  </tr>
+                ))}
+                {sortedCustomerRisks.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No customer accounts with pending balances.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Collection Risk Cards */}
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {sortedCustomerRisks.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+              No customer accounts with pending balances.
+            </div>
+          ) : (
+            sortedCustomerRisks.map((row, idx) => {
+              const rankDisplay = idx + 1 === 1 ? '🥇 1' : idx + 1 === 2 ? '🥈 2' : idx + 1 === 3 ? '🥉 3' : `#${idx + 1}`;
+              return (
+                <div
+                  key={row.id}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, background: idx < 3 ? '#fef3c7' : '#f1f5f9', color: idx < 3 ? '#b45309' : '#475569', padding: '3px 8px', borderRadius: '6px' }}>
+                        {rankDisplay}
+                      </span>
+                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.customerName}</strong>
+                    </div>
+                    {row.oldestDueDays > 0 ? (
+                      <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '2px 8px', borderRadius: '12px' }}>
+                        {row.oldestDueDays}d Overdue
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px' }}>
+                        Not Overdue
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                      <strong style={{ fontSize: '12px', color: '#0f172a' }}>{formatCurrency(row.outstanding)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Overdue</span>
+                      <strong style={{ fontSize: '12px', color: '#dc2626' }}>{formatCurrency(row.overdue)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Pending</span>
+                      <strong style={{ fontSize: '12px', color: '#2563eb' }}>{row.pendingInvoices} Invoices</strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -320,31 +392,86 @@ export default function FinanceAnalyticsPage() {
               <option value="overdue">Overdue</option>
             </select>
           </div>
-          <div className="fa-table-wrapper" style={{ maxHeight: 200, overflowY: 'auto' }}>
-            <table className="fa-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Salesperson</th>
-                  <th>Receivable</th>
-                  <th>Collected</th>
-                  <th>Outstanding</th>
-                  <th>Collection %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedSalespersons.map((row, idx) => (
-                  <tr key={row.salespersonName}>
-                    <td className="bold">{idx + 1}</td>
-                    <td className="bold">{row.salespersonName}</td>
-                    <td>{formatCurrency(row.receivable)}</td>
-                    <td className="bold text-success">{formatCurrency(row.collected)}</td>
-                    <td>{formatCurrency(row.outstanding)}</td>
-                    <td>{row.collectionRate != null ? `${row.collectionRate}%` : 'N/A'}</td>
+          <div className="desktop-only">
+            <div className="fa-table-wrapper" style={{ maxHeight: 200, overflowY: 'auto' }}>
+              <table className="fa-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Salesperson</th>
+                    <th>Receivable</th>
+                    <th>Collected</th>
+                    <th>Outstanding</th>
+                    <th>Collection %</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sortedSalespersons.map((row, idx) => (
+                    <tr key={row.salespersonName}>
+                      <td className="bold">{idx + 1}</td>
+                      <td className="bold">{row.salespersonName}</td>
+                      <td>{formatCurrency(row.receivable)}</td>
+                      <td className="bold text-success">{formatCurrency(row.collected)}</td>
+                      <td>{formatCurrency(row.outstanding)}</td>
+                      <td>{row.collectionRate != null ? `${row.collectionRate}%` : 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {sortedSalespersons.map((row, idx) => (
+              <div
+                key={row.salespersonName}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, background: '#f1f5f9', color: '#334155', padding: '2px 6px', borderRadius: '4px' }}>
+                      #{idx + 1}
+                    </span>
+                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>{row.salespersonName}</strong>
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px' }}>
+                    {row.collectionRate != null ? `${row.collectionRate}%` : 'N/A'}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  background: '#f8fafc',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: '6px',
+                  padding: '6px 8px',
+                  gap: '4px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Receivable</span>
+                    <strong style={{ fontSize: '11px', color: '#0f172a' }}>{formatCurrency(row.receivable)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Collected</span>
+                    <strong style={{ fontSize: '11px', color: '#16a34a' }}>{formatCurrency(row.collected)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                    <strong style={{ fontSize: '11px', color: '#ea580c' }}>{formatCurrency(row.outstanding)}</strong>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -362,31 +489,82 @@ export default function FinanceAnalyticsPage() {
             </select>
           </div>
         </div>
-        <div className="fa-table-wrapper">
-          <table className="fa-table">
-            <thead>
-              <tr>
-                <th>Brand</th>
-                <th>Sales Volume (Qty)</th>
-                <th>Revenue Value</th>
-                <th>Cost Margin</th>
-                <th>Collected Amount</th>
-                <th>Outstanding Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedBrands.map((row) => (
-                <tr key={row.brandName}>
-                  <td className="bold">{row.brandName}</td>
-                  <td>{formatNumber(row.quantity)}</td>
-                  <td>{formatCurrency(row.revenue)}</td>
-                  <td style={{ color: '#64748b', fontStyle: 'italic' }}>N/A (Cost Disabled)</td>
-                  <td className="bold text-success">{formatCurrency(row.collected)}</td>
-                  <td>{formatCurrency(row.outstanding)}</td>
+        <div className="desktop-only">
+          <div className="fa-table-wrapper">
+            <table className="fa-table">
+              <thead>
+                <tr>
+                  <th>Brand</th>
+                  <th>Sales Volume (Qty)</th>
+                  <th>Revenue Value</th>
+                  <th>Cost Margin</th>
+                  <th>Collected Amount</th>
+                  <th>Outstanding Balance</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedBrands.map((row) => (
+                  <tr key={row.brandName}>
+                    <td className="bold">{row.brandName}</td>
+                    <td>{formatNumber(row.quantity)}</td>
+                    <td>{formatCurrency(row.revenue)}</td>
+                    <td style={{ color: '#64748b', fontStyle: 'italic' }}>N/A (Cost Disabled)</td>
+                    <td className="bold text-success">{formatCurrency(row.collected)}</td>
+                    <td>{formatCurrency(row.outstanding)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {sortedBrands.map((row) => (
+            <div
+              key={row.brandName}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '14px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.brandName}</strong>
+                <span style={{ fontSize: '11px', fontWeight: 800, background: '#eff6ff', color: '#2563eb', padding: '3px 8px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                  Vol: {formatNumber(row.quantity)}
+                </span>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                background: '#f8fafc',
+                border: '1px solid #f1f5f9',
+                borderRadius: '8px',
+                padding: '8px',
+                gap: '4px',
+                textAlign: 'center'
+              }}>
+                <div>
+                  <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Revenue</span>
+                  <strong style={{ fontSize: '11.5px', color: '#0f172a' }}>{formatCurrency(row.revenue)}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Collected</span>
+                  <strong style={{ fontSize: '11.5px', color: '#16a34a' }}>{formatCurrency(row.collected)}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                  <strong style={{ fontSize: '11.5px', color: '#ea580c' }}>{formatCurrency(row.outstanding)}</strong>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -412,55 +590,129 @@ export default function FinanceAnalyticsPage() {
               <strong>{formatCurrency(procurement.summary?.openCommitmentValue ?? 0)}</strong>
             </div>
           </div>
-          <div className="fa-table-wrapper" style={{ maxHeight: 200, overflowY: 'auto' }}>
-            <table className="fa-table">
-              <thead>
-                <tr>
-                  <th>Indent / PO Status</th>
-                  <th>Active Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Plant Head Approved</td><td>{procurement.statuses?.plantHeadApproved ?? 0}</td></tr>
-                <tr><td>Waiting Finance Action</td><td>{procurement.statuses?.waitingFinance ?? 0}</td></tr>
-                <tr><td>Draft Purchase Order</td><td>{procurement.statuses?.draftPo ?? 0}</td></tr>
-                <tr><td>Approved &amp; Issued PO</td><td>{procurement.statuses?.issued ?? 0}</td></tr>
-                <tr><td>Partially Received Goods</td><td>{procurement.statuses?.partiallyReceived ?? 0}</td></tr>
-              </tbody>
-            </table>
+          <div className="desktop-only">
+            <div className="fa-table-wrapper" style={{ maxHeight: 200, overflowY: 'auto' }}>
+              <table className="fa-table">
+                <thead>
+                  <tr>
+                    <th>Indent / PO Status</th>
+                    <th>Active Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Plant Head Approved</td><td>{procurement.statuses?.plantHeadApproved ?? 0}</td></tr>
+                  <tr><td>Waiting Finance Action</td><td>{procurement.statuses?.waitingFinance ?? 0}</td></tr>
+                  <tr><td>Draft Purchase Order</td><td>{procurement.statuses?.draftPo ?? 0}</td></tr>
+                  <tr><td>Approved &amp; Issued PO</td><td>{procurement.statuses?.issued ?? 0}</td></tr>
+                  <tr><td>Partially Received Goods</td><td>{procurement.statuses?.partiallyReceived ?? 0}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {[
+              { label: 'Plant Head Approved', count: procurement.statuses?.plantHeadApproved ?? 0, color: '#3b82f6' },
+              { label: 'Waiting Finance Action', count: procurement.statuses?.waitingFinance ?? 0, color: '#f59e0b' },
+              { label: 'Draft Purchase Order', count: procurement.statuses?.draftPo ?? 0, color: '#64748b' },
+              { label: 'Approved & Issued PO', count: procurement.statuses?.issued ?? 0, color: '#10b981' },
+              { label: 'Partially Received Goods', count: procurement.statuses?.partiallyReceived ?? 0, color: '#8b5cf6' }
+            ].map((st, idx) => (
+              <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>{st.label}</span>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: st.color, background: '#fff', border: '1px solid #cbd5e1', padding: '2px 8px', borderRadius: '6px' }}>
+                  {st.count}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
         <div className="fa-card">
           <h3 className="fa-card-title">Open Commitments by Vendor</h3>
-          <div className="fa-table-wrapper" style={{ maxHeight: 310, overflowY: 'auto' }}>
-            <table className="fa-table">
-              <thead>
-                <tr>
-                  <th>Vendor</th>
-                  <th>Open POs</th>
-                  <th>PO Value</th>
-                  <th>Received Value</th>
-                  <th>Committed Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {procurement.vendors?.slice(0, 10).map((row) => (
-                  <tr key={row.vendorName}>
-                    <td className="bold">{row.vendorName}</td>
-                    <td>{row.openPosCount} POs</td>
-                    <td>{formatCurrency(row.poValue)}</td>
-                    <td>{formatCurrency(row.receivedValue)}</td>
-                    <td className="bold text-purple">{formatCurrency(row.openCommitment)}</td>
-                  </tr>
-                ))}
-                {(procurement.vendors || []).length === 0 && (
+          <div className="desktop-only">
+            <div className="fa-table-wrapper" style={{ maxHeight: 310, overflowY: 'auto' }}>
+              <table className="fa-table">
+                <thead>
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No active purchase commitments.</td>
+                    <th>Vendor</th>
+                    <th>Open POs</th>
+                    <th>PO Value</th>
+                    <th>Received Value</th>
+                    <th>Committed Balance</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {procurement.vendors?.slice(0, 10).map((row) => (
+                    <tr key={row.vendorName}>
+                      <td className="bold">{row.vendorName}</td>
+                      <td>{row.openPosCount} POs</td>
+                      <td>{formatCurrency(row.poValue)}</td>
+                      <td>{formatCurrency(row.receivedValue)}</td>
+                      <td className="bold text-purple">{formatCurrency(row.openCommitment)}</td>
+                    </tr>
+                  ))}
+                  {(procurement.vendors || []).length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No active purchase commitments.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {(procurement.vendors || []).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                No active purchase commitments.
+              </div>
+            ) : (
+              procurement.vendors?.slice(0, 10).map((row) => (
+                <div
+                  key={row.vendorName}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>{row.vendorName}</strong>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                      {row.openPosCount} POs
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '6px',
+                    padding: '6px 8px',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>PO Value</span>
+                      <strong style={{ fontSize: '11px', color: '#0f172a' }}>{formatCurrency(row.poValue)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Received</span>
+                      <strong style={{ fontSize: '11px', color: '#16a34a' }}>{formatCurrency(row.receivedValue)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Committed</span>
+                      <strong style={{ fontSize: '11px', color: '#7c3aed' }}>{formatCurrency(row.openCommitment)}</strong>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -490,25 +742,39 @@ export default function FinanceAnalyticsPage() {
             </div>
           </div>
           <h4 style={{ margin: '12px 0 6px 0', fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>Rejection Reason Analysis:</h4>
-          <div className="fa-table-wrapper">
-            <table className="fa-table">
-              <thead>
-                <tr>
-                  <th>Reason Category</th>
-                  <th>Affect Cases</th>
-                  <th>Exposed Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rejections.reasons?.map((r) => (
-                  <tr key={r.reason}>
-                    <td>{r.reason}</td>
-                    <td>{r.cases} Cases</td>
-                    <td className="bold text-danger">{formatCurrency(r.value)}</td>
+          <div className="desktop-only">
+            <div className="fa-table-wrapper">
+              <table className="fa-table">
+                <thead>
+                  <tr>
+                    <th>Reason Category</th>
+                    <th>Affect Cases</th>
+                    <th>Exposed Value</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rejections.reasons?.map((r) => (
+                    <tr key={r.reason}>
+                      <td>{r.reason}</td>
+                      <td>{r.cases} Cases</td>
+                      <td className="bold text-danger">{formatCurrency(r.value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {rejections.reasons?.map((r) => (
+              <div key={r.reason} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>{r.reason}</strong>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{r.cases} Cases Affected</div>
+                </div>
+                <strong style={{ fontSize: '12.5px', color: '#dc2626' }}>{formatCurrency(r.value)}</strong>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -533,27 +799,41 @@ export default function FinanceAnalyticsPage() {
             </div>
           </div>
           <h4 style={{ margin: '12px 0 6px 0', fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>Department Payroll Cost Split:</h4>
-          <div className="fa-table-wrapper" style={{ maxHeight: 150, overflowY: 'auto' }}>
-            <table className="fa-table">
-              <thead>
-                <tr>
-                  <th>Department</th>
-                  <th>Staff Count</th>
-                  <th>Gross Earnings</th>
-                  <th>Net Pay Obligation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payroll.departmentWise?.map((row) => (
-                  <tr key={row.departmentName}>
-                    <td className="bold">{row.departmentName}</td>
-                    <td>{row.employeesCount} Staff</td>
-                    <td>{formatCurrency(row.gross)}</td>
-                    <td className="bold text-indigo">{formatCurrency(row.netPay)}</td>
+          <div className="desktop-only">
+            <div className="fa-table-wrapper" style={{ maxHeight: 150, overflowY: 'auto' }}>
+              <table className="fa-table">
+                <thead>
+                  <tr>
+                    <th>Department</th>
+                    <th>Staff Count</th>
+                    <th>Gross Earnings</th>
+                    <th>Net Pay Obligation</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {payroll.departmentWise?.map((row) => (
+                    <tr key={row.departmentName}>
+                      <td className="bold">{row.departmentName}</td>
+                      <td>{row.employeesCount} Staff</td>
+                      <td>{formatCurrency(row.gross)}</td>
+                      <td className="bold text-indigo">{formatCurrency(row.netPay)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {payroll.departmentWise?.map((row) => (
+              <div key={row.departmentName} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>{row.departmentName}</strong>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{row.employeesCount} Staff • Gross {formatCurrency(row.gross)}</div>
+                </div>
+                <strong style={{ fontSize: '12.5px', color: '#4f46e5' }}>{formatCurrency(row.netPay)}</strong>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -583,37 +863,54 @@ export default function FinanceAnalyticsPage() {
 
         <div className="fa-card">
           <h3 className="fa-card-title">Commercial Risk &amp; Exposure Feed</h3>
-          <div className="fa-table-wrapper">
-            <table className="fa-table">
-              <thead>
-                <tr>
-                  <th>Commercial Segment</th>
-                  <th>Net Obligation Exposure</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="bold">Customer Total Receivable Outstanding</td>
-                  <td className="bold text-orange">{formatCurrency(exposure.customerOutstanding ?? 0)}</td>
-                </tr>
-                <tr>
-                  <td className="bold">Customer Overdue Balance</td>
-                  <td className="bold text-red">{formatCurrency(exposure.customerOverdue ?? 0)}</td>
-                </tr>
-                <tr>
-                  <td className="bold">Open Purchase Commitments (AP equivalent)</td>
-                  <td className="bold text-purple">{formatCurrency(exposure.openPoCommitment ?? 0)}</td>
-                </tr>
-                <tr>
-                  <td className="bold">Material Quality Rejections Exposure</td>
-                  <td className="bold text-red">{formatCurrency(exposure.materialRejectionExposure ?? 0)}</td>
-                </tr>
-                <tr>
-                  <td className="bold">Salary &amp; Payroll Monthly Obligation</td>
-                  <td className="bold text-indigo">{formatCurrency(exposure.payrollLiability ?? 0)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="desktop-only">
+            <div className="fa-table-wrapper">
+              <table className="fa-table">
+                <thead>
+                  <tr>
+                    <th>Commercial Segment</th>
+                    <th>Net Obligation Exposure</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="bold">Customer Total Receivable Outstanding</td>
+                    <td className="bold text-orange">{formatCurrency(exposure.customerOutstanding ?? 0)}</td>
+                  </tr>
+                  <tr>
+                    <td className="bold">Customer Overdue Balance</td>
+                    <td className="bold text-red">{formatCurrency(exposure.customerOverdue ?? 0)}</td>
+                  </tr>
+                  <tr>
+                    <td className="bold">Open Purchase Commitments (AP equivalent)</td>
+                    <td className="bold text-purple">{formatCurrency(exposure.openPoCommitment ?? 0)}</td>
+                  </tr>
+                  <tr>
+                    <td className="bold">Material Quality Rejections Exposure</td>
+                    <td className="bold text-red">{formatCurrency(exposure.materialRejectionExposure ?? 0)}</td>
+                  </tr>
+                  <tr>
+                    <td className="bold">Salary &amp; Payroll Monthly Obligation</td>
+                    <td className="bold text-indigo">{formatCurrency(exposure.payrollLiability ?? 0)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {[
+              { label: 'Customer Total Receivable Outstanding', value: exposure.customerOutstanding ?? 0, color: '#ea580c' },
+              { label: 'Customer Overdue Balance', value: exposure.customerOverdue ?? 0, color: '#dc2626' },
+              { label: 'Open Purchase Commitments (AP equiv.)', value: exposure.openPoCommitment ?? 0, color: '#7c3aed' },
+              { label: 'Material Quality Rejections Exposure', value: exposure.materialRejectionExposure ?? 0, color: '#dc2626' },
+              { label: 'Salary & Payroll Monthly Obligation', value: exposure.payrollLiability ?? 0, color: '#4f46e5' }
+            ].map((item, idx) => (
+              <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>{item.label}</span>
+                <strong style={{ fontSize: '12.5px', color: item.color }}>{formatCurrency(item.value)}</strong>
+              </div>
+            ))}
           </div>
         </div>
       </div>

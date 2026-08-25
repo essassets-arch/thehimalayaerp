@@ -228,33 +228,206 @@ export default function PurchaseIndentsView() {
   ];
 
   return (
-    <div style={{ width: '100%', margin: '0 auto', padding: '24px', fontFamily: `'Inter', -apple-system, sans-serif` }}>
+    <div className="super-dashboard purchase-indents-wrapper" style={{ width: '100%', margin: '0 auto', fontFamily: `'Inter', -apple-system, sans-serif`, boxSizing: 'border-box' }}>
+      <style>{`
+        .purchase-indents-wrapper {
+          padding: 24px;
+        }
+        .po-header-card {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          margin-bottom: 24px;
+          background: #1e293b;
+          background-color: #1a2942;
+          padding: 24px 30px;
+          border-radius: 16px;
+          color: #ffffff;
+          box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+        }
+        .po-header-stats {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .po-stat-box {
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.1);
+          padding: 10px 18px;
+          border-radius: 10px;
+          text-align: center;
+          min-width: 110px;
+        }
+        .po-tab-bar {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-bottom: 24px;
+        }
+        .po-tab-btn {
+          padding: 10px 20px;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 0.15s;
+        }
+        .po-card-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          padding: 16px;
+        }
+        .po-mobile-item-card {
+          background: #ffffff;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+          padding: 18px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .po-field-row {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid #f1f5f9;
+        }
+        .po-field-row:last-of-type {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+        .po-field-label {
+          font-size: 11px;
+          font-weight: 750;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+        }
+        .po-field-value {
+          font-size: 14px;
+          font-weight: 800;
+          color: #1e293b;
+        }
+        .po-actions-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
+          margin-top: 4px;
+        }
+        .po-action-btn {
+          padding: 10px 8px;
+          border-radius: 8px;
+          border: none;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          color: #ffffff;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        }
+
+        @media (max-width: 768px) {
+          .purchase-indents-wrapper {
+            padding: 12px !important;
+          }
+          .po-header-card {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 18px 16px !important;
+            gap: 16px !important;
+          }
+          .po-header-stats {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            width: 100% !important;
+          }
+          .po-stat-box {
+            width: 100% !important;
+            min-width: 0 !important;
+            padding: 10px 12px !important;
+          }
+          .po-tab-bar {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+          .po-tab-btn:nth-child(3) {
+            grid-column: span 2 !important;
+          }
+          .po-modal-container {
+            width: 100% !important;
+            max-height: 92vh !important;
+            margin: 8px !important;
+          }
+          .po-modal-body {
+            padding: 16px !important;
+          }
+          .po-modal-summary-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
+          .po-modal-footer {
+            flex-direction: column-reverse !important;
+            gap: 10px !important;
+            padding: 14px 16px !important;
+          }
+          .po-modal-footer button,
+          .po-modal-footer .po-modal-footer-actions {
+            width: 100% !important;
+          }
+          .po-modal-footer .po-modal-footer-actions {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .purchase-indents-wrapper {
+            padding: 8px !important;
+          }
+        }
+      `}</style>
+
       {/* Premium Dark Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', background: '#24345C', padding: '24px 30px', borderRadius: '16px', color: '#ffffff', boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(59, 174, 235, 0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <FileCheck size={26} color="#3BAEEB" />
+      <div className="po-header-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(59, 174, 235, 0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <FileCheck size={24} color="#3BAEEB" />
           </div>
           <div>
-            <h1 style={{ fontSize: '22px', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: '#ffffff' }}>Purchase Order Approval</h1>
-            <p style={{ fontSize: '14px', color: '#8893A7', margin: '4px 0 0 0' }}>Review, approve, or reject draft purchase orders submitted by Finance</p>
+            <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: '#ffffff' }}>Purchase Order Approval</h1>
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0' }}>Review, approve, or reject draft purchase orders submitted by Finance</p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 16px', borderRadius: '10px', textAlign: 'center' }}>
-            <div style={{ fontSize: '11px', color: '#8893A7', textTransform: 'uppercase', fontWeight: 700 }}>Pending Review</div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#facc15' }}>{pendingPOs.length}</div>
+        <div className="po-header-stats">
+          <div className="po-stat-box">
+            <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Pending Review</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#facc15', marginTop: '2px' }}>{pendingPOs.length}</div>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 16px', borderRadius: '10px', textAlign: 'center' }}>
-            <div style={{ fontSize: '11px', color: '#8893A7', textTransform: 'uppercase', fontWeight: 700 }}>Approved POs</div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#22C55E' }}>{approvedPOs.length}</div>
+          <div className="po-stat-box">
+            <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Approved POs</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#22c55e', marginTop: '2px' }}>{approvedPOs.length}</div>
           </div>
         </div>
       </div>
 
       {/* Clean Responsive Tab Bar */}
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '24px', borderBottom: '2px solid #DCE5F0', paddingBottom: '12px' }}>
+      <div className="po-tab-bar">
         {[
           { key: 'Pending Approval', label: 'Pending Approval', count: pendingPOs.length, color: '#facc15' },
           { key: 'Approved', label: 'Approved History', count: approvedPOs.length, color: '#16a34a' },
@@ -265,19 +438,11 @@ export default function PurchaseIndentsView() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
+              className="po-tab-btn"
               style={{
-                padding: '10px 20px',
-                borderRadius: '10px',
-                border: isActive ? '2px solid #24345C' : '1px solid #D6E2F0',
-                background: isActive ? '#24345C' : '#ffffff',
+                border: isActive ? '2px solid #1a2942' : '1px solid #D6E2F0',
+                background: isActive ? '#1a2942' : '#ffffff',
                 color: isActive ? '#ffffff' : '#475569',
-                fontWeight: isActive ? 800 : 600,
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.15s'
               }}
             >
               {tab.label}
@@ -286,7 +451,7 @@ export default function PurchaseIndentsView() {
                 color: isActive ? '#ffffff' : '#475569',
                 padding: '2px 8px',
                 borderRadius: '12px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 700
               }}>
                 {tab.count}
@@ -296,15 +461,16 @@ export default function PurchaseIndentsView() {
         })}
       </div>
 
-      {/* Responsive Table Card */}
+      {/* Responsive Table & Mobile Cards Container */}
       <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #DCE5F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#24345C', margin: 0 }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #DCE5F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', margin: 0 }}>
             {activeTab === 'Pending Approval' ? 'Draft POs Requiring Your Approval' : activeTab === 'Approved' ? 'Previously Approved Purchase Orders' : 'Rejected Orders'}
           </h2>
         </div>
 
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 24px 24px' }}>
+        {/* Desktop View Table */}
+        <div className="desktop-only erp-table-responsive" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 20px 24px' }}>
           <DataTable
             columns={columns}
             data={
@@ -347,6 +513,170 @@ export default function PurchaseIndentsView() {
             )}
           />
         </div>
+
+        {/* Mobile View Dedicated Horizontal Cards */}
+        <div className="mobile-only po-card-grid">
+          {(() => {
+            const dataList = activeTab === 'Pending Approval' ? pendingPOs : activeTab === 'Approved' ? approvedPOs : rejectedPOs;
+            if (dataList.length === 0) {
+              return (
+                <div style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b', fontSize: '13.5px' }}>
+                  No {activeTab.toLowerCase()} records found.
+                </div>
+              );
+            }
+
+            return dataList.map((po) => {
+              const freightVal = Number(po.freight || 0);
+              let calculatedSubtotal = 0;
+              let calculatedGst = 0;
+              if (po.items && po.items.length > 0) {
+                po.items.forEach(item => {
+                  const qty = Number(item.quantity || 0);
+                  const rate = Number(item.unitPrice || item.rate || 0);
+                  const gst = Number(item.gstPercent || item.tax || 18);
+                  const base = qty * rate;
+                  calculatedSubtotal += base;
+                  calculatedGst += base * (gst / 100);
+                });
+              }
+              const subVal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(po.subtotal || 0);
+              const gstVal = calculatedGst > 0 ? calculatedGst : (po.gstAmount !== undefined && po.gstAmount !== null ? Number(po.gstAmount) : Math.round(subVal * 0.18));
+              const grandVal = Number(po.totalAmount || po.grandTotal) || (subVal + gstVal + freightVal + Number(po.otherCharges || 0));
+              const indentRef = po.purchaseIndent?.publicId || po.purchaseIndentId || po.indentId || po.poNumber || 'PI-REF';
+              const vendor = po.supplier?.name || po.vendorName || 'STORE';
+              const dateStr = po.createdAt ? new Date(po.createdAt).toLocaleDateString('en-US') : (po.date || '8/22/2026');
+
+              return (
+                <div key={po.id} className="po-mobile-item-card">
+                  {/* PO Draft ID */}
+                  <div className="po-field-row">
+                    <span className="po-field-label">PO DRAFT ID</span>
+                    <span className="po-field-value" style={{ wordBreak: 'break-all', color: '#1e3a8a', fontSize: '14.5px' }}>{po.id}</span>
+                  </div>
+
+                  {/* Indent Ref */}
+                  <div className="po-field-row">
+                    <span className="po-field-label">INDENT REF</span>
+                    <div>
+                      <span style={{
+                        display: 'inline-block',
+                        background: '#e0f2fe',
+                        color: '#0284c7',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '6px',
+                        padding: '3px 8px',
+                        fontSize: '12.5px',
+                        fontWeight: 700
+                      }}>
+                        {indentRef}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Vendor */}
+                  <div className="po-field-row">
+                    <span className="po-field-label">VENDOR</span>
+                    <span className="po-field-value">{vendor}</span>
+                  </div>
+
+                  {/* Grand Total */}
+                  <div className="po-field-row">
+                    <span className="po-field-label">GRAND TOTAL</span>
+                    <span className="po-field-value" style={{ fontSize: '16px', color: '#0f172a' }}>
+                      {grandVal ? `₹${grandVal.toLocaleString()}` : '₹0'}
+                    </span>
+                  </div>
+
+                  {/* Date */}
+                  <div className="po-field-row">
+                    <span className="po-field-label">DATE</span>
+                    <span className="po-field-value" style={{ color: '#475569', fontWeight: 600 }}>{dateStr}</span>
+                  </div>
+
+                  {/* Status */}
+                  <div className="po-field-row">
+                    <span className="po-field-label">STATUS</span>
+                    <div>
+                      {(() => {
+                        const s = po.status;
+                        if (s === 'PENDING_SUPER_ADMIN_APPROVAL' || s === 'PENDING_APPROVAL' || s === 'SUBMITTED' || s === 'DRAFT' || !s) {
+                          return (
+                            <span style={{
+                              display: 'inline-block',
+                              background: '#fef3c7',
+                              color: '#92400e',
+                              border: '1px solid #fde68a',
+                              borderRadius: '6px',
+                              padding: '3px 10px',
+                              fontSize: '12px',
+                              fontWeight: 700
+                            }}>
+                              Pending Approval
+                            </span>
+                          );
+                        }
+                        if (s === 'SUPER_ADMIN_APPROVED' || s === 'APPROVED' || s === 'PO_ISSUED') {
+                          return (
+                            <span style={{
+                              display: 'inline-block',
+                              background: '#dcfce7',
+                              color: '#166534',
+                              border: '1px solid #bbf7d0',
+                              borderRadius: '6px',
+                              padding: '3px 10px',
+                              fontSize: '12px',
+                              fontWeight: 700
+                            }}>
+                              Approved
+                            </span>
+                          );
+                        }
+                        return <StatusBadge status={s} type="default" />;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px' }}>
+                    <span className="po-field-label">ACTIONS</span>
+                    <div className="po-actions-grid">
+                      <button
+                        onClick={() => setSelectedPO(po)}
+                        className="po-action-btn"
+                        style={{ background: '#2563eb' }}
+                      >
+                        <Eye size={15} /> View
+                      </button>
+
+                      {activeTab === 'Pending Approval' && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(po)}
+                            disabled={isSaving}
+                            className="po-action-btn"
+                            style={{ background: '#16a34a' }}
+                          >
+                            <CheckCircle size={15} /> Approve
+                          </button>
+
+                          <button
+                            onClick={() => handleReject(po)}
+                            disabled={isSaving}
+                            className="po-action-btn"
+                            style={{ background: '#dc2626' }}
+                          >
+                            <XCircle size={15} /> Reject
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </div>
       </div>
 
       {/* Premium Light Theme Details Modal */}
@@ -377,24 +707,27 @@ export default function PurchaseIndentsView() {
           >
             <div
               onClick={(e) => e.stopPropagation()}
+              className="po-modal-container"
               style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
             >
               {/* Light Theme Modal Header */}
-              <div style={{ background: '#F5FAFE', padding: '22px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #DCE5F0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bae6fd' }}>
-                    <FileCheck size={24} color="#0284c7" />
+              <div style={{ background: '#F5FAFE', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #DCE5F0', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bae6fd', flexShrink: 0 }}>
+                    <FileCheck size={22} color="#0284c7" />
                   </div>
-                  <div>
-                    <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#24345C', margin: 0, letterSpacing: '-0.01em' }}>Purchase Order Details ({selectedPO.id})</h2>
-                    <div style={{ fontSize: '13px', color: '#5E6B82', marginTop: '3px', fontWeight: 600 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#1e293b', margin: 0, letterSpacing: '-0.01em', wordBreak: 'break-all' }}>
+                      Purchase Order Details ({selectedPO.id})
+                    </h2>
+                    <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '3px', fontWeight: 600 }}>
                       Indent Ref: <span style={{ color: '#0284c7', background: '#f0f9ff', padding: '2px 8px', borderRadius: '4px', border: '1px solid #bae6fd', marginLeft: '4px' }}>{selectedPO.indentId || selectedPO.poNumber || 'PI-REF'}</span>
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedPO(null)}
-                  style={{ background: '#ffffff', border: '1px solid #D6E2F0', color: '#5E6B82', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                  style={{ background: '#ffffff', border: '1px solid #D6E2F0', color: '#64748b', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                   title="Close"
                 >
                   ✕
@@ -402,39 +735,39 @@ export default function PurchaseIndentsView() {
               </div>
 
               {/* Light Theme Modal Body */}
-              <div style={{ padding: '26px 28px', overflowY: 'auto', flex: 1, background: '#ffffff' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '20px', marginBottom: '28px' }}>
+              <div className="po-modal-body" style={{ padding: '22px 24px', overflowY: 'auto', flex: 1, background: '#ffffff' }}>
+                <div className="po-modal-summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                   {/* Vendor Info Card */}
-                  <div style={{ background: '#F5FAFE', padding: '20px', borderRadius: '14px', border: '1px solid #DCE5F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                    <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ background: '#F5FAFE', padding: '16px 18px', borderRadius: '14px', border: '1px solid #DCE5F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                    <h3 style={{ fontSize: '12.5px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Building size={16} color="#0284c7" /> Vendor Information
                     </h3>
-                    <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Vendor Name:</span> <strong style={{ color: '#24345C' }}>{selectedPO.supplier?.name || selectedPO.vendorName || 'Vendor'}</strong></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Payment Terms:</span> <strong style={{ color: '#24345C' }}>{selectedPO.paymentTerms || 'Standard 30 Days Net'}</strong></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82', fontWeight: 600 }}>Expected Date:</span> <strong style={{ color: '#24345C' }}>{selectedPO.expectedDeliveryDate ? new Date(selectedPO.expectedDeliveryDate).toLocaleDateString() : (selectedPO.expectedDate || '-')}</strong></div>
+                    <div style={{ display: 'grid', gap: '8px', fontSize: '13.5px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b', fontWeight: 600 }}>Vendor Name:</span> <strong style={{ color: '#1e293b' }}>{selectedPO.supplier?.name || selectedPO.vendorName || 'STORE'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b', fontWeight: 600 }}>Payment Terms:</span> <strong style={{ color: '#1e293b' }}>{selectedPO.paymentTerms || 'Standard 30 Days Net'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b', fontWeight: 600 }}>Expected Date:</span> <strong style={{ color: '#1e293b' }}>{selectedPO.expectedDeliveryDate ? new Date(selectedPO.expectedDeliveryDate).toLocaleDateString() : (selectedPO.expectedDate || '-')}</strong></div>
                     </div>
                   </div>
 
                   {/* Financial Summary Card */}
-                  <div style={{ background: '#F5FAFE', padding: '20px', borderRadius: '14px', border: '1px solid #DCE5F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                    <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ background: '#F5FAFE', padding: '16px 18px', borderRadius: '14px', border: '1px solid #DCE5F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                    <h3 style={{ fontSize: '12.5px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <DollarSign size={16} color="#16a34a" /> Financial Summary
                     </h3>
-                    <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
+                    <div style={{ display: 'grid', gap: '8px', fontSize: '13.5px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>Subtotal:</span>
-                        <strong style={{ color: '#24345C' }}>₹{subVal.toLocaleString()}</strong>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>Subtotal:</span>
+                        <strong style={{ color: '#1e293b' }}>₹{subVal.toLocaleString()}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>GST ({selectedPO.gst || 18}%):</span>
-                        <strong style={{ color: '#24345C' }}>₹{gstVal.toLocaleString()}</strong>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>GST ({selectedPO.gst || 18}%):</span>
+                        <strong style={{ color: '#1e293b' }}>₹{gstVal.toLocaleString()}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>Freight:</span>
-                        <strong style={{ color: '#24345C' }}>₹{freightVal.toLocaleString()}</strong>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>Freight:</span>
+                        <strong style={{ color: '#1e293b' }}>₹{freightVal.toLocaleString()}</strong>
                       </div>
-                      <div style={{ borderTop: '1.5px solid #D6E2F0', paddingTop: '10px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 800, color: '#16a34a' }}>
+                      <div style={{ borderTop: '1.5px solid #D6E2F0', paddingTop: '8px', marginTop: '2px', display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 800, color: '#16a34a' }}>
                         <span>Grand Total:</span>
                         <span>₹{grandVal.toLocaleString()}</span>
                       </div>
@@ -445,17 +778,17 @@ export default function PurchaseIndentsView() {
                 {/* Line Items Table */}
                 {selectedPO.items && selectedPO.items.length > 0 && (
                   <div>
-                    <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#24345C', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Layers size={17} color="#0284c7" /> Material Items ({selectedPO.items.length})
+                    <h3 style={{ fontSize: '13.5px', fontWeight: 800, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Layers size={16} color="#0284c7" /> Material Items ({selectedPO.items.length})
                     </h3>
                     <div style={{ border: '1px solid #DCE5F0', borderRadius: '12px', overflowX: 'auto', background: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px', minWidth: '450px' }}>
-                        <thead style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px', minWidth: '400px' }}>
+                        <thead style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '11.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           <tr>
-                            <th style={{ padding: '14px 18px' }}>Material Name</th>
-                            <th style={{ padding: '14px 18px', textAlign: 'right' }}>Quantity</th>
-                            <th style={{ padding: '14px 18px', textAlign: 'right' }}>Unit Rate</th>
-                            <th style={{ padding: '14px 18px', textAlign: 'right' }}>Total</th>
+                            <th style={{ padding: '12px 16px' }}>Material Name</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'right' }}>Quantity</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'right' }}>Unit Rate</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -464,10 +797,10 @@ export default function PurchaseIndentsView() {
                             const qty = Number(item.quantity || 0);
                             return (
                               <tr key={idx} style={{ borderBottom: idx < selectedPO.items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                <td style={{ padding: '14px 18px', fontWeight: 700, color: '#24345C' }}>{item.product?.name || item.name || item.material || 'Material'}</td>
-                                <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 600, color: '#475569' }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
-                                <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 600, color: '#475569' }}>₹{rate.toLocaleString()}</td>
-                                <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 800, color: '#24345C' }}>₹{(qty * rate).toLocaleString()}</td>
+                                <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1e293b' }}>{item.product?.name || item.name || item.material || 'Material'}</td>
+                                <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#475569' }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
+                                <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#475569' }}>₹{rate.toLocaleString()}</td>
+                                <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#1e293b' }}>₹{(qty * rate).toLocaleString()}</td>
                               </tr>
                             );
                           })}
@@ -479,25 +812,25 @@ export default function PurchaseIndentsView() {
               </div>
 
               {/* Light Theme Modal Footer with Actions */}
-              <div style={{ background: '#F5FAFE', padding: '18px 28px', borderTop: '1px solid #DCE5F0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '14px' }}>
+              <div className="po-modal-footer" style={{ background: '#F5FAFE', padding: '16px 24px', borderTop: '1px solid #DCE5F0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
                 <button
                   onClick={() => setSelectedPO(null)}
-                  style={{ padding: '11px 24px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#475569', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}
+                  style={{ padding: '10px 22px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#475569', borderRadius: '10px', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Close
                 </button>
 
-                {activeTab === 'Pending Approval' && selectedPO.status === 'PENDING_SUPER_ADMIN_APPROVAL' && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                {activeTab === 'Pending Approval' && (
+                  <div className="po-modal-footer-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                     <button
                       onClick={() => {
                         const poCopy = selectedPO;
                         setSelectedPO(null);
                         handleReject(poCopy);
                       }}
-                      style={{ padding: '11px 24px', border: 'none', background: '#ef4444', color: '#ffffff', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.25)', transition: 'all 0.15s' }}
+                      style={{ padding: '10px 22px', border: 'none', background: '#ef4444', color: '#ffffff', borderRadius: '10px', fontSize: '13.5px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.25)' }}
                     >
-                      <XCircle size={18} /> Reject PO
+                      <XCircle size={16} /> Reject PO
                     </button>
                     <button
                       onClick={() => {
@@ -505,9 +838,9 @@ export default function PurchaseIndentsView() {
                         setSelectedPO(null);
                         handleApprove(poCopy);
                       }}
-                      style={{ padding: '11px 28px', border: 'none', background: '#22C55E', color: '#ffffff', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(34, 197, 94, 0.3)', transition: 'all 0.15s' }}
+                      style={{ padding: '10px 24px', border: 'none', background: '#22C55E', color: '#ffffff', borderRadius: '10px', fontSize: '13.5px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(34, 197, 94, 0.3)' }}
                     >
-                      <CheckCircle size={18} /> Approve PO
+                      <CheckCircle size={16} /> Approve PO
                     </button>
                   </div>
                 )}

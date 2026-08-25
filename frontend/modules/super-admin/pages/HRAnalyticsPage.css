@@ -336,3 +336,18 @@
   cursor: pointer;
   font-size: 20px;
 }
+
+/* ── HR ANALYTICS MOBILE RESPONSIVENESS ── */
+@media (max-width: 768px) {
+  .hr-analytics-container {
+    padding: 12px 10px !important;
+  }
+  .hr-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .hr-double-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+}

@@ -525,7 +525,7 @@ export default function AttendanceView({ employees: propEmployees }) {
               <span style={{ fontSize: '12px', color: '#64748b' }}>Configure custom work shifts, grace windows, and policy parameters per department. Punches are dynamically audited based on these rules.</span>
             </div>
 
-            <div className="hr-table-scroll-container" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+            <div className="desktop-only hr-table-scroll-container" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
               <table className="hr-policy-table" style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #E2E8F0', color: '#475569', fontWeight: '700' }}>
@@ -575,6 +575,83 @@ export default function AttendanceView({ employees: propEmployees }) {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Policy Cards */}
+            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {Object.keys(shiftPolicies).map((dept) => {
+                const policy = shiftPolicies[dept];
+                return (
+                  <div
+                    key={dept}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                        {dept === 'Default' ? 'Default (Other Depts)' : `${dept} Department`}
+                      </strong>
+                      <span style={{ fontSize: '11px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px', color: '#475569', fontWeight: 700 }}>
+                        Grace: {policy.grace}m
+                      </span>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      gap: '8px',
+                      textAlign: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '10px', fontWeight: 750, color: '#16a34a', textTransform: 'uppercase', display: 'block' }}>Shift Start</span>
+                        <strong style={{ fontSize: '13px', color: '#16a34a', fontFamily: 'monospace' }}>{policy.checkIn}</strong>
+                      </div>
+                      <div style={{ borderLeft: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 750, color: '#dc2626', textTransform: 'uppercase', display: 'block' }}>Shift End</span>
+                        <strong style={{ fontSize: '13px', color: '#dc2626', fontFamily: 'monospace' }}>{policy.checkOut}</strong>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setEditingDeptPolicy(dept);
+                        setEditCheckIn(policy.checkIn);
+                        setEditCheckOut(policy.checkOut);
+                        setEditGrace(policy.grace);
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        background: '#F1F5F9',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        color: '#334155',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        width: '100%'
+                      }}
+                    >
+                      <Edit3 size={13} /> Edit Policy Parameters
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -749,111 +826,242 @@ export default function AttendanceView({ employees: propEmployees }) {
                   </div>
                 </div>
 
-                <DataTable 
-                  scrollMode={true}
-                  columns={[
-                    { 
-                      header: 'Biometric Photo', 
-                      accessor: 'selfieUrl',
-                      render: (row) => (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
-                            <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} fallbackText="N/A" allowZoom={false} />
-                          ) : (
-                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
-                              <Camera size={14} color="#64748b" />
-                            </div>
-                          )}
-                          <span style={{ fontSize: '11.5px', fontWeight: '700', color: (row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '#0284c7' : '#64748b' }}>
-                            {(row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '📸 Verified Photo' : 'Simulated Face'}
+                {/* Desktop Table View */}
+                <div className="desktop-only">
+                  <DataTable 
+                    scrollMode={true}
+                    columns={[
+                      { 
+                        header: 'Biometric Photo', 
+                        accessor: 'selfieUrl',
+                        render: (row) => (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
+                              <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} fallbackText="N/A" allowZoom={false} />
+                            ) : (
+                              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
+                                <Camera size={14} color="#64748b" />
+                              </div>
+                            )}
+                            <span style={{ fontSize: '11.5px', fontWeight: '700', color: (row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '#0284c7' : '#64748b' }}>
+                              {(row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '📸 Verified Photo' : 'Simulated Face'}
+                            </span>
+                          </div>
+                        )
+                      },
+                      { header: 'ID', accessor: 'id' },
+                      { header: 'Employee', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
+                      { 
+                        header: 'Date', 
+                        accessor: 'date', 
+                        render: (row) => (
+                          <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                            {row.date || 'Saturday, 15 August 2026'}
                           </span>
-                        </div>
-                      )
-                    },
-                    { header: 'ID', accessor: 'id' },
-                    { header: 'Employee', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
-                    { 
-                      header: 'Date', 
-                      accessor: 'date', 
-                      render: (row) => (
-                        <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
-                          {row.date || 'Saturday, 15 August 2026'}
-                        </span>
-                      )
-                    },
-                    { 
-                      header: 'Punch In', 
-                      accessor: 'punchIn', 
-                      render: (row) => (
-                        <span style={{ fontWeight: '800', color: row.punchIn !== '—' ? '#16A34A' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
-                          {row.punchIn}
-                        </span>
-                      )
-                    },
-                    { 
-                      header: 'Punch Out', 
-                      accessor: 'punchOut', 
-                      render: (row) => (
-                        <span style={{ fontWeight: '800', color: row.punchOut !== '—' ? '#DC2626' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
-                          {row.punchOut}
-                        </span>
-                      )
-                    },
-                    { 
-                      header: 'GPS Location', 
-                      accessor: 'location',
-                      render: (row) => row.coords ? (
-                        <span style={{ color: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11.5px' }} title={`${row.location} (${row.coords})`}>
-                          <MapPin size={12} /> Verified
-                        </span>
-                      ) : (
-                        <span style={{ color: '#94A3B8', fontSize: '11px' }}>No GPS</span>
-                      )
-                    },
-                    { 
-                      header: 'Roster Status', 
-                      accessor: 'status',
-                      render: (row) => {
-                        const isLate = row.status?.includes('Late');
-                        const isEarly = row.status?.includes('Early');
-                        const isOT = row.status?.includes('Overtime');
-                        const isGps = row.status === 'GPS Verified';
-                        
-                        let bg = '#DCFCE7';
-                        let color = '#15803D';
-                        let border = '#BBF7D0';
-                        
-                        if (isLate || isEarly) {
-                          bg = '#FEF3C7';
-                          color = '#D97706';
-                          border = '#FDE68A';
-                        } else if (isOT) {
-                          bg = '#EEF2FF';
-                          color = '#4F46E5';
-                          border = '#C7D2FE';
-                        } else if (isGps) {
-                          bg = '#E0F2FE';
-                          color = '#0369A1';
-                          border = '#BAE6FD';
+                        )
+                      },
+                      { 
+                        header: 'Punch In', 
+                        accessor: 'punchIn', 
+                        render: (row) => (
+                          <span style={{ fontWeight: '800', color: row.punchIn !== '—' ? '#16A34A' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
+                            {row.punchIn}
+                          </span>
+                        )
+                      },
+                      { 
+                        header: 'Punch Out', 
+                        accessor: 'punchOut', 
+                        render: (row) => (
+                          <span style={{ fontWeight: '800', color: row.punchOut !== '—' ? '#DC2626' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
+                            {row.punchOut}
+                          </span>
+                        )
+                      },
+                      { 
+                        header: 'GPS Location', 
+                        accessor: 'location',
+                        render: (row) => row.coords ? (
+                          <span style={{ color: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11.5px' }} title={`${row.location} (${row.coords})`}>
+                            <MapPin size={12} /> Verified
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94A3B8', fontSize: '11px' }}>No GPS</span>
+                        )
+                      },
+                      { 
+                        header: 'Roster Status', 
+                        accessor: 'status',
+                        render: (row) => {
+                          const isLate = row.status?.includes('Late');
+                          const isEarly = row.status?.includes('Early');
+                          const isOT = row.status?.includes('Overtime');
+                          const isGps = row.status === 'GPS Verified';
+                          
+                          let bg = '#DCFCE7';
+                          let color = '#15803D';
+                          let border = '#BBF7D0';
+                          
+                          if (isLate || isEarly) {
+                            bg = '#FEF3C7';
+                            color = '#D97706';
+                            border = '#FDE68A';
+                          } else if (isOT) {
+                            bg = '#EEF2FF';
+                            color = '#4F46E5';
+                            border = '#C7D2FE';
+                          } else if (isGps) {
+                            bg = '#E0F2FE';
+                            color = '#0369A1';
+                            border = '#BAE6FD';
+                          }
+                          
+                          return (
+                            <span style={{ 
+                              padding: '3.5px 9px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800',
+                              background: bg, color: color, border: `1px solid ${border}`
+                            }}>
+                              {row.status}
+                            </span>
+                          );
                         }
-                        
-                        return (
-                          <span style={{ 
-                            padding: '3.5px 9px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800',
-                            background: bg, color: color, border: `1px solid ${border}`
-                          }}>
-                            {row.status}
-                          </span>
-                        );
                       }
-                    }
-                  ]}
-                  data={formattedLogs}
-                  searchQuery=""
-                  searchField="name"
-                  onRowClick={(row) => setSelectedLogPreview(row)}
-                  emptyMessage="No attendance logs registered today."
-                />
+                    ]}
+                    data={formattedLogs}
+                    searchQuery=""
+                    searchField="name"
+                    onRowClick={(row) => setSelectedLogPreview(row)}
+                    emptyMessage="No attendance logs registered today."
+                  />
+                </div>
+
+                {/* Mobile Horizontal Punch Cards List */}
+                <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {formattedLogs.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b', fontSize: '13px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                      No attendance logs registered for this period.
+                    </div>
+                  ) : (
+                    formattedLogs.map((row, idx) => {
+                      const isLate = row.status?.includes('Late');
+                      const isEarly = row.status?.includes('Early');
+                      const isOT = row.status?.includes('Overtime');
+                      const isGps = row.status === 'GPS Verified';
+                      
+                      let bg = '#DCFCE7';
+                      let color = '#15803D';
+                      let border = '#BBF7D0';
+                      
+                      if (isLate || isEarly) {
+                        bg = '#FEF3C7';
+                        color = '#D97706';
+                        border = '#FDE68A';
+                      } else if (isOT) {
+                        bg = '#EEF2FF';
+                        color = '#4F46E5';
+                        border = '#C7D2FE';
+                      } else if (isGps) {
+                        bg = '#E0F2FE';
+                        color = '#0369A1';
+                        border = '#BAE6FD';
+                      }
+
+                      const isSelected = activePreview?.id === row.id && activePreview?.date === row.date;
+
+                      return (
+                        <div
+                          key={row.id + (row.date || '') + idx}
+                          onClick={() => setSelectedLogPreview(row)}
+                          style={{
+                            background: isSelected ? '#f0f9ff' : '#ffffff',
+                            border: isSelected ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                            borderRadius: '12px',
+                            padding: '14px',
+                            boxShadow: isSelected ? '0 4px 12px rgba(2, 132, 199, 0.12)' : '0 1px 4px rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {/* Top: Avatar/Photo + Name + ID + Status */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
+                                <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #0284c7', flexShrink: 0 }} fallbackText="N/A" allowZoom={false} />
+                              ) : (
+                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1', flexShrink: 0 }}>
+                                  <Camera size={16} color="#64748b" />
+                                </div>
+                              )}
+                              <div>
+                                <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>{row.name}</strong>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                  <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', color: '#475569', fontWeight: 700 }}>
+                                    {row.id}
+                                  </code>
+                                  {row.department && <span style={{ fontSize: '11px', color: '#64748b' }}>• {row.department}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <span style={{ 
+                              padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800',
+                              background: bg, color: color, border: `1px solid ${border}`, whiteSpace: 'nowrap'
+                            }}>
+                              {row.status}
+                            </span>
+                          </div>
+
+                          {/* Date & Location */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#475569' }}>
+                            <span>📅 {row.date || 'Today'}</span>
+                            {row.coords ? (
+                              <span style={{ color: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11.5px' }}>
+                                <MapPin size={12} /> {row.location || 'GPS Verified'}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: '11px' }}>No GPS</span>
+                            )}
+                          </div>
+
+                          {/* Punch In / Out 2-Column Grid Strip */}
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            background: '#f8fafc',
+                            border: '1px solid #f1f5f9',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            gap: '8px',
+                            textAlign: 'center'
+                          }}>
+                            <div>
+                              <span style={{ fontSize: '10px', fontWeight: 750, color: '#16a34a', textTransform: 'uppercase', display: 'block' }}>Punch In</span>
+                              <strong style={{ fontSize: '13px', color: row.punchIn !== '—' ? '#16A34A' : '#94a3b8', fontFamily: 'monospace' }}>
+                                {row.punchIn}
+                              </strong>
+                            </div>
+                            <div style={{ borderLeft: '1px solid #e2e8f0' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 750, color: '#dc2626', textTransform: 'uppercase', display: 'block' }}>Punch Out</span>
+                              <strong style={{ fontSize: '13px', color: row.punchOut !== '—' ? '#DC2626' : '#94a3b8', fontFamily: 'monospace' }}>
+                                {row.punchOut}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Tap to inspect badge / button */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '11.5px' }}>
+                            <span style={{ color: isSelected ? '#0284c7' : '#64748b', fontWeight: 700 }}>
+                              {isSelected ? '✓ Biometric Preview Active' : '🔍 Tap to inspect biometric selfie'}
+                            </span>
+                            <span style={{ color: '#0284c7', fontWeight: 800 }}>View Details →</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1012,7 +1220,7 @@ export default function AttendanceView({ employees: propEmployees }) {
               <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Total Staff: {employees.length} Employees</span>
             </div>
 
-            <div className="erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
+            <div className="desktop-only erp-table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
               <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
@@ -1071,6 +1279,89 @@ export default function AttendanceView({ employees: propEmployees }) {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Shift Distribution Cards */}
+            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {[
+                {
+                  shift: 'General Shift (HR/Finance/Other)',
+                  employees: employees.filter(e => e.department === 'HR' || e.department === 'Finance').length || Math.max(0, employees.length - employees.filter(e => e.department === 'Sales' || e.department === 'Production').length),
+                  present: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('On Time')).length,
+                  late: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Late')).length,
+                  timing: `${shiftPolicies['Default']?.checkIn || '09:00 AM'} - ${shiftPolicies['Default']?.checkOut || '06:00 PM'}`,
+                  status: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Late')).length > 3 ? 'Attention' : 'Optimal'
+                },
+                {
+                  shift: 'Sales Shift',
+                  employees: employees.filter(e => e.department === 'Sales').length,
+                  present: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Sales')).length,
+                  late: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Sales') && l.status?.includes('Late')).length,
+                  timing: `${shiftPolicies['Sales']?.checkIn || '09:30 AM'} - ${shiftPolicies['Sales']?.checkOut || '06:30 PM'}`,
+                  status: 'Optimal'
+                },
+                {
+                  shift: 'Production Shift',
+                  employees: employees.filter(e => e.department === 'Production').length,
+                  present: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Production')).length,
+                  late: formattedLogs.filter(l => l.punchIn !== '—' && l.status?.includes('Production') && l.status?.includes('Late')).length,
+                  timing: `${shiftPolicies['Production']?.checkIn || '08:00 AM'} - ${shiftPolicies['Production']?.checkOut || '05:00 PM'}`,
+                  status: 'Optimal'
+                }
+              ].map((row) => (
+                <div
+                  key={row.shift}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{row.shift}</strong>
+                    <span style={{ 
+                      padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '800',
+                      background: row.status === 'Optimal' ? '#dcfce7' : '#fee2e2',
+                      color: row.status === 'Optimal' ? '#15803d' : '#b91c1c'
+                    }}>
+                      {row.status}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    ⏱️ Timing: <strong>{row.timing}</strong>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    background: '#f8fafc',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Staff</span>
+                      <strong style={{ fontSize: '13px', color: '#0f172a' }}>{row.employees}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Present</span>
+                      <strong style={{ fontSize: '13px', color: '#16a34a' }}>{row.present}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Late</span>
+                      <strong style={{ fontSize: '13px', color: row.late > 5 ? '#ef4444' : '#f59e0b' }}>{row.late}</strong>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Active Shift Templates */}
@@ -1100,41 +1391,112 @@ export default function AttendanceView({ employees: propEmployees }) {
           <div className="app-card">
             <h3 className="card-heading" style={{ marginBottom: '16px' }}>Staff Shift Schedules Board</h3>
             
-            <DataTable 
-              columns={[
-                { header: 'Employee Code', accessor: 'empId' },
-                { header: 'Full Name', accessor: 'name' },
-                { header: 'Department', accessor: 'department' },
-                { header: 'Designation', accessor: 'role' },
-                { 
-                  header: 'Scheduled Shift', 
-                  accessor: 'shift', 
-                  render: (row) => (
-                    <strong style={{ color: '#0ea5e9' }}>
-                      {row.shift || 'General Shift'}
-                    </strong>
-                  ) 
-                }
-              ]}
-              data={shifts}
-              searchQuery={globalSearch}
-              searchField="name"
-              actions={(row) => (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    className="action-btn"
-                    style={{ background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.2)', padding: '5px 10px', borderRadius: '4px', color: '#0ea5e9', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer' }}
-                    onClick={() => {
-                      setEditingShiftEmp(row.empId);
-                      setNewShiftVal(row.shift || 'General Shift');
+            {/* Desktop DataTable */}
+            <div className="desktop-only">
+              <DataTable 
+                columns={[
+                  { header: 'Employee Code', accessor: 'empId' },
+                  { header: 'Full Name', accessor: 'name' },
+                  { header: 'Department', accessor: 'department' },
+                  { header: 'Designation', accessor: 'role' },
+                  { 
+                    header: 'Scheduled Shift', 
+                    accessor: 'shift', 
+                    render: (row) => (
+                      <strong style={{ color: '#0ea5e9' }}>
+                        {row.shift || 'General Shift'}
+                      </strong>
+                    ) 
+                  }
+                ]}
+                data={shifts}
+                searchQuery={globalSearch}
+                searchField="name"
+                actions={(row) => (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      className="action-btn"
+                      style={{ background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.2)', padding: '5px 10px', borderRadius: '4px', color: '#0ea5e9', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer' }}
+                      onClick={() => {
+                        setEditingShiftEmp(row.empId);
+                        setNewShiftVal(row.shift || 'General Shift');
+                      }}
+                    >
+                      Reassign Shift
+                    </button>
+                  </div>
+                )}
+                emptyMessage="No staff shift configurations logged."
+              />
+            </div>
+
+            {/* Mobile Schedules Cards */}
+            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {shifts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                  No staff shift configurations logged.
+                </div>
+              ) : (
+                shifts.map((row, idx) => (
+                  <div
+                    key={row.empId || idx}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
                     }}
                   >
-                    Reassign Shift
-                  </button>
-                </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#0f172a' }}>{row.name}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                          <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', color: '#475569', fontWeight: 700 }}>
+                            {row.empId}
+                          </code>
+                          <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {row.department}</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>{row.role}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Shift:</span>
+                      <strong style={{ fontSize: '12px', color: '#0284c7' }}>{row.shift || 'General Shift'}</strong>
+                    </div>
+
+                    <button 
+                      type="button"
+                      style={{
+                        background: '#0284c7',
+                        border: 'none',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        width: '100%'
+                      }}
+                      onClick={() => {
+                        setEditingShiftEmp(row.empId);
+                        setNewShiftVal(row.shift || 'General Shift');
+                      }}
+                    >
+                      Reassign Shift
+                    </button>
+                  </div>
+                ))
               )}
-              emptyMessage="No staff shift configurations logged."
-            />
+            </div>
           </div>
 
           {/* Reassignment Mini-Modal Popover */}

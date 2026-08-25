@@ -602,19 +602,106 @@ export default function ExpenseManagementView({ roleMode }) {
             </div>
           </div>
 
-          {/* Table Container */}
+          {/* Table / Cards Container */}
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', overflowY: 'auto', flex: 1 }}>
             {loadingAll && allClaims.length === 0 ? (
               <p style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Syncing claims database...</p>
             ) : (
-              <DataTable 
-                columns={historyColumns}
-                data={filteredClaims}
-                searchQuery=""
-                searchField=""
-                actions={renderHistoryActions}
-                emptyMessage="No historical expense claims match your search filters."
-              />
+              <>
+                <div className="desktop-only">
+                  <DataTable 
+                    columns={historyColumns}
+                    data={filteredClaims}
+                    searchQuery=""
+                    searchField=""
+                    actions={renderHistoryActions}
+                    emptyMessage="No historical expense claims match your search filters."
+                  />
+                </div>
+
+                <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {filteredClaims.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
+                      No historical expense claims match your search filters.
+                    </div>
+                  ) : (
+                    filteredClaims.map((claim) => {
+                      const isPending = isSuperAdmin ? claim.status === 'PENDING_SUPER_ADMIN' : claim.status === 'PENDING_HR';
+                      return (
+                        <div
+                          key={claim.id}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '12px',
+                            padding: '14px',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <strong style={{ fontSize: '14px', color: '#0f172a' }}>{claim.expenseName}</strong>
+                              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                {claim.employeeName} • <span style={{ color: '#0284c7', fontWeight: 600 }}>{claim.department}</span>
+                              </div>
+                            </div>
+                            <StatusBadge status={claim.status} />
+                          </div>
+
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            background: '#f8fafc',
+                            border: '1px solid #f1f5f9',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            gap: '8px'
+                          }}>
+                            <div>
+                              <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Claim Amount</span>
+                              <strong style={{ fontSize: '14px', color: '#0284c7' }}>₹{Number(claim.amount).toLocaleString('en-IN')}</strong>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: '9.5px', fontWeight: 750, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Claim Date</span>
+                              <strong style={{ fontSize: '12px', color: '#334155' }}>{new Date(claim.expenseDate).toLocaleDateString()}</strong>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {claim.receiptUrl && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const w = window.open();
+                                  w.document.write(`<img src="${claim.receiptUrl}" style="max-width:100%; max-height:100vh; object-fit:contain; display:block; margin:auto;" />`);
+                                }}
+                                style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', background: '#eff6ff', fontSize: '12px', fontWeight: 700, color: '#0369a1', cursor: 'pointer' }}
+                              >
+                                👁️ View Receipt
+                              </button>
+                            )}
+                            {isPending && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClaim(claim);
+                                  setActiveTab('pending');
+                                }}
+                                style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: 'none', background: '#0284c7', fontSize: '12px', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                              >
+                                Review Claim
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>

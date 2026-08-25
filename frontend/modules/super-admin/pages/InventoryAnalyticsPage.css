@@ -265,3 +265,18 @@
     width: 100%;
   }
 }
+
+/* ── INVENTORY ANALYTICS MOBILE RESPONSIVENESS ── */
+@media (max-width: 768px) {
+  .inventory-analytics-container {
+    padding: 12px 10px !important;
+  }
+  .ia-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .ia-double-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+}

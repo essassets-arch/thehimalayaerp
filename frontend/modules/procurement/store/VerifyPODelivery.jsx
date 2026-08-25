@@ -263,23 +263,24 @@ export default function VerifyPODelivery() {
         .table-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
         @media (max-width: 768px) {
           .verify-po-card-container {
-            padding: 16px 14px !important;
+            padding: 14px 10px !important;
           }
           .verify-po-header {
             flex-direction: column !important;
             align-items: stretch !important;
-            gap: 14px !important;
+            gap: 12px !important;
           }
           .verify-po-tabs {
             width: 100% !important;
-            justify-content: flex-start !important;
-            gap: 16px !important;
-            overflow-x: auto !important;
-            padding-bottom: 2px !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
           }
-          .verify-po-tabs h2 {
-            font-size: 17px !important;
-            white-space: nowrap !important;
+          .verify-po-tabs button {
+            width: 100% !important;
+            justify-content: center !important;
+            padding: 9px 8px !important;
+            font-size: 12.5px !important;
           }
           .verify-po-search {
             width: 100% !important;
@@ -292,29 +293,87 @@ export default function VerifyPODelivery() {
         }
         @media (max-width: 480px) {
           .verify-po-card-container {
-            padding: 14px 10px !important;
-          }
-          .verify-po-tabs h2 {
-            font-size: 15px !important;
+            padding: 12px 8px !important;
           }
         }
       `}</style>
 
       {!selectedPO ? (
         <div className="verify-po-card-container" style={cardStyle}>
-          <div className="verify-po-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-            <div className="verify-po-tabs" style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: viewTab === 'pending' ? '#0f172a' : '#cbd5e1', margin: 0, cursor: 'pointer', transition: 'color 0.2s' }} onClick={() => setViewTab('pending')}>Pending Deliveries</h2>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: viewTab === 'history' ? '#0f172a' : '#cbd5e1', margin: 0, cursor: 'pointer', transition: 'color 0.2s' }} onClick={() => setViewTab('history')}>Delivery History</h2>
+          <div className="verify-po-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+            <div className="verify-po-tabs" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setViewTab('pending')}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  border: viewTab === 'pending' ? 'none' : '1.5px solid #DCE5F0',
+                  background: viewTab === 'pending' ? 'linear-gradient(135deg, #1e3a7b, #24345C)' : '#ffffff',
+                  color: viewTab === 'pending' ? '#ffffff' : '#475569',
+                  fontWeight: 800,
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: viewTab === 'pending' ? '0 2px 8px rgba(30, 58, 123, 0.2)' : 'none',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                Pending Deliveries
+                <span style={{
+                  background: viewTab === 'pending' ? 'rgba(255,255,255,0.22)' : '#f1f5f9',
+                  color: viewTab === 'pending' ? '#fff' : '#475569',
+                  borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 900
+                }}>{filteredPOs.length}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewTab('history')}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  border: viewTab === 'history' ? 'none' : '1.5px solid #DCE5F0',
+                  background: viewTab === 'history' ? 'linear-gradient(135deg, #1e3a7b, #24345C)' : '#ffffff',
+                  color: viewTab === 'history' ? '#ffffff' : '#475569',
+                  fontWeight: 800,
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: viewTab === 'history' ? '0 2px 8px rgba(30, 58, 123, 0.2)' : 'none',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                Delivery History
+                <span style={{
+                  background: viewTab === 'history' ? 'rgba(255,255,255,0.22)' : '#f1f5f9',
+                  color: viewTab === 'history' ? '#fff' : '#475569',
+                  borderRadius: '20px', padding: '1px 8px', fontSize: '11px', fontWeight: 900
+                }}>{filteredCompletedPOs.length}</span>
+              </button>
             </div>
-            <div className="verify-po-search" style={{ position: 'relative', width: '300px' }}>
-              <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={18} />
+            <div className="verify-po-search" style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
+              <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} size={18} />
               <input
                 type="text"
                 placeholder="Search PO or Vendor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ ...inputStyle, paddingLeft: '38px', background: '#ffffff' }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '10px 14px 10px 42px',
+                  border: '1.5px solid #DCE5F0',
+                  borderRadius: '10px',
+                  fontSize: '13.5px',
+                  color: '#1e293b',
+                  background: '#ffffff',
+                  outline: 'none',
+                  transition: 'all 0.2s ease',
+                }}
               />
             </div>
           </div>
@@ -364,14 +423,20 @@ export default function VerifyPODelivery() {
               </div>
             ))}
           </div>
-          {filteredPOs.length === 0 && (
-            <div style={{ gridColumn: '1 / -1', padding: '48px 0', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
-              No pending deliveries found matching your search.
+          {((viewTab === 'pending' && filteredPOs.length === 0) || (viewTab === 'history' && filteredCompletedPOs.length === 0)) && (
+            <div style={{ textAlign: 'center', padding: '48px 20px', background: '#F8FAFC', borderRadius: '12px', border: '1.5px dashed #E2E8F0', marginTop: '16px' }}>
+              <div style={{ fontSize: '36px', marginBottom: '10px' }}>📦</div>
+              <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>
+                {searchQuery ? 'No matching purchase orders found' : viewTab === 'pending' ? 'No pending deliveries found' : 'No delivery history recorded'}
+              </p>
+              <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#64748b' }}>
+                {searchQuery ? 'Try searching with a different PO reference or vendor name.' : 'Incoming purchase orders will appear here for gate verification.'}
+              </p>
             </div>
           )}
         </div>
       ) : (
-        <div style={cardStyle}>
+        <div className="verify-po-card-box" style={cardStyle}>
           <button 
             onClick={() => setSelectedPOId(null)}
             style={{ border: 'none', background: 'none', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '24px', padding: 0 }}
@@ -379,15 +444,16 @@ export default function VerifyPODelivery() {
             <ChevronLeft size={16} /> Back to PO List
           </button>
 
-          <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', marginBottom: '32px' }}>
-             <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700 }}>PO Reference: {selectedPO.poNumber || selectedPO.id}</h3>
+          <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+             <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 700 }}>PO Reference: {selectedPO.poNumber || selectedPO.id}</h3>
              <PurchaseOrderDetails po={selectedPO} />
           </div>
 
           <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', marginBottom: '16px' }}>Record New Delivery</h3>
           
-          <div style={{ borderRadius: '12px', border: '1px solid #e2e8f0', overflowX: 'auto', marginBottom: '24px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          {/* Desktop Inspection Table */}
+          <div className="desktop-only store-table-scroll-wrapper" style={{ borderRadius: '12px', border: '1px solid #e2e8f0', overflowX: 'auto', marginBottom: '24px' }}>
+            <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                 <tr>
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Material Details</th>
@@ -425,15 +491,47 @@ export default function VerifyPODelivery() {
             </table>
           </div>
 
+          {/* Mobile Delivery Items Card List */}
+          <div className="mobile-only verify-po-items-mobile-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+            {deliveryItems.map((item) => (
+              <div key={item.productId} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>{item.materialName}</div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '11px', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', color: '#475569' }}>
+                      Ordered: <strong>{item.orderedQty}</strong>
+                    </span>
+                    <span style={{ fontSize: '11px', background: '#dbeafe', padding: '2px 8px', borderRadius: '4px', color: '#1d4ed8' }}>
+                      Remaining: <strong>{item.remainingSupplyQty} {item.unit}</strong>
+                    </span>
+                  </div>
+                </div>
 
+                <div className="indent-item-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Delivered</label>
+                    <input type="number" min="0" max={item.remainingSupplyQty} value={item.deliveredQty || ''} onChange={(e) => handleQtyChange(item.productId, 'deliveredQty', e.target.value)} className="form-input" style={{ width: '100%', padding: '8px', fontSize: '13px' }} placeholder="0" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', fontWeight: 800, color: '#16a34a', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Accepted</label>
+                    <input type="number" min="0" max={item.deliveredQty} value={item.acceptedQty || ''} onChange={(e) => handleQtyChange(item.productId, 'acceptedQty', e.target.value)} className="form-input" style={{ width: '100%', padding: '8px', fontSize: '13px', borderColor: '#86efac', background: '#f0fdf4' }} placeholder="0" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Rejected</label>
+                    <input type="number" min="0" max={item.deliveredQty} value={item.rejectedQty || ''} onChange={(e) => handleQtyChange(item.productId, 'rejectedQty', e.target.value)} className="form-input" style={{ width: '100%', padding: '8px', fontSize: '13px', borderColor: '#fca5a5', background: '#fef2f2' }} placeholder="0" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
 
           <DeliveryDocumentUploader entityId={selectedPO.id} entityType="GRN" onUploadComplete={setAttachments} />
 
-          <div style={{ marginTop: '40px', paddingTop: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '16px' }}>
+          <div className="verify-po-footer-actions" style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
             <button
               type="button"
               onClick={() => setSelectedPOId(null)}
-              style={{ padding: '12px 24px', borderRadius: '12px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#64748b', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}
+              style={{ padding: '10px 20px', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#64748b', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
             >
               Cancel
             </button>
@@ -441,7 +539,7 @@ export default function VerifyPODelivery() {
               type="button"
               onClick={handleSubmitGRN}
               disabled={isSubmitting}
-              style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#ffffff', fontSize: '14px', fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(37,99,235,0.2)' }}
+              style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#ffffff', fontSize: '13px', fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(37,99,235,0.2)' }}
             >
               {isSubmitting ? 'Submitting...' : <><CheckCircle2 size={16} /> Confirm & Verify Delivery</>}
             </button>

@@ -736,3 +736,18 @@
     transform: rotate(360deg);
   }
 }
+
+/* ── DISPATCH ANALYTICS MOBILE RESPONSIVENESS ── */
+@media (max-width: 768px) {
+  .dispatch-analytics-container {
+    padding: 12px 10px !important;
+  }
+  .da-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .da-double-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+}

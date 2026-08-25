@@ -400,10 +400,160 @@ export const StoreSummaryReport = () => {
   };
 
   return (
-    <div className="m-theme-container store-summary-report-container" style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b' }}>
+    <div className="m-theme-container store-summary-report-container">
       
-      {/* Printable Styling */}
+      {/* Printable Styling & Responsive Rules */}
       <style>{`
+        .store-summary-report-container {
+          padding: 24px;
+          background: #f8fafc;
+          min-height: 100vh;
+          font-family: 'Inter', sans-serif;
+          color: #1e293b;
+          box-sizing: border-box;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        .store-report-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        .store-report-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .store-report-date-filter {
+          background: #ffffff;
+          border-radius: 14px;
+          padding: 14px 18px;
+          margin-bottom: 24px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .store-report-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 16px;
+          margin-bottom: 28px;
+        }
+        .store-report-section-card {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 24px;
+          margin-bottom: 24px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+          box-sizing: border-box;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        .store-report-section-danger {
+          border-color: #fee2e2 !important;
+        }
+
+        @media (max-width: 768px) {
+          .store-summary-report-container {
+            padding: 14px 12px !important;
+          }
+          .store-report-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+            margin-bottom: 16px !important;
+          }
+          .store-report-header h1 {
+            font-size: 19px !important;
+          }
+          .store-report-actions {
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 8px !important;
+          }
+          .store-report-actions button {
+            flex: 1 !important;
+            justify-content: center !important;
+            padding: 9px 8px !important;
+            font-size: 12px !important;
+          }
+          .store-report-date-filter {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 12px 14px !important;
+            gap: 10px !important;
+            margin-bottom: 18px !important;
+          }
+          .store-report-date-filter > div {
+            width: 100% !important;
+          }
+          .store-report-date-buttons {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            width: 100% !important;
+          }
+          .store-report-date-buttons button {
+            flex: 1 1 calc(50% - 6px) !important;
+            text-align: center !important;
+            justify-content: center !important;
+            padding: 8px 6px !important;
+            font-size: 11.5px !important;
+          }
+          .store-report-kpi-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+            margin-bottom: 18px !important;
+          }
+          .store-report-section-card {
+            padding: 14px 12px !important;
+            border-radius: 14px !important;
+            margin-bottom: 16px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .store-summary-report-container {
+            padding: 10px 8px !important;
+          }
+          .store-report-header h1 {
+            font-size: 17px !important;
+          }
+          .store-report-actions {
+            flex-direction: column !important;
+          }
+          .store-report-actions button {
+            width: 100% !important;
+          }
+          .store-report-kpi-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .store-report-section-card {
+            padding: 12px 8px !important;
+            margin-bottom: 12px !important;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .store-summary-report-container {
+            padding: 8px 6px !important;
+          }
+          .store-report-kpi-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
         @media print {
           body { background: #ffffff !important; color: #000000 !important; }
           .no-print { display: none !important; }
@@ -432,10 +582,10 @@ export const StoreSummaryReport = () => {
       </div>
       
       {/* ── Header Title & Actions ── */}
-      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="no-print store-report-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', padding: '10px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', padding: '10px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)', flexShrink: 0 }}>
               <FileText size={24} />
             </div>
             <div>
@@ -450,7 +600,7 @@ export const StoreSummaryReport = () => {
         </div>
 
         {/* Global Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="store-report-actions">
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -474,15 +624,15 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Date Filter Bar ── */}
-      <div className="no-print" style={{ background: '#ffffff', borderRadius: '14px', padding: '14px 18px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div className="no-print store-report-date-filter">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Calendar size={18} color="#0284c7" />
           <span style={{ fontSize: '13px', fontWeight: '800', color: '#334155' }}>Date Range Filter:</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="store-report-date-buttons">
           {['today', 'this_week', 'this_month', 'custom'].map((filterKey) => {
-            const labelMap = { today: 'Today', this_week: 'This Week', this_month: 'This Month', custom: 'Custom Date Range' };
+            const labelMap = { today: 'Today', this_week: 'This Week', this_month: 'This Month', custom: 'Custom Range' };
             const isActive = dateFilter === filterKey;
             return (
               <button
@@ -506,19 +656,19 @@ export const StoreSummaryReport = () => {
           })}
 
           {dateFilter === 'custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', marginTop: '4px' }}>
               <input
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', flex: 1 }}
               />
               <span style={{ fontSize: '12px', color: '#64748b' }}>to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', flex: 1 }}
               />
             </div>
           )}
@@ -526,7 +676,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── 6 Top Inventory Summary Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+      <div className="store-report-kpi-grid">
         
         {/* Card 1: Total Raw Materials */}
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
@@ -587,7 +737,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Section 1: Raw Material Inventory ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+      <div className="store-report-section-card">
         <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Layers size={18} color="#0284c7" /> 1. Raw Material Inventory
         </h3>
@@ -737,7 +887,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Section 2: Purchase Indent Summary ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+      <div className="store-report-section-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ClipboardList size={18} color="#3b82f6" /> 2. Purchase Indent Summary
@@ -769,17 +919,17 @@ export const StoreSummaryReport = () => {
             <tbody>
               {filteredIndents.map((indent, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#0284c7' }}>{getLabel(indent.indentNo)}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#2563eb' }}>{getLabel(indent.indentNo)}</td>
                   <td style={{ padding: '10px 12px', color: '#64748b' }}>{getLabel(indent.date)}</td>
                   <td style={{ padding: '10px 12px', fontWeight: '700', color: '#334155' }}>{getLabel(indent.department)}</td>
-                  <td style={{ padding: '10px 12px', color: '#475569' }}>{getLabel(indent.requestedBy)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700' }}>{indent.itemCount}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>{(indent.totalQty ?? 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', color: '#64748b' }}>{getLabel(indent.requestedBy)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '800', color: '#0f172a' }}>{(indent.itemCount ?? 0)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#2563eb' }}>{(indent.totalQty ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span style={{
-                      background: indent.status === 'Approved' ? '#dcfce7' : indent.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
-                      color: indent.status === 'Approved' ? '#15803d' : indent.status === 'Rejected' ? '#b91c1c' : '#b45309',
-                      padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800'
+                      background: indent.status === 'Approved' ? '#dcfce7' : indent.status === 'Pending' ? '#fef3c7' : '#fee2e2',
+                      color: indent.status === 'Approved' ? '#15803d' : indent.status === 'Pending' ? '#b45309' : '#b91c1c',
+                      padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800'
                     }}>
                       {getLabel(indent.status)}
                     </span>
@@ -808,14 +958,14 @@ export const StoreSummaryReport = () => {
                 gap: '8px'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13.5px', fontWeight: 800, fontFamily: 'monospace', color: '#0284c7' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', fontFamily: 'monospace' }}>
                   {getLabel(indent.indentNo)}
                 </span>
                 <span style={{
-                  background: indent.status === 'Approved' ? '#dcfce7' : indent.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
-                  color: indent.status === 'Approved' ? '#15803d' : indent.status === 'Rejected' ? '#b91c1c' : '#b45309',
-                  padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: 800
+                  background: indent.status === 'Approved' ? '#dcfce7' : indent.status === 'Pending' ? '#fef3c7' : '#fee2e2',
+                  color: indent.status === 'Approved' ? '#15803d' : indent.status === 'Pending' ? '#b45309' : '#b91c1c',
+                  padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800'
                 }}>
                   {getLabel(indent.status)}
                 </span>
@@ -825,8 +975,7 @@ export const StoreSummaryReport = () => {
                 <span>Date: {getLabel(indent.date)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #f1f5f9', fontSize: '12px' }}>
-                <span>Items: <strong>{indent.itemCount}</strong></span>
-                <span>Qty: <strong style={{ color: '#0284c7', fontSize: '13px' }}>{(indent.totalQty ?? 0).toLocaleString()}</strong></span>
+                <span>Items: <strong>{indent.itemCount}</strong> (Total: <strong style={{ color: '#2563eb' }}>{(indent.totalQty ?? 0).toLocaleString()}</strong>)</span>
                 <span style={{ fontSize: '11px', color: '#64748b' }}>By: {getLabel(indent.approvedBy)}</span>
               </div>
             </div>
@@ -835,7 +984,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Section 3: Production Consumption ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+      <div className="store-report-section-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Factory size={18} color="#8b5cf6" /> 3. Production Consumption
@@ -917,7 +1066,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Section 4: Store Issue / Consumption History ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+      <div className="store-report-section-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Truck size={18} color="#06b6d4" /> 4. Store Issue / Consumption History
@@ -1002,7 +1151,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Section 5: Department-wise Consumption ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+      <div className="store-report-section-card">
         <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Building size={18} color="#10b981" /> 5. Department-wise Consumption Breakdown
         </h3>
@@ -1087,7 +1236,7 @@ export const StoreSummaryReport = () => {
       </div>
 
       {/* ── Section 6: Low Stock Report ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', border: '1px solid #fee2e2' }}>
+      <div className="store-report-section-card store-report-section-danger">
         <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#991b1b', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AlertTriangle size={18} color="#dc2626" /> 6. Low Stock Report (Current Stock &le; Minimum Threshold)
         </h3>

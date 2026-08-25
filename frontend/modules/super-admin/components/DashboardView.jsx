@@ -1048,8 +1048,9 @@ export default function DashboardView({
           </div>
 
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div className="dashboard-table-wrapper">
-              <table className="dashboard-table" style={{ minWidth: '340px' }}>
+            {/* Desktop Table View */}
+            <div className="desktop-only dashboard-table-wrapper">
+              <table className="dashboard-table" style={{ width: '100%' }}>
                 <thead>
                   <tr>
                     <th>Material</th>
@@ -1072,6 +1073,48 @@ export default function DashboardView({
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Horizontal List View */}
+            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                { name: 'River Sand (Critical)', qty: '12 Tons', min: '25 Tons', status: 'Critical', badge: 'badge-danger' },
+                { name: 'Cement OPC 53', qty: '45 Bags', min: '100 Bags', status: 'Low', badge: 'badge-warning' },
+                { name: 'Steel Reinforcement', qty: '0 Tons', min: '15 Tons', status: 'Stock-out', badge: 'badge-danger' },
+                { name: 'Polyester Resin', qty: '120 Kg', min: '300 Kg', status: 'Low', badge: 'badge-warning' },
+              ].map((row, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 750, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {row.name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
+                      Min: {row.min}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: row.status === 'Stock-out' ? '#dc2626' : '#24345C' }}>
+                      {row.qty}
+                    </span>
+                    <span className={`dashboard-badge ${row.badge}`} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '6px' }}>
+                      {row.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
@@ -1240,7 +1283,8 @@ export default function DashboardView({
           </div>
 
           <div className="card-body" style={{ padding: 0 }}>
-            <div className="dashboard-table-wrapper">
+            {/* Desktop Table View */}
+            <div className="desktop-only dashboard-table-wrapper">
               <table className="dashboard-table">
                 <thead>
                   <tr>
@@ -1285,6 +1329,105 @@ export default function DashboardView({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Horizontal List View */}
+            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }}>
+              {filteredRecentOrders.length > 0 ? (
+                filteredRecentOrders.map((ord, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                    }}
+                  >
+                    {/* Card Header: Order ID + Stage Badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 800,
+                          fontSize: '12.5px',
+                          color: '#1d4ed8',
+                          background: '#eff6ff',
+                          padding: '2.5px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #dbeafe',
+                        }}>
+                          {ord.id}
+                        </span>
+                      </div>
+                      <span className={`dashboard-badge ${
+                        ord.stage === 'Delivered' ? 'badge-success' :
+                        ord.stage === 'Production' ? 'badge-info' :
+                        ord.stage === 'QC' ? 'badge-warning' : 'badge-danger'
+                      }`} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '12px' }}>
+                        {ord.stage}
+                      </span>
+                    </div>
+
+                    {/* Customer & Product Spec */}
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>{ord.cust}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', fontWeight: 500 }}>{ord.prod}</div>
+                    </div>
+
+                    {/* Metrics Row: Qty & Value */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: '#f8fafc',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Quantity</span>
+                        <strong style={{ fontSize: '13px', color: '#1e293b' }}>{ord.qty}</strong>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Order Value</span>
+                        <strong style={{ fontSize: '14px', color: '#0284c7', fontWeight: 800 }}>{ord.amount}</strong>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSpecOrder(ord)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #dbeafe',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        fontWeight: 700,
+                        fontSize: '12.5px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      📋 View Specification
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#5E6B82', fontSize: '13px' }}>
+                  No orders match your search criteria.
+                </div>
+              )}
             </div>
           </div>
         </div>
