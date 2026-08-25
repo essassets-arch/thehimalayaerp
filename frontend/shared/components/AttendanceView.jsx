@@ -416,7 +416,7 @@ export default function AttendanceView({ employees: propEmployees }) {
         style={{ 
           display: 'flex', 
           borderBottom: '2px solid #E2E8F0', 
-          gap: '12px', 
+          gap: '8px', 
           marginBottom: '8px', 
           overflowX: 'auto', 
           WebkitOverflowScrolling: 'touch', 
@@ -424,7 +424,7 @@ export default function AttendanceView({ employees: propEmployees }) {
           width: '100%', 
           boxSizing: 'border-box', 
           paddingBottom: '2px',
-          paddingRight: '24px',
+          paddingRight: '32px',
           scrollBehavior: 'smooth',
           touchAction: 'pan-x',
           cursor: 'grab'
@@ -460,7 +460,7 @@ export default function AttendanceView({ employees: propEmployees }) {
         <button
           onClick={() => setAttendanceSubTab('register')}
           style={{
-            padding: '10px 12px',
+            padding: '10px 14px',
             border: 'none',
             background: 'transparent',
             fontSize: '13px',
@@ -470,7 +470,8 @@ export default function AttendanceView({ employees: propEmployees }) {
             borderBottom: attendanceSubTab === 'register' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
             transition: 'all 0.15s ease',
             whiteSpace: 'nowrap',
-            flexShrink: 0
+            flexShrink: 0,
+            userSelect: 'none'
           }}
         >
           Attendance Register
@@ -478,7 +479,7 @@ export default function AttendanceView({ employees: propEmployees }) {
         <button
           onClick={() => setAttendanceSubTab('policies')}
           style={{
-            padding: '10px 12px',
+            padding: '10px 14px',
             border: 'none',
             background: 'transparent',
             fontSize: '13px',
@@ -488,7 +489,8 @@ export default function AttendanceView({ employees: propEmployees }) {
             borderBottom: attendanceSubTab === 'policies' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
             transition: 'all 0.15s ease',
             whiteSpace: 'nowrap',
-            flexShrink: 0
+            flexShrink: 0,
+            userSelect: 'none'
           }}
         >
           Shift &amp; Grace Policy Manager
@@ -496,7 +498,7 @@ export default function AttendanceView({ employees: propEmployees }) {
         <button
           onClick={() => setAttendanceSubTab('shifts')}
           style={{
-            padding: '10px 12px',
+            padding: '10px 14px',
             border: 'none',
             background: 'transparent',
             fontSize: '13px',
@@ -506,7 +508,8 @@ export default function AttendanceView({ employees: propEmployees }) {
             borderBottom: attendanceSubTab === 'shifts' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
             transition: 'all 0.15s ease',
             whiteSpace: 'nowrap',
-            flexShrink: 0
+            flexShrink: 0,
+            userSelect: 'none'
           }}
         >
           Staff Shift Schedules Board

@@ -13012,6 +13012,29 @@ body, #root, .app-container {
 
 
 /* ── 6. HR Attendance View ── */
+.hr-attendance-subtabs {
+  display: flex !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.hr-attendance-subtabs::-webkit-scrollbar {
+  display: none !important;
+}
+
+.hr-attendance-subtabs button {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  user-select: none !important;
+}
+
 @media (max-width: 768px) {
   .hr-attendance-card-header {
     flex-direction: column !important;
@@ -13065,6 +13088,7 @@ body, #root, .app-container {
     padding: 8px 8px !important;
   }
 }
+
 
 
 /* ── 7. My Profile View ── */
