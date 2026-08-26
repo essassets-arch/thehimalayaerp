@@ -5,6 +5,7 @@ import html2canvas from 'html2canvas';
 import { saveAs } from 'file-saver';
 import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
+import { resolveQuotationTerms } from './sales/quotationTerms';
 
 /**
  * Generate PDF from data
@@ -1179,32 +1180,28 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
   y += 27;
 
   // 7. TERMS AND CONDITIONS Section
-  if (y > 245) {
-    doc.addPage();
-    y = 20;
+  const termsList = resolveQuotationTerms(quotation);
+  if (termsList && termsList.length > 0) {
+    if (y > 245) {
+      doc.addPage();
+      y = 20;
+    }
+
+    autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      head: [[ { content: 'TERMS AND CONDITIONS :-', colSpan: 2 } ]],
+      headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold' },
+      body: termsList.map((term, i) => [String(i + 1), term.text || term.label]),
+      columnStyles: {
+        0: { cellWidth: 10, fontStyle: 'bold', halign: 'center', fillColor: [224, 242, 254], textColor: [2, 132, 199] }
+      },
+      styles: { fontSize: 9.5, cellPadding: 2.2, textColor: [30, 41, 59] },
+      headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 }
+    });
+
+    y = doc.lastAutoTable.finalY + 6;
   }
-
-  autoTable(doc, {
-    startY: y,
-    theme: 'grid',
-    head: [[ { content: 'TERMS AND CONDITIONS :-', colSpan: 2 } ]],
-    headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold' },
-    body: [
-      ['1', 'Payment Terms'],
-      ['2', 'Unloading at Client scope & breakage risk & responsibility'],
-      ['3', 'Delivery timeline'],
-      ['4', 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction'],
-      ['5', 'Manufacturer Test Report shall be provided'],
-      ['6', 'Different Colour Options available at additional 10% cost']
-    ],
-    columnStyles: {
-      0: { cellWidth: 10, fontStyle: 'bold', halign: 'center', fillColor: [224, 242, 254], textColor: [2, 132, 199] }
-    },
-    styles: { fontSize: 9.5, cellPadding: 2.2, textColor: [30, 41, 59] },
-    headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 }
-  });
-
-  y = doc.lastAutoTable.finalY + 6;
 
   // 8. VALUABLE CLIENTS Section
   if (y > 245) {

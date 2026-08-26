@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ArrowLeft, Plus, Trash2, FileText, Percent, ShieldCheck, Truck, Search, ChevronDown, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, Percent, ShieldCheck, Truck, Search, ChevronDown, AlertCircle, CheckSquare, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useERPStore } from '../shared/context/ERPContext';
 import { useAuth } from '../shared/context/AuthContext';
@@ -7,6 +7,8 @@ import ProductPicker from '../shared/components/ProductPicker';
 import { useFormDraft } from '../shared/hooks/useFormDraft';
 import { displayEntityId } from '../store/idGenerator';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { DEFAULT_QUOTATION_TERMS, resolveQuotationTerms } from '../services/sales/quotationTerms';
+import { normalizeQuotation } from '../services/sales/quotationNormalizer';
 
 const STANDARD_SPECIFICATIONS = [
   'Color: Grey, Size: M10',
@@ -126,9 +128,13 @@ export default function CreateQuotation({
     }
   }, [targetLeadId, targetQuotationId, legacyQuotationDraft, erpState, router, erpStore, onCancel]);
   
-  const quotationDraft = editingQuotation || (targetQuotationId
+  const rawQuotationDraft = editingQuotation || (targetQuotationId
     ? erpState?.sales?.quotations?.find((q) => q.id === targetQuotationId || q.quotationId === targetQuotationId)
     : legacyQuotationDraft);
+
+  const quotationDraft = useMemo(() => {
+    return rawQuotationDraft ? normalizeQuotation(rawQuotationDraft) : null;
+  }, [rawQuotationDraft]);
 
   const productCatalog = erpState?.productCatalog || [];
 
@@ -169,40 +175,10 @@ export default function CreateQuotation({
         const price = Number(item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 100));
         const gross = qty * price;
         
-        let discountPct = 0;
-        if (item.discountPercent !== undefined && item.discountPercent !== null) {
-          discountPct = Number(item.discountPercent);
-        } else if (item.discountAmount !== undefined && item.discountAmount !== null && gross > 0) {
-          discountPct = Math.round((Number(item.discountAmount) / gross) * 100);
-        } else if (item.discount !== undefined && item.discount !== null) {
-          const rawDisc = Number(item.discount);
-          if (gross > 0 && rawDisc > 100) {
-            discountPct = Math.round((rawDisc / gross) * 100);
-          } else {
-            discountPct = rawDisc;
-          }
-        }
+        let discountPct = Number(item.discount ?? item.discountPercent ?? 0);
         if (discountPct > 100) discountPct = 0;
 
-        let taxPct = 18;
-        if (item.taxPercent !== undefined && item.taxPercent !== null) {
-          taxPct = Number(item.taxPercent);
-        } else if (item.taxAmount !== undefined && item.taxAmount !== null) {
-          const discountAmt = gross * (discountPct / 100);
-          const taxable = gross - discountAmt;
-          if (taxable > 0) {
-            taxPct = Math.round((Number(item.taxAmount) / taxable) * 100);
-          }
-        } else if (item.tax !== undefined && item.tax !== null) {
-          const rawTax = Number(item.tax);
-          const discountAmt = gross * (discountPct / 100);
-          const taxable = gross - discountAmt;
-          if (taxable > 0 && rawTax > 100) {
-            taxPct = Math.round((rawTax / taxable) * 100);
-          } else {
-            taxPct = rawTax;
-          }
-        }
+        let taxPct = item.tax !== undefined ? Number(item.tax) : (item.taxPercent !== undefined ? Number(item.taxPercent) : 18);
         if (taxPct > 100) taxPct = 18;
 
         const spec = item.specification ?? item.productDetails ?? item.description ?? item.product?.description ?? '';
@@ -211,7 +187,7 @@ export default function CreateQuotation({
         const productId = item.productId ?? item.product?.id ?? code;
 
         return {
-          id: item.id || idx + 1,
+          id: item.id || `item-${idx + 1}`,
           productName,
           productDetails: spec,
           specification: spec,
@@ -254,19 +230,45 @@ export default function CreateQuotation({
     return 0;
   };
 
+  const getInitialSelectedTermIds = () => {
+    const source = quotationDraft || editingQuotation;
+    if (source) {
+      const existing = (Array.isArray(source.selectedTerms) && source.selectedTerms.length > 0)
+        ? source.selectedTerms
+        : (Array.isArray(source.quotationTerms) && source.quotationTerms.length > 0)
+          ? source.quotationTerms
+          : (Array.isArray(source.terms) && source.terms.length > 0)
+            ? source.terms
+            : null;
+
+      if (existing && existing.length > 0) {
+        return existing
+          .map((t) => {
+            const rawId = t.termId || t.id;
+            if (rawId && DEFAULT_QUOTATION_TERMS.some(m => m.id === rawId)) {
+              return rawId;
+            }
+            const matchedMaster = DEFAULT_QUOTATION_TERMS.find(m => m.label?.toLowerCase() === (t.text || t.label || '').toLowerCase());
+            return matchedMaster ? matchedMaster.id : rawId;
+          })
+          .filter(Boolean);
+      }
+    }
+    return DEFAULT_QUOTATION_TERMS.filter(t => t.active).map(t => t.id);
+  };
+
   const emptyQuotationForm = {
-    customerName: quotationDraft ? (quotationDraft.customerName ?? quotationDraft.customer ?? quotationDraft.company ?? '') : prefilledCustomer,
-    groupName: quotationDraft ? (quotationDraft.groupName ?? quotationDraft.group_name ?? '') : '',
-    isGstRegistered: quotationDraft
-      ? (quotationDraft.isGstRegistered === false || quotationDraft.isGstRegistered === 'NO' || quotationDraft.gstNumber === '' ? 'NO' : 'YES')
-      : 'YES',
-    gstNumber: quotationDraft ? (quotationDraft.gstNumber ?? quotationDraft.gst_number ?? '') : '',
-    gstName: quotationDraft ? (quotationDraft.gstName ?? quotationDraft.gst_name ?? quotationDraft.customerName ?? quotationDraft.customer ?? quotationDraft.company ?? '') : prefilledCustomer,
-    validTill: quotationDraft ? (formatInputDate(quotationDraft.validUntil ?? quotationDraft.validTill ?? quotationDraft.validityDate) || defaultValidTill()) : defaultValidTill(),
+    customerName: quotationDraft?.customerName || prefilledCustomer || '',
+    groupName: quotationDraft?.groupName || '',
+    isGstRegistered: quotationDraft ? (quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO')) : 'YES',
+    gstNumber: quotationDraft?.gstNumber || '',
+    gstName: quotationDraft?.gstName || quotationDraft?.customerName || prefilledCustomer || '',
+    validTill: formatInputDate(quotationDraft?.validTill || quotationDraft?.validUntil) || defaultValidTill(),
     paymentTerms: resolvePaymentTerms(quotationDraft),
     items: getInitialItems(),
     transportCharge: resolveTransportCost(quotationDraft),
-    notes: quotationDraft?.notes ?? quotationDraft?.remarks ?? quotationDraft?.termsAndNotes ?? ''
+    notes: quotationDraft?.notes || quotationDraft?.remarks || '',
+    selectedTermIds: getInitialSelectedTermIds()
   };
 
   const draftKey = `erp_draft_create_quotation_${editingQuotation ? `edit-${editingQuotation.id}` : (targetQuotationId || targetLeadId || 'new')}`;
@@ -274,17 +276,42 @@ export default function CreateQuotation({
   const { formData, setFormData, clearDraft } = useFormDraft({
     draftKey,
     initialData: emptyQuotationForm,
+    enabled: !editingQuotation,
     erpUpdatedAt: quotationDraft?.updatedAt
   });
 
+  useEffect(() => {
+    if (editingQuotation && quotationDraft) {
+      setFormData({
+        customerName: quotationDraft.customerName || '',
+        groupName: quotationDraft.groupName || '',
+        isGstRegistered: quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO'),
+        gstNumber: quotationDraft.gstNumber || '',
+        gstName: quotationDraft.gstName || quotationDraft.customerName || '',
+        validTill: formatInputDate(quotationDraft.validTill || quotationDraft.validUntil) || defaultValidTill(),
+        paymentTerms: quotationDraft.paymentTerms || '15 Days',
+        items: getInitialItems(),
+        transportCharge: Number(quotationDraft.transportCharge ?? quotationDraft.expectedTransportationCost ?? 0),
+        notes: quotationDraft.notes || quotationDraft.remarks || '',
+        selectedTermIds: getInitialSelectedTermIds()
+      });
+    }
+  }, [editingQuotation?.id]);
+
   const {
     customerName, groupName, isGstRegistered, gstNumber, gstName, validTill, paymentTerms,
-    items: storedItems, transportCharge, notes
+    items: storedItems, transportCharge, notes, selectedTermIds: storedTermIds
   } = formData;
+
   const items = useMemo(
     () => normalizeQuotationItemIds(storedItems),
     [storedItems]
   );
+
+  const selectedTermIds = useMemo(() => {
+    if (Array.isArray(storedTermIds)) return storedTermIds;
+    return getInitialSelectedTermIds();
+  }, [storedTermIds, editingQuotation, quotationDraft]);
 
   const updateField = (field, value) => {
     setFormData(prev => ({
@@ -300,6 +327,23 @@ export default function CreateQuotation({
   const setGstName = (val) => updateField('gstName', val);
   const setValidTill = (val) => updateField('validTill', val);
   const setPaymentTerms = (val) => updateField('paymentTerms', val);
+  const setSelectedTermIds = (val) => updateField('selectedTermIds', val);
+  const handleToggleTerm = (termId) => {
+    setSelectedTermIds(prev => {
+      const current = Array.isArray(prev) ? prev : [];
+      if (current.includes(termId)) {
+        return current.filter(id => id !== termId);
+      } else {
+        return [...current, termId];
+      }
+    });
+  };
+  const handleSelectAllTerms = () => {
+    setSelectedTermIds(DEFAULT_QUOTATION_TERMS.map(t => t.id));
+  };
+  const handleDeselectAllTerms = () => {
+    setSelectedTermIds([]);
+  };
   const setItems = (val) => updateField('items', currentItems => {
     const normalizedCurrentItems = normalizeQuotationItemIds(currentItems);
     const nextItems = typeof val === 'function'
@@ -360,8 +404,8 @@ export default function CreateQuotation({
       ))
       .slice(0, 8);
   }, [customerOptions, customerName]);
-  const shouldRequireExistingCustomer = !isSampleSource && customerOptions.length > 0;
-  const canCreateQuotationForCustomer = !shouldRequireExistingCustomer || Boolean(selectedCustomerRecord);
+  const shouldRequireExistingCustomer = !isSampleSource && customerOptions.length > 0 && !editingQuotation;
+  const canCreateQuotationForCustomer = !shouldRequireExistingCustomer || Boolean(selectedCustomerRecord) || Boolean(editingQuotation);
 
   const selectCustomerOption = (option) => {
     setCustomerName(option.name);
@@ -598,6 +642,14 @@ export default function CreateQuotation({
       return;
     }
 
+    const activeSelectedTerms = DEFAULT_QUOTATION_TERMS
+      .filter(term => selectedTermIds.includes(term.id))
+      .map((term, index) => ({
+        termId: term.id,
+        text: term.label,
+        sortOrder: index + 1
+      }));
+
     const payload = {
       customerName: selectedCustomerRecord?.name || (customerName || '').trim(),
       groupName: selectedCustomerRecord?.groupName || (groupName || '').trim(),
@@ -643,6 +695,9 @@ export default function CreateQuotation({
       notes: notes.trim(),
       remarks: notes.trim(),
       termsAndNotes: notes.trim(),
+      selectedTerms: activeSelectedTerms,
+      terms: activeSelectedTerms,
+      selectedTermIds: selectedTermIds,
       source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : (editingQuotation?.leadId ? 'LEAD' : undefined)),
       sourceId: isSampleSource ? sourceId : (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
       leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
@@ -656,7 +711,9 @@ export default function CreateQuotation({
         if (editingQuotation && onUpdateQuotation) {
           await onUpdateQuotation(editingQuotation.id, {
             ...payload,
-            detailedItems: payload.items
+            detailedItems: payload.items,
+            selectedTerms: activeSelectedTerms,
+            terms: activeSelectedTerms
           });
           success = true;
           onCancel();
@@ -1300,15 +1357,145 @@ export default function CreateQuotation({
         <div className="totals-layout">
           {/* Notes and Terms wrapped with Payment Terms below */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Terms / Notes</label>
-              <textarea 
-                className="form-textarea" 
-                style={{ minHeight: '135px' }} 
-                placeholder="Enter quotation instructions, custom bank details, dispatch terms..." 
-                value={notes} 
-                onChange={e => setNotes(e.target.value)}
-              ></textarea>
+            {/* Dynamic Selectable Terms & Conditions Section */}
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid var(--color-border, #e2e8f0)',
+              borderRadius: '14px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ background: '#0284c7', width: '24px', height: '24px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <CheckSquare size={14} color="#ffffff" />
+                  </div>
+                  <label className="form-label" style={{ fontWeight: '800', margin: 0, fontSize: '13px', color: '#002e5d', letterSpacing: '0.3px' }}>
+                    TERMS AND CONDITIONS :-
+                  </label>
+                  <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', background: selectedTermIds.length > 0 ? '#e0f2fe' : '#f1f5f9', color: selectedTermIds.length > 0 ? '#0284c7' : '#64748b' }}>
+                    {selectedTermIds.length} / {DEFAULT_QUOTATION_TERMS.length} Selected
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllTerms}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      borderRadius: '6px',
+                      background: '#f0fdf4',
+                      color: '#16a34a',
+                      border: '1px solid #bbf7d0',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllTerms}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      borderRadius: '6px',
+                      background: '#fef2f2',
+                      color: '#dc2626',
+                      border: '1px solid #fecaca',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+
+              {/* Dynamic Term List with sequential badges for selected terms */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+                {DEFAULT_QUOTATION_TERMS.map((term) => {
+                  const isChecked = selectedTermIds.includes(term.id);
+                  // Sequential number among checked items
+                  const selectedIndex = isChecked
+                    ? selectedTermIds.filter(id => {
+                        const m = DEFAULT_QUOTATION_TERMS.find(t => t.id === id);
+                        return m && m.sortOrder <= term.sortOrder;
+                      }).length
+                    : null;
+
+                  return (
+                    <label
+                      key={term.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '8px 12px',
+                        background: isChecked ? '#f0f9ff' : '#f8fafc',
+                        border: isChecked ? '1px solid #bae6fd' : '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s ease, border-color 0.15s ease',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleTerm(term.id)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0284c7' }}
+                      />
+                      {isChecked && (
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '4px',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          flexShrink: 0
+                        }}>
+                          {selectedIndex}
+                        </div>
+                      )}
+                      <span style={{
+                        fontSize: '12.5px',
+                        fontWeight: isChecked ? '600' : '500',
+                        color: isChecked ? '#0f172a' : '#64748b',
+                        lineHeight: '1.4'
+                      }}>
+                        {term.label}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {/* Optional Custom Instructions / Notes */}
+              <div style={{ marginTop: '6px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' }}>
+                <label className="form-label" style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '4px', fontWeight: '600' }}>
+                  Additional Notes / Special Instructions (Optional)
+                </label>
+                <textarea
+                  className="form-textarea"
+                  style={{ minHeight: '60px', fontSize: '12px', padding: '8px 12px' }}
+                  placeholder="Enter optional ad-hoc instructions, dispatch remarks, or special notices..."
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                ></textarea>
+              </div>
             </div>
  
             {/* Payment Terms Section */}

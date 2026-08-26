@@ -4,6 +4,7 @@ import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, C
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
 import { useERPStore } from '../shared/context/ERPContext';
+import { resolveQuotationTerms } from '../services/sales/quotationTerms';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 import {
@@ -1374,31 +1375,30 @@ export default function QuotationsView({
               </div>
 
               {/* Terms & Conditions Section */}
-              <div style={{ marginTop: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', background: '#002e5d', color: '#ffffff', padding: '10px 16px', gap: '8px', fontWeight: '700', fontSize: '12.5px' }}>
-                  <div style={{ background: '#0284c7', width: '22px', height: '22px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <CheckSquare size={13} color="#ffffff" />
-                  </div>
-                  TERMS AND CONDITIONS :-
-                </div>
-                <div className="terms-container" style={{ padding: '12px 16px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {[
-                    "Payment Terms",
-                    "Unloading at Client scope & breakage risk & responsibility",
-                    "Delivery timeline",
-                    "Any Dispute Shall Be Subject To Ahmedabad Jurisdiction",
-                    "Manufacturer Test Report shall be provided",
-                    "Different Colour Options available at additional 10% cost"
-                  ].map((term, i) => (
-                    <div key={i} className="term-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '5px 0', borderBottom: i < 5 ? '1px dashed #f1f5f9' : 'none' }}>
-                      <div className="term-number">
-                        {i + 1}
+              {(() => {
+                const termsList = resolveQuotationTerms(selectedQuotation);
+                if (!termsList || termsList.length === 0) return null;
+                return (
+                  <div style={{ marginTop: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', background: '#002e5d', color: '#ffffff', padding: '10px 16px', gap: '8px', fontWeight: '700', fontSize: '12.5px' }}>
+                      <div style={{ background: '#0284c7', width: '22px', height: '22px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CheckSquare size={13} color="#ffffff" />
                       </div>
-                      <div className="term-text" style={{ fontSize: '12px', color: '#1e293b', fontWeight: '600' }}>{term}</div>
+                      TERMS AND CONDITIONS :-
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="terms-container" style={{ padding: '12px 16px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {termsList.map((term, i) => (
+                        <div key={term.termId || term.id || i} className="term-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '5px 0', borderBottom: i < termsList.length - 1 ? '1px dashed #f1f5f9' : 'none' }}>
+                          <div className="term-number">
+                            {i + 1}
+                          </div>
+                          <div className="term-text" style={{ fontSize: '12px', color: '#1e293b', fontWeight: '600' }}>{term.text || term.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Valuable Clients Section */}
               <div style={{ marginTop: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>

@@ -74,9 +74,9 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
     gross: sum.gross + Number(record?.grossEarnings || 0), deductions: sum.deductions + Number(record?.totalDeductions || 0),
     net: sum.net + Number(record?.netPayable || 0),
   }), { gross: 0, deductions: 0, net: 0 }), [safeRecords]);
-  const empName = (r: any) => r?.employee?.fullName || r?.employeeName || (r?.employee ? `${r.employee.firstName || ''} ${r.employee.lastName || ''}`.trim() : '') || 'Staff Member';
-  const empCode = (r: any) => { const c = r?.employee?.employeeCode || r?.employeeId || '—'; return c.length > 14 ? `${c.substring(0, 8)}…` : c; };
-  const empDept = (r: any) => r?.employee?.department?.name || '—';
+  const empName = (r: any) => r?.employee?.fullName || r?.employeeName || (r?.employee ? `${r.employee.firstName || ''} ${r.employee.lastName || ''}`.trim() : '') || r?.employee?.employeeCode || r?.employeeCode || '—';
+  const empCode = (r: any) => { const c = r?.employee?.employeeCode || r?.employeeCode || r?.employeeId || '—'; return c.length > 14 ? `${c.substring(0, 8)}…` : c; };
+  const empDept = (r: any) => (typeof r?.employee?.department === 'object' ? r?.employee?.department?.name : r?.employee?.department) || r?.department || '—';
   const periodStr = (r: any) => r?.payrollPeriod ? `${r.payrollPeriod.month}/${r.payrollPeriod.year}` : `${month}`;
 
   const execute = async (id: string, action: () => Promise<unknown>, success: string) => {
@@ -217,12 +217,17 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
     <main className="payroll-page">
       <header className="payroll-hero">
         <div>
-          <span className="payroll-eyebrow">Database-backed payroll</span>
+          <span className="payroll-eyebrow">Payroll Management</span>
           <h1>{title[mode]}</h1>
-          <p className="subtitle">Attendance, calculations, approvals, payments and immutable salary slips from PostgreSQL</p>
-        </div>
-        <div className="payroll-live">
-          <span></span>Live PostgreSQL Engine
+          <p className="subtitle">
+            {mode === 'prepare' && `Review employee attendance calculations, prepare monthly payroll, and submit for approval for ${month}.`}
+            {mode === 'super-admin' && `Review and approve monthly salary calculations before financial processing for ${month}.`}
+            {mode === 'finance' && `Manage pending salary disbursements and initiate payment processing for ${month}.`}
+            {mode === 'payment' && `Process salary payments, record transaction references, and generate salary slips for ${month}.`}
+            {mode === 'payslips' && `View, download, and share employee salary slips for ${month}.`}
+            {mode === 'history' && `Audit historical salary payments, transactions, and disbursed records for ${month}.`}
+            {mode === 'employee' && `Access and download your official monthly salary slips.`}
+          </p>
         </div>
       </header>
 
@@ -230,7 +235,7 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
         <article>
           <span>Records</span>
           <strong>{safeRecords.length}</strong>
-          <small>Total active entries</small>
+          <small>Total employee entries</small>
         </article>
         <article>
           <span>Gross earnings</span>
@@ -252,7 +257,7 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
       <section className="payroll-control-card">
         <div className="payroll-section-title">
           <h2>Salary Cycle &amp; Generation</h2>
-          <p>Select target month to inspect or run automated batch payroll calculations</p>
+          <p>Select target month to view records or run automated batch payroll calculations</p>
         </div>
         <div className="toolbar">
           <label>
@@ -261,10 +266,10 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
           </label>
           {mode === 'prepare' && (
             <button disabled={!!busy} onClick={generate}>
-              {busy === 'generate' ? 'Generating…' : '💥 Generate Monthly Salary'}
+              {busy === 'generate' ? 'Generating…' : 'Generate Monthly Salary'}
             </button>
           )}
-          <button className="secondary" onClick={load}>🔄 Refresh Data</button>
+          <button className="secondary" onClick={load}>Refresh Data</button>
         </div>
       </section>
 
@@ -368,9 +373,9 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={12} style={{ textAlign: 'center', padding: '30px' }}>⏳ Loading payroll records…</td></tr>}
+              {loading && <tr><td colSpan={12} style={{ textAlign: 'center', padding: '30px' }}>Loading payroll records…</td></tr>}
               {!loading && error && <tr><td colSpan={12} style={{ textAlign: 'center', padding: '30px' }}><button onClick={load}>Retry</button> {error}</td></tr>}
-              {!loading && !error && !safeRecords.length && <tr><td colSpan={12} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payroll records found for this stage and month. Click "Generate Monthly Salary" above to create them.</td></tr>}
+              {!loading && !error && !safeRecords.length && <tr><td colSpan={12} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payroll records found for {month}. Click &quot;Generate Monthly Salary&quot; above to calculate.</td></tr>}
               {safeRecords.map((record) => (
                 <React.Fragment key={record.id || Math.random()}>
                   <tr>
@@ -382,9 +387,9 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
                     <td><code className="emp-code-badge">{empCode(record)}</code></td>
                     <td className="payroll-col-optional">{empDept(record)}</td>
                     <td>{periodStr(record)}</td>
-                    <td className="payroll-col-optional">{record.standardWorkingDays || 25}</td>
-                    <td className="payroll-col-optional">{record.payableDays || 0}</td>
-                    <td className="payroll-col-optional">{record.unpaidLeaveDays || 0}</td>
+                    <td className="payroll-col-optional">{record.standardWorkingDays ?? record.totalWorkingDays ?? '—'}</td>
+                    <td className="payroll-col-optional">{record.payableDays ?? '—'}</td>
+                    <td className="payroll-col-optional">{record.unpaidLeaveDays ?? record.unpaidDays ?? 0}</td>
                     <td><strong>{money(record.grossEarnings)}</strong></td>
                     <td style={{ color: '#ef4444', fontWeight: 700 }}>{money(record.totalDeductions)}</td>
                     <td><strong style={{ color: '#0284c7', fontSize: '13.5px' }}>{money(record.netPayable)}</strong></td>
@@ -398,17 +403,13 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
                   {expanded === record.id && (
                     <tr>
                       <td colSpan={12} className="details">
-                        <h3>Complete salary calculation breakdown</h3>
+                        <h3>Salary Calculation Breakdown</h3>
                         <div className="payroll-stats breakdown-stats">
                           <article><span>Basic Pay</span><strong>{money(record.basicSalary)}</strong></article>
                           <article><span>HRA</span><strong>{money(record.hra)}</strong></article>
                           <article><span>PF Deduction</span><strong>{money(record.pfDeduction)}</strong></article>
                           <article><span>ESIC Deduction</span><strong>{money(record.esicDeduction)}</strong></article>
                         </div>
-                        <details style={{ marginTop: '12px' }}>
-                          <summary>Inspect Audit Trail & Raw Snapshot JSON</summary>
-                          <pre>{JSON.stringify(record.salarySlip?.snapshotJson || record.attendanceSummary || record.statusHistory, null, 2)}</pre>
-                        </details>
                       </td>
                     </tr>
                   )}
@@ -420,11 +421,11 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
 
         {/* Mobile View Horizontal List Cards */}
         <div className="mobile-only payroll-mobile-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px' }}>
-          {loading && <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>⏳ Loading payroll records…</div>}
+          {loading && <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>Loading payroll records…</div>}
           {!loading && error && <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }}><button onClick={load}>Retry</button> {error}</div>}
           {!loading && !error && !safeRecords.length && (
             <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b', fontSize: '13px' }}>
-              No payroll records found for this stage and month.
+              No payroll records found for {month}.
             </div>
           )}
           {safeRecords.map((record) => (
@@ -469,10 +470,10 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
                   <strong>{empDept(record)}</strong>
                 </div>
                 <div>
-                  <span>Working: <strong>{record.standardWorkingDays || 25}d</strong></span>
-                  <span style={{ marginLeft: '6px', color: '#16a34a' }}>Paid: <strong>{record.payableDays || 0}d</strong></span>
-                  {Number(record.unpaidLeaveDays || 0) > 0 && (
-                    <span style={{ marginLeft: '6px', color: '#dc2626' }}>Unpaid: <strong>{record.unpaidLeaveDays}d</strong></span>
+                  <span>Working: <strong>{record.standardWorkingDays ?? record.totalWorkingDays ?? '—'}d</strong></span>
+                  <span style={{ marginLeft: '6px', color: '#16a34a' }}>Paid: <strong>{record.payableDays ?? '—'}d</strong></span>
+                  {Number(record.unpaidLeaveDays ?? record.unpaidDays ?? 0) > 0 && (
+                    <span style={{ marginLeft: '6px', color: '#dc2626' }}>Unpaid: <strong>{record.unpaidLeaveDays || record.unpaidDays}d</strong></span>
                   )}
                 </div>
               </div>

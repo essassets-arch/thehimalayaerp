@@ -38,6 +38,7 @@ export class QuotationsService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
         items: { include: { product: true } },
+        selectedTerms: { orderBy: { sortOrder: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -78,6 +79,7 @@ export class QuotationsService {
         workflowState: true,
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: { include: { product: true } },
+        selectedTerms: { orderBy: { sortOrder: 'asc' } },
         lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
         parentQuotation: true,
         childQuotations: {
@@ -273,6 +275,25 @@ export class QuotationsService {
       ? (dto.salesExecutiveId || leadSalesExecutiveId || userId)
       : (leadSalesExecutiveId || userId);
 
+    const rawTerms = Array.isArray(dto.selectedTerms)
+      ? dto.selectedTerms
+      : (Array.isArray(dto.terms) ? dto.terms : null);
+
+    const termsToSave = rawTerms !== null
+      ? rawTerms.map((t: any, index: number) => ({
+          termId: t.termId || t.id || null,
+          text: String(t.text || t.label || t.title || '').trim(),
+          sortOrder: t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
+        })).filter((t: any) => Boolean(t.text))
+      : [
+          { termId: 'payment-terms', text: 'Payment Terms', sortOrder: 1 },
+          { termId: 'unloading-breakage', text: 'Unloading at Client scope & breakage risk & responsibility', sortOrder: 2 },
+          { termId: 'delivery-timeline', text: 'Delivery timeline', sortOrder: 3 },
+          { termId: 'jurisdiction', text: 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction', sortOrder: 4 },
+          { termId: 'manufacturer-test-report', text: 'Manufacturer Test Report shall be provided', sortOrder: 5 },
+          { termId: 'colour-options', text: 'Different Colour Options available at additional 10% cost', sortOrder: 6 },
+        ];
+
     const quotation = await this.prisma.quotation.create({
       data: {
         quotationNumber,
@@ -302,11 +323,19 @@ export class QuotationsService {
             lineTotal: item.lineTotal,
           })),
         },
+        selectedTerms: {
+          create: termsToSave.map((term: any) => ({
+            termId: term.termId,
+            text: term.text,
+            sortOrder: term.sortOrder,
+          })),
+        },
       },
       include: {
         workflowState: true,
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: { include: { product: true } },
+        selectedTerms: { orderBy: { sortOrder: 'asc' } },
         lead: true,
       },
     });
@@ -431,6 +460,22 @@ export class QuotationsService {
         }).catch(() => {});
       }
 
+      // 3. Update Selected Terms if provided
+      const rawUpdateTerms = dto.selectedTerms !== undefined ? dto.selectedTerms : dto.terms;
+      if (Array.isArray(rawUpdateTerms)) {
+        await tx.quotationTerm.deleteMany({ where: { quotationId: id } });
+        if (rawUpdateTerms.length > 0) {
+          await tx.quotationTerm.createMany({
+            data: rawUpdateTerms.map((t: any, index: number) => ({
+              quotationId: id,
+              termId: t.termId || t.id || null,
+              text: String(t.text || t.label || t.title || '').trim(),
+              sortOrder: t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
+            })).filter((t: any) => Boolean(t.text)),
+          });
+        }
+      }
+
       const validUntilDate = dto.validUntil !== undefined
         ? (dto.validUntil ? new Date(dto.validUntil) : null)
         : (dto.validTill !== undefined ? (dto.validTill ? new Date(dto.validTill) : null) : undefined);
@@ -480,6 +525,7 @@ export class QuotationsService {
           workflowState: true,
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: { include: { product: true } },
+          selectedTerms: { orderBy: { sortOrder: 'asc' } },
           lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
         },
       });
@@ -495,6 +541,33 @@ export class QuotationsService {
         customer,
       };
     });
+  }
+
+  async getTermsMaster() {
+    let terms = await this.prisma.quotationTermMaster.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    if (!terms.length) {
+      const defaultTerms = [
+        { title: 'Payment Terms', sortOrder: 1, isActive: true },
+        { title: 'Unloading at Client scope & breakage risk & responsibility', sortOrder: 2, isActive: true },
+        { title: 'Delivery timeline', sortOrder: 3, isActive: true },
+        { title: 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction', sortOrder: 4, isActive: true },
+        { title: 'Manufacturer Test Report shall be provided', sortOrder: 5, isActive: true },
+        { title: 'Different Colour Options available at additional 10% cost', sortOrder: 6, isActive: true },
+      ];
+      await this.prisma.quotationTermMaster.createMany({
+        data: defaultTerms,
+      });
+      terms = await this.prisma.quotationTermMaster.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+    }
+
+    return terms;
   }
 
   async processAction(

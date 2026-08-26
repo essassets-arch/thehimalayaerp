@@ -1,3 +1,5 @@
+import { resolveQuotationTerms } from './quotationTerms';
+
 export const statusLabel = (code?: string): string => {
   const value = String(code || 'DRAFT').toUpperCase();
   if (value === 'CONVERTED_TO_SO') return 'Converted';
@@ -214,5 +216,7 @@ export const normalizeQuotation = (quotation: any): any => {
     tax: Number(quotation.tax ?? 0),
     detailedItems,
     items: detailedItems,
+    selectedTerms: resolveQuotationTerms(quotation),
+    terms: resolveQuotationTerms(quotation),
   };
 };

@@ -67,6 +67,9 @@ export function useQuotations(showToast, autoLoad = true) {
         expectedTransportationCost: Number(qData.expectedTransportationCost ?? qData.transportCharge ?? 0),
         transportCharge: Number(qData.transportCharge ?? qData.expectedTransportationCost ?? 0),
         items,
+        selectedTerms: qData.selectedTerms !== undefined ? qData.selectedTerms : qData.terms,
+        terms: qData.selectedTerms !== undefined ? qData.selectedTerms : qData.terms,
+        selectedTermIds: qData.selectedTermIds,
       };
 
       const created = await backendFetch('/api/backend/crm/quotations', {
@@ -149,6 +152,9 @@ export function useQuotations(showToast, autoLoad = true) {
           expectedTransportationCost: Number(updatedData.expectedTransportationCost ?? updatedData.transportCharge ?? 0),
           transportCharge: Number(updatedData.transportCharge ?? updatedData.expectedTransportationCost ?? 0),
           items: mappedItems,
+          selectedTerms: updatedData.selectedTerms !== undefined ? updatedData.selectedTerms : updatedData.terms,
+          terms: updatedData.selectedTerms !== undefined ? updatedData.selectedTerms : updatedData.terms,
+          selectedTermIds: updatedData.selectedTermIds,
         };
 
         await backendFetch(`/api/backend/crm/quotations/${quotationId}`, {

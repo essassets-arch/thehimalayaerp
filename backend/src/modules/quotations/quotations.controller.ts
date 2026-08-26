@@ -43,6 +43,12 @@ export class QuotationsController {
     return this.mapQuotationStatus(result);
   }
 
+  @Get('terms-master')
+  @RequirePermissions('crm.quotations.read')
+  async getTermsMaster() {
+    return this.quotationsService.getTermsMaster();
+  }
+
   @Get(':id')
   @RequirePermissions('crm.quotations.read')
   async getQuotation(@Param('id') id: string, @Req() req: any) {
