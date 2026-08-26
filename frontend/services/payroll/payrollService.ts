@@ -81,5 +81,12 @@ export const payrollService = {
   enableEmployeeSalarySlipAccess: (id: string) => post<any>(`${root}/salary-slips/${id}/enable-employee-access`, {}),
   auditSalarySlipPrint: (id: string) => post<any>(`${root}/salary-slips/${id}/print`, {}),
   getSalaryStructures: () => backendFetch<any[]>(`${root}/salary-structures`, { cacheTtlMs: 0 }),
-  saveSalaryStructure: (employeeId: string, body: unknown) => post<any>(`${root}/salary-structures/${employeeId}`, body),
+  getSalaryStructure: (id: string) => backendFetch<any>(`${root}/salary-structures/${id}`, { cacheTtlMs: 0 }),
+  getEmployeeSalaryStructure: (employeeId: string) => backendFetch<any>(`${root}/salary-structures/employee/${employeeId}`, { cacheTtlMs: 0 }),
+  getPayrollAttendanceSummary: (employeeId: string, month?: string) =>
+    backendFetch<any>(`${root}/payroll/attendance-summary/${employeeId}${month ? `?month=${month}` : ''}`, { cacheTtlMs: 0 }),
+  createSalaryStructure: (body: any) => post<any>(`${root}/salary-structures`, body),
+  updateSalaryStructure: (id: string, body: any) => backendFetch<any>(`${root}/salary-structures/${id}`, { method: 'PUT', body }),
+  deleteSalaryStructure: (id: string) => backendFetch<any>(`${root}/salary-structures/${id}`, { method: 'DELETE' }),
+  saveSalaryStructure: (employeeId: string, body: unknown) => post<any>(`${root}/salary-structures`, { ...(body as object), employeeId }),
 };

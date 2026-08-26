@@ -1,0 +1,1293 @@
+/* ==========================================================================
+   CreateSalaryWorkstation.css
+   State-of-the-Art, High-End Enterprise Salary Preparation & CTC Workstation
+   ========================================================================== */
+
+/* ── Container & Global Reset ── */
+.ctc-workstation-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 0 56px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #0f172a;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* ── Top Header Navigation Bar ── */
+.ctc-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 28px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+}
+
+.ctc-header-left {
+  flex: 1 1 320px;
+}
+
+.ctc-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.ctc-breadcrumb a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+
+.ctc-breadcrumb a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.ctc-breadcrumb-current {
+  color: #334155;
+  font-weight: 600;
+}
+
+.ctc-header-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 4px;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.ctc-header-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.ctc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Professional Action Buttons ── */
+.btn-ctc-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.btn-ctc-outline:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+.btn-ctc-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: #0f172a;
+  color: #ffffff;
+  border: 1px solid #0f172a;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12), 0 1px 2px rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
+}
+
+.btn-ctc-primary:hover:not(:disabled) {
+  background: #1e293b;
+  border-color: #1e293b;
+  box-shadow: 0 4px 8px rgba(15, 23, 42, 0.18);
+  transform: translateY(-1px);
+}
+
+.btn-ctc-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── Duplicate Record Warning Alert ── */
+.ctc-alert-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  border-radius: 10px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+}
+
+.ctc-alert-warning-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ctc-alert-warning-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.ctc-alert-warning-desc {
+  font-size: 12.5px;
+  color: #b45309;
+  margin-top: 2px;
+}
+
+.ctc-alert-warning-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  background: #ffffff;
+  border: 1px solid #fcd34d;
+  padding: 7px 14px;
+  border-radius: 7px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.ctc-alert-warning-btn:hover {
+  background: #fef3c7;
+}
+
+/* ── Workstation Grid Layout ── */
+.ctc-workstation-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+  width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .ctc-workstation-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Universal Professional Card Design ── */
+.ctc-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 10px -2px rgba(15, 23, 42, 0.03);
+  overflow: visible;
+  margin-bottom: 22px;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ctc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 22px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  border-top-left-radius: 13px;
+  border-top-right-radius: 13px;
+  flex-wrap: wrap;
+}
+
+.ctc-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.step-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.ctc-card-title h3 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.ctc-card-title p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 2px 0 0;
+}
+
+/* ── Form Controls & Pickers ── */
+.ctc-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 20px 24px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+@media (max-width: 640px) {
+  .ctc-form-grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.form-group.span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .form-group.span-2 {
+    grid-column: span 1;
+  }
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.form-label .req {
+  color: #e11d48;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.form-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* ── Searchable Employee Dropdown Component ── */
+.ctc-dropdown-container {
+  position: relative;
+  width: 100%;
+}
+
+.ctc-dropdown-trigger-btn {
+  width: 100%;
+  padding: 11px 16px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.ctc-dropdown-trigger-btn:hover,
+.ctc-dropdown-trigger-btn:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.ctc-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.14), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ctc-dropdown-search-wrap {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+
+.ctc-dropdown-search-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  background: #ffffff;
+  transition: border-color 0.15s ease;
+}
+
+.ctc-dropdown-search-input:focus {
+  border-color: #2563eb;
+}
+
+.ctc-dropdown-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ctc-dropdown-item {
+  padding: 11px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.12s ease;
+}
+
+.ctc-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.ctc-dropdown-item:hover {
+  background: #f8fafc;
+}
+
+.ctc-dropdown-item.is-selected {
+  background: #eff6ff;
+}
+
+/* ── Selected Employee Profile Snapshot Ribbon ── */
+.ctc-emp-snapshot-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom-left-radius: 13px;
+  border-bottom-right-radius: 13px;
+  padding: 14px 24px;
+  flex-wrap: wrap;
+}
+
+.ctc-emp-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ctc-emp-details {
+  flex: 1;
+}
+
+.ctc-emp-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ctc-emp-meta {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.ctc-emp-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 3px 9px;
+  border-radius: 100px;
+}
+
+/* ==========================================================================
+   ATTENDANCE & LEAVE INTELLIGENCE SECTION
+   ========================================================================== */
+.ctc-attendance-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 10px -2px rgba(15, 23, 42, 0.03);
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+
+.ctc-attendance-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 22px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.ctc-attendance-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ctc-attendance-badge-live {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ctc-attendance-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ctc-month-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+}
+
+.ctc-month-select-wrap label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.ctc-month-input {
+  background: transparent;
+  color: #0f172a;
+  border: none;
+  padding: 2px 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.ctc-btn-toggle-matrix {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ctc-btn-toggle-matrix:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* ── 4 Key Attendance KPI Summary Cards ── */
+.ctc-attendance-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  padding: 18px 22px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+@media (max-width: 800px) {
+  .ctc-attendance-kpis-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .ctc-attendance-kpis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ctc-attendance-kpi-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.ctc-attendance-kpi-card:hover {
+  border-color: #cbd5e1;
+}
+
+.ctc-attendance-kpi-card.highlight-payable {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.ctc-attendance-kpi-card.highlight-payable .ctc-kpi-label {
+  color: #166534;
+}
+
+.ctc-attendance-kpi-card.highlight-payable .ctc-kpi-value {
+  color: #15803d;
+}
+
+.ctc-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.ctc-kpi-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.ctc-kpi-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ── Proration & Formula Banner ── */
+.ctc-proration-banner {
+  background: #eff6ff;
+  border-top: 1px solid #dbeafe;
+  padding: 12px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: #1e40af;
+}
+
+.ctc-proration-formula {
+  font-weight: 600;
+}
+
+.ctc-proration-badge {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+/* ── Per-Day & Leave Salary Cut Breakdown Grid ── */
+.ctc-leave-calc-box {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  padding: 14px 22px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .ctc-leave-calc-box {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .ctc-leave-calc-box {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ctc-leave-calc-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.ctc-leave-calc-item.highlight-cut {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.ctc-leave-calc-item.highlight-cut .ctc-leave-calc-title {
+  color: #9f1239;
+}
+
+.ctc-leave-calc-item.highlight-cut .ctc-leave-calc-val {
+  color: #be123c;
+}
+
+.ctc-leave-calc-item.highlight-earned {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.ctc-leave-calc-item.highlight-earned .ctc-leave-calc-title {
+  color: #166534;
+}
+
+.ctc-leave-calc-item.highlight-earned .ctc-leave-calc-val {
+  color: #15803d;
+}
+
+.ctc-leave-calc-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.ctc-leave-calc-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.ctc-leave-calc-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+/* ── Daily Matrix Table ── */
+.ctc-matrix-container {
+  padding: 16px 22px;
+  background: #ffffff;
+}
+
+.ctc-matrix-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  max-height: 400px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+}
+
+.ctc-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 750px;
+}
+
+.ctc-matrix-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 9px 14px;
+  text-align: left;
+  border-bottom: 1px solid #cbd5e1;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.ctc-matrix-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.ctc-matrix-table tr:hover td {
+  background: #f8fafc;
+}
+
+.ctc-matrix-table tr.row-weekly-off td {
+  background: #fcfcfc;
+  color: #64748b;
+}
+
+.ctc-matrix-table tr.row-holiday td {
+  background: #fffbeb;
+}
+
+.ctc-matrix-table tr.row-absent td {
+  background: #fef2f2;
+}
+
+/* ── Status Pills ── */
+.pill-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.pill-present { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.pill-paid-leave { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.pill-unpaid-leave { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.pill-weekly-off { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.pill-holiday { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.pill-absent { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+.pill-half-day { background: #fefce8; color: #854d0e; border: 1px solid #fde047; }
+.pill-scheduled { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+
+/* ==========================================================================
+   BASIC SALARY HERO & ALLOWANCES (SECTION A)
+   ========================================================================== */
+.ctc-basic-hero-card {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 20px 24px;
+}
+
+.ctc-basic-hero-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.ctc-basic-hero-left {
+  flex: 1 1 280px;
+}
+
+.ctc-basic-hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #475569;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+.ctc-basic-hero-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 6px 14px;
+  max-width: 280px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: all 0.15s ease;
+}
+
+.ctc-basic-hero-input-wrap:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.ctc-basic-currency-prefix {
+  font-size: 18px;
+  font-weight: 600;
+  color: #64748b;
+  margin-right: 8px;
+}
+
+.ctc-basic-input {
+  width: 100%;
+  border: none;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  outline: none;
+  background: transparent;
+}
+
+.ctc-basic-hero-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 7px;
+}
+
+.ctc-basic-hero-right {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 14px 20px;
+  border-radius: 10px;
+  text-align: right;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.ctc-basic-hero-pill-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+  display: block;
+}
+
+.ctc-basic-hero-total {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 2px 0 2px;
+  letter-spacing: -0.02em;
+}
+
+/* ==========================================================================
+   ALLOWANCES & DEDUCTIONS GRIDS
+   ========================================================================== */
+.ctc-allowances-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  padding: 20px 24px;
+  box-sizing: border-box;
+}
+
+.ctc-allowance-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.ctc-allowance-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 8px -2px rgba(0,0,0,0.04);
+}
+
+.ctc-allowance-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.ctc-allowance-tag {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.ctc-allowance-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 5px 10px;
+}
+
+.ctc-pct-input {
+  width: 55px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 5px;
+  padding: 5px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: right;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.ctc-pct-input:focus {
+  border-color: #2563eb;
+}
+
+.ctc-pct-symbol {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ctc-allowance-result {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: right;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* ==========================================================================
+   SUMMARY BANNERS (NET TAKE-HOME & TOTAL CTC)
+   ========================================================================== */
+.ctc-net-hero-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-left: 5px solid #059669;
+  border-radius: 12px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+  box-shadow: 0 2px 6px -1px rgba(5, 150, 105, 0.08);
+}
+
+.ctc-net-hero-left span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  text-transform: uppercase;
+  display: block;
+}
+
+.ctc-net-hero-left strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  display: block;
+  margin-top: 2px;
+}
+
+.ctc-net-hero-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.ctc-net-hero-right {
+  text-align: right;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 10px 20px;
+  border-radius: 9px;
+}
+
+.ctc-net-hero-right strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: #059669;
+  display: block;
+  letter-spacing: -0.01em;
+}
+
+.ctc-net-hero-right small {
+  font-size: 11px;
+  color: #166534;
+  display: block;
+  font-weight: 500;
+}
+
+.ctc-ctc-hero-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-left: 5px solid #0f172a;
+  border-radius: 12px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.06);
+}
+
+.ctc-ctc-hero-left span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  text-transform: uppercase;
+  display: block;
+}
+
+.ctc-ctc-hero-left strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  display: block;
+  margin-top: 2px;
+}
+
+.ctc-ctc-hero-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.ctc-ctc-hero-right {
+  text-align: right;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 10px 20px;
+  border-radius: 9px;
+}
+
+.ctc-ctc-hero-right strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  display: block;
+  letter-spacing: -0.01em;
+}
+
+.ctc-ctc-hero-right small {
+  font-size: 11px;
+  color: #64748b;
+  display: block;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   STICKY EXECUTIVE FINANCIAL SIDEBAR
+   ========================================================================== */
+.ctc-sidebar-sticky {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03), 0 8px 16px -4px rgba(15, 23, 42, 0.05);
+  padding: 20px;
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ctc-sidebar-sticky h3 {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.ctc-sidebar-sticky p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 2px 0 0;
+}
+
+.ctc-sidebar-profile {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 12px 14px;
+}
+
+.ctc-sidebar-profile h4 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.ctc-sidebar-profile p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 2px 0 0;
+}
+
+/* ── 3 Clean Structured Summary Blocks ── */
+.sidebar-block {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+.sidebar-block.block-attendance {
+  background: #f8fafc;
+}
+
+.sidebar-block.block-payroll {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.sidebar-block-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 5px;
+  margin-bottom: 2px;
+}
+
+.sidebar-block.block-payroll .sidebar-block-title {
+  color: #166534;
+  border-bottom-color: #dcfce7;
+}
+
+.sidebar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #334155;
+}
+
+.sidebar-row.total {
+  font-weight: 700;
+  color: #0f172a;
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 5px;
+  margin-top: 2px;
+}
+
+.sidebar-row.cut {
+  color: #be123c;
+  font-weight: 600;
+}
+
+.sidebar-row.highlight-net {
+  background: #ffffff;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-weight: 800;
+  color: #15803d;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.sidebar-row.highlight-ctc {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 12.5px;
+  margin-top: 2px;
+}

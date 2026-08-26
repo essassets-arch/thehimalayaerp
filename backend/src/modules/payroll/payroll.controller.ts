@@ -4,7 +4,9 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -51,6 +53,15 @@ export class PayrollController {
   sendToSuperAdmin(@Param('id') idParam: string, @Body() body: any, @Req() req: any) {
     const ids = body?.ids || body?.records?.map((r: any) => r?.id || r) || (idParam ? [idParam] : []);
     return this.service.submitToSuperAdmin(ids, req.user);
+  }
+
+  @Get(['hr/payroll/attendance-summary/:employeeId', 'payroll/attendance-summary/:employeeId'])
+  getPayrollAttendanceSummary(
+    @Param('employeeId') employeeId: string,
+    @Query('month') month: string,
+    @Req() req: any,
+  ) {
+    return this.service.getPayrollAttendanceSummary(employeeId, month, req.user);
   }
 
   // ==========================================
@@ -166,5 +177,44 @@ export class PayrollController {
   @Get(['salary-slips/shared/:token', 'hr/salary-slips/shared/:token'])
   getPublicSharedSalarySlip(@Param('token') token: string) {
     return this.service.getPublicSharedSalarySlip(token);
+  }
+
+  // ==========================================
+  // SALARY STRUCTURE / CTC ENDPOINTS
+  // ==========================================
+
+  @Get(['hr/salary-structures', 'salary-structures'])
+  listSalaryStructures(@Req() req: any) {
+    return this.service.listSalaryStructures(req.user);
+  }
+
+  @Get(['hr/salary-structures/:id', 'salary-structures/:id'])
+  getSalaryStructure(@Param('id') id: string, @Req() req: any) {
+    return this.service.getSalaryStructure(id, req.user);
+  }
+
+  @Get(['hr/salary-structures/employee/:employeeId', 'salary-structures/employee/:employeeId'])
+  getEmployeeSalaryStructure(@Param('employeeId') employeeId: string, @Req() req: any) {
+    return this.service.getEmployeeSalaryStructure(employeeId, req.user);
+  }
+
+  @Post(['hr/salary-structures', 'salary-structures'])
+  createSalaryStructure(@Body() body: any, @Req() req: any) {
+    return this.service.createSalaryStructure(body, req.user);
+  }
+
+  @Put(['hr/salary-structures/:id', 'salary-structures/:id'])
+  updateSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.service.updateSalaryStructure(id, body, req.user);
+  }
+
+  @Patch(['hr/salary-structures/:id', 'salary-structures/:id'])
+  patchSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.service.updateSalaryStructure(id, body, req.user);
+  }
+
+  @Delete(['hr/salary-structures/:id', 'salary-structures/:id'])
+  deleteSalaryStructure(@Param('id') id: string, @Req() req: any) {
+    return this.service.deleteSalaryStructure(id, req.user);
   }
 }

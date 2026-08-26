@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UploadedFile,
@@ -25,11 +26,15 @@ import { validate } from 'class-validator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CreateEmployeeDto, EmployeeQueryDto } from './dto/employee.dto';
 import { EmployeesService } from './employees.service';
+import { PayrollService } from '../payroll/payroll.service';
 
 @Controller('hr')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EmployeesController {
-  constructor(private readonly employees: EmployeesService) {}
+  constructor(
+    private readonly employees: EmployeesService,
+    private readonly payrollService: PayrollService,
+  ) {}
 
   private async parseEmployeeData(value: string) {
     let payload: unknown;
@@ -207,4 +212,51 @@ export class EmployeesController {
   delete(@Param('id') id: string, @Req() req: any) {
     return this.employees.delete(id, req.user);
   }
+
+  // ==========================================
+  // SALARY STRUCTURE / CTC ENDPOINTS
+  // ==========================================
+
+  @Get('salary-structures')
+  @RequirePermissions('hr.payroll.read')
+  listSalaryStructures(@Req() req: any) {
+    return this.payrollService.listSalaryStructures(req.user);
+  }
+
+  @Get('salary-structures/:id')
+  @RequirePermissions('hr.payroll.read')
+  getSalaryStructure(@Param('id') id: string, @Req() req: any) {
+    return this.payrollService.getSalaryStructure(id, req.user);
+  }
+
+  @Get('salary-structures/employee/:employeeId')
+  @RequirePermissions('hr.payroll.read')
+  getEmployeeSalaryStructure(@Param('employeeId') employeeId: string, @Req() req: any) {
+    return this.payrollService.getEmployeeSalaryStructure(employeeId, req.user);
+  }
+
+  @Post('salary-structures')
+  @RequirePermissions('hr.payroll.create')
+  createSalaryStructure(@Body() body: any, @Req() req: any) {
+    return this.payrollService.createSalaryStructure(body, req.user);
+  }
+
+  @Put('salary-structures/:id')
+  @RequirePermissions('hr.payroll.update')
+  updateSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.payrollService.updateSalaryStructure(id, body, req.user);
+  }
+
+  @Patch('salary-structures/:id')
+  @RequirePermissions('hr.payroll.update')
+  patchSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.payrollService.updateSalaryStructure(id, body, req.user);
+  }
+
+  @Delete('salary-structures/:id')
+  @RequirePermissions('hr.payroll.delete')
+  deleteSalaryStructure(@Param('id') id: string, @Req() req: any) {
+    return this.payrollService.deleteSalaryStructure(id, req.user);
+  }
 }
+

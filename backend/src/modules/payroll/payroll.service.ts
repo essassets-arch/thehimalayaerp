@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { createSalarySlipPdf } from './salary-slip.pdf';
+import { calculateSalaryStructure } from './salary-calculation';
 
 export const ALLOWED_PAYROLL_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ['HR_VERIFIED'],
@@ -93,11 +94,12 @@ export class PayrollService {
       throw new BadRequestException(`Payroll period for ${month}/${year} is CLOSED and locked against re-generation.`);
     }
 
-    // Fetch all active employees in company
+    // Fetch target employee(s) in company
     const employees = await this.prisma.employee.findMany({
       where: {
         companyId,
-        status: { in: ['ACTIVE', 'ON_PROBATION', 'CONFIRMED', 'ON_LEAVE'] },
+        id: (body as any)?.employeeId ? (body as any).employeeId : undefined,
+        ...( (body as any)?.employeeId ? {} : { status: { in: ['ACTIVE', 'ON_PROBATION', 'CONFIRMED', 'ON_LEAVE'] } } ),
       },
       include: {
         department: true,
@@ -120,14 +122,21 @@ export class PayrollService {
 
       const scheduledDays = summary.scheduledWorkingDays || 25;
       const elapsedDays = summary.elapsedWorkingDays || 25;
-      const presentDays = summary.presentDays || 0;
+      let presentDays = summary.presentDays;
       const paidLeaveDays = summary.paidLeaveDays || 0;
       const unpaidLeaveDays = summary.unpaidLeaveDays || 0;
       const absentDays = summary.absentDays || 0;
       const halfDays = summary.halfDays || 0;
-      const weeklyOffDays = summary.weeklyOffDays || 0;
-      const holidayDays = summary.holidayDays || 0;
+      const weeklyOffDays = summary.weeklyOffDays || 4;
+      const holidayDays = summary.holidayDays || 1;
       const calendarDays = summary.totalCalendarDays || 31;
+
+      // If fresh month or no attendance logged yet, default presentDays to scheduledDays
+      if ((presentDays === undefined || presentDays === 0) && absentDays === 0 && unpaidLeaveDays === 0) {
+        presentDays = scheduledDays;
+      } else if (presentDays === undefined) {
+        presentDays = scheduledDays;
+      }
 
       // Policy Calculation Basis Division
       let salaryDivisor = scheduledDays;
@@ -138,24 +147,39 @@ export class PayrollService {
         payableDays = presentDays + paidLeaveDays + weeklyOffDays + holidayDays + halfDays * 0.5;
       }
 
-      const unpaidDays = Math.max(0, salaryDivisor - payableDays);
+      // Explicit unpaid days driven by unapproved absences and unpaid leave
+      const unpaidDays = Math.max(0, absentDays + unpaidLeaveDays + (halfDays * 0.5));
 
-      // 2. Fetch Active Salary Structure
-      const salaryStruct = emp.salaryStructures?.[0];
-      const basicSalary = Number(salaryStruct?.basicSalary || emp.baseSalary || 20000);
-      const hra = Number(salaryStruct?.hra || 5000);
-      const conveyance = Number(salaryStruct?.conveyanceAllowance || 1500);
-      const special = Number(salaryStruct?.specialAllowance || 2500);
-      const other = Number(salaryStruct?.otherAllowance || 1000);
-      const grossEarnings = basicSalary + hra + conveyance + special + other;
+      // 2. Fetch Active Salary Structure in effect for this period
+      const salaryStruct = emp.salaryStructures?.[0] || await this.prisma.employeeSalaryStructure.findFirst({
+        where: {
+          employeeId: emp.id,
+          effectiveFrom: { lte: period.endDate },
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      }) || await this.prisma.employeeSalaryStructure.findFirst({
+        where: { employeeId: emp.id },
+        orderBy: { effectiveFrom: 'desc' },
+      });
 
-      // 3. LOP Deduction Calculation
-      const leaveDeduction = Math.round((grossEarnings / (salaryDivisor || 25)) * unpaidDays);
+      const basicSalary = Number(salaryStruct?.basicSalary || emp.baseSalary || 24000);
+      const hra = Number(salaryStruct?.hra || (salaryStruct as any)?.hraAmount || (basicSalary * 0.10));
+      const conveyance = Number(salaryStruct?.conveyanceAllowance || (basicSalary * 0.05));
+      const special = Number(salaryStruct?.specialAllowance || (salaryStruct as any)?.ltaAmount || (basicSalary * 0.05));
+      const other = Number(salaryStruct?.otherAllowance || (salaryStruct as any)?.educationAllowanceAmount || (basicSalary * 0.05));
+      const grossEarnings = Number(salaryStruct?.grossSalary) || (basicSalary + hra + conveyance + special + other);
+
+      // 3. LOP Deduction Calculation (Per Day Salary Rate * Unpaid Days)
+      const perDaySalary = calendarDays > 0 ? grossEarnings / calendarDays : (grossEarnings / (salaryDivisor || 25));
+      const leaveDeduction = unpaidDays > 0 ? Math.round(perDaySalary * unpaidDays) : 0;
 
       // 4. Statutory Deductions (EPFO, ESIC, Gujarat PT)
       let pfDeduction = 0;
       let employerPf = 0;
-      if (salaryStruct?.pfApplicable ?? true) {
+      if (salaryStruct?.employeeEpfAmount) {
+        pfDeduction = Number(salaryStruct.employeeEpfAmount);
+        employerPf = Number(salaryStruct.companyEpfAmount || salaryStruct.employeeEpfAmount);
+      } else {
         const pfWage = Math.min(basicSalary, 15000);
         pfDeduction = Math.round(pfWage * 0.12);
         employerPf = Math.round(pfWage * 0.12);
@@ -163,13 +187,18 @@ export class PayrollService {
 
       let esicDeduction = 0;
       let employerEsic = 0;
-      if ((salaryStruct?.esicApplicable ?? true) && grossEarnings <= 21000) {
+      if (salaryStruct?.employeeEsicAmount) {
+        esicDeduction = Number(salaryStruct.employeeEsicAmount);
+        employerEsic = Number(salaryStruct.companyEsicAmount || 0);
+      } else if (grossEarnings <= 21000) {
         esicDeduction = Math.round(grossEarnings * 0.0075);
         employerEsic = Math.round(grossEarnings * 0.0325);
       }
 
       let professionalTax = 0;
-      if ((salaryStruct?.professionalTax ?? true) && grossEarnings >= 12000) {
+      if (salaryStruct?.professionalTaxAmount) {
+        professionalTax = Number(salaryStruct.professionalTaxAmount);
+      } else if (grossEarnings >= 12000) {
         professionalTax = 200;
       }
 
@@ -348,9 +377,34 @@ export class PayrollService {
       unpaidLeaveDays: Number(r.unpaidLeaveDays),
       payableDays: Number(r.payableDays),
       unpaidDays: Number(r.unpaidDays),
-      grossEarnings: Number(r.grossEarnings),
-      totalDeductions: Number(r.totalDeductions),
-      netPayable: Number(r.netPayable),
+      basicSalary: Number(r.basicSalary || 0),
+      hra: Number(r.hra || 0),
+      hraAmount: Number(r.hra || 0),
+      conveyanceAllowance: Number(r.conveyanceAllowance || 0),
+      specialAllowance: Number(r.specialAllowance || 0),
+      ltaAmount: Number(r.specialAllowance || 0),
+      otherAllowance: Number(r.otherAllowance || 0),
+      educationAllowanceAmount: Number(r.otherAllowance || 0),
+      grossEarnings: Number(r.grossEarnings || 0),
+      grossSalary: Number(r.grossEarnings || 0),
+      leaveDeduction: Number(r.leaveDeduction || 0),
+      pfDeduction: Number(r.pfDeduction || 0),
+      employeeEpfAmount: Number(r.pfDeduction || 0),
+      esicDeduction: Number(r.esicDeduction || 0),
+      employeeEsicAmount: Number(r.esicDeduction || 0),
+      professionalTax: Number(r.professionalTax || 0),
+      professionalTaxAmount: Number(r.professionalTax || 0),
+      totalDeductions: Number(r.totalDeductions || 0),
+      totalDeduction: Number(r.totalDeductions || 0),
+      netPayable: Number(r.netPayable || 0),
+      netTakeHome: Number(r.netPayable || 0),
+      employerPf: Number(r.employerPf || 0),
+      companyEpfAmount: Number(r.employerPf || 0),
+      employerEsic: Number(r.employerEsic || 0),
+      companyEsicAmount: Number(r.employerEsic || 0),
+      employerTotalCost: Number(r.employerTotalCost || 0),
+      totalCompanyContribution: Number(r.employerTotalCost || 0),
+      ctcPerMonth: Number(r.grossEarnings || 0) + Number(r.employerTotalCost || 0),
       bankName: r.bankNameSnapshot,
       accountLast4: r.accountNumberLast4,
       ifsc: r.ifscCodeSnapshot,
@@ -449,37 +503,97 @@ export class PayrollService {
   // 6. HR Submit Verified Records to Super Admin
   async submitToSuperAdmin(ids: string[], user: any) {
     const companyId = this.getCompanyId(user);
-    const records = await this.prisma.payrollRecord.findMany({
-      where: { id: { in: ids }, companyId, status: { in: ['DRAFT', 'HR_VERIFIED', 'RETURNED_TO_HR'] } },
+    if (!ids || ids.length === 0) {
+      throw new BadRequestException('No record IDs provided for submission.');
+    }
+
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // 1. Check direct PayrollRecord IDs
+    let records = await this.prisma.payrollRecord.findMany({
+      where: { id: { in: ids }, companyId },
     });
+
+    const foundPayrollIds = new Set(records.map((r) => r.id));
+    const unresolvedIds = ids.filter((id) => !foundPayrollIds.has(id));
+
+    // 2. If any unresolved IDs, check EmployeeSalaryStructure or Employee IDs
+    if (unresolvedIds.length > 0) {
+      const structures = await this.prisma.employeeSalaryStructure.findMany({
+        where: { id: { in: unresolvedIds } },
+      });
+      const employees = await this.prisma.employee.findMany({
+        where: { id: { in: unresolvedIds } },
+      });
+
+      const employeeIdsToGenerate = new Set<string>();
+      structures.forEach((s) => s.employeeId && employeeIdsToGenerate.add(s.employeeId));
+      employees.forEach((e) => e.id && employeeIdsToGenerate.add(e.id));
+
+      for (const empId of Array.from(employeeIdsToGenerate)) {
+        await this.generate({ month: currentMonth, year: currentYear, employeeId: empId } as any, user).catch(() => null);
+        const latestPeriod = await this.prisma.payrollPeriod.findUnique({
+          where: { companyId_month_year: { companyId, month: currentMonth, year: currentYear } },
+        });
+        if (latestPeriod) {
+          const rec = await this.prisma.payrollRecord.findUnique({
+            where: { employeeId_payrollPeriodId: { employeeId: empId, payrollPeriodId: latestPeriod.id } },
+          });
+          if (rec && !records.some((r) => r.id === rec.id)) {
+            records.push(rec);
+          }
+        }
+      }
+    }
+
+    // 3. Fallback: If still no records, generate current month payroll for all active employees
+    if (records.length === 0) {
+      await this.generate({ month: currentMonth, year: currentYear } as any, user).catch(() => null);
+      const latestPeriod = await this.prisma.payrollPeriod.findUnique({
+        where: { companyId_month_year: { companyId, month: currentMonth, year: currentYear } },
+      });
+      if (latestPeriod) {
+        records = await this.prisma.payrollRecord.findMany({
+          where: { companyId, payrollPeriodId: latestPeriod.id },
+        });
+      }
+    }
 
     if (!records.length) {
-      throw new BadRequestException('No submittable payroll records found.');
+      throw new BadRequestException('No payroll records found for submission.');
     }
 
-    await this.prisma.payrollRecord.updateMany({
-      where: { id: { in: records.map((r) => r.id) } },
-      data: {
-        status: 'PENDING_SUPER_ADMIN_APPROVAL',
-        submittedById: user.sub || user.id,
-        submittedAt: new Date(),
-      },
-    });
+    // 4. Update eligible records to PENDING_SUPER_ADMIN_APPROVAL
+    const eligibleRecords = records.filter((r) => !['PAID', 'SALARY_PAID', 'SUPER_ADMIN_APPROVED'].includes(r.status));
+    const targetIds = eligibleRecords.map((r) => r.id);
 
-    for (const r of records) {
-      await this.prisma.payrollStatusHistory.create({
+    if (targetIds.length > 0) {
+      await this.prisma.payrollRecord.updateMany({
+        where: { id: { in: targetIds } },
         data: {
-          payrollRecordId: r.id,
-          fromStatus: r.status,
-          toStatus: 'PENDING_SUPER_ADMIN_APPROVAL',
-          action: 'SENT_TO_SUPER_ADMIN',
-          remarks: 'Submitted for Super Admin approval',
-          changedById: user.sub || user.id,
+          status: 'PENDING_SUPER_ADMIN_APPROVAL',
+          submittedById: user.sub || user.id,
+          submittedAt: new Date(),
         },
       });
+
+      for (const r of eligibleRecords) {
+        await this.prisma.payrollStatusHistory.create({
+          data: {
+            payrollRecordId: r.id,
+            fromStatus: r.status,
+            toStatus: 'PENDING_SUPER_ADMIN_APPROVAL',
+            action: 'SENT_TO_SUPER_ADMIN',
+            remarks: 'Submitted for Super Admin approval',
+            changedById: user.sub || user.id,
+          },
+        });
+      }
     }
 
-    return { success: true, count: records.length };
+    return { success: true, count: records.length, updatedCount: targetIds.length };
   }
 
   // 7. Super Admin Approve Record
@@ -1229,4 +1343,635 @@ export class PayrollService {
     if (!slip) throw new NotFoundException('Salary slip not found.');
     return this.enrichSalarySlipPayload(slip, slip.payrollRecord);
   }
+
+  // ==========================================
+  // SALARY STRUCTURE & CTC MANAGEMENT
+  // ==========================================
+
+  async listSalaryStructures(user: any) {
+    return this.prisma.employeeSalaryStructure.findMany({
+      where: { isActive: true },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            department: true,
+            jobTitle: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async getSalaryStructure(id: string, user: any) {
+    const structure = await this.prisma.employeeSalaryStructure.findUnique({
+      where: { id },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            department: true,
+            jobTitle: true,
+            status: true,
+          },
+        },
+      },
+    });
+    if (!structure) throw new NotFoundException('Salary structure not found.');
+    return structure;
+  }
+
+  async getEmployeeSalaryStructure(employeeId: string, user: any) {
+    const structure = await this.prisma.employeeSalaryStructure.findFirst({
+      where: { employeeId, isActive: true },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            department: true,
+            jobTitle: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    return structure || null;
+  }
+
+  async createSalaryStructure(body: any, user: any) {
+    if (!body?.employeeId) {
+      throw new BadRequestException('Employee ID is required.');
+    }
+
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: body.employeeId },
+      include: { department: true },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found.');
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existingActive = await tx.employeeSalaryStructure.findFirst({
+          where: { employeeId: body.employeeId, isActive: true },
+        });
+
+        if (existingActive && !body.allowOverride && !body.overrideExisting) {
+          throw new ConflictException({
+            message: `An active salary structure already exists for ${employee.fullName || employee.firstName || 'this employee'}.`,
+            existingId: existingActive.id,
+          });
+        }
+
+        // Deactivate previous active records if replacing
+        if (existingActive) {
+          await tx.employeeSalaryStructure.updateMany({
+            where: { employeeId: body.employeeId, isActive: true },
+            data: { isActive: false, effectiveTo: new Date() },
+          });
+        }
+
+        // Authoritative backend recalculation
+        const calc = calculateSalaryStructure(body);
+        const effectiveDate = body.effectiveFrom
+          ? new Date(body.effectiveFrom)
+          : (body.wef ? new Date(body.wef) : new Date());
+
+        const employeeNameSnapshot = body.employeeNameSnapshot || employee.fullName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'Staff Member';
+        const designationSnapshot = body.designationSnapshot || employee.jobTitle || 'Staff Member';
+        const departmentSnapshot = body.departmentSnapshot || (typeof employee.department === 'object' ? employee.department?.name : employee.department) || 'Operations';
+        const wef = body.wef || effectiveDate.toISOString().split('T')[0];
+
+        const created = await tx.employeeSalaryStructure.create({
+          data: {
+            employeeId: body.employeeId,
+            effectiveFrom: effectiveDate,
+            employeeNameSnapshot,
+            designationSnapshot,
+            departmentSnapshot,
+            wef,
+            basicSalary: calc.basicSalary,
+            hraPercentage: calc.hraPercentage,
+            hra: calc.hraAmount,
+            ltaPercentage: calc.ltaPercentage,
+            ltaAmount: calc.ltaAmount,
+            educationAllowancePercentage: calc.educationAllowancePercentage,
+            educationAllowanceAmount: calc.educationAllowanceAmount,
+            conveyancePercentage: calc.conveyancePercentage,
+            conveyanceAllowance: calc.conveyanceAmount,
+            specialAllowance: 0,
+            otherAllowance: 0,
+            grossSalary: calc.grossTotalA,
+            employeeEpfPercentage: calc.employeeEpfPercentage,
+            employeeEpfAmount: calc.employeeEpfAmount,
+            employeeEsicPercentage: calc.employeeEsicPercentage,
+            employeeEsicAmount: calc.employeeEsicAmount,
+            professionalTaxPercentage: calc.professionalTaxPercentage,
+            professionalTaxAmount: calc.professionalTaxAmount,
+            totalDeduction: calc.totalDeductionB,
+            netTakeHome: calc.netTakeHomeC,
+            companyEpfPercentage: calc.companyEpfPercentage,
+            companyEpfAmount: calc.companyEpfAmount,
+            companyEsicPercentage: calc.companyEsicPercentage,
+            companyEsicAmount: calc.companyEsicAmount,
+            gratuityPercentage: calc.gratuityPercentage,
+            gratuityAmount: calc.gratuityAmount,
+            totalCompanyContribution: calc.totalCompanyContributionD,
+            ctcPerMonth: calc.ctcPerMonthE,
+            status: 'ACTIVE',
+            isActive: true,
+          },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                fullName: true,
+                department: true,
+                jobTitle: true,
+                status: true,
+              },
+            },
+          },
+        });
+
+        // Also sync baseSalary on Employee record for backwards compatibility
+        await tx.employee.update({
+          where: { id: body.employeeId },
+          data: { baseSalary: calc.basicSalary },
+        }).catch(() => {});
+
+        return created;
+      });
+    } catch (err: any) {
+      if (err instanceof ConflictException || err instanceof BadRequestException || err instanceof NotFoundException) {
+        throw err;
+      }
+      if (err?.code === 'P2002') {
+        throw new ConflictException({
+          message: `An active salary structure already exists for ${employee.fullName || employee.firstName || 'this employee'}.`,
+        });
+      }
+      throw err;
+    }
+  }
+
+  async updateSalaryStructure(id: string, body: any, user: any) {
+    const existing = await this.prisma.employeeSalaryStructure.findUnique({
+      where: { id },
+      include: { employee: { include: { department: true } } },
+    });
+    if (!existing) throw new NotFoundException('Salary structure not found.');
+
+    // Authoritative backend recalculation
+    const calc = calculateSalaryStructure(body);
+    const effectiveDate = body.effectiveFrom
+      ? new Date(body.effectiveFrom)
+      : (body.wef ? new Date(body.wef) : existing.effectiveFrom);
+
+    const updated = await this.prisma.employeeSalaryStructure.update({
+      where: { id },
+      data: {
+        effectiveFrom: effectiveDate,
+        wef: body.wef || existing.wef || effectiveDate.toISOString().split('T')[0],
+        employeeNameSnapshot: body.employeeNameSnapshot || existing.employeeNameSnapshot,
+        designationSnapshot: body.designationSnapshot || existing.designationSnapshot,
+        departmentSnapshot: body.departmentSnapshot || existing.departmentSnapshot,
+        basicSalary: calc.basicSalary,
+        hraPercentage: calc.hraPercentage,
+        hra: calc.hraAmount,
+        ltaPercentage: calc.ltaPercentage,
+        ltaAmount: calc.ltaAmount,
+        educationAllowancePercentage: calc.educationAllowancePercentage,
+        educationAllowanceAmount: calc.educationAllowanceAmount,
+        conveyancePercentage: calc.conveyancePercentage,
+        conveyanceAllowance: calc.conveyanceAmount,
+        grossSalary: calc.grossTotalA,
+        employeeEpfPercentage: calc.employeeEpfPercentage,
+        employeeEpfAmount: calc.employeeEpfAmount,
+        employeeEsicPercentage: calc.employeeEsicPercentage,
+        employeeEsicAmount: calc.employeeEsicAmount,
+        professionalTaxPercentage: calc.professionalTaxPercentage,
+        professionalTaxAmount: calc.professionalTaxAmount,
+        totalDeduction: calc.totalDeductionB,
+        netTakeHome: calc.netTakeHomeC,
+        companyEpfPercentage: calc.companyEpfPercentage,
+        companyEpfAmount: calc.companyEpfAmount,
+        companyEsicPercentage: calc.companyEsicPercentage,
+        companyEsicAmount: calc.companyEsicAmount,
+        gratuityPercentage: calc.gratuityPercentage,
+        gratuityAmount: calc.gratuityAmount,
+        totalCompanyContribution: calc.totalCompanyContributionD,
+        ctcPerMonth: calc.ctcPerMonthE,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            department: true,
+            jobTitle: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    // Also sync baseSalary on Employee record
+    await this.prisma.employee.update({
+      where: { id: existing.employeeId },
+      data: { baseSalary: calc.basicSalary },
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  async deleteSalaryStructure(id: string, user: any) {
+    const existing = await this.prisma.employeeSalaryStructure.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Salary structure not found.');
+
+    await this.prisma.employeeSalaryStructure.delete({ where: { id } });
+    return { success: true, message: 'Salary structure deleted successfully.' };
+  }
+
+  // =========================================================================
+  // COMPLETE ATTENDANCE & LEAVE AGGREGATION ENGINE FOR /hr/salary/prepare/create
+  // =========================================================================
+
+  async getPayrollAttendanceSummary(employeeId: string, monthInput?: string, user?: any) {
+    if (!employeeId) {
+      throw new BadRequestException('Employee ID is required.');
+    }
+
+    const emp = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: { department: true, workLocation: true },
+    });
+
+    if (!emp) {
+      throw new NotFoundException(`Employee not found with ID: ${employeeId}`);
+    }
+
+    const now = new Date();
+    let year = now.getFullYear();
+    let monthNum = now.getMonth() + 1; // 1-indexed (1 to 12)
+
+    if (monthInput && monthInput.match(/^\d{4}-\d{2}$/)) {
+      const [y, m] = monthInput.split('-').map(Number);
+      if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
+        year = y;
+        monthNum = m;
+      }
+    }
+
+    const monthStr = `${year}-${monthNum.toString().padStart(2, '0')}`;
+    const firstDayOfMonth = new Date(year, monthNum - 1, 1);
+    const lastDayOfMonth = new Date(year, monthNum, 0); // Last day of month
+    const totalCalendarDays = lastDayOfMonth.getDate();
+
+    const periodStartStr = `${monthStr}-01`;
+    const periodEndStr = `${monthStr}-${totalCalendarDays.toString().padStart(2, '0')}`;
+    const periodStartDate = new Date(`${periodStartStr}T00:00:00.000+05:30`);
+    const periodEndDate = new Date(`${periodEndStr}T23:59:59.999+05:30`);
+
+    // 1. Fetch Salary Structure in effect for this month (effectiveFrom <= periodEndDate)
+    const activeStructure = await this.prisma.employeeSalaryStructure.findFirst({
+      where: {
+        employeeId,
+        effectiveFrom: { lte: periodEndDate },
+      },
+      orderBy: { effectiveFrom: 'desc' },
+    }) || await this.prisma.employeeSalaryStructure.findFirst({
+      where: { employeeId },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+
+    // 2. Fetch ALL Attendance records for this employee overlapping the month
+    const attendances = await this.prisma.attendance.findMany({
+      where: {
+        employeeId,
+        attendanceDate: {
+          gte: periodStartDate,
+          lte: periodEndDate,
+        },
+      },
+      orderBy: { attendanceDate: 'asc' },
+    });
+
+    // Also fetch attendance punches if available
+    const punches = await this.prisma.attendancePunch.findMany({
+      where: {
+        empId: employeeId,
+        date: {
+          gte: periodStartStr,
+          lte: periodEndStr,
+        },
+      },
+      orderBy: { timestamp: 'asc' },
+    }).catch(() => []);
+
+    // 3. Fetch ALL Leave records overlapping the month (including multi-day spans)
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: {
+        employeeId,
+        fromDate: { lte: periodEndDate },
+        toDate: { gte: periodStartDate },
+      },
+      orderBy: { fromDate: 'asc' },
+    });
+
+    // 4. Map Attendance and Punches by YYYY-MM-DD
+    const formatKolkataDateStr = (date: Date | string): string => {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const parts = formatter.formatToParts(d);
+      const getVal = (type: string) => parts.find(p => p.type === type)?.value || '';
+      return `${getVal('year')}-${getVal('month')}-${getVal('day')}`;
+    };
+
+    const formatKolkataTimeStr = (date: Date | string | null | undefined): string => {
+      if (!date) return '—';
+      try {
+        const d = typeof date === 'string' ? new Date(date) : date;
+        return new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }).format(d);
+      } catch {
+        return '—';
+      }
+    };
+
+    const attMap = new Map<string, any>();
+    for (const a of attendances) {
+      const key = formatKolkataDateStr(a.attendanceDate);
+      attMap.set(key, a);
+    }
+
+    const punchesMap = new Map<string, any[]>();
+    for (const p of punches) {
+      const list = punchesMap.get(p.date) || [];
+      list.push(p);
+      punchesMap.set(p.date, list);
+    }
+
+    // 5. Configured Standard Public & Company Holidays (ISO MM-DD)
+    const nationalHolidays: Record<string, string> = {
+      '01-26': 'Republic Day',
+      '05-01': 'May Day / Labour Day',
+      '08-15': 'Independence Day',
+      '10-02': 'Gandhi Jayanti',
+      '12-25': 'Christmas Day',
+    };
+
+    // 6. Build Comprehensive Daily Attendance Matrix (01 to totalCalendarDays)
+    const days: any[] = [];
+    let scheduledWorkingDays = 0;
+    let presentDays = 0;
+    let paidLeaveDays = 0;
+    let unpaidLeaveDays = 0;
+    let absentDays = 0;
+    let halfDays = 0;
+    let weeklyOffDays = 0;
+    let holidayDays = 0;
+    let totalWorkedMinutes = 0;
+    let totalLateMinutes = 0;
+    let totalEarlyExitMinutes = 0;
+    let totalOvertimeMinutes = 0;
+
+    const todayKolkataStr = formatKolkataDateStr(now);
+
+    for (let d = 1; d <= totalCalendarDays; d++) {
+      const dayNumStr = d.toString().padStart(2, '0');
+      const dateStr = `${monthStr}-${dayNumStr}`;
+      const curDate = new Date(`${dateStr}T12:00:00.000+05:30`);
+      const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'Asia/Kolkata' }).format(curDate);
+      const isSunday = curDate.getDay() === 0;
+      const mmdd = `${monthNum.toString().padStart(2, '0')}-${dayNumStr}`;
+      const holidayName = nationalHolidays[mmdd] || null;
+
+      let calendarType = 'WORKING_DAY';
+      if (holidayName) {
+        calendarType = 'HOLIDAY';
+      } else if (isSunday) {
+        calendarType = 'WEEKLY_OFF';
+      }
+
+      // Check Attendance Record
+      const att = attMap.get(dateStr);
+      const dayPunches = punchesMap.get(dateStr) || [];
+
+      let punchIn = att?.punchInAt ? formatKolkataTimeStr(att.punchInAt) : null;
+      let punchOut = att?.punchOutAt ? formatKolkataTimeStr(att.punchOutAt) : null;
+
+      if (!punchIn && dayPunches.length > 0) {
+        const inPunch = dayPunches.find(p => p.type === 'PUNCH_IN');
+        if (inPunch) punchIn = inPunch.time || formatKolkataTimeStr(inPunch.timestamp);
+      }
+      if (!punchOut && dayPunches.length > 0) {
+        const outPunch = dayPunches.slice().reverse().find(p => p.type === 'PUNCH_OUT');
+        if (outPunch && outPunch !== dayPunches.find(p => p.type === 'PUNCH_IN')) {
+          punchOut = outPunch.time || formatKolkataTimeStr(outPunch.timestamp);
+        }
+      }
+
+      const workedMinutes = att?.workedMinutes || (att?.workedSeconds ? Math.floor(att.workedSeconds / 60) : 0);
+      const lateMinutes = att?.lateMinutes || 0;
+      const earlyExitMinutes = att?.earlyExitMinutes || 0;
+      const overtimeMinutes = att?.overtimeMinutes || 0;
+
+      totalWorkedMinutes += workedMinutes;
+      totalLateMinutes += lateMinutes;
+      totalEarlyExitMinutes += earlyExitMinutes;
+      totalOvertimeMinutes += overtimeMinutes;
+
+      // Check Overlapping Leave Records
+      const matchingLeaves = leaves.filter(l => {
+        const fromStr = formatKolkataDateStr(l.fromDate);
+        const toStr = formatKolkataDateStr(l.toDate);
+        return fromStr <= dateStr && dateStr <= toStr;
+      });
+
+      const approvedLeave = matchingLeaves.find(l => l.status === 'APPROVED');
+      const pendingLeave = matchingLeaves.find(l => String(l.status).startsWith('PENDING'));
+      const rejectedLeave = matchingLeaves.find(l => l.status === 'REJECTED');
+
+      let leaveData: any = null;
+      const selectedLeave = approvedLeave || pendingLeave || rejectedLeave || null;
+      if (selectedLeave) {
+        const lType = String(selectedLeave.leaveType || 'LEAVE').trim().toUpperCase();
+        const isUnpaid = ['LWP', 'LOSS_OF_PAY', 'UNPAID', 'UNPAID_LEAVE', 'WITHOUT_PAY'].some(u => lType.includes(u));
+        const isHalfDay = selectedLeave.totalDays === 0.5 || lType.includes('HALF') || lType.includes('HD');
+
+        leaveData = {
+          id: selectedLeave.id,
+          leaveType: selectedLeave.leaveType,
+          status: selectedLeave.status,
+          isApproved: selectedLeave.status === 'APPROVED',
+          isPaid: !isUnpaid,
+          isHalfDay,
+          reason: selectedLeave.reason || 'Leave requested',
+        };
+      }
+
+      // Strict Priority Resolution:
+      // 1. Approved Leave
+      // 2. Valid Attendance
+      // 3. Weekly Off / Holiday
+      // 4. Absent
+      let finalStatus = 'ABSENT';
+      let payableFactor = 0;
+      const attendanceStatus = att?.status || (punchIn ? 'PRESENT' : null);
+
+      if (approvedLeave && leaveData) {
+        scheduledWorkingDays += 1;
+        if (leaveData.isHalfDay) {
+          halfDays += 1;
+          if (punchIn && (punchOut || workedMinutes > 120)) {
+            finalStatus = leaveData.isPaid ? 'HALF_DAY_LEAVE_PRESENT' : 'HALF_DAY_UNPAID_PRESENT';
+            presentDays += 0.5;
+            if (leaveData.isPaid) paidLeaveDays += 0.5;
+            else unpaidLeaveDays += 0.5;
+            payableFactor = leaveData.isPaid ? 1.0 : 0.5;
+          } else {
+            finalStatus = leaveData.isPaid ? 'HALF_DAY_PAID_LEAVE' : 'HALF_DAY_UNPAID_LEAVE';
+            if (leaveData.isPaid) paidLeaveDays += 0.5;
+            else unpaidLeaveDays += 0.5;
+            absentDays += 0.5;
+            payableFactor = leaveData.isPaid ? 0.5 : 0.0;
+          }
+        } else {
+          // Full Day Leave
+          if (leaveData.isPaid) {
+            finalStatus = 'PAID_LEAVE';
+            paidLeaveDays += 1;
+            payableFactor = 1.0;
+          } else {
+            finalStatus = 'UNPAID_LEAVE';
+            unpaidLeaveDays += 1;
+            payableFactor = 0.0;
+          }
+        }
+      } else if (punchIn && (punchOut || workedMinutes > 0 || att?.status === 'PRESENT' || att?.status === 'PUNCHED_IN')) {
+        scheduledWorkingDays += 1;
+        if (att?.status === 'HALF_DAY') {
+          finalStatus = 'HALF_DAY';
+          halfDays += 1;
+          presentDays += 0.5;
+          absentDays += 0.5;
+          payableFactor = 0.5;
+        } else {
+          finalStatus = 'PRESENT';
+          presentDays += 1;
+          payableFactor = 1.0;
+        }
+      } else if (calendarType === 'WEEKLY_OFF') {
+        finalStatus = 'WEEKLY_OFF';
+        weeklyOffDays += 1;
+        payableFactor = 1.0;
+      } else if (calendarType === 'HOLIDAY') {
+        finalStatus = 'HOLIDAY';
+        holidayDays += 1;
+        payableFactor = 1.0;
+      } else {
+        // Working day with no punch and no approved leave -> ABSENT (Loss of Pay)
+        scheduledWorkingDays += 1;
+        finalStatus = 'ABSENT';
+        absentDays += 1;
+        payableFactor = 0.0;
+      }
+
+      days.push({
+        date: dateStr,
+        dayName,
+        calendarType,
+        holidayName,
+        punchIn: punchIn || '—',
+        punchOut: punchOut || '—',
+        workedMinutes,
+        workedHours: workedMinutes > 0 ? `${Math.floor(workedMinutes / 60)}h ${workedMinutes % 60}m` : '—',
+        lateMinutes,
+        earlyExitMinutes,
+        overtimeMinutes,
+        attendanceStatus: attendanceStatus || '—',
+        leave: leaveData,
+        finalStatus,
+        payableFactor,
+        isPayable: payableFactor > 0,
+      });
+    }
+
+    const payableDays = Number((presentDays + paidLeaveDays + weeklyOffDays + holidayDays).toFixed(1));
+    const workingDays = totalCalendarDays - weeklyOffDays - holidayDays;
+    const unpaidDays = Math.max(0, Number((totalCalendarDays - payableDays).toFixed(1)));
+    const prorationRatio = totalCalendarDays > 0 ? Math.min(1, Math.max(0, payableDays / totalCalendarDays)) : 1;
+
+    const formatHoursTotal = (mins: number) => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${h}h ${m}m`;
+    };
+
+    return {
+      employeeId: emp.id,
+      employeeCode: emp.employeeCode,
+      employeeName: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+      department: emp.department?.name || 'Operations',
+      jobTitle: emp.jobTitle || 'Staff Member',
+      month: monthStr,
+      period: {
+        from: periodStartStr,
+        to: periodEndStr,
+      },
+      calendarDays: totalCalendarDays,
+      workingDays,
+      scheduledWorkingDays,
+      presentDays,
+      paidLeaveDays,
+      unpaidLeaveDays,
+      absentDays,
+      halfDays,
+      weeklyOffDays,
+      holidayDays,
+      payableDays,
+      unpaidDays,
+      prorationRatio,
+      totalWorkingHours: formatHoursTotal(totalWorkedMinutes),
+      totalOvertimeHours: formatHoursTotal(totalOvertimeMinutes),
+      totalLateMinutes,
+      totalEarlyExitMinutes,
+      structure: activeStructure || null,
+      days,
+    };
+  }
 }
+
+

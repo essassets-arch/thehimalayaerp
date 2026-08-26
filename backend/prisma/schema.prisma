@@ -825,24 +825,65 @@ model PayrollPeriod {
 }
 
 model EmployeeSalaryStructure {
-  id                  String    @id @default(uuid())
-  employeeId          String
-  effectiveFrom       DateTime
-  effectiveTo         DateTime?
-  basicSalary         Decimal   @db.Decimal(14, 2)
-  hra                 Decimal   @default(0) @db.Decimal(14, 2)
-  conveyanceAllowance Decimal   @default(0) @db.Decimal(14, 2)
-  specialAllowance    Decimal   @default(0) @db.Decimal(14, 2)
-  otherAllowance      Decimal   @default(0) @db.Decimal(14, 2)
-  pfApplicable        Boolean   @default(false)
-  esicApplicable      Boolean   @default(false)
-  professionalTax     Boolean   @default(false)
-  tdsApplicable       Boolean   @default(false)
-  grossSalary         Decimal   @db.Decimal(14, 2)
-  isActive            Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                           String    @id @default(uuid())
+  employeeId                   String
+  effectiveFrom                DateTime
+  effectiveTo                  DateTime?
+  
+  // Snapshots for historical integrity
+  employeeNameSnapshot         String?
+  designationSnapshot          String?
+  departmentSnapshot           String?
+  wef                          String?
+
+  // A - Salary Breakup Structure
+  basicSalary                  Decimal   @db.Decimal(14, 2)
+  hraPercentage                Decimal   @default(0) @db.Decimal(6, 2)
+  hra                          Decimal   @default(0) @db.Decimal(14, 2)
+  ltaPercentage                Decimal   @default(0) @db.Decimal(6, 2)
+  ltaAmount                    Decimal   @default(0) @db.Decimal(14, 2)
+  educationAllowancePercentage Decimal   @default(0) @db.Decimal(6, 2)
+  educationAllowanceAmount     Decimal   @default(0) @db.Decimal(14, 2)
+  conveyancePercentage         Decimal   @default(0) @db.Decimal(6, 2)
+  conveyanceAllowance          Decimal   @default(0) @db.Decimal(14, 2)
+  specialAllowance             Decimal   @default(0) @db.Decimal(14, 2)
+  otherAllowance               Decimal   @default(0) @db.Decimal(14, 2)
+  grossSalary                  Decimal   @default(0) @db.Decimal(14, 2)
+
+  // B - Employee Deductions
+  employeeEpfPercentage        Decimal   @default(0) @db.Decimal(6, 2)
+  employeeEpfAmount            Decimal   @default(0) @db.Decimal(14, 2)
+  employeeEsicPercentage       Decimal   @default(0) @db.Decimal(6, 2)
+  employeeEsicAmount           Decimal   @default(0) @db.Decimal(14, 2)
+  professionalTaxPercentage    Decimal   @default(0) @db.Decimal(6, 2)
+  professionalTaxAmount        Decimal   @default(0) @db.Decimal(14, 2)
+  totalDeduction               Decimal   @default(0) @db.Decimal(14, 2)
+
+  // C - Net Take Home
+  netTakeHome                  Decimal   @default(0) @db.Decimal(14, 2)
+
+  // D - Company Contribution
+  companyEpfPercentage         Decimal   @default(0) @db.Decimal(6, 2)
+  companyEpfAmount             Decimal   @default(0) @db.Decimal(14, 2)
+  companyEsicPercentage        Decimal   @default(0) @db.Decimal(6, 2)
+  companyEsicAmount            Decimal   @default(0) @db.Decimal(14, 2)
+  gratuityPercentage           Decimal   @default(4.81) @db.Decimal(6, 2)
+  gratuityAmount               Decimal   @default(0) @db.Decimal(14, 2)
+  totalCompanyContribution     Decimal   @default(0) @db.Decimal(14, 2)
+
+  // E - CTC Per Month
+  ctcPerMonth                  Decimal   @default(0) @db.Decimal(14, 2)
+
+  pfApplicable                 Boolean   @default(false)
+  esicApplicable               Boolean   @default(false)
+  professionalTax              Boolean   @default(false)
+  tdsApplicable                Boolean   @default(false)
+  
+  status                       String    @default("ACTIVE")
+  isActive                     Boolean   @default(true)
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+  employee                     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, effectiveFrom])
 }
