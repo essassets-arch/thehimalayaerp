@@ -812,21 +812,31 @@ export class ProductionWorkflowService {
 
     const rawList = [...mappedExisting, ...syntheticRecords];
 
-    // Query StockHistory totals grouped by productId and event to calculate productionIn and dispatchVal
+    // Query StockHistory totals grouped by productId and event to calculate productionIn, dispatchVal, extraCover, extraFrame
     const stockHistorySums = await this.prisma.stockHistory.groupBy({
       by: ['productId', 'event'],
       where: {
         companyId: companyId ? companyId : undefined,
         event: {
-          in: ['PRODUCTION_IN', 'PRODUCTION_REVERSAL', 'DISPATCH_OUT', 'DISPATCH_REVERSAL']
-        }
+          in: [
+            'PRODUCTION_IN',
+            'PRODUCTION_REVERSAL',
+            'DISPATCH_OUT',
+            'DISPATCH_REVERSAL',
+            'EXTRA_COVER_IN',
+            'EXTRA_COVER_REVERSAL',
+            'EXTRA_FRAME_IN',
+            'EXTRA_FRAME_REVERSAL',
+          ],
+        },
       },
       _sum: { quantity: true },
     });
 
-
     const prodInMap = new Map<string, number>();
     const dispatchMap = new Map<string, number>();
+    const extraCoverMap = new Map<string, number>();
+    const extraFrameMap = new Map<string, number>();
 
     for (const g of stockHistorySums) {
       const pId = g.productId;
@@ -835,6 +845,10 @@ export class ProductionWorkflowService {
         prodInMap.set(pId, (prodInMap.get(pId) || 0) + qty);
       } else if (g.event === 'DISPATCH_OUT' || g.event === 'DISPATCH_REVERSAL') {
         dispatchMap.set(pId, (dispatchMap.get(pId) || 0) + qty);
+      } else if (g.event === 'EXTRA_COVER_IN' || g.event === 'EXTRA_COVER_REVERSAL') {
+        extraCoverMap.set(pId, (extraCoverMap.get(pId) || 0) + qty);
+      } else if (g.event === 'EXTRA_FRAME_IN' || g.event === 'EXTRA_FRAME_REVERSAL') {
+        extraFrameMap.set(pId, (extraFrameMap.get(pId) || 0) + qty);
       }
     }
 
@@ -857,6 +871,8 @@ export class ProductionWorkflowService {
           quantity: 0,
           availableQuantity: 0,
           productionIn: 0,
+          extraCover: 0,
+          extraFrame: 0,
           dispatchOut: 0,
           openingStock: 0,
           unit: (item.unit || item.product?.unit || 'PCS').toUpperCase(),
@@ -910,6 +926,8 @@ export class ProductionWorkflowService {
           quantity: 0,
           availableQuantity: 0,
           productionIn: 0,
+          extraCover: 0,
+          extraFrame: 0,
           dispatchOut: 0,
           openingStock: 0,
           unit: (p.unit || 'SET').toUpperCase(),
@@ -921,14 +939,22 @@ export class ProductionWorkflowService {
       }
     }
 
-    // Post-aggregation pass to set correct ledger metrics
+    // Post-aggregation pass to set correct ledger metrics with auto-pairing of extra covers & frames
     for (const existing of groupedMap.values()) {
       const pId = existing.productId || existing.product?.id;
       const pCode = existing.productCode || existing.product?.sku || existing.product?.publicId;
-      const prodInVal = (pId ? prodInMap.get(pId) : 0) || (pCode ? prodInMap.get(pCode) : 0) || 0;
+      let prodInVal = (pId ? prodInMap.get(pId) : 0) || (pCode ? prodInMap.get(pCode) : 0) || 0;
       const dispatchVal = (pId ? dispatchMap.get(pId) : 0) || (pCode ? dispatchMap.get(pCode) : 0) || 0;
+      const rawExtraCover = (pId ? extraCoverMap.get(pId) : 0) || (pCode ? extraCoverMap.get(pCode) : 0) || 0;
+      const rawExtraFrame = (pId ? extraFrameMap.get(pId) : 0) || (pCode ? extraFrameMap.get(pCode) : 0) || 0;
+
+      const netExtraCover = Math.max(0, rawExtraCover);
+      const netExtraFrame = Math.max(0, rawExtraFrame);
       const dispatchOutVal = Math.abs(dispatchVal);
+
       existing.productionIn = prodInVal;
+      existing.extraCover = netExtraCover;
+      existing.extraFrame = netExtraFrame;
       existing.dispatchOut = dispatchOutVal;
       existing.openingStock = Math.max(0, existing.quantity - prodInVal + dispatchOutVal);
     }

@@ -146,7 +146,14 @@ export class ProductsService {
 
     const where: any = { companyId, isActive: true };
 
-    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+    if (
+      userId &&
+      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive') &&
+      scope !== 'daily-report' &&
+      scope !== 'catalog' &&
+      scope !== 'all' &&
+      scope !== 'all_products'
+    ) {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
@@ -155,7 +162,42 @@ export class ProductsService {
       }
     }
 
-    if (scope === 'sales') {
+    if (
+      scope === 'daily-report' ||
+      scope === 'catalog' ||
+      scope === 'all_products' ||
+      scope === 'production' ||
+      scope === 'dispatch'
+    ) {
+      where.AND = [
+        {
+          OR: [
+            { productType: { in: ['MANUFACTURING', 'TRADING', 'FINISHED_GOODS'] } },
+            {
+              AND: [
+                { productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] } },
+                {
+                  category: {
+                    notIn: [
+                      'Hardware',
+                      'Raw Material',
+                      'raw material',
+                      'hardware',
+                      'Electric',
+                      'electric',
+                      'Consumable',
+                      'consumable',
+                      'Consumables',
+                      'consumables',
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ];
+    } else if (scope === 'sales') {
       where.AND = [
         {
           OR: [
@@ -204,9 +246,16 @@ export class ProductsService {
       where.OR = searchConditions;
     }
 
+    const isDailyReportScope =
+      scope === 'daily-report' ||
+      scope === 'catalog' ||
+      scope === 'all_products' ||
+      scope === 'production' ||
+      scope === 'dispatch';
+
     return this.prisma.product.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: isDailyReportScope ? { name: 'asc' } : { createdAt: 'desc' },
     });
   }
 

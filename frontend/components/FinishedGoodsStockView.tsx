@@ -28,6 +28,8 @@ export interface StockRow {
   reservedQuantity: number;
   openingStock?: number;
   productionIn?: number;
+  extraCover?: number;
+  extraFrame?: number;
   dispatchOut?: number;
   unit: string;
   status: string;
@@ -164,6 +166,8 @@ export default function FinishedGoodsStockView({
         const reservedQuantity = Number(item.reservedQuantity ?? 0);
         const openingStock = Number(item.openingStock ?? 0);
         const productionIn = Number(item.productionIn ?? 0);
+        const extraCover = Number(item.extraCover ?? 0);
+        const extraFrame = Number(item.extraFrame ?? 0);
         const dispatchOut = Number(item.dispatchOut ?? 0);
 
         const productObj = item.product || item.workOrder?.salesOrderItem?.product;
@@ -202,6 +206,8 @@ export default function FinishedGoodsStockView({
           reservedQuantity,
           openingStock,
           productionIn,
+          extraCover,
+          extraFrame,
           dispatchOut,
           unit: (item.unit || item.product?.unit || "PCS").toUpperCase(),
           status: item.status || "AVAILABLE",
@@ -693,6 +699,22 @@ export default function FinishedGoodsStockView({
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                             <span style={{ fontSize: "9px", textTransform: "uppercase", color: "#8893a7", fontWeight: "800" }}>
+                              Ext Cov
+                            </span>
+                            <span style={{ fontSize: "12px", color: "#2563eb", fontWeight: "700" }}>
+                              {Number(row.extraCover || 0) > 0 ? `+${Number(row.extraCover).toLocaleString()}` : "0"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "9px", textTransform: "uppercase", color: "#8893a7", fontWeight: "800" }}>
+                              Ext Frm
+                            </span>
+                            <span style={{ fontSize: "12px", color: "#7c3aed", fontWeight: "700" }}>
+                              {Number(row.extraFrame || 0) > 0 ? `+${Number(row.extraFrame).toLocaleString()}` : "0"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "9px", textTransform: "uppercase", color: "#8893a7", fontWeight: "800" }}>
                               Disp Out
                             </span>
                             <span style={{ fontSize: "12px", color: "#dc2626", fontWeight: "700" }}>
@@ -792,6 +814,8 @@ export default function FinishedGoodsStockView({
                     <th>Item / Description Name</th>
                     <th>Opening Stock</th>
                     <th>Production In</th>
+                    <th>Extra Cover</th>
+                    <th>Extra Frame</th>
                     <th>Dispatch Out</th>
                     <th>Reserved Qty</th>
                     <th>Available Stock</th>
@@ -802,13 +826,13 @@ export default function FinishedGoodsStockView({
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                      <td colSpan={11} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
                         Loading live stock data...
                       </td>
                     </tr>
                   ) : paginatedData.length === 0 ? (
                     <tr>
-                      <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
+                      <td colSpan={11} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
                         No finished goods stock items found.
                       </td>
                     </tr>
@@ -828,6 +852,12 @@ export default function FinishedGoodsStockView({
                           </td>
                           <td data-label="Production In" style={{ color: "#16a34a", fontWeight: 700 }}>
                             +{Number(row.productionIn || 0).toLocaleString()}
+                          </td>
+                          <td data-label="Extra Cover" style={{ color: "#2563eb", fontWeight: 700 }}>
+                            {Number(row.extraCover || 0) > 0 ? `+${Number(row.extraCover).toLocaleString()}` : "0"}
+                          </td>
+                          <td data-label="Extra Frame" style={{ color: "#7c3aed", fontWeight: 700 }}>
+                            {Number(row.extraFrame || 0) > 0 ? `+${Number(row.extraFrame).toLocaleString()}` : "0"}
                           </td>
                           <td data-label="Dispatch Out" style={{ color: "#dc2626", fontWeight: 700 }}>
                             {Number(row.dispatchOut || 0) > 0 ? `-${Number(row.dispatchOut).toLocaleString()}` : "0"}

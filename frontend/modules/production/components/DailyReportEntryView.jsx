@@ -89,6 +89,8 @@ export default function DailyReportEntryView({
       actualFrameWeight: '',
       weightOverrideReason: '',
       setQty: 0,
+      extraCoverQty: 0,
+      extraFrameQty: 0,
       totalWeight: 0,
       coversPerSet: 1,
       framesPerSet: 1,
@@ -110,12 +112,53 @@ export default function DailyReportEntryView({
   const [multiProductTypeFilter, setMultiProductTypeFilter] = useState('ALL');
   const [selectedMultiProductIds, setSelectedMultiProductIds] = useState([]);
 
-  // Fetch Products Master
+// Helper to parse specifications (Size, Type, Capacity) from product name if not explicitly set
+function parseProductSpecs(name = '') {
+  const upper = (name || '').toUpperCase();
+  const sizeMatch = upper.match(/\b(\d{2,4}\s*[xX*]\s*\d{2,4}|\d{1,2}\s*['"]\s*[xX*]\s*\d{1,2}\s*['"]|\d{1,2}\s*[xX*]\s*\d{1,2})\b/);
+  const size = sizeMatch ? sizeMatch[0].replace(/\s+/g, '').toUpperCase() : '';
+
+  let type = '';
+  if (upper.includes('WGC')) type = 'WGC';
+  else if (upper.includes('MHC')) type = 'MHC';
+  else if (upper.includes('SFRC')) type = 'SFRC';
+  else if (upper.includes('ONGC')) type = 'ONGC';
+  else if (upper.includes('GRATING')) type = 'GRATING';
+  else if (upper.includes('COVER BLOCK') || upper.includes('COVERBLOCK')) type = 'COVER BLOCK';
+  else if (upper.includes('FRP')) type = 'FRP';
+
+  const capMatch = upper.match(/\b(B125|C250|D400|E600|F900|A15|ELD|EHD|LD|MD|HD|2\.5T|5T|10T|12\.5T|20T|25T|40T)\b/);
+  const capacity = capMatch ? capMatch[0] : '';
+
+  return { size, type, capacity };
+}
+
+  // Fetch Products Master (Exact Parity with Super Admin Products Master, excluding raw materials)
   const fetchProducts = useCallback(async () => {
     try {
       setLoadingProducts(true);
-      const res = await backendFetch('/api/backend/products');
-      const productList = Array.isArray(res) ? res : res?.items || res?.data || [];
+      const res = await backendFetch('/api/backend/products?scope=daily-report&limit=2000');
+      const rawList = Array.isArray(res) ? res : res?.items || res?.data || [];
+
+      const productList = rawList
+        .map(p => {
+          const specs = parseProductSpecs(p.name || p.product_name || '');
+          return {
+            ...p,
+            id: p.id,
+            name: p.name || p.product_name || '',
+            sku: p.sku || p.product_code || '',
+            size: p.size || p.variantDetails || specs.size || '',
+            type: p.type || specs.type || '',
+            capacity: p.capacity || specs.capacity || '',
+            coverUnitWeight: Number(p.coverUnitWeight || p.weight || 0),
+            frameUnitWeight: Number(p.frameUnitWeight || 0),
+            coversPerSet: p.coversPerSet || 1,
+            framesPerSet: p.framesPerSet || 1,
+          };
+        })
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
       setProducts(productList);
     } catch (err) {
       console.error('[DailyReport] Failed to fetch products:', err);
@@ -245,6 +288,8 @@ export default function DailyReportEntryView({
     }
 
     const setQty = row.isSetQtyCustom ? (parseInt(row.setQty) || 0) : calculatedSets;
+    const extraCoverQty = Math.max(0, coverQty - (setQty * coversPerSet));
+    const extraFrameQty = Math.max(0, frameQty - (setQty * (framesPerSet > 0 ? framesPerSet : 0)));
 
     return {
       ...row,
@@ -253,7 +298,9 @@ export default function DailyReportEntryView({
       coverWeight: Math.round(coverWeight * 100) / 100,
       frameWeight: Math.round(frameWeight * 100) / 100,
       totalWeight: Math.round(totalWeight * 100) / 100,
-      setQty
+      setQty,
+      extraCoverQty,
+      extraFrameQty
     };
   };
 
@@ -340,7 +387,16 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
   }, [isOpen, updateCoords, handleBlurValidation]);
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return products.slice(0, 60);
+    if (!query.trim()) {
+      return [...products]
+        .sort((a, b) => {
+          const aIsMhc = a.name?.includes('MHC') || a.name?.includes('WGC') || a.name?.includes('FRP') ? 1 : 0;
+          const bIsMhc = b.name?.includes('MHC') || b.name?.includes('WGC') || b.name?.includes('FRP') ? 1 : 0;
+          if (aIsMhc !== bIsMhc) return bIsMhc - aIsMhc;
+          return (a.name || '').localeCompare(b.name || '');
+        })
+        .slice(0, 80);
+    }
     const q = query.toLowerCase().trim();
     const qParts = q.split(/\s+/).filter(Boolean);
     return products
@@ -520,6 +576,10 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         return updated;
       }
 
+      const specs = parseProductSpecs(selectedProd.name || '');
+      const size = selectedProd.size || selectedProd.variantDetails || specs.size || curRow.size || '';
+      const type = selectedProd.type || selectedProd.brand || specs.type || curRow.type || '';
+      const capacity = selectedProd.capacity || specs.capacity || curRow.capacity || '';
       const coverUnitWeight = Number(selectedProd.coverUnitWeight || selectedProd.weight || 0);
       const frameUnitWeight = Number(selectedProd.frameUnitWeight || 0);
       const coversPerSet = selectedProd.coversPerSet || 1;
@@ -528,9 +588,9 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
       const newRow = calculateRowValues({
         ...curRow,
         productId: selectedProd.id,
-        size: selectedProd.size || selectedProd.variantDetails || curRow.size || '',
-        type: selectedProd.type || selectedProd.brand || curRow.type || '',
-        capacity: selectedProd.capacity || curRow.capacity || '',
+        size,
+        type,
+        capacity,
         coverUnitWeight,
         frameUnitWeight,
         coversPerSet,
@@ -630,6 +690,8 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         actualFrameWeight: '',
         weightOverrideReason: '',
         setQty: 0,
+        extraCoverQty: 0,
+        extraFrameQty: 0,
         totalWeight: 0,
         coversPerSet: 1,
         framesPerSet: 1,
@@ -1704,6 +1766,8 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                 <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frame Wt (kg)</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Total Wt (kg)</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right', width: '80px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Set</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', width: '100px', fontSize: '11px', fontWeight: '800', color: '#2563eb', textTransform: 'uppercase' }}>Extra Cover</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', width: '100px', fontSize: '11px', fontWeight: '800', color: '#7c3aed', textTransform: 'uppercase' }}>Extra Frame</th>
                 {!isReadOnly && <th style={{ padding: '12px 14px', textAlign: 'center', width: '80px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Actions</th>}
               </tr>
             </thead>
@@ -1872,6 +1936,38 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
                         borderColor: 'rgba(16, 185, 129, 0.3)'
                       }}
                     />
+                  </td>
+
+                  {/* Extra Cover */}
+                  <td data-label="EXTRA COVER" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontWeight: '800',
+                      fontSize: '12px',
+                      background: Number(row.extraCoverQty || 0) > 0 ? 'rgba(37, 99, 235, 0.1)' : '#f8fafc',
+                      color: Number(row.extraCoverQty || 0) > 0 ? '#2563eb' : '#94a3b8',
+                      border: Number(row.extraCoverQty || 0) > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0'
+                    }}>
+                      {Number(row.extraCoverQty || 0) > 0 ? `+${row.extraCoverQty}` : '0'}
+                    </span>
+                  </td>
+
+                  {/* Extra Frame */}
+                  <td data-label="EXTRA FRAME" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontWeight: '800',
+                      fontSize: '12px',
+                      background: Number(row.extraFrameQty || 0) > 0 ? 'rgba(124, 58, 237, 0.1)' : '#f8fafc',
+                      color: Number(row.extraFrameQty || 0) > 0 ? '#7c3aed' : '#94a3b8',
+                      border: Number(row.extraFrameQty || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
+                    }}>
+                      {Number(row.extraFrameQty || 0) > 0 ? `+${row.extraFrameQty}` : '0'}
+                    </span>
                   </td>
 
                   {/* Actions */}

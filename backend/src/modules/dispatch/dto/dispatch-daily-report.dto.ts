@@ -74,6 +74,16 @@ export class CreateDispatchDailyReportItemDto {
 
   @IsOptional()
   @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsNumber()
+  extraCoverQty?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsNumber()
+  extraFrameQty?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
   remarks?: string | null;
 }
@@ -89,6 +99,10 @@ export class CreateDispatchDailyReportDto {
   @IsOptional()
   @IsString()
   dispatchExecutive?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchType?: string;
 
   @IsOptional()
   @IsString()
@@ -112,6 +126,10 @@ export class UpdateDispatchDailyReportDto {
   @IsOptional()
   @IsString()
   dispatchExecutive?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchType?: string;
 
   @IsOptional()
   @IsString()

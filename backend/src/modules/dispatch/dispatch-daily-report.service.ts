@@ -116,6 +116,16 @@ export class DispatchDailyReportService {
           ? Math.max(0, Math.floor(Number(item.setQty)))
           : Math.min(setsFromCovers, setsFromFrames);
 
+      const extraCoverQty =
+        item.extraCoverQty !== undefined && item.extraCoverQty !== null
+          ? Math.max(0, Math.floor(Number(item.extraCoverQty)))
+          : Math.max(0, coverQty - (setQty * coversPerSet));
+
+      const extraFrameQty =
+        item.extraFrameQty !== undefined && item.extraFrameQty !== null
+          ? Math.max(0, Math.floor(Number(item.extraFrameQty)))
+          : Math.max(0, frameQty - (setQty * (framesPerSet > 0 ? framesPerSet : 0)));
+
       totalCovers += coverQty;
       totalFrames += frameQty;
       totalSets += setQty;
@@ -140,6 +150,8 @@ export class DispatchDailyReportService {
         actualFrameWeight: actualFrameWeight !== null ? new Prisma.Decimal(actualFrameWeight) : null,
         weightOverrideReason: item.weightOverrideReason || null,
         setQty,
+        extraCoverQty,
+        extraFrameQty,
         totalWeight: new Prisma.Decimal(totalWeight),
         remarks: item.remarks || null,
       };

@@ -124,6 +124,16 @@ export class ProductionDailyReportService {
           ? Math.max(0, Math.floor(Number(item.setQty)))
           : Math.min(setsFromCovers, setsFromFrames);
 
+      const extraCoverQty =
+        item.extraCoverQty !== undefined && item.extraCoverQty !== null
+          ? Math.max(0, Math.floor(Number(item.extraCoverQty)))
+          : Math.max(0, coverQty - (setQty * coversPerSet));
+
+      const extraFrameQty =
+        item.extraFrameQty !== undefined && item.extraFrameQty !== null
+          ? Math.max(0, Math.floor(Number(item.extraFrameQty)))
+          : Math.max(0, frameQty - (setQty * (framesPerSet > 0 ? framesPerSet : 0)));
+
       totalCovers += coverQty;
       totalFrames += frameQty;
       totalSets += setQty;
@@ -148,6 +158,8 @@ export class ProductionDailyReportService {
         actualFrameWeight: actualFrameWeight !== null ? new Prisma.Decimal(actualFrameWeight) : null,
         weightOverrideReason: item.weightOverrideReason || null,
         setQty,
+        extraCoverQty,
+        extraFrameQty,
         totalWeight: new Prisma.Decimal(totalWeight),
         workOrderId: item.workOrderId || null,
         productionPlanId: item.productionPlanId || null,
@@ -660,27 +672,134 @@ export class ProductionDailyReportService {
         }
       }
 
-      // Post stock for each product in the report (grouped by productId)
-      const productSetsMap = new Map<string, number>();
-      for (const item of items) {
-        if (item.productId && item.setQty > 0) {
-          productSetsMap.set(item.productId, (productSetsMap.get(item.productId) || 0) + item.setQty);
-        }
-      }
+      // Group items by productId for transactional stock posting and extra combination
+      const allProductIds = Array.from(new Set(items.map((i) => i.productId).filter(Boolean))) as string[];
 
-      for (const [productId, setQty] of productSetsMap.entries()) {
-        await this.inventoryService.stockInFinishedGoods(
-          tx,
-          companyId,
-          productId,
-          setQty,
-          'PRODUCTION_REPORT',
-          id,
-          null,
-          report.reportNo,
-          userId,
-          `Production Report submission ${report.reportNo}`
-        );
+      for (const productId of allProductIds) {
+        const prodItems = items.filter((i) => i.productId === productId);
+        const directSets = prodItems.reduce((s, i) => s + (i.setQty || 0), 0);
+        const newExtraCovers = prodItems.reduce((s, i) => s + (i.extraCoverQty || 0), 0);
+        const newExtraFrames = prodItems.reduce((s, i) => s + (i.extraFrameQty || 0), 0);
+
+        // 1. Post direct complete sets
+        if (directSets > 0) {
+          await this.inventoryService.stockInFinishedGoods(
+            tx,
+            companyId,
+            productId,
+            directSets,
+            'PRODUCTION_REPORT',
+            id,
+            null,
+            report.reportNo,
+            userId,
+            `Production Report submission ${report.reportNo}`
+          );
+        }
+
+        // 2. Query current unconsumed extra cover & extra frame balances under transaction lock
+        const currentExtras = await tx.stockHistory.groupBy({
+          by: ['event'],
+          where: {
+            companyId,
+            productId,
+            event: {
+              in: ['EXTRA_COVER_IN', 'EXTRA_COVER_REVERSAL', 'EXTRA_FRAME_IN', 'EXTRA_FRAME_REVERSAL'],
+            },
+          },
+          _sum: { quantity: true },
+        });
+
+        let curExtCover = 0;
+        let curExtFrame = 0;
+        for (const ce of currentExtras) {
+          const q = Number(ce._sum.quantity || 0);
+          if (ce.event === 'EXTRA_COVER_IN' || ce.event === 'EXTRA_COVER_REVERSAL') curExtCover += q;
+          if (ce.event === 'EXTRA_FRAME_IN' || ce.event === 'EXTRA_FRAME_REVERSAL') curExtFrame += q;
+        }
+
+        // 3. Post new extra covers if any
+        if (newExtraCovers > 0) {
+          await tx.stockHistory.create({
+            data: {
+              companyId,
+              productId,
+              quantity: newExtraCovers,
+              event: 'EXTRA_COVER_IN',
+              actor: userId,
+              sourceType: 'PRODUCTION_REPORT_EXTRA_COVER',
+              sourceId: report.id,
+              referenceNumber: report.reportNo,
+              remarks: `Extra Cover (+${newExtraCovers}) from Production Report ${report.reportNo}`,
+            },
+          });
+          curExtCover += newExtraCovers;
+        }
+
+        // 4. Post new extra frames if any
+        if (newExtraFrames > 0) {
+          await tx.stockHistory.create({
+            data: {
+              companyId,
+              productId,
+              quantity: newExtraFrames,
+              event: 'EXTRA_FRAME_IN',
+              actor: userId,
+              sourceType: 'PRODUCTION_REPORT_EXTRA_FRAME',
+              sourceId: report.id,
+              referenceNumber: report.reportNo,
+              remarks: `Extra Frame (+${newExtraFrames}) from Production Report ${report.reportNo}`,
+            },
+          });
+          curExtFrame += newExtraFrames;
+        }
+
+        // 5. Automatic Transactional Extra Combination Check:
+        const autoPairedSets = Math.min(Math.max(0, curExtCover), Math.max(0, curExtFrame));
+        if (autoPairedSets > 0) {
+          // Post auto-paired sets into Finished Goods
+          await this.inventoryService.stockInFinishedGoods(
+            tx,
+            companyId,
+            productId,
+            autoPairedSets,
+            'PRODUCTION_REPORT_EXTRA_COMBINE',
+            id,
+            null,
+            report.reportNo,
+            userId,
+            `Auto-combination of ${autoPairedSets} Extra Cover + ${autoPairedSets} Extra Frame into complete Set (${report.reportNo})`
+          );
+
+          // Deduct the consumed extra covers and extra frames from extra ledger
+          await tx.stockHistory.create({
+            data: {
+              companyId,
+              productId,
+              quantity: -autoPairedSets,
+              event: 'EXTRA_COVER_REVERSAL',
+              actor: userId,
+              sourceType: 'PRODUCTION_REPORT_EXTRA_COMBINE',
+              sourceId: report.id,
+              referenceNumber: report.reportNo,
+              remarks: `Extra Cover consumed (-${autoPairedSets}) to form complete set (${report.reportNo})`,
+            },
+          });
+
+          await tx.stockHistory.create({
+            data: {
+              companyId,
+              productId,
+              quantity: -autoPairedSets,
+              event: 'EXTRA_FRAME_REVERSAL',
+              actor: userId,
+              sourceType: 'PRODUCTION_REPORT_EXTRA_COMBINE',
+              sourceId: report.id,
+              referenceNumber: report.reportNo,
+              remarks: `Extra Frame consumed (-${autoPairedSets}) to form complete set (${report.reportNo})`,
+            },
+          });
+        }
       }
 
       const updated = await tx.productionDailyReport.update({
@@ -743,6 +862,7 @@ export class ProductionDailyReportService {
 
     return updated;
   }
+
   /**
    * Reopen report.
    */
@@ -767,7 +887,7 @@ export class ProductionDailyReportService {
 
       // Fetch items to reverse stock
       const items = await tx.productionDailyReportItem.findMany({
-        where: { reportId: id }
+        where: { reportId: id },
       });
       const reportWithItems = { ...report, items };
 
@@ -821,7 +941,7 @@ export class ProductionDailyReportService {
 
       // Fetch items to reverse stock
       const items = await tx.productionDailyReportItem.findMany({
-        where: { reportId: id }
+        where: { reportId: id },
       });
       const reportWithItems = { ...report, items };
 
@@ -861,65 +981,141 @@ export class ProductionDailyReportService {
   ) {
     if (!report.stockPostedAt) return;
 
-    for (const item of report.items) {
-      if (item.productId && item.setQty > 0) {
-        const fgRecords = await tx.$queryRaw<any[]>`
-          SELECT id, quantity, "availableQuantity", "reservedQuantity"
-          FROM "FinishedGoods"
-          WHERE "productId" = ${item.productId}
-          FOR UPDATE
-        `;
+    // Find all StockHistory entries generated by this report
+    const reportHistories = await tx.stockHistory.findMany({
+      where: {
+        companyId,
+        sourceId: report.id,
+      },
+    });
 
-        const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
-        if (item.setQty > totalAvail) {
-          throw new BadRequestException(
-            `Cannot cancel or reopen report. Reversing production for product ID ${item.productId} would result in negative available stock. Available: ${totalAvail}, Required: ${item.setQty}.`
-          );
-        }
+    // 1. Group production in quantities to deduct from FinishedGoods
+    const prodInByProduct = new Map<string, number>();
+    for (const h of reportHistories) {
+      if (h.event === 'PRODUCTION_IN' && Number(h.quantity) > 0) {
+        prodInByProduct.set(h.productId, (prodInByProduct.get(h.productId) || 0) + Number(h.quantity));
+      }
+    }
 
-        let remainingToDeduct = item.setQty;
-        let beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-        let beforeAvailTotal = totalAvail;
+    for (const [productId, qtyToDeduct] of prodInByProduct.entries()) {
+      const fgRecords = await tx.$queryRaw<any[]>`
+        SELECT id, quantity, "availableQuantity", "reservedQuantity"
+        FROM "FinishedGoods"
+        WHERE "productId" = ${productId}
+        FOR UPDATE
+      `;
 
-        for (const fg of fgRecords) {
-          if (remainingToDeduct <= 0) break;
-          const currentAvail = Number(fg.availableQuantity || 0);
-          const deduct = Math.min(currentAvail, remainingToDeduct);
-          if (deduct <= 0) continue;
+      const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+      if (qtyToDeduct > totalAvail) {
+        throw new BadRequestException(
+          `Cannot cancel or reopen report. Reversing production for product ID ${productId} would result in negative available stock. Available: ${totalAvail}, Required: ${qtyToDeduct}.`
+        );
+      }
 
-          const newAvail = currentAvail - deduct;
-          const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
+      let remainingToDeduct = qtyToDeduct;
+      let beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+      let beforeAvailTotal = totalAvail;
 
-          await tx.finishedGoods.update({
-            where: { id: fg.id },
-            data: {
-              availableQuantity: newAvail,
-              quantity: newQty,
-              status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
-            },
-          });
-          remainingToDeduct -= deduct;
-        }
+      for (const fg of fgRecords) {
+        if (remainingToDeduct <= 0) break;
+        const currentAvail = Number(fg.availableQuantity || 0);
+        const deduct = Math.min(currentAvail, remainingToDeduct);
+        if (deduct <= 0) continue;
 
-        const afterQtyTotal = beforeQtyTotal - item.setQty;
-        const afterAvailTotal = beforeAvailTotal - item.setQty;
+        const newAvail = currentAvail - deduct;
+        const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
 
+        await tx.finishedGoods.update({
+          where: { id: fg.id },
+          data: {
+            availableQuantity: newAvail,
+            quantity: newQty,
+            status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+          },
+        });
+        remainingToDeduct -= deduct;
+      }
+
+      const afterQtyTotal = beforeQtyTotal - qtyToDeduct;
+      const afterAvailTotal = beforeAvailTotal - qtyToDeduct;
+
+      await tx.stockHistory.create({
+        data: {
+          companyId,
+          productId,
+          quantity: -qtyToDeduct,
+          event: 'PRODUCTION_REVERSAL',
+          actor: userId,
+          beforeQuantity: beforeQtyTotal,
+          afterQuantity: afterQtyTotal,
+          beforeAvailableQuantity: beforeAvailTotal,
+          afterAvailableQuantity: afterAvailTotal,
+          sourceType: 'PRODUCTION_REPORT_CANCEL',
+          sourceId: report.id,
+          referenceNumber: report.reportNo,
+          remarks: `Cancellation/Reopen reversal of Production Report ${report.reportNo}`,
+        },
+      });
+    }
+
+    // 2. Reverse extra covers and extra frames
+    for (const h of reportHistories) {
+      if (h.event === 'EXTRA_COVER_IN' && Number(h.quantity) > 0) {
         await tx.stockHistory.create({
           data: {
             companyId,
-            productId: item.productId,
-            quantity: -item.setQty,
-            event: 'PRODUCTION_REVERSAL',
+            productId: h.productId,
+            quantity: -Number(h.quantity),
+            event: 'EXTRA_COVER_REVERSAL',
             actor: userId,
-            beforeQuantity: beforeQtyTotal,
-            afterQuantity: afterQtyTotal,
-            beforeAvailableQuantity: beforeAvailTotal,
-            afterAvailableQuantity: afterAvailTotal,
             sourceType: 'PRODUCTION_REPORT_CANCEL',
             sourceId: report.id,
-            sourceItemId: item.id,
             referenceNumber: report.reportNo,
-            remarks: `Cancellation/Reopen reversal of Production Report ${report.reportNo}`,
+            remarks: `Cancellation reversal of Extra Cover (-${h.quantity}) from ${report.reportNo}`,
+          },
+        });
+      } else if (h.event === 'EXTRA_FRAME_IN' && Number(h.quantity) > 0) {
+        await tx.stockHistory.create({
+          data: {
+            companyId,
+            productId: h.productId,
+            quantity: -Number(h.quantity),
+            event: 'EXTRA_FRAME_REVERSAL',
+            actor: userId,
+            sourceType: 'PRODUCTION_REPORT_CANCEL',
+            sourceId: report.id,
+            referenceNumber: report.reportNo,
+            remarks: `Cancellation reversal of Extra Frame (-${h.quantity}) from ${report.reportNo}`,
+          },
+        });
+      } else if (h.event === 'EXTRA_COVER_REVERSAL' && h.sourceType === 'PRODUCTION_REPORT_EXTRA_COMBINE') {
+        // Restore consumed extra cover
+        await tx.stockHistory.create({
+          data: {
+            companyId,
+            productId: h.productId,
+            quantity: Math.abs(Number(h.quantity)),
+            event: 'EXTRA_COVER_IN',
+            actor: userId,
+            sourceType: 'PRODUCTION_REPORT_CANCEL',
+            sourceId: report.id,
+            referenceNumber: report.reportNo,
+            remarks: `Cancellation restoration of Extra Cover (+${Math.abs(Number(h.quantity))}) from ${report.reportNo}`,
+          },
+        });
+      } else if (h.event === 'EXTRA_FRAME_REVERSAL' && h.sourceType === 'PRODUCTION_REPORT_EXTRA_COMBINE') {
+        // Restore consumed extra frame
+        await tx.stockHistory.create({
+          data: {
+            companyId,
+            productId: h.productId,
+            quantity: Math.abs(Number(h.quantity)),
+            event: 'EXTRA_FRAME_IN',
+            actor: userId,
+            sourceType: 'PRODUCTION_REPORT_CANCEL',
+            sourceId: report.id,
+            referenceNumber: report.reportNo,
+            remarks: `Cancellation restoration of Extra Frame (+${Math.abs(Number(h.quantity))}) from ${report.reportNo}`,
           },
         });
       }

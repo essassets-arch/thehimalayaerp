@@ -90,6 +90,18 @@ export class CreateDailyReportItemDto {
 
   @IsOptional()
   @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsInt()
+  @Min(0)
+  extraCoverQty?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsInt()
+  @Min(0)
+  extraFrameQty?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
   workOrderId?: string | null;
 
@@ -121,6 +133,14 @@ export class CreateDailyReportDto {
   @IsString()
   supervisorName?: string;
 
+  @IsOptional()
+  @IsString()
+  dispatchExecutive?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchType?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateDailyReportItemDto)
@@ -139,6 +159,14 @@ export class UpdateDailyReportDto {
   @IsOptional()
   @IsString()
   supervisorName?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchExecutive?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchType?: string;
 
   @IsOptional()
   @IsArray()

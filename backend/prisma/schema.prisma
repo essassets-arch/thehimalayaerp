@@ -3603,6 +3603,8 @@ model ProductionDailyReportItem {
   weightOverrideReason  String?
 
   setQty                Int      @default(0)
+  extraCoverQty         Int      @default(0)
+  extraFrameQty         Int      @default(0)
   totalWeight           Decimal  @default(0) @db.Decimal(14, 3)
 
   workOrderId           String?
@@ -3692,6 +3694,8 @@ model DispatchDailyReportItem {
   weightOverrideReason  String?
 
   setQty                Int      @default(0)
+  extraCoverQty         Int      @default(0)
+  extraFrameQty         Int      @default(0)
   totalWeight           Decimal  @default(0) @db.Decimal(14, 3)
 
   remarks               String?
@@ -3800,6 +3804,10 @@ enum StockHistoryEvent {
   ADJUSTMENT_OUT
   RESERVATION
   RELEASE
+  EXTRA_COVER_IN
+  EXTRA_FRAME_IN
+  EXTRA_COVER_REVERSAL
+  EXTRA_FRAME_REVERSAL
 }
 
 model StockHistory {
