@@ -353,12 +353,21 @@ export const navigationConfig = {
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/hr/leave-approvals' },
     { id: 'attendance-requests', label: 'Attendance Requests', icon: Clock, path: '/hr/attendance-requests' }
   ],
+  'Back Office': [
+    { id: 'daily-report', label: 'Daily Report', icon: FileText, path: '/back-office/daily-report' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+  ],
+  'BACK_OFFICE': [
+    { id: 'daily-report', label: 'Daily Report', icon: FileText, path: '/back-office/daily-report' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+  ],
 
   'Super Admin': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/super-admin/dashboard' },
     { id: 'business-reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
 
     { type: 'badge', label: 'APPROVALS' },
+    { id: 'backoffice-report', label: 'Back Office Reports', icon: FileText, path: '/super-admin/backoffice-report' },
     { id: 'daily-reports', label: 'Daily Production Reports', icon: FileText, path: '/super-admin/daily-reports' },
     { id: 'brand-analysis', label: 'Brand Analysis Requests', icon: ShieldCheck, path: '/super-admin/brand-analysis' },
     { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },

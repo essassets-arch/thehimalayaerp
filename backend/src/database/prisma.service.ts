@@ -247,31 +247,31 @@ export class PrismaService
           }
         });
       }
-
       // 1. Align all existing company partitions
-      await this.user.updateMany({
-        where: { companyId: { not: companyId } },
-        data: { companyId }
-      });
-      await this.employee.updateMany({
-        where: { companyId: { not: companyId } },
-        data: { companyId }
-      });
-      await this.department.updateMany({
-        where: { companyId: { not: companyId } },
-        data: { companyId }
-      });
-      await this.workLocation.updateMany({
-        where: { companyId: { not: companyId } },
-        data: { companyId }
-      });
-      await this.attendance.updateMany({
-        where: { companyId: { not: companyId } },
-        data: { companyId }
-      });
+      try {
+        await this.user.updateMany({
+          where: { companyId: { not: companyId } },
+          data: { companyId }
+        });
+        await this.employee.updateMany({
+          where: { companyId: { not: companyId } },
+          data: { companyId }
+        });
+        await this.workLocation.updateMany({
+          where: { companyId: { not: companyId } },
+          data: { companyId }
+        });
+        await this.attendance.updateMany({
+          where: { companyId: { not: companyId } },
+          data: { companyId }
+        });
+      } catch (alignErr) {
+        console.warn('[PrismaService] Partition alignment notice:', alignErr?.message || alignErr);
+      }
 
-      // 2. Ensure all 17 target accounts are seeded & linked
+      // 2. Ensure all target accounts are seeded & linked
       const targetUsers = [
+        { email: 'super.admin@himalayaerp.com', name: 'Super Admin', role: 'SUPER_ADMIN', empCode: 'EMP-SA-1' },
         { email: 'supersales1@himalayaerp.com', name: 'SuperSales 1', role: 'SUPER_SALES', empCode: 'EMP-SS-1' },
         { email: 'supersales2@himalayaerp.com', name: 'SuperSales 2', role: 'SUPER_SALES', empCode: 'EMP-SS-2' },
         { email: 'sales1@himalayaerp.com', name: 'Sales Executive 1', role: 'SALES_EXECUTIVE', empCode: 'EMP-S-1' },
@@ -288,7 +288,8 @@ export class PrismaService
         { email: 'finance.executive@himalayaerp.com', name: 'Finance Executive', role: 'FINANCE_EXECUTIVE', empCode: 'EMP-FE-1' },
         { email: 'sahad.accounts@himalayaerp.com', name: 'Finance Manager', role: 'FINANCE_MANAGER', empCode: 'EMP-FM-1' },
         { email: 'store.manager@himalayaerp.com', name: 'Store Manager', role: 'STORE_MANAGER', empCode: 'EMP-SM-1' },
-        { email: 'hr@himalayaerp.com', name: 'HR Test', role: 'HR', empCode: 'EMP-1012' }
+        { email: 'hr@himalayaerp.com', name: 'HR Test', role: 'HR', empCode: 'EMP-1012' },
+        { email: 'backoffice@himalayaerp.com', name: 'Back Office Executive', role: 'BACK_OFFICE', empCode: 'EMP-BO-1' },
       ];
 
       let dept = await this.department.findFirst({ where: { companyId, isActive: true } });
@@ -312,9 +313,9 @@ export class PrismaService
           const dbRole = await this.role.findFirst({ where: { code: t.role } });
           if (!dbRole) continue;
 
+          const passwordHash = await hash('admin123', 12);
           let user = await this.user.findUnique({ where: { email: t.email } });
           if (!user) {
-            const passwordHash = await hash('admin123', 12);
             user = await this.user.create({
               data: {
                 publicId: randomUUID(),
@@ -329,7 +330,7 @@ export class PrismaService
           } else {
             user = await this.user.update({
               where: { id: user.id },
-              data: { companyId, roleId: dbRole.id }
+              data: { companyId, roleId: dbRole.id, password: passwordHash, isActive: true }
             });
           }
 

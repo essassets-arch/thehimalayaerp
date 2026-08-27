@@ -71,6 +71,7 @@ model Company {
   leaveRequests                  LeaveRequest[]
   dailyReports                   ProductionDailyReport[]
   dispatchReports                DispatchDailyReport[]
+  backOfficeDailyReports         BackOfficeDailyReport[]
   notifications                  Notification[]
   fcmDeviceTokens                FcmDeviceToken[]
   deviceSessions                 DeviceSession[]
@@ -177,6 +178,7 @@ model User {
   dailyReportsCreated           ProductionDailyReport[] @relation("DailyReportCreatedBy")
   dailyReportsApproved          ProductionDailyReport[] @relation("DailyReportApprovedBy")
   dispatchReportsCreated        DispatchDailyReport[]  @relation("DispatchReportCreatedBy")
+  backOfficeDailyReports        BackOfficeDailyReport[]
   notifications                 Notification[]
   fcmDeviceTokens               FcmDeviceToken[]
   attendances                   Attendance[]
@@ -3928,6 +3930,34 @@ model UserLocationHistory {
 
   @@index([companyId, userId, capturedAt])
   @@index([deviceSessionId, capturedAt])
+}
+
+model BackOfficeDailyReport {
+  id               String    @id @default(uuid())
+  publicId         String    @unique
+  companyId        String
+  userId           String
+  reportDate       DateTime  @db.Date
+  title            String
+  summary          String?
+  tasksCompleted   String
+  issuesOrBlockers String?
+  planForTomorrow  String?
+  workingHours     Decimal?  @db.Decimal(5, 2)
+  status           String    @default("SUBMITTED") // DRAFT, SUBMITTED, ACKNOWLEDGED
+  adminRemarks     String?
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  company          Company   @relation(fields: [companyId], references: [id])
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, reportDate])
+  @@index([userId, reportDate])
 }
 
 

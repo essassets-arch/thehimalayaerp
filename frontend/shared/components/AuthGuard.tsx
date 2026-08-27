@@ -34,6 +34,7 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
   'finance-executive': ['Finance Executive', 'FINANCE_EXECUTIVE', 'Finance Manager', 'Finance Lead', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'finance':        ['Finance', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'hr':             ['HR', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
+  'back-office':    ['Back Office', 'BACK_OFFICE', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
 };
 
 interface AuthGuardProps {
@@ -133,6 +134,7 @@ function getUserRoleName(rawRole: any): string {
         FINANCE_MANAGER: 'Finance Manager',
         STORE_MANAGER: 'Store Manager',
         HR: 'HR',
+        BACK_OFFICE: 'Back Office',
       };
       if (codeMap[rawRole.code]) return codeMap[rawRole.code];
     }
@@ -229,6 +231,9 @@ function getDefaultPath(role: string): string {
     'Finance Executive': '/finance-executive/dashboard',
     'Finance Manager': '/finance/dashboard',
     'HR': '/hr/dashboard',
+    'Back Office': '/back-office/daily-report',
+    'BACK_OFFICE': '/back-office/daily-report',
+    'back-office': '/back-office/daily-report',
     'Admin': '/admin/dashboard',
     'Super Admin': '/super-admin/dashboard',
   };

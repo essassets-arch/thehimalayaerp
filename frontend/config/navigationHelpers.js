@@ -14,6 +14,7 @@ export function getModuleKeyFromPath(pathname) {
   if (pathname.startsWith('/finance-executive')) return 'Finance Executive';
   if (pathname.startsWith('/finance')) return 'Finance';
   if (pathname.startsWith('/hr')) return 'HR';
+  if (pathname.startsWith('/back-office')) return 'Back Office';
   if (pathname.startsWith('/admin')) return 'Admin';
   return null;
 }
@@ -77,6 +78,10 @@ export function getNavigationForPath(pathname, role) {
       'super_sales': 'SuperSales',
       'super-sales': 'SuperSales',
       'Super Sales': 'SuperSales',
+      'Back Office': 'Back Office',
+      'back-office': 'Back Office',
+      'BACK_OFFICE': 'Back Office',
+      'BackOffice': 'Back Office',
     };
     const roleKey = roleKeyMap[role] || role;
     if (navigationConfig[roleKey]) {

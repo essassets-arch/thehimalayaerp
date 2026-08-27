@@ -27,6 +27,7 @@ function getDefaultPath(role: string): string {
     'FINANCE_EXECUTIVE': '/finance-executive/dashboard',
     'FINANCE_MANAGER': '/finance/dashboard',
     'HR': '/hr/dashboard',
+    'BACK_OFFICE': '/back-office/daily-report',
     'ADMIN': '/admin/dashboard',
     'SUPER_ADMIN': '/super-admin/dashboard',
   };
@@ -53,6 +54,8 @@ function getDefaultPath(role: string): string {
     'Finance Executive': '/finance-executive/dashboard',
     'Finance Manager': '/finance/dashboard',
     'HR': '/hr/dashboard',
+    'Back Office': '/back-office/daily-report',
+    'BACK_OFFICE': '/back-office/daily-report',
     'Admin': '/admin/dashboard',
     'Super Admin': '/super-admin/dashboard',
   };
@@ -78,6 +81,7 @@ const DEMO_ACCOUNTS = [
   { role: 'Finance Manager', email: 'sahad.accounts@himalayaerp.com' },
   { role: 'Store Manager', email: 'store.manager@himalayaerp.com' },
   { role: 'HR', email: 'hr@himalayaerp.com' },
+  { role: 'Back Office', email: 'backoffice@himalayaerp.com' },
 ] as const;
 
 /** Map backend role codes to friendly display strings */
@@ -92,6 +96,7 @@ function toFriendlyRole(code: string, email?: string): string {
     SUPER_SALES: 'SuperSales',
     DISPATCH_EXECUTIVE: 'Dispatch 1',
     DISPATCH_2: 'Dispatch 2',
+    BACK_OFFICE: 'Back Office',
   };
 
   return acronymRoles[normalizedCode] || normalizedCode
@@ -117,6 +122,7 @@ function inferDemoRoleFromEmail(email: string): string {
   if (e.includes('store')) return 'Store Manager';
   if (e.includes('qc')) return 'QC';
   if (e.includes('hr')) return 'HR';
+  if (e.includes('backoffice') || e.includes('back.office') || e.includes('back_office') || e.includes('back-office')) return 'Back Office';
   if (e.includes('super') || e.includes('admin')) return 'Super Admin';
   return 'Sales Executive';
 }

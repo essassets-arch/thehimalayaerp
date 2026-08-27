@@ -69,6 +69,7 @@ import { SuperAdminFilterProvider } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import BrandAnalysisPage from './BrandAnalysisPage';
 import SuperAdminLiveMapPage from './SuperAdminLiveMapPage';
+import BackOfficeReportsAdminView from './BackOfficeReportsAdminView';
 
 
 // Department Views

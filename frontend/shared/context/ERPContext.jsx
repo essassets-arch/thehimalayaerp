@@ -178,21 +178,25 @@ export const useERP = () => {
             vendorPayments = Array.isArray(paymentsRes) ? paymentsRes : (paymentsRes?.data || []);
           }
           
-          // Use backendFetch — auto-injects Authorization header from authStore
-          const productsRaw = await backendFetch('/api/backend/products').catch(() => []);
-          products = Array.isArray(productsRaw) ? productsRaw : (productsRaw?.data || []);
-          
-          const warehousesRaw = await backendFetch('/api/backend/warehouses').catch(() => []);
-          warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : (warehousesRaw?.data || []);
+          const authUserLog = useAuthStore.getState().user;
+          const isBackOffice = authUserLog?.role === 'Back Office' || authUserLog?.role === 'BACK_OFFICE';
 
-          const suppliersRaw = await backendFetch('/api/backend/suppliers').catch(() => []);
-          suppliers = Array.isArray(suppliersRaw) ? suppliersRaw : (suppliersRaw?.data || []);
+          if (!isBackOffice) {
+            // Use backendFetch — auto-injects Authorization header from authStore
+            const productsRaw = await backendFetch('/api/backend/products').catch(() => []);
+            products = Array.isArray(productsRaw) ? productsRaw : (productsRaw?.data || []);
+            
+            const warehousesRaw = await backendFetch('/api/backend/warehouses').catch(() => []);
+            warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : (warehousesRaw?.data || []);
 
-          const stockRaw = await backendFetch('/api/backend/inventory/stock-levels').catch(() => []);
-          const stockLevels = Array.isArray(stockRaw) ? stockRaw : (stockRaw?.data || []);
+            const suppliersRaw = await backendFetch('/api/backend/suppliers').catch(() => []);
+            suppliers = Array.isArray(suppliersRaw) ? suppliersRaw : (suppliersRaw?.data || []);
+
+            const stockRaw = await backendFetch('/api/backend/inventory/stock-levels').catch(() => []);
+            const stockLevels = Array.isArray(stockRaw) ? stockRaw : (stockRaw?.data || []);
+          }
 
           // Fetch all audit logs for history timeline (Admins only)
-          const authUserLog = useAuthStore.getState().user;
           if (authUserLog?.role === 'Super Admin' || authUserLog?.role === 'Admin') {
             const auditRaw = await backendFetch('/api/backend/admin/audit-logs').catch(() => []);
             auditLogs = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
@@ -211,10 +215,13 @@ export const useERP = () => {
           }
           // Note: we'll merge this with the existing state logic below.
 
-          const inventoryItemsRaw = await backendFetch('/api/backend/inventory/items').catch(() => []);
-          const itemsList = Array.isArray(inventoryItemsRaw) && inventoryItemsRaw.length > 0
-            ? inventoryItemsRaw
-            : SEEDED_INVENTORY_ITEMS;
+          let itemsList = SEEDED_INVENTORY_ITEMS;
+          if (!isBackOffice) {
+            const inventoryItemsRaw = await backendFetch('/api/backend/inventory/items').catch(() => []);
+            itemsList = Array.isArray(inventoryItemsRaw) && inventoryItemsRaw.length > 0
+              ? inventoryItemsRaw
+              : SEEDED_INVENTORY_ITEMS;
+          }
 
           rawInventory = itemsList.map((item, idx) => ({
             id: String(item.id || item.code || `RM-ID-${idx + 1}`),

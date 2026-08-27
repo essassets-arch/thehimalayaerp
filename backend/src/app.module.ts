@@ -61,6 +61,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { SearchModule } from './modules/search/search.module';
 import { LocationModule } from './modules/location/location.module';
 import { FilesModule } from './modules/files/files.module';
+import { BackOfficeModule } from './modules/back-office/back-office.module';
 
 @Module({
   imports: [
@@ -126,6 +127,7 @@ import { FilesModule } from './modules/files/files.module';
     SearchModule,
     LocationModule,
     FilesModule,
+    BackOfficeModule,
   ],
   controllers: [AppController],
   providers: [

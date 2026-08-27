@@ -287,6 +287,7 @@ export class UsersService {
         { code: 'admin.roles.manage', name: 'Manage Roles & Permissions' },
         { code: 'admin.audit.read', name: 'View System Audit Logs' },
         { code: 'admin.planthead.read', name: 'View Plant Head Workspace' },
+        { code: 'backoffice.report.review', name: 'Review Back Office Daily Reports' },
       ],
       ADMIN: [
         { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
@@ -294,6 +295,13 @@ export class UsersService {
         { code: 'admin.dashboard.read', name: 'View Admin Dashboard' },
         { code: 'admin.users.manage', name: 'Manage Users' },
         { code: 'admin.roles.manage', name: 'Manage Roles & Permissions' },
+        { code: 'backoffice.report.review', name: 'Review Back Office Daily Reports' },
+      ],
+      BACK_OFFICE: [
+        { code: 'backoffice.report.create', name: 'Create Back Office Daily Report' },
+        { code: 'backoffice.report.read', name: 'View Back Office Daily Report' },
+        { code: 'backoffice.report.manage', name: 'Manage Back Office Daily Report' },
+        { code: 'profile.read', name: 'View Profile' },
       ],
       SALES: [
         { code: 'sales.leads.read', name: 'View Sales Leads' },
@@ -364,7 +372,9 @@ export class UsersService {
     };
 
     // Determine target list
-    let targetPerms = [...commonPerms];
+    let targetPerms = norm === 'BACK_OFFICE' || norm.includes('BACK_OFFICE')
+      ? []
+      : [...commonPerms];
     for (const [key, perms] of Object.entries(roleSpecificPerms)) {
       if (norm === key || norm.includes(key)) {
         targetPerms.push(...perms);

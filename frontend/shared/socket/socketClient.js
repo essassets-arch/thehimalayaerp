@@ -21,9 +21,9 @@ export const connectSocket = (token, onNotification) => {
     process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL ||
     (typeof window !== 'undefined'
       ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? `${window.location.protocol}//${window.location.hostname}:4000`
+          ? `${window.location.protocol}//${window.location.hostname}:4001`
           : window.location.origin)
-      : 'http://localhost:4000');
+      : 'http://localhost:4001');
 
   socket = io(socketUrl, {
     path: '/socket.io',

@@ -22,6 +22,9 @@ export const DASHBOARD_REDIRECTS = {
   'Finance Executive': '/finance-executive/dashboard',
   'finance-executive': '/finance-executive/dashboard',
   'HR':             '/hr/dashboard',
+  'Back Office':    '/back-office/daily-report',
+  'BACK_OFFICE':    '/back-office/daily-report',
+  'back-office':    '/back-office/daily-report',
 };
 
 export const ROLE_ROUTES = {
@@ -44,4 +47,6 @@ export const ROLE_ROUTES = {
   'Finance Executive': ['/finance-executive/*'],
   'finance-executive': ['/finance-executive/*'],
   'HR':             '/hr',
+  'Back Office':    '/back-office',
+  'BACK_OFFICE':    '/back-office',
 };
