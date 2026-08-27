@@ -376,6 +376,7 @@ export const navigationConfig = {
     { type: 'badge', label: 'MASTER DATA' },
     { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
+    { id: 'finished-goods', label: 'Finished Goods Inventory', icon: Boxes, path: '/super-admin/finished-goods' },
 
     { type: 'badge', label: 'ANALYTICS & REPORTS' },
     { id: 'map', label: 'Live User Map', icon: MapPin, path: '/super-admin/map' },

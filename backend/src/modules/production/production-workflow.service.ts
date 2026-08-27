@@ -923,17 +923,14 @@ export class ProductionWorkflowService {
 
     // Post-aggregation pass to set correct ledger metrics
     for (const existing of groupedMap.values()) {
-      const pId = existing.productId;
-      if (pId) {
-        const prodInVal = prodInMap.get(pId) || 0;
-        const dispatchVal = dispatchMap.get(pId) || 0;
-        const dispatchOutVal = Math.abs(dispatchVal);
-        existing.productionIn = prodInVal;
-        existing.dispatchOut = dispatchOutVal;
-        existing.openingStock = Math.max(0, existing.quantity - prodInVal + dispatchOutVal);
-      } else {
-        existing.dispatchOut = 0;
-      }
+      const pId = existing.productId || existing.product?.id;
+      const pCode = existing.productCode || existing.product?.sku || existing.product?.publicId;
+      const prodInVal = (pId ? prodInMap.get(pId) : 0) || (pCode ? prodInMap.get(pCode) : 0) || 0;
+      const dispatchVal = (pId ? dispatchMap.get(pId) : 0) || (pCode ? dispatchMap.get(pCode) : 0) || 0;
+      const dispatchOutVal = Math.abs(dispatchVal);
+      existing.productionIn = prodInVal;
+      existing.dispatchOut = dispatchOutVal;
+      existing.openingStock = Math.max(0, existing.quantity - prodInVal + dispatchOutVal);
     }
 
     return Array.from(groupedMap.values());
