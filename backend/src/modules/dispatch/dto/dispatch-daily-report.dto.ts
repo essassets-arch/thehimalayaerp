@@ -1,66 +1,81 @@
-import { IsString, IsOptional, IsArray, ValidateNested, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsArray, ValidateNested, IsNumber, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDispatchDailyReportItemDto {
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  productId?: string;
+  productId?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  customProductName?: string;
+  customProductName?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  srNo?: number;
+  srNo?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  size?: string;
+  size?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  type?: string;
+  type?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  capacity?: string;
+  capacity?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  coverQty?: number;
+  coverQty?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  coverUnitWeight?: number;
+  coverUnitWeight?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  actualCoverWeight?: number;
+  actualCoverWeight?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  frameQty?: number;
+  frameQty?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  frameUnitWeight?: number;
+  frameUnitWeight?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  actualFrameWeight?: number;
+  actualFrameWeight?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  weightOverrideReason?: string;
+  weightOverrideReason?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
-  setQty?: number;
+  setQty?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  remarks?: string;
+  remarks?: string | null;
 }
 
 export class CreateDispatchDailyReportDto {
@@ -74,6 +89,10 @@ export class CreateDispatchDailyReportDto {
   @IsOptional()
   @IsString()
   dispatchExecutive?: string;
+
+  @IsOptional()
+  @IsString()
+  supervisorName?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -93,6 +112,10 @@ export class UpdateDispatchDailyReportDto {
   @IsOptional()
   @IsString()
   dispatchExecutive?: string;
+
+  @IsOptional()
+  @IsString()
+  supervisorName?: string;
 
   @IsOptional()
   @IsArray()

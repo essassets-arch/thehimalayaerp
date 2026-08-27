@@ -74,7 +74,7 @@ export function CreateSalaryStructureView({
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [loadingAttendance, setLoadingAttendance] = useState<boolean>(false);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
-  const [isMatrixExpanded, setIsMatrixExpanded] = useState<boolean>(true);
+  const [isMatrixExpanded, setIsMatrixExpanded] = useState<boolean>(false);
 
   const [effectiveFrom, setEffectiveFrom] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
@@ -169,62 +169,47 @@ export function CreateSalaryStructureView({
     );
   }, [selectedEmployeeId, existingStructures, structureId]);
 
+  // Refetch attendance helper
+  const fetchAttendance = async () => {
+    if (!selectedEmployeeId) return;
+    setLoadingAttendance(true);
+    setAttendanceError(null);
+    try {
+      const res = await payrollService.getPayrollAttendanceSummary(selectedEmployeeId, payrollMonth);
+      setAttendanceData(res);
+
+      if (mode === 'create' && res?.structure) {
+        const struct = res.structure;
+        setBasicSalary(Number(struct.basicSalary) || 30000);
+        setHraPct(Number(struct.hraPercentage) || 10);
+        setLtaPct(Number(struct.ltaPercentage) || 5);
+        setEduPct(Number(struct.educationAllowancePercentage) || 5);
+        setConvPct(Number(struct.conveyancePercentage) || 5);
+        setEmpEpfPct(Number(struct.employeeEpfPercentage) || 12);
+        setEmpEsicPct(Number(struct.employeeEsicPercentage) || 0.75);
+        setPtPct(Number(struct.professionalTaxPercentage) || 0);
+        setCompEpfPct(Number(struct.companyEpfPercentage) || 12);
+        setCompEsicPct(Number(struct.companyEsicPercentage) || 3.25);
+        setGratuityPct(Number(struct.gratuityPercentage) || 4.81);
+        if (struct.wef) setWef(struct.wef);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch attendance summary:', err);
+      setAttendanceError(err?.message || 'Could not fetch attendance & leave data from HR system.');
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
   // AUTOMATIC ATTENDANCE & LEAVE FETCHING ON EMPLOYEE / MONTH SELECTION
   useEffect(() => {
-    let isCancelled = false;
-
     if (!selectedEmployeeId) {
       setAttendanceData(null);
       setAttendanceError(null);
       setLoadingAttendance(false);
       return;
     }
-
-    // Immediately clear previous employee data to prevent cross-employee leakage
-    setAttendanceData(null);
-    setAttendanceError(null);
-    setLoadingAttendance(true);
-
-    async function fetchAttendance() {
-      try {
-        const res = await payrollService.getPayrollAttendanceSummary(selectedEmployeeId, payrollMonth);
-        if (isCancelled) return;
-
-        setAttendanceData(res);
-
-        // Auto-fill salary structure inputs if active structure exists and mode is 'create'
-        if (mode === 'create' && res?.structure) {
-          const struct = res.structure;
-          setBasicSalary(Number(struct.basicSalary) || 30000);
-          setHraPct(Number(struct.hraPercentage) || 10);
-          setLtaPct(Number(struct.ltaPercentage) || 5);
-          setEduPct(Number(struct.educationAllowancePercentage) || 5);
-          setConvPct(Number(struct.conveyancePercentage) || 5);
-          setEmpEpfPct(Number(struct.employeeEpfPercentage) || 12);
-          setEmpEsicPct(Number(struct.employeeEsicPercentage) || 0.75);
-          setPtPct(Number(struct.professionalTaxPercentage) || 0);
-          setCompEpfPct(Number(struct.companyEpfPercentage) || 12);
-          setCompEsicPct(Number(struct.companyEsicPercentage) || 3.25);
-          setGratuityPct(Number(struct.gratuityPercentage) || 4.81);
-          if (struct.wef) setWef(struct.wef);
-        }
-      } catch (err: any) {
-        if (!isCancelled) {
-          console.error('Failed to fetch attendance summary:', err);
-          setAttendanceError(err?.message || 'Could not fetch attendance & leave data from HR system.');
-        }
-      } finally {
-        if (!isCancelled) {
-          setLoadingAttendance(false);
-        }
-      }
-    }
-
     void fetchAttendance();
-
-    return () => {
-      isCancelled = true;
-    };
   }, [selectedEmployeeId, payrollMonth, mode]);
 
   // Auto-fill basic salary from employee master if starting fresh
@@ -252,6 +237,20 @@ export function CreateSalaryStructureView({
         setBasicSalary(Number(emp.baseSalary));
       }
     }
+  };
+
+  // Preset 50/30/20 Standard Rule
+  const applyStandardPreset = () => {
+    setHraPct(40);
+    setLtaPct(5);
+    setEduPct(5);
+    setConvPct(5);
+    setEmpEpfPct(12);
+    setEmpEsicPct(0.75);
+    setPtPct(0);
+    setCompEpfPct(12);
+    setCompEsicPct(3.25);
+    setGratuityPct(4.81);
   };
 
   // Filtered employees for search
@@ -308,7 +307,6 @@ export function CreateSalaryStructureView({
 
   // Exact Per Day Rates
   const perDaySalary = calendarDays > 0 ? calculation.grossTotalA / calendarDays : 0;
-  const perDayBasic = calendarDays > 0 ? calculation.basicSalary / calendarDays : 0;
 
   // Exact Leave Salary Cut = Per Day Salary * Unpaid/Absent Leave Days
   const leaveDeductionAmount = perDaySalary * unpaidDays;
@@ -319,6 +317,22 @@ export function CreateSalaryStructureView({
   const proratedNet = Math.max(0, proratedGross - proratedDeduction);
   const proratedCompanyCost = calculation.totalCompanyContributionD * prorationRatio;
   const proratedCtc = proratedGross + proratedCompanyCost;
+
+  // Visual Breakdown Percentages for Stacked Bar Meter
+  const breakdownStats = useMemo(() => {
+    const total = calculation.ctcPerMonthE || 1;
+    const basicPart = calculation.basicSalary;
+    const allowPart = Math.max(0, calculation.grossTotalA - calculation.basicSalary);
+    const deductPart = calculation.totalDeductionB;
+    const compPart = calculation.totalCompanyContributionD;
+
+    return {
+      basicPct: Math.round((basicPart / total) * 100),
+      allowPct: Math.round((allowPart / total) * 100),
+      deductPct: Math.round((deductPart / total) * 100),
+      compPct: Math.round((compPart / total) * 100),
+    };
+  }, [calculation]);
 
   // Handle Save / Update
   const handleSubmit = async (e: React.FormEvent) => {
@@ -337,7 +351,7 @@ export function CreateSalaryStructureView({
     if (loadingAttendance) {
       await Swal.fire({
         icon: 'info',
-        title: 'Attendance Fetching in Progress',
+        title: 'Attendance Syncing',
         text: 'Please wait until attendance and leave data has finished syncing.',
         confirmButtonColor: '#0f172a',
       });
@@ -472,9 +486,9 @@ export function CreateSalaryStructureView({
 
   if (loading) {
     return (
-      <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
-        <div style={{ width: '36px', height: '36px', border: '3px solid #0f172a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-        <p style={{ fontSize: '13.5px', fontWeight: 600, color: '#475569' }}>Loading Salary Preparation Workstation...</p>
+      <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+        <div style={{ width: '40px', height: '40px', border: '3.5px solid #0f172a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ fontSize: '14px', fontWeight: 700, color: '#475569' }}>Loading Salary Preparation Workstation...</p>
       </div>
     );
   }
@@ -499,48 +513,105 @@ export function CreateSalaryStructureView({
 
   return (
     <div className="ctc-workstation-container">
-      {/* ── Top Header & Breadcrumbs ── */}
+      {/* ── Top Executive Header Bar ── */}
       <div className="ctc-header-bar">
         <div className="ctc-header-left">
           <div className="ctc-breadcrumb">
             <Link href="/hr/salary/prepare">Salary Preparation</Link>
-            <span>/</span>
+            <span className="ctc-breadcrumb-sep">/</span>
             <span className="ctc-breadcrumb-current">
               {mode === 'view' ? 'View Statement' : mode === 'edit' ? 'Edit Structure' : 'Create Salary & CTC Structure'}
             </span>
           </div>
-          <h1 className="ctc-header-title">
-            {mode === 'view'
-              ? 'Employee Salary & CTC Statement'
-              : mode === 'edit'
-              ? 'Edit Employee Salary Structure & CTC'
-              : 'Create Employee Salary Structure & CTC'}
-          </h1>
+          <div className="ctc-header-title-wrap">
+            <h1 className="ctc-header-title">
+              {mode === 'view'
+                ? 'Employee Salary & CTC Statement'
+                : mode === 'edit'
+                ? 'Edit Employee Salary Structure & CTC'
+                : 'Create Employee Salary Structure & CTC'}
+            </h1>
+            <span className="ctc-live-badge">
+              <span className="ctc-live-badge-dot"></span>
+              {selectedEmployeeId ? 'Active Workstation' : 'Draft Session'}
+            </span>
+          </div>
           <p className="ctc-header-subtitle">
-            Authoritative salary preparation synchronized with HR Attendance, Leave records &amp; Company Calendar.
+            Authoritative compensation structure synchronized with live HR attendance, approved leave consumption &amp; company calendar.
           </p>
         </div>
 
         <div className="ctc-header-actions">
           <Link href="/hr/salary/prepare" className="btn-ctc-outline">
-            ← Back to Salary Register
+            ← Back to Register
           </Link>
 
           {!isReadOnly && (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !selectedEmployeeId || loadingAttendance}
-              className="btn-ctc-primary"
-            >
-              {submitting
-                ? 'Saving Structure...'
-                : loadingAttendance
-                ? 'Syncing Attendance...'
-                : mode === 'edit'
-                ? 'Update Salary Record'
-                : 'Save & Publish CTC'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={applyStandardPreset}
+                className="btn-ctc-outline"
+                title="Apply standard 40% HRA, 5% LTA, 5% Education, 5% Conveyance package"
+              >
+                ✨ Standard Preset
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || !selectedEmployeeId || loadingAttendance}
+                className="btn-ctc-primary"
+              >
+                {submitting
+                  ? 'Saving Structure...'
+                  : loadingAttendance
+                  ? 'Syncing Attendance...'
+                  : mode === 'edit'
+                  ? 'Update Salary Record'
+                  : 'Save & Publish CTC'}
+              </button>
+            </>
           )}
+        </div>
+      </div>
+
+      {/* ── Top Executive KPI Overview Ribbon (4 Cards) ── */}
+      <div className="ctc-quick-kpi-ribbon">
+        <div className="ctc-kpi-top-card card-basic">
+          <div className="ctc-kpi-top-info">
+            <span className="ctc-kpi-top-label">Monthly Basic</span>
+            <span className="ctc-kpi-top-val">{fmt(calculation.basicSalary)}</span>
+            <span className="ctc-kpi-top-sub">Foundation Base Rate</span>
+          </div>
+          <div className="ctc-kpi-top-icon">🏛️</div>
+        </div>
+
+        <div className="ctc-kpi-top-card card-gross">
+          <div className="ctc-kpi-top-info">
+            <span className="ctc-kpi-top-label">Gross Earnings (A)</span>
+            <span className="ctc-kpi-top-val gross">{fmt(calculation.grossTotalA)}</span>
+            <span className="ctc-kpi-top-sub">{fmt(perDaySalary)} / Day ({calendarDays}d)</span>
+          </div>
+          <div className="ctc-kpi-top-icon">💼</div>
+        </div>
+
+        <div className="ctc-kpi-top-card card-net">
+          <div className="ctc-kpi-top-info">
+            <span className="ctc-kpi-top-label">Net Take-Home (C)</span>
+            <span className="ctc-kpi-top-val net">{fmt(calculation.netTakeHomeC)}</span>
+            <span className="ctc-kpi-top-sub">In-Hand Salary</span>
+          </div>
+          <div className="ctc-kpi-top-icon">💵</div>
+        </div>
+
+        <div className="ctc-kpi-top-card card-ctc">
+          <div className="ctc-kpi-top-info">
+            <span className="ctc-kpi-top-label">Total Monthly CTC (E)</span>
+            <span className="ctc-kpi-top-val ctc">{fmt(calculation.ctcPerMonthE)}</span>
+            <span className="ctc-kpi-top-sub">Annual: {fmt(calculation.ctcPerAnnum)} / yr</span>
+          </div>
+          <div className="ctc-kpi-top-icon">🏢</div>
         </div>
       </div>
 
@@ -548,7 +619,7 @@ export function CreateSalaryStructureView({
       {existingActiveStructure && mode === 'create' && (
         <div className="ctc-alert-warning">
           <div className="ctc-alert-warning-left">
-            <span style={{ fontSize: '18px' }}>⚠️</span>
+            <span style={{ fontSize: '20px' }}>⚠️</span>
             <div>
               <div className="ctc-alert-warning-title">Active Salary Structure Already Exists</div>
               <div className="ctc-alert-warning-desc">
@@ -598,7 +669,8 @@ export function CreateSalaryStructureView({
               {/* Custom Searchable Employee Picker */}
               <div className="form-group span-2" ref={dropdownRef}>
                 <label className="form-label">
-                  Select Employee <span className="req">*</span>
+                  <span>Select Employee <span className="req">*</span></span>
+                  <span className="form-label-hint">Search by Name, Code or Department</span>
                 </label>
                 <div className="ctc-dropdown-container">
                   <button
@@ -630,7 +702,7 @@ export function CreateSalaryStructureView({
 
                       <div className="ctc-dropdown-list">
                         {filteredEmployees.length === 0 ? (
-                          <div style={{ padding: '14px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                          <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
                             No employees found matching "{employeeSearch}"
                           </div>
                         ) : (
@@ -646,7 +718,7 @@ export function CreateSalaryStructureView({
                                 className={`ctc-dropdown-item ${isSelected ? 'is-selected' : ''}`}
                               >
                                 <div>
-                                  <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a' }}>
+                                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a' }}>
                                     {emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim()}
                                   </div>
                                   <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
@@ -659,10 +731,10 @@ export function CreateSalaryStructureView({
                                   <span
                                     style={{
                                       fontSize: '10.5px',
-                                      fontWeight: 600,
+                                      fontWeight: 700,
                                       color: '#15803d',
                                       background: '#dcfce7',
-                                      padding: '2px 7px',
+                                      padding: '3px 8px',
                                       borderRadius: '4px',
                                       border: '1px solid #bbf7d0',
                                       whiteSpace: 'nowrap',
@@ -684,7 +756,8 @@ export function CreateSalaryStructureView({
               {/* Effective From Date */}
               <div className="form-group">
                 <label className="form-label">
-                  Effective From <span className="req">*</span>
+                  <span>Effective From <span className="req">*</span></span>
+                  <span className="form-label-hint">Structure Start Date</span>
                 </label>
                 <input
                   type="date"
@@ -698,7 +771,8 @@ export function CreateSalaryStructureView({
               {/* W.E.F. Reference Date */}
               <div className="form-group">
                 <label className="form-label">
-                  W.E.F. Date (With Effect From) <span className="req">*</span>
+                  <span>W.E.F. Date (With Effect From) <span className="req">*</span></span>
+                  <span className="form-label-hint">Statutory Cutoff</span>
                 </label>
                 <input
                   type="date"
@@ -755,6 +829,15 @@ export function CreateSalaryStructureView({
                   </span>
                   <button
                     type="button"
+                    onClick={fetchAttendance}
+                    disabled={loadingAttendance}
+                    className="ctc-btn-toggle-matrix"
+                    title="Refresh attendance records from HR roster"
+                  >
+                    🔄 {loadingAttendance ? 'Syncing...' : 'Re-sync'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setIsMatrixExpanded(!isMatrixExpanded)}
                     className="ctc-btn-toggle-matrix"
                   >
@@ -767,8 +850,8 @@ export function CreateSalaryStructureView({
               {loadingAttendance && (
                 <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc' }}>
                   <div style={{ width: '28px', height: '28px', border: '3px solid #0f172a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 10px' }}></div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>
-                    Fetching all attendance punches &amp; leave records from HR system...
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                    Fetching attendance punches &amp; leave records from HR system...
                   </div>
                   <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
                     Resolving calendar days, working schedule, approved leaves, weekly offs &amp; holidays.
@@ -800,16 +883,16 @@ export function CreateSalaryStructureView({
                     </div>
 
                     <div className="ctc-attendance-kpi-card">
-                      <div className="ctc-kpi-label" style={{ color: '#dc2626' }}>❌ Absent Days</div>
+                      <div className="ctc-kpi-label" style={{ color: '#dc2626' }}>❌ Absent / LOP</div>
                       <div className="ctc-kpi-value" style={{ color: '#dc2626' }}>{attendanceData.absentDays}</div>
-                      <div className="ctc-kpi-sub">Unauthorized Absence</div>
+                      <div className="ctc-kpi-sub">Unpaid Absence</div>
                     </div>
 
                     <div className="ctc-attendance-kpi-card highlight-payable">
                       <div className="ctc-kpi-label">⭐ Total Payable</div>
                       <div className="ctc-kpi-value">{attendanceData.payableDays}</div>
                       <div className="ctc-kpi-sub" style={{ color: '#166534' }}>
-                        {(prorationRatio * 100).toFixed(1)}% of Month
+                        {(prorationRatio * 100).toFixed(1)}% of Month ({attendanceData.calendarDays}d)
                       </div>
                     </div>
                   </div>
@@ -845,15 +928,15 @@ export function CreateSalaryStructureView({
                   {/* Per Day Salary & Leave Cut Breakdown Grid */}
                   <div className="ctc-leave-calc-box">
                     <div className="ctc-leave-calc-item">
-                      <span className="ctc-leave-calc-title">💵 Per Day Salary Rate</span>
+                      <span className="ctc-leave-calc-title">💵 Per Day Gross Rate</span>
                       <span className="ctc-leave-calc-val">{fmt(perDaySalary)} / day</span>
                       <span className="ctc-leave-calc-sub">₹{Math.round(calculation.grossTotalA).toLocaleString('en-IN')} ÷ {calendarDays} Days</span>
                     </div>
 
                     <div className="ctc-leave-calc-item">
-                      <span className="ctc-leave-calc-title">📅 Paid / Payable Days</span>
+                      <span className="ctc-leave-calc-title">📅 Payable Factor</span>
                       <span className="ctc-leave-calc-val" style={{ color: '#15803d' }}>{payableDays} Days</span>
-                      <span className="ctc-leave-calc-sub">{(prorationRatio * 100).toFixed(1)}% of {calendarDays} Calendar Days</span>
+                      <span className="ctc-leave-calc-sub">{(prorationRatio * 100).toFixed(1)}% of {calendarDays} Days</span>
                     </div>
 
                     <div className={`ctc-leave-calc-item ${unpaidDays > 0 ? 'highlight-cut' : ''}`}>
@@ -996,6 +1079,24 @@ export function CreateSalaryStructureView({
                       className="ctc-basic-input"
                     />
                   </div>
+
+                  {/* Quick Preset Buttons for Basic Salary */}
+                  {!isReadOnly && (
+                    <div className="ctc-basic-presets">
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Quick Presets:</span>
+                      {[25000, 35000, 50000, 75000, 100000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setBasicSalary(amt)}
+                          className={`ctc-preset-btn ${basicSalary === amt ? 'active' : ''}`}
+                        >
+                          ₹{(amt / 1000).toFixed(0)}k
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="ctc-basic-hero-hint">
                     Foundation component for HRA, LTA, Education, Conveyance, EPF &amp; Gratuity.
                   </div>
@@ -1031,6 +1132,14 @@ export function CreateSalaryStructureView({
                     className="ctc-pct-input"
                   />
                   <span className="ctc-pct-symbol">% of Basic</span>
+
+                  {!isReadOnly && (
+                    <div className="ctc-allowance-quick-presets" style={{ marginLeft: 'auto' }}>
+                      <button type="button" onClick={() => setHraPct(50)} className="ctc-allowance-preset-btn">50%</button>
+                      <button type="button" onClick={() => setHraPct(40)} className="ctc-allowance-preset-btn">40%</button>
+                      <button type="button" onClick={() => setHraPct(10)} className="ctc-allowance-preset-btn">10%</button>
+                    </div>
+                  )}
                 </div>
                 <div className="ctc-allowance-result">{fmt(calculation.hraAmount)}</div>
               </div>
@@ -1053,6 +1162,13 @@ export function CreateSalaryStructureView({
                     className="ctc-pct-input"
                   />
                   <span className="ctc-pct-symbol">% of Basic</span>
+
+                  {!isReadOnly && (
+                    <div className="ctc-allowance-quick-presets" style={{ marginLeft: 'auto' }}>
+                      <button type="button" onClick={() => setLtaPct(5)} className="ctc-allowance-preset-btn">5%</button>
+                      <button type="button" onClick={() => setLtaPct(10)} className="ctc-allowance-preset-btn">10%</button>
+                    </div>
+                  )}
                 </div>
                 <div className="ctc-allowance-result">{fmt(calculation.ltaAmount)}</div>
               </div>
@@ -1075,6 +1191,13 @@ export function CreateSalaryStructureView({
                     className="ctc-pct-input"
                   />
                   <span className="ctc-pct-symbol">% of Basic</span>
+
+                  {!isReadOnly && (
+                    <div className="ctc-allowance-quick-presets" style={{ marginLeft: 'auto' }}>
+                      <button type="button" onClick={() => setEduPct(5)} className="ctc-allowance-preset-btn">5%</button>
+                      <button type="button" onClick={() => setEduPct(10)} className="ctc-allowance-preset-btn">10%</button>
+                    </div>
+                  )}
                 </div>
                 <div className="ctc-allowance-result">{fmt(calculation.educationAllowanceAmount)}</div>
               </div>
@@ -1097,6 +1220,13 @@ export function CreateSalaryStructureView({
                     className="ctc-pct-input"
                   />
                   <span className="ctc-pct-symbol">% of Basic</span>
+
+                  {!isReadOnly && (
+                    <div className="ctc-allowance-quick-presets" style={{ marginLeft: 'auto' }}>
+                      <button type="button" onClick={() => setConvPct(5)} className="ctc-allowance-preset-btn">5%</button>
+                      <button type="button" onClick={() => setConvPct(10)} className="ctc-allowance-preset-btn">10%</button>
+                    </div>
+                  )}
                 </div>
                 <div className="ctc-allowance-result">{fmt(calculation.conveyanceAmount)}</div>
               </div>
@@ -1114,8 +1244,8 @@ export function CreateSalaryStructureView({
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>TOTAL DEDUCTIONS (B)</span>
-                <div style={{ fontSize: '17px', fontWeight: 700, color: '#be123c' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL DEDUCTIONS (B)</span>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#be123c' }}>
                   {fmt(calculation.totalDeductionB)}
                 </div>
               </div>
@@ -1126,7 +1256,7 @@ export function CreateSalaryStructureView({
               <div className="ctc-allowance-card">
                 <div className="ctc-allowance-title">
                   <span style={{ color: '#be123c' }}>EPF Employee (PF)</span>
-                  <span className="ctc-allowance-tag">12% Standard</span>
+                  <span className="ctc-allowance-tag">12% Standard (₹15k max)</span>
                 </div>
                 <div className="ctc-allowance-control">
                   <input
@@ -1150,7 +1280,7 @@ export function CreateSalaryStructureView({
               <div className="ctc-allowance-card">
                 <div className="ctc-allowance-title">
                   <span style={{ color: '#be123c' }}>ESIC Employee</span>
-                  <span className="ctc-allowance-tag">0.75% of Gross</span>
+                  <span className="ctc-allowance-tag">0.75% of Gross (₹21k max)</span>
                 </div>
                 <div className="ctc-allowance-control">
                   <input
@@ -1174,7 +1304,9 @@ export function CreateSalaryStructureView({
               <div className="ctc-allowance-card">
                 <div className="ctc-allowance-title">
                   <span style={{ color: '#be123c' }}>Professional Tax (PT)</span>
-                  <span className="ctc-allowance-tag">State Tax</span>
+                  <span className="ctc-allowance-tag">
+                    {ptPct > 0 ? `${ptPct}% of Gross` : 'Standard Slab (₹200)'}
+                  </span>
                 </div>
                 <div className="ctc-allowance-control">
                   <input
@@ -1187,7 +1319,7 @@ export function CreateSalaryStructureView({
                     onChange={(e) => setPtPct(parseFloat(e.target.value) || 0)}
                     className="ctc-pct-input"
                   />
-                  <span className="ctc-pct-symbol">% of Gross</span>
+                  <span className="ctc-pct-symbol">{ptPct > 0 ? '% of Gross' : '₹200 Standard (0%)'}</span>
                 </div>
                 <div className="ctc-allowance-result" style={{ color: '#be123c' }}>
                   {fmt(calculation.professionalTaxAmount)}
@@ -1227,8 +1359,8 @@ export function CreateSalaryStructureView({
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>TOTAL COMPANY CONTRIBUTION (D)</span>
-                <div style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL COMPANY CONTRIBUTION (D)</span>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
                   {fmt(calculation.totalCompanyContributionD)}
                 </div>
               </div>
@@ -1329,9 +1461,9 @@ export function CreateSalaryStructureView({
         {/* RIGHT COLUMN: Sticky Executive Summary & Action Card */}
         <div>
           <div className="ctc-sidebar-sticky">
-            <div>
+            <div className="ctc-sidebar-header">
               <h3>Executive Financial Summary</h3>
-              <p>Real-time calculation breakdown for this structure.</p>
+              <p>Real-time compensation analytics &amp; attendance breakdown.</p>
             </div>
 
             {/* Profile Snapshot */}
@@ -1340,8 +1472,35 @@ export function CreateSalaryStructureView({
               <p>
                 <strong>{employeeDisplayCode}</strong> • {employeeDisplayDept}
               </p>
-              <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 600, marginTop: '4px' }}>
+              <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 700, marginTop: '4px' }}>
                 ● W.E.F: {wef} • Month: {payrollMonth}
+              </div>
+            </div>
+
+            {/* Salary Composition Meter */}
+            <div className="ctc-breakdown-bar-container">
+              <div className="ctc-breakdown-bar-title">
+                <span>Salary Composition</span>
+                <span>{fmt(calculation.ctcPerMonthE)}</span>
+              </div>
+              <div className="ctc-breakdown-bar-track">
+                <div className="ctc-bar-segment ctc-bar-basic" style={{ width: `${breakdownStats.basicPct}%` }} title={`Basic: ${breakdownStats.basicPct}%`} />
+                <div className="ctc-bar-segment ctc-bar-allowances" style={{ width: `${breakdownStats.allowPct}%` }} title={`Allowances: ${breakdownStats.allowPct}%`} />
+                <div className="ctc-bar-segment ctc-bar-employer" style={{ width: `${breakdownStats.compPct}%` }} title={`Employer Cost: ${breakdownStats.compPct}%`} />
+              </div>
+              <div className="ctc-breakdown-legend">
+                <div className="ctc-legend-item">
+                  <span className="ctc-legend-dot" style={{ background: '#3b82f6' }}></span>
+                  <span>Basic ({breakdownStats.basicPct}%)</span>
+                </div>
+                <div className="ctc-legend-item">
+                  <span className="ctc-legend-dot" style={{ background: '#06b6d4' }}></span>
+                  <span>Allowances ({breakdownStats.allowPct}%)</span>
+                </div>
+                <div className="ctc-legend-item">
+                  <span className="ctc-legend-dot" style={{ background: '#0f172a' }}></span>
+                  <span>Company Cost ({breakdownStats.compPct}%)</span>
+                </div>
               </div>
             </div>
 
@@ -1349,7 +1508,7 @@ export function CreateSalaryStructureView({
             <div className="sidebar-block">
               <div className="sidebar-block-title">
                 <span>1. Full Month Entitlement</span>
-                <span>Structure CTC</span>
+                <span>Base Structure</span>
               </div>
               <div className="sidebar-row">
                 <span>Gross Earnings (A)</span>
@@ -1371,6 +1530,10 @@ export function CreateSalaryStructureView({
                 <span>Monthly CTC (E = A + D)</span>
                 <strong>{fmt(calculation.ctcPerMonthE)}</strong>
               </div>
+              <div className="sidebar-row" style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                <span>Annual CTC</span>
+                <strong style={{ color: '#4f46e5' }}>{fmt(calculation.ctcPerAnnum)} / yr</strong>
+              </div>
             </div>
 
             {/* Block 2: ATTENDANCE & LOP */}
@@ -1385,11 +1548,11 @@ export function CreateSalaryStructureView({
               </div>
               <div className="sidebar-row">
                 <span>Present Days</span>
-                <span style={{ color: '#15803d', fontWeight: 600 }}>{attendanceData?.presentDays ?? 0}</span>
+                <span style={{ color: '#15803d', fontWeight: 700 }}>{attendanceData?.presentDays ?? 0}</span>
               </div>
               <div className="sidebar-row">
                 <span>Absent / Unpaid Days</span>
-                <span style={{ color: '#dc2626', fontWeight: 600 }}>{unpaidDays}</span>
+                <span style={{ color: '#dc2626', fontWeight: 700 }}>{unpaidDays}</span>
               </div>
               <div className="sidebar-row">
                 <span>Total Payable Days</span>
@@ -1437,7 +1600,7 @@ export function CreateSalaryStructureView({
 
             {/* Form Actions */}
             {!isReadOnly && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                 <button
                   type="submit"
                   disabled={submitting || !selectedEmployeeId || loadingAttendance}

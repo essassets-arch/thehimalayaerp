@@ -809,6 +809,49 @@ export class DispatchService {
       }
     }
 
+    // Include Dispatch Daily Report entries from StockHistory
+    const dailyReportHistories = await this.prisma.stockHistory.findMany({
+      where: {
+        event: { in: ['DISPATCH_OUT', 'DISPATCH_REVERSAL'] },
+        sourceType: { in: ['DISPATCH_REPORT', 'DISPATCH_REPORT_REVERSAL', 'DISPATCH_REPORT_UPDATE', 'DISPATCH_REPORT_CANCEL'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const shProductIds = Array.from(new Set(dailyReportHistories.map((h) => h.productId).filter(Boolean)));
+    const shProducts = shProductIds.length > 0
+      ? await this.prisma.product.findMany({
+          where: { id: { in: shProductIds } },
+          select: { id: true, name: true, sku: true, publicId: true, category: true, unit: true },
+        })
+      : [];
+    const shProductMap = new Map(shProducts.map((p) => [p.id, p]));
+
+    for (const sh of dailyReportHistories) {
+      const prod = shProductMap.get(sh.productId);
+      const dispatchedQty = Math.abs(Number(sh.quantity || 0));
+      history.push({
+        id: `sh-${sh.id}`,
+        dispatchId: sh.sourceId || sh.id,
+        dispatchNo: sh.referenceNumber || `DR-${sh.id.slice(0, 8)}`,
+        salesOrderId: sh.sourceId || '',
+        orderNumber: sh.referenceNumber || 'DAILY-DISPATCH',
+        productCode: prod?.sku || prod?.publicId || 'FG-ITEM',
+        productName: prod?.name || 'Finished Good Item',
+        category: prod?.category || 'FRP COVER',
+        unit: (prod?.unit || 'PCS').toUpperCase(),
+        quantityBefore: Number(sh.beforeAvailableQuantity ?? sh.beforeQuantity ?? 0),
+        dispatchedQuantity: dispatchedQty,
+        quantityAfter: Number(sh.afterAvailableQuantity ?? sh.afterQuantity ?? 0),
+        vehicleNumber: 'Direct Daily Dispatch Log',
+        customerName: 'Factory Staging / Daily Dispatch',
+        dispatchedAt: sh.createdAt ? (typeof sh.createdAt.toISOString === 'function' ? sh.createdAt.toISOString() : new Date(sh.createdAt).toISOString()) : new Date().toISOString(),
+        createdBy: sh.actor || 'Dispatch Executive',
+      });
+    }
+
+    history.sort((a, b) => new Date(b.dispatchedAt).getTime() - new Date(a.dispatchedAt).getTime());
+
     return history;
   }
 

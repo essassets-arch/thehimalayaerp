@@ -1,12 +1,15 @@
 'use client';
 
 import React from 'react';
-import DispatchPortal from '../../../../modules/dispatch/pages/DispatchPortal';
+import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
 
 export default function SuperAdminFinishedGoodsPage() {
   return (
-    <div className="w-full pb-12 pt-1 px-1 max-w-[1600px] mx-auto">
-      <DispatchPortal view="finished-goods" />
-    </div>
+    <FinishedGoodsStockView
+      readOnly={false}
+      role="super-admin"
+      title="SUPER ADMIN INVENTORY MASTER — Finished Goods"
+      subtitle="Complete unified real-time finished goods stock ledger, production in, dispatch out, and audit transaction logs"
+    />
   );
 }

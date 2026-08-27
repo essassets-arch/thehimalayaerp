@@ -379,12 +379,7 @@ export class InventoryService {
     };
   }
 
-  async getFinishedGoodsHistory(companyId: string, productId: string) {
-    return this.prisma.stockHistory.findMany({
-      where: { companyId, productId },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
+
 
   async stockInFinishedGoods(
     tx: Prisma.TransactionClient,
@@ -531,10 +526,50 @@ export class InventoryService {
       FOR UPDATE
     `;
 
-    const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+    let totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+
+    // Auto-materialize any unmaterialized ready work orders for this product if needed
+    if (totalAvail < qty) {
+      const readyWos = await tx.workOrder.findMany({
+        where: {
+          status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] },
+          OR: [
+            { salesOrderItem: { productId } },
+            { salesOrderItem: { product: { id: productId } } }
+          ],
+          FinishedGoods: null
+        },
+        include: { salesOrderItem: true }
+      });
+
+      for (const wo of readyWos) {
+        const woQty = Number(wo.quantity || 1);
+        const createdFg = await tx.finishedGoods.create({
+          data: {
+            workOrderId: wo.id,
+            productId,
+            quantity: woQty,
+            availableQuantity: woQty,
+            reservedQuantity: 0,
+            unit: (wo as any).salesOrderItem?.unit || 'PCS',
+            status: 'AVAILABLE',
+            receivedById: userId,
+          }
+        });
+        fgRecords.push(createdFg);
+        totalAvail += woQty;
+      }
+    }
+
     if (qty > totalAvail) {
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: { name: true, sku: true, unit: true }
+      });
+      const prodName = product?.name || product?.sku || productId;
+      const unit = product?.unit || 'PCS';
       throw new BadRequestException(
-        `Insufficient finished goods available stock. Available: ${totalAvail}, Requested: ${qty}.`
+        `Insufficient finished goods available stock for "${prodName}". Available: ${totalAvail} ${unit}, Requested: ${qty} ${unit}.`
       );
     }
 
@@ -548,7 +583,7 @@ export class InventoryService {
       const deduct = Math.min(currentAvail, remainingToDeduct);
       if (deduct <= 0) continue;
 
-      const newAvail = currentAvail - deduct;
+      const newAvail = Math.max(0, currentAvail - deduct);
       const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
 
       await tx.finishedGoods.update({
@@ -562,10 +597,10 @@ export class InventoryService {
       remainingToDeduct -= deduct;
     }
 
-    const afterQtyTotal = beforeQtyTotal - qty;
-    const afterAvailTotal = beforeAvailTotal - qty;
+    const afterQtyTotal = Math.max(0, beforeQtyTotal - qty);
+    const afterAvailTotal = Math.max(0, beforeAvailTotal - qty);
 
-    // 2. Create StockHistory record
+    // 2. Create StockHistory record with exact reference details
     await tx.stockHistory.create({
       data: {
         companyId,
@@ -700,8 +735,104 @@ export class InventoryService {
         beforeAvailableQuantity: beforeAvailTotal,
         afterAvailableQuantity: afterAvailTotal,
         sourceType: 'MANUAL',
-        remarks: reason || 'Manual adjustment',
+        referenceNumber: 'ADJ-' + Date.now().toString().slice(-6),
+        remarks: reason || 'Manual stock adjustment',
       },
     });
+  }
+
+  async getFinishedGoodsHistory(companyId: string, productId: string) {
+    let resolvedProductId = productId;
+    const cleanId = (productId || '').replace(/^fg-prod-/, '').replace(/^prod-/, '');
+
+    const prod = await this.prisma.product.findFirst({
+      where: {
+        OR: [
+          { id: productId },
+          { id: cleanId },
+          { sku: productId },
+          { sku: cleanId },
+          { publicId: productId },
+          { publicId: cleanId },
+        ],
+      },
+    });
+
+    if (prod) {
+      resolvedProductId = prod.id;
+    }
+
+    const histories = await this.prisma.stockHistory.findMany({
+      where: {
+        productId: resolvedProductId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const actorIds = Array.from(new Set(histories.map((h) => h.actor).filter(Boolean)));
+    const users = actorIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: actorIds as string[] } },
+          select: { id: true, name: true, email: true },
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const mapped = histories.map((h) => {
+      const u = h.actor ? userMap.get(h.actor) : null;
+      return {
+        id: h.id,
+        createdAt: h.createdAt,
+        eventType: h.event,
+        quantityChange: Number(h.quantity || 0),
+        beforeQuantity: Number(h.beforeQuantity ?? 0),
+        afterQuantity: Number(h.afterQuantity ?? 0),
+        beforeAvailableQuantity: Number(h.beforeAvailableQuantity ?? 0),
+        afterAvailableQuantity: Number(h.afterAvailableQuantity ?? 0),
+        sourceType: h.sourceType || 'MANUAL',
+        referenceNumber: h.referenceNumber || h.sourceId || '—',
+        actor: h.actor,
+        user: u ? { name: u.name || u.email } : { name: h.actor || 'System' },
+        remarks: h.remarks || '—',
+      };
+    });
+
+    // If no stock history logs yet, check if there are FinishedGoods / WorkOrder entries
+    if (mapped.length === 0 && prod) {
+      const fgRecords = await this.prisma.finishedGoods.findMany({
+        where: { productId: prod.id },
+        include: {
+          workOrder: {
+            include: {
+              productionPlan: {
+                include: { salesOrder: true },
+              },
+            },
+          },
+        },
+      });
+
+      for (const fg of fgRecords) {
+        const qty = Number(fg.quantity || 0);
+        mapped.push({
+          id: `init-${fg.id}`,
+          createdAt: fg.receivedAt || new Date(),
+          eventType: 'PRODUCTION_IN',
+          quantityChange: qty,
+          beforeQuantity: 0,
+          afterQuantity: qty,
+          beforeAvailableQuantity: 0,
+          afterAvailableQuantity: Number(fg.availableQuantity || qty),
+          sourceType: 'INITIAL_STOCK',
+          referenceNumber: fg.workOrder?.workOrderNumber || 'INIT-STOCK',
+          actor: fg.receivedById || 'System',
+          user: { name: 'System / Staging Area' },
+          remarks: `Initial finished goods stock batch (${fg.status})`,
+        });
+      }
+    }
+
+    return mapped;
   }
 }

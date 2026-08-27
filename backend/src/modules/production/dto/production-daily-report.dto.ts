@@ -6,88 +6,107 @@ import {
   ValidateNested,
   Min,
   IsInt,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDailyReportItemDto {
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  productId?: string;
+  productId?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  customProductName?: string;
+  customProductName?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsInt()
-  srNo?: number;
+  srNo?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  size?: string;
+  size?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  type?: string;
+  type?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  capacity?: string;
+  capacity?: string | null;
 
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  coverQty?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  coverUnitWeight?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  actualCoverWeight?: number;
-
-  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsInt()
   @Min(0)
-  frameQty?: number;
+  coverQty?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
   @Min(0)
-  frameUnitWeight?: number;
+  coverUnitWeight?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsNumber()
   @Min(0)
-  actualFrameWeight?: number;
+  actualCoverWeight?: number | null;
 
   @IsOptional()
-  @IsString()
-  weightOverrideReason?: string;
-
-  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsInt()
   @Min(0)
-  setQty?: number;
+  frameQty?: number | null;
 
   @IsOptional()
-  @IsString()
-  workOrderId?: string;
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsNumber()
+  @Min(0)
+  frameUnitWeight?: number | null;
 
   @IsOptional()
-  @IsString()
-  productionPlanId?: string;
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsNumber()
+  @Min(0)
+  actualFrameWeight?: number | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  salesOrderId?: string;
+  weightOverrideReason?: string | null;
 
   @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsInt()
+  @Min(0)
+  setQty?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
   @IsString()
-  remarks?: string;
+  workOrderId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsString()
+  productionPlanId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsString()
+  salesOrderId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null && v !== undefined)
+  @IsString()
+  remarks?: string | null;
 }
 
 export class CreateDailyReportDto {

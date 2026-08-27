@@ -760,21 +760,22 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         reportDate,
         shift,
         supervisorName,
+        dispatchExecutive: supervisorName,
         items: rows.map((r, idx) => ({
           srNo: idx + 1,
-          productId: r.productId || null,
-          size: r.size,
-          type: r.type,
-          capacity: r.capacity,
+          productId: r.productId || undefined,
+          size: r.size || undefined,
+          type: r.type || undefined,
+          capacity: r.capacity || undefined,
           coverQty: Number(r.coverQty || 0),
           coverUnitWeight: Number(r.coverUnitWeight || 0),
-          actualCoverWeight: r.actualCoverWeight !== '' ? Number(r.actualCoverWeight) : null,
+          actualCoverWeight: (r.actualCoverWeight !== '' && r.actualCoverWeight !== null && !isNaN(Number(r.actualCoverWeight))) ? Number(r.actualCoverWeight) : undefined,
           frameQty: Number(r.frameQty || 0),
           frameUnitWeight: Number(r.frameUnitWeight || 0),
-          actualFrameWeight: r.actualFrameWeight !== '' ? Number(r.actualFrameWeight) : null,
-          weightOverrideReason: r.weightOverrideReason || null,
+          actualFrameWeight: (r.actualFrameWeight !== '' && r.actualFrameWeight !== null && !isNaN(Number(r.actualFrameWeight))) ? Number(r.actualFrameWeight) : undefined,
+          weightOverrideReason: r.weightOverrideReason || undefined,
           setQty: Number(r.setQty || 0),
-          remarks: r.remarks || null
+          remarks: r.remarks || undefined
         }))
       };
 
@@ -854,7 +855,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
       Swal.fire({
         icon: 'warning',
         title: 'Validation Error',
-        text: 'Please select a catalog product for at least one production row.'
+        text: `Please select a catalog product for at least one ${isDispatch ? 'dispatch' : 'production'} row.`
       });
       return;
     }
@@ -864,14 +865,16 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
       Swal.fire({
         icon: 'error',
         title: 'Validation Error',
-        text: 'Production quantities and weights cannot be negative.'
+        text: 'Quantities and weights cannot be negative.'
       });
       return;
     }
 
     const confirm = await Swal.fire({
-      title: 'Submit Daily Production Report?',
-      text: 'After submission, report entries will be locked for review and approval.',
+      title: isDispatch ? 'Submit Daily Dispatch Report?' : 'Submit Daily Production Report?',
+      text: isDispatch
+        ? 'After submission, report entries will be locked and finished goods stock will be deducted.'
+        : 'After submission, report entries will be locked and finished goods stock will be updated.',
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Submit Report',
@@ -887,21 +890,22 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         reportDate,
         shift,
         supervisorName,
+        dispatchExecutive: supervisorName,
         items: rows.map((r, idx) => ({
           srNo: idx + 1,
-          productId: r.productId || null,
-          size: r.size,
-          type: r.type,
-          capacity: r.capacity,
+          productId: r.productId || undefined,
+          size: r.size || undefined,
+          type: r.type || undefined,
+          capacity: r.capacity || undefined,
           coverQty: Number(r.coverQty || 0),
           coverUnitWeight: Number(r.coverUnitWeight || 0),
-          actualCoverWeight: r.actualCoverWeight !== '' ? Number(r.actualCoverWeight) : null,
+          actualCoverWeight: (r.actualCoverWeight !== '' && r.actualCoverWeight !== null && !isNaN(Number(r.actualCoverWeight))) ? Number(r.actualCoverWeight) : undefined,
           frameQty: Number(r.frameQty || 0),
           frameUnitWeight: Number(r.frameUnitWeight || 0),
-          actualFrameWeight: r.actualFrameWeight !== '' ? Number(r.actualFrameWeight) : null,
-          weightOverrideReason: r.weightOverrideReason || null,
+          actualFrameWeight: (r.actualFrameWeight !== '' && r.actualFrameWeight !== null && !isNaN(Number(r.actualFrameWeight))) ? Number(r.actualFrameWeight) : undefined,
+          weightOverrideReason: r.weightOverrideReason || undefined,
           setQty: Number(r.setQty || 0),
-          remarks: r.remarks || null
+          remarks: r.remarks || undefined
         }))
       };
 
@@ -928,14 +932,19 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         setStatus(submitted.status);
         setLastUpdated(submitted.updatedAt);
 
-        // Invalidate finished goods cache
+        // Invalidate finished goods and daily report caches
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-dispatch-history"] });
+        queryClient.invalidateQueries({ queryKey: ["dispatch-daily-reports"] });
+        queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
 
         Swal.fire({
           icon: 'success',
           title: 'Report Submitted',
-          text: `Daily Production Report ${submitted.reportNo} submitted successfully!`
+          text: isDispatch
+            ? `Daily Dispatch Report ${submitted.reportNo} submitted successfully! Finished goods stock has been deducted.`
+            : `Daily Production Report ${submitted.reportNo} submitted successfully!`
         });
       }
     } catch (err) {
@@ -951,7 +960,7 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
             const result = await Swal.fire({
               icon: 'warning',
               title: 'Report Already Exists',
-              text: `A production report (${check.report.reportNo}) already exists for ${reportDate} [${shift} shift] with status '${check.report.status}'. Would you like to load and view/edit this report?`,
+              text: `A ${isDispatch ? 'dispatch' : 'production'} report (${check.report.reportNo}) already exists for ${reportDate} [${shift} shift] with status '${check.report.status}'. Would you like to load and view/edit this report?`,
               showCancelButton: true,
               confirmButtonText: 'Yes, Load Existing Report',
               cancelButtonText: 'Cancel'
@@ -978,8 +987,10 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
   const handleReopenReport = async () => {
     if (!currentReportId) return;
     const confirm = await Swal.fire({
-      title: 'Reopen Daily Production Report?',
-      text: 'This will reverse the finished goods stock posted from this report in the inventory ledger and return the report to REOPENED so it can be edited.',
+      title: isDispatch ? 'Reopen Daily Dispatch Report?' : 'Reopen Daily Production Report?',
+      text: isDispatch
+        ? 'This will reverse the deducted finished goods stock back into inventory and return the report to REOPENED for editing.'
+        : 'This will reverse the finished goods stock posted from this report in the inventory ledger and return the report to REOPENED so it can be edited.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#2563eb',
@@ -999,10 +1010,15 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         setLastUpdated(res.updatedAt);
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-dispatch-history"] });
+        queryClient.invalidateQueries({ queryKey: ["dispatch-daily-reports"] });
+        queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
         Swal.fire({
           icon: 'success',
           title: 'Report Reopened',
-          text: `Daily Report ${res.reportNo} is now reopened for editing. Posted production stock has been reversed.`
+          text: isDispatch
+            ? `Daily Dispatch Report ${res.reportNo} is now reopened for editing. Deducted stock has been restored.`
+            : `Daily Report ${res.reportNo} is now reopened for editing. Posted production stock has been reversed.`
         });
       }
     } catch (err) {
@@ -1020,8 +1036,10 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
   const handleCancelReport = async () => {
     if (!currentReportId) return;
     const confirm = await Swal.fire({
-      title: 'Cancel Daily Production Report?',
-      text: 'This will reverse the finished goods stock posted from this report in the inventory ledger and mark the report as CANCELLED.',
+      title: isDispatch ? 'Cancel Daily Dispatch Report?' : 'Cancel Daily Production Report?',
+      text: isDispatch
+        ? 'This will reverse the deducted finished goods stock back into inventory and mark the report as CANCELLED.'
+        : 'This will reverse the finished goods stock posted from this report in the inventory ledger and mark the report as CANCELLED.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
@@ -1040,6 +1058,9 @@ function SmartProductCombobox({ value, disabled, products, onChange }) {
         setLastUpdated(res.updatedAt);
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-dispatch-history"] });
+        queryClient.invalidateQueries({ queryKey: ["dispatch-daily-reports"] });
+        queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
         Swal.fire({
           icon: 'success',
           title: 'Report Cancelled',

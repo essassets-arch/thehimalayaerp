@@ -320,26 +320,10 @@ export class ProductionDailyReportService {
    * Check duplicate report for companyId, date, shift.
    */
   async checkDuplicate(companyId: string, dateStr: string, shift: string) {
-    const reportDate = new Date(dateStr);
-    reportDate.setHours(0, 0, 0, 0);
-
-    const existing = await this.prisma.productionDailyReport.findFirst({
-      where: {
-        companyId,
-        reportDate,
-        shift,
-      },
-      select: {
-        id: true,
-        reportNo: true,
-        status: true,
-        createdAt: true,
-      },
-    });
-
+    // Multiple reports per day and shift are allowed
     return {
-      exists: !!existing,
-      report: existing,
+      exists: false,
+      report: null,
     };
   }
 

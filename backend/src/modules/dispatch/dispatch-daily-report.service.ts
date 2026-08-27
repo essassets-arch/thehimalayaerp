@@ -55,7 +55,6 @@ export class DispatchDailyReportService {
       ? await this.prisma.product.findMany({
           where: {
             id: { in: productIds as string[] },
-            companyId,
           },
         })
       : [];
@@ -302,27 +301,10 @@ export class DispatchDailyReportService {
   }
 
   async checkDuplicate(companyId: string, dateStr: string, shift: string, dispatchType: string) {
-    const reportDate = new Date(dateStr);
-    reportDate.setHours(0, 0, 0, 0);
-
-    const existing = await this.prisma.dispatchDailyReport.findFirst({
-      where: {
-        companyId,
-        reportDate,
-        shift,
-        dispatchType,
-      },
-      select: {
-        id: true,
-        reportNo: true,
-        status: true,
-        createdAt: true,
-      },
-    });
-
+    // Multiple reports per day and shift are allowed
     return {
-      exists: !!existing,
-      report: existing,
+      exists: false,
+      report: null,
     };
   }
 
@@ -386,7 +368,7 @@ export class DispatchDailyReportService {
           reportNo,
           reportDate,
           shift: dto.shift || 'Morning',
-          dispatchExecutive: dto.dispatchExecutive || null,
+          dispatchExecutive: dto.dispatchExecutive || dto.supervisorName || null,
           dispatchType,
           status: 'DRAFT',
           totalCovers,
@@ -423,24 +405,27 @@ export class DispatchDailyReportService {
     dto: UpdateDispatchDailyReportDto,
     dispatchType: string,
   ) {
-    const report = await this.prisma.dispatchDailyReport.findFirst({
-      where: { id, companyId, dispatchType },
-    });
-
-    if (!report) {
-      throw new NotFoundException(`Report with ID ${id} not found`);
-    }
-
-    if (report.status === 'APPROVED') {
-      throw new ForbiddenException(`Cannot edit an APPROVED dispatch report`);
-    }
-
-    const reportDate = dto.reportDate ? new Date(dto.reportDate) : report.reportDate;
-    reportDate.setHours(0, 0, 0, 0);
-
     return this.prisma.$transaction(async (tx) => {
-      let itemsUpdate: any = {};
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId", "dispatchType", "reportDate", "shift", "dispatchExecutive", "totalCovers", "totalFrames", "totalSets", "totalCoverWeight", "totalFrameWeight", "totalWeight"
+        FROM "DispatchDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
 
+      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
+        throw new NotFoundException(`Report with ID ${id} not found`);
+      }
+
+      if (report.status === 'APPROVED') {
+        throw new ForbiddenException(`Cannot edit an APPROVED dispatch report`);
+      }
+
+      const reportDate = dto.reportDate ? new Date(dto.reportDate) : new Date(report.reportDate);
+      reportDate.setHours(0, 0, 0, 0);
+
+      let itemsUpdate: any = {};
       let totalCovers = report.totalCovers;
       let totalFrames = report.totalFrames;
       let totalSets = report.totalSets;
@@ -456,6 +441,85 @@ export class DispatchDailyReportService {
         totalCoverWeight = processed.totalCoverWeight;
         totalFrameWeight = processed.totalFrameWeight;
         totalWeight = processed.totalWeight;
+
+        // If report is already SUBMITTED with posted stock, handle inventory deltas
+        if (report.status === 'SUBMITTED' && report.stockPostedAt) {
+          const oldItems = await tx.dispatchDailyReportItem.findMany({
+            where: { reportId: id },
+          });
+
+          const oldItemsMap = new Map<string, number>();
+          for (const item of oldItems) {
+            if (item.productId) {
+              const current = oldItemsMap.get(item.productId) || 0;
+              oldItemsMap.set(item.productId, current + Number(item.setQty || 0));
+            }
+          }
+
+          const newItemsMap = new Map<string, number>();
+          for (const item of processed.processedItems) {
+            if (item.productId) {
+              const current = newItemsMap.get(item.productId) || 0;
+              newItemsMap.set(item.productId, current + Number(item.setQty || 0));
+            }
+          }
+
+          // 1. Process updated or new products (delta)
+          for (const [productId, newQty] of newItemsMap.entries()) {
+            const oldQty = oldItemsMap.get(productId) || 0;
+            const diff = newQty - oldQty;
+            if (diff > 0) {
+              // More dispatched -> stock out delta
+              await this.inventoryService.stockOutFinishedGoods(
+                tx,
+                companyId,
+                productId,
+                diff,
+                'DISPATCH_REPORT_UPDATE',
+                id,
+                null,
+                report.reportNo,
+                userId,
+                `Adjustment (+${diff}) from Dispatch Report update`
+              );
+            } else if (diff < 0) {
+              // Less dispatched -> stock in (reversal)
+              await this.inventoryService.stockInFinishedGoods(
+                tx,
+                companyId,
+                productId,
+                Math.abs(diff),
+                'DISPATCH_REPORT_UPDATE',
+                id,
+                null,
+                report.reportNo,
+                userId,
+                `Adjustment (${diff}) from Dispatch Report update`,
+                'DISPATCH_REVERSAL'
+              );
+            }
+            oldItemsMap.delete(productId);
+          }
+
+          // 2. Process products completely removed
+          for (const [productId, oldQty] of oldItemsMap.entries()) {
+            if (oldQty > 0) {
+              await this.inventoryService.stockInFinishedGoods(
+                tx,
+                companyId,
+                productId,
+                oldQty,
+                'DISPATCH_REPORT_UPDATE',
+                id,
+                null,
+                report.reportNo,
+                userId,
+                `Adjustment (-${oldQty}) - product removed from Dispatch Report`,
+                'DISPATCH_REVERSAL'
+              );
+            }
+          }
+        }
 
         await tx.dispatchDailyReportItem.deleteMany({
           where: { reportId: id },
@@ -519,28 +583,37 @@ export class DispatchDailyReportService {
 
   async submitReport(companyId: string, userId: string, id: string, dispatchType: string) {
     return this.prisma.$transaction(async (tx) => {
-      const report = await tx.dispatchDailyReport.findUnique({
-        where: { id },
-        include: { items: true },
-      });
+      // 1. SELECT ... FOR UPDATE row-level locking for concurrency & double-submit protection
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId", "dispatchType"
+        FROM "DispatchDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
 
       if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
-      if (report.items.length === 0) {
+      // Idempotency guard: do not deduct again if already posted
+      if (report.stockPostedAt) {
+        throw new BadRequestException(`Stock has already been deducted for report ${report.reportNo}`);
+      }
+
+      if (report.status !== 'DRAFT' && report.status !== 'REOPENED') {
+        throw new BadRequestException(`Only DRAFT or REOPENED reports can be submitted (current status: ${report.status})`);
+      }
+
+      const items = await tx.dispatchDailyReportItem.findMany({
+        where: { reportId: id },
+      });
+
+      if (items.length === 0) {
         throw new BadRequestException(`Cannot submit an empty report with no dispatch rows`);
       }
 
-      if (report.status !== 'DRAFT') {
-        throw new BadRequestException(`Only DRAFT reports can be submitted (current status: ${report.status})`);
-      }
-
-      if (report.stockPostedAt) {
-        throw new BadRequestException(`Stock has already been deducted for this report`);
-      }
-
-      for (const item of report.items) {
+      for (const item of items) {
         if (item.coverQty < 0 || item.frameQty < 0 || item.setQty < 0) {
           throw new BadRequestException(`Invalid negative quantity found in line item Sr #${item.srNo}`);
         }
@@ -549,22 +622,29 @@ export class DispatchDailyReportService {
         }
       }
 
-      // Deduct stock for each product row
-      for (const item of report.items) {
+      // Aggregate duplicate product lines before stock deduction
+      const productSetsMap = new Map<string, number>();
+      for (const item of items) {
         if (item.productId && item.setQty > 0) {
-          await this.inventoryService.stockOutFinishedGoods(
-            tx,
-            companyId,
-            item.productId,
-            item.setQty,
-            'DISPATCH_REPORT',
-            report.id,
-            item.id,
-            report.reportNo,
-            userId,
-            `Dispatch Report submission ${report.reportNo}`
-          );
+          const current = productSetsMap.get(item.productId) || 0;
+          productSetsMap.set(item.productId, current + Number(item.setQty || 0));
         }
+      }
+
+      // Deduct stock for each distinct product line (atomic rollback on any failure)
+      for (const [productId, setQty] of productSetsMap.entries()) {
+        await this.inventoryService.stockOutFinishedGoods(
+          tx,
+          companyId,
+          productId,
+          setQty,
+          'DISPATCH_REPORT',
+          report.id,
+          null,
+          report.reportNo,
+          userId,
+          `Dispatch Report submission ${report.reportNo}`
+        );
       }
 
       const updated = await tx.dispatchDailyReport.update({
@@ -591,39 +671,127 @@ export class DispatchDailyReportService {
     });
   }
 
-  async cancelReport(companyId: string, userId: string, id: string, dispatchType: string) {
+  async reopenReport(companyId: string, userId: string, id: string, dispatchType: string) {
     return this.prisma.$transaction(async (tx) => {
-      const report = await tx.dispatchDailyReport.findUnique({
-        where: { id },
-        include: { items: true },
-      });
+      // 1. SELECT ... FOR UPDATE row-level locking
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId", "dispatchType"
+        FROM "DispatchDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
 
       if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
       if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED') {
-        throw new BadRequestException(`Only SUBMITTED or APPROVED reports can be cancelled`);
+        throw new BadRequestException(`Cannot reopen report in ${report.status} status`);
       }
 
-      // Re-add stock back since dispatch was cancelled
+      // Reverse stock if it was posted (idempotent guard)
       if (report.stockPostedAt) {
-        for (const item of report.items) {
+        const items = await tx.dispatchDailyReportItem.findMany({
+          where: { reportId: id },
+        });
+
+        // Aggregate duplicate product lines before reversal
+        const productSetsMap = new Map<string, number>();
+        for (const item of items) {
           if (item.productId && item.setQty > 0) {
-            await this.inventoryService.stockInFinishedGoods(
-              tx,
-              companyId,
-              item.productId,
-              item.setQty,
-              'DISPATCH_REPORT_CANCEL',
-              report.id,
-              item.id,
-              report.reportNo,
-              userId,
-              `Cancellation reversal of Dispatch Report ${report.reportNo}`,
-              'DISPATCH_REVERSAL'
-            );
+            const current = productSetsMap.get(item.productId) || 0;
+            productSetsMap.set(item.productId, current + Number(item.setQty || 0));
           }
+        }
+
+        for (const [productId, setQty] of productSetsMap.entries()) {
+          await this.inventoryService.stockInFinishedGoods(
+            tx,
+            companyId,
+            productId,
+            setQty,
+            'DISPATCH_REPORT_REVERSAL',
+            report.id,
+            null,
+            report.reportNo,
+            userId,
+            `Stock reversal for reopened dispatch report ${report.reportNo}`,
+            'DISPATCH_REVERSAL'
+          );
+        }
+      }
+
+      const updated = await tx.dispatchDailyReport.update({
+        where: { id },
+        data: {
+          status: 'REOPENED',
+          stockPostedAt: null,
+          stockPostedBy: null,
+          stockTransactionId: null,
+          updatedById: userId,
+        },
+        include: {
+          createdBy: { select: { id: true, name: true, email: true } },
+          items: {
+            orderBy: { srNo: 'asc' },
+            include: { product: true },
+          },
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  async cancelReport(companyId: string, userId: string, id: string, dispatchType: string) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. SELECT ... FOR UPDATE row-level locking
+      const reports = await tx.$queryRaw<any[]>`
+        SELECT id, status, "stockPostedAt", "reportNo", "companyId", "dispatchType"
+        FROM "DispatchDailyReport"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+      const report = reports[0];
+
+      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
+        throw new NotFoundException(`Report with ID ${id} not found`);
+      }
+
+      if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED' && report.status !== 'REOPENED') {
+        throw new BadRequestException(`Only SUBMITTED, APPROVED or REOPENED reports can be cancelled`);
+      }
+
+      // Re-add stock back since dispatch was cancelled (idempotent guard)
+      if (report.stockPostedAt) {
+        const items = await tx.dispatchDailyReportItem.findMany({
+          where: { reportId: id },
+        });
+
+        // Aggregate duplicate product lines before reversal
+        const productSetsMap = new Map<string, number>();
+        for (const item of items) {
+          if (item.productId && item.setQty > 0) {
+            const current = productSetsMap.get(item.productId) || 0;
+            productSetsMap.set(item.productId, current + Number(item.setQty || 0));
+          }
+        }
+
+        for (const [productId, setQty] of productSetsMap.entries()) {
+          await this.inventoryService.stockInFinishedGoods(
+            tx,
+            companyId,
+            productId,
+            setQty,
+            'DISPATCH_REPORT_CANCEL',
+            report.id,
+            null,
+            report.reportNo,
+            userId,
+            `Cancellation reversal of Dispatch Report ${report.reportNo}`,
+            'DISPATCH_REVERSAL'
+          );
         }
       }
 

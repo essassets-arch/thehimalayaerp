@@ -26,6 +26,9 @@ export interface StockRow {
   quantity: number;
   availableQuantity: number;
   reservedQuantity: number;
+  openingStock?: number;
+  productionIn?: number;
+  dispatchOut?: number;
   unit: string;
   status: string;
   receivedAt: string;
@@ -54,7 +57,7 @@ export interface DispatchHistoryRow {
 
 export interface FinishedGoodsStockViewProps {
   readOnly?: boolean;
-  role?: "production" | "dispatch" | "plant-head";
+  role?: "production" | "dispatch" | "plant-head" | "super-admin";
   title?: string;
   subtitle?: string;
 }
@@ -94,13 +97,19 @@ export default function FinishedGoodsStockView({
   const [historyLogsLoading, setHistoryLogsLoading] = useState(false);
 
   const handleViewHistory = async (productId: string, productName: string) => {
+    const targetId = (productId || '').replace(/^fg-prod-/, '').replace(/^prod-/, '');
     setHistoryModalProductId(productId);
     setHistoryModalProductName(productName);
     setHistoryModalOpen(true);
     setHistoryLogsLoading(true);
     try {
-      const logs = await backendFetch<any[]>(`/api/backend/production/finished-goods/${productId}/history`);
-      setHistoryLogs(Array.isArray(logs) ? logs : []);
+      const response: any = await backendFetch(`/api/backend/production/finished-goods/${targetId}/history`);
+      const logs = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+        ? response
+        : [];
+      setHistoryLogs(logs);
     } catch (err: any) {
       toast.error(err.message || "Failed to load stock history logs");
       setHistoryLogs([]);
@@ -488,11 +497,13 @@ export default function FinishedGoodsStockView({
     ? "DISPATCH INVENTORY MASTER — Finished Goods"
     : role === "plant-head"
     ? "PLANT HEAD INVENTORY MASTER — Finished Goods"
+    : role === "super-admin"
+    ? "SUPER ADMIN INVENTORY MASTER — Finished Goods"
     : "PRODUCTION INVENTORY MASTER — Finished Goods — All Stock";
 
   const defaultSubtitle = readOnly
     ? "Real-time finished goods stock registry synchronized with production master (Read Only)"
-    : "Complete stock registry of finished goods items produced from assembly line";
+    : "Complete real-time stock registry of finished goods items, production in, dispatch out, and stock adjustments";
 
   return (
     <div className={styles.page}>
@@ -508,6 +519,8 @@ export default function FinishedGoodsStockView({
                 ? "DISPATCH LOGISTICS & WAREHOUSE"
                 : role === "plant-head"
                 ? "PLANT HEAD EXECUTIVE OVERVIEW"
+                : role === "super-admin"
+                ? "SUPER ADMIN EXECUTIVE INVENTORY MASTER"
                 : "PRODUCTION INVENTORY MASTER"}
             </span>
             <h1>{title || defaultTitle}</h1>
@@ -659,7 +672,7 @@ export default function FinishedGoodsStockView({
                         </div>
 
                         {/* Column 2: Stocks Breakdown */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                             <span style={{ fontSize: "9px", textTransform: "uppercase", color: "#8893a7", fontWeight: "800" }}>
                               Opening
@@ -676,7 +689,15 @@ export default function FinishedGoodsStockView({
                               +{Number(row.productionIn || 0).toLocaleString()}
                             </span>
                           </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", gridColumn: "span 2", marginTop: "4px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "9px", textTransform: "uppercase", color: "#8893a7", fontWeight: "800" }}>
+                              Disp Out
+                            </span>
+                            <span style={{ fontSize: "12px", color: "#dc2626", fontWeight: "700" }}>
+                              {Number(row.dispatchOut || 0) > 0 ? `-${Number(row.dispatchOut).toLocaleString()}` : "0"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", gridColumn: "span 3", marginTop: "4px" }}>
                             <span style={{ fontSize: "9px", textTransform: "uppercase", color: "#8893a7", fontWeight: "800" }}>
                               Available / Reserved
                             </span>
@@ -750,7 +771,7 @@ export default function FinishedGoodsStockView({
                             fontWeight: "700",
                             borderRadius: "4px"
                           }}
-                          onClick={() => handleViewHistory(row.productId, row.productName)}
+                          onClick={() => handleViewHistory(row.productId || row.id, row.productName)}
                         >
                           <History size={12} />
                         </button>
@@ -769,6 +790,7 @@ export default function FinishedGoodsStockView({
                     <th>Item / Description Name</th>
                     <th>Opening Stock</th>
                     <th>Production In</th>
+                    <th>Dispatch Out</th>
                     <th>Reserved Qty</th>
                     <th>Available Stock</th>
                     <th>Stock Status</th>
@@ -778,13 +800,13 @@ export default function FinishedGoodsStockView({
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                      <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
                         Loading live stock data...
                       </td>
                     </tr>
                   ) : paginatedData.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
+                      <td colSpan={9} style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
                         No finished goods stock items found.
                       </td>
                     </tr>
@@ -800,10 +822,13 @@ export default function FinishedGoodsStockView({
                             {row.productName}
                           </td>
                           <td data-label="Opening Stock">
-                            {Number((row as any).openingStock || 0).toLocaleString()}
+                            {Number(row.openingStock || 0).toLocaleString()}
                           </td>
                           <td data-label="Production In" style={{ color: "#16a34a", fontWeight: 700 }}>
-                            +{Number((row as any).productionIn || 0).toLocaleString()}
+                            +{Number(row.productionIn || 0).toLocaleString()}
+                          </td>
+                          <td data-label="Dispatch Out" style={{ color: "#dc2626", fontWeight: 700 }}>
+                            {Number(row.dispatchOut || 0) > 0 ? `-${Number(row.dispatchOut).toLocaleString()}` : "0"}
                           </td>
                           <td data-label="Reserved Qty" style={{ color: "#64748b" }}>
                             {Number(row.reservedQuantity).toLocaleString()}
@@ -862,8 +887,8 @@ export default function FinishedGoodsStockView({
                                   cursor: "pointer",
                                   fontWeight: "700"
                                 }}
-                                onClick={() => handleViewHistory(row.productId, row.productName)}
-                                title="View Stock Transaction History"
+                                onClick={() => handleViewHistory(row.productId || row.id, row.productName)}
+                                title="View Stock Audit Trail / Transaction History"
                               >
                                 <History size={12} />
                               </button>
@@ -1169,7 +1194,6 @@ export default function FinishedGoodsStockView({
                         <th style={{ padding: "10px 12px", textAlign: "left" }}>Source</th>
                         <th style={{ padding: "10px 12px", textAlign: "left" }}>Reference No</th>
                         <th style={{ padding: "10px 12px", textAlign: "left" }}>Actor</th>
-                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Remarks</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1194,11 +1218,29 @@ export default function FinishedGoodsStockView({
 
                         // Event types mapping
                         let eventLabel = log.eventType || "—";
-                        if (log.eventType === "PRODUCTION_IN") eventLabel = "Production Entry";
-                        else if (log.eventType === "PRODUCTION_CANCEL_OUT") eventLabel = "Production Reversal";
-                        else if (log.eventType === "DISPATCH_OUT") eventLabel = "Dispatch Out";
-                        else if (log.eventType === "DISPATCH_CANCEL_IN") eventLabel = "Dispatch Reversal";
-                        else if (log.eventType === "ADJUSTMENT") eventLabel = "Manual Adjustment";
+                        let eventBadgeBg = "#f1f5f9";
+                        let eventBadgeColor = "#334155";
+                        if (log.eventType === "PRODUCTION_IN") {
+                          eventLabel = "Production Entry";
+                          eventBadgeBg = "#dcfce7";
+                          eventBadgeColor = "#15803d";
+                        } else if (log.eventType === "PRODUCTION_CANCEL_OUT" || log.eventType === "PRODUCTION_REVERSAL") {
+                          eventLabel = "Production Reversal";
+                          eventBadgeBg = "#fef3c7";
+                          eventBadgeColor = "#b45309";
+                        } else if (log.eventType === "DISPATCH_OUT") {
+                          eventLabel = "Dispatch Out";
+                          eventBadgeBg = "#fee2e2";
+                          eventBadgeColor = "#b91c1c";
+                        } else if (log.eventType === "DISPATCH_CANCEL_IN" || log.eventType === "DISPATCH_REVERSAL") {
+                          eventLabel = "Dispatch Reversal";
+                          eventBadgeBg = "#fef3c7";
+                          eventBadgeColor = "#b45309";
+                        } else if (log.eventType === "ADJUSTMENT") {
+                          eventLabel = "Stock Adjustment";
+                          eventBadgeBg = "#e0e7ff";
+                          eventBadgeColor = "#4338ca";
+                        }
 
                         // Source mapping
                         let sourceLabel = log.sourceType || "—";
@@ -1206,23 +1248,48 @@ export default function FinishedGoodsStockView({
                         else if (log.sourceType === "DISPATCH_REPORT") sourceLabel = "Dispatch Report";
                         else if (log.sourceType === "DISPATCH_REPORT_CANCEL") sourceLabel = "Dispatch Cancel";
                         else if (log.sourceType === "PRODUCTION_REPORT_CANCEL") sourceLabel = "Production Cancel";
+                        else if (log.sourceType === "DISPATCH_REPORT_UPDATE") sourceLabel = "Dispatch Edit";
+                        else if (log.sourceType === "PRODUCTION_REPORT_UPDATE") sourceLabel = "Production Edit";
                         else if (log.sourceType === "MANUAL") sourceLabel = "Manual Entry";
+                        else if (log.sourceType === "INITIAL_STOCK") sourceLabel = "Initial Stock";
 
                         return (
                           <tr key={log.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                            <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{dateStr}</td>
+                            <td style={{ padding: "10px 12px", whiteSpace: "nowrap", color: "#334155", fontWeight: "600" }}>{dateStr}</td>
                             <td style={{ padding: "10px 12px" }}>
-                              <span style={{ fontWeight: "700" }}>{eventLabel}</span>
+                              <span style={{
+                                display: "inline-block",
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11.5px",
+                                fontWeight: "700",
+                                background: eventBadgeBg,
+                                color: eventBadgeColor
+                              }}>
+                                {eventLabel}
+                              </span>
                             </td>
-                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "800", color: impactColor }}>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "800", fontSize: "13px", color: impactColor }}>
                               {impactText}
                             </td>
-                            <td style={{ padding: "10px 12px", textAlign: "right" }}>{Number(log.beforeQuantity ?? 0)}</td>
-                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "700" }}>{Number(log.afterQuantity ?? 0)}</td>
-                            <td style={{ padding: "10px 12px" }}>{sourceLabel}</td>
-                            <td style={{ padding: "10px 12px", fontFamily: "monospace" }}>{log.referenceNumber || "—"}</td>
-                            <td style={{ padding: "10px 12px" }}>{log.user?.name || "—"}</td>
-                            <td style={{ padding: "10px 12px", color: "#64748b" }}>{log.remarks || "—"}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", color: "#64748b" }}>{Number(log.beforeQuantity ?? 0).toLocaleString()}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "700", color: "#0f172a" }}>{Number(log.afterQuantity ?? 0).toLocaleString()}</td>
+                            <td style={{ padding: "10px 12px", color: "#475569", fontWeight: "600" }}>{sourceLabel}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <span style={{
+                                fontFamily: "monospace",
+                                fontWeight: "700",
+                                fontSize: "12px",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                background: "#f8fafc",
+                                border: "1px solid #cbd5e1",
+                                color: "#0f172a"
+                              }}>
+                                {log.referenceNumber || "—"}
+                              </span>
+                            </td>
+                            <td style={{ padding: "10px 12px", color: "#334155", fontWeight: "600" }}>{log.user?.name || log.actor || "System"}</td>
                           </tr>
                         );
                       })}

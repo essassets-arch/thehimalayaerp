@@ -16,7 +16,37 @@ export function round(val: number): number {
   return Math.round((Number(val || 0) + Number.EPSILON) * 100) / 100;
 }
 
-export function calculateSalaryStructure(input: SalaryInputData) {
+export interface CalculatedSalaryOutput {
+  basicSalary: number;
+  hraPercentage: number;
+  hraAmount: number;
+  ltaPercentage: number;
+  ltaAmount: number;
+  educationAllowancePercentage: number;
+  educationAllowanceAmount: number;
+  conveyancePercentage: number;
+  conveyanceAmount: number;
+  grossTotalA: number;
+  employeeEpfPercentage: number;
+  employeeEpfAmount: number;
+  employeeEsicPercentage: number;
+  employeeEsicAmount: number;
+  professionalTaxPercentage: number;
+  professionalTaxAmount: number;
+  totalDeductionB: number;
+  netTakeHomeC: number;
+  companyEpfPercentage: number;
+  companyEpfAmount: number;
+  companyEsicPercentage: number;
+  companyEsicAmount: number;
+  gratuityPercentage: number;
+  gratuityAmount: number;
+  totalCompanyContributionD: number;
+  ctcPerMonthE: number;
+  ctcPerAnnum: number;
+}
+
+export function calculateSalaryStructure(input: SalaryInputData): CalculatedSalaryOutput {
   const basic = round(Number(input.basicSalary) || 0);
   const hraPct = round(Number(input.hraPercentage) || 0);
   const ltaPct = round(Number(input.ltaPercentage) || 0);
@@ -62,6 +92,7 @@ export function calculateSalaryStructure(input: SalaryInputData) {
 
   const totalCompanyContributionD = round(companyEpfAmount + companyEsicAmount + gratuityAmount);
   const ctcPerMonthE = round(grossTotalA + totalCompanyContributionD);
+  const ctcPerAnnum = round(ctcPerMonthE * 12);
 
   return {
     basicSalary: basic,
@@ -90,5 +121,6 @@ export function calculateSalaryStructure(input: SalaryInputData) {
     gratuityAmount,
     totalCompanyContributionD,
     ctcPerMonthE,
+    ctcPerAnnum,
   };
 }

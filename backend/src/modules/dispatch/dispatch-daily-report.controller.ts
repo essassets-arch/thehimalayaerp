@@ -82,6 +82,13 @@ export class Dispatch1DailyReportController {
     return this.service.submitReport(companyId, userId, id, 'DISPATCH_1');
   }
 
+  @Post(':id/reopen')
+  async reopenReport(@Req() req: any, @Param('id') id: string) {
+    const companyId = req.user?.companyId || 'COMP-000001';
+    const userId = req.user?.sub || req.user?.id;
+    return this.service.reopenReport(companyId, userId, id, 'DISPATCH_1');
+  }
+
   @Post(':id/cancel')
   async cancelReport(@Req() req: any, @Param('id') id: string) {
     const companyId = req.user?.companyId || 'COMP-000001';
@@ -150,6 +157,13 @@ export class Dispatch2DailyReportController {
     const companyId = req.user?.companyId || 'COMP-000001';
     const userId = req.user?.sub || req.user?.id;
     return this.service.submitReport(companyId, userId, id, 'DISPATCH_2');
+  }
+
+  @Post(':id/reopen')
+  async reopenReport(@Req() req: any, @Param('id') id: string) {
+    const companyId = req.user?.companyId || 'COMP-000001';
+    const userId = req.user?.sub || req.user?.id;
+    return this.service.reopenReport(companyId, userId, id, 'DISPATCH_2');
   }
 
   @Post(':id/cancel')

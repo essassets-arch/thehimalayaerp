@@ -1,7 +1,15 @@
 'use client';
 
-import DispatchPortal from '@/modules/dispatch/pages/DispatchPortal';
+import React from 'react';
+import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
 
 export default function Dispatch2FinishedGoodsPage() {
-  return <DispatchPortal view="finished-goods" overrideBasePath="/dispatch-2" mode="DISPATCH_2" />;
+  return (
+    <FinishedGoodsStockView
+      readOnly={true}
+      role="dispatch"
+      title="DISPATCH 2 INVENTORY MASTER — Finished Goods"
+      subtitle="Real-time finished goods stock registry synchronized with dispatch and production masters"
+    />
+  );
 }

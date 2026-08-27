@@ -603,32 +603,92 @@ export class ProductionWorkflowService {
         console.log(`[RECONCILE] Found ${unpostedProd.length} unposted submitted production reports. Reconciling...`);
         for (const report of unpostedProd) {
           await this.prisma.$transaction(async (tx) => {
+            const productSetsMap = new Map<string, number>();
             for (const item of report.items) {
               if (item.productId && item.setQty > 0) {
-                await this.inventoryService.stockInFinishedGoods(
-                  tx,
-                  report.companyId || activeCompanyId,
-                  item.productId,
-                  item.setQty,
-                  'PRODUCTION_REPORT',
-                  report.id,
-                  item.id,
-                  report.reportNo,
-                  userId || report.createdById || 'system',
-                  `Reconciled auto-post for report ${report.reportNo}`
-                );
+                productSetsMap.set(item.productId, (productSetsMap.get(item.productId) || 0) + Number(item.setQty || 0));
               }
+            }
+
+            for (const [productId, setQty] of productSetsMap.entries()) {
+              await this.inventoryService.stockInFinishedGoods(
+                tx,
+                report.companyId || activeCompanyId,
+                productId,
+                setQty,
+                'PRODUCTION_REPORT',
+                report.id,
+                null,
+                report.reportNo,
+                userId || report.createdById || 'system',
+                `Reconciled auto-post for report ${report.reportNo}`
+              );
             }
             await tx.productionDailyReport.update({
               where: { id: report.id },
               data: {
                 stockPostedAt: new Date(),
                 stockPostedBy: userId || report.createdById || 'system',
+                stockTransactionId: report.reportNo,
               },
             });
           });
         }
-        console.log('[RECONCILE] Reconciled stock completed successfully.');
+        console.log('[RECONCILE] Reconciled production stock completed successfully.');
+      }
+
+      // Reconcile any unposted submitted dispatch reports
+      const unpostedDispatch = await this.prisma.dispatchDailyReport.findMany({
+        where: {
+          status: 'SUBMITTED',
+          stockPostedAt: null,
+        },
+        include: {
+          items: true,
+        },
+      });
+
+      if (unpostedDispatch.length > 0) {
+        console.log(`[RECONCILE] Found ${unpostedDispatch.length} unposted submitted dispatch reports. Reconciling...`);
+        for (const report of unpostedDispatch) {
+          try {
+            await this.prisma.$transaction(async (tx) => {
+              const productSetsMap = new Map<string, number>();
+              for (const item of report.items) {
+                if (item.productId && item.setQty > 0) {
+                  productSetsMap.set(item.productId, (productSetsMap.get(item.productId) || 0) + Number(item.setQty || 0));
+                }
+              }
+
+              for (const [productId, setQty] of productSetsMap.entries()) {
+                await this.inventoryService.stockOutFinishedGoods(
+                  tx,
+                  report.companyId || activeCompanyId,
+                  productId,
+                  setQty,
+                  'DISPATCH_REPORT',
+                  report.id,
+                  null,
+                  report.reportNo,
+                  userId || report.createdById || 'system',
+                  `Reconciled auto-deduct for dispatch report ${report.reportNo}`
+                );
+              }
+
+              await tx.dispatchDailyReport.update({
+                where: { id: report.id },
+                data: {
+                  stockPostedAt: new Date(),
+                  stockPostedBy: userId || report.createdById || 'system',
+                  stockTransactionId: report.reportNo,
+                },
+              });
+            });
+          } catch (itemErr) {
+            console.error(`[RECONCILE] Could not auto-post dispatch report ${report.reportNo}:`, itemErr);
+          }
+        }
+        console.log('[RECONCILE] Reconciled dispatch stock completed successfully.');
       }
     } catch (reconcileErr) {
       console.error('[RECONCILE] Failed to reconcile unposted reports:', reconcileErr);
@@ -797,6 +857,7 @@ export class ProductionWorkflowService {
           quantity: 0,
           availableQuantity: 0,
           productionIn: 0,
+          dispatchOut: 0,
           openingStock: 0,
           unit: (item.unit || item.product?.unit || 'PCS').toUpperCase(),
           status: 'AVAILABLE',
@@ -849,6 +910,7 @@ export class ProductionWorkflowService {
           quantity: 0,
           availableQuantity: 0,
           productionIn: 0,
+          dispatchOut: 0,
           openingStock: 0,
           unit: (p.unit || 'SET').toUpperCase(),
           status: 'OUT_OF_STOCK',
@@ -865,8 +927,12 @@ export class ProductionWorkflowService {
       if (pId) {
         const prodInVal = prodInMap.get(pId) || 0;
         const dispatchVal = dispatchMap.get(pId) || 0;
+        const dispatchOutVal = Math.abs(dispatchVal);
         existing.productionIn = prodInVal;
-        existing.openingStock = Math.max(0, existing.quantity - prodInVal - dispatchVal);
+        existing.dispatchOut = dispatchOutVal;
+        existing.openingStock = Math.max(0, existing.quantity - prodInVal + dispatchOutVal);
+      } else {
+        existing.dispatchOut = 0;
       }
     }
 

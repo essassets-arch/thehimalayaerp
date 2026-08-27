@@ -3572,7 +3572,7 @@ model ProductionDailyReport {
 
   items               ProductionDailyReportItem[]
 
-  @@unique([companyId, reportDate, shift])
+  @@index([companyId, reportDate, shift])
   @@index([companyId, status])
   @@index([reportDate])
 }
@@ -3661,7 +3661,7 @@ model DispatchDailyReport {
 
   items               DispatchDailyReportItem[]
 
-  @@unique([companyId, reportDate, shift, dispatchType])
+  @@index([companyId, reportDate, shift, dispatchType])
   @@index([companyId, status])
   @@index([reportDate])
 }
