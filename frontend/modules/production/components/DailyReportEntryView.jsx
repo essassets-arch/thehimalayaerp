@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../shared/context/AuthContext';
@@ -29,6 +29,390 @@ import {
 } from 'lucide-react';
 
 import { useQueryClient } from '@tanstack/react-query';
+
+// Helper to parse specifications (Size, Type, Capacity) from product name if not explicitly set
+function parseProductSpecs(name = '') {
+  const upper = (name || '').toUpperCase();
+  const sizeMatch = upper.match(/\b(\d{2,4}\s*[xX*]\s*\d{2,4}|\d{1,2}\s*['"]\s*[xX*]\s*\d{1,2}\s*['"]|\d{1,2}\s*[xX*]\s*\d{1,2})\b/);
+  const size = sizeMatch ? sizeMatch[0].replace(/\s+/g, '').toUpperCase() : '';
+
+  let type = '';
+  if (upper.includes('WGC')) type = 'WGC';
+  else if (upper.includes('MHC')) type = 'MHC';
+  else if (upper.includes('SFRC')) type = 'SFRC';
+  else if (upper.includes('ONGC')) type = 'ONGC';
+  else if (upper.includes('GRATING')) type = 'GRATING';
+  else if (upper.includes('COVER BLOCK') || upper.includes('COVERBLOCK')) type = 'COVER BLOCK';
+  else if (upper.includes('FRP')) type = 'FRP';
+
+  const capMatch = upper.match(/\b(B125|C250|D400|E600|F900|A15|ELD|EHD|LD|MD|HD|2\.5T|5T|10T|12\.5T|20T|25T|40T)\b/);
+  const capacity = capMatch ? capMatch[0] : '';
+
+  return { size, type, capacity };
+}
+
+const SmartProductCombobox = memo(function SmartProductCombobox({ value, disabled, products = [], onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 360, maxHeight: 320 });
+  const inputRef = useRef(null);
+  const popoverRef = useRef(null);
+  const isSelectingRef = useRef(false);
+
+  // Synchronize input query with the external selected value
+  useEffect(() => {
+    if (value) {
+      const p = products.find(prod => prod.id === value);
+      if (p) {
+        setQuery(p.name);
+      }
+    } else {
+      setQuery('');
+    }
+  }, [value, products]);
+
+  const updateCoords = useCallback(() => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      const availableWidth = window.innerWidth - rect.left - 16;
+      const popoverWidth = Math.max(rect.width, Math.min(420, availableWidth));
+      
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const showAbove = spaceBelow < 320 && rect.top > 320;
+      
+      setCoords({
+        top: showAbove ? rect.top - 330 : rect.bottom + 4,
+        left: Math.max(8, rect.left),
+        width: popoverWidth,
+        maxHeight: showAbove ? Math.min(320, rect.top - 16) : Math.min(320, spaceBelow - 16)
+      });
+    }
+  }, []);
+
+  const handleSelectProduct = useCallback((prod) => {
+    isSelectingRef.current = true;
+    setQuery(prod ? prod.name : '');
+    setIsOpen(false);
+    setHighlightIndex(-1);
+    if (onChange) {
+      onChange(prod);
+    }
+    setTimeout(() => {
+      isSelectingRef.current = false;
+    }, 150);
+  }, [onChange]);
+
+  const handleBlurValidation = useCallback(() => {
+    if (isSelectingRef.current) return;
+
+    if (!query.trim()) {
+      if (value && onChange) {
+        onChange(null);
+      }
+      return;
+    }
+
+    // Check if query exactly matches current value's product name or sku
+    if (value) {
+      const currentProd = products.find(p => p.id === value);
+      if (currentProd && (
+        currentProd.name?.toLowerCase().trim() === query.toLowerCase().trim() ||
+        currentProd.sku?.toLowerCase().trim() === query.toLowerCase().trim()
+      )) {
+        return;
+      }
+    }
+
+    // Search for exact match by name or SKU
+    const exact = products.find(
+      p => p.name?.toLowerCase().trim() === query.toLowerCase().trim() ||
+           p.sku?.toLowerCase().trim() === query.toLowerCase().trim()
+    );
+
+    if (exact) {
+      handleSelectProduct(exact);
+    } else {
+      // If we already had a valid selection, revert display to that selection's name
+      if (value) {
+        const currentProd = products.find(p => p.id === value);
+        if (currentProd) {
+          setQuery(currentProd.name);
+          return;
+        }
+      }
+      // If no valid selection existed, clear query and value
+      setQuery('');
+      if (onChange) onChange(null);
+    }
+  }, [query, value, products, handleSelectProduct, onChange]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateCoords();
+
+    const handleClickOutside = (e) => {
+      if (
+        inputRef.current && 
+        !inputRef.current.contains(e.target) && 
+        popoverRef.current && 
+        !popoverRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+        handleBlurValidation();
+      }
+    };
+
+    const handleScrollOrResize = () => {
+      updateCoords();
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [isOpen, updateCoords, handleBlurValidation]);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) {
+      return [...products]
+        .sort((a, b) => {
+          const aIsMhc = a.name?.includes('MHC') || a.name?.includes('WGC') || a.name?.includes('FRP') ? 1 : 0;
+          const bIsMhc = b.name?.includes('MHC') || b.name?.includes('WGC') || b.name?.includes('FRP') ? 1 : 0;
+          if (aIsMhc !== bIsMhc) return bIsMhc - aIsMhc;
+          return (a.name || '').localeCompare(b.name || '');
+        })
+        .slice(0, 80);
+    }
+    const q = query.toLowerCase().trim();
+    const qParts = q.split(/\s+/).filter(Boolean);
+    return products
+      .map(p => {
+        const fullStr = `${p.name || ''} ${p.sku || ''} ${p.size || ''} ${p.type || ''} ${p.capacity || ''} ${p.variantDetails || ''} ${p.category || ''} ${p.description || ''}`.toLowerCase();
+        let matchesAll = true;
+        let score = 0;
+        for (const part of qParts) {
+          if (fullStr.includes(part)) {
+            score += 10;
+            if (p.name?.toLowerCase().includes(part)) score += 15;
+            if (p.size?.toLowerCase().includes(part)) score += 20;
+            if (p.type?.toLowerCase().includes(part)) score += 20;
+            if (p.capacity?.toLowerCase().includes(part)) score += 20;
+          } else {
+            const normFull = fullStr.replace(/[\s\-_xX]/g, '');
+            const normPart = part.replace(/[\s\-_xX]/g, '');
+            if (normPart.length >= 3 && normFull.includes(normPart)) {
+              score += 15;
+            } else {
+              matchesAll = false;
+              break;
+            }
+          }
+        }
+        return { product: p, score, matchesAll };
+      })
+      .filter(item => item.matchesAll)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.product)
+      .slice(0, 60);
+  }, [products, query]);
+
+  const handleKeyDown = (e) => {
+    if (disabled) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isOpen) {
+        updateCoords();
+        setIsOpen(true);
+        setHighlightIndex(0);
+      } else {
+        setHighlightIndex(prev => (prev + 1 < filtered.length ? prev + 1 : 0));
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (isOpen) {
+        setHighlightIndex(prev => (prev - 1 >= 0 ? prev - 1 : filtered.length - 1));
+      }
+    } else if (e.key === 'Enter') {
+      if (isOpen) {
+        e.preventDefault();
+        const target = highlightIndex >= 0 && highlightIndex < filtered.length ? filtered[highlightIndex] : filtered[0];
+        if (target) {
+          handleSelectProduct(target);
+        }
+      }
+    } else if (e.key === 'Escape') {
+      if (isOpen) {
+        e.preventDefault();
+        setIsOpen(false);
+        handleBlurValidation();
+      }
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          disabled={disabled}
+          placeholder="Search product from catalog..."
+          value={query}
+          onFocus={() => {
+            if (!disabled) {
+              updateCoords();
+              setIsOpen(true);
+            }
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            updateCoords();
+            setIsOpen(true);
+            setHighlightIndex(0);
+            if (!e.target.value.trim()) {
+              onChange(null);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          onBlur={() => {
+            setTimeout(() => {
+              handleBlurValidation();
+            }, 200);
+          }}
+          className="form-input"
+          style={{
+            width: '100%',
+            margin: 0,
+            fontSize: '13px',
+            fontWeight: '700',
+            color: 'var(--color-text-primary, #0f172a)',
+            paddingRight: '28px',
+            background: value ? 'rgba(59, 130, 246, 0.04)' : '#ffffff',
+            borderColor: value ? 'rgba(59, 130, 246, 0.4)' : 'var(--color-border, #cbd5e1)',
+            borderRadius: '8px',
+            padding: '8px 28px 8px 10px',
+            transition: 'all 0.15s ease'
+          }}
+        />
+        {query && !disabled && (
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setQuery('');
+              handleSelectProduct(null);
+            }}
+            style={{
+              position: 'absolute',
+              right: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#94a3b8',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Clear selection"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {isOpen && !disabled && typeof window !== 'undefined' && createPortal(
+        <div
+          ref={popoverRef}
+          className="smart-product-popover"
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            maxHeight: `${coords.maxHeight || 320}px`,
+            overflowY: 'auto',
+            background: '#ffffff',
+            border: '1.5px solid #cbd5e1',
+            borderRadius: '12px',
+            boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.25), 0 8px 16px -4px rgba(15, 23, 42, 0.1)',
+            zIndex: 999999,
+            padding: '6px',
+            scrollbarWidth: 'thin'
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
+              No catalog product matched &quot;{query}&quot;. Please search by size (e.g. 300x300), type (MHC), or capacity (B125).
+            </div>
+          ) : (
+            filtered.map((prod, idx) => {
+              const isHighlighted = idx === highlightIndex;
+              const isSelected = prod.id === value;
+              return (
+                <div
+                  key={prod.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectProduct(prod);
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleSelectProduct(prod);
+                  }}
+                  onMouseEnter={() => setHighlightIndex(idx)}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '12.5px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    transition: 'background 0.12s ease',
+                    borderBottom: '1px solid #f1f5f9',
+                    background: isSelected
+                      ? 'rgba(59, 130, 246, 0.08)'
+                      : isHighlighted
+                      ? '#f1f5f9'
+                      : 'transparent'
+                  }}
+                >
+                  <div style={{ fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span>{prod.name}</span>
+                    {prod.sku && (
+                      <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', fontFamily: 'monospace', fontSize: '11px', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                        {prod.sku}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', fontSize: '11px', color: '#64748b', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {prod.size && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Size: {prod.size}</span>}
+                    {prod.type && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Type: {prod.type}</span>}
+                    {prod.capacity && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Cap: {prod.capacity}</span>}
+                    <span style={{ color: '#475569', fontWeight: '700' }}>Cover: {prod.coverUnitWeight || prod.weight || 0} kg</span>
+                    <span style={{ color: '#475569', fontWeight: '700' }}>Frame: {prod.frameUnitWeight || 0} kg</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+});
 
 export default function DailyReportEntryView({
   reportId,
@@ -112,26 +496,6 @@ export default function DailyReportEntryView({
   const [multiProductTypeFilter, setMultiProductTypeFilter] = useState('ALL');
   const [selectedMultiProductIds, setSelectedMultiProductIds] = useState([]);
 
-  // Helper to parse specifications (Size, Type, Capacity) from product name if not explicitly set
-  function parseProductSpecs(name = '') {
-    const upper = (name || '').toUpperCase();
-    const sizeMatch = upper.match(/\b(\d{2,4}\s*[xX*]\s*\d{2,4}|\d{1,2}\s*['"]\s*[xX*]\s*\d{1,2}\s*['"]|\d{1,2}\s*[xX*]\s*\d{1,2})\b/);
-    const size = sizeMatch ? sizeMatch[0].replace(/\s+/g, '').toUpperCase() : '';
-
-    let type = '';
-    if (upper.includes('WGC')) type = 'WGC';
-    else if (upper.includes('MHC')) type = 'MHC';
-    else if (upper.includes('SFRC')) type = 'SFRC';
-    else if (upper.includes('ONGC')) type = 'ONGC';
-    else if (upper.includes('GRATING')) type = 'GRATING';
-    else if (upper.includes('COVER BLOCK') || upper.includes('COVERBLOCK')) type = 'COVER BLOCK';
-    else if (upper.includes('FRP')) type = 'FRP';
-
-    const capMatch = upper.match(/\b(B125|C250|D400|E600|F900|A15|ELD|EHD|LD|MD|HD|2\.5T|5T|10T|12\.5T|20T|25T|40T)\b/);
-    const capacity = capMatch ? capMatch[0] : '';
-
-    return { size, type, capacity };
-  }
 
   // Fetch Products Master (Exact Parity with Super Admin Products Master, excluding raw materials)
   const fetchProducts = useCallback(async () => {
@@ -304,267 +668,6 @@ export default function DailyReportEntryView({
     };
   };
 
-  function SmartProductCombobox({ value, disabled, products, onChange }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [query, setQuery] = useState('');
-    const [coords, setCoords] = useState({ top: 0, left: 0, width: 360 });
-    const inputRef = useRef(null);
-
-    const updateCoords = useCallback(() => {
-      if (inputRef.current) {
-        const rect = inputRef.current.getBoundingClientRect();
-        setCoords({
-          top: rect.bottom + 4,
-          left: rect.left,
-          width: Math.max(rect.width, Math.min(360, window.innerWidth - rect.left - 12))
-        });
-      }
-    }, []);
-
-    const handleBlurValidation = useCallback(() => {
-      if (!query.trim()) {
-        onChange(null);
-        return;
-      }
-      // Check if we already have a valid value matched to query
-      if (value) {
-        const p = products.find(prod => prod.id === value);
-        if (p && p.name?.toLowerCase().trim() === query.toLowerCase().trim()) {
-          return; // Already matched
-        }
-      }
-
-      // Find exact match by name or SKU
-      const exact = products.find(p => p.name?.toLowerCase().trim() === query.toLowerCase().trim() || p.sku?.toLowerCase().trim() === query.toLowerCase().trim());
-      if (exact) {
-        onChange(exact);
-      } else {
-        // Revert to current selected product name or clear if no catalog match
-        if (value) {
-          const p = products.find(prod => prod.id === value);
-          setQuery(p ? p.name : '');
-        } else {
-          setQuery('');
-          onChange(null);
-        }
-      }
-    }, [query, value, products, onChange]);
-
-    useEffect(() => {
-      if (value) {
-        const p = products.find(prod => prod.id === value);
-        if (p) setQuery(p.name);
-      } else {
-        setQuery('');
-      }
-    }, [value, products]);
-
-    useEffect(() => {
-      if (!isOpen) return;
-
-      updateCoords();
-
-      const handleClickOutside = (e) => {
-        if (inputRef.current && !inputRef.current.contains(e.target) && !e.target.closest('.smart-product-popover')) {
-          setIsOpen(false);
-          handleBlurValidation();
-        }
-      };
-
-      const handleScrollOrResize = () => {
-        updateCoords();
-      };
-
-      document.addEventListener('mousedown', handleClickOutside);
-      window.addEventListener('scroll', handleScrollOrResize, true);
-      window.addEventListener('resize', handleScrollOrResize);
-
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        window.removeEventListener('scroll', handleScrollOrResize, true);
-        window.removeEventListener('resize', handleScrollOrResize);
-      };
-    }, [isOpen, updateCoords, handleBlurValidation]);
-
-    const filtered = useMemo(() => {
-      if (!query.trim()) {
-        return [...products]
-          .sort((a, b) => {
-            const aIsMhc = a.name?.includes('MHC') || a.name?.includes('WGC') || a.name?.includes('FRP') ? 1 : 0;
-            const bIsMhc = b.name?.includes('MHC') || b.name?.includes('WGC') || b.name?.includes('FRP') ? 1 : 0;
-            if (aIsMhc !== bIsMhc) return bIsMhc - aIsMhc;
-            return (a.name || '').localeCompare(b.name || '');
-          })
-          .slice(0, 80);
-      }
-      const q = query.toLowerCase().trim();
-      const qParts = q.split(/\s+/).filter(Boolean);
-      return products
-        .map(p => {
-          const fullStr = `${p.name || ''} ${p.sku || ''} ${p.size || ''} ${p.type || ''} ${p.capacity || ''} ${p.variantDetails || ''} ${p.category || ''} ${p.description || ''}`.toLowerCase();
-          let matchesAll = true;
-          let score = 0;
-          for (const part of qParts) {
-            if (fullStr.includes(part)) {
-              score += 10;
-              if (p.name?.toLowerCase().includes(part)) score += 15;
-              if (p.size?.toLowerCase().includes(part)) score += 20;
-              if (p.type?.toLowerCase().includes(part)) score += 20;
-              if (p.capacity?.toLowerCase().includes(part)) score += 20;
-            } else {
-              const normFull = fullStr.replace(/[\s\-_xX]/g, '');
-              const normPart = part.replace(/[\s\-_xX]/g, '');
-              if (normPart.length >= 3 && normFull.includes(normPart)) {
-                score += 15;
-              } else {
-                matchesAll = false;
-                break;
-              }
-            }
-          }
-          return { product: p, score, matchesAll };
-        })
-        .filter(item => item.matchesAll)
-        .sort((a, b) => b.score - a.score)
-        .map(item => item.product)
-        .slice(0, 60);
-    }, [products, query]);
-
-    const handleSelectProduct = (prod) => {
-      setQuery(prod.name);
-      setIsOpen(false);
-      onChange(prod);
-    };
-
-    return (
-      <div style={{ position: 'relative', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-          <input
-            ref={inputRef}
-            type="text"
-            disabled={disabled}
-            placeholder="Search product from catalog..."
-            value={query}
-            onFocus={() => {
-              if (!disabled) {
-                updateCoords();
-                setIsOpen(true);
-              }
-            }}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              updateCoords();
-              setIsOpen(true);
-              if (!e.target.value.trim()) {
-                onChange(null);
-              }
-            }}
-            onBlur={() => {
-              setTimeout(() => {
-                handleBlurValidation();
-              }, 200);
-            }}
-            className="form-input"
-            style={{
-              width: '100%',
-              margin: 0,
-              fontSize: '13px',
-              fontWeight: '700',
-              color: '#0f172a',
-              paddingRight: '28px',
-              background: value ? 'rgba(59, 130, 246, 0.04)' : '#ffffff',
-              borderColor: value ? 'rgba(59, 130, 246, 0.4)' : '#cbd5e1'
-            }}
-          />
-          {query && !disabled && (
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('');
-                onChange(null);
-              }}
-              style={{
-                position: 'absolute',
-                right: '8px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#94a3b8',
-                padding: 0
-              }}
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-
-        {isOpen && !disabled && typeof window !== 'undefined' && createPortal(
-          <div
-            className="smart-product-popover"
-            style={{
-              position: 'fixed',
-              top: `${coords.top}px`,
-              left: `${coords.left}px`,
-              width: `${coords.width}px`,
-              maxHeight: '320px',
-              overflowY: 'auto',
-              background: '#ffffff',
-              border: '1.5px solid #cbd5e1',
-              borderRadius: '10px',
-              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.2)',
-              zIndex: 999999,
-              padding: '6px'
-            }}
-          >
-            {filtered.length === 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
-                No catalog product matched "{query}". Please search by size (e.g. 300x300), type (MHC), or capacity (B125).
-              </div>
-            ) : (
-              filtered.map((prod) => (
-                <div
-                  key={prod.id}
-                  onClick={() => handleSelectProduct(prod)}
-                  style={{
-                    padding: '9px 12px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '12.5px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '3px',
-                    transition: 'background 0.15s',
-                    borderBottom: '1px solid #f1f5f9'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{ fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>{prod.name}</span>
-                    {prod.sku && (
-                      <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', fontFamily: 'monospace', fontSize: '11px', padding: '1px 6px', borderRadius: '4px' }}>
-                        {prod.sku}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', fontSize: '11px', color: '#64748b', flexWrap: 'wrap' }}>
-                    {prod.size && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Size: {prod.size}</span>}
-                    {prod.type && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Type: {prod.type}</span>}
-                    {prod.capacity && <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', color: '#334155', fontWeight: '600' }}>Cap: {prod.capacity}</span>}
-                    <span style={{ color: '#475569', fontWeight: '700' }}>Cover: {prod.coverUnitWeight || prod.weight || 0} kg</span>
-                    <span style={{ color: '#475569', fontWeight: '700' }}>Frame: {prod.frameUnitWeight || 0} kg</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>,
-          document.body
-        )}
-      </div>
-    );
-  }
 
   // Product Selection Change
   const handleProductSelect = (rowIndex, selectedProd) => {

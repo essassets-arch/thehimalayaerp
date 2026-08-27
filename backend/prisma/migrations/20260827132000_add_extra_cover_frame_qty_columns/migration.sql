@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "ProductionDailyReportItem" ADD COLUMN IF NOT EXISTS "extraCoverQty" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "ProductionDailyReportItem" ADD COLUMN IF NOT EXISTS "extraFrameQty" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "DispatchDailyReportItem" ADD COLUMN IF NOT EXISTS "extraCoverQty" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "DispatchDailyReportItem" ADD COLUMN IF NOT EXISTS "extraFrameQty" INTEGER NOT NULL DEFAULT 0;
