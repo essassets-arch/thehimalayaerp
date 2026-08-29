@@ -4419,7 +4419,7 @@ textarea {
 }
 
 .swal2-container {
-  z-index: 99999 !important;
+  z-index: 99999999 !important;
 }
 
 .swal2-popup .swal2-input,
@@ -12879,6 +12879,7 @@ body, #root, .app-container {
 
 /* ── 6. SWEETALERT2 MOBILE DIALOG FIT ── */
 .swal2-container {
+  z-index: 99999999 !important;
   padding: 12px !important;
 }
 

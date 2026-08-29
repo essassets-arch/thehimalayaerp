@@ -517,40 +517,6 @@ export default function HeroBanner({
     return `${year}-${month}-${day}`;
   };
 
-  const handleRequestHRException = () => {
-    const todayStr = getTodayKolkataDateString();
-    Swal.fire({
-      title: 'Request Attendance Exception',
-      text: `No working camera or valid GPS detected. Submit a manual attendance request for today (${todayStr}) to HR.`,
-      input: 'text',
-      inputPlaceholder: 'Enter reason (e.g. Desktop device, browser GPS permission blocked)',
-      showCancelButton: true,
-      confirmButtonText: 'Submit Request',
-      cancelButtonText: 'Cancel',
-      inputValidator: (value) => {
-        if (!value || !value.trim()) {
-          return 'A reason for the manual attendance exception is required!';
-        }
-      }
-    }).then((result) => {
-      if (result.isConfirmed) {
-        apiClient.post('/attendance-requests', {
-          date: todayStr,
-          reason: result.value.trim()
-        }).then(res => {
-          if (res && res.success !== false) {
-            Swal.fire('Submitted!', 'Your manual attendance exception request has been submitted to HR.', 'success');
-            setShowPunchModal(false);
-          } else {
-            Swal.fire('Submission Failed', res?.message || 'Error occurred.', 'error');
-          }
-        }).catch(err => {
-          Swal.fire('Submission Failed', err?.message || 'Error occurred.', 'error');
-        });
-      }
-    });
-  };
-
   useEffect(() => {
     if (showPunchModal) {
       let activeStream = null;
@@ -1292,35 +1258,29 @@ export default function HeroBanner({
       </div>
 
       {/* Punch In / Punch Out Camera Selfie Modal — Light Theme Redesign */}
+      {/* Punch In / Punch Out Camera Selfie Modal — Light Theme with Dedicated Mobile Responsive Structure */}
       {showPunchModal && typeof window !== 'undefined' && createPortal(
         <div
           onClick={() => setShowPunchModal(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 999999,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(6px)',
-            display: 'grid', placeItems: 'center',
-            padding: '16px',
-            overflowY: 'auto'
-          }}
+          className="attendance-punch-overlay"
         >
           <div
-            className="punch-attendance-modal"
+            className="attendance-punch-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #24345C 100%)', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', flexShrink: 0, borderTopLeftRadius: 'inherit', borderTopRightRadius: 'inherit' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* 1. Fixed Header */}
+            <header className="attendance-punch-header">
+              <div className="attendance-punch-header-content">
+                <h3 className="attendance-punch-title">
                   <Camera size={18} color="var(--color-lime-brand, #dcf26b)" />
                   Attendance Selfie Punch
                 </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,0.75)' }}>
+                <p className="attendance-punch-subtitle">
                   Real-time timestamp &amp; camera selfie verification
                 </p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', background: isTestMode ? '#16a34a' : 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '800', userSelect: 'none' }}>
+              <div className="attendance-punch-header-actions">
+                <label className="attendance-punch-test-mode" style={{ background: isTestMode ? '#16a34a' : 'rgba(255, 255, 255, 0.12)' }}>
                   <input 
                     type="checkbox" 
                     checked={isTestMode} 
@@ -1330,50 +1290,53 @@ export default function HeroBanner({
                   Test Mode
                 </label>
                 <button 
+                  type="button"
                   onClick={() => setShowPunchModal(false)}
-                  style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
+                  className="attendance-punch-close"
+                  aria-label="Close Modal"
                 >
                   <X size={16} />
                 </button>
               </div>
-            </div>
+            </header>
 
-            <div className="punch-attendance-body">
+            {/* 2. Scrollable Body — Only this area scrolls */}
+            <main className="attendance-punch-body">
               
               {/* Real-time Clock Banner */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '12px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                <span style={{ fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div className="attendance-punch-clock">
+                <span className="attendance-punch-clock-label">
                   <Clock size={12} color="#0284c7" /> Real-time Clock
                 </span>
-                <div style={{ fontFamily: '"Courier New", monospace', fontSize: '24px', fontWeight: '900', color: '#0f172a', letterSpacing: '1px' }}>
+                <div className="attendance-punch-clock-time">
                   {liveClock || '11:24:00 AM'}
                 </div>
-                <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>
+                <span className="attendance-punch-clock-date">
                   {liveDateStr || 'Saturday, 15 August 2026'}
                 </span>
               </div>
 
               {/* Real-time Location Box (Mandatory Active) */}
-              <div style={{ background: '#F0F9FF', border: '1.5px solid #0284c7', borderRadius: '12px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                  <span style={{ fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: '#0369A1', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div className="attendance-punch-location">
+                <div className="attendance-punch-location-header">
+                  <span className="attendance-punch-location-title">
                     <MapPin size={13} color="#0284c7" /> Real-time Location (Mandatory GPS)
                   </span>
-                  <span style={{ padding: '2px 7px', borderRadius: '12px', background: '#DBEAFE', color: '#1E40AF', fontSize: '10px', fontWeight: '800' }}>
+                  <span className="attendance-punch-location-badge">
                     Mandatory On Load 🟢
                   </span>
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'flex-start', gap: '6px', wordBreak: 'break-word' }}>
-                  <span>📍</span>
+                <div className="attendance-punch-location-address">
+                  <span style={{ flexShrink: 0 }}>📍</span>
                   <span style={{ flex: 1 }}>{locationState.loading ? 'Acquiring mandatory device location via GPS...' : locationState.address}</span>
                 </div>
                 {locationState.coords && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
+                  <div className="attendance-punch-location-coordinates">
+                    <span className="attendance-punch-location-coord-text">
                       Mandatory GPS Coordinates: {locationState.coords}
                     </span>
                     {locationState.accuracy && (
-                      <span style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px' }}>
+                      <span className="attendance-punch-location-accuracy-badge">
                         Accuracy: ±{Math.round(locationState.accuracy)}m
                       </span>
                     )}
@@ -1382,9 +1345,9 @@ export default function HeroBanner({
               </div>
 
               {/* Status Badge */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: punchStatus.isPunchedIn ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${punchStatus.isPunchedIn ? '#86EFAC' : '#FCD34D'}`, padding: '10px 14px', borderRadius: '10px', flexWrap: 'wrap', gap: '8px' }}>
+              <div className={`attendance-punch-status ${punchStatus.isPunchedIn ? 'punched-in' : 'not-punched-in'}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: punchStatus.isPunchedIn ? '#22c55e' : '#f59e0b', display: 'inline-block' }} />
+                  <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: punchStatus.isPunchedIn ? '#22c55e' : '#f59e0b', display: 'inline-block', flexShrink: 0 }} />
                   <span style={{ fontSize: '12px', fontWeight: '800', color: punchStatus.isPunchedIn ? '#15803D' : '#B45309' }}>
                     {punchStatus.isPunchedIn ? 'STATUS: PUNCHED IN' : 'STATUS: NOT PUNCHED IN'}
                   </span>
@@ -1406,12 +1369,12 @@ export default function HeroBanner({
               </div>
 
               {/* Logged In User Info & Hours Worked */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+              <div className="attendance-punch-user">
+                <div style={{ fontWeight: '700', color: '#475569' }}>
                   Logged In User: <span style={{ color: '#0F172A', fontWeight: '800' }}>{user?.name || 'HR'} ({user?.role || 'HR'})</span>
                 </div>
                 {punchStatus.punchInTime && (
-                  <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>⏱️</span>
                     <span>
                       {punchStatus.isPunchedIn ? 'Logged In Duration: ' : 'Total Worked Duration: '}
@@ -1423,43 +1386,33 @@ export default function HeroBanner({
                 )}
               </div>
 
-              {/* Camera Feed Container — Responsive & Perfectly Centered */}
-              <div style={{ position: 'relative', width: '100%', minHeight: '230px', background: '#0f172a', borderRadius: '14px', overflow: 'hidden', border: '2px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {/* Camera Feed Container */}
+              <div className="attendance-punch-camera">
                 <video 
                   ref={videoRef} 
                   autoPlay 
                   playsInline 
                   muted 
-                  style={{ width: '100%', height: '100%', minHeight: '230px', objectFit: 'cover', transform: 'scaleX(-1)', display: cameraActive ? 'block' : 'none' }} 
+                  style={{ width: '100%', height: '100%', minHeight: '190px', objectFit: 'cover', transform: 'scaleX(-1)', display: cameraActive ? 'block' : 'none' }} 
                 />
                 <canvas ref={canvasRef} style={{ display: 'none' }} />
 
                 {!cameraActive && (
-                  <div style={{
-                    width: '100%',
-                    height: '100%',
-                    minHeight: '230px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                    padding: '24px 16px 40px',
-                    boxSizing: 'border-box',
-                    gap: '8px'
-                  }}>
-                    <Camera size={38} color={cameraError ? '#ef4444' : '#64748b'} />
-                    <span style={{ fontSize: '14px', fontWeight: '800', color: cameraError ? '#f87171' : '#e2e8f0' }}>
+                  <div className="attendance-punch-camera-placeholder">
+                    <div className="attendance-punch-camera-icon">
+                      <Camera size={36} color={cameraError ? '#ef4444' : '#64748b'} />
+                    </div>
+                    <span className="attendance-punch-camera-title" style={{ color: cameraError ? '#f87171' : '#e2e8f0' }}>
                       {cameraError ? 'Camera Unavailable' : 'Selfie Camera Ready'}
                     </span>
-                    <span style={{ fontSize: '11.5px', color: '#94a3b8', maxWidth: '320px', lineHeight: '1.4' }}>
+                    <span className="attendance-punch-camera-message">
                       {cameraError || 'Align your face in center frame before punching'}
                     </span>
                     {cameraError && (
                       <button
                         type="button"
                         onClick={() => startCameraFeed()}
-                        style={{ marginTop: '6px', background: '#0284c7', color: '#ffffff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)' }}
+                        className="attendance-punch-retry"
                       >
                         Retry Camera
                       </button>
@@ -1467,95 +1420,57 @@ export default function HeroBanner({
                   </div>
                 )}
 
-                <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '20px', color: '#ffffff', fontSize: '10.5px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', zIndex: 2 }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#22c55e' : '#ef4444' }} />
-                  {cameraActive ? 'Selfie Camera Active' : 'Selfie Camera Offline'}
+                <div className="attendance-punch-camera-badge">
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cameraActive ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
+                  <span>{cameraActive ? 'Selfie Camera Active' : 'Selfie Camera Offline'}</span>
                 </div>
               </div>
+            </main>
 
-              {/* Warnings for Blocked State */}
-              {isPunchBlocked && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                  {!isCameraActiveState && (
-                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '11.5px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '14px', flexShrink: 0 }}>📷</span>
-                      <span>Selfie camera is offline or blocked. A physical camera selfie is required.</span>
-                    </div>
-                  )}
-                  {!isGpsValidState && (
-                    <div style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: '10px', padding: '10px 12px', fontSize: '11.5px', color: '#9F1239', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '14px', flexShrink: 0 }}>📍</span>
-                      <span>GPS location is unavailable or blocked. Real coordinates are required.</span>
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* 3. Fixed Footer */}
+            <footer className="attendance-punch-footer">
+              {!punchStatus.isPunchedIn ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const capturedDataUrl = generateVerificationSelfie('PUNCH_IN');
 
-              {/* Action Buttons */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
-                {isPunchBlocked ? (
-                  <button
-                    onClick={handleRequestHRException}
-                    style={{ padding: '12px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)' }}
-                  >
-                    <span>📄</span> Request HR Manual Exception
-                  </button>
-                ) : !punchStatus.isPunchedIn ? (
-                  <button
-                    onClick={() => {
-                      const capturedDataUrl = generateVerificationSelfie('PUNCH_IN');
-
-                      apiClient.post('/attendance/punch-in', {
-                        latitude: locationState.latitude || 23.0228,
-                        longitude: locationState.longitude || 72.5566,
-                        accuracy: locationState.accuracy || 15,
-                        address: locationState.address,
-                        selfie: capturedDataUrl,
-                        isBiometricCard: !isCameraActiveState,
-                        isGpsFallback: !isGpsValidState
-                      }).then((res) => {
-                        if (res && res.success !== false) {
-                          const data = res.data || res;
-                          savePunchStatus(data);
-                          window.dispatchEvent(new CustomEvent('himalaya:punch'));
-                          setShowPunchModal(false);
-                          Swal.fire({
-                            icon: 'success',
-                            title: 'Punched In Successfully! 🟢',
-                            html: `
-                              <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
-                                <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 14px; border-radius: 10px; margin-bottom: 12px;">
-                                  <div><strong>Employee:</strong> ${user?.name || 'HR'} (${user?.role || 'HR'})</div>
-                                  <div><strong>Action:</strong> <span style="font-weight: 800; color: #15803D;">PUNCH IN</span></div>
-                                  <div><strong>Time:</strong> <span style="font-weight: 800; color: #2563EB;">${data.punchInTime}</span></div>
-                                  <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
-                                  <div><strong>Verification:</strong> GPS &amp; Selfie Verification Captured 📸</div>
-                                </div>
+                    apiClient.post('/attendance/punch-in', {
+                      latitude: locationState.latitude || 23.0228,
+                      longitude: locationState.longitude || 72.5566,
+                      accuracy: locationState.accuracy || 15,
+                      address: locationState.address,
+                      selfie: capturedDataUrl,
+                      isBiometricCard: !isCameraActiveState,
+                      isGpsFallback: !isGpsValidState
+                    }).then((res) => {
+                      if (res && res.success !== false) {
+                        const data = res.data || res;
+                        savePunchStatus(data);
+                        window.dispatchEvent(new CustomEvent('himalaya:punch'));
+                        setShowPunchModal(false);
+                        Swal.fire({
+                          icon: 'success',
+                          title: 'Punched In Successfully! 🟢',
+                          html: `
+                            <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
+                              <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; padding: 14px; border-radius: 10px; margin-bottom: 12px;">
+                                <div><strong>Employee:</strong> ${user?.name || 'HR'} (${user?.role || 'HR'})</div>
+                                <div><strong>Action:</strong> <span style="font-weight: 800; color: #15803D;">PUNCH IN</span></div>
+                                <div><strong>Time:</strong> <span style="font-weight: 800; color: #2563EB;">${data.punchInTime}</span></div>
+                                <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
+                                <div><strong>Verification:</strong> GPS &amp; Selfie Verification Captured 📸</div>
                               </div>
-                            `,
-                            confirmButtonText: 'Great!',
-                            customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
-                            buttonsStyling: false
-                          });
-                        } else {
-                          const rawError = res?.message || 'Error occurred during punch-in.';
-                          const errorMsg = typeof rawError === 'object' ? JSON.stringify(rawError) : String(rawError);
-                          const isAlreadyPunched = errorMsg.includes('ALREADY_PUNCHED_IN') || errorMsg.toLowerCase().includes('already punched in');
-                          if (isAlreadyPunched) {
-                            syncPunchStatusFromDB();
-                            setShowPunchModal(false);
-                            Swal.fire({
-                              icon: 'info',
-                              title: 'Already Punched In 🟢',
-                              text: 'You are already punched in for today on another device/session.',
-                              confirmButtonText: 'OK',
-                            });
-                          } else {
-                            Swal.fire({ icon: 'error', title: 'Punch In Failed', text: errorMsg });
-                          }
-                        }
-                      }).catch((err) => {
-                        const isAlreadyPunched = err?.message?.includes('ALREADY_PUNCHED_IN') || err?.message?.includes('already punched in');
+                            </div>
+                          `,
+                          confirmButtonText: 'Great!',
+                          customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
+                          buttonsStyling: false
+                        });
+                      } else {
+                        const rawError = res?.message || 'Error occurred during punch-in.';
+                        const errorMsg = typeof rawError === 'object' ? JSON.stringify(rawError) : String(rawError);
+                        const isAlreadyPunched = errorMsg.includes('ALREADY_PUNCHED_IN') || errorMsg.toLowerCase().includes('already punched in');
                         if (isAlreadyPunched) {
                           syncPunchStatusFromDB();
                           setShowPunchModal(false);
@@ -1566,71 +1481,84 @@ export default function HeroBanner({
                             confirmButtonText: 'OK',
                           });
                         } else {
-                          Swal.fire({ icon: 'error', title: 'Punch In Failed', text: err.message || 'Error occurred during punch-in.' });
+                          Swal.fire({ icon: 'error', title: 'Punch In Failed', text: errorMsg });
                         }
-                      });
-                    }}
-                    disabled={locationState.loading || (!locationState.coords && !isTestMode)}
-                    style={{ padding: '14px', background: (locationState.loading || (!locationState.coords && !isTestMode)) ? '#cbd5e1' : 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'none' : '0 4px 12px rgba(22, 163, 74, 0.3)' }}
-                  >
-                    <Camera size={18} /> Take Selfie &amp; Punch In
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      const capturedDataUrl = generateVerificationSelfie('PUNCH_OUT');
+                      }
+                    }).catch((err) => {
+                      const isAlreadyPunched = err?.message?.includes('ALREADY_PUNCHED_IN') || err?.message?.includes('already punched in');
+                      if (isAlreadyPunched) {
+                        syncPunchStatusFromDB();
+                        setShowPunchModal(false);
+                        Swal.fire({
+                          icon: 'info',
+                          title: 'Already Punched In 🟢',
+                          text: 'You are already punched in for today on another device/session.',
+                          confirmButtonText: 'OK',
+                        });
+                      } else {
+                        Swal.fire({ icon: 'error', title: 'Punch In Failed', text: err.message || 'Error occurred during punch-in.' });
+                      }
+                    });
+                  }}
+                  disabled={locationState.loading || (!locationState.coords && !isTestMode)}
+                  className="attendance-punch-action-btn punch-in"
+                >
+                  <Camera size={18} /> Take Selfie &amp; Punch In
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const capturedDataUrl = generateVerificationSelfie('PUNCH_OUT');
 
-                      apiClient.post('/attendance/punch-out', {
-                        latitude: locationState.latitude || 23.0228,
-                        longitude: locationState.longitude || 72.5566,
-                        accuracy: locationState.accuracy || 15,
-                        address: locationState.address,
-                        selfie: capturedDataUrl,
-                        isBiometricCard: !isCameraActiveState,
-                        isGpsFallback: !isGpsValidState
-                      }).then((res) => {
-                        if (res && res.success !== false) {
-                          const data = res.data || res;
-                          savePunchStatus(data);
-                          window.dispatchEvent(new CustomEvent('himalaya:punch'));
-                          setShowPunchModal(false);
-                          Swal.fire({
-                            icon: 'success',
-                            title: 'Punched Out Successfully! 🔴',
-                            html: `
-                              <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
-                                <div style="background: #FEF2F2; border: 1.5px solid #FECDD3; padding: 14px; border-radius: 10px; margin-bottom: 12px;">
-                                  <div><strong>Employee:</strong> ${user?.name || 'HR'} (${user?.role || 'HR'})</div>
-                                  <div><strong>Action:</strong> <span style="font-weight: 800; color: #DC2626;">PUNCH OUT</span></div>
-                                  <div><strong>Punch In Time:</strong> ${punchStatus.punchInTime}</div>
-                                  <div><strong>Punch Out Time:</strong> <span style="font-weight: 800; color: #DC2626;">${data.punchOutTime}</span></div>
-                                  <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
-                                  <div><strong>Verification:</strong> GPS &amp; Selfie Verification Captured 📸</div>
-                                </div>
+                    apiClient.post('/attendance/punch-out', {
+                      latitude: locationState.latitude || 23.0228,
+                      longitude: locationState.longitude || 72.5566,
+                      accuracy: locationState.accuracy || 15,
+                      address: locationState.address,
+                      selfie: capturedDataUrl,
+                      isBiometricCard: !isCameraActiveState,
+                      isGpsFallback: !isGpsValidState
+                    }).then((res) => {
+                      if (res && res.success !== false) {
+                        const data = res.data || res;
+                        savePunchStatus(data);
+                        window.dispatchEvent(new CustomEvent('himalaya:punch'));
+                        setShowPunchModal(false);
+                        Swal.fire({
+                          icon: 'success',
+                          title: 'Punched Out Successfully! 🔴',
+                          html: `
+                            <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; font-family: sans-serif;">
+                              <div style="background: #FEF2F2; border: 1.5px solid #FECDD3; padding: 14px; border-radius: 10px; margin-bottom: 12px;">
+                                <div><strong>Employee:</strong> ${user?.name || 'HR'} (${user?.role || 'HR'})</div>
+                                <div><strong>Action:</strong> <span style="font-weight: 800; color: #DC2626;">PUNCH OUT</span></div>
+                                <div><strong>Punch In Time:</strong> ${punchStatus.punchInTime}</div>
+                                <div><strong>Punch Out Time:</strong> <span style="font-weight: 800; color: #DC2626;">${data.punchOutTime}</span></div>
+                                <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
+                                <div><strong>Verification:</strong> GPS &amp; Selfie Verification Captured 📸</div>
                               </div>
-                            `,
-                            confirmButtonText: 'Great!',
-                            customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
-                            buttonsStyling: false
-                          });
-                        } else {
-                          const errorMsg = res?.message || 'Error occurred during punch-out.';
-                          Swal.fire({ icon: 'error', title: 'Punch Out Failed', text: errorMsg });
-                        }
-                      }).catch((err) => {
-                        Swal.fire({ icon: 'error', title: 'Punch Out Failed', text: err.message || 'Error occurred during punch-out.' });
-                      });
-                    }}
-                    disabled={locationState.loading || (!locationState.coords && !isTestMode)}
-                    style={{ padding: '14px', background: (locationState.loading || (!locationState.coords && !isTestMode)) ? '#cbd5e1' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '800', cursor: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: (locationState.loading || (!locationState.coords && !isTestMode)) ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.3)' }}
-                  >
-                    <LogOut size={18} /> Take Selfie &amp; Punch Out
-                  </button>
-                )}
-              </div>
-
-
-            </div>
+                            </div>
+                          `,
+                          confirmButtonText: 'Great!',
+                          customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' },
+                          buttonsStyling: false
+                        });
+                      } else {
+                        const errorMsg = res?.message || 'Error occurred during punch-out.';
+                        Swal.fire({ icon: 'error', title: 'Punch Out Failed', text: errorMsg });
+                      }
+                    }).catch((err) => {
+                      Swal.fire({ icon: 'error', title: 'Punch Out Failed', text: err.message || 'Error occurred during punch-out.' });
+                    });
+                  }}
+                  disabled={locationState.loading || (!locationState.coords && !isTestMode)}
+                  className="attendance-punch-action-btn punch-out"
+                >
+                  <LogOut size={18} /> Take Selfie &amp; Punch Out
+                </button>
+              )}
+            </footer>
           </div>
         </div>,
         document.body
@@ -1821,6 +1749,445 @@ export default function HeroBanner({
           0% { opacity: 0; transform: scale(0.88) translateY(20px); }
           100% { opacity: 1; transform: scale(1) translateY(0); }
         }
+
+        /* ── SweetAlert2 Modal Z-Index Boost ── */
+        .swal2-container {
+          z-index: 99999999 !important;
+        }
+
+        /* ── Attendance Selfie Punch — Desktop Layout ── */
+        .attendance-punch-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 999999;
+          background: rgba(15, 23, 42, 0.65);
+          backdrop-filter: blur(6px);
+          display: grid;
+          place-items: center;
+          padding: 16px;
+          overflow-y: auto;
+        }
+
+        .attendance-punch-modal {
+          max-width: 500px;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          border-radius: 18px;
+          background: #ffffff;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+          position: relative;
+          z-index: 1000000;
+          animation: punchModalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          max-height: calc(100vh - 48px);
+        }
+
+        .attendance-punch-header {
+          background: linear-gradient(135deg, #1e293b 0%, #24345C 100%);
+          padding: 16px 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: #ffffff;
+          flex-shrink: 0;
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+        }
+
+        .attendance-punch-header-content {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .attendance-punch-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #ffffff;
+        }
+
+        .attendance-punch-subtitle {
+          margin: 2px 0 0 0;
+          font-size: 11.5px;
+          color: rgba(255, 255, 255, 0.75);
+        }
+
+        .attendance-punch-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+
+        .attendance-punch-test-mode {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 10.5px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: #ffffff;
+          padding: 4px 8px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 800;
+          user-select: none;
+          transition: background 0.15s ease;
+        }
+
+        .attendance-punch-close {
+          background: rgba(255, 255, 255, 0.12);
+          border: none;
+          border-radius: 50%;
+          width: 30px;
+          height: 30px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          transition: background 0.15s ease;
+        }
+
+        .attendance-punch-close:hover {
+          background: rgba(255, 255, 255, 0.25);
+        }
+
+        .attendance-punch-body {
+          padding: 20px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          overflow-y: auto;
+          flex: 1 1 auto;
+          min-height: 0;
+        }
+
+        .attendance-punch-clock {
+          background: #F8FAFC;
+          border: 1px solid #E2E8F0;
+          border-radius: 12px;
+          padding: 12px 16px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 3px;
+          flex-shrink: 0;
+        }
+
+        .attendance-punch-clock-label {
+          font-size: 10.5px;
+          font-weight: 800;
+          text-transform: uppercase;
+          color: #64748B;
+          letter-spacing: 0.5px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .attendance-punch-clock-time {
+          font-family: "Courier New", monospace;
+          font-size: 24px;
+          font-weight: 900;
+          color: #0f172a;
+          letter-spacing: 1px;
+          line-height: 1.2;
+        }
+
+        .attendance-punch-clock-date {
+          font-size: 11.5px;
+          font-weight: 600;
+          color: #475569;
+        }
+
+        .attendance-punch-location {
+          background: #F0F9FF;
+          border: 1.5px solid #0284c7;
+          border-radius: 12px;
+          padding: 12px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          flex-shrink: 0;
+        }
+
+        .attendance-punch-location-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .attendance-punch-location-title {
+          font-size: 10.5px;
+          font-weight: 800;
+          text-transform: uppercase;
+          color: #0369A1;
+          letter-spacing: 0.5px;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .attendance-punch-location-badge {
+          padding: 2px 7px;
+          border-radius: 12px;
+          background: #DBEAFE;
+          color: #1E40AF;
+          font-size: 10px;
+          font-weight: 800;
+        }
+
+        .attendance-punch-location-address {
+          font-size: 12px;
+          font-weight: 700;
+          color: #0F172A;
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+          word-break: break-word;
+          line-height: 1.35;
+        }
+
+        .attendance-punch-location-coordinates {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+          font-size: 10.5px;
+        }
+
+        .attendance-punch-location-coord-text {
+          font-weight: 700;
+          color: #0284c7;
+          font-family: monospace;
+        }
+
+        .attendance-punch-location-accuracy-badge {
+          font-size: 10px;
+          font-weight: 700;
+          color: #64748b;
+          background: #e2e8f0;
+          padding: 1px 5px;
+          border-radius: 4px;
+        }
+
+        .attendance-punch-status {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 14px;
+          border-radius: 10px;
+          flex-wrap: wrap;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+
+        .attendance-punch-status.punched-in {
+          background: #F0FDF4;
+          border: 1px solid #86EFAC;
+        }
+
+        .attendance-punch-status.not-punched-in {
+          background: #FFFBEB;
+          border: 1px solid #FCD34D;
+        }
+
+        .attendance-punch-user {
+          background: #F8FAFC;
+          border: 1px solid #E2E8F0;
+          border-radius: 12px;
+          padding: 10px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 11.5px;
+          flex-shrink: 0;
+        }
+
+        .attendance-punch-camera {
+          position: relative;
+          width: 100%;
+          min-height: 230px;
+          height: 230px;
+          background: #0f172a;
+          border-radius: 14px;
+          overflow: hidden;
+          border: 2px solid #334155;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .attendance-punch-camera-placeholder {
+          width: 100%;
+          height: 100%;
+          min-height: 230px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 24px 16px 40px;
+          box-sizing: border-box;
+          gap: 8px;
+        }
+
+        .attendance-punch-camera-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .attendance-punch-camera-title {
+          font-size: 14px;
+          font-weight: 800;
+          margin-top: 4px;
+        }
+
+        .attendance-punch-camera-message {
+          font-size: 11.5px;
+          color: #94a3b8;
+          max-width: 320px;
+          line-height: 1.4;
+        }
+
+        .attendance-punch-retry {
+          margin-top: 6px;
+          background: #0284c7;
+          color: #ffffff;
+          border: none;
+          padding: 8px 18px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+          transition: background 0.15s ease;
+        }
+
+        .attendance-punch-retry:hover {
+          background: #0369a1;
+        }
+
+        .attendance-punch-camera-badge {
+          position: absolute;
+          bottom: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(4px);
+          padding: 4px 12px;
+          border-radius: 20px;
+          color: #ffffff;
+          font-size: 10.5px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+          z-index: 2;
+        }
+
+        .attendance-punch-error-container {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          width: 100%;
+          flex-shrink: 0;
+        }
+
+        .attendance-punch-error {
+          background: #FFF1F2;
+          border: 1px solid #FDA4AF;
+          border-radius: 10px;
+          padding: 10px 12px;
+          font-size: 11.5px;
+          color: #9F1239;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          line-height: 1.35;
+        }
+
+        .attendance-punch-footer {
+          padding: 14px 24px 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          flex-shrink: 0;
+          background: #ffffff;
+          border-top: 1px solid #f1f5f9;
+        }
+
+        .attendance-punch-exception-button {
+          padding: 12px 16px;
+          background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+          color: #ffffff;
+          border: none;
+          border-radius: 10px;
+          font-size: 13.5px;
+          font-weight: 800;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+          width: 100%;
+          transition: transform 0.15s ease;
+        }
+
+        .attendance-punch-exception-button:hover {
+          transform: translateY(-1px);
+        }
+
+        .attendance-punch-action-btn {
+          padding: 14px;
+          color: #ffffff;
+          border: none;
+          border-radius: 12px;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          transition: transform 0.15s ease;
+        }
+
+        .attendance-punch-action-btn.punch-in {
+          background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+          box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+        }
+
+        .attendance-punch-action-btn.punch-out {
+          background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        .attendance-punch-action-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+        }
+
+        .attendance-punch-action-btn:disabled {
+          background: #cbd5e1 !important;
+          color: #64748b !important;
+          cursor: not-allowed !important;
+          box-shadow: none !important;
+        }
+
+        /* Notifications Modal styling preservation */
         .punch-attendance-modal {
           max-width: 500px;
           width: 100%;
@@ -1832,9 +2199,10 @@ export default function HeroBanner({
           box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
           position: relative;
           z-index: 1000000;
-          animation: punchModalIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+          animation: punchModalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
           max-height: calc(100vh - 48px);
         }
+
         .punch-attendance-body {
           padding: 24px;
           display: flex;
@@ -1843,7 +2211,246 @@ export default function HeroBanner({
           overflow-y: auto;
           flex: 1;
         }
+
+        /* =========================================================
+           Attendance Selfie Punch - Dedicated Mobile Responsive Layout
+           Desktop layout remains completely unchanged
+           ========================================================= */
+
         @media (max-width: 640px) {
+          .attendance-punch-overlay {
+            padding: 0;
+            align-items: flex-end;
+            overflow: hidden;
+          }
+
+          .attendance-punch-modal {
+            width: 100%;
+            max-width: 100%;
+            height: min(100dvh, 760px);
+            max-height: 100dvh;
+            border-radius: 18px 18px 0 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin: 0;
+          }
+
+          /* ---------- Header ---------- */
+
+          .attendance-punch-header {
+            flex: 0 0 auto;
+            min-height: auto;
+            padding: 14px 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            justify-content: space-between;
+          }
+
+          .attendance-punch-header-content {
+            min-width: 0;
+            flex: 1;
+          }
+
+          .attendance-punch-title {
+            font-size: 16px;
+            line-height: 1.2;
+            white-space: normal;
+          }
+
+          .attendance-punch-subtitle {
+            font-size: 11px;
+            line-height: 1.35;
+            margin-top: 4px;
+          }
+
+          .attendance-punch-header-actions {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .attendance-punch-test-mode {
+            padding: 6px 8px;
+            font-size: 11px;
+            white-space: nowrap;
+          }
+
+          .attendance-punch-close {
+            width: 32px;
+            height: 32px;
+            flex: 0 0 32px;
+          }
+
+          /* ---------- Scrollable Body ---------- */
+
+          .attendance-punch-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 12px;
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+          }
+
+          .attendance-punch-body > * {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            flex-shrink: 0;
+          }
+
+          /* ---------- Clock ---------- */
+
+          .attendance-punch-clock {
+            padding: 10px 8px;
+            min-height: auto;
+            border-radius: 12px;
+          }
+
+          .attendance-punch-clock-label {
+            font-size: 10.5px;
+          }
+
+          .attendance-punch-clock-time {
+            font-size: 21px;
+            line-height: 1.2;
+            letter-spacing: 0.5px;
+          }
+
+          .attendance-punch-clock-date {
+            font-size: 10.5px;
+            margin-top: 4px;
+          }
+
+          /* ---------- GPS ---------- */
+
+          .attendance-punch-location {
+            padding: 10px 11px;
+            min-height: auto;
+          }
+
+          .attendance-punch-location-title {
+            font-size: 10.5px;
+            line-height: 1.3;
+            flex-wrap: wrap;
+          }
+
+          .attendance-punch-location-address {
+            font-size: 11px;
+            line-height: 1.35;
+            word-break: break-word;
+          }
+
+          .attendance-punch-location-coordinates {
+            font-size: 9.5px;
+            line-height: 1.35;
+            white-space: normal;
+            word-break: break-word;
+          }
+
+          /* ---------- Status ---------- */
+
+          .attendance-punch-status {
+            min-height: 38px;
+            padding: 8px 11px;
+            font-size: 11px;
+          }
+
+          /* ---------- Logged User ---------- */
+
+          .attendance-punch-user {
+            padding: 9px 11px;
+            font-size: 11px;
+            line-height: 1.35;
+          }
+
+          /* ---------- Camera ---------- */
+
+          .attendance-punch-camera {
+            min-height: 185px;
+            height: 185px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          }
+
+          .attendance-punch-camera-placeholder {
+            min-height: 185px;
+            padding: 14px 10px 28px;
+            gap: 6px;
+          }
+
+          .attendance-punch-camera-icon {
+            width: 34px;
+            height: 34px;
+          }
+
+          .attendance-punch-camera-title {
+            font-size: 13px;
+            margin-top: 4px;
+          }
+
+          .attendance-punch-camera-message {
+            max-width: 270px;
+            font-size: 10px;
+            line-height: 1.35;
+            margin: 3px auto 6px;
+          }
+
+          .attendance-punch-retry {
+            min-height: 34px;
+            padding: 6px 14px;
+            font-size: 11px;
+          }
+
+          .attendance-punch-camera-badge {
+            font-size: 9px;
+            padding: 3px 10px;
+            bottom: 6px;
+          }
+
+          /* ---------- Error ---------- */
+
+          .attendance-punch-error {
+            padding: 8px 10px;
+            font-size: 10px;
+            line-height: 1.35;
+            word-break: break-word;
+          }
+
+          /* ---------- Bottom Action ---------- */
+
+          .attendance-punch-footer {
+            flex: 0 0 auto;
+            padding: 10px 12px 12px;
+            background: #ffffff;
+            border-top: 1px solid #e2e8f0;
+          }
+
+          .attendance-punch-exception-button {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 12px;
+            font-size: 12.5px;
+            border-radius: 10px;
+          }
+
+          .attendance-punch-action-btn {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 12px;
+            font-size: 13px;
+            border-radius: 10px;
+          }
+
           .punch-attendance-modal {
             width: 100% !important;
             max-width: calc(100vw - 20px) !important;
@@ -1851,9 +2458,50 @@ export default function HeroBanner({
             border-radius: 14px !important;
             margin: auto;
           }
+
           .punch-attendance-body {
             padding: 12px !important;
             gap: 10px !important;
+          }
+        }
+
+        /* ---------- Ultra-compact Mobile (<380px) ---------- */
+        @media (max-width: 380px) {
+          .attendance-punch-header {
+            padding: 12px 10px;
+          }
+
+          .attendance-punch-title {
+            font-size: 14.5px;
+          }
+
+          .attendance-punch-subtitle {
+            font-size: 10px;
+          }
+
+          .attendance-punch-test-mode {
+            padding: 5px 6px;
+            font-size: 9.5px;
+          }
+
+          .attendance-punch-close {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 28px;
+          }
+
+          .attendance-punch-body {
+            padding: 8px;
+            gap: 8px;
+          }
+
+          .attendance-punch-camera {
+            height: 170px;
+            min-height: 170px;
+          }
+
+          .attendance-punch-footer {
+            padding: 8px 10px 10px;
           }
         }
       `}</style>

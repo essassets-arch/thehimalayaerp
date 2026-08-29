@@ -14,7 +14,7 @@ import { getBackendAssetUrl } from '../../lib/assetUrl';
 import SecureImage from './SecureImage';
 
 export default function MyProfileView() {
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('attendance');
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState([]);
   const [salarySlips, setSalarySlips] = useState([]);
@@ -511,7 +511,6 @@ export default function MyProfileView() {
         }}
       >
         {[
-          { key: 'profile', label: 'Personal Information', icon: User },
           { key: 'attendance', label: 'Attendance Records', icon: Calendar },
           { key: 'salary', label: 'Salary Slips', icon: FileText },
           { key: 'expenses', label: 'Expense Center', icon: CreditCard },
@@ -536,47 +535,6 @@ export default function MyProfileView() {
       {/* 3. Dynamic Tabs Content Viewports */}
       <div style={{ width: '100%' }}>
         
-        {/* Profile Tab */}
-        {activeTab === 'profile' && (
-          <div className="app-card" style={{ background: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', margin: '0 0 16px 0' }}>
-              Employee Registry Profile
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Full Employee Name</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#334155' }}>{pData.name}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Department Unit</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#334155' }}>{pData.department}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Designation / Job Title</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#334155' }}>{pData.designation}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Joining Date</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#334155' }}>
-                  {new Date(pData.joiningDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Work Location Node</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#334155', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <MapPin size={14} style={{ color: '#0284c7' }} /> {pData.location}
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Corporate Access Status</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <ShieldCheck size={14} /> ACTIVE EMPLOYEE
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Attendance Tab */}
         {activeTab === 'attendance' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
