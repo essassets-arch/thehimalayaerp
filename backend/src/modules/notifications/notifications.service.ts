@@ -130,10 +130,17 @@ export class NotificationsService {
 
     // 2. Attempt push notification delivery sequentially
     try {
-      const deviceTokens = await this.prisma.fcmDeviceToken.findMany({
-        where: { userId, companyId },
+      let deviceTokens = await this.prisma.fcmDeviceToken.findMany({
+        where: { userId, ...(companyId ? { companyId } : {}) },
         select: { token: true },
       });
+
+      if (deviceTokens.length === 0) {
+        deviceTokens = await this.prisma.fcmDeviceToken.findMany({
+          where: { userId },
+          select: { token: true },
+        });
+      }
 
       if (deviceTokens.length === 0) {
         // Safe state: Bell = CREATED, Push = NOT_ATTEMPTED (NO_TOKENS)

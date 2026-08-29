@@ -117,10 +117,17 @@ export class FirebasePushService implements OnModuleInit {
     }
 
     try {
-      const deviceTokens = await this.prisma.fcmDeviceToken.findMany({
-        where: { userId, companyId },
+      let deviceTokens = await this.prisma.fcmDeviceToken.findMany({
+        where: { userId, ...(companyId ? { companyId } : {}) },
         select: { id: true, token: true },
       });
+
+      if (deviceTokens.length === 0) {
+        deviceTokens = await this.prisma.fcmDeviceToken.findMany({
+          where: { userId },
+          select: { id: true, token: true },
+        });
+      }
 
       if (deviceTokens.length === 0) {
         return null;
@@ -135,10 +142,24 @@ export class FirebasePushService implements OnModuleInit {
         }
       }
 
+      const targetRoute = data?.route || '/';
+
       const message: MulticastMessage = {
         notification: {
           title,
           body,
+        },
+        webpush: {
+          notification: {
+            title,
+            body,
+            icon: '/icon.png',
+            badge: '/badge.png',
+            requireInteraction: true,
+          },
+          fcmOptions: {
+            link: targetRoute,
+          },
         },
         data: stringData,
         tokens,
