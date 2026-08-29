@@ -375,15 +375,21 @@ export class LocationService {
           },
         },
         deviceSessions: {
+          orderBy: {
+            lastSeenAt: 'desc',
+          },
           include: {
             latestLocation: true,
           },
         },
       },
+      orderBy: {
+        name: 'asc',
+      },
     });
 
     return users.map((u) => {
-      const sessions = u.deviceSessions.map((ds) => {
+      const sessions = (u.deviceSessions || []).map((ds) => {
         let status: 'ONLINE' | 'RECENTLY_ACTIVE' | 'OFFLINE' = 'OFFLINE';
         if (ds.lastSeenAt >= onlineCutoff) {
           status = 'ONLINE';

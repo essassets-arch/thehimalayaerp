@@ -202,20 +202,30 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       return;
     }
 
-    // Connect to port 4000 NestJS backend
-    const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL ||
-      process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL ||
-      (typeof window !== 'undefined'
-        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? `${window.location.protocol}//${window.location.hostname}:4000`
-            : window.location.origin)
-        : 'http://localhost:4000');
+    // Connect to NestJS backend Socket.IO
+    // Development: http://localhost:4000
+    // Production: same-origin (https://thehimalaya.cloud) with /socket.io handled via Caddy reverse proxy
+    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL || '';
+    if (typeof window !== 'undefined') {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (isLocalhost) {
+        socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4000`;
+      } else {
+        // In production, always use same-origin without hardcoded ports so requests proxy cleanly through Caddy
+        socketUrl = window.location.origin;
+      }
+    } else {
+      socketUrl = socketUrl || 'http://localhost:4000';
+    }
 
     const socket = io(socketUrl, {
       path: '/socket.io',
       auth: { token: accessToken },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     socketRef.current = socket;
@@ -223,7 +233,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     socket.on('connect', () => {
       const { browser, os, deviceType } = parseUserAgent();
 
-      // Register device session
+      // Register device session on every connect / reconnect
       socket.emit(
         'device:register',
         {

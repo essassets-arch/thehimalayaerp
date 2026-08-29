@@ -111,11 +111,13 @@ export const initializePushNotifications = async () => {
     }
 
     const validateVapidKey = (value) => {
-      const key = value?.trim().replace(/^['"]|['"]$/g, ''); // strip any accidental quotes
+      if (!value) return null;
+      const key = String(value).trim().replace(/^['"]|['"]$/g, '').trim();
       if (!key || key === 'undefined' || key === 'null') {
         return null;
       }
-      if (!/^[A-Za-z0-9_-]+$/.test(key)) {
+      // Valid VAPID keys can be standard Base64 (+, /, =) or URL-safe Base64 (-, _)
+      if (!/^[A-Za-z0-9_\-+/=]+$/.test(key)) {
         console.warn("[Firebase Client] NEXT_PUBLIC_FIREBASE_VAPID_KEY contains invalid characters. Push notifications disabled.");
         return null;
       }

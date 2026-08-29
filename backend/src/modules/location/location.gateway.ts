@@ -69,17 +69,20 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const { role, companyId, permissions } = socket.data.user;
 
-      // Check if user is Super Admin or has live map permission
+      // Check if user is Super Admin, Admin, or has live map permission
       const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
       const isSuperAdmin = normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'SUPER_ADMIN_ROLE' || normalizedRole === 'SUPER_ADMIN_PORTAL';
-      const hasMapPermission = permissions.includes('LIVE_USER_MAP_VIEW');
+      const isAdmin = isSuperAdmin || normalizedRole === 'ADMIN' || normalizedRole.includes('ADMIN') || normalizedRole.includes('PLANT_HEAD') || normalizedRole.includes('HR') || normalizedRole.includes('DIRECTOR') || normalizedRole.includes('MANAGEMENT');
+      const hasMapPermission = (permissions && permissions.includes('LIVE_USER_MAP_VIEW')) || isAdmin;
 
-      if (isSuperAdmin || hasMapPermission) {
-        const roomName = `company:${companyId}:live-users`;
-        await socket.join(roomName);
-        this.logger.log(`Admin ${socket.data.user.email} joined real-time dashboard room: ${roomName}`);
+      if (hasMapPermission) {
+        if (companyId) {
+          const roomName = `company:${companyId}:live-users`;
+          await socket.join(roomName);
+          this.logger.log(`Admin ${socket.data.user.email} joined real-time dashboard room: ${roomName}`);
+        }
 
-        if (isSuperAdmin) {
+        if (isSuperAdmin || !companyId) {
           await socket.join('global:live-users');
           this.logger.log(`Super Admin ${socket.data.user.email} joined global real-time room: global:live-users`);
         }
@@ -97,7 +100,6 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.logger.log(`User disconnected: ${socket.data.user.email} (${socket.id})`);
       // Update disconnect logs but rely on lastSeenAt for offline determination
       const companyId = socket.data.user.companyId;
-      const roomName = `company:${companyId}:live-users`;
       
       const disconnectData = {
         userId: socket.data.user.userId,
@@ -105,7 +107,10 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
         disconnectedAt: new Date().toISOString(),
       };
 
-      this.server.to(roomName).emit('device:disconnected', disconnectData);
+      if (companyId) {
+        const roomName = `company:${companyId}:live-users`;
+        this.server.to(roomName).emit('device:disconnected', disconnectData);
+      }
       this.server.to('global:live-users').emit('device:disconnected', disconnectData);
     }
   }
@@ -126,7 +131,6 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       const result = await this.locationService.registerSession(user.userId, user.companyId, dto);
       socket.data.sessionId = result.sessionId;
 
-      const roomName = `company:${user.companyId}:live-users`;
       const payload = {
         userId: user.userId,
         email: user.email,
@@ -144,7 +148,10 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
         status: 'ONLINE',
       };
 
-      this.server.to(roomName).emit('device:connected', payload);
+      if (user.companyId) {
+        const roomName = `company:${user.companyId}:live-users`;
+        this.server.to(roomName).emit('device:connected', payload);
+      }
       this.server.to('global:live-users').emit('device:connected', payload);
 
       return { success: true, sessionId: result.sessionId };
@@ -168,7 +175,6 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
     try {
       await this.locationService.heartbeat(user.userId, body.sessionId);
 
-      const roomName = `company:${user.companyId}:live-users`;
       const payload = {
         userId: user.userId,
         sessionId: body.sessionId,
@@ -176,8 +182,10 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
         status: 'ONLINE',
       };
 
-      this.server.to(roomName).emit('device:heartbeat', payload);
-      this.server.to('global:live-users').emit('device:heartbeat', payload);
+      if (user.companyId) {
+        const roomName = `company:${user.companyId}:live-users`;
+        this.server.to(roomName).emit('device:heartbeat', payload);
+      }
 
       return { success: true };
     } catch (err: any) {

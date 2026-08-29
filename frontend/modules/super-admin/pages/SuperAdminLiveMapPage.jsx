@@ -332,6 +332,8 @@ export default function SuperAdminLiveMapPage() {
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapsError, setMapsError] = useState(null);
   const [liveStatus, setLiveStatus] = useState('OFFLINE'); // 'LIVE' | 'RECONNECTING' | 'OFFLINE'
+  const [lastRestSync, setLastRestSync] = useState(null);
+  const [lastSocketEvent, setLastSocketEvent] = useState(null);
 
   // Mode & Route History States
   const [mode, setMode] = useState('LIVE'); // 'LIVE' | 'HISTORY'
@@ -393,7 +395,7 @@ export default function SuperAdminLiveMapPage() {
   // Dynamic values derived from env
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-  // 1. Fetch live users snapshot (REST)
+  // 1. Fetch live users snapshot (Authoritative REST)
   const fetchSnapshot = useCallback(async () => {
     try {
       let data = await backendFetch('/super-admin/live-users');
@@ -401,12 +403,14 @@ export default function SuperAdminLiveMapPage() {
         data = await backendFetch('/location/live-users');
       }
       setUsersData(data || []);
+      setLastRestSync(new Date().toLocaleTimeString());
       setLoading(false);
       return data || [];
     } catch (err) {
       try {
         const data = await backendFetch('/location/live-users');
         setUsersData(data || []);
+        setLastRestSync(new Date().toLocaleTimeString());
         setLoading(false);
         return data || [];
       } catch (fallbackErr) {
@@ -491,23 +495,36 @@ export default function SuperAdminLiveMapPage() {
   useEffect(() => {
     if (!accessToken) return;
 
-    const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL ||
-      process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL ||
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? `${window.location.protocol}//${window.location.hostname}:4000`
-        : window.location.origin);
+    // Connect to NestJS backend Socket.IO
+    // Development: http://localhost:4000
+    // Production: same-origin (https://thehimalaya.cloud) with /socket.io handled via Caddy reverse proxy
+    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL || '';
+    if (typeof window !== 'undefined') {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (isLocalhost) {
+        socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4000`;
+      } else {
+        socketUrl = window.location.origin;
+      }
+    } else {
+      socketUrl = socketUrl || 'http://localhost:4000';
+    }
 
     const socket = io(socketUrl, {
       path: '/socket.io',
       auth: { token: accessToken },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
       setLiveStatus('LIVE');
+      setLastSocketEvent({ name: 'connect', time: new Date().toLocaleTimeString() });
       fetchSnapshot();
     });
 
@@ -517,13 +534,16 @@ export default function SuperAdminLiveMapPage() {
 
     socket.on('disconnect', () => {
       setLiveStatus('OFFLINE');
+      setLastSocketEvent({ name: 'disconnect', time: new Date().toLocaleTimeString() });
     });
 
-    socket.on('device:connected', () => {
+    socket.on('device:connected', (data) => {
+      setLastSocketEvent({ name: 'device:connected', time: new Date().toLocaleTimeString() });
       fetchSnapshot();
     });
 
     socket.on('device:disconnected', (data) => {
+      setLastSocketEvent({ name: 'device:disconnected', time: new Date().toLocaleTimeString() });
       setUsersData((prev) =>
         prev.map((u) => {
           if (u.userId !== data.userId) return u;
@@ -539,8 +559,14 @@ export default function SuperAdminLiveMapPage() {
     });
 
     socket.on('device:heartbeat', (data) => {
-      setUsersData((prev) =>
-        prev.map((u) => {
+      setLastSocketEvent({ name: 'device:heartbeat', time: new Date().toLocaleTimeString() });
+      setUsersData((prev) => {
+        const exists = prev.some((u) => u.userId === data.userId && u.sessions.some((s) => s.sessionId === data.sessionId));
+        if (!exists) {
+          fetchSnapshot();
+          return prev;
+        }
+        return prev.map((u) => {
           if (u.userId !== data.userId) return u;
           return {
             ...u,
@@ -549,11 +575,12 @@ export default function SuperAdminLiveMapPage() {
               return { ...s, status: 'ONLINE', lastSeenAt: new Date(data.lastSeenAt) };
             }),
           };
-        })
-      );
+        });
+      });
     });
 
     socket.on('user:location:update', (data) => {
+      setLastSocketEvent({ name: 'user:location:update', time: new Date().toLocaleTimeString() });
       setUsersData((prev) =>
         prev.map((u) => {
           if (u.userId !== data.userId) return u;
@@ -579,6 +606,7 @@ export default function SuperAdminLiveMapPage() {
     });
 
     socket.on('device:permission:update', (data) => {
+      setLastSocketEvent({ name: 'device:permission:update', time: new Date().toLocaleTimeString() });
       setUsersData((prev) =>
         prev.map((u) => {
           if (u.userId !== data.userId) return u;
@@ -599,7 +627,7 @@ export default function SuperAdminLiveMapPage() {
     };
   }, [accessToken, fetchSnapshot]);
 
-  // Initial load and periodic background polling to keep data live
+  // Initial load and periodic background polling (authoritative 4s interval)
   useEffect(() => {
     fetchSnapshot();
     const interval = setInterval(() => {
@@ -1205,6 +1233,7 @@ export default function SuperAdminLiveMapPage() {
 
       let userIsOnline = false;
       let userHasLoc = false;
+      let userHasOnlineGps = false;
 
       if (u.sessions && u.sessions.length > 0) {
         u.sessions.forEach((s) => {
@@ -1220,12 +1249,11 @@ export default function SuperAdminLiveMapPage() {
           if (s.status === 'ONLINE') {
             userIsOnline = true;
             if (s.location) {
-              onlineGpsCount++;
+              userHasOnlineGps = true;
             }
           }
           if (s.location) {
             userHasLoc = true;
-            withLocation++;
           }
         });
       }
@@ -1234,9 +1262,16 @@ export default function SuperAdminLiveMapPage() {
         onlineUsersCount++;
         counts[userCategory].online++;
       }
+      if (userHasOnlineGps) {
+        onlineGpsCount++;
+      }
       if (userHasLoc) {
+        withLocation++;
         counts[userCategory].withLocation++;
       }
+
+      // Safely select the most recently active session
+      const activeSession = u.sessions?.find(s => s.status === 'ONLINE') || (u.sessions && u.sessions.length > 0 ? u.sessions[0] : null);
 
       staffList.push({
         userId: u.userId,
@@ -1246,15 +1281,18 @@ export default function SuperAdminLiveMapPage() {
         category: userCategory,
         isOnline: userIsOnline,
         sessions: u.sessions || [],
-        latestSession: u.sessions?.[0] || null,
+        latestSession: activeSession,
       });
     });
+
+    const onlineAwaitingGpsCount = Math.max(0, onlineUsersCount - onlineGpsCount);
 
     return {
       stats: {
         totalUsers,
         onlineUsersCount,
         onlineGpsCount,
+        onlineAwaitingGpsCount,
         withLocation,
         allSessions,
       },
@@ -1427,6 +1465,91 @@ export default function SuperAdminLiveMapPage() {
             `}</style>
             <span style={{ color: liveStatus === 'LIVE' ? '#15803D' : liveStatus === 'RECONNECTING' ? '#B45309' : '#B91C1C' }}>
               {liveStatus === 'LIVE' ? 'LIVE SYNC' : liveStatus === 'RECONNECTING' ? 'RECONNECTING...' : 'OFFLINE'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 1.5 LIVE PIPELINE DIAGNOSTIC TELEMETRY BAR ───────────────────────── */}
+      <div style={{
+        background: '#0F172A',
+        color: '#F8FAFC',
+        border: '1px solid #1E293B',
+        borderRadius: '10px',
+        padding: '8px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px',
+        fontSize: '11.5px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: liveStatus === 'LIVE' ? '#10B981' : liveStatus === 'RECONNECTING' ? '#F59E0B' : '#EF4444',
+            boxShadow: liveStatus === 'LIVE' ? '0 0 8px #10B981' : 'none',
+          }} />
+          <span style={{ fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: '#94A3B8', fontSize: '10.5px' }}>
+            Pipeline Telemetry
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: '#94A3B8' }}>Live Staff:</span>
+            <strong style={{ color: '#FFFFFF' }}>{stats.totalUsers}</strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <span style={{ color: '#6EE7B7' }}>🟢 Online:</span>
+            <strong style={{ color: '#FFFFFF' }}>{stats.onlineUsersCount}</strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(59, 130, 246, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+            <span style={{ color: '#93C5FD' }}>📍 With GPS:</span>
+            <strong style={{ color: '#FFFFFF' }}>{stats.onlineGpsCount}</strong>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            background: stats.onlineAwaitingGpsCount > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(148, 163, 184, 0.1)',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            border: stats.onlineAwaitingGpsCount > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(148, 163, 184, 0.2)',
+          }}>
+            <span style={{ color: stats.onlineAwaitingGpsCount > 0 ? '#FCD34D' : '#94A3B8' }}>⚪ Awaiting GPS:</span>
+            <strong style={{ color: '#FFFFFF' }}>{stats.onlineAwaitingGpsCount}</strong>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            background: liveStatus === 'LIVE' ? 'rgba(16, 185, 129, 0.2)' : liveStatus === 'RECONNECTING' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+            color: liveStatus === 'LIVE' ? '#6EE7B7' : liveStatus === 'RECONNECTING' ? '#FCD34D' : '#FCA5A5',
+            fontWeight: 600,
+            fontSize: '10.5px',
+          }}>
+            🔌 Socket: <strong>{liveStatus === 'LIVE' ? 'CONNECTED' : liveStatus}</strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', color: '#CBD5E1' }}>
+            <span style={{ color: '#64748B' }}>🔄 REST:</span>
+            <span style={{ fontFamily: 'monospace', color: '#E2E8F0' }}>{lastRestSync || 'Syncing...'}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', color: '#CBD5E1' }}>
+            <span style={{ color: '#64748B' }}>⚡ Socket:</span>
+            <span style={{ fontFamily: 'monospace', color: '#38BDF8' }}>
+              {lastSocketEvent ? `${lastSocketEvent.name} (${lastSocketEvent.time})` : 'Listening...'}
             </span>
           </div>
         </div>
@@ -2075,13 +2198,19 @@ export default function SuperAdminLiveMapPage() {
                           </span>
 
                           <span style={{
-                            color: hasLiveLocation ? '#10B981' : hasAnyLocation ? '#F59E0B' : '#94A3B8',
+                            color: hasLiveLocation ? '#10B981' : staff.isOnline ? '#64748B' : hasAnyLocation ? '#F59E0B' : '#94A3B8',
                             fontWeight: 600,
                             display: 'flex',
                             alignItems: 'center',
                             gap: '3px',
                           }}>
-                            {hasLiveLocation ? '📍 Live GPS' : hasAnyLocation ? '📍 Last Known' : '⚪ Awaiting GPS'}
+                            {hasLiveLocation
+                              ? '📍 Live GPS'
+                              : staff.isOnline
+                              ? '⚪ Awaiting GPS'
+                              : hasAnyLocation
+                              ? '📍 Last Known'
+                              : '⚪ No GPS'}
                           </span>
                         </div>
 
